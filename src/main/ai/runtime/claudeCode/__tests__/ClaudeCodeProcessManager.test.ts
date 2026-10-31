@@ -396,6 +396,28 @@ describe('ClaudeCodeProcessManager', () => {
     await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(0))
   })
 
+  it('does not let an unrelated live spawn consume another connection preflight reservation', () => {
+    const spawnProcess = vi.fn(() => createFakeChild().process)
+    const manager = new TestProcessManager(spawnProcess)
+    for (let i = 0; i < 6; i++) expect(manager.tryReserveLiveSpawnPreflight()).toBe(true)
+    expect(() => manager.spawn(spawnOptions)).toThrow('Claude Code CLI process cap reached')
+    expect(spawnProcess).not.toHaveBeenCalled()
+    expect(manager.getActiveProcessCount()).toBe(6)
+  })
+
+  it('converts only the explicitly owned reservation when a cold start spawns', () => {
+    const spawnProcess = vi.fn(() => createFakeChild().process)
+    const manager = new TestProcessManager(spawnProcess)
+    for (let i = 0; i < 6; i++) expect(manager.tryReserveLiveSpawnPreflight()).toBe(true)
+    manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics(), 'live', true)
+    expect(spawnProcess).toHaveBeenCalledOnce()
+    expect(manager.getActiveProcessCount()).toBe(6)
+    expect(() => manager.spawn(spawnOptions)).toThrow('Claude Code CLI process cap reached')
+    expect(manager.getActiveProcessCount()).toBe(6)
+    manager.releaseLiveSpawnPreflight()
+    expect(manager.getActiveProcessCount()).toBe(5)
+  })
+
   it('holds a live preflight reservation against the last spawn slot', () => {
     const manager = new TestProcessManager(vi.fn(() => createFakeChild().process))
     for (let i = 0; i < 5; i++) {

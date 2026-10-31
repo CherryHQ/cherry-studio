@@ -2,16 +2,16 @@ import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isAgentOnlyProvider } from '@shared/utils/provider'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
 import type {
@@ -111,6 +111,7 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
+  const { isModelHidden, isModelUnavailable, getModelDescription } = useCherryCloudModelAvailability(enabled)
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
   const baseModelFilter = useCallback(
@@ -119,10 +120,7 @@ export function useModelSelectorData({
   )
 
   const agentOnlyProviderIds = useMemo(() => {
-    const edition = getAppEdition()
-    return new Set(
-      providers.filter((provider) => isAgentOnlyProvider(provider, edition)).map((provider) => provider.id)
-    )
+    return new Set(providers.filter(isExternalCliProvider).map((provider) => provider.id))
   }, [providers])
 
   const sortedProviders = useMemo(
@@ -145,6 +143,9 @@ export function useModelSelectorData({
       if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
+      if (isModelHidden(model, includeAgentOnlyModels)) {
+        continue
+      }
 
       const existingModels = grouped.get(model.providerId)
       if (existingModels) {
@@ -155,7 +156,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, isModelHidden, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {
@@ -371,6 +372,8 @@ export function useModelSelectorData({
 
   return {
     availableTags,
+    getModelDescription,
+    isModelUnavailable,
     isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,

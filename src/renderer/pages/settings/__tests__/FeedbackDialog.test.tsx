@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
+  showDoctor: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -24,6 +25,10 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (...args: unknown[]) => mocks.ipcRequest(...args)
   }
+}))
+
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
@@ -61,14 +66,28 @@ describe('FeedbackDialog', () => {
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
   })
 
-  it('keeps the feedback assistant and GitHub in order without the moved report entry', () => {
+  it('places report a problem before the feedback assistant and GitHub', () => {
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
     const agent = screen.getByRole('button', { name: /Feedback assistant/ })
     const github = screen.getByRole('button', { name: /GitHub Issue/ })
+    const report = screen.getByRole('button', { name: /Report a problem/i })
 
-    expect(screen.queryByRole('button', { name: /Report a problem/i })).not.toBeInTheDocument()
+    expect(report.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('closes feedback before opening the problem report panel', async () => {
+    mocks.showDoctor.mockImplementationOnce(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      return Promise.resolve()
+    })
+    render(<ControlledFeedbackDialog />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Report a problem/i }))
+
+    await waitFor(() => expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' }))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
   it('creates an isolated feedback session before opening the Agent route', async () => {

@@ -484,7 +484,7 @@ describe('ClientMcpConnection health checks', () => {
   }
   it.each([
     { era: 'modern' as const, expected: 'discover', skipped: 'ping' },
-    { era: 'legacy' as const, expected: 'ping', skipped: 'discover' }
+    { era: 'legacy' as const, expected: 'request', skipped: 'discover' }
   ])('bounds $era health checks', async ({ era, expected, skipped }) => {
     const connection = new ClientMcpConnection(
       { name: 'test', version: '1' },
@@ -501,7 +501,11 @@ describe('ClientMcpConnection health checks', () => {
 
     await connection.health()
 
-    expect(health).toHaveBeenCalledWith({ timeout: 5_000 })
+    if (era === 'legacy') {
+      expect(health).toHaveBeenCalledWith({ method: 'ping' }, expect.any(Object), { timeout: 5_000 })
+    } else {
+      expect(health).toHaveBeenCalledWith({ timeout: 5_000 })
+    }
     expect(other).not.toHaveBeenCalled()
   })
 
@@ -531,7 +535,7 @@ describe('ClientMcpConnection health checks', () => {
     'confirms $era liveness with fresh $method and retains the working method',
     async ({ era, error, capabilities, method, result }) => {
       const { connection, client } = healthConnection(era, capabilities)
-      const primary = vi.spyOn(client, era === 'legacy' ? 'ping' : 'discover').mockRejectedValue(error)
+      const primary = vi.spyOn(client, era === 'legacy' ? 'request' : 'discover').mockRejectedValue(error)
       const other = vi.spyOn(client, era === 'legacy' ? 'discover' : 'ping')
       const confirm = vi.spyOn(client, method).mockResolvedValue(result)
       await expect(connection.health()).resolves.toBeUndefined()
@@ -555,7 +559,7 @@ describe('ClientMcpConnection health checks', () => {
   ])('does not bypass an unconfirmable health failure: $error', async ({ error, connected, capabilities }) => {
     const { connection, client } = healthConnection('legacy', capabilities)
     vi.spyOn(client, 'transport', 'get').mockReturnValue(connected ? {} : undefined)
-    vi.spyOn(client, 'ping').mockRejectedValue(error)
+    vi.spyOn(client, 'request').mockRejectedValue(error)
     const confirm = vi.spyOn(client, 'listTools').mockResolvedValue({ tools: [] })
     await expect(connection.health()).rejects.toBe(error)
     expect(confirm).not.toHaveBeenCalled()
@@ -563,7 +567,7 @@ describe('ClientMcpConnection health checks', () => {
 
   it('reports a failed fresh confirmation instead of accepting cached tools', async () => {
     const { connection, client } = healthConnection()
-    vi.spyOn(client, 'ping').mockRejectedValue(new ProtocolError(ProtocolErrorCode.MethodNotFound, 'unsupported'))
+    vi.spyOn(client, 'request').mockRejectedValue(new ProtocolError(ProtocolErrorCode.MethodNotFound, 'unsupported'))
     const failure = new SdkError(SdkErrorCode.RequestTimeout, 'catalog timeout')
     const confirm = vi
       .spyOn(client, 'listTools')

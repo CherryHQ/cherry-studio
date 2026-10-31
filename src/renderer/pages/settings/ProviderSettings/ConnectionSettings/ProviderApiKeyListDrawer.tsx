@@ -11,9 +11,9 @@ import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
-import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 
 interface ProviderApiKeyListDrawerProps {
   providerId: string
@@ -302,9 +302,10 @@ interface ApiKeyDisplayRowProps {
 function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: ApiKeyDisplayRowProps) {
   const { t } = useTranslation()
   const maskedKey = maskApiKey(entry.key)
+  const [copied, copy] = useCopyToClipboard()
   const handleCopy = useCallback(() => {
-    void copyApiKeyToClipboard(entry.key, t)
-  }, [entry.key, t])
+    void copy(entry.key)
+  }, [copy, entry.key])
 
   return (
     <div className={apiKeyListClasses.keyDisplayRow}>
@@ -326,7 +327,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
             aria-label={t('settings.provider.api_key.copy')}
             disabled={saving}
             onClick={handleCopy}>
-            <Copy />
+            {copied ? <Check className="text-success" /> : <Copy />}
           </button>
         </Tooltip>
         <Tooltip content={t('common.edit')}>

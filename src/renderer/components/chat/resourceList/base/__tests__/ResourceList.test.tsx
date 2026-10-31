@@ -223,6 +223,53 @@ function droppableData(id: string) {
   return { current: data }
 }
 
+type SectionedItem = ResourceListItemBase & { group: string; section: string }
+
+function renderSectionedGroupDrag(sectionOnly = false) {
+  const onReorder = vi.fn()
+  const allowedIds = new Set(sectionOnly ? ['section:x', 'section:y'] : ['inner:a', 'inner:b', 'inner:c', 'inner:d'])
+  const Provider = ResourceList.Provider<SectionedItem>
+  render(
+    <Provider
+      items={[
+        { id: 'a1', name: 'Item A1', group: 'a', section: 'x' },
+        { id: 'b1', name: 'Item B1', group: 'b', section: 'x' },
+        { id: 'c1', name: 'Item C1', group: 'c', section: 'x' },
+        { id: 'd1', name: 'Item D1', group: 'd', section: 'y' }
+      ]}
+      groupBy={(item) => ({ id: `inner:${item.group}`, label: item.group.toUpperCase() })}
+      sectionBy={(item) => ({ id: `section:${item.section}`, label: item.section.toUpperCase() })}
+      collapsedState={[]}
+      dragCapabilities={{ groups: true, items: false }}
+      canDragGroup={(group) => allowedIds.has(group.id)}
+      canDropGroup={({ activeGroupId, overGroupId }) => allowedIds.has(activeGroupId) && allowedIds.has(overGroupId)}
+      onReorder={onReorder}>
+      <ResourceList.VirtualDraggableItems<SectionedItem>
+        renderItem={(item) => (
+          <ResourceList.Item item={item}>
+            <span>{item.name}</span>
+          </ResourceList.Item>
+        )}
+      />
+    </Provider>
+  )
+  return onReorder
+}
+
+function previewGroupDrag(activeId: string, overId: string) {
+  const event = {
+    active: {
+      data: sortableData(activeId),
+      id: activeId,
+      rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
+    },
+    over: { data: sortableData(overId), id: overId }
+  }
+  act(() => dndMocks.onDragStart?.(event))
+  act(() => dndMocks.onDragOver?.(event))
+  return event
+}
+
 describe('ResourceList', () => {
   it('renders grouped loading placeholders', () => {
     const { container } = render(<ResourceList.LoadingState />)
@@ -1361,6 +1408,86 @@ describe('ResourceList', () => {
       sourceIndex: 0,
       targetIndex: 2
     })
+  })
+
+  it('shows an inner-group insertion preview with visible sections when moving downward', () => {
+    const onReorder = renderSectionedGroupDrag()
+    const event = previewGroupDrag('group:inner:a', 'group:inner:b')
+
+    const indicators = document.querySelectorAll('[data-drop-indicator]')
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
+    expect(indicators[0].parentElement).toBe(screen.getByText('Item B1').closest('[data-sortable-id="item:b1"]'))
+    for (const [label, id] of [
+      ['B', 'inner:b'],
+      ['C', 'inner:c']
+    ]) {
+      const header = screen.getByRole('button', { name: label }).closest(`[data-sortable-id="group:${id}"]`)
+      expect(header).toBeInTheDocument()
+      expect(header?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
+    }
+    expect(
+      screen.getByText('Item C1').closest('[data-sortable-id]')?.querySelector('[data-drop-indicator]')
+    ).not.toBeInTheDocument()
+    for (const label of ['X', 'Y']) {
+      const header = screen.getByRole('button', { name: label }).closest('[data-drop-blocked="true"]')
+      expect(header).toBeInTheDocument()
+      expect(header?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
+    }
+
+    act(() => dndMocks.onDragEnd?.(event))
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith({
+      type: 'group',
+      activeGroupId: 'inner:a',
+      overGroupId: 'inner:b',
+      overType: 'group',
+      sourceIndex: 1,
+      targetIndex: 2
+    })
+    expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(0)
+  })
+
+  it('shows an inner-group insertion preview with visible sections when moving upward', () => {
+    const onReorder = renderSectionedGroupDrag()
+    const event = previewGroupDrag('group:inner:c', 'group:inner:b')
+
+    const indicators = document.querySelectorAll('[data-drop-indicator]')
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'before')
+    expect(indicators[0].parentElement).toBe(
+      screen.getByRole('button', { name: 'B' }).closest('[data-sortable-id="group:inner:b"]')
+    )
+
+    act(() => dndMocks.onDragEnd?.(event))
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith({
+      type: 'group',
+      activeGroupId: 'inner:c',
+      overGroupId: 'inner:b',
+      overType: 'group',
+      sourceIndex: 3,
+      targetIndex: 2
+    })
+    expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(0)
+  })
+
+  it('keeps opted-in section insertion previews on the whole section extent', () => {
+    renderSectionedGroupDrag(true)
+    const downward = previewGroupDrag('group:section:x', 'group:section:y')
+    let indicators = document.querySelectorAll('[data-drop-indicator]')
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
+    expect(indicators[0].parentElement).toBe(screen.getByText('Item D1').closest('[data-sortable-id="item:d1"]'))
+    act(() => dndMocks.onDragEnd?.(downward))
+
+    const upward = previewGroupDrag('group:section:y', 'group:section:x')
+    indicators = document.querySelectorAll('[data-drop-indicator]')
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'before')
+    expect(indicators[0].parentElement).toBe(
+      screen.getByRole('button', { name: 'X' }).closest('[data-sortable-id="group:section:x"]')
+    )
+    act(() => dndMocks.onDragEnd?.(upward))
+    expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(0)
   })
 
   it('keeps grouped virtual items stable during drag over and reorders only on drop', () => {

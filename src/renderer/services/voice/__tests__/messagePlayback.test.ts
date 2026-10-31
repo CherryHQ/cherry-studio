@@ -53,15 +53,15 @@ describe('readMessageAloud', () => {
   })
 
   it.each(['```ts\nconst answer = 42\n```', '<pre><code>const answer = 42</code></pre>'])(
-    'quietly skips a code-only reply without changing playback state: %s',
+    'starts manual playback for a code-only reply: %s',
     async (text) => {
-      const playbackBefore = speechPlaybackService.getSnapshot()
+      const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({ status: 'started' })
 
       await readMessageAloud({ messageId: 'message-code', parts: parts({ type: 'text', text }) })
 
       expect(toast.error).not.toHaveBeenCalled()
       expect(popup.confirm).not.toHaveBeenCalled()
-      expect(speechPlaybackService.getSnapshot()).toEqual(playbackBefore)
+      expect(start).toHaveBeenCalledWith(expect.objectContaining({ text, trigger: 'manual', mode: 'document' }))
     }
   )
 

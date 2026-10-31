@@ -19,5 +19,5 @@ set "SPEECH_OUTPUT=%~1"
 if not defined SPEECH_OUTPUT set "SPEECH_OUTPUT=%~dp0..\dist\native\win32-x64"
 if not exist "%SPEECH_OUTPUT%" mkdir "%SPEECH_OUTPUT%"
 if errorlevel 1 exit /b 1
-cl /nologo /std:c++17 /EHsc /O2 /MT /W4 /WX /external:anglebrackets /external:W0 /utf-8 /DWIN32_LEAN_AND_MEAN /DNOMINMAX /DUNICODE /D_UNICODE "%~dp0SystemSpeechHelper.cpp" /Fo"%SPEECH_OUTPUT%\SystemSpeechHelper.obj" /Fe"%SPEECH_OUTPUT%\cherry-system-speech.exe" /link /MACHINE:X64 /INCREMENTAL:NO sapi.lib ole32.lib windowsapp.lib
+cl /nologo /std:c++17 /await:strict /EHsc /O2 /MT /W4 /WX /external:anglebrackets /external:W0 /utf-8 /DWIN32_LEAN_AND_MEAN /DNOMINMAX /DUNICODE /D_UNICODE "%~dp0SystemSpeechHelper.cpp" /Fo"%SPEECH_OUTPUT%\SystemSpeechHelper.obj" /Fe"%SPEECH_OUTPUT%\cherry-system-speech.exe" /link /MACHINE:X64 /INCREMENTAL:NO sapi.lib ole32.lib windowsapp.lib
 exit /b %errorlevel%

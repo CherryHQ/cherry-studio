@@ -12,6 +12,7 @@
     "build/**",
     "coverage/**",
     "dist/**",
+    "docs/sources-index.json",
     "out/**",
     "resources/**",
     "storybook-static/**",

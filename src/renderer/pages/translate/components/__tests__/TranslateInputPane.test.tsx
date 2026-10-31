@@ -27,7 +27,8 @@ vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async () => ({
+  BarVisualizer: (await import('@cherrystudio/ui/components/primitives/bar-visualizer')).BarVisualizer,
   Button: ({ children, ...props }: React.ComponentProps<'button'>) => (
     <button type="button" {...props}>
       {children}

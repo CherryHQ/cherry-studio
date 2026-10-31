@@ -4,10 +4,9 @@ import type { ReactNode } from 'react'
 import { type FC, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex, Scrollbar } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {

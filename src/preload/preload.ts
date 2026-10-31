@@ -1,6 +1,6 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
@@ -13,6 +13,7 @@ import type {
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
@@ -26,6 +27,7 @@ import type {
 } from '@shared/types/file'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { CommandId } from '@shared/utils/command'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 
 import { ipcApi } from './ipc'
 
@@ -44,9 +46,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
   application: {
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
-    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
-    relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
+    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId)
   },
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
@@ -112,7 +112,6 @@ const api = {
     mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
-    openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: (options?: OpenDialogOptions): Promise<string | null> =>
@@ -134,8 +133,7 @@ const api = {
     // to `DirectoryTreeBuilder` (see docs/references/file/directory-tree.md).
     // mutations via `window.api.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
-      ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
-    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
+      ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
@@ -153,18 +151,31 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Aes_Decrypt, encryptedData, iv, secretKey)
   },
   shell: {
-    openExternal: (url: string, options?: Electron.OpenExternalOptions) => {
-      // Defense-in-depth: validate URL scheme before forwarding to shell.openExternal
-      const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:', 'obsidian:']
-      try {
-        const parsed = new URL(url)
-        if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
-          return Promise.reject(new Error(`Blocked openExternal for untrusted URL scheme: ${parsed.protocol}`))
-        }
-      } catch {
-        return Promise.reject(new Error('Blocked openExternal for invalid URL'))
+    openExternal: async (url: string, options?: Electron.OpenExternalOptions): Promise<void> => {
+      if (!resolveSafeExternalUrl(url)) throw new Error('Blocked openExternal for invalid URL')
+      const result = await ipcApi.request('system.shell.open_external_website', { url, options })
+      if (typeof result !== 'object' || result === null || !('ok' in result)) {
+        throw new Error('Invalid IpcApi result')
       }
-      return shell.openExternal(url, options)
+      if (result.ok === true && 'data' in result && result.data === undefined) return
+      if (result.ok === false && 'error' in result) {
+        const error = result.error
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          typeof error.code === 'string' &&
+          'message' in error &&
+          typeof error.message === 'string'
+        ) {
+          throw IpcError.fromJSON({
+            code: error.code,
+            message: error.message,
+            data: 'data' in error ? error.data : undefined
+          })
+        }
+      }
+      throw new Error('Invalid IpcApi result')
     }
   },
   copilot: {

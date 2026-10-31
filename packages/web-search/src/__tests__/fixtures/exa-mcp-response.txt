@@ -1,0 +1,1 @@
+data: {"result":{"content":[{"type":"text","text":"Title: Exa MCP Title\nURL: https://mcp.exa.ai/result\nText: Exa MCP Content"}]}}

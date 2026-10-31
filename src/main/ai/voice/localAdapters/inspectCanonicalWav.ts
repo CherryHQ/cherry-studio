@@ -18,7 +18,11 @@ function invalidAudio(): never {
   throw new VoiceRuntimeError('invalid_audio')
 }
 
-export function inspectCanonicalWav(audio: Uint8Array): { durationSeconds: number } {
+export function inspectCanonicalWav(audio: Uint8Array): {
+  durationSeconds: number
+  dataOffset: number
+  dataBytes: number
+} {
   if (audio.byteLength > MAX_CANONICAL_WAV_BYTES) invalidAudio()
   if (audio.byteLength < 12) invalidAudio()
   const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength)
@@ -31,6 +35,7 @@ export function inspectCanonicalWav(audio: Uint8Array): { durationSeconds: numbe
   }
 
   let foundFormat = false
+  let dataOffset = 0
   let dataSize: number | undefined
   let offset = 12
 
@@ -57,11 +62,12 @@ export function inspectCanonicalWav(audio: Uint8Array): { durationSeconds: numbe
     } else if (matchesTag(audio, offset, 'data')) {
       if (dataSize !== undefined) invalidAudio()
       dataSize = chunkSize
+      dataOffset = payloadOffset
     }
 
     offset = payloadOffset + paddedSize
   }
 
   if (!foundFormat || dataSize === undefined || dataSize === 0 || dataSize % BLOCK_ALIGN !== 0) invalidAudio()
-  return { durationSeconds: dataSize / BYTE_RATE }
+  return { durationSeconds: dataSize / BYTE_RATE, dataOffset, dataBytes: dataSize }
 }

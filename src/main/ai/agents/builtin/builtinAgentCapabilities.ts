@@ -112,10 +112,19 @@ export function hostToolsEnabled(
   return resolveHostTools(agent, options) !== undefined
 }
 
-/**
- * The Cherry-owned MCP servers this session mounts — the one place that decides, so the server set
- * and the tool-approval policy derived from it cannot disagree.
- */
+/** Shared surface policy for automation tools and their bundled skills. */
+export function resolveAutomationAccess(
+  agent: Pick<AgentEntity, 'configuration' | 'disabledTools'>,
+  options: { channelLinked: boolean; browserEnabled?: boolean; computerUseEnabled?: boolean }
+): { browser: boolean; computer: boolean } {
+  const local = !options.channelLinked && resolveAgentCapabilities(agent).environment === 'open'
+  return {
+    browser: local && options.browserEnabled === true && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP),
+    computer: local && options.computerUseEnabled === true && !agent.disabledTools?.includes(COMPUTER_USE_TOOL_GROUP)
+  }
+}
+
+/** Resolve Cherry-owned servers for tool mounting and approval policy. */
 export function resolveMountedMcpServers(
   agent: Pick<AgentEntity, 'type' | 'configuration' | 'disabledTools'>,
   {
@@ -136,10 +145,8 @@ export function resolveMountedMcpServers(
   )
   if (!memoryDisabled) mounted.add(CHERRY_MCP_SERVER.AGENT_MEMORY)
   if (resolveAgentCapabilities(agent).environment === 'open') {
-    if (browserEnabled && !channelLinked && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP))
-      mounted.add(CHERRY_MCP_SERVER.BROWSER)
-    if (computerUseEnabled && !channelLinked && !agent.disabledTools?.includes(COMPUTER_USE_TOOL_GROUP))
-      mounted.add(CHERRY_MCP_SERVER.COMPUTER)
+    const automation = resolveAutomationAccess(agent, { channelLinked, browserEnabled, computerUseEnabled })
+    if (automation.browser || automation.computer) mounted.add(CHERRY_MCP_SERVER.AUTOMATION)
     mounted.add(CHERRY_MCP_SERVER.SKILLS)
     // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.
     mounted.add(CHERRY_MCP_SERVER.MCP_MANAGER)

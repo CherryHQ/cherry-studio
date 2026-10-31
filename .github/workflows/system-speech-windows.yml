@@ -11,6 +11,12 @@ on:
       - electron-builder.yml
       - .github/workflows/system-speech-windows.yml
       - pnpm-lock.yaml
+      - src/main/ai/voice/localAdapters/windows.ts
+      - src/main/ai/voice/localAdapters/__tests__/windows.test.ts
+      - src/main/ai/voice/localAdapters/inspectCanonicalWav.ts
+      - src/main/ai/voice/localAdapters/__tests__/apple.test.ts
+      - src/main/ai/voice/localAdapters/__tests__/funasr.test.ts
+      - src/main/ai/voice/localAdapters/nativeSupport.ts
   pull_request:
     paths:
       - packages/system-speech/**
@@ -19,6 +25,12 @@ on:
       - electron-builder.yml
       - .github/workflows/system-speech-windows.yml
       - pnpm-lock.yaml
+      - src/main/ai/voice/localAdapters/windows.ts
+      - src/main/ai/voice/localAdapters/__tests__/windows.test.ts
+      - src/main/ai/voice/localAdapters/inspectCanonicalWav.ts
+      - src/main/ai/voice/localAdapters/__tests__/apple.test.ts
+      - src/main/ai/voice/localAdapters/__tests__/funasr.test.ts
+      - src/main/ai/voice/localAdapters/nativeSupport.ts
   workflow_dispatch:
 
 permissions:
@@ -27,7 +39,7 @@ permissions:
 jobs:
   windows-x64:
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -41,6 +53,11 @@ jobs:
         run: pnpm --filter @cherrystudio/system-speech build:native -- --arch x64
       - name: Build native client
         run: pnpm --filter @cherrystudio/system-speech build
+      - name: Build workspace packages required by the adapter regression
+        run: pnpm run postinstall
+      - name: Run Windows ASR adapter regression
+        # Mocks the native helper. This does not recognize speech on the hosted runner.
+        run: pnpm exec vitest run --project main src/main/ai/voice/localAdapters/__tests__/windows.test.ts
       - name: Typecheck native client
         run: pnpm --filter @cherrystudio/system-speech typecheck
       - name: Test native client and smoke inspectors

@@ -54,7 +54,7 @@ describe('AutoReadService', () => {
   })
 
   it.each(['```ts\nconst value = 1\n```', '<pre><code>const value = 1</code></pre>'])(
-    'silently skips replies with no readable prose: %s',
+    'automatically reads a code-only reply: %s',
     async (text) => {
       const { coordinator, playback, reportError } = createHarness()
       await expect(
@@ -65,8 +65,8 @@ describe('AutoReadService', () => {
           isAbort: false,
           isError: false
         })
-      ).resolves.toMatchObject({ status: 'skipped', reason: 'empty' })
-      expect(playback.start).not.toHaveBeenCalled()
+      ).resolves.toMatchObject({ status: 'started' })
+      expect(playback.start).toHaveBeenCalledWith(expect.objectContaining({ text, trigger: 'auto_read' }))
       expect(reportError).not.toHaveBeenCalled()
     }
   )

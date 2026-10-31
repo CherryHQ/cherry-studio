@@ -9,7 +9,11 @@ export const testProjects = [
   'file-preview',
   'shared',
   'provider-registry',
+  'web-search',
   'scripts',
+  'agent-runtime',
+  'agent-runtime-pi',
+  'agent-runtime-pi-durable',
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
@@ -27,9 +31,16 @@ export const checkTasks = {
   'types-web': { group: 'types', args: ['typecheck:web'] },
   'types-aicore': { group: 'types', args: ['--filter', '@cherrystudio/ai-core', 'typecheck'] },
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
+  'types-agent-runtime-pi': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime-pi', 'typecheck'] },
+  'types-agent-runtime-pi-durable': {
+    group: 'types',
+    args: ['--filter', '@cherrystudio/agent-runtime-pi-durable', 'typecheck']
+  },
+  'types-agent-runtime': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime', 'typecheck'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
   'types-system-speech': { group: 'types', args: ['--filter', '@cherrystudio/system-speech', 'typecheck'] },
+  'types-web-search': { group: 'types', args: ['--filter', '@cherrystudio/web-search', 'typecheck'] },
   'types-file-preview': { group: 'types', args: ['--filter', '@cherrystudio/file-preview', 'typecheck'] },
   'i18n-catalog': { group: 'i18n', args: ['i18n:check'] },
   'i18n-unused': { group: 'i18n', args: ['i18n:unused:check'] },
@@ -41,10 +52,14 @@ const consumers = {
   renderer: ['renderer'],
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
+  'agent-runtime': ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main'],
+  'agent-runtime-pi': ['agent-runtime-pi', 'main'],
+  'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
+  'web-search': ['web-search', 'shared', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'remote-transport': ['remote-transport', 'main', 'preload', 'renderer'],
@@ -54,6 +69,11 @@ const consumers = {
 
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
+  if (
+    file === 'CONTRIBUTING.i18n.yaml' ||
+    ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
+  )
+    return 'docs'
   if (
     (file.startsWith('docs/') || file.startsWith('.agents/notes/') || file.startsWith('.changeset/')) &&
     file.endsWith('.md')
@@ -126,12 +146,21 @@ export function createPlan(files, fullReason) {
       add('types-node', file)
     if (affected.includes('renderer')) add('types-web', file)
     if (affected.includes('aiCore')) add('types-aicore', file)
+    if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
+    if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
+    if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
     if (affected.includes('system-speech')) add('types-system-speech', file)
+    if (affected.includes('web-search')) add('types-web-search', file)
     if (affected.includes('file-preview')) add('types-file-preview', file)
     if (scope === 'main' || scope === 'shared') add('migrations', file)
-    for (const task of ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']) add(task, file)
+    const inTestDirectory = file.split('/').includes('__tests__')
+    const testFile = inTestDirectory || /\.(?:test|spec)\.tsx?$/.test(file)
+    if (!testFile || (file.startsWith('src/main/') && !inTestDirectory)) add('i18n-catalog', file)
+    // Renderer unused-key analysis still reads tests, including those under src/main.
+    add('i18n-unused', file)
+    if (!inTestDirectory && !/\.test\.tsx?$/.test(file)) add('i18n-hardcoded', file)
   }
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),

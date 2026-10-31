@@ -16,6 +16,9 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   QWEN3_TTS_MODEL_ID,
+  QWEN3_TTS_BUNDLE_ID,
+  KOKORO_TTS_MODEL_ID,
+  KOKORO_TTS_BUNDLE_ID,
   VoiceResourceOperation
 } from '@shared/ai/localVoice'
 import {
@@ -387,6 +390,37 @@ describe('VoiceSettings', () => {
     expect(navigate).toHaveBeenCalledWith({ to: '/settings/local-models', hash: 'voice-resources' })
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(APPLE_ASR_MODEL_ID)
     expect(voice.funAsrDownload).not.toHaveBeenCalled()
+  })
+
+  it('opens the Qwen3 ASR resource card without replacing the current recognition model', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.listModels.mockResolvedValue({
+      models: [
+        ...models,
+        {
+          id: 'local-voice::qwen3-asr-1.7b',
+          name: 'Qwen3-ASR 1.7B (8-bit)',
+          localeSelection: null,
+          resourceOperations: [VoiceResourceOperation.Download]
+        }
+      ],
+      defaultAsrModelId: APPLE_ASR_MODEL_ID,
+      defaultSpeechModelId: APPLE_TTS_MODEL_ID
+    })
+    voice.getModelStatus.mockImplementation(async ({ modelId }) =>
+      modelId === 'local-voice::qwen3-asr-1.7b'
+        ? { status: 'not_installed', reason: 'model_required' }
+        : { status: 'ready' }
+    )
+    render(<VoiceSettings />)
+    const user = userEvent.setup()
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Recognition model' })).toHaveTextContent('Apple System')
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Recognition model' }))
+    await user.click(await screen.findByRole('option', { name: /Qwen3-ASR.*Download/ }))
+    expect(navigate).toHaveBeenCalledWith({ to: '/settings/local-models', hash: 'qwen3-asr-1.7b-8bit' })
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(APPLE_ASR_MODEL_ID)
   })
 
   it('selects FunASR when its download completes while the recognition menu stays open', async () => {
@@ -966,6 +1000,57 @@ describe('VoiceSettings', () => {
     expect(screen.getByRole('button', { name: 'Preview voice' })).toBeDisabled()
   })
 
+  it.each([
+    [QWEN3_TTS_MODEL_ID, QWEN3_TTS_BUNDLE_ID, /Qwen3-TTS.*Download/, false],
+    [KOKORO_TTS_MODEL_ID, KOKORO_TTS_BUNDLE_ID, /Kokoro.*Download/, false],
+    [KOKORO_TTS_MODEL_ID, KOKORO_TTS_BUNDLE_ID, /Kokoro.*Download/, true]
+  ] as const)(
+    'opens the download card for %s without changing the selected model',
+    async (modelId, bundleId, label, onlySpeechModel) => {
+      voice.listModels.mockResolvedValue({
+        models: [
+          ...(onlySpeechModel ? [] : models),
+          { id: modelId, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+        ]
+      })
+      voice.getModelStatus.mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
+      render(<VoiceSettings />)
+      const user = userEvent.setup()
+      await user.click(await screen.findByRole('combobox', { name: 'Speech model' }))
+      await user.click(await screen.findByRole('option', { name: label }))
+      expect(navigate).toHaveBeenCalledWith({ to: '/settings/local-models', hash: bundleId })
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.model_id')).toBeNull()
+    }
+  )
+
+  it('refreshes Kokoro availability when its download completes', async () => {
+    voice.listModels.mockResolvedValue({
+      models: [
+        ...models,
+        { id: KOKORO_TTS_MODEL_ID, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+      ]
+    })
+    voice.getModelStatus.mockImplementation(async ({ modelId }) => ({
+      status:
+        modelId !== KOKORO_TTS_MODEL_ID ||
+        cacheService.getSharedSnapshot(LOCAL_MODEL_STATUS_CACHE_KEY)?.[KOKORO_TTS_BUNDLE_ID]?.status === 'ready'
+          ? 'ready'
+          : 'not_installed'
+    }))
+    render(<VoiceSettings />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('combobox', { name: 'Speech model' }))
+    await screen.findByRole('option', { name: /Kokoro.*Download/ })
+    act(() =>
+      cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
+        [KOKORO_TTS_BUNDLE_ID]: { status: 'ready', percent: 100 }
+      })
+    )
+    const option = await screen.findByRole('option', { name: 'Kokoro v1.1 (Chinese + English)' })
+    await user.click(option)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.model_id')).toBe(KOKORO_TTS_MODEL_ID)
+  })
+
   it('keeps a multilingual voice selected when changing synthesis language', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.voice.speech.model_id': QWEN3_TTS_MODEL_ID,
@@ -1111,12 +1196,15 @@ describe('VoiceSettings', () => {
     let onSessionEvent: ((event: VoiceSessionEvent) => void) | undefined
     const ipc = {
       request: vi.fn(),
-      on: vi.fn((_channel: string, listener: (event: VoiceSessionEvent) => void) => {
-        onSessionEvent = listener
-        return () => {
-          onSessionEvent = undefined
+      on: vi.fn<NonNullable<NonNullable<ConstructorParameters<typeof VoiceService>[0]>['ipc']>['on']>(
+        (channel, listener) => {
+          if (channel !== 'ai.voice.session_event') return () => undefined
+          onSessionEvent = listener as (event: VoiceSessionEvent) => void
+          return () => {
+            onSessionEvent = undefined
+          }
         }
-      })
+      )
     }
     let first = true
     let revision = 0
@@ -1148,7 +1236,12 @@ describe('VoiceSettings', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: crypto.randomUUID(), url: 'cherry-media://audio/preview', mimeType: 'audio/wav' },
+          output: {
+            kind: 'audio',
+            id: crypto.randomUUID(),
+            url: 'cherry-media://audio/preview',
+            mimeType: 'audio/wav'
+          },
           playback: playbackState
         }
       }

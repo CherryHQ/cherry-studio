@@ -22,10 +22,16 @@ After the handshake, `parentPort` carries nothing: all traffic uses the private 
 
 ## Frames
 
-Every frame carries `{ protocol: 'cherry.utility-process', version: 1, processId, generation }`. A frame whose identity does not match the live generation is a fatal violation — that is what makes a dying generation's late messages harmless.
+Every frame carries `{ protocol: 'cherry.utility-process', version: 2, processId, generation }`. A frame whose identity does not match the live generation is a fatal violation — that is what makes a dying generation's late messages harmless.
 
 | Direction | Frame | Payload |
 | --- | --- | --- |
+| main → child | `stream-open` | `requestId`, `method`, `input`, `inputLimits`, `outputLimits` |
+| either | `stream-data` | `requestId`, `sequence`, JSON `metadata`, optional `Uint8Array` `payload` |
+| either | `stream-credit` | `requestId`, consumed `sequence` |
+| either | `stream-end` | `requestId`, final `sequence` (0 for empty input/output) |
+| either | `stream-end-ack` | `requestId`, acknowledged final `sequence` |
+| child → main | `stream-closed` | `requestId` |
 | main → child | `request` | `requestId`, `method`, `input` |
 | main → child | `cancel` | `requestId` |
 | main → child | `shutdown` | — |
@@ -39,7 +45,19 @@ Every frame carries `{ protocol: 'cherry.utility-process', version: 1, processId
 
 Request ids are per generation and monotonic from 1; the child keeps a high-water mark instead of a set. Payloads cross by structured clone, so typed arrays survive intact (the smoke harness round-trips 4 MiB), and functions, class instances, and DOM-like objects do not.
 
-The version field exists so a stale bundle fails loudly rather than subtly. V1 has no negotiation: main and child ship together.
+The version field exists so a stale bundle fails loudly rather than subtly. The protocol has no negotiation: main and child ship together.
+
+## Bounded streams
+
+`stream-open` shares the ordinary request ID allocator and generation. Input and output each start with the declared byte/frame window. Data sequences start at 1; consumption returns exactly one ordered credit per frame, whose cost comes from the sender's recorded frame bytes. The receiver independently validates the actual metadata/payload size and its own byte/frame budget. Duplicate or out-of-order data/credit, data after EOF, invalid limits, and capacity overflow are protocol violations.
+
+`stream-end` applies to the sending direction: input EOF from main, output EOF from child. It bypasses credit but is posted after all submitted data; its sequence must equal the last received data sequence. The receiver sends `stream-end-ack` immediately on receiving EOF; the sender’s finish promise waits for that acknowledgement. The receiver still drains queued frames before reporting EOF to its iterator. Terminal and cancellation controls also bypass data capacity.
+
+The child sends output EOF, `result`, then `stream-closed` after a successful handler returns and submitted writes finish. A thrown handler sends `error` then `stream-closed`. Handlers own asynchronous cleanup and must await it before returning or throwing. Main rejects a success before output EOF, duplicate terminal, or close acknowledgement before a terminal. Failure discards buffered output and wakes pending readers/writers. Successful closure preserves already queued output for subsequent consumption.
+
+Cancelling a stream immediately rejects `completed` and its data waiters under either policy. Cooperative cancellation aborts the handler; terminate cancellation kills the generation. In both cases the request remains registered until close acknowledgement or actual exit, keeping idle reaping disabled. `closed` never resolves merely because a kill was requested or the stop deadline elapsed. `withStopped` continues to require process exit, even if individual streams acknowledged cleanup earlier.
+
+Main drops data races while a cancelled stream awaits closure. After child cleanup, input and credit already sent by main may arrive before main observes the acknowledgement; the child drops those old request frames. Neither side recreates requests from data frames. Frames delivered to a retired generation cannot affect its successor.
 
 ## Fatal protocol violations
 

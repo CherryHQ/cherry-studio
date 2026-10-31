@@ -55,6 +55,23 @@ struct CommandTests {
     }
 
     @Test
+    func validatesStreamingSynthesisWithoutAFilePath() throws {
+        let json = #"{"operation":"synthesize_stream","voiceId":"voice","text":"hello","speed":1.25}"#
+        let command = try JSONDecoder().decode(NativeRequest.self, from: Data(json.utf8)).validated()
+        guard case let .synthesizeStream(voice, text, speed) = command else {
+            Issue.record("Expected streaming synthesis")
+            return
+        }
+        #expect(voice == "voice")
+        #expect(text == "hello")
+        #expect(speed == 1.25)
+        let missing = #"{"operation":"synthesize_stream","voiceId":"voice","text":"hello"}"#
+        #expect(throws: HelperError.self) {
+            try JSONDecoder().decode(NativeRequest.self, from: Data(missing.utf8)).validated()
+        }
+    }
+
+    @Test
     func preservesExactSynthesisSpeed() throws {
         let json = #"{"operation":"synthesize","voiceId":"voice","text":"hello","outputPath":"/tmp/output.wav","speed":1.25}"#
         let request = try JSONDecoder().decode(NativeRequest.self, from: Data(json.utf8))

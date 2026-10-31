@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-25-code-viewer-wrapped-row-heights.md
+2026-10-25-code-viewer-wrapped-row-heights.md: 65a2dd5ad8b63630a8f46c25d026a08cde6e9cd1
+2026-10-25-code-viewer-wrapped-row-heights.zh.md: 28a6b94ab17ae41397f3dd37fabbf0c6ed966cbf

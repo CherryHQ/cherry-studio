@@ -1,6 +1,10 @@
+import MarkdownIt from 'markdown-it'
+import removeMarkdown from 'remove-markdown'
+
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { isSystemProvider, isSystemProviderId, type Provider } from '@renderer/types/provider'
+import { sanitizeFilename } from '@shared/utils/file'
 
 /**
  * 从模型 ID 中提取默认组名。
@@ -190,6 +194,46 @@ export function isEmoji(str: string): boolean {
  */
 export function removeSpecialCharactersForTopicName(str: string): string {
   return str.replace(/["'\r\n]+/g, ' ').trim()
+}
+
+export function normalizeGeneratedNoteName(text: string): string | null {
+  const lines = text.split(/[\r\n\u2028\u2029\u0085]/u)
+  const isFence = (line: string) => /^\s*(?:`{3,}|~{3,})/.test(line)
+  const tableLines = new Set<number>()
+  // Ignore wrappers so a model's fenced table is still rejected as table material.
+  const tokens = new MarkdownIt().parse(lines.map((line) => (isFence(line) ? '' : line)).join('\n'), {})
+  for (const token of tokens) {
+    if (token.type === 'table_open' && token.map) {
+      for (let i = token.map[0]; i < token.map[1]; i++) tableLines.add(i)
+    }
+  }
+
+  const usable = /[\p{L}\p{N}\p{S}]/u
+  for (const [index, line] of lines.entries()) {
+    if (tableLines.has(index) || isFence(line) || /^\s*[-+*]\s*$/.test(line)) continue
+    let name = removeMarkdown(line)
+      .trim()
+      .replace(/^["'“‘«「『]+|["'”’»」』]+$/gu, '')
+    name = name
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .replace(/(?:\.md)+$/i, '')
+      .replace(/^[.\s]+/u, '')
+    if (!usable.test(name)) continue
+
+    name = sanitizeFilename(name)
+    let prefix = ''
+    for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(name)) {
+      if (prefix.length + segment.length > 37) break
+      prefix += segment
+    }
+    name = prefix
+      .replace(/[\s.]+$/u, '')
+      .replace(/(?:\.md[\s.]*)+$/i, '')
+      .replace(/[\s.]+$/u, '')
+    return usable.test(name) && sanitizeFilename(name) === name ? name : null
+  }
+  return null
 }
 
 /**

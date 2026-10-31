@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-20-cross-agent-session-workspace.md
+2026-10-20-cross-agent-session-workspace.md: 5ff9a2dc9ce30af56631970ae4f4b5d9377b4333
+2026-10-20-cross-agent-session-workspace.zh.md: 1bc06cafe5e63c6373a7f55b43e74e4c80181a95

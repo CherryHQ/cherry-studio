@@ -20,6 +20,7 @@ export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
       ? application.get('CodeCliService').removeCli(request)
       : application.get('BinaryManager').removeTool(request),
   'binary.get_tool_snapshots': async (names) => application.get('BinaryManager').getToolSnapshots(names),
+  'binary.get_tool_installed_sizes': async (names) => application.get('BinaryManager').getToolInstalledSizes(names),
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
   'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force)
 }

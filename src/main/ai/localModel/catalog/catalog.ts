@@ -1,6 +1,9 @@
 import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
 
+import kokoroRelease from './kokoro-v1.1.json'
 import mlxNodeRelease from './mlxNodeRelease.json'
+import qwen3AsrRelease from './qwen3AsrRelease.json'
+import sherpaRuntimeRelease from './sherpaRuntimeRelease.json'
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 /**
@@ -170,12 +173,95 @@ export const SHARED_ARTIFACTS = {
           'sherpa-onnx-c-api.dll',
           'sherpa-onnx-cxx-api.dll'
         ]
+      },
+      'win32-arm64': {
+        packageName: 'cherry-sherpa-onnx-win-arm64',
+        tarballUrls: [
+          `https://github.com/${sherpaRuntimeRelease.repository}/releases/download/${sherpaRuntimeRelease.tag}/${sherpaRuntimeRelease.asset}`
+        ],
+        tarballSha256: sherpaRuntimeRelease.sha256,
+        tarballPrefix: 'runtime/',
+        installSubdir: 'win32/arm64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: [
+          'onnxruntime_providers_shared.dll',
+          'onnxruntime.dll',
+          'sherpa-onnx-c-api.dll',
+          'sherpa-onnx-cxx-api.dll',
+          'LICENSE',
+          'build-info.json'
+        ]
       }
     }
   }
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
 export const LOCAL_MODEL_BUNDLES = {
+  'kokoro-multi-lang-v1.1': {
+    id: 'kokoro-multi-lang-v1.1',
+    capability: 'tts',
+    installDirKey: 'feature.tts.kokoro',
+    requires: ['sherpa-onnx'],
+    runtime: { architecture: 'kokoro' },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: `https://huggingface.co/${kokoroRelease.repo}/blob/${kokoroRelease.revision}/LICENSE`
+      },
+      upstream: {
+        url: 'https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh',
+        revision: '01e7505bd6a7a2ac4975463114c3a7650a9f7218'
+      },
+      conversion: {
+        url: `https://huggingface.co/${kokoroRelease.repo}`,
+        revision: kokoroRelease.revision,
+        license: {
+          spdx: 'Apache-2.0',
+          url: `https://huggingface.co/${kokoroRelease.repo}/blob/${kokoroRelease.revision}/LICENSE`
+        }
+      }
+    },
+    files: kokoroRelease.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+      sources: [
+        { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
+        { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
+      ]
+    }))
+  },
+  'qwen3-asr-1.7b-8bit': {
+    id: 'qwen3-asr-1.7b-8bit',
+    capability: 'asr',
+    installDirKey: 'feature.asr.qwen3',
+    requires: ['mlx-node'],
+    runtime: { architecture: 'qwen3-asr' },
+    provenance: {
+      license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf' },
+      upstream: { url: `https://huggingface.co/${qwen3AsrRelease.upstream}`, revision: qwen3AsrRelease.modelRevision },
+      conversion: {
+        url: 'https://github.com/mlx-node/mlx-node',
+        revision: qwen3AsrRelease.sourceRevision,
+        license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf' }
+      }
+    },
+    files: qwen3AsrRelease.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      urls: {
+        china: `https://www.modelscope.cn/models/${qwen3AsrRelease.modelscope.repo}/resolve/${qwen3AsrRelease.modelscope.revision}/${file.relPath}`,
+        global: `https://github.com/${qwen3AsrRelease.repository}/releases/download/${qwen3AsrRelease.tag}/${file.asset}`
+      },
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(1, Math.round(file.sizeBytes / 1_000_000))
+    }))
+  },
   'qwen3-tts-0.6b-customvoice-8bit': {
     id: 'qwen3-tts-0.6b-customvoice-8bit',
     capability: 'tts',
@@ -321,7 +407,7 @@ export const LOCAL_MODEL_BUNDLES = {
       },
       conversion: {
         url: 'https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx',
-        revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+        revision: 'ce0975f2a7a8ad6441223db59ce6e1362295ddfe',
         license: {
           spdx: 'Apache-2.0',
           url: 'https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx'
@@ -359,29 +445,19 @@ export const LOCAL_MODEL_BUNDLES = {
       },
       {
         key: 'llm',
-        relPath: 'llm.int8.onnx',
-        sha256: 'dfbf9aa3be41bccc257587f151e15c63fbe1b549f2b517f5ccd5bdce3bf4322a',
-        sizeBytes: 600_356_593,
+        // A distinct path makes existing installs fetch the compat weights instead of
+        // accepting the old decoder, whose size also passes the readiness floor.
+        relPath: 'llm.int8.compat.onnx',
+        sha256: '7f0c5a508b41474b1b1ec1cdbdefafd2cf8b3642c6915a0a425265b7b7d2c960',
+        sizeBytes: 600_339_316,
         minBytes: 400_000_000,
         weight: 600,
         sources: [
           {
-            source: 'huggingface',
-            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
-            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
-            remoteFile: 'llm.int8.onnx'
-          },
-          {
-            source: 'hf-mirror',
-            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
-            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
-            remoteFile: 'llm.int8.onnx'
-          },
-          {
             source: 'modelscope',
             repo: 'zengshuishui/FunASR-nano-onnx',
-            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
-            remoteFile: 'llm_int8/llm.int8.onnx'
+            revision: 'ce0975f2a7a8ad6441223db59ce6e1362295ddfe',
+            remoteFile: 'llm_int8_compat/llm.int8.onnx'
           }
         ]
       },

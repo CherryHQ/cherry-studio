@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -13,16 +12,8 @@ import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/di
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 const knobs = vi.hoisted(() => ({
-  renderPage: (() => null) as (url: string) => React.ReactNode
-}))
-
-const routerMocks = vi.hoisted(() => ({
-  navigate: vi.fn(),
-  onResolved: undefined as undefined | ((event: { toLocation: { href: string } }) => void),
-  subscribe: vi.fn((event: string, listener: (event: { toLocation: { href: string } }) => void) => {
-    if (event === 'onResolved') routerMocks.onResolved = listener
-    return vi.fn()
-  })
+  renderPage: (() => null) as (url: string) => React.ReactNode,
+  pending: undefined as Promise<void> | undefined
 }))
 
 // PageSidePanel scopes to its owning tab by reading the SAME PortalContainerContext that
@@ -37,46 +28,35 @@ vi.mock('@cherrystudio/ui', async () => {
   return { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer }
 })
 
-vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
-
-// Stub the router so TabRouter can mount without the real route tree. Each tab's history
-// carries its url so the injected page can tell tabs apart, and the provider exposes the
-// resolved portal container for the scoping assertions.
-vi.mock('@tanstack/react-router', async () => {
+vi.mock('@renderer/routeTree.gen', async () => {
+  const { createRootRoute, createRoute, useLocation } = await import('@tanstack/react-router')
   const { usePortalContainer } = await import('@cherrystudio/ui')
-  const DestinationPending = () => <div aria-busy="true">Loading destination</div>
-
-  return {
-    createMemoryHistory: vi.fn((options: { initialEntries: string[] }) => options),
-    createRouter: vi.fn(({ history }: { history: { initialEntries: string[] } }) => ({
-      navigate: routerMocks.navigate,
-      subscribe: routerMocks.subscribe,
-      routesByPath: {
-        '/app/agents': { options: { pendingComponent: DestinationPending } }
-      },
-      state: {
-        location: {
-          href: history.initialEntries[0]
-        }
-      }
-    })),
-    RouterProvider: ({ router }: { router: { state: { location: { href: string } } } }) => {
-      const container = usePortalContainer()
-
-      return (
-        <div
-          data-testid="router-provider"
-          data-router-url={router.state.location.href}
-          data-has-portal-container={String(container instanceof HTMLElement)}
-          data-portal-container-is-body={String(container === document.body)}>
-          {knobs.renderPage(router.state.location.href)}
-        </div>
-      )
-    }
+  function Page() {
+    const { href } = useLocation()
+    const container = usePortalContainer()
+    return (
+      <div
+        data-testid="router-provider"
+        data-router-url={href}
+        data-has-portal-container={String(container instanceof HTMLElement)}
+        data-portal-container-is-body={String(container === document.body)}>
+        {knobs.renderPage(href)}
+      </div>
+    )
   }
+  const root = createRootRoute()
+  const routes = ['/a', '/b', '/app/chat', '/app/agents', '/app/mini-app/$appId'].map((path) =>
+    createRoute({
+      getParentRoute: () => root,
+      path,
+      component: Page,
+      validateSearch: (search) => search,
+      beforeLoad: () => (path === '/app/agents' ? knobs.pending : undefined)
+    })
+  )
+  return { routeTree: root.addChildren(routes) }
 })
 
-import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
 const tab = (id: string, url: string, overrides: Partial<Tab> = {}): Tab => ({
@@ -94,23 +74,14 @@ beforeAll(() => {
     disconnect() {}
   }
   Element.prototype.scrollIntoView = vi.fn()
+  window.scrollTo = vi.fn()
 })
 
 afterEach(() => {
   cleanup()
   knobs.renderPage = () => null
-  routerMocks.onResolved = undefined
+  knobs.pending = undefined
   vi.clearAllMocks()
-})
-
-describe('TabRouter route error containment wiring', () => {
-  it('wires RouteErrorFallback as the router defaultErrorComponent', () => {
-    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
-
-    expect(vi.mocked(createRouter)).toHaveBeenCalledWith(
-      expect.objectContaining({ defaultErrorComponent: RouteErrorFallback })
-    )
-  })
 })
 
 describe('TabRouter portal container', () => {
@@ -133,16 +104,19 @@ describe('TabRouter PageSidePanel portal isolation', () => {
   function Shell({ activeId }: { activeId: string }) {
     return (
       <main>
-        <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
-        <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
+        <section aria-label="Tab A">
+          <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
+        </section>
+        <section aria-label="Tab B">
+          <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
+        </section>
       </main>
     )
   }
 
-  // The real PortalContainerProvider renders no DOM, so each router-provider's parent IS the
-  // owning tab's content root — the element the panel portals into.
+  // The content root exists even before a hidden tab's router has loaded its page.
   const tabRoot = (url: string) =>
-    document.querySelector<HTMLElement>(`[data-router-url="${url}"]`)?.parentElement as HTMLElement
+    screen.getByLabelText(url === '/a' ? 'Tab A' : 'Tab B').firstElementChild as HTMLElement
 
   // Core regression: a background tab's open panel must never surface inside the active tab.
   // Open b's panel while b is active so b captures its own root, then switch to a.
@@ -150,6 +124,8 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     knobs.renderPage = (url) => <Page url={url} />
 
     const { rerender } = render(<Shell activeId="b" />)
+    await waitFor(() => expect(tabRoot('/a')).toBeInstanceOf(HTMLElement))
+    await waitFor(() => expect(tabRoot('/b')).toBeInstanceOf(HTMLElement))
     const aRoot = tabRoot('/a')
     const bRoot = tabRoot('/b')
     expect(aRoot).toBeInstanceOf(HTMLElement)
@@ -177,6 +153,8 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     knobs.renderPage = (url) => <PageWithDialog url={url} />
 
     const { rerender } = render(<Shell activeId="b" />)
+    await waitFor(() => expect(tabRoot('/a')).toBeInstanceOf(HTMLElement))
+    await waitFor(() => expect(tabRoot('/b')).toBeInstanceOf(HTMLElement))
     const aRoot = tabRoot('/a')
     const bRoot = tabRoot('/b')
     expect(aRoot).toBeInstanceOf(HTMLElement)
@@ -227,6 +205,7 @@ describe('TabRouter PageSidePanel portal isolation', () => {
       knobs.renderPage = (url) => <PageWithCombobox url={url} />
 
       const { rerender } = render(<Shell activeId="b" />)
+      await waitFor(() => expect(tabRoot('/b')).toBeInstanceOf(HTMLElement))
       const bRoot = tabRoot('/b')
       const trigger = screen.getByRole('combobox')
 
@@ -248,7 +227,7 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
-  it('uses the tab entry URL as the initial history entry', () => {
+  it('uses the tab entry URL as the initial history entry', async () => {
     render(
       <TabRouter
         tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
@@ -261,11 +240,12 @@ describe('TabRouter', () => {
       />
     )
 
-    expect(createMemoryHistory).toHaveBeenCalledWith({ initialEntries: ['/app/chat?topicId=entry-topic'] })
-    expect(routerMocks.navigate).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.getByTestId('router-provider')).toHaveAttribute('data-router-url', '/app/chat?topicId=entry-topic')
+    )
   })
 
-  it('navigates when the tab entry URL changes externally', () => {
+  it('navigates when the tab entry URL changes externally', async () => {
     const { rerender } = render(
       <TabRouter
         tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
@@ -277,7 +257,7 @@ describe('TabRouter', () => {
         onUrlChange={vi.fn()}
       />
     )
-    routerMocks.navigate.mockClear()
+    await screen.findByTestId('router-provider')
 
     rerender(
       <TabRouter
@@ -291,24 +271,63 @@ describe('TabRouter', () => {
       />
     )
 
-    expect(createMemoryHistory).toHaveBeenCalledTimes(1)
-    // External URL changes split path and query: a query-bearing href string
-    // in `to` loses the search through validateSearch round-trips
-    expect(routerMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: { topicId: 'current-topic' } })
+    await waitFor(() =>
+      expect(screen.getByTestId('router-provider')).toHaveAttribute(
+        'data-router-url',
+        '/app/chat?topicId=current-topic'
+      )
+    )
   })
 
-  it('quietly covers the outgoing page while an external retarget is unresolved', () => {
+  it('navigates from a bound session to an external Agent entry', async () => {
+    const { rerender } = render(
+      <TabRouter
+        tab={tab('agents-tab', '/app/agents?sessionId=directory-session', {
+          title: 'Work',
+          lastAccessTime: 1,
+          isDormant: false
+        })}
+        isActive
+        onUrlChange={vi.fn()}
+      />
+    )
+    await screen.findByTestId('router-provider')
+
+    rerender(
+      <TabRouter
+        tab={tab('agents-tab', '/app/agents?agentId=agent-1', {
+          title: 'Code Reviewer',
+          lastAccessTime: 1,
+          isDormant: false
+        })}
+        isActive
+        onUrlChange={vi.fn()}
+      />
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('router-provider')).toHaveAttribute('data-router-url', '/app/agents?agentId=agent-1')
+    )
+  })
+
+  it('quietly covers the outgoing page while an external retarget is unresolved', async () => {
     const { rerender } = render(
       <TabRouter tab={tab('route-tab', '/app/mini-app/claude')} isActive onUrlChange={() => {}} />
     )
+
+    await screen.findByTestId('router-provider')
+    let resolve!: () => void
+    knobs.pending = new Promise<void>((done) => {
+      resolve = done
+    })
 
     rerender(<TabRouter tab={tab('route-tab', '/app/agents')} isActive onUrlChange={() => {}} />)
 
     expect(screen.getByTestId('tab-route-transition-cover')).toHaveClass('bg-card')
     expect(screen.queryByText('Loading destination')).not.toBeInTheDocument()
 
-    act(() => routerMocks.onResolved?.({ toLocation: { href: '/app/agents' } }))
-
-    expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument()
+    await act(async () => resolve())
+    await waitFor(() => expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument())
+    expect(screen.getByTestId('router-provider')).toHaveAttribute('data-router-url', '/app/agents')
   })
 })

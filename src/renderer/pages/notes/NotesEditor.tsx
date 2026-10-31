@@ -11,7 +11,6 @@ import DictationControls from '@renderer/components/DictationControls'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
@@ -23,7 +22,9 @@ const logger = loggerService.withContext('NotesEditor')
 // `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
 const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
-const CodeEditor = lazy(() => import('@cherrystudio/ui/components/composites/code-editor'))
+const CodeEditor = lazy(() =>
+  import('@renderer/components/LazyCodeEditor').then((module) => ({ default: module.LazyCodeEditor }))
+)
 const RichEditor = lazy(() => import('@renderer/components/RichEditor/RichEditor'))
 
 export function NotesEditorLoading({ label }: { label: string }) {
@@ -41,6 +42,7 @@ interface NotesEditorProps {
   activeNodeId?: string
   voiceNoteId?: string
   currentContent: string
+  readOnly?: boolean
   contentLoadError?: Error
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
@@ -54,6 +56,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     activeNodeId,
     voiceNoteId,
     currentContent,
+    readOnly = false,
     contentLoadError,
     tokenCount,
     onMarkdownChange,
@@ -72,11 +75,26 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
-    const activeCmTheme = useCmTheme(tmpViewMode === 'source')
+    const binding = useMemo(() => ({ mode: tmpViewMode }), [tmpViewMode])
+    const bindingRef = useRef(binding)
+    useLayoutEffect(() => {
+      bindingRef.current = binding
+      return () => {
+        bindingRef.current = { mode: 'read' }
+      }
+    }, [binding])
+    const acceptMarkdown = useCallback(
+      (content: string) => {
+        if (bindingRef.current === binding && !readOnly) onMarkdownChange(content)
+      },
+      [binding, readOnly, onMarkdownChange]
+    )
+
     const currentViewModeRef = useRef(currentViewMode)
     const activeViewModeRef = useRef(tmpViewMode)
     activeViewModeRef.current = tmpViewMode
     const userViewModeOverrideRef = useRef(false)
+    const composingRef = useRef(false)
     const readButtonRef = useRef<HTMLButtonElement>(null)
     const voiceIdentityRef = useRef(voiceNoteId)
     voiceIdentityRef.current = voiceNoteId
@@ -174,10 +192,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     useEffect(() => {
       currentViewModeRef.current = currentViewMode
-      if (!userViewModeOverrideRef.current) {
+      if (!userViewModeOverrideRef.current && !composingRef.current && !readOnly) {
         setTmpViewMode(currentViewMode)
       }
-    }, [currentViewMode])
+    }, [currentViewMode, readOnly])
 
     useEffect(() => {
       userViewModeOverrideRef.current = false
@@ -213,7 +231,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       <>
         <div
           data-ui="notes.editor"
+          data-file-edit
+          onCompositionStartCapture={() => {
+            composingRef.current = true
+          }}
+          onCompositionEndCapture={() => {
+            composingRef.current = false
+          }}
           data-note-id={activeNodeId}
+          data-voice-target-id={voiceTargetId}
           onFocusCapture={markVoiceTargetCurrent}
           onPointerDownCapture={markVoiceTargetCurrent}
           className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
@@ -225,11 +251,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     ref={setSourceEditorRef}
                     value={currentContent}
                     language="markdown"
-                    onChange={onMarkdownChange}
+                    onChange={acceptMarkdown}
+                    readOnly={readOnly}
+                    editable={!readOnly}
                     className="h-full"
                     expanded={false}
                     height="100%"
-                    theme={activeCmTheme}
                     fontSize={settings.fontSize}
                   />
                 </div>
@@ -238,9 +265,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
                   ref={setRichEditorRef}
                   initialContent={currentContent}
-                  onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-                  showToolbar={tmpViewMode === 'preview'}
-                  editable={tmpViewMode === 'preview'}
+                  onMarkdownChange={tmpViewMode === 'preview' ? acceptMarkdown : undefined}
+                  showToolbar={tmpViewMode === 'preview' && !readOnly}
+                  editable={tmpViewMode === 'preview' && !readOnly}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}
                   lineBreaks={settings.lineBreaks}
@@ -258,18 +285,18 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           </ErrorBoundary>
         </div>
         <div
-          className="flex min-h-12 shrink-0 items-center border-border border-t px-4 py-2"
+          className="flex min-h-12 shrink-0 items-center border-t border-border px-4 py-2"
           onFocusCapture={markVoiceTargetCurrent}
           onPointerDownCapture={markVoiceTargetCurrent}>
           <SpaceBetweenRowFlex className="w-full flex-wrap items-center gap-2">
-            <div className="select-none text-muted-foreground text-xs leading-none">
+            <div className="text-xs leading-none text-muted-foreground select-none">
               {t('notes.characters')}: {tokenCount}
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-3 text-muted-foreground text-xs">
+            <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
               {voiceNoteId && (
                 <DictationControls
                   targetId={voiceTargetId}
-                  disabled={tmpViewMode === 'read' || !voiceEditorReady}
+                  disabled={readOnly || tmpViewMode === 'read' || !voiceEditorReady}
                   focusInput={focusCurrentEditor}
                 />
               )}
@@ -304,6 +331,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               <Selector
                 value={tmpViewMode}
                 onChange={(value: EditorView) => {
+                  if (composingRef.current || readOnly) return
                   userViewModeOverrideRef.current = true
                   setTmpViewMode(value)
                 }}
