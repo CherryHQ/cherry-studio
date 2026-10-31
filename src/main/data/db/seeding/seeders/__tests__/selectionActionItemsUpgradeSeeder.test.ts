@@ -30,7 +30,7 @@ describe('SelectionActionItemsUpgradeSeeder', () => {
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, ACTION_ITEMS_KEY)))
       .get()?.value as SelectionActionItem[] | undefined
 
-  const writeActionItems = (value: SelectionActionItem[]) => {
+  const writeActionItems = (value: unknown[]) => {
     dbh.db.insert(preferenceTable).values({ scope: 'default', key: ACTION_ITEMS_KEY, value }).run()
   }
 
@@ -67,6 +67,17 @@ describe('SelectionActionItemsUpgradeSeeder', () => {
       { id: 'user-1', runner: 'assistant' },
       { id: 'user-2', runner: 'default' },
       { id: 'user-3', runner: 'default' },
+      { id: 'ask-agent', runner: undefined }
+    ])
+  })
+
+  it('drops a null entry instead of failing startup', () => {
+    writeActionItems([null, { id: 'user-1', name: 'Polish', enabled: true, isBuiltIn: false, assistantId: 'a-1' }])
+
+    new SeedRunner(dbh.db).runAll(ACTION_ITEM_SEEDERS)
+
+    expect(readActionItems()?.map(({ id, runner }) => ({ id, runner }))).toEqual([
+      { id: 'user-1', runner: 'assistant' },
       { id: 'ask-agent', runner: undefined }
     ])
   })
