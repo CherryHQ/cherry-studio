@@ -1,5 +1,5 @@
-import { fireEvent, render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SelectionBox from '../SelectionBox'
 
@@ -57,7 +57,45 @@ function createMessageElement({
   return element
 }
 
+function countEventListenerCalls(calls: ReadonlyArray<ReadonlyArray<unknown>>, eventType: string): number {
+  return calls.filter(([type]) => type === eventType).length
+}
+
 describe('SelectionBox', () => {
+  let animationFrames: Map<number, FrameRequestCallback>
+  let nextAnimationFrameId: number
+
+  beforeEach(() => {
+    animationFrames = new Map()
+    nextAnimationFrameId = 1
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        const id = nextAnimationFrameId++
+        animationFrames.set(id, callback)
+        return id
+      })
+    )
+    vi.stubGlobal(
+      'cancelAnimationFrame',
+      vi.fn((id: number) => {
+        animationFrames.delete(id)
+      })
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    document.body.classList.remove('no-select')
+  })
+
+  const flushAnimationFrame = () => {
+    const callbacks = [...animationFrames.values()]
+    animationFrames.clear()
+    act(() => callbacks.forEach((callback) => callback(performance.now())))
+  }
+
   it('selects messages inside the drag rectangle with Radix checkbox markup', () => {
     const scrollContainer = document.createElement('div')
     scrollContainer.getBoundingClientRect = vi.fn(() => createRect({ left: 0, top: 0, width: 300, height: 400 }))
@@ -101,6 +139,7 @@ describe('SelectionBox', () => {
     fireEvent.mouseDown(scrollContainer, { clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 20, clientY: 20 })
     fireEvent.mouseMove(window, { clientX: 130, clientY: 155 })
+    flushAnimationFrame()
 
     expect(handleSelectMessage).toHaveBeenCalledTimes(2)
     expect(handleSelectMessage).toHaveBeenNthCalledWith(1, 'first-unselected', true)
@@ -157,7 +196,9 @@ describe('SelectionBox', () => {
     fireEvent.mouseDown(scrollContainer, { clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 20, clientY: 20 })
     fireEvent.mouseMove(window, { clientX: 130, clientY: 155 })
+    flushAnimationFrame()
     fireEvent.mouseMove(window, { clientX: 130, clientY: 55 })
+    flushAnimationFrame()
 
     expect([...selectedMessageIds]).toEqual(['first'])
 
@@ -191,6 +232,7 @@ describe('SelectionBox', () => {
 
     fireEvent.mouseDown(checkbox, { clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 130, clientY: 55 })
+    flushAnimationFrame()
 
     expect(handleSelectMessage).not.toHaveBeenCalled()
 
@@ -224,12 +266,92 @@ describe('SelectionBox', () => {
     fireEvent.mouseDown(scrollContainer, { clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 20, clientY: 20 })
     fireEvent.mouseMove(window, { clientX: 130, clientY: 55 })
+    flushAnimationFrame()
 
     expect(handleSelectMessage).toHaveBeenCalledTimes(1)
     expect(handleSelectMessage).toHaveBeenCalledWith('message', true)
 
     fireEvent.mouseUp(window)
     view.unmount()
+    scrollContainer.remove()
+  })
+
+  it('coalesces pointer updates and selects from the latest position on the next frame', () => {
+    const scrollContainer = document.createElement('div')
+    scrollContainer.getBoundingClientRect = vi.fn(() => createRect({ left: 0, top: 0, width: 300, height: 400 }))
+
+    const message = createMessageElement({
+      checked: false,
+      rect: { left: 10, top: 110, width: 100, height: 40 }
+    })
+    scrollContainer.append(message)
+    document.body.appendChild(scrollContainer)
+
+    const handleSelectMessage = vi.fn()
+    const view = render(
+      <SelectionBox
+        isMultiSelectMode
+        scrollContainerRef={{ current: scrollContainer }}
+        messageElements={new Map([['message', message]])}
+        handleSelectMessage={handleSelectMessage}
+      />
+    )
+
+    fireEvent.mouseDown(scrollContainer, { clientX: 0, clientY: 0 })
+    fireEvent.mouseMove(window, { clientX: 20, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 130, clientY: 155 })
+
+    expect(handleSelectMessage).not.toHaveBeenCalled()
+    expect(scrollContainer.getBoundingClientRect).toHaveBeenCalledTimes(1)
+
+    flushAnimationFrame()
+
+    expect(handleSelectMessage).toHaveBeenCalledOnce()
+    expect(handleSelectMessage).toHaveBeenCalledWith('message', true)
+    expect(scrollContainer.getBoundingClientRect).toHaveBeenCalledTimes(2)
+
+    fireEvent.mouseUp(window)
+    view.unmount()
+    scrollContainer.remove()
+  })
+
+  it('keeps one set of global listeners while drag state renders', () => {
+    const addEventListener = vi.spyOn(window, 'addEventListener')
+    const removeEventListener = vi.spyOn(window, 'removeEventListener')
+    const scrollContainer = document.createElement('div')
+    scrollContainer.getBoundingClientRect = vi.fn(() => createRect({ left: 0, top: 0, width: 300, height: 400 }))
+
+    const message = createMessageElement({
+      checked: false,
+      rect: { left: 10, top: 10, width: 100, height: 40 }
+    })
+    scrollContainer.append(message)
+    document.body.appendChild(scrollContainer)
+
+    const view = render(
+      <SelectionBox
+        isMultiSelectMode
+        scrollContainerRef={{ current: scrollContainer }}
+        messageElements={new Map([['message', message]])}
+        handleSelectMessage={vi.fn()}
+      />
+    )
+
+    fireEvent.mouseDown(scrollContainer, { clientX: 0, clientY: 0 })
+    fireEvent.mouseMove(window, { clientX: 130, clientY: 55 })
+    flushAnimationFrame()
+
+    expect(countEventListenerCalls(addEventListener.mock.calls, 'mousemove')).toBe(1)
+    expect(countEventListenerCalls(addEventListener.mock.calls, 'mouseup')).toBe(1)
+    expect(countEventListenerCalls(removeEventListener.mock.calls, 'mousemove')).toBe(0)
+    expect(countEventListenerCalls(removeEventListener.mock.calls, 'mouseup')).toBe(0)
+
+    fireEvent.mouseUp(window)
+    view.unmount()
+
+    expect(countEventListenerCalls(removeEventListener.mock.calls, 'mousemove')).toBe(1)
+    expect(countEventListenerCalls(removeEventListener.mock.calls, 'mouseup')).toBe(1)
+
     scrollContainer.remove()
   })
 })
