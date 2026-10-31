@@ -43,6 +43,7 @@ import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { KeenableProvider } from '../api/KeenableProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
@@ -84,6 +85,7 @@ describe('createWebSearchProvider', () => {
       'fetch',
       'firecrawl',
       'jina',
+      'keenable',
       'parallel',
       'querit',
       'searchapi',
@@ -140,5 +142,18 @@ describe('createWebSearchProvider', () => {
       )
     ).toBeInstanceOf(DeepSeekProvider)
     expect(createWebSearchProvider(createProvider({ id: 'desearch' }), rotationState)).toBeInstanceOf(DesearchProvider)
+    expect(
+      createWebSearchProvider(
+        createProvider({
+          id: 'keenable',
+          apiKeys: [],
+          capabilities: [
+            { feature: 'searchKeywords', apiHost: 'https://api.keenable.ai' },
+            { feature: 'fetchUrls', apiHost: 'https://api.keenable.ai' }
+          ]
+        }),
+        rotationState
+      )
+    ).toBeInstanceOf(KeenableProvider)
   })
 })

@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-10-28T16:20:14.303Z
- * Total icons: 166
+ * Total icons: 167
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -84,6 +84,7 @@ import { IntelIcon } from './intel'
 import { InternlmIcon } from './internlm'
 import { JimengIcon } from './jimeng'
 import { JinaIcon } from './jina'
+import { KeenableIcon } from './keenable/keenable'
 import { KlingIcon } from './kling'
 import { KwaipilotIcon } from './kwaipilot'
 import { LambdaIcon } from './lambda'
@@ -253,6 +254,7 @@ export const PROVIDER_ICON_CATALOG = {
   internlm: InternlmIcon,
   jimeng: JimengIcon,
   jina: JinaIcon,
+  keenable: KeenableIcon,
   kling: KlingIcon,
   kwaipilot: KwaipilotIcon,
   lambda: LambdaIcon,

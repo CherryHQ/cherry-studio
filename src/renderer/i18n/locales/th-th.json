@@ -5801,6 +5801,7 @@
   "settings.tool.websearch.provider_description.fetch": "ผู้ให้บริการดึง URL ในตัว ดึงเนื้อหาหน้าเว็บจาก URL เพื่อเพิ่มผลการค้นหา",
   "settings.tool.websearch.provider_description.firecrawl": "บริการรวบรวมข้อมูลและค้นหา Firecrawl ปรับให้เหมาะกับแปลงเว็บไซต์เป็น Markdown",
   "settings.tool.websearch.provider_description.jina": "Jina Reader APIs สำหรับค้นหาและอ่าน ดึงเนื้อหาเว็บที่สะอาดมาให้",
+  "settings.tool.websearch.provider_description.keenable": "Keenable web search และ page fetch API สำหรับเอเจนต์ AI ใช้งานได้โดยไม่ต้องใช้ API key เพิ่มคีย์เพื่อรับขีดจำกัดคำขอที่สูงขึ้น",
   "settings.tool.websearch.provider_description.parallel": "Web search API สำหรับ AI agent ที่ส่งคืนลิงก์ที่จัดอันดับและข้อความที่ดึงมาซึ่งหนาแน่นด้วยโทเค็น",
   "settings.tool.websearch.provider_description.querit": "Querit search and contents APIs สำหรับแอป AI ดึงผลลัพธ์เว็บและเนื้อหาหน้า",
   "settings.tool.websearch.provider_description.searchapi": "API ค้นหาแบบเรียลไทม์ของ SearchApi ที่ส่งคืนผลการค้นหา Google เป็น JSON แบบมีโครงสร้าง",

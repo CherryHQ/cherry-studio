@@ -5801,6 +5801,7 @@
   "settings.tool.websearch.provider_description.fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl Crawler- und Suchdienst, optimiert zur Umwandlung von Websites in Markdown.",
   "settings.tool.websearch.provider_description.jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
+  "settings.tool.websearch.provider_description.keenable": "Keenable-API für Websuche und Seitenabruf für KI-Agenten. Funktioniert ohne API-Schlüssel; mit einem Schlüssel gelten höhere Ratenlimits.",
   "settings.tool.websearch.provider_description.parallel": "Websuch-API für KI-Agenten, die priorisierte Links und informationsdichte Auszüge zurückgibt.",
   "settings.tool.websearch.provider_description.querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
   "settings.tool.websearch.provider_description.searchapi": "SearchApi Echtzeit-Such-API, die Google-Ergebnisse als strukturiertes JSON liefert.",
