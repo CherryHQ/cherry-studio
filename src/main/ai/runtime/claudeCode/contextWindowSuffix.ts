@@ -31,12 +31,15 @@ export function effectiveContextWindowTokens(modelId: string | undefined): numbe
 
 /**
  * True for the first-party Anthropic endpoint: an explicit `api.anthropic.com`
- * host, or an unset base URL (the Claude Code SDK then defaults to it).
+ * host over HTTPS on the default port, or an unset base URL (the Claude Code
+ * SDK then defaults to it). Plain HTTP and explicit non-default ports prove a
+ * middlebox, not the official endpoint.
  */
 export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
   if (!baseUrl) return true
   try {
-    return new URL(baseUrl).hostname === ANTHROPIC_OFFICIAL_HOST
+    const url = new URL(baseUrl)
+    return url.hostname === ANTHROPIC_OFFICIAL_HOST && url.protocol === 'https:' && url.port === ''
   } catch {
     return false
   }
