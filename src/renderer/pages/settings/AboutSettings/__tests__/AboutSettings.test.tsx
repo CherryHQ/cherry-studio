@@ -34,7 +34,8 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
       downloadProgress: 0,
       info: null
     },
-    updateAppUpdateState: vi.fn()
+    updateAppUpdateState: vi.fn(),
+    checkForUpdate: vi.fn()
   })
 }))
 

@@ -10,6 +10,7 @@ import { getSidebarLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
+import { NotificationCenterButton } from '../NotificationCenter'
 import { WindowControls } from '../WindowControls'
 
 const logger = loggerService.withContext('ShellTabBarActions')
@@ -73,6 +74,7 @@ export function ShellTabBarActions() {
             <Search size={16} strokeWidth={1.8} />
           </Button>
         </CommandTooltip>
+        {sidebarLayout === 'hidden' && <NotificationCenterButton />}
         {sidebarLayout === 'hidden' && (
           <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
             <Button

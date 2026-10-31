@@ -10,11 +10,16 @@
  * cleanup on stop.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { defaultServiceInstances, mockNotificationService } from '@test-mocks/main/application'
+import type { UpdateInfo } from 'builder-util-runtime'
+import { eq } from 'drizzle-orm'
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { appStateTable } from '@data/db/schemas/appState'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { regionService } from '@main/services/RegionService'
@@ -44,6 +49,7 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: true,
     getVersion: vi.fn(() => '1.0.0'),
+    getLocale: vi.fn(() => 'en-US'),
     getPath: vi.fn(() => '/test/path')
   },
   // Real BaseService.ipcHandle calls ipcMain.handle, so the mock must provide it.
@@ -89,6 +95,13 @@ const setPackaged = (value: boolean) => {
 }
 
 describe('AppUpdaterService — auto update-check scheduling', () => {
+  const dbh = setupTestDatabase()
+  const releaseMarker = (version: string) =>
+    dbh.db
+      .select()
+      .from(appStateTable)
+      .where(eq(appStateTable.key, `appUpdater:notification:${version}`))
+      .get()
   let scheduler: SchedulerService
   let appUpdater: AppUpdaterService
   let prefValues: Record<string, unknown>
@@ -102,7 +115,7 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       'app.dist.auto_update.enabled': true,
       'app.dist.test_plan.enabled': false,
       'app.dist.test_plan.channel': undefined,
-      'app.language': 'en'
+      'app.language': 'en-US'
     }
     const prefStub = {
       get: vi.fn((key: string) => prefValues[key]),
@@ -128,6 +141,12 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
           return analyticsStub
         case 'WindowManager':
           return windowManagerStub
+        case 'DbService':
+          return defaultServiceInstances.DbService
+        case 'NotificationService':
+          return mockNotificationService
+        case 'IpcApiService':
+          return defaultServiceInstances.IpcApiService
         default:
           throw new Error(`unexpected application.get('${name}')`)
       }
@@ -152,6 +171,78 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     BaseService.resetInstances()
+  })
+
+  it('records each available release once across repeated update checks', async () => {
+    const release = {
+      version: '2.0.0',
+      path: 'test-update.zip',
+      sha512: 'test-checksum',
+      releaseDate: new Date().toISOString(),
+      files: [],
+      releaseNotes: 'A useful update.'
+    }
+    const available = vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === 'update-available')?.[1] as
+      | ((release: UpdateInfo) => void)
+      | undefined
+    expect(available).toBeDefined()
+    available?.(release)
+    available?.(release)
+    await vi.waitFor(() => expect(releaseMarker(release.version)?.value).toBe(true))
+    available?.(release)
+    expect(mockNotificationService.publish).toHaveBeenCalledTimes(1)
+    expect(mockNotificationService.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKey: 'release:2.0.0',
+        category: 'official',
+        kind: 'release',
+        target: { kind: 'release', version: '2.0.0', releaseNotes: 'A useful update.' }
+      }),
+      { source: 'update' }
+    )
+  })
+
+  it('consumes release identity while official notifications are disabled', async () => {
+    prefValues['app.notification.center.official.enabled'] = false
+    const available = vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === 'update-available')?.[1] as
+      | ((release: UpdateInfo) => void)
+      | undefined
+    const release = {
+      version: '2.0.1',
+      path: 'test-update.zip',
+      sha512: 'test-checksum',
+      releaseDate: new Date().toISOString(),
+      files: [],
+      releaseNotes: 'Release notes.'
+    }
+    available?.(release)
+    await vi.waitFor(() => expect(releaseMarker(release.version)?.value).toBe(true))
+    mockNotificationService.publish.mockClear()
+    prefValues['app.notification.center.official.enabled'] = true
+    available?.(release)
+    expect(mockNotificationService.publish).not.toHaveBeenCalled()
+  })
+
+  it('retries an available release when notification storage failed', async () => {
+    mockNotificationService.publish.mockResolvedValueOnce(false)
+    const available = vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === 'update-available')?.[1] as
+      | ((release: UpdateInfo) => void)
+      | undefined
+    const release = {
+      version: '2.0.2',
+      path: 'test-update.zip',
+      sha512: 'test-checksum',
+      releaseDate: new Date().toISOString(),
+      files: [],
+      releaseNotes: 'Release notes.'
+    }
+    available?.(release)
+    await Promise.resolve()
+    expect(releaseMarker(release.version)).toBeUndefined()
+    available?.(release)
+    await vi.waitFor(() => expect(releaseMarker(release.version)?.value).toBe(true))
+    available?.(release)
+    expect(mockNotificationService.publish).toHaveBeenCalledTimes(2)
   })
 
   it('runs an initial check shortly after startup when packaged and enabled', async () => {

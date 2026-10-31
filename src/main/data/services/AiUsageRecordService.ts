@@ -25,6 +25,7 @@ import { type AiUsageRecordRow, aiUsageRecordTable, type InsertAiUsageRecordRow 
 import { messageTable } from '@data/db/schemas/message'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import type {
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
@@ -1377,6 +1378,9 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
 }
 
 export class AiUsageRecordService {
+  private readonly invocationsRecorded = new Emitter<void>()
+  readonly onInvocationsRecorded = this.invocationsRecorded.event
+
   recordInvocation(input: RecordAiInvocationInput): void {
     this.recordInvocations([input])
   }
@@ -1392,6 +1396,7 @@ export class AiUsageRecordService {
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
         ...messageReadModelEffects(result.affectedMessages)
       ])
+      this.invocationsRecorded.fire()
     } catch (err) {
       logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
     }

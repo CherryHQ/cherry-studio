@@ -587,7 +587,7 @@ export function TabsProvider({
   // Listen for tab attach requests (from Main Process)
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
-  useConversationNavigationOwner({ tabs, openTab, setActiveTab })
+  useConversationNavigationOwner({ tabs, activeTabId, openTab, setActiveTab })
 
   /**
    * Get the currently active tab

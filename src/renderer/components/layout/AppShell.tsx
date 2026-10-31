@@ -16,6 +16,7 @@ import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import { NotificationCenterProvider } from '../NotificationCenter'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
@@ -24,7 +25,13 @@ import { TabRouter } from './TabRouter'
 const isCompactMinWidthRoute = (url?: string): boolean =>
   !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
 
-export const AppShell = () => {
+export const AppShell = () => (
+  <NotificationCenterProvider>
+    <AppShellContent />
+  </NotificationCenterProvider>
+)
+
+const AppShellContent = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const tabsApi = useTabs()
   const {
@@ -203,6 +210,10 @@ export const AppShell = () => {
       </div>
     </>
   )
+
+  useEffect(() => {
+    if (isSettingsTabActive) document.documentElement.style.setProperty('--notification-left', '0px')
+  }, [isSettingsTabActive])
 
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

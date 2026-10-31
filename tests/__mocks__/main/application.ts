@@ -1,5 +1,8 @@
 import { vi } from 'vitest'
 
+import type { NotificationRecord } from '@shared/data/types/notification'
+import type { NotificationSource } from '@shared/types/notification'
+
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
@@ -82,6 +85,13 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+export const mockNotificationService = {
+  publish: vi.fn(
+    async (_input: Partial<NotificationRecord>, _options?: { source?: NotificationSource; completion?: boolean }) =>
+      true
+  )
+}
+
 const serviceOverrides = new Map<string, unknown>()
 
 export const MockApplicationUtils = {
@@ -105,6 +115,7 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
+  NotificationService: mockNotificationService,
   JobManager: mockJobManager,
   PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
