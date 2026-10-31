@@ -16,11 +16,14 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
+import type { OutputFor } from '@shared/ipc/types'
 import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
   hasMultiLanguageReleaseNotes,
+  isStableReleaseVersion,
   localizeReleaseNotes,
   mergeReleaseHistory,
   parseReleaseHistory,
@@ -314,6 +317,26 @@ export class AppUpdaterService extends BaseService {
     }
 
     return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
+  }
+
+  public async getUpgradeReleaseNotes(targetVersion: string): Promise<OutputFor<'app.updater.upgrade_notes.get'>> {
+    const fromVersion = app.getVersion()
+    if (
+      !isStableReleaseVersion(fromVersion) ||
+      !isStableReleaseVersion(targetVersion) ||
+      !semver.gt(targetVersion, fromVersion)
+    ) {
+      throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'Expected a stable upgrade range')
+    }
+    const history = await this.fetchReleaseHistory()
+    return {
+      fromVersion,
+      toVersion: targetVersion,
+      historyStatus: history ? 'available' : 'unavailable',
+      releases: (history ?? [])
+        .filter(({ version }) => semver.gt(version, fromVersion) && semver.lte(version, targetVersion))
+        .sort((left, right) => semver.rcompare(left.version, right.version))
+    }
   }
 
   public cancelDownload() {
