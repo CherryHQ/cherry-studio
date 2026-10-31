@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -11,11 +13,20 @@ import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import CherryInOauth from '../ProviderSpecific/CherryInOauth'
 
 const useProviderMock = vi.fn()
+const syncProviderModelsMock = vi.fn()
 const ipcApiRequestMock = vi.fn()
 const oauthWithCherryInMock = vi.mocked(oauthWithCherryIn)
+const initializeOfficialAssistantsMock = vi.mocked(dataApiService.post)
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
+}))
+
+vi.mock('../hooks/useProviderModelSync', () => ({
+  useProviderModelSync: () => ({
+    syncProviderModels: syncProviderModelsMock,
+    isSyncingModels: false
+  })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -59,6 +70,9 @@ describe('CherryInOauth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     oauthWithCherryInMock.mockReset()
+    syncProviderModelsMock.mockReset()
+    syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
+    initializeOfficialAssistantsMock.mockResolvedValue(undefined)
     ipcApiRequestMock.mockImplementation((route: string) => {
       if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
       if (route === 'oauth.has_token') return Promise.resolve(true)
@@ -222,6 +236,149 @@ describe('CherryInOauth', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(loginButton).toBeEnabled()
     expect(screen.queryByRole('button', { name: /取消|Cancel/i })).not.toBeInTheDocument()
+  })
+
+  it('reports model sync failure without treating a completed login as an OAuth failure', async () => {
+    let hasSavedKey = false
+    const addApiKey = vi.fn(async () => {
+      hasSavedKey = true
+    })
+    useProviderMock.mockImplementation(() => ({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        apiKeys: hasSavedKey ? [{ id: 'oauth-1', label: 'OAuth', isEnabled: true }] : [],
+        isEnabled: true
+      },
+      updateProvider: vi.fn().mockResolvedValue(undefined),
+      addApiKey,
+      deleteApiKey: vi.fn()
+    }))
+    oauthWithCherryInMock.mockImplementationOnce(async (setKey) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+    syncProviderModelsMock.mockRejectedValueOnce(new Error('model sync failed'))
+    const user = userEvent.setup()
+
+    render(<CherryInOauth providerId="cherryin" />)
+    await user.click(screen.getByRole('button', { name: /CherryIN|授权/i }))
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledOnce())
+    expect(await screen.findByRole('button', { name: /Logout|退出登录/i })).toBeInTheDocument()
+    expect(addApiKey).toHaveBeenCalledWith('sk-one', 'OAuth')
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/models|模型/i))
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(initializeOfficialAssistantsMock).not.toHaveBeenCalled()
+  })
+
+  it('initializes official assistants only after CherryIN model sync completes', async () => {
+    let resolveModelSync: ((models: Array<{ id: string; providerId: string; isEnabled: boolean }>) => void) | undefined
+    syncProviderModelsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveModelSync = resolve
+        })
+    )
+    const addApiKey = vi.fn().mockResolvedValue(undefined)
+    const updateProvider = vi.fn().mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
+      updateProvider,
+      addApiKey,
+      deleteApiKey: vi.fn()
+    })
+    ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
+      if (route === 'oauth.has_token') return Promise.resolve(false)
+      return Promise.resolve(undefined)
+    })
+    oauthWithCherryInMock.mockImplementationOnce(async (setKey) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+
+    const user = userEvent.setup()
+    render(<CherryInOauth providerId="cherryin" />)
+    await user.click(screen.getByRole('button', { name: /CherryIN|授权/i }))
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    expect(initializeOfficialAssistantsMock).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveModelSync?.([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
+    })
+
+    await waitFor(() =>
+      expect(initializeOfficialAssistantsMock).toHaveBeenCalledWith('/assistants:initialize-cherryin-official', {
+        body: {}
+      })
+    )
+    expect(addApiKey).toHaveBeenCalledWith('sk-one', 'OAuth')
+    expect(updateProvider).toHaveBeenCalledWith({ isEnabled: true })
+    expect(toast.success).toHaveBeenCalled()
+  })
+
+  it('preserves a preset-derived CherryIN provider login when model sync is unavailable', async () => {
+    syncProviderModelsMock.mockRejectedValueOnce(new Error('model sync unavailable'))
+    useProviderMock.mockReturnValue({
+      provider: { id: 'custom-cherryin', presetProviderId: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
+      updateProvider: vi.fn().mockResolvedValue(undefined),
+      addApiKey: vi.fn().mockResolvedValue(undefined),
+      deleteApiKey: vi.fn()
+    })
+    ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
+      if (route === 'oauth.has_token') return Promise.resolve(false)
+      return Promise.resolve(undefined)
+    })
+    oauthWithCherryInMock.mockImplementationOnce(async (setKey) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+
+    const user = userEvent.setup()
+    render(<CherryInOauth providerId="custom-cherryin" />)
+    await user.click(screen.getByRole('button', { name: /CherryIN|授权/i }))
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(syncProviderModelsMock).not.toHaveBeenCalled()
+    expect(initializeOfficialAssistantsMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps a completed CherryIN login successful when official assistant initialization fails', async () => {
+    const initializationError = new Error('initialization failed')
+    initializeOfficialAssistantsMock.mockRejectedValueOnce(initializationError)
+    const loggerErrorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
+      updateProvider: vi.fn().mockResolvedValue(undefined),
+      addApiKey: vi.fn().mockResolvedValue(undefined),
+      deleteApiKey: vi.fn()
+    })
+    ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
+      if (route === 'oauth.has_token') return Promise.resolve(false)
+      return Promise.resolve(undefined)
+    })
+    oauthWithCherryInMock.mockImplementationOnce(async (setKey) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+
+    const user = userEvent.setup()
+    render(<CherryInOauth providerId="cherryin" />)
+    await user.click(screen.getByRole('button', { name: /CherryIN|授权/i }))
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      'Failed to initialize CherryIN official assistants',
+      initializationError
+    )
   })
 
   it('logs out and removes every OAuth-labelled key after confirmation', async () => {

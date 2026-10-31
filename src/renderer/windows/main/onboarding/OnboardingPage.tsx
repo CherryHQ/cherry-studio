@@ -31,7 +31,7 @@ import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
+import { ProviderSettingsPage, useCherryInSetup } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -39,6 +39,7 @@ import { isWin } from '@renderer/utils/platform'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
+import { CHERRYIN_OFFICIAL_ASSISTANT_IDS } from '@shared/data/presets/cherryInOfficialAssistants'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
@@ -58,6 +59,8 @@ const ENABLE_CHERRY_ACCOUNT_LOGIN = false
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
+const OFFICIAL_ASSISTANT_IDS = new Set<string>(Object.values(CHERRYIN_OFFICIAL_ASSISTANT_IDS))
+const SEEDED_ASSISTANT_QUERY_LIMIT = OFFICIAL_ASSISTANT_IDS.size + 1
 const isOnboardingModel = (model: Model) => !isManagedCherryProviderId(model.providerId) && !isNonChatModel(model)
 const ONBOARDING_PREFERENCE_KEYS = {
   providerSetupStatus: 'app.onboarding.provider_setup.status',
@@ -86,7 +89,7 @@ export default function OnboardingPage({
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
   const { addApiKey, updateProvider } = useProvider('cherryin')
-  const { syncProviderModels } = useProviderModelSync('cherryin')
+  const { completeSetup } = useCherryInSetup('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models: enabledModels, isLoading: isModelsLoading } = useModels({ enabled: true })
   const { defaultModel, quickModel, translateModel } = useDefaultModel()
@@ -161,9 +164,11 @@ export default function OnboardingPage({
   const updateSeededResourceModels = useCallback(
     async (model: Model) => {
       const assistantUpdate = dataApiService
-        .get('/assistants', { query: { limit: 2 } })
+        .get('/assistants', { query: { limit: SEEDED_ASSISTANT_QUERY_LIMIT } })
         .then(async ({ items, total }) => {
-          const assistant = total === 1 ? items[0] : undefined
+          const nonOfficialAssistants =
+            total <= SEEDED_ASSISTANT_QUERY_LIMIT ? items.filter(({ id }) => !OFFICIAL_ASSISTANT_IDS.has(id)) : []
+          const assistant = nonOfficialAssistants.length === 1 ? nonOfficialAssistants[0] : undefined
           if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
             await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
           }
@@ -361,10 +366,16 @@ export default function OnboardingPage({
         },
         { oauthServer: CHERRYIN_OAUTH_SERVER }
       )
-      if (loginAttemptRef.current !== attemptId) return
-
-      const cherryInModels = await syncProviderModels()
-      if (loginAttemptRef.current !== attemptId) return
+      let cherryInModels: Model[] | undefined
+      try {
+        cherryInModels = await completeSetup(() => loginAttemptRef.current === attemptId)
+      } catch {
+        if (loginAttemptRef.current !== attemptId) return
+        toast.error(t('onboarding.toast.model_sync_failed'))
+        setStep('provider')
+        return
+      }
+      if (!cherryInModels) return
 
       if (!cherryInModels.some((model) => model.isEnabled)) {
         toast.error(t('onboarding.provider_setup.missing_model'))
@@ -386,7 +397,7 @@ export default function OnboardingPage({
         setIsLoggingIn(false)
       }
     }
-  }, [addApiKey, syncProviderModels, t, updateProvider])
+  }, [addApiKey, completeSetup, t, updateProvider])
 
   const isPrimaryLoginPending = shouldUseCherryAccountLogin ? isCloudAuthorizing : isLoggingIn
   const primaryLoginLabel = shouldUseCherryAccountLogin
@@ -408,7 +419,7 @@ export default function OnboardingPage({
               <SelectTrigger
                 aria-label={t('common.language')}
                 size="sm"
-                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="nodrag text-muted-foreground h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <Languages className="size-3.5" />
                 <SelectValue>{displayLanguageLabel}</SelectValue>
               </SelectTrigger>
@@ -443,8 +454,8 @@ export default function OnboardingPage({
                 <div className="flex w-full max-w-[420px] flex-col items-center">
                   <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
                   <div className="mt-5 flex flex-col gap-2 text-center">
-                    <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
-                    <p className="m-0 text-muted-foreground text-sm">{t('onboarding.welcome.subtitle')}</p>
+                    <h1 className="m-0 text-2xl font-semibold text-foreground">{t('onboarding.welcome.title')}</h1>
+                    <p className="text-muted-foreground m-0 text-sm">{t('onboarding.welcome.subtitle')}</p>
                   </div>
                   <div className="mt-8 flex w-full flex-col gap-3">
                     <Button
@@ -485,7 +496,7 @@ export default function OnboardingPage({
                       {t('onboarding.welcome.other_provider')}
                     </Button>
                   </div>
-                  <p className="mt-4 mb-0 text-center text-muted-foreground text-xs">
+                  <p className="text-muted-foreground mt-4 mb-0 text-center text-xs">
                     {t('onboarding.welcome.setup_hint')}
                   </p>
                 </div>
@@ -499,7 +510,7 @@ export default function OnboardingPage({
                   onBack={() => setStep('welcome')}
                   padded
                 />
-                <div className="min-h-0 flex-1 border-border border-y">
+                <div className="min-h-0 flex-1 border-y border-border">
                   <OnboardingProviderSettings />
                 </div>
                 <div className="flex shrink-0 justify-end gap-2 px-5 py-3">
@@ -532,7 +543,7 @@ export default function OnboardingPage({
                   onBack={() => setStep('provider')}
                   padded
                 />
-                <Scrollbar className="flex min-h-0 flex-1 justify-center border-border border-t px-6 py-8">
+                <Scrollbar className="flex min-h-0 flex-1 justify-center border-t border-border px-6 py-8">
                   <div className="my-auto w-full max-w-[440px]">
                     <div className="w-full">
                       <ModelSettings
@@ -557,7 +568,7 @@ export default function OnboardingPage({
                           <Check size={16} />
                           {t('onboarding.select_model.start')}
                         </Button>
-                        <p className="m-0 text-center text-muted-foreground text-xs">
+                        <p className="text-muted-foreground m-0 text-center text-xs">
                           {t('onboarding.select_model.change_later')}
                         </p>
                       </div>
@@ -570,7 +581,7 @@ export default function OnboardingPage({
 
           {step === 'welcome' && (
             <div className="nodrag flex shrink-0 justify-center px-6 py-3">
-              <div className="flex max-w-full items-center gap-2 text-center text-muted-foreground text-xs leading-relaxed">
+              <div className="text-muted-foreground flex max-w-full items-center gap-2 text-center text-xs leading-relaxed">
                 <Checkbox
                   id="onboarding-privacy-policy"
                   size="sm"
@@ -583,7 +594,7 @@ export default function OnboardingPage({
                   <span>{t('onboarding.privacy.notice')}</span>
                   <button
                     type="button"
-                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-link text-xs hover:underline"
+                    className="text-link ml-1 cursor-pointer border-0 bg-transparent p-0 text-xs hover:underline"
                     onClick={() => setShowPrivacyPolicy(true)}>
                     {t('onboarding.privacy.policy')}
                   </button>
@@ -632,7 +643,7 @@ function OnboardingHeader({ title, onBack, padded = false }: OnboardingHeaderPro
         <ArrowLeft size={15} />
       </Button>
       <div className="flex min-w-0 flex-1 items-center">
-        <h2 className="m-0 truncate font-semibold text-base text-foreground">{title}</h2>
+        <h2 className="m-0 truncate text-base font-semibold text-foreground">{title}</h2>
       </div>
     </div>
   )
