@@ -398,7 +398,7 @@ export async function createPiDurableRuntime(
           return inbox.items.filter((item) => item.mode !== 'write').map((item) => item.id)
         }, context)
         for (const id of queued) {
-          const submission = await harness.submission(id, context)
+          const submission = await native.submission(id, context)
           const record = await submission?.status(context)
           // Commit notifications may already contain a newer placement or terminal state.
           if (record?.type === 'input' && !inputs.has(record.id)) inputs.set(record.id, record)
