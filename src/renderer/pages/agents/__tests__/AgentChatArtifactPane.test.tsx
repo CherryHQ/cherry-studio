@@ -2,12 +2,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import AgentChat from '../AgentChat'
 
@@ -178,9 +181,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
           const next = new Set(ids)
           next.delete(workspaceRootId)
           onExpandedIdsChange(next)
-        },
-        reloadExpandedDirectories: () => {},
-        refresh: () => {}
+        }
       }
     }
   }
@@ -215,13 +216,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
     const overlaySelection =
       previewFileSelection ?? (selectedFile && workspacePath ? { workspacePath, filePath: selectedFile } : null)
-    const previousWorkspacePathRef = useRef(workspacePath)
-
-    useEffect(() => {
-      if (previousWorkspacePathRef.current === workspacePath) return
-      previousWorkspacePathRef.current = workspacePath
-      setViewMode('preview')
-    }, [workspacePath])
 
     return (
       <div
@@ -360,11 +354,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 })
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
-    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
-      open external preview
-    </button>
-  ),
+  OpenTargetButton: () => <button type="button">open external preview</button>,
   loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
@@ -603,11 +593,13 @@ vi.mock('../components/AgentSessionMessages', async () => {
     sessionId,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFile,
     openDiagnosticReport
   }: {
     sessionId: string
     openAgentToolFlow?: (input: any) => void
     openArtifactFile?: (path: string) => void
+    previewInputFile?: (input: InputFilePreview) => void
     openDiagnosticReport?: (description?: string) => void
   }) => {
     const [messageState, setMessageState] = React.useState('')
@@ -650,6 +642,16 @@ vi.mock('../components/AgentSessionMessages', async () => {
             })
           }>
           open flow b
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            previewInputFile?.({
+              displayName: 'sent-report.md',
+              previewPath: '/managed/sent-report.md' as AbsoluteFilePath
+            })
+          }>
+          Preview sent attachment
         </button>
         <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
           open artifact file
@@ -695,7 +697,7 @@ describe('AgentChat artifact pane', () => {
     conversationBootstrap: createConversationBootstrap()
   })
   const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
-    render(<AgentChat {...activeSessionProps()} {...props} />)
+    render(<AgentChat {...activeSessionProps()} {...props} />, { wrapper: FileEditSessionProvider })
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
     props: Partial<ComponentProps<typeof AgentChat>> = {}
@@ -752,9 +754,6 @@ describe('AgentChat artifact pane', () => {
           toolApproval: {
             respond: vi.fn()
           }
-        },
-        file: {
-          openPath: vi.fn()
         }
       }
     })
@@ -935,6 +934,15 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
   })
 
+  it('opens a sent attachment through the message-list bridge', async () => {
+    const user = userEvent.setup()
+    renderAgentChat()
+    await user.click(screen.getByRole('button', { name: 'Preview sent attachment' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(await screen.findByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'sent-report.md')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/managed')
+  })
+
   it('keeps the viewport and visited capability mounted while a center surface is presented', () => {
     const { rerender } = renderAgentChat()
 
@@ -984,7 +992,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
   })
 
-  it('resets the artifact view mode when the workspace changes', () => {
+  it('closes a changed workspace and resets artifact state when explicitly reopened', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1001,6 +1009,12 @@ describe('AgentChat artifact pane', () => {
     }
     rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('artifact-pane')).not.toBeInTheDocument()
+
+    openFilesPane()
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/other-workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
   })
@@ -1044,7 +1058,7 @@ describe('AgentChat artifact pane', () => {
     expect(onMissingAgentSelectionAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('destroys an unavailable artifact capability without unmounting the stable viewport', () => {
+  it('keeps a recovered artifact capability closed until explicitly opened without replacing the viewport', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1078,6 +1092,11 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeEnabled()
     expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('artifact-pane')).not.toBeInTheDocument()
+
+    openFilesPane()
+
     expect(rightPane).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).not.toBe(artifactPane)
   })

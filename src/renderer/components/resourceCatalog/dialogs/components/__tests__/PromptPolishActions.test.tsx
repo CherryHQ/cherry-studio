@@ -318,17 +318,18 @@ describe('PromptPolishActions', () => {
     expect(onChange).toHaveBeenCalledWith('Polished prompt')
   })
 
-  it('does not apply a fallback response after the fallback source changes', async () => {
+  it('keeps a generated prompt after the fallback source changes, with undo to reject it', async () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
-    const onChange = vi.fn()
-    render(<Harness initialValue="" fallbackSource="Alpha Agent" onChangeSpy={onChange} />)
+    render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
     fireEvent.click(screen.getByRole('button', { name: 'change fallback source' }))
     await act(async () => request.resolve('Generated Alpha instructions'))
 
-    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByTestId('value')).toHaveTextContent('Generated Alpha instructions')
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByTestId('value')).toBeEmptyDOMElement()
   })
 
   it('does not apply a response after the action becomes disabled', async () => {
@@ -342,6 +343,63 @@ describe('PromptPolishActions', () => {
     await act(async () => request.resolve('Late polished prompt'))
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  describe('running state', () => {
+    function RunningStateHarness() {
+      const [running, setRunning] = useState(false)
+      const [mounted, setMounted] = useState(true)
+
+      return (
+        <>
+          {mounted ? (
+            <PromptPolishActions
+              value="Original prompt"
+              emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+              existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+              onChange={vi.fn()}
+              onRunningChange={setRunning}
+            />
+          ) : null}
+          <button type="button" onClick={() => setMounted(false)}>
+            unmount actions
+          </button>
+          <output data-testid="running">{String(running)}</output>
+        </>
+      )
+    }
+
+    it('reports running until the response arrives', async () => {
+      const request = deferredResponse()
+      mocks.fetchGenerate.mockReturnValueOnce(request.promise)
+      render(<RunningStateHarness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      expect(screen.getByTestId('running')).toHaveTextContent('true')
+
+      await act(async () => request.resolve('Polished prompt'))
+      expect(screen.getByTestId('running')).toHaveTextContent('false')
+    })
+
+    it('stops reporting running when the user cancels', () => {
+      mocks.fetchGenerate.mockReturnValueOnce(NEVER_RESOLVING_PROMISE)
+      render(<RunningStateHarness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+      expect(screen.getByTestId('running')).toHaveTextContent('false')
+    })
+
+    it('stops reporting running when the actions unmount mid-request', () => {
+      mocks.fetchGenerate.mockReturnValueOnce(NEVER_RESOLVING_PROMISE)
+      render(<RunningStateHarness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      fireEvent.click(screen.getByRole('button', { name: 'unmount actions' }))
+
+      expect(screen.getByTestId('running')).toHaveTextContent('false')
+    })
   })
 
   it('invalidates undo after a manual edit without an effect-driven follow-up commit', async () => {

@@ -1,6 +1,6 @@
 ---
 name: code-mate-hermes
-description: Runs Hermes Agent in one-shot mode for bounded local tasks. Use when the user explicitly asks to delegate work to Hermes and accepts its automatic tool approval behavior.
+description: Run Hermes Agent non-interactively for local coding tasks. Use when the user asks to delegate work to Hermes.
 ---
 
 # Hermes Agent

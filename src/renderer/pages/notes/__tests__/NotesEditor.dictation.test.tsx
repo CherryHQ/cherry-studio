@@ -13,7 +13,7 @@ import type { CapturedVoiceTarget } from '@renderer/services/voice'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeCodeTheme: 'one-light' }),
   useCmTheme: () => 'light'
 }))
 
@@ -57,6 +57,7 @@ describe('Notes dictation integration', () => {
     vi.restoreAllMocks()
     vi.spyOn(dictationService, 'startScoped').mockReturnValue({
       result: Promise.resolve(),
+      stop: async () => undefined,
       cancel: async () => undefined
     })
     MockUsePreferenceUtils.resetMocks()
@@ -77,7 +78,7 @@ describe('Notes dictation integration', () => {
     let binding: CapturedVoiceTarget | null = null
     vi.spyOn(dictationService, 'startScoped').mockImplementation(() => {
       binding = voiceTargetManager.captureCurrent()
-      return { result: Promise.resolve(), cancel: async () => undefined }
+      return { result: Promise.resolve(), stop: async () => undefined, cancel: async () => undefined }
     })
     const user = userEvent.setup()
     render(<Note />)
@@ -105,7 +106,7 @@ describe('Notes dictation integration', () => {
     let binding: CapturedVoiceTarget | null = null
     vi.spyOn(dictationService, 'startScoped').mockImplementation(() => {
       binding = voiceTargetManager.captureCurrent()
-      return { result: Promise.resolve(), cancel: async () => undefined }
+      return { result: Promise.resolve(), stop: async () => undefined, cancel: async () => undefined }
     })
     const user = userEvent.setup()
     render(<Note initialContent="" />)

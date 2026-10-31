@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-19-internal-gateway-bind-retry.md
+2026-10-19-internal-gateway-bind-retry.md: 9d2d7888fd05aa3471cb22fe12866ee010625189
+2026-10-19-internal-gateway-bind-retry.zh.md: a29a81d00ee3a2bd3beb5cc84c3c5f058c334025

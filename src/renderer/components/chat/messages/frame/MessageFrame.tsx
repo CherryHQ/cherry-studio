@@ -352,7 +352,9 @@ const UserBubbleMessage = ({
   isEditing: boolean
 }) => {
   const messageParts = useMessageParts(message.id)
-  const attachments = getHoistedAttachments(messageParts, message)
+  const { openFile, previewFile, previewInputFile } = useMessageListActions()
+  const hoistNonImageFiles = !!(previewInputFile || previewFile || openFile)
+  const attachments = getHoistedAttachments(messageParts, message.id, hoistNonImageFiles)
 
   return (
     <div className="flex w-full flex-col items-end">
@@ -371,6 +373,7 @@ const UserBubbleMessage = ({
               <MessageAttachments
                 key={file.key}
                 handle={file.handle}
+                inputFilePreview={file.inputFilePreview}
                 name={file.name}
                 ext={file.ext}
                 createdAt={message.createdAt}

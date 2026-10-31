@@ -63,8 +63,8 @@ export default openaiCompatible({
   },
   overrides: [
     // BigModel serves these with a dotted version; generation derives the canonical key + apiModelId.
-    ...['glm-5.2', 'glm-5.2-fast'].map((modelId) => ({
-      modelId,
+    ...['glm-5.2', 'glm-5.2-fast'].map((apiModelId) => ({
+      apiModelId,
       reasoningContracts: {
         'openai-chat-completions': {
           support: glm52Support,
@@ -72,8 +72,8 @@ export default openaiCompatible({
         }
       }
     })),
-    ...['glm-5.3', 'glm-5.3-flash'].map((modelId) => ({
-      modelId,
+    ...['glm-5.3', 'glm-5.3-flash'].map((apiModelId) => ({
+      apiModelId,
       reasoningContracts: {
         'openai-chat-completions': {
           support: { defaultEffort: 'max' as const },
@@ -100,7 +100,7 @@ export default openaiCompatible({
           }
         }
       },
-      modelId: 'cogview-4'
+      apiModelId: 'cogview-4'
     },
     {
       imageGeneration: {
@@ -121,7 +121,7 @@ export default openaiCompatible({
           }
         }
       },
-      modelId: 'glm-image'
+      apiModelId: 'glm-image'
     }
   ]
 })

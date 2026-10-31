@@ -160,6 +160,12 @@ mac:
     NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
     NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCalendarsUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsWriteOnlyAccessUsageDescription: Cherry Studio allows local MCP servers to create calendar events.
+    NSRemindersUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSRemindersFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSAppleEventsUsageDescription: Cherry Studio allows local MCP servers to control other applications using AppleScript.
   target:
     - target: dmg
     - target: zip
@@ -199,23 +205,50 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.6 - Bug Fixes and Provider Updates
+    Cherry Studio 2.1.10 - File Comments, Touch Reorder, and Update Timeline
+
+    ✨ New Features
+    - [Agent Files] Comment on files for the agent. In a text file, hover a line and click '+' (or drag across several lines) to write a comment. In Word, Excel, PDF and PowerPoint files, pick a part and click Comment. Each comment is added to the message as a chip with its location.
+    - [Updates] View skipped stable-version release notes in a collapsible timeline; single-version updates show their notes directly. Markdown footnote navigation now works correctly with backlinks.
+    - [Proxy] Test proxy connection in General Settings before saving, with support for PAC proxy/direct fallback reporting.
+    - [Touch] Reorder lists by pressing and holding a row. Buttons inside a row no longer start a drag. Selection Assistant settings now show enabled and disabled actions in one list separated by a divider.
 
     🐛 Bug Fixes
-    - [Search] Fix searches for programming languages with hash symbols (e.g., C#, F#) not matching messages.
-    - [Backup] Fix restore failing on Windows when browser storage is locked by the current session. Restore progress now stays monotonic, failed attempts are reported with retry guidance, and orphaned restore files are cleaned up.
-    - [Errors] Stop misreporting client-refusal errors as "invalid API key" — now shows the correct permission guidance instead of sending users to regenerate working keys.
-    - [Chat] Context-usage token counts now follow the selected interface language and update when it changes.
+    - [Chat] The message list no longer jumps back to the first message while scrolling a conversation that contains code blocks.
+    - [Agents] Existing conversations resume correctly after moving the data directory, preserving their history.
+    - [Local Dictation] Fix local speech recognition silently losing the second half of long utterances.
+    - [Streaming] Fix missing or duplicated response text when stream replay overlaps incoming output.
+    - [Composer] Option descriptions in question panels are no longer truncated.
+    - [Right Panel] The browser sidebar no longer opens unexpectedly when creating or switching Agent tasks.
+    - [Code Block] Diagram preview toolbars are no longer clipped. Mermaid, Graphviz, SVG, LaTeX, and ECharts previews blend into the message background.
+    - [Knowledge] File conversion progress starts from 0% and updates immediately instead of every 5 seconds.
+    - [Conversation List] Recent conversations no longer sort to the bottom after midnight.
+    - [MiMo] Fix MiMo models returning “Unsupported model” errors.
+
+    ⚡ Performance
+    - [Code Blocks] Reduce unnecessary rendering work while scrolling conversations with code blocks.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.6 - 问题修复与供应商更新
+    Cherry Studio 2.1.10 - 文件评论、触控排序与更新时间轴
+
+    ✨ 新功能
+    - [智能体文件] 为智能体评论文件。在文本文件中，悬停一行并点击 '+'（或拖动多行）来编写评论。在 Word、Excel、PDF 和 PowerPoint 文件中，选择部分后点击评论。每条评论作为带有位置的芯片添加到消息中。
+    - [更新] 通过可折叠时间轴查看跨越的稳定版本更新日志；仅一个版本时直接展示日志。Markdown 脚注跳转及返回现已正常工作。
+    - [代理] 在通用设置中保存前测试代理连接，支持 PAC 代理/直接回退报告。
+    - [触控] 按住行可重新排序列表。行内按钮不再触发拖动。选区助手设置现以分隔线分隔启用和禁用的操作。
 
     🐛 问题修复
-    - [搜索] 修复搜索包含井号的编程语言（如 C#、F#）时无法匹配消息的问题。
-    - [备份] 修复 Windows 上浏览器存储被当前会话锁定导致恢复失败的问题。恢复进度现在保持单调，失败的恢复会显示重试指引，孤立的恢复文件会被清理。
-    - [错误] 修复客户端拒绝被错误报告为"API 密钥无效"的问题 — 现在显示正确的权限指引，而不是引导用户重新生成有效的密钥。
-    - [对话] 上下文使用量的 token 计数现在跟随所选界面语言，并在切换语言时更新。
+    - [聊天] 滚动包含代码块的会话时，消息列表不再跳回第一条消息。
+    - [智能体] 移动数据目录后，现有对话可正确恢复并保留历史。
+    - [本地语音识别] 修复本地语音识别在长语音后半段静默丢失的问题。
+    - [流式传输] 修复流式回放与传入输出重叠时响应文本丢失或重复的问题。
+    - [编辑器] 问题面板中的选项描述不再被截断。
+    - [右侧面板] 创建或切换智能体任务时，浏览器侧边栏不再意外打开。
+    - [代码块] 图表预览工具栏不再被裁剪。Mermaid、Graphviz、SVG、LaTeX 和 ECharts 预览融入消息背景。
+    - [知识库] 文件转换进度从 0% 开始并即时更新，而非每 5 秒更新一次。
+    - [对话列表] 午夜后最近对话不再排到底部。
+    - [MiMo] 修复 MiMo 模型返回”不支持的模型”错误的问题。
 
-    💡 提示
-    - 腾讯 TI 和混元供应商已随腾讯平台下线而停用。请配置 TokenHub 或其他可用供应商以继续使用；现有本地数据已保留。
+    ⚡ 性能优化
+    - [代码块] 减少滚动包含代码块的会话时的不必要渲染工作。
     <!--LANG:END-->

@@ -32,14 +32,8 @@ export function createPythonServer(): McpServer {
   server.registerTool(
     'python_execute',
     {
-      description: `Execute Python code using Pyodide in a sandboxed environment. Supports most Python standard library and scientific packages.
-The code will be executed with Python 3.12.
-Dependencies may be defined via PEP 723 script metadata, e.g. to install "pydantic", the script should start
-with a comment of the form:
-# /// script
-# dependencies = ['pydantic']
-# ///
-print('python code here')`,
+      description:
+        'Run Python 3.12 in Pyodide. Declare dependencies with PEP 723 script metadata (a # /// script block).',
       inputSchema: PythonExecuteArgsSchema
     },
     async ({ code, context, timeout }) => {

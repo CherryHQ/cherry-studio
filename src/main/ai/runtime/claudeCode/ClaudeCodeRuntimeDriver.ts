@@ -20,11 +20,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import {
-  appendAgentAttachmentPaths,
-  buildAgentUserContent,
-  wrapAgentSessionDeliveryContent
-} from '@main/ai/runtime/agentUserContent'
+import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -44,12 +40,11 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -86,6 +81,7 @@ import {
 } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
+import { claudeWorkspaceRelocation } from './workspaceRelocation'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
@@ -280,51 +276,9 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
-export { buildAgentUserContent }
-
-class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: SDKUserMessage[] = []
-  private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
-  private closed = false
-
-  push(message: SDKUserMessage): void {
-    if (this.closed) return
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: message, done: false })
-      return
-    }
-    this.messages.push(message)
-  }
-
-  close(): void {
-    this.closed = true
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: undefined, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: () => {
-        const next = this.messages.shift()
-        if (next) return Promise.resolve({ value: next, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
-        return new Promise<IteratorResult<SDKUserMessage>>((resolve) => {
-          this.waitResolve = resolve
-        })
-      }
-    }
-  }
-}
-
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private sdkInputQueue = new SdkInputQueue()
+  private readonly sdkInputQueue = new AsyncEventQueue<SDKUserMessage>()
   private readonly abortController = new AbortController()
   private query?: Query
   private closePromise?: Promise<void>
@@ -368,8 +322,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
-    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
-    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -377,12 +329,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds
-    ).catch((error) => {
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-      }
-      throw error
-    })
+    )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -391,11 +338,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
-    const wrapColdSpawn = (spawn: (options: SpawnOptions) => SpawnedProcess) => {
-      return (spawnOptions: SpawnOptions) => {
-        this.liveSpawnPreflightReserved = false
-        return spawn(spawnOptions)
-      }
+    const spawnColdProcess = (spawnOptions: SpawnOptions): SpawnedProcess => {
+      const ownsPreflight = this.liveSpawnPreflightReserved
+      this.liveSpawnPreflightReserved = false
+      return application
+        .get('ClaudeCodeProcessManager')
+        .spawn(spawnOptions, coldProcessDiagnostics, 'live', ownsPreflight)
     }
     const options: Options = {
       ...request.options,
@@ -409,7 +357,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess: wrapColdSpawn(createSpawnClaudeCodeProcess(coldProcessDiagnostics))
+      spawnClaudeCodeProcess: spawnColdProcess
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -444,41 +392,50 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.query = consumedWarmQuery
         ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
         : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+      this.adapterModelId = request.sdkModelId
+      this.mcpToolMetadata = request.settings.mcpToolMetadata
+      // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
+      // before any turn opens — is dispatched by the adapter rather than parked by the driver.
+      this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+      this.approvalEmitter = request.settings.approvalEmitter
+      // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
+      // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
+      // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
+      this.bindApprovalEmitter()
+      this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+      this.steerHolder = request.settings.steerHolder
+      registerMcpSessionCatalogSync(
+        this.input.sessionId,
+        this.input.agentId,
+        request.connectionConfig?.live.toolPolicy.mcps ?? [],
+        this.mcpToolMetadata
+      )
+      // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
+      // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
+      if (this.steerHolder) {
+        this.steerHolder.onInjected = (inputs) => {
+          this.steerBoundaryPending = inputs
+          // Reserve the host continuation synchronously before the hook returns. A gateway-backed
+          // subprocess can issue its next provider request before the later `message_start` reaches
+          // this query loop, so the async `steer-boundary` event is too late for request correlation.
+          this.input.onSteerInjected?.(inputs)
+        }
+      }
+      void this.runQueryLoop()
+      return this
     } catch (error) {
+      // The caller never receives a connection when setup fails, so it cannot close it.
+      // Release an unconsumed admission synchronously and close any SDK query already created.
+      // Do not block the original setup error on a possibly stalled SDK cleanup promise.
       this.releaseLiveSpawnPreflightIfHeld()
+      void this.close().catch((cleanupError) => {
+        logger.warn('Claude Code failed connection cleanup failed', {
+          sessionId: this.input.sessionId,
+          error: cleanupError
+        })
+      })
       throw error
     }
-    this.adapterModelId = request.sdkModelId
-    this.mcpToolMetadata = request.settings.mcpToolMetadata
-    // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
-    // before any turn opens — is dispatched by the adapter rather than parked by the driver.
-    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
-    this.approvalEmitter = request.settings.approvalEmitter
-    // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
-    // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
-    // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
-    this.bindApprovalEmitter()
-    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
-    this.steerHolder = request.settings.steerHolder
-    registerMcpSessionCatalogSync(
-      this.input.sessionId,
-      this.input.agentId,
-      request.connectionConfig?.live.toolPolicy.mcps ?? [],
-      this.mcpToolMetadata
-    )
-    // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
-    // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
-    if (this.steerHolder) {
-      this.steerHolder.onInjected = (inputs) => {
-        this.steerBoundaryPending = inputs
-        // Reserve the host continuation synchronously before the hook returns. A gateway-backed
-        // subprocess can issue its next provider request before the later `message_start` reaches
-        // this query loop, so the async `steer-boundary` event is too late for request correlation.
-        this.input.onSteerInjected?.(inputs)
-      }
-    }
-    void this.runQueryLoop()
-    return this
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -1406,6 +1363,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const

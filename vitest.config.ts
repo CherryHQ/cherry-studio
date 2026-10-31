@@ -130,7 +130,9 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -147,7 +149,9 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('src/shared')
+            '@shared': resolve('src/shared'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -167,7 +171,9 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -205,7 +211,18 @@ export default defineConfig({
           ]
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'web-search',
+          environment: 'node',
+          include: ['packages/web-search/src/**/__tests__/**/*.test.ts']
+        }
+      },
       ...[
+        ['agent-runtime', 'tests'],
+        ['agent-runtime-pi', 'tests'],
+        ['agent-runtime-pi-durable', 'tests'],
         ['ai-sdk-provider', 'src'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']

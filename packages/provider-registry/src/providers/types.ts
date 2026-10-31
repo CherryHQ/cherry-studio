@@ -6,7 +6,7 @@
  *
  * A provider's CONNECTION config is the `ProviderConfig` shape (minus `description`, which is templated
  * as `"{name} - AI model provider"`). The GENERATION-only fields below (`modelsDevProvider` / `fetchModels`
- * / `overrides`) drive `provider-models.json` and are NOT emitted to `providers.json`.
+ * / `overrides` / `modelTemplates`) drive `provider-models.json` and are NOT emitted to `providers.json`.
  */
 import type { EndpointDialect, ProviderConfig, ProviderReasoningFormat, ServerToolConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
@@ -69,16 +69,28 @@ export interface Provider extends ProviderConnection {
   fetchModels?: () => Promise<{ id: string }[]>
   /** Upstream routes owned by this provider rather than by the creator named in their API id. */
   standaloneModelIds?: string[]
-  /** Manual overrides — for exact model ids, pricing, transports, reasoning contracts, and status. */
-  overrides?: Partial<ProviderModelOverride>[]
+  /** Models this provider serves — for exact API ids, pricing, transports, reasoning contracts, and status. */
+  overrides?: ProviderModelOffer[]
+  /** Metadata merged into `modelsDevProvider` listings by canonical `modelId`; the API id comes from the listing. */
+  modelTemplates?: ProviderModelTemplate[]
 }
+
+type ProviderModelFields = Partial<Omit<ProviderModelOverride, 'providerId' | 'modelId' | 'apiModelId'>>
+
+/** `apiModelId` is the exact request id; `modelId` defaults to its canonical catalog key. */
+export type ProviderModelOffer = ProviderModelFields & { apiModelId: string; modelId?: string }
+
+export type ProviderModelTemplate = ProviderModelFields & { modelId: string; apiModelId?: never }
 
 export function defineProvider(p: Provider): Provider {
   return p
 }
 
 /** Generation-only fields shared by every provider, kept out of the connection config. */
-type GenFields = Pick<Provider, 'modelsDevProvider' | 'fetchModels' | 'standaloneModelIds' | 'overrides'>
+type GenFields = Pick<
+  Provider,
+  'modelsDevProvider' | 'fetchModels' | 'standaloneModelIds' | 'overrides' | 'modelTemplates'
+>
 
 /**
  * Helper for the common OpenAI-compatible provider: `openai-chat-completions` over `baseUrl` (and an
@@ -131,6 +143,7 @@ export function openaiCompatible(
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),
     ...(p.standaloneModelIds ? { standaloneModelIds: p.standaloneModelIds } : {}),
-    ...(p.overrides ? { overrides: p.overrides } : {})
+    ...(p.overrides ? { overrides: p.overrides } : {}),
+    ...(p.modelTemplates ? { modelTemplates: p.modelTemplates } : {})
   })
 }

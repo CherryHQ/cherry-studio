@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { QWEN3_TTS_BUNDLE_ID, VoiceModelSupport } from '@shared/ai/localVoice'
 
-import { createQwen3SpeechModel, qwen3TtsSupport } from '../qwen3Tts'
+import { mlxVoiceSupport } from '../../voicePlatform'
+import { createQwen3SpeechModel } from '../qwen3Tts'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -90,15 +91,15 @@ describe('Qwen3-TTS adapter', () => {
   })
 
   it('offers the runtime only on supported Apple Silicon systems', () => {
-    expect(qwen3TtsSupport({ platform: 'darwin', arch: 'arm64', majorVersion: 26, minorVersion: 2 })).toBe(
+    expect(mlxVoiceSupport({ platform: 'darwin', arch: 'arm64', majorVersion: 26, minorVersion: 2 })).toBe(
       VoiceModelSupport.Supported
     )
-    expect(qwen3TtsSupport({ platform: 'darwin', arch: 'arm64', majorVersion: 26, minorVersion: 1 })).toBe(
+    expect(mlxVoiceSupport({ platform: 'darwin', arch: 'arm64', majorVersion: 26, minorVersion: 1 })).toBe(
       VoiceModelSupport.UnsupportedVersion
     )
-    expect(qwen3TtsSupport({ platform: 'darwin', arch: 'x64', majorVersion: 26, minorVersion: 2 })).toBe(
+    expect(mlxVoiceSupport({ platform: 'darwin', arch: 'x64', majorVersion: 26, minorVersion: 2 })).toBe(
       VoiceModelSupport.UnsupportedArchitecture
     )
-    expect(qwen3TtsSupport({ platform: 'win32', arch: 'x64' })).toBe(VoiceModelSupport.UnsupportedPlatform)
+    expect(mlxVoiceSupport({ platform: 'win32', arch: 'x64' })).toBe(VoiceModelSupport.UnsupportedPlatform)
   })
 })

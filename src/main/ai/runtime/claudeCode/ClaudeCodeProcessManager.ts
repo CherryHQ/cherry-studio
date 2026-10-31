@@ -268,9 +268,12 @@ export class ClaudeCodeProcessManager extends BaseService {
   spawn(
     options: SpawnOptions,
     diagnostics = createClaudeCodeProcessDiagnostics(),
-    priority: ClaudeCodeSpawnPriority = 'live'
+    priority: ClaudeCodeSpawnPriority = 'live',
+    ownsLivePreflight = false
   ): SpawnedProcess {
-    if (priority === 'live') this.consumeLiveSpawnPreflight()
+    // Only the connection that admitted this cold spawn may convert its reservation.
+    // SDK respawns and unrelated live callers must not consume another connection's slot.
+    if (priority === 'live' && ownsLivePreflight) this.consumeLiveSpawnPreflight()
     if (!prepareClaudeCodeSpawnCapacity(priority)) {
       const error = new Error('Claude Code CLI process cap reached')
       recordClaudeCodeSpawnError(diagnostics, error)

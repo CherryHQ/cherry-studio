@@ -111,15 +111,12 @@ describe('PromptBuilder', () => {
     vi.clearAllMocks()
   })
 
-  it('uses the SDK preset base and emits no identity preamble when no workspace files exist', async () => {
+  it('uses the SDK preset base when no workspace files exist', async () => {
     setupFiles({})
 
     const { base, context: result } = await builder.buildPromptParts(posix('/workspace'))
 
-    // No system.md → keep the runtime-native prompt as the base and append Cherry content;
-    // the old embedded "personal assistant" preamble must be gone.
     expect(base).toEqual({ kind: 'native' })
-    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Memories')
     expect(result).toContain(posix('`/workspace/SOUL.md`'))
   })
@@ -181,16 +178,6 @@ describe('PromptBuilder', () => {
     expect(result).toContain('<soul>')
     expect(result).toContain('Warm but direct. Lead with answers.')
     expect(result).toContain('</soul>')
-    expect(result).toContain('HOW you present yourself')
-  })
-
-  it('defines SOUL.md as presentation persona rather than the Agent role', async () => {
-    setupFiles({ [posix('/workspace/SOUL.md')]: 'Warm, concise, and direct.' })
-
-    const { context } = await builder.buildPromptParts(posix('/workspace'), baseConfig, true)
-
-    expect(context).toContain('HOW you present yourself — name, personality, tone, and communication style')
-    expect(context).not.toContain('WHO you are — personality, tone, communication style, core principles')
   })
 
   it('preserves legacy SOUL.md content verbatim', async () => {
@@ -220,7 +207,6 @@ Always cite primary sources.`
     expect(result).toContain('<user>')
     expect(result).toContain('Name: V')
     expect(result).toContain('</user>')
-    expect(result).toContain('WHO the user is')
   })
 
   it('includes memory/FACT.md in memories section', async () => {
@@ -234,7 +220,6 @@ Always cite primary sources.`
     expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
     expect(result).toContain('</facts>')
-    expect(result).toContain('WHAT you know')
   })
 
   it('builds the memories section without the base agent prompt', async () => {
@@ -250,7 +235,6 @@ Always cite primary sources.`
     expect(result).toContain('Be concise.')
     expect(result).toContain('Name: V')
     expect(result).toContain('Project: Cherry Studio')
-    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).not.toContain('## Autonomy Tools')
   })
 
@@ -291,7 +275,6 @@ Always cite primary sources.`
     expect(result).toContain('Persistent agent fact.')
     expect(result).toContain(posix('`/agent-data/`'))
     expect(result).toContain(posix('`/agent-data/SOUL.md`'))
-    expect(result).toContain('current working directory is the session workspace')
   })
 
   it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
@@ -365,10 +348,6 @@ Always cite primary sources.`
       const { context: result } = await builder.buildPromptParts(posix('/workspace'))
 
       expect(result).toContain('## Bootstrap Mode')
-      expect(result).toContain('**Discover the role**')
-      expect(result).toContain('with your role definition')
-      expect(result).not.toContain('The configured Agent System Prompt already defines your role')
-      expect(result).toContain('complete_bootstrap')
     })
 
     it('injects bootstrap instructions when bootstrap_completed is false', async () => {
@@ -397,31 +376,6 @@ Always cite primary sources.`
       expect(result).toContain('## Bootstrap Mode')
     })
 
-    it('onboards persona and user context without redefining the configured Agent role', async () => {
-      setupFiles({})
-
-      const { context } = await builder.buildPromptParts(
-        posix('/workspace'),
-        { ...baseConfig, bootstrap_completed: false },
-        true
-      )
-
-      expect(context).toContain('The configured Agent System Prompt already defines your role')
-      expect(context).toContain('Never change, restate, or replace the Agent System Prompt')
-      expect(context).toContain('**Discover your presentation**')
-      expect(context).toContain('**Learn about the user**')
-      expect(context).toContain(
-        'Update `SOUL.md` with your name, personality, tone, and communication style. Do not put role, goals, capability scope, or behavioral constraints in this file.'
-      )
-      expect(context).toContain(
-        'Update `USER.md` with everything you learned about the user. Use Write if the file is missing; use Edit if it already exists.'
-      )
-      expect(context).toContain('During bootstrap, write persona and user-profile files at these exact absolute paths:')
-      expect(context).not.toContain('figure out what role you should play')
-      expect(context).not.toContain('**Discover the role**')
-      expect(context).not.toContain('with your role definition')
-    })
-
     it('skips bootstrap when bootstrap_completed is true', async () => {
       setupFiles({})
 
@@ -439,8 +393,6 @@ Always cite primary sources.`
       const { context: result } = await builder.buildPromptParts(posix('/workspace'), baseConfig, true)
 
       expect(result).toContain('## Bootstrap Mode')
-      expect(result).toContain('**Discover your presentation**')
-      expect(result).not.toContain('**Discover the role**')
     })
 
     it('skips bootstrap when SOUL.md has substantial content (legacy migration)', async () => {

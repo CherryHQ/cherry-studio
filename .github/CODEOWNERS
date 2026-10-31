@@ -1,4 +1,6 @@
 /src/main/ai/ @DeJeune
+/src/main/core/ @kangfenmao @DeJeune
+/src/main/data/ @kangfenmao @DeJeune
 /src/main/features/fileProcessing/ @DeJeune
 /src/main/features/knowledge/ @DeJeune
 

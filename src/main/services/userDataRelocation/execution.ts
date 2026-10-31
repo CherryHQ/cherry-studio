@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
+import { isPathInside } from '@main/utils/file'
 import type { RelocationProgress } from '@shared/types/userDataRelocation'
 
 import type { FailedRelocation, PendingRelocation, RelocationState } from './types'
@@ -19,7 +20,6 @@ import {
   assertUserDataRelocationRequest,
   invalid,
   isErrno,
-  isPathInside,
   normalizeForCompare,
   pathEntryExists,
   relocationArtifactPaths,

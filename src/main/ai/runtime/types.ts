@@ -19,6 +19,7 @@ import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
+import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -153,7 +154,7 @@ export type AgentRuntimeEvent =
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
-  | { type: 'compaction-error'; error: string }
+  | { type: 'compaction-error'; error: string; aborted?: boolean }
   /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
@@ -249,6 +250,8 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  /** Native artifact ownership and checkpoint remapping before session recovery. */
+  readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
@@ -286,6 +289,14 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
     keptResumeTokens: ReadonlySet<string>,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
+  /**
+   * Reclaim artifacts for exactly these known, permanently purged resume tokens.
+   * This is not a discovery sweep: the caller has drained the runtime and deleted
+   * the rows, so no freshness gate applies. Never touch artifacts for tokens
+   * outside the set, even when another session writes in the same tree.
+   * Must be idempotent and no-op when the runtime root does not exist.
+   */
+  reclaimPurgedSessions?(purgedResumeTokens: ReadonlySet<string>): Promise<{ removed: string[] }>
   /**
    * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
    * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.

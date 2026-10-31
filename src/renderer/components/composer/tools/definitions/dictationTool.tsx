@@ -82,7 +82,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
     const status =
       phase === 'failed' ? t(dictationErrorKey(error)) : phase !== 'idle' ? t(PHASE_TRANSLATION_KEYS[phase]) : undefined
     const processing = phase === 'stopping' || phase === 'transcribing'
-    const active = phase !== 'idle'
+    const active = phase !== 'idle' && (phase !== 'failed' || Boolean(retryAvailable) || recoveryAvailable)
     const actionLabel =
       phase === 'recording'
         ? t('settings.voice.action.stop_recording')
@@ -100,7 +100,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         <Square />
       ) : processing || phase === 'starting' ? (
         <LoaderCircle className="animate-spin" />
-      ) : phase === 'failed' ? (
+      ) : phase === 'failed' && retryAvailable ? (
         <RotateCcw />
       ) : phase === 'recovery' ? (
         <Undo2 />

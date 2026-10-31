@@ -1,11 +1,13 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
+import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
@@ -16,7 +18,10 @@ import type {
   OrphanSessionReclaimOptions
 } from './types'
 
+const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
+
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 
@@ -86,6 +91,45 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
         if (!token || keptResumeTokens.has(token)) continue
         for (const target of [path.resolve(projectDir, `${token}.jsonl`), path.resolve(projectDir, token)]) {
           if (await reclaimStale(target, options)) removed.push(target)
+        }
+      }
+    }
+
+    return { removed }
+  }
+
+  async reclaimPurgedSessions(purgedResumeTokens: ReadonlySet<string>): Promise<{ removed: string[] }> {
+    const projectsRoot = application.getPath('feature.agents.claude.projects')
+    const removed: string[] = []
+
+    for (const projectEntry of await listEntries(projectsRoot)) {
+      if (!projectEntry.isDirectory()) continue
+      const projectDir = path.resolve(projectsRoot, projectEntry.name)
+      let removedFromProject = false
+      for (const entry of await listEntries(projectDir)) {
+        const token = entry.isDirectory()
+          ? entry.name
+          : entry.isFile() && entry.name.endsWith('.jsonl')
+            ? entry.name.slice(0, -'.jsonl'.length)
+            : null
+        if (!token || !purgedResumeTokens.has(token)) continue
+
+        const target = path.resolve(projectDir, entry.name)
+        try {
+          await fs.rm(target, { recursive: true, force: true })
+          removed.push(target)
+          removedFromProject = true
+        } catch (error) {
+          logger.warn('Failed to reclaim purged session artifact — retried next sweep', { target, error })
+        }
+      }
+      if (!removedFromProject) continue
+      try {
+        await fs.rmdir(projectDir)
+        removed.push(projectDir)
+      } catch (error) {
+        if (!['ENOTEMPTY', 'ENOENT'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+          logger.warn('Failed to remove empty Claude project directory', { projectDir, error })
         }
       }
     }
