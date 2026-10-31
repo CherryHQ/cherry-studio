@@ -15,6 +15,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
+import { extractSseErrorFrame } from '@shared/ai/sseErrorFrame'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -347,7 +348,14 @@ function retryProviderText(error: SerializedError): string {
 export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
-  return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
+  if (payload) return payload
+  const retry = retryProviderText(error)
+  if (retry) return retry
+  // A live error part is the broadcast error verbatim, so its message can still be the raw SSE
+  // frame the provider's failure rode in on; the saved copy is unwrapped in main. Unwrap before
+  // sanitizing: the frame's JSON container is what makes the sanitizer refuse the whole message.
+  const frame = extractSseErrorFrame(typeof error.message === 'string' ? error.message : '')
+  return getSafeProviderErrorMessage({ message: frame?.message ?? error.message })
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>

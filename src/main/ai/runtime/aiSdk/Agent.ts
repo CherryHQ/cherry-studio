@@ -51,6 +51,27 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
   return error
 }
 
+/**
+ * Providers report a mid-stream failure as a bare payload object (the SSE error
+ * body), which serializes to a nameless error and reads as an unknown-stage
+ * failure downstream. Name it a StreamError — the failure arrived inside an
+ * already-open response — and keep the provider's code/type for classification.
+ */
+function terminalStreamError(error: unknown): unknown {
+  if (error instanceof Error) return error
+  const record = error && typeof error === 'object' ? (error as Record<string, unknown>) : undefined
+  const message = (typeof record?.message === 'string' && record.message) || String(error)
+  const streamError = new Error(message)
+  streamError.name = 'StreamError'
+  if (typeof record?.code === 'string' || typeof record?.code === 'number') {
+    ;(streamError as unknown as Record<string, unknown>).providerErrorCode = record.code
+  }
+  if (typeof record?.type === 'string') {
+    ;(streamError as unknown as Record<string, unknown>).providerErrorType = record.type
+  }
+  return streamError
+}
+
 type ObserverMap = {
   [K in keyof AgentLoopHooks]?: Array<NonNullable<AgentLoopHooks[K]>>
 }
@@ -354,7 +375,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               : undefined
           if (value.type === 'error' && capturedError) {
             await reader.cancel(capturedError.error).catch(() => {})
-            throw capturedError.error
+            throw terminalStreamError(capturedError.error)
           }
           if (signal.aborted) break
           // Hold the success-looking finish marker until the loop result has
