@@ -229,21 +229,35 @@ describe('JobManager smoke (dummy.echo)', () => {
 
   it('publishes state + progress through CacheService', async () => {
     const setShared = MockMainCacheServiceExport.cacheService.setShared
+    const publish = setShared.getMockImplementation()!
+    const runningExecutionStates: boolean[] = []
 
-    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'progress' } as never)
-    await handle.finished
+    await setShared.withImplementation(
+      (key, value, ttl) => {
+        publish(key, value, ttl)
+        if (
+          key.startsWith(JOB_STATE_KEY_PREFIX) &&
+          value &&
+          typeof value === 'object' &&
+          'status' in value &&
+          value.status === 'running'
+        ) {
+          runningExecutionStates.push(jobManager.isExecuting(key.slice(JOB_STATE_KEY_PREFIX.length)))
+        }
+      },
+      async () => {
+        const handle = jobManager.enqueue('dummy.echo' as never, { message: 'progress' } as never)
+        await handle.finished
 
-    const stateKey = `${JOB_STATE_KEY_PREFIX}${handle.id}`
-    const progressKey = `${JOB_PROGRESS_KEY_PREFIX}${handle.id}`
-
-    const calls = setShared.mock.calls.map((c) => c[0])
-    expect(calls).toContain(stateKey)
-    expect(calls).toContain(progressKey)
-
-    const progressCalls = setShared.mock.calls.filter((c) => c[0] === progressKey)
-    expect(progressCalls.length).toBeGreaterThanOrEqual(2)
-    expect(progressCalls[0][1]).toMatchObject({ progress: 25 })
-    expect(progressCalls.at(-1)?.[1]).toMatchObject({ progress: 100 })
+        const progressKey = `${JOB_PROGRESS_KEY_PREFIX}${handle.id}`
+        const progressCalls = setShared.mock.calls.filter((c) => c[0] === progressKey)
+        expect(progressCalls.length).toBeGreaterThanOrEqual(2)
+        expect(progressCalls[0][1]).toMatchObject({ progress: 25 })
+        expect(progressCalls.at(-1)?.[1]).toMatchObject({ progress: 100 })
+      }
+    )
+    expect(runningExecutionStates).toContain(true)
+    expect(runningExecutionStates).not.toContain(false)
   })
 
   it('cancels an in-flight job (handler observes abort → outcome cancelled)', async () => {
