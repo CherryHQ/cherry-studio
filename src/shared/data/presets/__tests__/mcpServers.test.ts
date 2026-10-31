@@ -52,7 +52,9 @@ describe('PRESET_MCP_SERVERS', () => {
   })
 
   it('requires approval for third-party ZoneFoundry tools and resources, including new tool names', () => {
-    const relay = { id: 'relay', ...preset(BuiltinMcpServerNames.zonefoundry) }
+    const definition = preset(BuiltinMcpServerNames.zonefoundry)
+    if (!definition) throw new Error('ZoneFoundry preset is missing')
+    const relay = { id: 'relay', ...definition }
     expect(relay.isTrusted).toBe(false)
     for (const name of ['play_music', 'set_volume', 'future_tool', 'resources/read']) {
       expect(resolveMcpSourceToolAccess(relay, { name })).toEqual({ enabled: true, approval: 'prompt' })
