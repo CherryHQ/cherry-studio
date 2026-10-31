@@ -1503,6 +1503,69 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.at(-1)?.type).toBe('text-end')
   })
 
+  it('closes interrupted thinking with reasoning-end on the truncation path', async () => {
+    const { adapter, parts } = createAdapter()
+    const thinkingA = '让我认真想一想'
+    const thinkingB = ' and keep reasoning in English'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: thinkingA }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: thinkingB }
+      })
+    )
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      aborted: true,
+      message: { content: [{ type: 'thinking', thinking: `${thinkingA}${thinkingB}` }] }
+    } as any)
+
+    const handled = adapter.handleTruncationError(new Error('The operation was aborted'))
+
+    expect(handled).toBe(true)
+    expect(parts.some((part) => part.type === 'text-start')).toBe(false)
+    expect(parts.map((part) => part.type)).toEqual([
+      'reasoning-start',
+      'reasoning-delta',
+      'reasoning-delta',
+      'reasoning-end',
+      'finish'
+    ])
+    expect(parts[3]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
+
+    const stream = new ReadableStream<CherryUIMessageChunk>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+    let finalMessage: CherryUIMessage | undefined
+    for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+      stream,
+      message: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })) {
+      finalMessage = snapshot
+    }
+
+    expect(finalMessage?.parts).toEqual([
+      expect.objectContaining({ type: 'reasoning', text: `${thinkingA}${thinkingB}`, state: 'done' })
+    ])
+  })
+
   it('emits truncation fallback from buffered text', () => {
     const { adapter, parts } = createAdapter()
     const text = 'x'.repeat(600)

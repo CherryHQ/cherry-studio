@@ -714,14 +714,16 @@ export class ClaudeCodeStreamAdapter {
     return { type: 'continue' }
   }
 
-  /** Close every open text and flush-created reasoning part so sinks see terminated parts before errors escape. */
+  /** Close every open text and reasoning part so sinks see terminated parts before errors escape. */
   finalizeOpenTextParts(): void {
     this.flushAllPendingContentDeltas(this.ctx)
     this.closeUnbackedReasoningParts(this.ctx)
+    this.closeOpenReasoningParts(this.ctx)
     this.closeActiveTextPart(this.ctx)
     for (const flow of this.flowContexts) {
       this.flushAllPendingContentDeltas(flow.stream)
       this.closeUnbackedReasoningParts(flow.stream)
+      this.closeOpenReasoningParts(flow.stream)
       this.closeActiveTextPart(flow.stream)
     }
   }
@@ -2076,6 +2078,17 @@ export class ClaudeCodeStreamAdapter {
   private closeUnbackedReasoningParts(ctx: StreamContext): void {
     for (const [blockIndex, partId] of [...ctx.reasoningBlocksByIndex]) {
       if (ctx.activeBlockTypeByIndex.has(blockIndex)) continue
+      ctx.sink.enqueue({ type: 'reasoning-end', id: partId })
+      ctx.reasoningBlocksByIndex.delete(blockIndex)
+      if (ctx.currentReasoningPartId === partId) ctx.currentReasoningPartId = undefined
+    }
+  }
+
+  // Terminal paths only: the stream is dead, so no `content_block_stop` will ever arrive to close
+  // a block-backed reasoning part still open here. End it explicitly so interrupted thinking does
+  // not reach persistence as a forever-streaming part.
+  private closeOpenReasoningParts(ctx: StreamContext): void {
+    for (const [blockIndex, partId] of [...ctx.reasoningBlocksByIndex]) {
       ctx.sink.enqueue({ type: 'reasoning-end', id: partId })
       ctx.reasoningBlocksByIndex.delete(blockIndex)
       if (ctx.currentReasoningPartId === partId) ctx.currentReasoningPartId = undefined
