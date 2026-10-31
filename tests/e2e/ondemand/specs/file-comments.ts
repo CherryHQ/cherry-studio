@@ -106,6 +106,17 @@ export default async function fileComments(context: ScenarioContext): Promise<vo
     await expect(comment).toHaveCount(0)
     await expect(editor).toBeFocused()
 
+    await openComment()
+    await comment.fill('Cancel from the button')
+    await comment.press('Tab')
+    const submitButton = page.getByRole('button', { name: '评论', exact: true })
+    await expect(submitButton).toBeFocused()
+    await submitButton.press('Escape')
+    await expect(comment).toHaveCount(0)
+    await expect(editor).toBeVisible()
+    await expect(editor).toBeFocused()
+    await expect(composer).toBeEmpty()
+
     await editor.press('ControlOrMeta+Home')
     await page.keyboard.insertText('EDITED ')
     await expect.poll(() => readFile(editablePath, 'utf8')).toBe(`EDITED ${original}`)

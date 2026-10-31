@@ -44,6 +44,13 @@ export default function FileCommentBox({ onSubmit, onCancel, allowEmpty = false,
   return (
     <div
       className={cn('relative rounded-md', className)}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.key !== 'Escape') return
+        // Escape closes only the box, not the file pane around it.
+        event.preventDefault()
+        event.stopPropagation()
+        finish(() => onCancel('escape'))
+      }}
       onBlur={(event) => {
         // Tabbing to the button stays inside; switching windows keeps the draft for the user's return.
         if (event.currentTarget.contains(event.relatedTarget) || !document.hasFocus()) return
@@ -59,12 +66,7 @@ export default function FileCommentBox({ onSubmit, onCancel, allowEmpty = false,
         className="min-h-16 resize-none px-3 pt-2 pb-10 font-sans text-sm"
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return
-          if (event.key === 'Escape') {
-            // Escape closes only the box, not the file pane around it.
-            event.preventDefault()
-            event.stopPropagation()
-            finish(() => onCancel('escape'))
-          } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
             event.preventDefault()
             submit()
           }
