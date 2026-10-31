@@ -108,6 +108,27 @@ describe('TemporaryChatService', () => {
     })
   })
 
+  describe('createTopic — maxMessages context override', () => {
+    it('stores the leasing surface context cap for the dispatch layer to read', () => {
+      const topic = service.createTopic({ name: 'T', maxMessages: 5 })
+      expect(service.getTopicMaxMessagesOverride(topic.id)).toBe(5)
+    })
+
+    it('keeps the cap off the public Topic projection — it is main-internal dispatch state', () => {
+      const topic = service.createTopic({ name: 'T', maxMessages: 5 })
+      expect(topic).not.toHaveProperty('maxMessages')
+    })
+
+    it('leaves the override unset when the lease pins none', () => {
+      const topic = service.createTopic({ name: 'T' })
+      expect(service.getTopicMaxMessagesOverride(topic.id)).toBeUndefined()
+    })
+
+    it('answers undefined for unknown topics', () => {
+      expect(service.getTopicMaxMessagesOverride('missing')).toBeUndefined()
+    })
+  })
+
   describe('return shape', () => {
     it('createTopic returns Topic with activeNodeId=null and ISO timestamps', async () => {
       // Note: we do NOT set assistantId here because FK enforcement is ON
