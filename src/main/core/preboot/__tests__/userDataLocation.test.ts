@@ -1,3 +1,4 @@
+import type { MockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -59,6 +60,7 @@ const bootConfigGetMock = vi.fn()
 const bootConfigSetMock = vi.fn()
 const bootConfigPersistMock = vi.fn()
 const TASK_ID = '11111111-1111-4111-8111-111111111111'
+let mockMainLoggerService: MockMainLoggerService
 
 function stubElectron(opts: ElectronStubOptions = {}) {
   const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
@@ -138,20 +140,22 @@ function stubFs(opts: FsStubOptions = {}) {
     }
     return { ...fsMock, default: fsMock }
   })
-  return { mkdirSync }
+  return { mkdirSync, statSync, accessSync }
 }
 
 async function loadModule() {
   return import('../userDataLocation')
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules()
+  mockMainLoggerService = (await import('@logger')).loggerService as unknown as MockMainLoggerService
   setPathMock.mockReset()
   cpSyncMock.mockReset()
   bootConfigGetMock.mockReset()
   bootConfigSetMock.mockReset()
   bootConfigPersistMock.mockReset()
+  mockMainLoggerService.warn.mockClear()
 })
 
 afterEach(() => {
@@ -279,6 +283,185 @@ describe('isUsableDataDir', () => {
       }
     })
     expect(isUsableDataDir('/missing')).toBe(false)
+  })
+})
+
+describe('userData mapping fallback reporting', () => {
+  const nonPortable = { isLinux: false, isWin: false, isPortable: false }
+  const portable = { isLinux: false, isWin: true, isPortable: true }
+
+  it('reports an unusable mapped directory while keeping Electron default', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+    stubFs({
+      statSyncImpl: () => {
+        throw new Error('ENOENT')
+      }
+    })
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toEqual({
+      exe: '/mock/exe',
+      effectivePath: '/mock/userData',
+      mappedPath: '/custom/data',
+      reason: 'mapped-directory-unusable'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledOnce()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'userData mapping from BootConfig was not applied',
+      expect.objectContaining({
+        exe: '/mock/exe',
+        effectivePath: '/mock/userData',
+        reason: 'mapped-directory-unusable'
+      })
+    )
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty mapped directory as unusable while keeping Electron default', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '' } })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toEqual({
+      exe: '/mock/exe',
+      effectivePath: '/mock/userData',
+      mappedPath: '',
+      reason: 'mapped-directory-unusable'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledOnce()
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a mapping for another executable while keeping Electron default', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/other/exe': '/custom/data' } })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toEqual({
+      exe: '/mock/exe',
+      effectivePath: '/mock/userData',
+      reason: 'no-mapping-for-executable'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('userData mapping from BootConfig was not applied', {
+      exe: '/mock/exe',
+      effectivePath: '/mock/userData',
+      mappedPath: undefined,
+      reason: 'no-mapping-for-executable'
+    })
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('does not report the ordinary default install with an empty mapping', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': {} })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toBeNull()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('uses a valid mapping without reporting a fallback', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toBeNull()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    expect(setPathMock).toHaveBeenCalledWith('userData', '/custom/data')
+  })
+
+  it('uses the portable directory without a warning when only another executable is mapped', async () => {
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', '/portable')
+    stubConstants(portable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/other/exe': '/custom/data' } })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toBeNull()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    expect(setPathMock).toHaveBeenCalledWith('userData', '/portable/data')
+  })
+
+  it('reports an unusable mapping when the portable directory takes effect', async () => {
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', '/portable')
+    stubConstants(portable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/portable/cherry-studio-portable.exe': '/custom/data' } })
+    stubFs({
+      statSyncImpl: () => {
+        throw new Error('ENOENT')
+      }
+    })
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toEqual({
+      exe: '/portable/cherry-studio-portable.exe',
+      effectivePath: '/portable/data',
+      mappedPath: '/custom/data',
+      reason: 'mapped-directory-unusable'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledOnce()
+    expect(setPathMock).toHaveBeenCalledWith('userData', '/portable/data')
+  })
+
+  it('does not report a fallback in development', async () => {
+    stubConstants(nonPortable)
+    stubElectron({ isPackaged: false })
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+    stubFs()
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toBeNull()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
+  it('clears a previous fallback when a later call uses the mapping', async () => {
+    stubConstants(nonPortable)
+    stubElectron()
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+    const { statSync } = stubFs({
+      statSyncImpl: () => {
+        throw new Error('ENOENT')
+      }
+    })
+    const { resolveUserDataLocation, getUserDataMappingFallback } = await loadModule()
+
+    resolveUserDataLocation()
+    expect(getUserDataMappingFallback()?.reason).toBe('mapped-directory-unusable')
+    statSync.mockImplementation(() => ({ isDirectory: () => true, isFile: () => false }))
+    resolveUserDataLocation()
+
+    expect(getUserDataMappingFallback()).toBeNull()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledOnce()
+    expect(setPathMock).toHaveBeenCalledWith('userData', '/custom/data')
   })
 })
 

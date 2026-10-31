@@ -10,6 +10,31 @@ import { bootConfigService } from '@main/data/bootConfig'
 
 const logger = loggerService.withContext('Preboot')
 
+export type UserDataMappingFallbackReason = 'mapped-directory-unusable' | 'no-mapping-for-executable'
+
+export interface UserDataMappingFallback {
+  /** Normalized executable path of this build (getNormalizedExecutablePath()). */
+  exe: string
+  /** Directory Electron will actually use for this launch. */
+  effectivePath: string
+  /** The mapping entry that existed for this exe but could not be used. */
+  mappedPath?: string
+  reason: UserDataMappingFallbackReason
+}
+
+let userDataMappingFallback: UserDataMappingFallback | null = null
+
+/** Diagnostic recorded by the last resolveUserDataLocation() call in this process. */
+export function getUserDataMappingFallback(): UserDataMappingFallback | null {
+  return userDataMappingFallback
+}
+
+function recordUserDataMappingFallback(fallback: UserDataMappingFallback): void {
+  userDataMappingFallback = fallback
+  const { exe, effectivePath, mappedPath, reason } = fallback
+  logger.warn('userData mapping from BootConfig was not applied', { exe, effectivePath, mappedPath, reason })
+}
+
 /**
  * "userData" in this module means Electron's complete OS-level userData
  * directory, including user content, Chromium state, and — on Windows and
@@ -49,6 +74,7 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
  * storage to the selected directory as well.
  */
 export function resolveUserDataLocation(): void {
+  userDataMappingFallback = null
   if (!app.isPackaged) {
     const devPath = resolveDevUserDataPath()
     if (DEV_PROFILE_ROOT) fs.mkdirSync(devPath, { recursive: true })
@@ -58,7 +84,8 @@ export function resolveUserDataLocation(): void {
   }
 
   const exe = getNormalizedExecutablePath()
-  const resolved = bootConfigService.get('app.user_data_path')?.[exe]
+  const mapping = bootConfigService.get('app.user_data_path')
+  const resolved = mapping?.[exe]
   if (resolved && isUsableDataDir(resolved)) {
     app.setPath('userData', resolved)
     logger.info('userData set from BootConfig', { exe, resolved })
@@ -70,6 +97,21 @@ export function resolveUserDataLocation(): void {
     const portablePath = path.join(portableDir || app.getPath('exe'), 'data')
     app.setPath('userData', portablePath)
     logger.info('userData set for portable build', { portablePath })
+    if (resolved !== undefined) {
+      recordUserDataMappingFallback({
+        exe,
+        effectivePath: portablePath,
+        mappedPath: resolved,
+        reason: 'mapped-directory-unusable'
+      })
+    }
+  } else if (resolved !== undefined || (mapping && Object.keys(mapping).length > 0)) {
+    recordUserDataMappingFallback({
+      exe,
+      effectivePath: app.getPath('userData'),
+      ...(resolved !== undefined && { mappedPath: resolved }),
+      reason: resolved !== undefined ? 'mapped-directory-unusable' : 'no-mapping-for-executable'
+    })
   }
 }
 

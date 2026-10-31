@@ -118,7 +118,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-BootConfig also carries data migrated from v1's `{cherryHome}/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; preboot reads it before the path registry is frozen. User-initiated directory changes are first written to `temp.user_data_relocation`, then the next launch executes them during preboot (`src/main/services/userDataRelocation/`), copying or switching the Electron `userData` directory and committing `app.user_data_path`.
+BootConfig also carries data migrated from v1's `{cherryHome}/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; preboot reads it before the path registry is frozen. User-initiated directory changes are first written to `temp.user_data_relocation`, then the next launch executes them during preboot (`src/main/services/userDataRelocation/`), copying or switching the Electron `userData` directory and committing `app.user_data_path`. If the running executable has no entry in a non-empty mapping, or its entry is unusable, a non-portable launch keeps Electron's default user data directory. The app logs a warning with the executable and effective directory and shows a warning naming the directory in use.
 
 ## Access Convention
 
