@@ -202,3 +202,16 @@ export function findListeningPid(platform: Platform, port: number): number | und
 export function findCdpPid(platform: Platform): number | undefined {
   return findListeningPid(platform, CDP_PORT)
 }
+
+/** Process group of a live process; the group is what macOS cleanup signals. */
+export function findProcessGroupId(pid: number, platform: Platform): number | undefined {
+  if (platform === 'windows') return undefined
+  try {
+    const groupId = Number(
+      execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
+    )
+    return Number.isSafeInteger(groupId) && groupId > 0 ? groupId : undefined
+  } catch {
+    return undefined
+  }
+}
