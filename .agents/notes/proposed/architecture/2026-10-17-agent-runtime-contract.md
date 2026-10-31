@@ -614,6 +614,7 @@ rows, then commits final response associations with the assistant row. Native Pi
 Cherry's internal gateway, which owns upstream provider selection, credentials and billing;
 Pi owns native history, streaming, tools and the execution loop.
 The Pi facet keeps history, context usage, tool lookup and manual compaction outside the common API.
+The proposed [harness-owned context usage follow-up](2026-10-30-agent-context-usage.md) supersedes only the context-usage placement with a common thread read implemented by each adapter. It does not change the other native facets or claim implementation acceptance.
 Queued inputs left unplaced after stop/error receive aborted evidence and are not automatically resent.
 
 Real native-loop/SQLite fixtures cover create, strict reopen, streamed output, tools, steering,
