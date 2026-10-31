@@ -72,4 +72,4 @@ The priority for execution errors is `2 > 3 > 1 > 0`. Cleanup errors remain in `
 
 ## Local verification
 
-Run only explicitly selected tests under `scripts/e2e/ondemand/__tests__/` and affected regression consumers. Reviewed scenarios follow the [frontend testing rules](../../../docs/references/testing/frontend-testing.md). Local unit checks do not establish hosted Windows/macOS or release acceptance.
+Run only explicitly selected tests under `scripts/e2e/ondemand/__tests__/` and affected regression consumers. Reviewed scenarios follow the [frontend testing rules](../../../docs/dev/references/testing/frontend-testing.md). Local unit checks do not establish hosted Windows/macOS or release acceptance.

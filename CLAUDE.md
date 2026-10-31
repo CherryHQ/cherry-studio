@@ -57,7 +57,7 @@ Project-specific tools, paths, and conventions.
 - **Check what you changed, not the whole repo**: for local PR work, run only tests covering changed files and their affected consumers, with explicit test file paths (see Testing below). Use `pnpm check --plan` to inspect scope against the merge base with `origin/main`, including staged, unstaged, and untracked changes (`--base <ref>` for a stacked branch). The planner selects whole test projects and can fall back to the full gate; do not automatically execute `pnpm check` after inspecting it. Keep lint and formatting scoped to changed files; docs-only changes need documentation and changed-file formatting checks, no Vitest run.
 - **Inspect one explicit change scope**: before push, PR creation, review, and after a stack rewrite, run `pnpm change:scope --base <verified-ref>`; never guess the base or infer scope from the latest commit alone.
 - **Declare Agent Note or N/A**: every human-authored PR fills the Agent Note/Spec fields; automation-authored PRs (repository workflows and Dependabot) are exempt from this metadata requirement, not from normal validation. Substantial feature, architecture, process, and simplification work needs an approved proposed Spec before implementation; simple local bug fixes may use an explicit `N/A` reason. Follow [the Agent Note rules](.agents/notes/README.md).
-- **Keep docs and code aligned**: run `pnpm docs:affected --base <verified-ref>` for code changes and inspect every candidate semantically. In-scope bilingual docs update English, Chinese, and sidecar together under [the pairing contract](docs/i18n/README.md).
+- **Keep docs and code aligned**: run `pnpm docs:affected --base <verified-ref>` for code changes and inspect every candidate semantically. In-scope bilingual docs update English, Chinese, and sidecar together under [the pairing contract](docs/dev/i18n/README.md).
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for all active development — submit features, refactors, optimizations, and fixes here.
@@ -73,7 +73,7 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 - `pnpm typecheck` — all typecheck projects, run serially to limit local memory usage
 - `pnpm test` — run all Vitest tests; not for local PR validation unless the user explicitly requests a full run
 - `pnpm format` — Oxfmt format (write mode)
-- `pnpm docs:check` — links + structure/frontmatter + Agent Note format + bilingual pairing + terminology/index freshness. Run it for docs/markdown edits instead of the full gate. Reference docs carry `description`/`sources`; contrib/governance docs carry `description`. `docs/README.md`, `docs/sources-index.json`, and `docs/i18n/terminology.md` are generated — edit their owners and run the matching generator.
+- `pnpm docs:check` — links + structure/frontmatter + Agent Note format + bilingual pairing + terminology/index freshness. Run it for docs/markdown edits instead of the full gate. Reference docs carry `description`/`sources`; contrib/governance docs carry `description`. `docs/dev/README.md`, `docs/dev/sources-index.json`, and `docs/dev/i18n/terminology.md` are generated — edit their owners and run the matching generator.
 - `pnpm change:scope --base <ref>` — versioned committed/staged/unstaged/untracked path report against an explicit merge base.
 - `pnpm docs:affected --base <ref>` — candidate docs whose `sources` prefixes intersect that change scope; candidates require semantic inspection, not automatic edits.
 - `pnpm check:all` / `pnpm build:check` — full checks and tests; leave these to CI unless the user explicitly requests a full local run. Format changed files with `pnpm exec oxfmt --write <files>`; sync and translate locale keys with `pnpm i18n:sync`.
@@ -84,9 +84,9 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 - **Local PR validation**: when implementing, fixing, creating, or updating a PR, use per-project wrappers with explicit test file paths, e.g. `pnpm test:main <test-file>` or `pnpm test:renderer <test-file>` (likewise `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`), or `pnpm exec vitest run <test-file>`. Include existing tests for affected consumers, not just test files modified in the diff. Never omit the file filter or run a full local suite unless the user explicitly requests it, even if a skill suggests broader validation. If scope is uncertain or no relevant tests exist, report that gap and rely on CI for broader coverage instead of falling back to a full local run. Report the exact checks run and their results in the PR.
 - Tests run with Vitest 5 (see `vitest.config.*` for project setup).
 - **No behavior-pinning tests**: a test whose only assertion records what the code currently does — a snapshot of whatever came out, `toHaveBeenCalled` on a mock, an expected value re-derived the way the implementation derives it — has zero value. It cannot fail for a real reason, it breaks on every refactor, and it certifies existing bugs as "expected". Assert the contract instead: real input → the outcome the feature promises, plus the failure and edge cases. Before writing a test, state the bug it would catch; if you cannot, do not write it. **The existing suite is full of these** — delete the ones in a file you are already editing rather than keeping them green; a repo-wide purge is its own task, not a side effect of an unrelated PR.
-- **Frontend Tests — MUST READ**: [Frontend Testing Guidelines](docs/references/testing/frontend-testing.md).
+- **Frontend Tests — MUST READ**: [Frontend Testing Guidelines](docs/dev/references/testing/frontend-testing.md).
 - **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
-- **Database Tests**: For any service/handler/seeder that reads or writes SQLite, use `setupTestDatabase()` from `@test-helpers/db` — it provides a real file-backed DB with production migrations. Do NOT hand-write `CREATE TABLE` SQL, override `@application`, or stub Drizzle chains. See [docs/references/testing/database-testing.md](docs/references/testing/database-testing.md).
+- **Database Tests**: For any service/handler/seeder that reads or writes SQLite, use `setupTestDatabase()` from `@test-helpers/db` — it provides a real file-backed DB with production migrations. Do NOT hand-write `CREATE TABLE` SQL, override `@application`, or stub Drizzle chains. See [docs/dev/references/testing/database-testing.md](docs/dev/references/testing/database-testing.md).
 
 ### Patched Dependencies
 
@@ -110,11 +110,11 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 
 ### TypeScript
 
-- Cross-process types belong in `src/shared/`; renderer-only shared types in `src/renderer/types/` (see [Shared Layer Architecture](docs/references/architecture/shared-layer.md)).
+- Cross-process types belong in `src/shared/`; renderer-only shared types in `src/renderer/types/` (see [Shared Layer Architecture](docs/dev/references/architecture/shared-layer.md)).
 
 ### Naming Conventions
 
-**MUST READ**: [docs/references/architecture/naming-conventions.md](docs/references/architecture/naming-conventions.md) — files, directories, identifiers, and singular/plural rules.
+**MUST READ**: [docs/dev/references/architecture/naming-conventions.md](docs/dev/references/architecture/naming-conventions.md) — files, directories, identifiers, and singular/plural rules.
 
 ### Logging
 
@@ -145,24 +145,24 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 
 ### Code Organization
 
-Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/architecture/naming-conventions.md)).
+Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/dev/references/architecture/naming-conventions.md)).
 
-A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/references/architecture/naming-conventions.md)).
+A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/dev/references/architecture/naming-conventions.md)).
 
-- [Main Process Architecture](docs/references/architecture/main-process.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
-- [Renderer Architecture](docs/references/architecture/renderer.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
-- [Shared Layer Architecture](docs/references/architecture/shared-layer.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
+- [Main Process Architecture](docs/dev/references/architecture/main-process.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
+- [Renderer Architecture](docs/dev/references/architecture/renderer.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
+- [Shared Layer Architecture](docs/dev/references/architecture/shared-layer.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
 
 ### Data
 
-**MUST READ**: [docs/references/data/README.md](docs/references/data/README.md) for system selection, architecture, and patterns.
+**MUST READ**: [docs/dev/references/data/README.md](docs/dev/references/data/README.md) for system selection, architecture, and patterns.
 
 | System                                                     | Use Case                            | APIs                                                       |
 | ---------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
-| [BootConfig](docs/references/data/boot-config-overview.md) | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
-| [Cache](docs/references/data/cache-overview.md)            | Temp data (can lose)                | `useCache`, `useSharedCache`, `useSharedCacheValue`, `usePersistCache` |
-| [Preference](docs/references/data/preference-overview.md)  | User settings                       | `usePreference`                                            |
-| [DataApi](docs/references/data/data-api-overview.md)       | Business data (**critical**)        | `useQuery`, `useMutation`                                  |
+| [BootConfig](docs/dev/references/data/boot-config-overview.md) | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
+| [Cache](docs/dev/references/data/cache-overview.md)            | Temp data (can lose)                | `useCache`, `useSharedCache`, `useSharedCacheValue`, `usePersistCache` |
+| [Preference](docs/dev/references/data/preference-overview.md)  | User settings                       | `usePreference`                                            |
+| [DataApi](docs/dev/references/data/data-api-overview.md)       | Business data (**critical**)        | `useQuery`, `useMutation`                                  |
 
 Scope:
 
@@ -173,19 +173,19 @@ Scope:
 
 Database: SQLite via **better-sqlite3** + Drizzle ORM — the driver is **synchronous** (queries and transactions run inline with no `await`, unlike the app's otherwise-async data layers), so `getDb()` queries and `withWriteTx(fn)` callbacks must be written synchronously. Schemas in `src/main/data/db/schemas/`, migrations via `pnpm db:migrations:generate`
 
-**Write atomicity**: use `application.get('DbService').withWriteTx(fn)` to commit multiple writes (or a read-then-write) all-or-nothing in one synchronous `BEGIN IMMEDIATE` transaction; `fn` must be synchronous. A single write doesn't need it — better-sqlite3 runs each statement atomically on its one connection. See [Database Patterns — Write Serialization](docs/references/data/database-patterns.md#write-serialization-dbservicewithwritetx).
+**Write atomicity**: use `application.get('DbService').withWriteTx(fn)` to commit multiple writes (or a read-then-write) all-or-nothing in one synchronous `BEGIN IMMEDIATE` transaction; `fn` must be synchronous. A single write doesn't need it — better-sqlite3 runs each statement atomically on its one connection. See [Database Patterns — Write Serialization](docs/dev/references/data/database-patterns.md#write-serialization-dbservicewithwritetx).
 
-**DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
+**DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/dev/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
 
 ### IPC (IpcApi)
 
-**MUST READ**: [docs/references/ipc/README.md](docs/references/ipc/README.md) — paradigm boundary (RPC vs REST), schema/router/preload/facade layering, `IpcContext`, error model, security.
+**MUST READ**: [docs/dev/references/ipc/README.md](docs/dev/references/ipc/README.md) — paradigm boundary (RPC vs REST), schema/router/preload/facade layering, `IpcContext`, error model, security.
 
 Non-data command IPC (window/system/shell/notification/external/file) goes through **IpcApi** — the fifth subsystem alongside BootConfig/Cache/Preference/DataApi, RPC-over-IPC with single-point schemas (`schema + handler` to add a route; `ipcApi.request('namespace.action', input)` to call; `IpcApiService.broadcast`/`send` + `useIpcOn` for events). Legacy command IPC still coexists, so you'll encounter both. Decision: SQLite data → DataApi; user setting → Preference; losable/shared → Cache; everything else imperative → IpcApi.
 
 ### Window Manager
 
-**MUST READ**: [docs/references/window-manager/README.md](docs/references/window-manager/README.md) — lifecycle modes, pool mechanics, API reference.
+**MUST READ**: [docs/dev/references/window-manager/README.md](docs/dev/references/window-manager/README.md) — lifecycle modes, pool mechanics, API reference.
 
 All `BrowserWindow` goes through `WindowManager` with one of three modes (`default` / `singleton` / `pooled`), declared per type in `src/main/core/window/windowRegistry.ts`.
 
@@ -195,7 +195,7 @@ All `BrowserWindow` goes through `WindowManager` with one of three modes (`defau
 
 ### Main Process Services (Lifecycle)
 
-**MUST READ**: [docs/references/lifecycle/README.md](docs/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
+**MUST READ**: [docs/dev/references/lifecycle/README.md](docs/dev/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
 
 All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
 
@@ -210,11 +210,11 @@ All main-process services that own long-lived resources or register persistent s
 - **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
 - **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
 
-For detailed code examples, see [Usage Guide](docs/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/references/lifecycle/lifecycle-migration-guide.md).
+For detailed code examples, see [Usage Guide](docs/dev/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/dev/references/lifecycle/lifecycle-migration-guide.md).
 
 ### Non-Lifecycle Services (Direct-Import Singleton)
 
-Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/references/lifecycle/lifecycle-decision-guide.md) for criteria.
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/dev/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
 ## Schema & Migration Rules
 

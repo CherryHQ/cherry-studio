@@ -18,7 +18,7 @@ Renderer 在 attach 等待期间按顺序暂存实时块和终止事件。Attach
 
 终态 attach 响应和失败的 attach 请求都先排空暂存输出，再结束分支。暂存的原生终态优先于 attach 的兜底结果，确保完成只报告一次。在任何读取器 attach 之前就已完成的轮次，直接通过暂存事件收尾；释放订阅时清空队列。
 
-这些元数据属于 Cherry 的临时流传输层，不改变 harness 接口、原生会话或消息持久化。当前契约见 [Stream Manager](../../../../docs/references/ai/stream-manager.md) 和 [Execution Overlay](../../../../docs/references/ai/execution-overlay.md)。
+这些元数据属于 Cherry 的临时流传输层，不改变 harness 接口、原生会话或消息持久化。当前契约见 [Stream Manager](../../../../docs/dev/references/ai/stream-manager.md) 和 [Execution Overlay](../../../../docs/dev/references/ai/execution-overlay.md)。
 
 ## 考虑过的替代方案
 

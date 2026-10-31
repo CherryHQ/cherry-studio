@@ -273,7 +273,7 @@ export type ModelSchemas = {
    * Greedy `:modelId*` preserves HuggingFace-style ids that contain `/`
    * (e.g. `Kwai-Kolors/Kolors`). Trailing static anchor follows the
    * documented middle-greedy pattern from
-   * docs/references/data/api-design-guidelines.md.
+   * docs/dev/references/data/api-design-guidelines.md.
    *
    * @example GET /providers/silicon/models/Kwai-Kolors/Kolors/image-generation-support
    */

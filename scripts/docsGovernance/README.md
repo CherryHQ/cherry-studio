@@ -6,7 +6,7 @@ Use the stable `package.json` commands (`pnpm docs:*`, `pnpm change:scope`, and 
 
 Generated files have one owner:
 
-- `gen-doc-index.ts` writes `docs/README.md` and `docs/sources-index.json`.
-- `gen-doc-terminology.ts` writes `docs/i18n/terminology.md` from `scripts/i18n-glossary.json`.
+- `gen-doc-index.ts` writes `docs/dev/README.md` and `docs/dev/sources-index.json`.
+- `gen-doc-terminology.ts` writes `docs/dev/i18n/terminology.md` from `scripts/i18n-glossary.json`.
 
 Do not hand-edit those generated outputs.

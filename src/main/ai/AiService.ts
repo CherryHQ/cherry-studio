@@ -405,7 +405,7 @@ export interface AiRerankResult {
 // ── Service ────────────────────────────────────────────────────────
 
 /**
- * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
+ * Lifecycle AI service. See `docs/dev/references/ai/core-architecture.md`.
  *
  * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
  * `runExecutionLoop` looks AiService up at runtime, and every `send()`

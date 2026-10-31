@@ -14,7 +14,7 @@
  *   and cache invalidation are orchestrated by FileManager — this service
  *   is strictly query/insert/update/delete.
  *
- * See [architecture.md](../../../docs/references/file/architecture.md) for the
+ * See [architecture.md](../../../docs/dev/references/file/architecture.md) for the
  * module-level layering rules.
  */
 
@@ -322,7 +322,7 @@ type FileEntryRow = typeof fileEntryTable.$inferSelect
  * ms-epoch for timestamps, so the helpers' translations would actively
  * misshape the row. The dispatch-then-parse pattern here is the
  * discriminated-union counterpart and is documented in
- * `docs/references/data/data-api-in-main.md` (§"When `nullsToUndefined +
+ * `docs/dev/references/data/data-api-in-main.md` (§"When `nullsToUndefined +
  * spread` is NOT a fit") as an accepted alternative.
  */
 function rowToFileEntry(row: FileEntryRow): FileEntry {

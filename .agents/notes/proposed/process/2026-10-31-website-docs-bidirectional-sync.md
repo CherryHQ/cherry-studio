@@ -16,16 +16,16 @@ This is a new process decision. The [documentation governance decision](../../im
 
 ### Content boundary and initial import
 
-Both repositories remain editable. Add `website-docs/` to Cherry Studio and map these paths without changing relative links, public article URLs, or locale layouts:
+Both repositories remain editable. Add `docs/website/` to Cherry Studio and map these paths without changing relative links, public article URLs, or locale layouts:
 
 | Cherry Studio | Website |
 | --- | --- |
-| `website-docs/content/` | `docs-site/content/` |
-| `website-docs/locales.json` | `docs-site/locales.json` |
-| `website-docs/page-aliases.json` | `docs-site/page-aliases.json` |
-| `website-docs/shadowed-baseline.json` | `docs-site/shadowed-baseline.json` |
+| `docs/website/content/` | `docs-site/content/` |
+| `docs/website/locales.json` | `docs-site/locales.json` |
+| `docs/website/page-aliases.json` | `docs-site/page-aliases.json` |
+| `docs/website/shadowed-baseline.json` | `docs-site/shadowed-baseline.json` |
 
-All tracked content inside that mapping participates, including desktop and mobile guides, images, attachments, per-language `SUMMARY.md`, and model reference pages. Website rendering code, dependencies, generated output, `docs-site/public/models-search/`, deployment configuration, and shared website components stay website-owned. A local `website-docs/README.md` and `AGENTS.md` explain editing and the boundary; neither synchronizes. Existing `docs/` remains development documentation.
+All tracked content inside that mapping participates, including desktop and mobile guides, images, attachments, per-language `SUMMARY.md`, and model reference pages. Website rendering code, dependencies, generated output, `docs-site/public/models-search/`, deployment configuration, and shared website components stay website-owned. A local `docs/website/README.md` and `AGENTS.md` explain editing and the boundary; neither synchronizes. Existing `docs/dev/` remains development documentation.
 
 Bootstrap from one recorded website `main` commit, then verify byte-identical mapped files and initialize a shared baseline before enabling either direction. Recheck website `main` at activation so changes made during import become a subsequent reconciliation. Do not initialize an empty destination as a set of intended deletions.
 
@@ -47,7 +47,7 @@ Changes arriving after a comparison remain eligible for the next run. Before cre
 
 ### Editing, validation, and publication
 
-Contributors can edit either repository normally. Cherry Studio feature PRs include the corresponding `website-docs/` changes. Provide local preview and CI validation using a recorded website renderer revision in an isolated checkout; overlay the candidate content there without modifying another working checkout. Use the website's pinned toolchain and existing generation, link, navigation, and build checks. Updating the renderer revision is an explicit reviewed change. Fork PR validation has no cross-repository write credentials and cannot invoke privileged synchronization.
+Contributors can edit either repository normally. Cherry Studio feature PRs include the corresponding `docs/website/` changes. Provide local preview and CI validation using a recorded website renderer revision in an isolated checkout; overlay the candidate content there without modifying another working checkout. Use the website's pinned toolchain and existing generation, link, navigation, and build checks. Updating the renderer revision is an explicit reviewed change. Fork PR validation has no cross-repository write credentials and cannot invoke privileged synchronization.
 
 The existing website pipeline still builds and deploys its complete artifact after a website PR merges. A desktop merge requests a documentation PR, not production deployment. Reviewers control when documentation for an unreleased feature goes live by merging its website synchronization PR. Website edits can already be public before their return PR merges into Cherry Studio; the repositories provide eventual consistency, not an atomic cross-repository release.
 

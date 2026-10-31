@@ -1,7 +1,7 @@
 /**
  * Builds the throwaway harness app, runs it unpacked and from an app.asar, and turns both
  * NDJSON transcripts into `local/utility-process-smoke/evidence/summary.json`.
- * Manual gate — not part of `pnpm test`; see docs/references/utility-process/utility-process-testing.md.
+ * Manual gate — not part of `pnpm test`; see docs/dev/references/utility-process/utility-process-testing.md.
  */
 
 import { spawn, spawnSync } from 'node:child_process'

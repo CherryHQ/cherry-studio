@@ -1,6 +1,6 @@
 /**
  * DirectoryTreeBuilder — implementation. SoT:
- * `docs/references/file/directory-tree.md`.
+ * `docs/dev/references/file/directory-tree.md`.
  *
  * Owns:
  *   - one `TreeDirRoot` mirror of the filesystem subtree rooted at `rootPath`

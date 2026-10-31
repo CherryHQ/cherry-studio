@@ -78,7 +78,7 @@ const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
 const BAN_RENDERER_FROM_MAIN = {
   group: ['@renderer', '@renderer/**', '**/renderer/**'],
   message:
-    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/architecture/shared-layer.md.'
+    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/dev/references/architecture/shared-layer.md.'
 }
 // Only reaches src/main + src/preload (below). `tests/**` is globally ignored by this
 // config, so the out-of-src harness is not covered — it goes through applyMigrations by
@@ -122,7 +122,7 @@ const FILE_PREVIEW_HOST_IMPORTS = [
 // main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
 // child bundle. A resolved-path zone, so relative and aliased specifiers are judged alike;
 // the smoke build's entry-graph guard (scripts/utility-process-smoke/hermeticEntryGuardPlugin.ts)
-// is the transitive backstop (docs/references/utility-process/README.md).
+// is the transitive backstop (docs/dev/references/utility-process/README.md).
 const UTILITY_CHILD_FILES = [
   'src/main/core/utilityProcess/protocol/**/*.ts',
   'src/main/core/utilityProcess/runtime/**/*.ts',
@@ -618,12 +618,12 @@ export default defineConfig([
         process.env.CI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
-          message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+          message: '❗CherryStudio uses unified LoggerService: 📖 docs/dev/references/logging/README.md\n\n'
         },
         {
           selector: 'CallExpression[callee.property.name="registerDisposable"] > NewExpression[callee.name="Emitter"]',
           message:
-            '❗Do not registerDisposable() an Emitter the service owns: stop would dispose it for good. Dispose it in onDestroy(): 📖 docs/references/lifecycle/lifecycle-usage.md\n\n'
+            '❗Do not registerDisposable() an Emitter the service owns: stop would dispose it for good. Dispose it in onDestroy(): 📖 docs/dev/references/lifecycle/lifecycle-usage.md\n\n'
         }
       ]
     }
@@ -647,7 +647,7 @@ export default defineConfig([
         // applying to production seeder files.
         {
           selector: 'CallExpression[callee.object.name="console"]',
-          message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+          message: '❗CherryStudio uses unified LoggerService: 📖 docs/dev/references/logging/README.md\n\n'
         },
         {
           selector: 'CallExpression[callee.property.name="onConflictDoUpdate"]',
@@ -739,7 +739,7 @@ export default defineConfig([
               },
               messages: {
                 restricted:
-                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/references/lifecycle/application-overview.md'
+                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/dev/references/lifecycle/application-overview.md'
               }
             },
             create(context) {

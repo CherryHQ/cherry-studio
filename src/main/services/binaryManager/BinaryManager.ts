@@ -425,7 +425,7 @@ export class BinaryManager extends BaseService {
    *
    * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
    * The UI uses this to distinguish "available (bundled)" from "managed"
-   * vs "not installed" — see docs/references/binary-manager/README.md.
+   * vs "not installed" — see docs/dev/references/binary-manager/README.md.
    *
    * Returns a map of tool name → version string (from .{name}-version marker)
    * or null when the marker is missing. Absent keys mean the binary is not

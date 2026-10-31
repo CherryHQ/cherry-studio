@@ -16,16 +16,16 @@ Status: proposed
 
 ### 内容边界与首次导入
 
-两个仓库均保留编辑能力。在 Cherry Studio 中新增 `website-docs/`，按以下路径映射，不改变相对链接、公开文章 URL 或语言目录结构：
+两个仓库均保留编辑能力。在 Cherry Studio 中新增 `docs/website/`，按以下路径映射，不改变相对链接、公开文章 URL 或语言目录结构：
 
 | Cherry Studio | 官网 |
 | --- | --- |
-| `website-docs/content/` | `docs-site/content/` |
-| `website-docs/locales.json` | `docs-site/locales.json` |
-| `website-docs/page-aliases.json` | `docs-site/page-aliases.json` |
-| `website-docs/shadowed-baseline.json` | `docs-site/shadowed-baseline.json` |
+| `docs/website/content/` | `docs-site/content/` |
+| `docs/website/locales.json` | `docs-site/locales.json` |
+| `docs/website/page-aliases.json` | `docs-site/page-aliases.json` |
+| `docs/website/shadowed-baseline.json` | `docs-site/shadowed-baseline.json` |
 
-映射范围内所有已跟踪内容均参与同步，包括桌面端和移动端指南、图片、附件、各语言的 `SUMMARY.md` 以及模型参考页面。官网渲染代码、依赖、生成产物、`docs-site/public/models-search/`、部署配置和官网共享组件仍由官网维护。本地 `website-docs/README.md` 和 `AGENTS.md` 说明编辑方法与边界，两者不参与同步。现有 `docs/` 继续承载开发文档。
+映射范围内所有已跟踪内容均参与同步，包括桌面端和移动端指南、图片、附件、各语言的 `SUMMARY.md` 以及模型参考页面。官网渲染代码、依赖、生成产物、`docs-site/public/models-search/`、部署配置和官网共享组件仍由官网维护。本地 `docs/website/README.md` 和 `AGENTS.md` 说明编辑方法与边界，两者不参与同步。现有 `docs/dev/` 继续承载开发文档。
 
 从一个明确记录的官网 `main` 提交初始化，验证映射文件逐字节一致并建立共同基线后，再启用两个方向。启用时重新检查官网 `main`，把导入期间发生的修改纳入下一轮对账。不得把空目标目录解释为需要同步的删除操作。
 
@@ -47,7 +47,7 @@ Status: proposed
 
 ### 编辑、验证与发布
 
-贡献者可以正常编辑任一仓库。Cherry Studio 功能 PR 同时包含对应的 `website-docs/` 修改。提供本地预览和 CI 验证：在隔离 checkout 中使用明确记录的官网渲染器版本，覆盖候选内容，不修改其他工作 checkout。使用官网锁定的工具链及现有的生成、链接、导航和构建检查。渲染器版本更新必须作为明确的变更接受审核。Fork PR 验证不持有跨仓库写入凭证，也不能调用高权限同步。
+贡献者可以正常编辑任一仓库。Cherry Studio 功能 PR 同时包含对应的 `docs/website/` 修改。提供本地预览和 CI 验证：在隔离 checkout 中使用明确记录的官网渲染器版本，覆盖候选内容，不修改其他工作 checkout。使用官网锁定的工具链及现有的生成、链接、导航和构建检查。渲染器版本更新必须作为明确的变更接受审核。Fork PR 验证不持有跨仓库写入凭证，也不能调用高权限同步。
 
 官网 PR 合并后，现有官网流水线仍构建并部署完整产物。桌面端合并只请求文档 PR，不直接触发生产部署。审核者通过合并官网同步 PR 控制尚未发布功能的文档何时上线。官网修改可能在回传 Cherry Studio 的 PR 合并前就已公开；两个仓库提供最终一致性，不提供跨仓库原子发布。
 
