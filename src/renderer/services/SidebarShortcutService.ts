@@ -9,24 +9,23 @@ import {
   reorderSidebarShortcuts
 } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { Sequencer } from '@shared/utils/async'
 
 type SidebarPreferenceClient = Pick<typeof preferenceService, 'get' | 'set'>
 
 export class SidebarShortcutService {
-  private mutationQueue: Promise<void> = Promise.resolve()
+  private readonly mutationQueue = new Sequencer()
 
   constructor(private readonly preferences: SidebarPreferenceClient = preferenceService) {}
 
   private enqueue(transform: (current: readonly unknown[]) => SidebarShortcutItem[]): Promise<void> {
-    const operation = this.mutationQueue.then(async () => {
+    return this.mutationQueue.queue(async () => {
       const stored = await this.preferences.get('ui.sidebar_shortcut')
       const current = Array.isArray(stored) ? stored : []
       const next = transform(current)
       if (isEqual(current, next)) return
       await this.preferences.set('ui.sidebar_shortcut', next)
     })
-    this.mutationQueue = operation.catch(() => undefined)
-    return operation
   }
 
   normalize(): Promise<void> {

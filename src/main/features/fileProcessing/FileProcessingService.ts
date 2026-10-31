@@ -1,64 +1,78 @@
-import { net } from 'electron'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { EnqueueOptions } from '@main/core/job/types'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { TerminalJobStatus } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
+import { probeOpenMineru } from './processors/openMineru/protocol'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
+import {
+  isFileProcessingJobType,
+  toFileProcessingTask,
+  toFileProcessingTaskId,
+  toQueuedTask,
+  toSettledTask,
+  withTaskUpdates
+} from './tasks/fileProcessingTask'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
 import type { FileProcessingJobPayload } from './tasks/shared'
-import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
-import { getRequiredApiHost, getRequiredCapability } from './utils/provider'
+import type {
+  FileProcessingTask,
+  FileProcessingTaskCancelOutcome,
+  FileProcessingTaskId,
+  ListAvailableFileProcessorsResult,
+  StartedFileProcessingTask,
+  StartFileProcessingTaskInput
+} from './types'
+import { getApiKey, getRequiredApiHost, getRequiredCapability } from './utils/provider'
 
 const logger = loggerService.withContext('FileProcessingService')
 
-/**
- * Long enough for a LAN host, short enough that the dropdown gating it does not
- * feel stuck. Matches OpenClawService's gateway health probe.
- */
-const CONNECTIVITY_PROBE_TIMEOUT_MS = 3_000
+/** How long a settled task stays in the shared cache; `getTask` reads it from its job row after that. */
+const SETTLED_TASK_TTL_MS = 60_000
+
+function taskCacheKey(id: FileProcessingTaskId): `file_processing.task.${string}` {
+  return `file_processing.task.${id}`
+}
 
 @Injectable('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['FileManager', 'JobManager'])
 export class FileProcessingService extends BaseService {
+  private readonly _onDidChangeTask = new Emitter<FileProcessingTask>()
+  /** Fires on every status change and progress report of every task. */
+  readonly onDidChangeTask: Event<FileProcessingTask> = this._onDidChangeTask.event
+
   protected onInit(): void {
-    // Register handlers in onInit (NOT onReady) so JobManager.onAllReady's
-    // startup recovery sweep sees them when re-dispatching non-terminal jobs.
+    // Register in onInit (NOT onReady): JobManager cancels each type's rows left by the
+    // previous launch when its handler registers, before anything can wait on them.
     const jobManager = application.get('JobManager')
-    jobManager.registerHandler('file-processing.background', backgroundJobHandler)
-    jobManager.registerHandler('file-processing.background-local', localBackgroundJobHandler)
-    jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
+    const publish = (task: FileProcessingTask) => this.publishTask(task)
+    jobManager.registerHandler('file-processing.background', withTaskUpdates(backgroundJobHandler, publish))
+    jobManager.registerHandler('file-processing.background-local', withTaskUpdates(localBackgroundJobHandler, publish))
+    jobManager.registerHandler('file-processing.remote-poll', withTaskUpdates(remotePollJobHandler, publish))
     logger.info('File processing service initialized')
   }
 
+  protected onDestroy(): void {
+    this._onDidChangeTask.dispose()
+  }
+
   /**
-   * Enqueue a file-processing job.
+   * Queue a conversion as a new task.
    *
-   * Each call creates a fresh processing job. Neither the `file` handle (a path
-   * or entry reference) nor `context.dataId` (a provider-specific task id, e.g.
-   * MinerU's data_id) is a content-version identity, so do not use either as an
-   * idempotency key. If we add reuse later, scope it to a contentHash plus
-   * processor/config/version.
-   *
-   * The handler.mode field on the capability handler determines the JobRegistry
-   * type to enqueue under (background vs remote-poll), and for background the
-   * processor's `runtime` picks the local or remote half. Both are synchronous
-   * lookups — no `await prepare()` is needed at enqueue time.
+   * Each call starts a fresh task. Neither the `file` handle (a path or entry
+   * reference) nor `context.dataId` (a provider-specific task id, e.g. MinerU's
+   * data_id) is a content-version identity, so neither deduplicates a task. If we
+   * add reuse later, scope it to a contentHash plus processor/config/version.
    */
-  async startJob(
-    input: StartFileProcessingJobInput,
-    options: Pick<EnqueueOptions, 'parentId'> = {}
-  ): Promise<JobSnapshot> {
+  async startTask(input: StartFileProcessingTaskInput): Promise<StartedFileProcessingTask> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -79,14 +93,15 @@ export class FileProcessingService extends BaseService {
       ...(context ? { context } : {})
     }
 
+    // The capability handler's mode picks the job type (background vs remote-poll), and for
+    // background the processor's `runtime` picks the local or remote half — no `prepare()` needed.
     const type =
       handler.mode === 'remote-poll'
         ? 'file-processing.remote-poll'
         : processorRegistry[config.id].runtime === 'local'
           ? 'file-processing.background-local'
           : 'file-processing.background'
-    const jobManager = application.get('JobManager')
-    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = application.get('JobManager').enqueue(type, payload)
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,
@@ -97,7 +112,40 @@ export class FileProcessingService extends BaseService {
       output
     })
 
-    return handle.snapshot
+    const id = toFileProcessingTaskId(handle.id)
+    const task = toQueuedTask(id, payload)
+    this.publishTask(task)
+    const done = handle.finished.then((snapshot) =>
+      // `finished` resolves only with a terminal snapshot.
+      toSettledTask(id, payload, { ...snapshot, status: snapshot.status as TerminalJobStatus })
+    )
+    return { task, done }
+  }
+
+  /** A task's current state, or null when no such task exists. */
+  async getTask(id: FileProcessingTaskId): Promise<FileProcessingTask | null> {
+    const snapshot = await application.get('JobManager').get(id)
+    if (!snapshot || !isFileProcessingJobType(snapshot.type)) {
+      return null
+    }
+    const live = application.get('CacheService').getShared(taskCacheKey(id))
+    return toFileProcessingTask(snapshot, live?.status === 'processing' ? live.progress : 0)
+  }
+
+  /** Cancel a task that has not settled. Resolves once its conversion stops, or gives up waiting. */
+  async cancelTask(id: FileProcessingTaskId, reason?: string): Promise<FileProcessingTaskCancelOutcome> {
+    const jobManager = application.get('JobManager')
+    const snapshot = await jobManager.get(id)
+    if (!snapshot || !isFileProcessingJobType(snapshot.type)) {
+      return 'not-cancellable'
+    }
+    return (await jobManager.cancel(id, reason)).outcome
+  }
+
+  private publishTask(task: FileProcessingTask): void {
+    const settled = task.status !== 'queued' && task.status !== 'processing'
+    application.get('CacheService').setShared(taskCacheKey(task.id), task, settled ? SETTLED_TASK_TTL_MS : undefined)
+    this._onDidChangeTask.fire(task)
   }
 
   /**
@@ -126,27 +174,7 @@ export class FileProcessingService extends BaseService {
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
   }
 
-  /**
-   * Is a self-hosted processor's server actually up?
-   *
-   * For a processor the user runs themselves there is nothing in the config that
-   * answers this — Open MinerU needs no API key and its preset ships a working
-   * default host, so a user who has done nothing looks identical to one running
-   * a real deployment. Only the host can tell us apart.
-   *
-   * Probes `/health`, the endpoint both `mineru-api` and `mineru-router` expose,
-   * and treats **404 as the one negative answer**: something is listening but it
-   * has no `/health`, so it is not MinerU (port 8000 is a busy neighbourhood).
-   * Every other status means the server is alive and we let it through — 503 is
-   * how MinerU reports a full request queue, 401/403 come from a reverse proxy in
-   * front of it, and greying out a working deployment is far worse than letting a
-   * broken one through, which merely fails the way it already does today.
-   *
-   * Deliberately no `sanitizeRemoteUrl`: the host being probed is the same one
-   * `executeTask` posts the user's document to with a bare `net.fetch`, and this
-   * sends an unauthenticated GET whose body we never read. A probe stricter than
-   * the execution path would report "unreachable" for hosts that actually work.
-   */
+  /** Reachability is distinct from a successful protocol or authentication check. */
   async checkOpenMineruConnectivity(): Promise<boolean> {
     const processorId = 'open-mineru'
     const feature = 'document_to_markdown'
@@ -162,11 +190,8 @@ export class FileProcessingService extends BaseService {
     }
 
     try {
-      const response = await net.fetch(`${apiHost}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(CONNECTIVITY_PROBE_TIMEOUT_MS)
-      })
-      return response.status !== 404
+      const probe = await probeOpenMineru({ apiHost, apiKey: getApiKey(config, processorId) })
+      return probe.kind === 'supported' || probe.kind === 'http-error'
     } catch (error) {
       logger.debug('File processor connectivity probe failed', { processorId, apiHost, error })
       return false

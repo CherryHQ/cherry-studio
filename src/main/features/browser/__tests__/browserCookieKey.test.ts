@@ -247,22 +247,27 @@ describe('Browser encryption keys', () => {
 })
 
 // This round trip uses only synthetic input and runs on Windows CI without browser/profile access.
-it.runIf(process.platform === 'win32')('unwraps a real current-user Windows DPAPI payload', async () => {
-  vi.mocked(childProcess.execFile).mockImplementation(realExecFile)
-  const protectedValue = await new Promise<string>((resolve, reject) => {
-    realExecFile(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        "Add-Type -AssemblyName System.Security; [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('synthetic-cookie-fixture'), $null, [Security.Cryptography.DataProtectionScope]::CurrentUser))"
-      ],
-      { windowsHide: true, timeout: 30_000 },
-      (error, stdout) => (error ? reject(error) : resolve(stdout.trim()))
+// Both PowerShell calls have 30-second deadlines, so the test must allow their combined budget.
+it.runIf(process.platform === 'win32')(
+  'unwraps a real current-user Windows DPAPI payload',
+  { timeout: 65_000 },
+  async ({ signal }) => {
+    vi.mocked(childProcess.execFile).mockImplementation(realExecFile)
+    const protectedValue = await new Promise<string>((resolve, reject) => {
+      realExecFile(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          "Add-Type -AssemblyName System.Security; [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('synthetic-cookie-fixture'), $null, [Security.Cryptography.DataProtectionScope]::CurrentUser))"
+        ],
+        { windowsHide: true, timeout: 30_000, signal },
+        (error, stdout) => (error ? reject(error) : resolve(stdout.trim()))
+      )
+    })
+    expect((await unprotectWindowsData(Buffer.from(protectedValue, 'base64'), signal)).toString()).toBe(
+      'synthetic-cookie-fixture'
     )
-  })
-  expect(
-    (await unprotectWindowsData(Buffer.from(protectedValue, 'base64'), new AbortController().signal)).toString()
-  ).toBe('synthetic-cookie-fixture')
-})
+  }
+)

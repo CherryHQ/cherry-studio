@@ -36,6 +36,29 @@ describe('codeLanguage', () => {
       expect(getLanguageByFilePath('config.yml')).toBe('YAML')
       expect(getLanguageByFilePath('src/index.ts')).toBe('TypeScript')
     })
+
+    it('does not read a dot that belongs to a directory name', () => {
+      // The result is rendered as the language label of the file preview and of the agent's
+      // read/write tool calls, so a path fragment leaking in here shows up verbatim in the UI.
+      expect(getLanguageByFilePath('/home/john.doe/notes')).toBe('text')
+      expect(getLanguageByFilePath('src/v1.2/README')).toBe('text')
+      expect(getLanguageByFilePath('/home/john.doe/notes.md')).toBe('Markdown')
+    })
+
+    it('does not mistake a dotless file name for an extension', () => {
+      expect(getLanguageByFilePath('/srv/Makefile')).toBe('text')
+      expect(getLanguageByFilePath('Makefile')).toBe('text')
+      expect(getLanguageByFilePath('src/utils')).toBe('text')
+    })
+
+    it('reads the extension of a Windows path', () => {
+      expect(getLanguageByFilePath('C:\\Users\\alice\\report.md')).toBe('Markdown')
+      expect(getLanguageByFilePath('D:/work/main.py')).toBe('Python')
+    })
+
+    it('keeps treating a dotfile name as its own extension', () => {
+      expect(getLanguageByFilePath('.gitignore')).toBe(getLanguageByExtension('gitignore'))
+    })
   })
 
   describe('getExtensionByLanguage', () => {

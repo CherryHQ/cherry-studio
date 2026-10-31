@@ -6,7 +6,12 @@ import StreamZip from 'node-stream-zip'
 import { loggerService } from '@logger'
 import { isOutsidePath } from '@main/utils/file'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
-import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import {
+  assertNoFoldedPathCollisions as assertNoFoldedPathCollisionsShared,
+  assertZipEntriesWithin
+} from '@main/utils/zipSafety'
+
+import { SkillImportError } from './SkillImportError'
 
 /**
  * Handling for an untrusted skill tree on disk, however it arrived — an extracted ZIP or a shallow
@@ -30,22 +35,28 @@ export const MAX_ARCHIVE_ENTRIES = 50_000
 export async function validateZipFile(zipFilePath: string): Promise<void> {
   const stats = await fs.promises.stat(zipFilePath)
   if (!stats.isFile()) {
-    throw new Error(`Not a file: ${zipFilePath}`)
+    throw new SkillImportError('INVALID_ZIP_FILE', `Not a file: ${zipFilePath}`)
   }
   if (!zipFilePath.toLowerCase().endsWith('.zip')) {
-    throw new Error(`Not a ZIP file: ${zipFilePath}`)
+    throw new SkillImportError('INVALID_ZIP_FILE', `Not a ZIP file: ${zipFilePath}`)
   }
 }
+
+/**
+ * Paths differing only in case or Unicode composition land on one file on macOS and Windows, so the
+ * installed content would depend on the platform and on which entry was written last.
+ */
+export const assertNoFoldedPathCollisions = (paths: readonly string[]): void =>
+  assertNoFoldedPathCollisionsShared(paths, 'Skill')
 
 export async function extractZip(zipFilePath: string, destDir: string): Promise<void> {
   const zip = new StreamZip.async({ file: zipFilePath })
 
   try {
     const entries = Object.values(await zip.entries())
-    assertZipEntriesWithin(
-      entries.map((entry) => entry.name),
-      destDir
-    )
+    const entryNames = entries.map((entry) => entry.name)
+    assertZipEntriesWithin(entryNames, destDir)
+    assertNoFoldedPathCollisions(entryNames)
     // Measure the whole archive before rejecting it. Stopping at the entry that crosses a ceiling
     // reports the running counter — always the limit plus one entry — so an archive many times
     // over the limit reads as barely over it, and the user cannot tell why the install failed.
@@ -186,7 +197,7 @@ export async function resolveSkillDirectory(
   const rootSkill = await findSkillMdPath(repoDir)
   if (rootSkill) return validateRepositorySkillDirectory(repoDir, repoDir, rootSkill)
 
-  throw new Error(`No skill directory found in ${repoDir}`)
+  throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No skill directory found in ${repoDir}`)
 }
 
 export async function validateRepositorySkillDirectory(
@@ -204,7 +215,7 @@ export async function validateRepositorySkillDirectory(
   }
 
   const skillMdPath = knownSkillMdPath ?? (await findSkillMdPath(skillRealPath))
-  if (!skillMdPath) throw new Error(`No SKILL.md found in ${skillDir}`)
+  if (!skillMdPath) throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No SKILL.md found in ${skillDir}`)
   const skillMdRealPath = await fs.promises.realpath(skillMdPath)
   const relativeDescriptorPath = path.relative(repoRealPath, skillMdRealPath)
   if (isOutsidePath(relativeDescriptorPath)) {

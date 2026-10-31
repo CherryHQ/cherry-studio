@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { logger, validatePath } from '../types'
@@ -13,29 +14,18 @@ export const DeleteToolSchema = z.object({
 
 // Tool definition with detailed description
 export const deleteToolDefinition = {
-  name: 'delete',
-  description: `Deletes a file or directory from the filesystem.
-
-CAUTION: This operation cannot be undone!
-
-- For files: simply provide the path
-- For empty directories: provide the path
-- For non-empty directories: set recursive=true
-- The path must resolve within the configured workspace root
-- Always verify the path before deleting to avoid data loss`,
-  inputSchema: z.toJSONSchema(DeleteToolSchema)
+  description: `Delete a file or directory. Cannot be undone; verify the path, and set recursive for non-empty directories.`,
+  inputSchema: DeleteToolSchema
 }
 
 // Handler implementation
-export async function handleDeleteTool(args: unknown, baseDir: string) {
-  const parsed = DeleteToolSchema.safeParse(args)
-  if (!parsed.success) {
-    throw new Error(`Invalid arguments for delete: ${parsed.error}`)
-  }
-
-  const targetPath = parsed.data.path
+export async function handleDeleteTool(
+  args: z.infer<typeof DeleteToolSchema>,
+  baseDir: string
+): Promise<CallToolResult> {
+  const targetPath = args.path
   const validPath = await validatePath(targetPath, baseDir)
-  const recursive = parsed.data.recursive || false
+  const recursive = args.recursive || false
 
   // Check if path exists and get stats
   let stats

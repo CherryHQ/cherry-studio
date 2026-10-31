@@ -30,6 +30,71 @@ describe('background session isolation', () => {
     return agentSessionService.create({ agentId: 'agent', name, workspace: { type: 'system' } }, type)
   }
 
+  it('archives only conversations when a session type scope is supplied', () => {
+    const first = create('first')
+    const second = create('second')
+    const backgrounds = [create('heartbeat', 'background'), create('sticky task', 'background')]
+
+    const result = agentSessionService.deleteByAgentIdWithImpact('agent', {
+      permanent: false,
+      sessionTypes: ['conversation']
+    })
+
+    expect(result.deletedIds.sort()).toEqual([first.id, second.id].sort())
+    for (const session of [first, second]) {
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+    }
+    for (const background of backgrounds) {
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, background.id)).get()?.deletedAt
+      ).toBeNull()
+    }
+  })
+
+  it.each([undefined, []] as const)('archives all session types with scope %j', (sessionTypes) => {
+    const conversation = create('conversation')
+    const background = create('heartbeat', 'background')
+
+    const result = agentSessionService.deleteByAgentIdWithImpact('agent', { permanent: false, sessionTypes })
+
+    expect(result.deletedIds.sort()).toEqual([conversation.id, background.id].sort())
+    for (const session of [conversation, background]) {
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+    }
+  })
+
+  it('filters active IDs by session type while retaining the unfiltered default', () => {
+    const conversation = create('conversation')
+    const background = create('heartbeat', 'background')
+    const trashed = create('already archived')
+    agentSessionService.delete(trashed.id)
+
+    expect(agentSessionService.listActiveIdsByAgent('agent', { sessionTypes: ['conversation'] })).toEqual([
+      conversation.id
+    ])
+    expect(agentSessionService.listActiveIdsByAgent('agent')).toEqual([conversation.id, background.id].sort())
+    expect(agentSessionService.listActiveIdsByAgent('agent', { sessionTypes: [] })).toEqual(
+      [conversation.id, background.id].sort()
+    )
+  })
+
+  it('keeps permanent agent-session deletion unfiltered even when a session type scope is supplied', () => {
+    const conversation = create('conversation')
+    const background = create('heartbeat', 'background')
+
+    const result = agentSessionService.deleteByAgentIdWithImpact('agent', {
+      permanent: true,
+      sessionTypes: ['conversation']
+    })
+
+    expect(result.deletedIds.sort()).toEqual([conversation.id, background.id].sort())
+    expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
+  })
+
   it('excludes background rows before pin pagination and latest selection, including orphaned sessions', () => {
     const first = create('first')
     const second = create('second')

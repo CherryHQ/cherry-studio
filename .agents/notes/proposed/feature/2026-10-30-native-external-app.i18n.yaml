@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-30-native-external-app.md
+2026-10-30-native-external-app.md: f78c28886772ab01bc6fc269556ec7c6cc953a63
+2026-10-30-native-external-app.zh.md: e75e4eb95993eaaa47e6abb35a68252403088ec3

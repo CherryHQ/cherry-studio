@@ -95,4 +95,48 @@ KEY=third`
       'API-URL_123': 'https://api.example.com/v1/users'
     })
   })
+
+  it.each([
+    ['Authorization=Bearer xxx-proxy@!@#', { Authorization: 'Bearer xxx-proxy@!@#' }],
+    ['Authorization=Bearer xxx-proxy@#!@', { Authorization: 'Bearer xxx-proxy@#!@' }],
+    ['A=abc#', { A: 'abc#' }],
+    ['A=a#b', { A: 'a#b' }],
+    ['A=#secret', { A: '#secret' }],
+    ['A=a # b', { A: 'a # b' }],
+    ['A=a##b', { A: 'a##b' }],
+    ['A=can\'t"`#x', { A: 'can\'t"`#x' }],
+    ['A=a#  ', { A: 'a#' }],
+    ['A=%23#%25', { A: '%23#%25' }],
+    ['A="x" #tail', { A: '"x" #tail' }],
+    ["A='x' #tail", { A: "'x' #tail" }],
+    ['A=`x` #tail', { A: '`x` #tail' }]
+  ])('preserves literal hashes in %j', (input, expected) => {
+    expect(parseKeyValueString(input)).toEqual(expected)
+  })
+
+  it.each([
+    ['A="a#b"', { A: 'a#b' }],
+    ["A='a#b'", { A: 'a#b' }],
+    ['A=`a#b`', { A: 'a#b' }],
+    ['A=%23%25%ZZ%2523', { A: '%23%25%ZZ%2523' }],
+    ['A=" value # "', { A: ' value # ' }],
+    ['  KEY = value  ', { KEY: 'value' }],
+    ['KEY=   ', { KEY: '' }],
+    ['\n \n', {}],
+    ['#COMMENT=x\n  # other=y\nB=2', { B: '2' }],
+    ['A="first\n# middle=x\nlast"\nB=2', { A: 'first\n# middle=x\nlast', B: '2' }],
+    ['A="first\r\n# middle=x\r\nlast"\r\nB=2', { A: 'first\n# middle=x\nlast', B: '2' }],
+    ['A=one\r\nB=two\r\n', { A: 'one', B: 'two' }],
+    ['A="x\\ny\\rz#"', { A: 'x\ny\rz#' }],
+    ["A='x\\ny\\rz#'", { A: 'x\\ny\\rz#' }],
+    ['A=`x\\ny\\rz#`', { A: 'x\\ny\\rz#' }],
+    ['A: value', { A: 'value' }],
+    ['export A=value', { A: 'value' }],
+    ['=value\nB=2', { B: '2' }],
+    ['BAD KEY=value\nB=2', { B: '2' }],
+    ['BAD%KEY=value\nB=2', { B: '2' }],
+    ['BAD#KEY=value\nB=2', { B: '2' }]
+  ])('retains dotenv compatibility for %j', (input, expected) => {
+    expect(parseKeyValueString(input)).toEqual(expected)
+  })
 })

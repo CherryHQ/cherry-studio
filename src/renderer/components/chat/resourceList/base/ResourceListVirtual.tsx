@@ -192,6 +192,9 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
     '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [contain:layout_paint] [scrollbar-gutter:stable]',
+    '[&>div>[data-index]]:transition-transform [&>div>[data-index]]:duration-200 [&>div>[data-index]]:ease-out',
+    'motion-reduce:[&>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>[data-index]]:transition-none',
+    '[&:has([data-dragging=true])>div>[data-index]]:transition-none',
     '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!',
     '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',

@@ -116,7 +116,7 @@ const HistoryTopBar = ({
                 className={cn(
                   'h-8 w-[132px] text-xs',
                   selectedStatus !== ALL_SOURCE_ID &&
-                    '[&_svg]:transition-opacity group-focus-within/status-select:[&_svg]:opacity-0 group-hover/status-select:[&_svg]:opacity-0'
+                    '[&_svg]:transition-opacity group-focus-within/status-select:[&_svg]:opacity-0 group-hover/status-select:[&_svg]:opacity-0 no-hover:[&_svg]:opacity-0'
                 )}>
                 <SelectValue placeholder={statusPlaceholder ?? statusLabel} />
               </SelectTrigger>
@@ -144,7 +144,7 @@ const HistoryTopBar = ({
                   event.stopPropagation()
                   onStatusSelect(ALL_SOURCE_ID)
                 }}
-                className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/status-select:pointer-events-auto group-focus-within/status-select:opacity-100 group-hover/status-select:pointer-events-auto group-hover/status-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100">
+                className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/status-select:pointer-events-auto group-focus-within/status-select:opacity-100 group-hover/status-select:pointer-events-auto group-hover/status-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
                 <X size={12} />
               </Button>
             ) : null}

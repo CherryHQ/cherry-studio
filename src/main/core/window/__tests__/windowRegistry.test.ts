@@ -216,21 +216,21 @@ describe('mergeWindowOptions', () => {
   })
 })
 
-// Regression guard (couples to the REAL Main entry on purpose, unlike the
-// fixture-based suite above). The v1→v2 migration (commit bafed0d0e) collapsed
-// v1's `frame: isLinux && pref` into `...(isLinux && { frame })`, silently
-// dropping Windows' implicit frame:false and bringing back the native title bar.
-// Main must stay frameless on Windows — the renderer draws its own controls
-// (see components/WindowControls, rendered when isWin || isLinux).
 describe('WINDOW_TYPE_REGISTRY Main window — frame contract', () => {
   beforeEach(() => {
     resetPlatform()
   })
 
-  it('is frameless on Windows (frame:false sourced from the registry)', () => {
-    platform.isWin = true
-    expect(mergeWindowOptions(WindowType.Main).frame).toBe(false)
-  })
+  it.each([WindowType.Main, WindowType.SubWindow])(
+    'keeps a custom title bar with native Windows controls for %s',
+    (type) => {
+      platform.isWin = true
+      const options = mergeWindowOptions(type)
+      expect(options.frame).not.toBe(false)
+      expect(options.titleBarStyle).toBe('hidden')
+      expect(options.titleBarOverlay).toEqual(expect.objectContaining({ height: expect.any(Number) }))
+    }
+  )
 
   it('keeps the hidden native title bar on macOS (no frame override)', () => {
     platform.isMac = true

@@ -138,7 +138,14 @@ export function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
         }
       }
 
-      const zodObject = z.object(shape)
+      // JSON Schema allows additional fields by default; Zod's default strips them.
+      let additionalSchema: z.ZodTypeAny = z.unknown()
+      if (schema.additionalProperties === false) {
+        additionalSchema = z.never()
+      } else if (typeof schema.additionalProperties === 'object') {
+        additionalSchema = jsonSchemaToZod(schema.additionalProperties)
+      }
+      const zodObject = z.object(shape).catchall(additionalSchema)
       return description ? zodObject.describe(description) : zodObject
     }
 

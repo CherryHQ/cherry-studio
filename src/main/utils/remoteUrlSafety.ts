@@ -15,6 +15,8 @@ export type ResolvedRemoteFetchUrl = {
 
 export type ResolveRemoteFetchUrlOptions = {
   readonly signal?: AbortSignal
+  /** Trust this configured endpoint, including same-port loopback aliases. */
+  readonly configuredApiHost?: string
   /** Skip local/private address rejection, from the `app.fetch.allow_private_network` preference. */
   readonly allowPrivateNetwork?: boolean
 }
@@ -261,7 +263,9 @@ export async function resolveRemoteFetchUrl(
   options: ResolveRemoteFetchUrlOptions = {}
 ): Promise<ResolvedRemoteFetchUrl> {
   const parsedUrl = parseRemoteUrl(rawUrl)
-  const allowPrivateNetwork = options.allowPrivateNetwork === true
+  const allowPrivateNetwork =
+    options.allowPrivateNetwork === true ||
+    (options.configuredApiHost !== undefined && hasMatchingConfiguredOrigin(parsedUrl, options.configuredApiHost))
 
   if (!allowPrivateNetwork && isBlockedHostname(parsedUrl.hostname)) {
     throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)

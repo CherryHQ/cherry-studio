@@ -5,7 +5,7 @@
 // Core
 export { createMigrationContext, type MigrationContext } from './core/MigrationContext'
 export { MigrationEngine, migrationEngine } from './core/MigrationEngine'
-export { describeErrorChain, isSchemaOutOfSyncError } from './core/migrationErrors'
+export { describeErrorChain, isMigrationStorageError, isSchemaOutOfSyncError } from './core/migrationErrors'
 export {
   type MigrationPaths,
   type MigrationPathsResult,

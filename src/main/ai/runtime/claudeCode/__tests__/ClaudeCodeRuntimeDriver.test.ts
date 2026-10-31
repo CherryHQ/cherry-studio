@@ -1059,7 +1059,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('distinguishes unsupported images from unreadable or invalid image payloads', async () => {
+  it('distinguishes images that still have a usable path from invalid payloads with none', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1127,7 +1127,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n- "missing.png": /managed/entry-missing\n\nUnavailable attachments: empty.png, missing-url.png'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1136,9 +1136,166 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
-      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+      attachments: ['empty.png', 'missing-url.png']
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
+    void connection.close()
+  })
+
+  it('routes an image type the image blocks cannot carry to its path without converting it', async () => {
+    // `image/*` is not enough: TIFF is not one of the image blocks' media types, so its bytes are
+    // never worth materializing — and a large one fails conversion outright, which used to take
+    // its managed path reference down with it.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this scan' },
+            {
+              type: 'file',
+              url: 'file:///tmp/scan.tiff',
+              mediaType: 'image/tiff',
+              filename: 'scan.tiff',
+              providerMetadata: { cherry: { fileEntryId: 'entry-tiff' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          content:
+            'inspect this scan\n\nAttached files (read them with your tools using these absolute paths):\n- "scan.tiff": /managed/entry-tiff'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('keeps the local path of an image whose conversion produced nothing sendable', async () => {
+    // Past the runtime's base64 string limit (or otherwise unreadable) the conversion returns
+    // null — the file itself is still readable at its path, and the agent must not lose both.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce(null)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this image' },
+            {
+              type: 'file',
+              url: 'file:///tmp/huge.png',
+              mediaType: 'image/png',
+              filename: 'huge.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-huge' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          content:
+            'inspect this image\n\nAttached files (read them with your tools using these absolute paths):\n- "huge.png": /managed/entry-huge'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('sends an unlisted-extension image the router cannot classify as a local path', async () => {
+    // AVIF/HEIC carry an image/* MIME but no listed extension, so shared routing would
+    // replace them with an unsupported-type note unless the driver opts into keeping the
+    // part — the mock mirrors that contract — after which the path fallback forwards it.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]: any[], ctx: any) =>
+      ctx.keepUnroutableFileParts
+        ? [message]
+        : [
+            {
+              ...message,
+              parts: [
+                ...message.parts.filter((part: any) => part.type !== 'file'),
+                {
+                  type: 'text',
+                  text: 'Attached file "photo.avif":\nCannot read the attached file "photo.avif" as text (unsupported file type).'
+                }
+              ]
+            }
+          ]
+    )
+    // The declared AVIF type is one the image blocks cannot carry, so the driver forwards the
+    // path without asking for bytes at all (the pre-conversion check in `canBeClaudeImage`).
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'look at this photo' },
+            {
+              type: 'file',
+              url: 'file:///tmp/photo.avif',
+              mediaType: 'image/avif',
+              filename: 'photo.avif',
+              providerMetadata: { cherry: { fileEntryId: 'entry-avif' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'look at this photo\n\nAttached files (read them with your tools using these absolute paths):\n- "photo.avif": /managed/entry-avif'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
     void connection.close()
   })
 
@@ -1457,7 +1614,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
       attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
       nativeSupport: { image: false, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: false,
+      keepUnroutableFileParts: true
     })
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
     void connection.close()
@@ -2298,6 +2456,97 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'context-usage',
         usage: { categories: [], totalTokens: 1000, maxTokens: 200_000, percentage: 0.5, model: 'sonnet-sdk' }
+      }
+    ])
+    await connection.close()
+  })
+
+  it.each([
+    { name: 'uncached', usage: { input_tokens: 12_345 }, totalTokens: 12_345, percentage: 6.1725 },
+    {
+      name: 'cache reads only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8192, cache_creation_input_tokens: 0 },
+      totalTokens: 8192,
+      percentage: 4.096
+    },
+    {
+      name: 'cache writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 4096 },
+      totalTokens: 4096,
+      percentage: 2.048
+    },
+    {
+      name: 'cache reads and writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8000, cache_creation_input_tokens: 4000 },
+      totalTokens: 12_000,
+      percentage: 6
+    }
+  ])('emits trailing message_delta context usage ($name)', async ({ usage, totalTokens, percentage }) => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // Bridge gateways report real input tokens only on the trailing delta (message_start is still 0).
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'req-1', model: 'sonnet-sdk', usage: { input_tokens: 0, output_tokens: 1 } }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { ...usage, output_tokens: 5 }
+      }
+    })
+    // Subagent lanes must not move the session ring.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: 'tool-1',
+      event: { type: 'message_delta', delta: {}, usage: { input_tokens: 50_000, output_tokens: 1 } }
+    })
+    // Sparse direct-Anthropic deltas must not replace a complete input reading.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: {},
+        usage: { input_tokens: null, output_tokens: 1, cache_read_input_tokens: 500 } as any
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_delta', delta: {}, usage: { output_tokens: 2, cache_read_input_tokens: 500 } }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'delta-usage-result',
+      usage: { ...usage, output_tokens: 5 }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'context-usage')).toEqual([
+      {
+        type: 'context-usage',
+        usage: { categories: [], totalTokens, maxTokens: 200_000, percentage, model: 'sonnet-sdk' }
       }
     ])
     await connection.close()

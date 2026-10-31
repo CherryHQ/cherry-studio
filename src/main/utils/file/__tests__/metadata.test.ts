@@ -107,6 +107,15 @@ describe('isTextByContent', () => {
     expect(await isTextByContent(f as AbsoluteFilePath)).toBe(true)
   })
 
+  it('accepts UTF-8 Chinese text that made isbinaryfile throw while probing for protobuf', async () => {
+    const f = path.join(tmp, 'chinese-notes')
+    await writeFile(
+      f,
+      '题目  \n“755 年断裂论”：一次把中唐视为中国近代史开端的系统论证\n\n副标题  \n从象征秩序崩溃到晚期帝国拜占庭化的理论考古\n\n摘要  \n以“终极担保的脱落”为核心判准，本文提出：755 年安史之乱并非传统意义上的王朝危机，而是中国文明象征秩序的自杀点；宋—清 1100 余年乃一具制度仍运作、却已失生成力的“活死人帝国”。论文综合历史社会学、精神分析人类学、政治神学与新制'
+    )
+    expect(await isTextByContent(f as AbsoluteFilePath)).toBe(true)
+  })
+
   it('returns false (does not throw) for a missing file', async () => {
     expect(await isTextByContent(path.join(tmp, 'nope') as AbsoluteFilePath)).toBe(false)
   })

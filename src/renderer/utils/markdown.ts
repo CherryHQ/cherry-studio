@@ -31,12 +31,12 @@ export {
  * 此时按 html 节点的起止边界原位替换。
  *
  * @param raw 原始Markdown字符串
- * @param originalContent 修改前的代码内容，可带渲染时附加的一个末尾换行符
+ * @param originalContent 修改前的代码文档内容，不含 HTML 转换附加的结构性换行
  * @param newContent 修改后的代码内容
  * @returns 替换后的Markdown字符串；找不到或存在多个相同代码块时返回 null
  */
 export function updateCodeBlock(raw: string, originalContent: string, newContent: string): string | null {
-  const original = originalContent.replace(/\n$/, '')
+  const original = originalContent
   const tree = unified().use(remarkParse).parse(raw)
   const matches: Code[] = []
   visit(tree, 'code', (node) => {

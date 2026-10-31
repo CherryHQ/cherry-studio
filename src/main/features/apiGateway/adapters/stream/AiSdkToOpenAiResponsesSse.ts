@@ -61,9 +61,10 @@ type PartialStreamingResponse = StreamingResponseFields & {
 /**
  * Minimal usage type for streaming responses.
  * The SDK's ResponseUsage requires input_tokens_details and output_tokens_details,
- * but during streaming we may only have the basic token counts.
+ * but the details are only present when the usage projection carries them.
  */
-type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'>
+type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'> &
+  Partial<Pick<ResponseUsage, 'input_tokens_details' | 'output_tokens_details'>>
 
 /**
  * OpenAI Responses finish reasons
@@ -148,16 +149,21 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   /**
-   * Build usage object for streaming responses.
-   * Uses StreamingUsage which only includes basic token counts,
-   * omitting the detailed breakdowns (input_tokens_details, output_tokens_details)
-   * that are not available during streaming.
+   * Build usage object for streaming and non-streaming responses.
+   * The detailed breakdowns are forwarded only when the usage projection carries
+   * them — an absent breakdown stays absent rather than serializing as an explicit 0.
    */
   private buildUsage(): StreamingUsage {
     return {
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
-      total_tokens: this.state.inputTokens + this.state.outputTokens
+      total_tokens: this.state.inputTokens + this.state.outputTokens,
+      ...(this.state.cacheReadTokens !== undefined
+        ? { input_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {}),
+      ...(this.state.reasoningTokens !== undefined
+        ? { output_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
+        : {})
     }
   }
 
@@ -300,6 +306,12 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   /**

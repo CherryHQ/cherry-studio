@@ -6,6 +6,8 @@ import type { WebviewTag } from 'electron'
 import { Activity } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ipcApi } from '@renderer/ipc'
+
 import { WebviewBrowser } from '../WebviewBrowser'
 
 vi.unmock('@cherrystudio/ui')
@@ -86,6 +88,41 @@ describe('WebviewBrowser', () => {
     expect(address).toHaveValue('next.test / Next page')
     emit('page-title-updated', { title: '' })
     expect(address).toHaveValue('next.test')
+  })
+
+  it.each([
+    ['loaded', false],
+    ['still loading a subresource', true]
+  ])('reports its %s guest hidden while the tab Activity is hidden so main can freeze it', (_label, loading) => {
+    const request = vi.mocked(ipcApi.request)
+    const browser = (
+      <WebviewBrowser
+        initialUrl="https://example.com"
+        securityProfile="agent-browser"
+        isHostActive
+        target={{ id: 'browser:tab-a', label: 'Browser' }}
+      />
+    )
+    const view = render(<Activity mode="visible">{browser}</Activity>)
+    const guest = view.container.querySelector('webview')!
+    Object.assign(guest, {
+      getWebContentsId: () => 42,
+      isLoading: () => loading,
+      getURL: () => 'https://example.com',
+      getTitle: () => 'Example',
+      canGoBack: () => false,
+      canGoForward: () => false
+    })
+    act(() => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    const lastVisibility = () => request.mock.calls.findLast(([route]) => route === 'webview.set_visible')?.[1]
+
+    expect(lastVisibility()).toEqual({ webviewId: 42, visible: true })
+    view.rerender(<Activity mode="hidden">{browser}</Activity>)
+    expect(lastVisibility()).toEqual({ webviewId: 42, visible: false })
+    view.rerender(<Activity mode="visible">{browser}</Activity>)
+    expect(lastVisibility()).toEqual({ webviewId: 42, visible: true })
   })
 
   it('restores navigation when Activity resumes an already-loaded native guest', () => {

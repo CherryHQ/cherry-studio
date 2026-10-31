@@ -10,7 +10,9 @@ const overlayService = {
   isActiveOverlay: vi.fn(),
   startCapture: vi.fn(),
   commit: vi.fn(),
+  copy: vi.fn(),
   save: vi.fn(async () => {}),
+  submitResult: vi.fn(),
   dismiss: vi.fn(),
   markOverlayActive: vi.fn(),
   focusOverlay: vi.fn(),
@@ -33,6 +35,7 @@ const ocrInput = { mediaId: 'media-1', region: { x: 0, y: 0, width: 10, height: 
 /** Every route that consults a predicate, with the input its schema declares. */
 const guardedRoutes = {
   'screenshot.commit': () => screenshotHandlers['screenshot.commit'](captureResult, ctx('overlay-a')),
+  'screenshot.copy': () => screenshotHandlers['screenshot.copy'](captureResult, ctx('overlay-a')),
   'screenshot.save': () => screenshotHandlers['screenshot.save'](captureResult, ctx('overlay-a')),
   'screenshot.cancel': () => screenshotHandlers['screenshot.cancel'](undefined, ctx('overlay-a')),
   'screenshot.overlay_active': () => screenshotHandlers['screenshot.overlay_active'](undefined, ctx('overlay-a')),
@@ -45,6 +48,7 @@ const guardedRoutes = {
 /** Everything the routes delegate to, so "nothing happened" is checkable in one go. */
 const expectNoDelegation = () => {
   expect(overlayService.commit).not.toHaveBeenCalled()
+  expect(overlayService.copy).not.toHaveBeenCalled()
   expect(overlayService.save).not.toHaveBeenCalled()
   expect(overlayService.dismiss).not.toHaveBeenCalled()
   expect(overlayService.markOverlayActive).not.toHaveBeenCalled()
@@ -67,9 +71,19 @@ describe('screenshotHandlers', () => {
       expect(overlayService.commit).not.toHaveBeenCalled()
     })
 
+    it('copy refuses an overlay that is no longer the active one', async () => {
+      await guardedRoutes['screenshot.copy']()
+      expect(overlayService.copy).not.toHaveBeenCalled()
+    })
+
     it('save refuses an overlay that is no longer the active one', async () => {
       await guardedRoutes['screenshot.save']()
       expect(overlayService.save).not.toHaveBeenCalled()
+    })
+
+    it('cannot send a stale overlay image to chat', async () => {
+      await screenshotHandlers['screenshot.submit_result']({ ...captureResult, text: 'message' }, ctx('overlay-a'))
+      expect(overlayService.submitResult).not.toHaveBeenCalled()
     })
 
     it('recognize_text refuses an overlay that is no longer the active one', async () => {
@@ -119,9 +133,11 @@ describe('screenshotHandlers', () => {
 
     it('forwards commit and save', async () => {
       await guardedRoutes['screenshot.commit']()
+      await guardedRoutes['screenshot.copy']()
       await guardedRoutes['screenshot.save']()
 
       expect(overlayService.commit).toHaveBeenCalledWith(captureResult)
+      expect(overlayService.copy).toHaveBeenCalledWith(captureResult)
       expect(overlayService.save).toHaveBeenCalledWith(captureResult)
     })
 
@@ -175,6 +191,7 @@ describe('screenshotHandlers', () => {
 
     it('gets nothing from any guarded route, and a rejected status from recognize_text', async () => {
       await screenshotHandlers['screenshot.commit'](captureResult, ctx(null))
+      await screenshotHandlers['screenshot.copy'](captureResult, ctx(null))
       await screenshotHandlers['screenshot.save'](captureResult, ctx(null))
       await screenshotHandlers['screenshot.cancel'](undefined, ctx(null))
       await screenshotHandlers['screenshot.overlay_active'](undefined, ctx(null))

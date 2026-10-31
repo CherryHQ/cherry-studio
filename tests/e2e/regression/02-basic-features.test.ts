@@ -22,12 +22,13 @@ test(...caseDefinition('N-01'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await openLaunchpadApp(page, 'Notes')
 
-  const notesView = page.locator('[data-ui="notes.view"]')
+  const notesView = page.locator('[data-ui~="notes.view"]')
   await expect(notesView).toBeVisible()
   const existing = page.getByText('Cherry Regression Note 31415', { exact: true })
   if (!(await existing.isVisible().catch(() => false))) {
-    await notesView.getByRole('button', { name: 'Create a new note', exact: true }).click()
-    const title = notesView.locator('input')
+    const navigation = notesView.locator('[data-ui~="notes.navigation"]')
+    await navigation.getByRole('button', { name: 'Create a new note', exact: true }).click()
+    const title = notesView.getByRole('textbox')
     await title.fill('Cherry Regression Note 31415')
     await title.press('Enter')
     const editor = page.locator('[data-ui="notes.editor"] [contenteditable="true"]')

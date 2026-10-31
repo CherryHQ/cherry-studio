@@ -8,6 +8,7 @@ const useModelsMock = vi.fn()
 const deleteModelMock = vi.fn()
 const deleteModelsMock = vi.fn()
 const refetchModelsMock = vi.fn()
+const completedModelStatusesMock = vi.fn<() => any[]>(() => [])
 
 const models = [
   {
@@ -26,6 +27,10 @@ const models = [
   }
 ] as any
 
+vi.mock('../modelListHealthContext', () => ({
+  useModelListHealthRun: () => ({ completedModelStatuses: completedModelStatusesMock() })
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
@@ -37,6 +42,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 describe('useProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    completedModelStatusesMock.mockReturnValue([])
     MockUsePreferenceUtils.resetMocks()
 
     refetchModelsMock.mockResolvedValue(models)
@@ -59,6 +65,169 @@ describe('useProviderModelList', () => {
 
     expect(result.current.editDrawer.open).toBe(true)
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
+  })
+
+  it('exposes only completely inaccessible models in the failed filter', () => {
+    const failedStatus = {
+      kind: 'failed',
+      model: models[0],
+      status: 'failed',
+      checking: false,
+      keyResults: [
+        {
+          kind: 'failed',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'failed',
+          checking: false
+        }
+      ]
+    }
+    const partialStatus = {
+      ...failedStatus,
+      model: models[1],
+      keyResults: [
+        ...failedStatus.keyResults,
+        {
+          kind: 'ok',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'success',
+          checking: false,
+          latency: 10
+        }
+      ]
+    }
+    completedModelStatusesMock.mockReturnValue([failedStatus, partialStatus])
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    expect(result.current.header.failedModelCount).toBe(1)
+    act(() => result.current.header.setSelectedFilter('failed'))
+    expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toEqual([{ model: models[0] }])
+  })
+
+  it('returns to all models when a rerun invalidates the failed filter', async () => {
+    const failedStatus = {
+      kind: 'failed',
+      model: models[0],
+      status: 'failed',
+      checking: false,
+      keyResults: [
+        {
+          kind: 'failed',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'failed',
+          checking: false
+        }
+      ]
+    }
+    completedModelStatusesMock.mockReturnValue([failedStatus])
+
+    const { result, rerender } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    act(() => result.current.header.setSelectedFilter('failed'))
+    expect(result.current.header.selectedFilter).toBe('failed')
+
+    completedModelStatusesMock.mockReturnValue([])
+    rerender()
+
+    await waitFor(() => expect(result.current.header.selectedFilter).toBe('all'))
+  })
+
+  it('returns to all models when search hides every failed model', async () => {
+    const failedStatus = {
+      kind: 'failed',
+      model: models[0],
+      status: 'failed',
+      checking: false,
+      keyResults: [
+        {
+          kind: 'failed',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'failed',
+          checking: false
+        }
+      ]
+    }
+    completedModelStatusesMock.mockReturnValue([failedStatus])
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    act(() => result.current.header.setSelectedFilter('failed'))
+    expect(result.current.header.selectedFilter).toBe('failed')
+
+    act(() => result.current.header.setSearchText('Beta'))
+
+    await waitFor(() => expect(result.current.header.failedModelCount).toBe(0))
+    await waitFor(() => expect(result.current.header.selectedFilter).toBe('all'))
+    expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toEqual([{ model: models[1] }])
+  })
+
+  it('keeps the failed filter exact for a provider with 100+ models', () => {
+    const scaledModels = Array.from({ length: 120 }, (_, index) => ({
+      id: `openai::model-${index}`,
+      name: `Model ${index}`,
+      group: `group-${index % 4}`,
+      capabilities: ['reasoning'],
+      isEnabled: true,
+      providerId: 'openai'
+    })) as any[]
+
+    useModelsMock.mockReturnValue({ models: scaledModels, isLoading: false, refetch: refetchModelsMock })
+
+    const failedKey = {
+      kind: 'failed',
+      credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+      status: 'failed',
+      checking: false
+    }
+    const okKey = {
+      kind: 'ok',
+      credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+      status: 'success',
+      checking: false,
+      latency: 10
+    }
+
+    const fullyFailed = scaledModels.slice(0, 30)
+    const partiallyFailed = scaledModels.slice(30, 45)
+
+    completedModelStatusesMock.mockReturnValue([
+      ...fullyFailed.map((model) => ({
+        kind: 'failed',
+        model,
+        status: 'failed',
+        checking: false,
+        keyResults: [failedKey]
+      })),
+      ...partiallyFailed.map((model) => ({
+        kind: 'failed',
+        model,
+        status: 'failed',
+        checking: false,
+        keyResults: [failedKey, okKey]
+      })),
+      ...scaledModels.slice(45).map((model) => ({
+        kind: 'ok',
+        model,
+        status: 'success',
+        checking: false,
+        keyResults: [okKey],
+        latency: 10
+      }))
+    ])
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    // Partially working models are not completely failed, so they stay out of the count.
+    expect(result.current.header.failedModelCount).toBe(30)
+
+    act(() => result.current.header.setSelectedFilter('failed'))
+
+    const filtered = result.current.sections.enabledSections.flatMap((section) => section.items)
+    expect(filtered).toHaveLength(30)
+    expect(filtered.map((item) => item.model.id).sort()).toEqual(fullyFailed.map((model) => model.id).sort())
+
+    // The filter is a read-only view: clearing it brings every model back.
+    act(() => result.current.header.setSelectedFilter('all'))
+    expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toHaveLength(120)
   })
 
   it('guards edit and delete commands while model checks are running', async () => {
@@ -122,6 +291,32 @@ describe('useProviderModelList', () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual(['Custom Group'])
+  })
+
+  it('keeps numeric group names in model order while a search filter is active', async () => {
+    // A search filter is what turns on `preserveGroupOrder`, i.e. group order
+    // follows model order rather than the group name. Group names come from
+    // `model.group`, which is free text, so they can look like array indices.
+    // JavaScript enumerates integer-like keys in ascending numeric order ahead
+    // of insertion order, so a plain record silently reorders them and `10`
+    // lands after `2` no matter which order the models arrived in.
+    useModelsMock.mockReturnValue({
+      models: [
+        { id: 'openai::a10', name: 'A10', group: '10', capabilities: [], isEnabled: true, providerId: 'openai' },
+        { id: 'openai::a2', name: 'A2', group: '2', capabilities: [], isEnabled: true, providerId: 'openai' },
+        { id: 'openai::a1', name: 'A1', group: '1', capabilities: [], isEnabled: true, providerId: 'openai' }
+      ] as any,
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    act(() => {
+      result.current.header.setSearchText('A')
+    })
+
+    await waitFor(() => {
+      expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual(['10', '2', '1'])
+    })
   })
 
   it('does not surface local search filtering as a loading state for larger model sets', async () => {
