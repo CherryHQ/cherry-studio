@@ -32,13 +32,34 @@ type McpStatusAgent = { mcps?: string[] } | undefined
 const MCP_RUNTIME_STATUS_LABEL_KEYS: Record<McpRuntimeStatus['state'], string> = {
   connected: 'settings.mcp.runtimeStatus.connected',
   connecting: 'settings.mcp.runtimeStatus.connecting',
-  disabled: 'settings.mcp.runtimeStatus.disabled',
-  error: 'settings.mcp.runtimeStatus.error'
+  disabled: 'settings.mcp.runtimeStatus.disconnected',
+  error: 'settings.mcp.runtimeStatus.failed'
 }
 const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
   auto: 'library.config.tools.mode.auto.label',
   disabled: 'library.config.tools.mode.disabled.label',
   manual: 'library.config.tools.mode.manual.label'
+}
+
+type McpToolbarConnectionState = 'connected' | 'connecting' | 'disconnected' | 'failed'
+
+interface McpToolbarStatusSummary {
+  state: McpToolbarConnectionState
+  tooltip: string
+}
+
+const MCP_TOOLBAR_STATE_LABEL_KEYS: Record<McpToolbarConnectionState, string> = {
+  connected: MCP_RUNTIME_STATUS_LABEL_KEYS.connected,
+  connecting: MCP_RUNTIME_STATUS_LABEL_KEYS.connecting,
+  disconnected: MCP_RUNTIME_STATUS_LABEL_KEYS.disabled,
+  failed: MCP_RUNTIME_STATUS_LABEL_KEYS.error
+}
+
+const MCP_TOOLBAR_INDICATOR_CLASSES: Record<McpToolbarConnectionState, string> = {
+  connected: 'bg-success-subtle-foreground',
+  connecting: 'bg-warning-subtle-foreground',
+  disconnected: 'bg-muted-foreground',
+  failed: 'bg-error-subtle-foreground'
 }
 
 interface BuildMcpStatusItemsOptions {
@@ -67,8 +88,76 @@ function getMcpStatusLabel(t: TFunction, state: McpRuntimeStatus['state']) {
   return t(MCP_RUNTIME_STATUS_LABEL_KEYS[state], state)
 }
 
+export function getMcpToolbarServers({
+  assistant,
+  agent,
+  mcpServers,
+  scope
+}: {
+  assistant?: Assistant
+  agent?: McpStatusAgent
+  mcpServers: readonly McpServer[]
+  scope: TopicType.Chat | TopicType.Session
+}): McpServer[] {
+  if (scope === TopicType.Session) {
+    const boundIds = new Set(agent?.mcps ?? [])
+    return mcpServers.filter((server) => boundIds.has(server.id))
+  }
+
+  const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
+  if (mode === 'disabled') return []
+  if (mode === 'auto') return mcpServers.filter((server) => server.isActive)
+
+  const boundIds = new Set(assistant?.mcpServerIds ?? [])
+  return mcpServers.filter((server) => boundIds.has(server.id))
+}
+
+export function buildMcpToolbarStatus(
+  servers: readonly McpServer[],
+  mcpStatuses: Record<string, McpRuntimeStatus | undefined>,
+  t: TFunction
+): McpToolbarStatusSummary | undefined {
+  if (servers.length === 0) return undefined
+
+  const entries = servers.map((server) => {
+    const status = server.isActive ? (mcpStatuses[server.id]?.state ?? 'connecting') : 'disabled'
+    const state: McpToolbarConnectionState =
+      status === 'error' ? 'failed' : status === 'disabled' ? 'disconnected' : status
+    const label =
+      state === 'connecting' && mcpStatuses[server.id]?.authorizing
+        ? t('settings.mcp.runtimeStatus.authorizing', 'Waiting for authorization')
+        : t(MCP_TOOLBAR_STATE_LABEL_KEYS[state], state)
+
+    return { state, tooltip: `${server.name}: ${label}` }
+  })
+
+  const state = entries.some((entry) => entry.state === 'failed')
+    ? 'failed'
+    : entries.some((entry) => entry.state === 'connecting')
+      ? 'connecting'
+      : entries.some((entry) => entry.state === 'disconnected')
+        ? 'disconnected'
+        : 'connected'
+
+  return { state, tooltip: entries.map((entry) => entry.tooltip).join(' · ') }
+}
+
 function getMcpModeLabel(t: TFunction, mode: McpMode) {
   return t(MCP_MODE_LABEL_KEYS[mode], mode)
+}
+
+function McpStatusIcon({ state }: { state?: McpToolbarConnectionState }) {
+  return (
+    <span className="relative inline-flex">
+      <McpLogo aria-hidden />
+      {state ? (
+        <span
+          aria-hidden
+          className={`absolute -top-0.5 -right-0.5 size-1.5 rounded-full ring-1 ring-background ${MCP_TOOLBAR_INDICATOR_CLASSES[state]}`}
+        />
+      ) : null}
+    </span>
+  )
 }
 
 function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
@@ -261,10 +350,13 @@ export function createMcpStatusLauncher(
   mode?: McpMode,
   editable = false,
   onOpen?: () => void,
-  active = false
+  active = false,
+  status?: McpToolbarStatusSummary
 ): ComposerToolLauncher {
   const modeLabel = mode ? getMcpModeLabel(t, mode) : undefined
   const isDisabled = mode === 'disabled'
+  const description =
+    isDisabled && modeLabel ? modeLabel : t('settings.quickPanel.mcp.description', 'View configured MCP server status')
 
   return {
     id: MCP_STATUS_LAUNCHER_ID,
@@ -275,11 +367,9 @@ export function createMcpStatusLauncher(
     active,
     // The panel stays reachable even when MCP is disabled — it surfaces the disabled state alongside
     // the "Configure MCP servers" footer, which is exactly the moment the user needs to open config.
-    description:
-      isDisabled && modeLabel
-        ? modeLabel
-        : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
-    icon: <McpLogo aria-hidden />,
+    description,
+    tooltip: status?.tooltip ?? description,
+    icon: <McpStatusIcon state={status?.state} />,
     action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
       onOpen?.()
       quickPanel.open({
@@ -300,10 +390,19 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const [dataRequested, setDataRequested] = useState(false)
   const mode =
     scope === TopicType.Chat ? (assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled') : undefined
-  const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
+  const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
+  const toolbarActive = useMemo(
+    () =>
+      isMcpToolbarActive({
+        scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
+        assistant,
+        agent
+      }),
+    [agent, assistant, scope]
+  )
+  const dataEnabled = toolbarActive || (dataRequested && (scope === TopicType.Session || mode !== 'disabled'))
   const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
-  const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const { updateAssistant } = useAssistantMutationsById(assistant?.id ?? '')
   const { updateAgent } = useAgentMutationsById(session?.agentId ?? '')
   const [pendingServerId, setPendingServerId] = useState<string | null>(null)
@@ -311,6 +410,16 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const bindingPanelEditable = scope === TopicType.Session || mode === 'manual'
   const canEditBindings =
     scope === TopicType.Session ? Boolean(session?.agentId && agent) : Boolean(assistant?.id && mode === 'manual')
+
+  const toolbarStatus = useMemo(() => {
+    const servers = getMcpToolbarServers({
+      assistant,
+      agent,
+      mcpServers,
+      scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat
+    })
+    return buildMcpToolbarStatus(servers, mcpStatuses, t)
+  }, [agent, assistant, mcpServers, mcpStatuses, scope, t])
 
   const handleToggleBinding = useCallback(
     async (serverId: string, enabled: boolean) => {
@@ -392,19 +501,18 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
     return currentAction ? [currentAction, buildMcpGlobalConfigFooterItem(t)] : [buildMcpGlobalConfigFooterItem(t)]
   }, [configTarget, t])
 
-  const toolbarActive = useMemo(
-    () =>
-      isMcpToolbarActive({
-        scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
-        assistant,
-        agent
-      }),
-    [agent, assistant, scope]
-  )
-
   const mcpStatusLauncher = useMemo(
-    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true), toolbarActive),
-    [bindingPanelEditable, items, mode, t, toolbarActive]
+    () =>
+      createMcpStatusLauncher(
+        items,
+        t,
+        mode,
+        bindingPanelEditable,
+        () => setDataRequested(true),
+        toolbarActive,
+        toolbarStatus
+      ),
+    [bindingPanelEditable, items, mode, t, toolbarActive, toolbarStatus]
   )
 
   useEffect(
