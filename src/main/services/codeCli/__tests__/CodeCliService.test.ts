@@ -1057,6 +1057,56 @@ describe('CodeCliService', () => {
         vi.useRealTimers()
       }
     })
+
+    it('blocks a crashing Windows system claude.exe before opening a terminal', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: { name: 'claude', availability: { source: 'system', path: 'C:\\Tools\\claude.exe' } }
+      })
+      // Bun-standalone crash: non-zero exit carrying a segfault marker, no signal on Windows.
+      childProcessMock.execFileAsync.mockRejectedValueOnce(
+        Object.assign(new Error('Command failed with exit code 1'), {
+          code: 1,
+          stderr: 'Segmentation fault (Bun 1.4.0)'
+        })
+      )
+
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(false)
+        if (result.success) throw new Error('Expected a crashing system Claude binary to fail')
+        expect(childProcessMock.execFileAsync).toHaveBeenCalledTimes(1)
+        expect(childProcessMock.execFileAsync).toHaveBeenCalledWith(
+          'C:\\Tools\\claude.exe',
+          ['--version'],
+          // The probe must see the same login-shell env the terminal launch gets,
+          // or a healthy system binary can fail the check from a stale PATH.
+          // It must also run in the launch directory, or a project-scoped shim
+          // can fail the check while the terminal launch would succeed.
+          expect.objectContaining({
+            timeout: expect.any(Number),
+            env: { PATH: '/usr/local/bin:/usr/bin' },
+            cwd: 'C:\\Users\\me\\proj'
+          })
+        )
+        expect(result.message).toContain('C:\\Tools\\claude.exe')
+        expect(result.message).toContain('crashed during startup')
+        expect(result.message).toContain('managed Claude binary')
+        expect(vi.mocked(spawn)).not.toHaveBeenCalled()
+        expect(vi.mocked(fs.writeFileSync)).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('run (linux launch falls back to a detected terminal emulator)', () => {
