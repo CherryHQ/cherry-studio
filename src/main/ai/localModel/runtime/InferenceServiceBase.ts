@@ -57,10 +57,15 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   protected async run<M extends keyof Contract['methods'] & string>(
     modelId: LocalModelBundleId,
     method: M,
-    prepareInput: () => Contract['methods'][M]['input'],
+    prepareInput: () => Contract['methods'][M]['input'] | Promise<Contract['methods'][M]['input']>,
     options: UtilityProcessRequestOptions<Contract['methods'][M]['event']> = {}
   ): Promise<Contract['methods'][M]['output']> {
-    return this.enqueue(modelId, options.signal, async () => this.request(method, prepareInput(), options))
+    return this.enqueue(modelId, options.signal, async (generation) => {
+      const input = await prepareInput()
+      options.signal?.throwIfAborted()
+      this.assertModelAvailable(modelId, generation)
+      return this.request(method, input, options)
+    })
   }
 
   protected openStream<M extends keyof UtilityProcessStreams<Contract> & string>(
@@ -91,7 +96,7 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   private async enqueue<T>(
     modelId: LocalModelBundleId,
     signal: AbortSignal | undefined,
-    operation: () => Promise<T>
+    operation: (generation: number) => Promise<T>
   ): Promise<T> {
     const unsupportedArtifact = getModelBundle(modelId).requires.find(
       (id) => !localModelStorageService.isArtifactSupported(id)
@@ -116,7 +121,7 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
       signal?.throwIfAborted()
       this.assertModelAvailable(modelId, generation)
       this.residentModelId = modelId
-      return operation()
+      return operation(generation)
     })) as T
   }
 

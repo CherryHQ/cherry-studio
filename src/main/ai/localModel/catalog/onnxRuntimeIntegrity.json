@@ -1,0 +1,91 @@
+{
+  "artifact": "onnxruntime-node",
+  "platforms": {
+    "darwin-arm64": {
+      "files": {
+        "libonnxruntime.1.25.1.dylib": {
+          "sha256": "5d1d0b59ca0bb6bd9912e1de23c1bb707aaaf66498d2f3e038616578e25b0cfd",
+          "sizeBytes": 37327288
+        },
+        "onnxruntime_binding.node": {
+          "sha256": "2e51ad9889b5c7ae39a9feed871d7b2b106ac903cb39a5a768765b0965b1b337",
+          "sizeBytes": 266584
+        }
+      }
+    },
+    "linux-arm64": {
+      "files": {
+        "libonnxruntime.so.1": {
+          "sha256": "e34095ad2791f1f05ed17324ede7873b4fdb4c136b3ba3f1dd5093d2e76d4192",
+          "sizeBytes": 19215360
+        },
+        "onnxruntime_binding.node": {
+          "sha256": "1090a0b804bc3881eb5ee7a81ae6f616608e5aed11888fa1bb99d06733958934",
+          "sizeBytes": 394648
+        }
+      }
+    },
+    "linux-x64": {
+      "files": {
+        "libonnxruntime.so.1": {
+          "sha256": "18a8c9d6897f81d865728ffb2362536499739cb9cd1b62ed94f4aaccd9323ad7",
+          "sizeBytes": 36905512
+        },
+        "onnxruntime_binding.node": {
+          "sha256": "0564513149ff8c9203998d8cff02bedf4c93ad2b058d7555e1b071437419bf01",
+          "sizeBytes": 389424
+        }
+      }
+    },
+    "win32-arm64": {
+      "files": {
+        "DirectML.dll": {
+          "sha256": "10b3f531f68aa558d2430c805957e691a5cde8a36e4d0d4c69ae6f3b9f2fa242",
+          "sizeBytes": 18444600
+        },
+        "dxcompiler.dll": {
+          "sha256": "5b9d1824da866d37382ef0d22be1cc0126d376f2bd5565af2d6938ff9644c667",
+          "sizeBytes": 22285624
+        },
+        "dxil.dll": {
+          "sha256": "458cc156e14b02a510f876beb7a7235ef810a41263830108593a8d3c726889da",
+          "sizeBytes": 1769824
+        },
+        "onnxruntime.dll": {
+          "sha256": "fba7c0fc1ca957eac3e8e37d11005e26620f7571c46a21f3da0402780bb06e35",
+          "sizeBytes": 25891640
+        },
+        "onnxruntime_binding.node": {
+          "sha256": "8df2c077ce11a96b0b2f0167040caab517c7914876aa2721903dd9e968d621c1",
+          "sizeBytes": 421688
+        }
+      }
+    },
+    "win32-x64": {
+      "files": {
+        "DirectML.dll": {
+          "sha256": "a3009f789704ca0d338ccdd33af66185e45f170a54ccc001087b3c0f3ea84928",
+          "sizeBytes": 18527544
+        },
+        "dxcompiler.dll": {
+          "sha256": "1eea9f88b901fe97cb80a77dbfb228c0882dd822869b2a71538eb23071e619d7",
+          "sizeBytes": 17986360
+        },
+        "dxil.dll": {
+          "sha256": "6dcdfce48cd0280e5889d90d154b0886bdc4ab9d474fd7a3ed5034139a2e4387",
+          "sizeBytes": 1508704
+        },
+        "onnxruntime.dll": {
+          "sha256": "1a2a38976d2d631bbfdd262daaddcf1de6e1a914705a354e49d9b875739ff959",
+          "sizeBytes": 25114424
+        },
+        "onnxruntime_binding.node": {
+          "sha256": "f28633018160d720cc6d9a80a45b7476dd9e2e974161ed0f9467c721bc186987",
+          "sizeBytes": 298296
+        }
+      }
+    }
+  },
+  "tarballSha256": "582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9",
+  "version": "1.25.1"
+}
