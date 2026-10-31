@@ -1,7 +1,9 @@
 import * as z from 'zod'
 
 import { DiagnosticProcessingStatusSchema } from '@shared/data/types/diagnosticReport'
+import { diagnosticAiDiagnosisSchema } from '@shared/types/diagnosticAi'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { appErrorContextSchema } from '@shared/utils/appError'
 import { DIAGNOSTIC_DESCRIPTION_MAX_BYTES, diagnosticDescriptionByteLength } from '@shared/utils/diagnostics'
 
 import { defineRoute } from '../define'
@@ -36,7 +38,9 @@ const diagnosticBundleInputSchema = z
     includeChatRecords: z.boolean(),
     includeLogs: z.boolean(),
     includeTraces: z.boolean(),
-    range: diagnosticRangeSchema
+    range: diagnosticRangeSchema,
+    errorContext: appErrorContextSchema.optional(),
+    aiDiagnosis: diagnosticAiDiagnosisSchema.optional()
   })
   .strict()
 

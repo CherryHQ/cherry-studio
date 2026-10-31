@@ -20,7 +20,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
+import { toastInlineError } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { diagnosticReportUrl } from '@shared/utils/diagnostics'
 
@@ -79,7 +79,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
       await openExternalWebsite(url)
     } catch {
       logger.warn('Failed to open diagnostic status page')
-      toast.error(t('settings.about.diagnostics.report.open_failed'))
+      toastInlineError(t('settings.about.diagnostics.report.open_failed'))
     }
   }
 
