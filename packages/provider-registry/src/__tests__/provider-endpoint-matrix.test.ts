@@ -265,3 +265,66 @@ describe('aionly NewAPI relay endpoints (#21168)', () => {
     expect(withBaseUrl).toEqual(['openai-chat-completions'])
   })
 })
+
+/**
+ * Token Plan is a separate subscription on its own Beijing host with `sk-sp-` keys; every row keeps
+ * Anthropic Messages so an Agent turn resolves the endpoint without a manual edit.
+ */
+describe('qwen-token-plan endpoint matrix', () => {
+  it('declares the three subscription-host endpoints', () => {
+    expect(provider('qwen-token-plan').endpointConfigs).toEqual({
+      'anthropic-messages': {
+        adapterFamily: 'anthropic',
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic'
+      },
+      'openai-chat-completions': {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/',
+        reasoningFormat: { type: 'openai-chat' }
+      },
+      'openai-responses': {
+        adapterFamily: 'openai',
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/',
+        reasoningFormat: { type: 'openai-responses' }
+      }
+    })
+  })
+
+  it('defaults chat to Chat Completions', () => {
+    expect(provider('qwen-token-plan').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+
+  it.each(['qwen3-8-max', 'qwen3-8-flash', 'qwen3-7-max', 'qwen3-7-plus', 'qwen3-6-plus', 'qwen3-6-flash'])(
+    'serves %s on all three endpoints',
+    (modelId) => {
+      expect(endpointsOf('qwen-token-plan', modelId)).toEqual([
+        'openai-chat-completions',
+        'openai-responses',
+        'anthropic-messages'
+      ])
+    }
+  )
+
+  it.each([
+    'deepseek-v4-1-flash',
+    'deepseek-v4-pro',
+    'deepseek-v4-flash',
+    'kimi-k2-7-code',
+    'kimi-k2-6',
+    'kimi-k2-5',
+    'glm-5-3',
+    'glm-5-2',
+    'glm-5-1',
+    'glm-5',
+    'minimax-m2-5'
+  ])('keeps Chat Completions and Anthropic Messages selectable for %s', (modelId) => {
+    expect(endpointsOf('qwen-token-plan', modelId)).toEqual(['openai-chat-completions', 'anthropic-messages'])
+  })
+
+  it('declares Anthropic Messages on every row and never pins a single endpoint', () => {
+    const offenders = providerModelEntries(provider('qwen-token-plan'))
+      .filter((o) => o.endpointTypes?.length === 1 || !o.endpointTypes?.includes('anthropic-messages'))
+      .map((o) => `${o.modelId}:${o.endpointTypes?.join()}`)
+    expect(offenders).toEqual([])
+  })
+})

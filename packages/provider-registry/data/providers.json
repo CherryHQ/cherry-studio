@@ -1840,6 +1840,42 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Qwen Token Plan - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
+        }
+      },
+      "id": "qwen-token-plan",
+      "metadata": {
+        "website": {
+          "apiKey": "https://bailian.console.aliyun.com/cn-beijing/subscription/token-plan",
+          "docs": "https://help.aliyun.com/zh/model-studio/token-plan-overview",
+          "models": "https://help.aliyun.com/zh/model-studio/token-plan-team-overview",
+          "official": "https://www.qianwenai.com/benefits/tokenplan"
+        }
+      },
+      "modelListSource": "registry",
+      "name": "Qwen Token Plan"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "StepFun - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2844,5 +2880,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e1952ef3858002a8"
+  "version": "095fac6d7cc7a674"
 }
