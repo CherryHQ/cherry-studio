@@ -1,22 +1,26 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it, vi } from 'vitest'
 
+import { KeyedMutex } from '@shared/utils/async'
+
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import {
   createCtx,
   createDirectoryItem,
   createNoteItem,
+  createExpandedDirectoryChildrenMock,
   createPrepareRootJobHandler,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
+  expandDirectoryOwnerToTreeMock,
   ingestionService,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
-  prepareKnowledgeItemMock,
+  pinDirectoryPathPrefixMock,
   removeDirMock,
   scheduleItemMock
 } from './jobHandlerTestUtils'
@@ -37,16 +41,95 @@ describe('prepare-root job handler', () => {
     expect(knowledgeItemGetSubtreeItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1'])
     // Nothing to purge (no prior expansion) — purgeKnowledgeSubtreeWithinLock is a no-op for an empty subtree.
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
-    expect(prepareKnowledgeItemMock).toHaveBeenCalledWith(expect.objectContaining({ baseId: 'kb-1' }))
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dir-1' }),
+      'kb-1',
+      'dir-1',
+      expect.any(AbortSignal),
+      expect.any(Function)
+    )
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')
+  })
+
+  it('pins the prefix before copying and creates child rows only after the copy', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    // A crash mid-copy must leave the pinned prefix for the retry to reclaim, and no child row may
+    // point at bytes that have not landed yet.
+    expect(pinDirectoryPathPrefixMock.mock.invocationCallOrder[0]).toBeLessThan(
+      expandDirectoryOwnerToTreeMock.mock.invocationCallOrder[0]
+    )
+    expect(expandDirectoryOwnerToTreeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      createExpandedDirectoryChildrenMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('leaves the base lock free while the directory copies', async () => {
+    const lock = new KeyedMutex()
+    const handler = createPrepareRootJobHandler(lock, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    let releaseCopy!: () => void
+    const copyStarted = new Promise<void>((resolveStarted) => {
+      expandDirectoryOwnerToTreeMock.mockImplementationOnce(
+        () =>
+          new Promise((resolveCopy) => {
+            releaseCopy = () => resolveCopy([])
+            resolveStarted()
+          })
+      )
+    })
+
+    const execution = handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+    await copyStarted
+
+    // Any other mutation on the same base (delete, add, an index write) gets the lock mid-copy.
+    await expect(lock.runExclusive('kb-1', () => 'other mutation')).resolves.toBe('other mutation')
+
+    releaseCopy()
+    await execution
+  })
+
+  it('creates no children when the root is deleted while it copies', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // Live for the pre-lock load, the shell-reclaim guard, and the pin; deleting once the copy is done.
+    knowledgeItemGetByIdMock
+      .mockReturnValueOnce(createDirectoryItem())
+      .mockReturnValueOnce(createDirectoryItem())
+      .mockReturnValueOnce(createDirectoryItem())
+      .mockReturnValue(createDirectoryItem('dir-1', 'deleting'))
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+
+    await handler.execute(ctx)
+
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalled()
+    expect(createExpandedDirectoryChildrenMock).not.toHaveBeenCalled()
+    expect(scheduleItemMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
+  })
+
+  it('propagates copy failures without marking the root failed itself', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    expandDirectoryOwnerToTreeMock.mockRejectedValueOnce(new Error('directory expansion failed'))
+
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
+      'directory expansion failed'
+    )
+
+    // The job's onSettled owns the failed flip.
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'failed', expect.anything())
+    expect(createExpandedDirectoryChildrenMock).not.toHaveBeenCalled()
   })
 
   it('publishes directory copy progress by item id', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
-      onDirectoryCopyProgress(50)
+    expandDirectoryOwnerToTreeMock.mockImplementation(async (_item, _baseId, _prefix, _signal, onCopyProgress) => {
+      onCopyProgress(50)
       return []
     })
     const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
@@ -84,10 +167,10 @@ describe('prepare-root job handler', () => {
   it('reports copy progress only when the integer percentage changes', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    prepareKnowledgeItemMock.mockImplementation(async ({ onDirectoryCopyProgress }) => {
-      onDirectoryCopyProgress(1)
-      onDirectoryCopyProgress(1)
-      onDirectoryCopyProgress(4)
+    expandDirectoryOwnerToTreeMock.mockImplementation(async (_item, _baseId, _prefix, _signal, onCopyProgress) => {
+      onCopyProgress(1)
+      onCopyProgress(1)
+      onCopyProgress(4)
       return []
     })
     const reportProgress = vi.fn()
@@ -200,7 +283,8 @@ describe('prepare-root job handler', () => {
     const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
     await handler.execute(ctx)
 
-    expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
+    expect(pinDirectoryPathPrefixMock).not.toHaveBeenCalled()
+    expect(expandDirectoryOwnerToTreeMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'processing')
     expect(scheduleItemMock).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
@@ -209,7 +293,7 @@ describe('prepare-root job handler', () => {
   it('keeps terminal failure from an empty expansion', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    prepareKnowledgeItemMock.mockResolvedValue([])
+    createExpandedDirectoryChildrenMock.mockResolvedValue([])
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
@@ -225,7 +309,7 @@ describe('prepare-root job handler', () => {
       createNoteItem('leaf-3', 'dir-1')
     ]
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    prepareKnowledgeItemMock.mockResolvedValue(leaves)
+    createExpandedDirectoryChildrenMock.mockResolvedValue(leaves)
     scheduleItemMock.mockResolvedValueOnce({ id: 'job-leaf-1' }).mockRejectedValueOnce(new Error('enqueue failed'))
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
@@ -248,7 +332,7 @@ describe('prepare-root job handler', () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const leaves = [createNoteItem('leaf-1', 'dir-1')]
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    prepareKnowledgeItemMock.mockResolvedValue(leaves)
+    createExpandedDirectoryChildrenMock.mockResolvedValue(leaves)
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
     knowledgeItemSetSubtreeStatusMock.mockImplementationOnce(() => {
       throw new Error('subtree busy')

@@ -320,6 +320,27 @@ export const REQUEST_POLICIES: Record<
   '302ai/gemini-4-argon': {
     parameterSupport: {
       cachedContent: false,
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  '302ai/gpt-6-1-sol': {
+    parameterSupport: {
       temperature: {
         supported: false
       },
@@ -332,11 +353,8 @@ export const REQUEST_POLICIES: Record<
       frequencyPenalty: false,
       presencePenalty: false,
       maxTokens: true,
-      stopSequences: true,
+      stopSequences: false,
       systemMessage: true
-    },
-    messages: {
-      thoughtSignatures: true
     }
   },
   '302ai/gpt-6-astra': {
@@ -1842,31 +1860,10 @@ export const REQUEST_POLICIES: Record<
   'copilot/gemini-4-argon': {
     parameterSupport: {
       cachedContent: false,
-      temperature: {
-        supported: false
-      },
-      topP: {
-        supported: false
-      },
-      topK: {
-        supported: false
-      },
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
-    },
-    messages: {
-      thoughtSignatures: true
-    }
-  },
-  'copilot/gpt-6-1-sol': {
-    parameterSupport: {
-      frequencyPenalty: false,
-      maxTokens: true,
-      presencePenalty: false,
-      stopSequences: false,
       systemMessage: true,
       temperature: {
         supported: false
@@ -1877,6 +1874,45 @@ export const REQUEST_POLICIES: Record<
       topP: {
         supported: false
       }
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'copilot/gpt-6-1-sol': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
+    }
+  },
+  'copilot/gpt-6-1-terra': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
     }
   },
   'copilot/gpt-6-astra': {
@@ -2463,31 +2499,10 @@ export const REQUEST_POLICIES: Record<
   'gateway/gemini-4-argon': {
     parameterSupport: {
       cachedContent: false,
-      temperature: {
-        supported: false
-      },
-      topP: {
-        supported: false
-      },
-      topK: {
-        supported: false
-      },
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
-    },
-    messages: {
-      thoughtSignatures: true
-    }
-  },
-  'gateway/gpt-6-1-sol': {
-    parameterSupport: {
-      frequencyPenalty: false,
-      maxTokens: true,
-      presencePenalty: false,
-      stopSequences: false,
       systemMessage: true,
       temperature: {
         supported: false
@@ -2498,6 +2513,45 @@ export const REQUEST_POLICIES: Record<
       topP: {
         supported: false
       }
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'gateway/gpt-6-1-sol': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
+    }
+  },
+  'gateway/gpt-6-1-terra': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
     }
   },
   'gateway/gpt-6-astra': {
@@ -2726,20 +2780,20 @@ export const REQUEST_POLICIES: Record<
   'gemini-4-argon': {
     parameterSupport: {
       cachedContent: false,
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     },
     messages: {
       thoughtSignatures: true
@@ -2752,20 +2806,38 @@ export const REQUEST_POLICIES: Record<
   },
   'gpt-6-1-sol': {
     parameterSupport: {
-      frequencyPenalty: false,
-      maxTokens: true,
-      presencePenalty: false,
-      stopSequences: false,
-      systemMessage: true,
       temperature: {
+        supported: false
+      },
+      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
+    }
+  },
+  'gpt-6-1-terra': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
       topP: {
         supported: false
-      }
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
     }
   },
   'gpt-6-astra': {
@@ -2911,6 +2983,42 @@ export const REQUEST_POLICIES: Record<
   'kimi-k3': {
     messages: {
       dynamicToolDeclarations: true
+    }
+  },
+  'kimi-k3-1-pro': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'kimi-k3-1-pro-highspeed': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'kimi-k3-fast': {
@@ -3121,6 +3229,42 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: true
     }
   },
+  'moonshot-global/kimi-k3-1-pro': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'moonshot-global/kimi-k3-1-pro-highspeed': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    }
+  },
   'moonshot-global/kimi-k3-fast': {
     parameterSupport: {
       temperature: {
@@ -3212,6 +3356,42 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: true
     }
   },
+  'moonshot/kimi-k3-1-pro': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'moonshot/kimi-k3-1-pro-highspeed': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    }
+  },
   'moonshot/kimi-k3-fast': {
     parameterSupport: {
       temperature: {
@@ -3268,20 +3448,38 @@ export const REQUEST_POLICIES: Record<
   },
   'openai-codex/gpt-6-1-sol': {
     parameterSupport: {
-      frequencyPenalty: false,
-      maxTokens: true,
-      presencePenalty: false,
-      stopSequences: false,
-      systemMessage: true,
       temperature: {
+        supported: false
+      },
+      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
+    }
+  },
+  'openai-codex/gpt-6-1-terra': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
       topP: {
         supported: false
-      }
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
     }
   },
   'openai-codex/gpt-6-astra': {
@@ -3862,31 +4060,10 @@ export const REQUEST_POLICIES: Record<
   'openrouter/gemini-4-argon': {
     parameterSupport: {
       cachedContent: false,
-      temperature: {
-        supported: false
-      },
-      topP: {
-        supported: false
-      },
-      topK: {
-        supported: false
-      },
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
-    },
-    messages: {
-      thoughtSignatures: true
-    }
-  },
-  'openrouter/gpt-6-1-sol': {
-    parameterSupport: {
-      frequencyPenalty: false,
-      maxTokens: true,
-      presencePenalty: false,
-      stopSequences: false,
       systemMessage: true,
       temperature: {
         supported: false
@@ -3897,6 +4074,45 @@ export const REQUEST_POLICIES: Record<
       topP: {
         supported: false
       }
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'openrouter/gpt-6-1-sol': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
+    }
+  },
+  'openrouter/gpt-6-1-terra': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: false,
+      systemMessage: true
     }
   },
   'openrouter/gpt-6-astra': {
@@ -4290,6 +4506,24 @@ export const REQUEST_POLICIES: Record<
   'qwen3-8b': {
     messages: {
       thinkingPrompt: true
+    }
+  },
+  'qwencloud/kimi-k2-7-code': {
+    messages: {
+      dynamicToolDeclarations: false
+    }
+  },
+  'qwencloud/kimi-k3': {
+    parameterSupport: {
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
+    },
+    messages: {
+      dynamicToolDeclarations: true
     }
   },
   'radeon-cloud/kimi-k2-6': {
@@ -4737,11 +4971,6 @@ export const REQUEST_POLICIES: Record<
       thoughtSignatures: true
     }
   },
-  'vertexai/gemini-3-1-flash-lite-preview': {
-    messages: {
-      thoughtSignatures: true
-    }
-  },
   'vertexai/gemini-3-1-pro-preview': {
     messages: {
       thoughtSignatures: true
@@ -4790,20 +5019,20 @@ export const REQUEST_POLICIES: Record<
   'vertexai/gemini-4-argon': {
     parameterSupport: {
       cachedContent: false,
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     },
     messages: {
       thoughtSignatures: true

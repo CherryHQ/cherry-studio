@@ -42,7 +42,17 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'chat.context_settings.max_messages': null,
   'chat.context_settings.truncate_threshold': 50000,
   'chat.context_settings.compress.enabled': true,
-  'chat.context_settings.compress.model_id': null
+  'chat.context_settings.compress.model_id': null,
+
+  // Agent file pane settings (generated schema defaults)
+  'feature.agent.file_pane.tree_position': 'left',
+  'feature.agent.file_pane.auto_save': true,
+  'feature.agent.file_pane.tab_indent': true,
+  'feature.agent.file_pane.word_wrap': true,
+  'feature.agent.file_pane.indent_guides': true,
+  'feature.agent.file_pane.show_whitespace': false,
+  'feature.agent.file_pane.scroll_past_end': false,
+  'feature.agent.file_pane.tab_size': 2
 
   // Add more defaults as needed
 }

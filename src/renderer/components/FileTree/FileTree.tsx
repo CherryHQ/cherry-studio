@@ -45,6 +45,7 @@ export function FileTree(props: FileTreeProps) {
     getMenuItems,
     fileIcon,
     folderIcon,
+    showFolderIcons = true,
     renderList,
     stickyFolders = true,
     showSearch = false,
@@ -76,9 +77,10 @@ export function FileTree(props: FileTreeProps) {
         getMenuItems={getMenuItems}
         fileIcon={fileIcon}
         folderIcon={folderIcon}
+        showFolderIcons={showFolderIcons}
       />
     ),
-    [renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon]
+    [renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon, showFolderIcons]
   )
 
   const defaultRenderList = useCallback(

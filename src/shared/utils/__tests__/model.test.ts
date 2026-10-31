@@ -201,7 +201,7 @@ it.each([
 ] as const)(
   'exposes sampling controls for %s according to support independently of active reasoning',
   (apiModelId, supported) => {
-    const model = { ...createModel(), id: `custom::${apiModelId}`, providerId: 'custom', apiModelId }
+    const model: Model = { ...createModel(), id: `custom::${apiModelId}`, providerId: 'custom', apiModelId }
     expect(isSupportTemperatureModel(model)).toBe(supported)
     expect(isSupportTopPModel(model)).toBe(supported)
   }

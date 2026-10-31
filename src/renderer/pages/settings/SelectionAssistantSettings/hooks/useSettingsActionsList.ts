@@ -1,4 +1,3 @@
-import type { DropResult } from '@hello-pangea/dnd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,6 +12,21 @@ const logger = loggerService.withContext('useSettingsActionsList')
 
 const MAX_CUSTOM_ITEMS = 10
 const MAX_ENABLED_ITEMS = 8
+
+export const ACTIONS_DIVIDER = '__actions_divider__'
+export type ActionRow = SelectionActionItem | typeof ACTIONS_DIVIDER
+
+const isActionItem = (row: ActionRow): row is SelectionActionItem => row !== ACTIONS_DIVIDER
+
+export const actionItemsFromRows = (rows: ActionRow[]): SelectionActionItem[] => {
+  const dividerIndex = rows.indexOf(ACTIONS_DIVIDER)
+  const enabled = rows.slice(0, dividerIndex).filter(isActionItem)
+  const disabled = rows.slice(dividerIndex + 1).filter(isActionItem)
+  return [
+    ...enabled.slice(0, MAX_ENABLED_ITEMS).map((item) => ({ ...item, enabled: true })),
+    ...[...disabled, ...enabled.slice(MAX_ENABLED_ITEMS)].map((item) => ({ ...item, enabled: false }))
+  ]
+}
 
 export const useActionItems = (
   initialItems: SelectionActionItem[] | undefined,
@@ -90,62 +104,16 @@ export const useActionItems = (
     setActionItems([...DefaultPreferences.default['feature.selection.action_items'], ...userItems])
   }
 
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination || !initialItems) return
+  const actionRows = useMemo<ActionRow[]>(
+    () => [...enabledItems, ACTIONS_DIVIDER, ...disabledItems],
+    [enabledItems, disabledItems]
+  )
 
-    const { source, destination } = result
-
-    if (source.droppableId === 'enabled' && destination.droppableId === 'disabled' && enabledItems.length === 1) {
-      return
-    }
-
-    if (source.droppableId === destination.droppableId) {
-      const list = source.droppableId === 'enabled' ? [...enabledItems] : [...disabledItems]
-      const [removed] = list.splice(source.index, 1)
-      list.splice(destination.index, 0, removed)
-
-      if (source.droppableId === 'enabled') {
-        const limitedEnabledItems = list.slice(0, MAX_ENABLED_ITEMS)
-        const overflowItems = list.length > MAX_ENABLED_ITEMS ? list.slice(MAX_ENABLED_ITEMS) : []
-
-        const updatedItems = [
-          ...limitedEnabledItems.map((item) => ({ ...item, enabled: true })),
-          ...disabledItems,
-          ...overflowItems.map((item) => ({ ...item, enabled: false }))
-        ]
-
-        setActionItems(updatedItems)
-      } else {
-        const updatedItems = [...enabledItems, ...list]
-        setActionItems(updatedItems)
-      }
-      return
-    }
-
-    const sourceList = source.droppableId === 'enabled' ? [...enabledItems] : [...disabledItems]
-    const destList = destination.droppableId === 'enabled' ? [...enabledItems] : [...disabledItems]
-
-    const [removed] = sourceList.splice(source.index, 1)
-    const updatedItem = { ...removed, enabled: destination.droppableId === 'enabled' }
-
-    const filteredDestList = destList.filter((item) => item.id !== updatedItem.id)
-    filteredDestList.splice(destination.index, 0, updatedItem)
-
-    let newEnabledItems = destination.droppableId === 'enabled' ? filteredDestList : sourceList
-    let newDisabledItems = destination.droppableId === 'disabled' ? filteredDestList : sourceList
-
-    if (newEnabledItems.length > MAX_ENABLED_ITEMS) {
-      const overflowItems = newEnabledItems.slice(MAX_ENABLED_ITEMS).map((item) => ({ ...item, enabled: false }))
-      newEnabledItems = newEnabledItems.slice(0, MAX_ENABLED_ITEMS)
-      newDisabledItems = [...newDisabledItems, ...overflowItems]
-    }
-
-    const updatedItems = [
-      ...newEnabledItems.map((item) => ({ ...item, enabled: true })),
-      ...newDisabledItems.map((item) => ({ ...item, enabled: false }))
-    ]
-
-    setActionItems(updatedItems)
+  const handleReorderRows = (rows: ActionRow[]) => {
+    const nextItems = actionItemsFromRows(rows)
+    // A drag that began before a rollback left its item as the last enabled one can still drop it below the divider.
+    if (enabledItems.length > 0 && !nextItems.some((item) => item.enabled)) return
+    setActionItems(nextItems)
   }
 
   const getSearchEngineInfo = (searchEngine: string) => {
@@ -161,7 +129,6 @@ export const useActionItems = (
 
   return {
     enabledItems,
-    disabledItems,
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
@@ -175,7 +142,8 @@ export const useActionItems = (
     handleSearchModalOk,
     handleDeleteActionItem,
     handleReset,
-    onDragEnd,
+    actionRows,
+    handleReorderRows,
     getSearchEngineInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS

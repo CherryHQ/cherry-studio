@@ -1,17 +1,8 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-
-const store = new Map<string, unknown>()
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getCasual: vi.fn((key: string) => store.get(key)),
-    setCasual: vi.fn((key: string, value: unknown) => {
-      store.set(key, value)
-    })
-  }
-}))
 
 const { useFollowupQueue } = await import('../useFollowupQueue')
 
@@ -19,14 +10,15 @@ const draft = (text: string) => ({ text, tokens: [] }) as any
 const payload = (text: string) => ({ text, userMessageParts: [{ type: 'text', text }] }) as any
 const item = (id: string, text: string) => ({ id, draft: draft(text), payload: payload(text) })
 
-const persistedTexts = (key: string) => (store.get(key) as Array<{ draft: { text: string } }>).map((i) => i.draft.text)
+const persistedTexts = (key: string) =>
+  (cacheService.getCasual(key) as Array<{ draft: { text: string } }>).map((i) => i.draft.text)
 
 describe('useFollowupQueue', () => {
-  beforeEach(() => store.clear())
+  beforeEach(() => MockCacheUtils.resetMocks())
 
   it('enqueues (storing draft + payload, persisting) and removeId dequeues', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -42,7 +34,7 @@ describe('useFollowupQueue', () => {
 
   it('reorders the queue and persists the new order', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -56,9 +48,9 @@ describe('useFollowupQueue', () => {
   })
 
   it('reloads the queue from the cache when the scopeKey changes', () => {
-    store.set('followup-queue.s2', [item('x', 'queued')])
+    cacheService.setCasual('followup-queue.s2', [item('x', 'queued')])
     const { result, rerender } = renderHook(
-      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, status: undefined, lastCompletedAt: null, onDrain: vi.fn() }),
       { initialProps: { scopeKey: 's1' } }
     )
 
@@ -69,12 +61,12 @@ describe('useFollowupQueue', () => {
 
   it('drains the head on the live→idle edge, then dequeues on success', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
-    const markSeen = vi.fn()
     const headPayload = payload('head')
-    store.set('followup-queue.s1', [{ id: 'h', draft: draft('head'), payload: headPayload }])
+    cacheService.setCasual('followup-queue.s1', [{ id: 'h', draft: draft('head'), payload: headPayload }])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      ({ isFulfilled }) =>
+        useFollowupQueue({ scopeKey: 's1', status: isFulfilled ? 'done' : 'streaming', lastCompletedAt: 100, onDrain }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -84,7 +76,6 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(headPayload)
     expect(result.current.items).toEqual([])
   })
@@ -92,12 +83,18 @@ describe('useFollowupQueue', () => {
   it('keeps the head queued and reports failure when auto-drain fails', async () => {
     const onDrain = vi.fn().mockResolvedValue(false)
     const onDrainFailed = vi.fn()
-    const markSeen = vi.fn()
     const head = item('h', 'head')
-    store.set('followup-queue.s1', [head])
+    cacheService.setCasual('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
+      ({ isFulfilled }) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status: isFulfilled ? 'done' : 'streaming',
+          lastCompletedAt: 100,
+          onDrain,
+          onDrainFailed
+        }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -105,7 +102,6 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(onDrainFailed).toHaveBeenCalledOnce()
     expect(result.current.items).toEqual([head])
@@ -114,12 +110,18 @@ describe('useFollowupQueue', () => {
   it('keeps the head queued and reports failure when auto-drain rejects', async () => {
     const onDrain = vi.fn().mockRejectedValue(new Error('drain blew up'))
     const onDrainFailed = vi.fn()
-    const markSeen = vi.fn()
     const head = item('h', 'head')
-    store.set('followup-queue.s1', [head])
+    cacheService.setCasual('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
+      ({ isFulfilled }) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status: isFulfilled ? 'done' : 'streaming',
+          lastCompletedAt: 100,
+          onDrain,
+          onDrainFailed
+        }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -134,10 +136,11 @@ describe('useFollowupQueue', () => {
 
   it('does not drain while paused', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
-    store.set('followup-queue.s1', [item('h', 'head')])
+    cacheService.setCasual('followup-queue.s1', [item('h', 'head')])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      ({ isFulfilled }) =>
+        useFollowupQueue({ scopeKey: 's1', status: isFulfilled ? 'done' : 'streaming', lastCompletedAt: 100, onDrain }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -152,10 +155,11 @@ describe('useFollowupQueue', () => {
 
   it('keeps each conversation paused until the user resumes it', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
-    store.set('followup-queue.s1', [item('h', 'head')])
+    cacheService.setCasual('followup-queue.s1', [item('h', 'head')])
 
     const { result, rerender } = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      ({ scopeKey, isFulfilled }) =>
+        useFollowupQueue({ scopeKey, status: isFulfilled ? 'done' : 'streaming', lastCompletedAt: 100, onDrain }),
       { initialProps: { scopeKey: 's1', isFulfilled: false } }
     )
 
@@ -172,21 +176,28 @@ describe('useFollowupQueue', () => {
 
 describe('queued edit switching', () => {
   beforeEach(() => {
-    store.clear()
+    MockCacheUtils.resetMocks()
     vi.mocked(cacheService.setCasual).mockClear()
   })
 
   const setup = (ids = ['A', 'B']) => {
     const entries = ids.map((id) => item(id, id))
-    store.set('followup-queue.s1', entries)
-    const markSeen = vi.fn()
+    cacheService.setCasual('followup-queue.s1', entries)
+    vi.mocked(cacheService.setCasual).mockClear()
     const onDrain = vi.fn().mockResolvedValue(true)
     const onDrainFailed = vi.fn()
     const hook = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen, onDrain, onDrainFailed }),
+      ({ scopeKey, isFulfilled }) =>
+        useFollowupQueue({
+          scopeKey,
+          status: isFulfilled ? 'done' : 'streaming',
+          lastCompletedAt: 100,
+          onDrain,
+          onDrainFailed
+        }),
       { initialProps: { scopeKey: 's1', isFulfilled: false } }
     )
-    return { ...hook, entries, markSeen, onDrain, onDrainFailed }
+    return { ...hook, entries, onDrain, onDrainFailed }
   }
   const capture = (taken: ReturnType<typeof item>) => ({ draft: taken.draft, payload: taken.payload })
 
@@ -230,7 +241,7 @@ describe('queued edit switching', () => {
       expect(result.current.takeForEdit(b.id, outgoing), 'invalid outgoing document must refuse').toBeNull()
     })
     expect(result.current.items, 'refusal must retain B').toEqual([b])
-    expect(store.get('followup-queue.s1'), 'refusal must retain persisted B').toEqual([b])
+    expect(cacheService.getCasual('followup-queue.s1'), 'refusal must retain persisted B').toEqual([b])
     expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'refusal must not write cache').toBe(writes)
     act(() => {
       result.current.takeForEdit(b.id, capture)
@@ -312,45 +323,27 @@ describe('queued edit switching', () => {
     expect(outgoing.mock.calls.length, 'ended ownership must not capture an unrelated editor').toBe(0)
   })
 
-  it('admits each visible id once, refuses taking it and permits another id until idempotent release', () => {
+  it('keeps a manually sending draft unavailable to edit until settlement', async () => {
     const {
       result,
+      onDrain,
       entries: [a, b]
     } = setup()
-    let release!: () => void
+    let finish!: (sent: boolean) => void
+    onDrain.mockImplementationOnce(() => new Promise<boolean>((resolve) => (finish = resolve)))
     act(() => {
-      expect(result.current.beginSend('missing'), 'absent ids cannot dispatch').toBeNull()
-      release = result.current.beginSend(a.id)!
-      expect(result.current.beginSend(a.id), 'duplicate dispatch must refuse').toBeNull()
-      expect(result.current.takeForEdit(a.id, capture), 'admitted dispatch must refuse Edit').toBeNull()
+      void result.current.sendId(a.id)
+      expect(result.current.takeForEdit(a.id, capture), 'pending send must refuse Edit').toBeNull()
+      expect(result.current.takeForEdit(b.id, capture), 'another draft remains editable').toEqual(b)
     })
-    expect(result.current.items, 'admission must not change visible items').toEqual([a, b])
-    expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'admission must not persist').toBe(0)
+    await act(async () => {
+      expect(await result.current.sendId(a.id), 'duplicate send must refuse').toBe(false)
+      finish(false)
+    })
     act(() => {
-      result.current.takeForEdit(b.id, capture)
-      release()
-      release()
-      result.current.takeForEdit(a.id, capture)
+      expect(result.current.takeForEdit(a.id, capture), 'failed draft is editable again').toEqual(a)
     })
-    expect(result.current.items, 'another id remains editable and released A can open').toEqual([b])
-  })
-
-  it('does not let an old admission release cancel a subsequent admission of the same id', () => {
-    const { result } = setup()
-    const release = result.current.beginSend('A')!
-    release()
-    const nextRelease = result.current.beginSend('A')!
-    release()
-    expect(
-      result.current.takeForEdit('A', capture),
-      'idempotent release must not reopen a newly admitted item'
-    ).toBeNull()
-    nextRelease()
-    act(() => {
-      expect(result.current.takeForEdit('A', capture), 'the current admission release must reopen A').toEqual(
-        item('A', 'A')
-      )
-    })
+    expect(result.current.items, 'switching edits preserves the outgoing draft').toEqual([b])
   })
 
   it.each(['success', 'false', 'reject'])(
@@ -399,7 +392,7 @@ describe('queued edit switching', () => {
     }
   )
 
-  it('discards taken metadata and admissions on scope change and ignores old-scope success', async () => {
+  it('discards taken metadata on scope change and settles success in the originating scope', async () => {
     const {
       result,
       rerender,
@@ -408,7 +401,7 @@ describe('queued edit switching', () => {
     } = setup()
     const c = item('C', 'C'),
       d = item('D', 'D')
-    store.set('followup-queue.s2', [c, d])
+    cacheService.setCasual('followup-queue.s2', [c, d])
     let resolve!: (sent: boolean) => void
     onDrain.mockImplementationOnce(
       () =>
@@ -433,13 +426,103 @@ describe('queued edit switching', () => {
       result.current.takeForEdit(d.id, capture)
     })
     expect(result.current.items, 'old success must not clear the new scope taken record').toEqual([c])
-    expect(store.get('followup-queue.s1'), 'old success must not mutate the prior scope cache').toEqual([a])
+    expect(cacheService.getCasual('followup-queue.s1'), 'accepted send must leave no delivered source item').toEqual([])
     act(() => {
       rerender({ scopeKey: 's1', isFulfilled: false })
     })
     act(() => {
-      expect(result.current.takeForEdit(a.id, capture), 'scope reload must discard old admission').toEqual(a)
+      expect(result.current.takeForEdit(a.id, capture), 'delivered source item must remain removed').toBeNull()
     })
     expect(result.current.items, 'scope reload must not reinsert old taken B').toEqual([])
+  })
+})
+
+describe('editing a queued item from the composer', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+
+  const seededQueue = (...items: ReturnType<typeof item>[]) => {
+    cacheService.setCasual('followup-queue.s1', items)
+    return renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
+    ).result
+  }
+  const composer = (text: string, overrides: Record<string, unknown> = {}) => ({
+    editingMessage: false,
+    getDraft: () => draft(text),
+    buildPayload: (current: { text: string }) => (current.text ? payload(current.text) : null),
+    hasFiles: false,
+    restore: vi.fn(),
+    ...overrides
+  })
+
+  it('swaps the composer draft back into its queue slot, keeping that item chat target', () => {
+    const chatTarget = { mode: 'reserved-branch' } as any
+    const a = { ...item('a', 'A'), payload: { ...payload('A'), chatTarget } }
+    const result = seededQueue(a, item('b', 'B'))
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', composer('A edited')))
+
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['a'])
+    expect(result.current.items[0].draft.text).toBe('A edited')
+    expect(result.current.items[0].payload).toEqual({ ...payload('A edited'), chatTarget })
+  })
+
+  it('puts the original item back when the composer draft was emptied', () => {
+    const a = item('a', 'A')
+    const result = seededQueue(a, item('b', 'B'))
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', composer('')))
+
+    expect(result.current.items).toEqual([a])
+  })
+
+  it('refuses the switch when a non-empty composer draft cannot become a payload', () => {
+    const result = seededQueue(item('a', 'A'), item('b', 'B'))
+    const refused = composer('unsendable', { buildPayload: () => null })
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', refused))
+
+    expect(refused.restore).not.toHaveBeenCalled()
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['b'])
+  })
+
+  it('refuses the switch when an attachment-only composer draft cannot become a payload', () => {
+    const result = seededQueue(item('a', 'A'), item('b', 'B'))
+    const refused = composer('', { hasFiles: true })
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', refused))
+
+    expect(refused.restore).not.toHaveBeenCalled()
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['b'])
+  })
+
+  it('consumes the item without swapping anything back while a message is being edited', () => {
+    const b = item('b', 'B')
+    const result = seededQueue(item('a', 'A'), b, item('c', 'C'))
+    const editingMessage = composer('message under edit', { editingMessage: true })
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', editingMessage))
+
+    expect(editingMessage.restore).toHaveBeenCalledWith(b)
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['c'])
+
+    act(() => result.current.editItem('c', composer('next draft')))
+
+    expect(result.current.items, 'the draft taken before the message edit must not come back').toEqual([])
+  })
+
+  it('ignores an item that is no longer queued while a message is being edited', () => {
+    const result = seededQueue(item('a', 'A'))
+    const editingMessage = composer('', { editingMessage: true })
+
+    act(() => result.current.editItem('missing', editingMessage))
+
+    expect(editingMessage.restore).not.toHaveBeenCalled()
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['a'])
   })
 })

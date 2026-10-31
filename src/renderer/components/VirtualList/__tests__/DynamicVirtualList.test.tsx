@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React, { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,13 +19,17 @@ const mocks = vi.hoisted(() => ({
     scrollToIndex: vi.fn(),
     resizeItem: vi.fn(),
     measureElement: vi.fn(),
+    range: { startIndex: 0, endIndex: 2 },
     scrollElement: null as HTMLDivElement | null
   },
   useVirtualizer: vi.fn()
 }))
 
 // Set up the mock to return our mock virtualizer
-mocks.useVirtualizer.mockImplementation(() => mocks.virtualizer)
+mocks.useVirtualizer.mockImplementation((options) => {
+  options.rangeExtractor?.(mocks.virtualizer.range)
+  return mocks.virtualizer
+})
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: mocks.useVirtualizer,
@@ -83,9 +87,26 @@ describe('DynamicVirtualList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    mocks.virtualizer.range = { startIndex: 0, endIndex: 2 }
+    mocks.virtualizer.getVirtualItems.mockReturnValue([
+      { index: 0, key: 'item-0', start: 0, size: 50 },
+      { index: 1, key: 'item-1', start: 50, size: 50 },
+      { index: 2, key: 'item-2', start: 100, size: 50 }
+    ])
+    mocks.virtualizer.getTotalSize.mockReturnValue(150)
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
 
@@ -141,68 +162,206 @@ describe('DynamicVirtualList', () => {
       expect(mocks.virtualizer.measure).toHaveBeenCalledOnce()
       expect(screen.getByTestId('item-0')).toBeInTheDocument()
     })
-
-    it('should work with custom estimateSize function', () => {
-      const customEstimateSize = vi.fn(() => 80)
-
-      render(<DynamicVirtualList {...defaultProps} estimateSize={customEstimateSize} />)
-
-      expect(mocks.useVirtualizer).toHaveBeenCalledWith(expect.objectContaining({ estimateSize: customEstimateSize }))
-    })
   })
 
   describe('sticky feature', () => {
-    it('keeps sticky rows in the list stacking context', () => {
-      const isSticky = vi.fn((index: number) => index === 0) // First item is sticky
+    const row = (index: number) => document.querySelector(`[data-index="${index}"]`) as HTMLElement
+    const content = () => row(0).parentElement as HTMLElement
 
-      render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
+    it('lets later same-depth headers cover active headers while keeping rows below both', () => {
+      mocks.virtualizer.range.startIndex = 1
+      render(<DynamicVirtualList {...defaultProps} isSticky={(index) => index !== 1} />)
 
-      // Should call isSticky function during rendering
-      expect(isSticky).toHaveBeenCalled()
-
-      // Sticky items within visible range should have proper z-index but may be absolute until scrolled
-      const stickyItem = document.querySelector('[data-index="0"]') as HTMLElement
-      expect(stickyItem).toBeInTheDocument()
-      expect(stickyItem).toHaveStyle('z-index: 1')
-
-      const scrollContainer = document.querySelector('.dynamic-virtual-list')
-      expect(scrollContainer).toHaveClass('isolate')
+      expect(screen.getByRole('region')).toHaveClass('isolate')
+      expect(Number(row(0).style.zIndex)).toBeGreaterThan(Number(row(1).style.zIndex))
+      expect(row(0).style.zIndex).toBe(row(2).style.zIndex)
+      expect(row(0)).toHaveStyle('position: absolute; top: 0; left: 0')
+      expect(row(1)).toHaveStyle('position: absolute; transform: translateY(50px)')
+      expect(row(0).style.backgroundColor).toBe('var(--card)')
+      expect(row(2).style.backgroundColor).toBe('var(--card)')
     })
 
-    it('keeps active sticky rows below shared floating layers', () => {
-      const isSticky = vi.fn((index: number) => index === 0)
-      mocks.useVirtualizer.mockImplementationOnce((options: { rangeExtractor: (range: unknown) => number[] }) => {
-        options.rangeExtractor({ startIndex: 1, endIndex: 2 })
-        return mocks.virtualizer
+    it('clamps an adjacent child before the range leaves its parent using measured ancestor height', () => {
+      mocks.virtualizer.getVirtualItems.mockReturnValue([
+        { index: 0, key: 'parent', start: 0, size: 28 },
+        { index: 1, key: 'child', start: 28, size: 28 },
+        { index: 2, key: 'file', start: 56, size: 36 }
+      ])
+      render(
+        <DynamicVirtualList
+          {...defaultProps}
+          estimateSize={() => 36}
+          isSticky={(index) => index < 2}
+          getItemDepth={(index) => index}
+        />
+      )
+
+      expect(row(1).style.transform).toBe(
+        'translateY(min(122px, max(28px, calc(var(--dv-scroll-offset, 0px) - 0px + 28px))))'
+      )
+      expect(Number(row(0).style.zIndex)).toBeGreaterThan(Number(row(1).style.zIndex))
+      expect(Number(row(1).style.zIndex)).toBeGreaterThan(Number(row(2).style.zIndex))
+    })
+
+    it('uses estimated ancestor height only when that ancestor is not mounted', () => {
+      mocks.virtualizer.getVirtualItems.mockReturnValue([{ index: 1, key: 'child', start: 36, size: 28 }])
+      render(
+        <DynamicVirtualList
+          {...defaultProps}
+          estimateSize={() => 36}
+          isSticky={(index) => index < 2}
+          getItemDepth={(index) => index}
+        />
+      )
+      expect(row(1).style.transform).toContain('- 0px + 36px)')
+    })
+
+    it.each([
+      { startIndex: 2, depths: [0, 1, 1, 2], slot: 28 },
+      { startIndex: 3, depths: [0, 1, 1, 0], slot: 0 }
+    ])(
+      'releases kept old headers without accumulating exited ancestors at range $startIndex',
+      ({ startIndex, depths, slot }) => {
+        mocks.virtualizer.getVirtualItems.mockReturnValue(
+          depths.map((_, index) => ({ index, key: `item-${index}`, start: index * 28, size: 28 }))
+        )
+        mocks.virtualizer.range = { startIndex, endIndex: 3 }
+        render(
+          <DynamicVirtualList
+            {...defaultProps}
+            isSticky={() => true}
+            getItemDepth={(index) => depths[index]}
+            keepMountedIndexes={[0, 1, 2]}
+          />
+        )
+
+        expect(row(1).style.transform).toBe('translateY(28px)')
+        expect(row(1).style.backgroundColor).toBe('')
+        expect(row(startIndex).style.transform).toContain(`- 0px + ${slot}px)`)
+        if (startIndex === 3) expect(row(0).style.transform).toBe('translateY(0px)')
+        else expect(row(3).style.transform).toContain('- 0px + 56px)')
+      }
+    )
+
+    it('updates the private offset within an unchanged range and preserves consumer scroll handling', () => {
+      const offsets: number[] = []
+      const { unmount } = render(
+        <DynamicVirtualList
+          {...defaultProps}
+          isSticky={(index) => index === 0}
+          onScroll={(event) => offsets.push(event.currentTarget.scrollTop)}
+        />
+      )
+      const scroller = screen.getByRole('region')
+      const node = content()
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('0px')
+      fireEvent.scroll(scroller, { target: { scrollTop: 12 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('12px')
+      fireEvent.scroll(scroller, { target: { scrollTop: 13 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('13px')
+      expect(offsets).toEqual([12, 13])
+      expect(row(1).style.transform).toBe('translateY(50px)')
+
+      unmount()
+      fireEvent.scroll(scroller, { target: { scrollTop: 14 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('')
+    })
+
+    it('remeasures the internal header origin independently of configured scroll margin', () => {
+      let headerHeight = 80
+      const resizeCallbacks = new Map<Element, () => void>()
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(private notify: () => void) {}
+          observe(element: Element) {
+            resizeCallbacks.set(element, this.notify)
+          }
+          disconnect() {}
+        }
+      )
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        return { top: this.style.position === 'relative' ? headerHeight : 0, left: 0 } as DOMRect
       })
+      render(
+        <DynamicVirtualList {...defaultProps} header={<div>Header</div>} scrollMargin={20} isSticky={() => true} />
+      )
 
-      render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
-
-      const stickyItem = document.querySelector('[data-index="0"]') as HTMLElement
-      expect(stickyItem).toHaveStyle('position: sticky')
-      expect(stickyItem).toHaveStyle('z-index: 3')
+      expect(row(0).style.transform).toContain('max(-20px, calc(var(--dv-scroll-offset, 0px) - 80px + 0px))')
+      headerHeight = 120
+      act(() => resizeCallbacks.get(screen.getByText('Header'))?.())
+      expect(row(0).style.transform).toContain('max(-20px, calc(var(--dv-scroll-offset, 0px) - 120px + 0px))')
     })
 
-    it('should apply absolute positioning to non-sticky items', () => {
-      const isSticky = vi.fn((index: number) => index === 0)
+    it('isolates external offsets and detaches only its own listener on viewport changes', () => {
+      const first = document.createElement('div')
+      const second = document.createElement('div')
+      first.scrollTop = 30
+      second.scrollTop = 45
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        return { top: this.style.position === 'relative' ? 90 : 0, left: 0 } as DOMRect
+      })
+      const sticky = () => true
+      const { rerender, unmount } = render(
+        <DynamicVirtualList {...defaultProps} externalScrollElement={first} isSticky={sticky} />
+      )
+      const node = content()
+      const other = render(<DynamicVirtualList {...defaultProps} externalScrollElement={first} isSticky={sticky} />)
+      const otherNode = other.container.querySelector('[data-index]')!.parentElement!
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('30px')
+      expect(row(0).style.transform).toContain('max(-120px, calc(var(--dv-scroll-offset, 0px) - 120px + 0px))')
 
-      render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
-
-      // Non-sticky items should have absolute positioning
-      const regularItem = document.querySelector('[data-index="1"]') as HTMLElement
-      expect(regularItem).toBeInTheDocument()
-      expect(regularItem).toHaveStyle('position: absolute')
+      rerender(<DynamicVirtualList {...defaultProps} externalScrollElement={second} isSticky={sticky} />)
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('45px')
+      fireEvent.scroll(first, { target: { scrollTop: 60 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('45px')
+      expect(otherNode.style.getPropertyValue('--dv-scroll-offset')).toBe('60px')
+      unmount()
+      fireEvent.scroll(first, { target: { scrollTop: 70 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('')
+      expect(otherNode.style.getPropertyValue('--dv-scroll-offset')).toBe('70px')
     })
 
-    it('should apply absolute positioning to all items when no sticky function provided', () => {
+    it('uses the horizontal scroll coordinate and tail bound for sticky rows', () => {
+      render(<DynamicVirtualList {...defaultProps} horizontal isSticky={() => true} />)
+      fireEvent.scroll(screen.getByRole('region'), { target: { scrollLeft: 17, scrollTop: 99 } })
+      expect(content().style.getPropertyValue('--dv-scroll-offset')).toBe('17px')
+      expect(row(0).style.transform).toBe(
+        'translateX(min(100px, max(0px, calc(var(--dv-scroll-offset, 0px) - 0px + 0px))))'
+      )
+    })
+
+    it('removes sticky scroll effects when disabled and leaves non-sticky rows at natural coordinates', () => {
+      const { rerender, unmount } = render(<DynamicVirtualList {...defaultProps} isSticky={() => true} />)
+      const scroller = screen.getByRole('region')
+      const node = content()
+      rerender(<DynamicVirtualList {...defaultProps} />)
+      fireEvent.scroll(scroller, { target: { scrollTop: 25 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('')
+      for (const index of [0, 1, 2]) {
+        expect(row(index)).toHaveStyle(`position: absolute; transform: translateY(${index * 50}px)`)
+      }
+      unmount()
+      fireEvent.scroll(scroller, { target: { scrollTop: 30 } })
+      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('')
+    })
+
+    it('never subscribes to scroll for a list without sticky headers', () => {
+      const addListener = vi.spyOn(HTMLElement.prototype, 'addEventListener')
       render(<DynamicVirtualList {...defaultProps} />)
-
-      // All items should have absolute positioning
-      const items = document.querySelectorAll('[data-index]')
-      items.forEach((item) => {
-        const htmlItem = item as HTMLElement
-        expect(htmlItem).toHaveStyle('position: absolute')
-      })
+      const scroller = screen.getByRole('region')
+      const scrollSubscriptions = addListener.mock.calls.filter(
+        ([type, , options], index) =>
+          type === 'scroll' &&
+          addListener.mock.contexts[index] === scroller &&
+          typeof options === 'object' &&
+          options?.passive === true
+      )
+      expect(scrollSubscriptions).toHaveLength(0)
+      expect(content().style.getPropertyValue('--dv-scroll-offset')).toBe('')
+      fireEvent.scroll(scroller, { target: { scrollTop: 50 } })
+      expect(content().style.getPropertyValue('--dv-scroll-offset')).toBe('')
+      expect(row(1).style.transform).toBe('translateY(50px)')
     })
   })
 

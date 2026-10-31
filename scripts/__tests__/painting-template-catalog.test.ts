@@ -100,6 +100,7 @@ const expectedAppLocaleFiles = [
   'locales/el-gr.json',
   'locales/es-es.json',
   'locales/fr-fr.json',
+  'locales/it-it.json',
   'locales/ja-jp.json',
   'locales/pt-pt.json',
   'locales/ro-ro.json',
