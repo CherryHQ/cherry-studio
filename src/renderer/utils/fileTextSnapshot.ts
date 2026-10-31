@@ -39,7 +39,7 @@ export function decodeFileText(bytes: Uint8Array): DecodedFileText {
   const hasBom = hasUtf8Bom(bytes)
   let content: string
   try {
-    content = new TextDecoder('utf-8', { fatal: true }).decode(hasBom ? bytes.slice(UTF8_BOM.length) : bytes)
+    content = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
   } catch {
     throw new UnsupportedFileTextError('encoding')
   }
