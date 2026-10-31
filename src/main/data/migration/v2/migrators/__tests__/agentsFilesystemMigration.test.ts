@@ -20,12 +20,12 @@ import path from 'node:path'
 import PQueue from 'p-queue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { claudeProjectDirectoryName } from '@main/ai/utils/claudeProject'
 import type * as Platform from '@main/core/platform'
 
 import {
   type AgentFileSessionPlan,
   type ClaudeConfigMigrationProgress,
-  claudeProjectDirectoryName,
   copyLegacyClaudeConfig,
   copyLegacyClaudeSessionData,
   isManagedLegacyAgentWorkspace,
