@@ -211,7 +211,6 @@ async function buildSession(
     settling = undefined
   })
 
-
   const held = async (run: () => Promise<unknown>) => {
     const release = subagents?.controls.hold() ?? (() => {})
     try {
