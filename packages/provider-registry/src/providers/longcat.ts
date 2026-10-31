@@ -36,6 +36,11 @@ export default defineProvider({
   },
   overrides: [
     {
+      modelId: 'longcat-2-5-preview',
+      apiModelId: 'LongCat-2.5-Preview',
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    },
+    {
       modelId: 'longcat-2-0',
       apiModelId: 'LongCat-2.0',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
