@@ -35,9 +35,10 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useConversationExportMenuOptions } from '@renderer/hooks/chat/useConversationExportMenuOptions'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -52,6 +53,7 @@ import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
+import { showImageActionFeedback } from '@renderer/services/imageActionFeedback'
 import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItem,
@@ -94,8 +96,12 @@ import {
 } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
-import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import { applyOptimisticOrder, findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import {
+  createSidebarShortcutTarget,
+  getSidebarShortcutResourceIds,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -109,7 +115,6 @@ import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/e
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {
-  type AgentSessionImageActionRequest,
   type AgentSessionImageActionType,
   rejectPendingAgentSessionImageActions,
   requestAgentSessionImageAction
@@ -377,18 +382,7 @@ const Sessions = ({
   const groupNow = useCurrentDayStart()
 
   const { notesPath } = useNotesSettings()
-  const [exportMenuOptions] = useMultiplePreferences({
-    docx: 'data.export.menus.docx',
-    image: 'data.export.menus.image',
-    joplin: 'data.export.menus.joplin',
-    markdown: 'data.export.menus.markdown',
-    markdown_reason: 'data.export.menus.markdown_reason',
-    notion: 'data.export.menus.notion',
-    obsidian: 'data.export.menus.obsidian',
-    plain_text: 'data.export.menus.plain_text',
-    siyuan: 'data.export.menus.siyuan',
-    yuque: 'data.export.menus.yuque'
-  })
+  const exportMenuOptions = useConversationExportMenuOptions()
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
@@ -561,25 +555,11 @@ const Sessions = ({
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const sidebarAgentFavoriteIdSet = useMemo(
-    () =>
-      new Set(
-        sidebarShortcuts.flatMap((shortcut) =>
-          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT
-            ? [shortcut.target.locator.resourceId]
-            : []
-        )
-      ),
+    () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT),
     [sidebarShortcuts]
   )
   const sidebarSessionFavoriteIdSet = useMemo(
-    () =>
-      new Set(
-        sidebarShortcuts.flatMap((shortcut) =>
-          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT_SESSION
-            ? [shortcut.target.locator.resourceId]
-            : []
-        )
-      ),
+    () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT_SESSION),
     [sidebarShortcuts]
   )
   const handleToggleAgentSidebar = useCallback(
@@ -604,24 +584,10 @@ const Sessions = ({
     },
     [setSidebarShortcutPinned, sidebarSessionFavoriteIdSet, t]
   )
-  const agentsForDisplay = useMemo(() => {
-    if (!optimisticAgentOrderIds) return agents
-
-    const agentById = new Map(agents.map((agent) => [agent.id, agent]))
-    const orderedAgents = optimisticAgentOrderIds.flatMap((agentId) => {
-      const agent = agentById.get(agentId)
-      return agent ? [agent] : []
-    })
-    const optimisticIds = new Set(optimisticAgentOrderIds)
-
-    for (const agent of agents) {
-      if (!optimisticIds.has(agent.id)) {
-        orderedAgents.push(agent)
-      }
-    }
-
-    return orderedAgents
-  }, [agents, optimisticAgentOrderIds])
+  const agentsForDisplay = useMemo(
+    () => (optimisticAgentOrderIds ? applyOptimisticOrder(agents, optimisticAgentOrderIds) : agents),
+    [agents, optimisticAgentOrderIds]
+  )
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
   const getSessionExportOptions = useCallback(
     (session: AgentSessionEntity): AgentSessionExportOptions => ({
@@ -648,22 +614,11 @@ const Sessions = ({
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
   const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
-  const workspaceRowsForDisplay = useMemo(() => {
-    if (!optimisticWorkspaceOrderIds) return workspaceRows
-
-    const workspaceById = new Map(workspaceRows.map((workspace) => [workspace.id, workspace]))
-    const orderedWorkspaces: typeof workspaceRows = []
-    for (const workspaceId of optimisticWorkspaceOrderIds) {
-      const workspace = workspaceById.get(workspaceId)
-      if (workspace) {
-        orderedWorkspaces.push(workspace)
-      }
-    }
-    const orderedIds = new Set(orderedWorkspaces.map((workspace) => workspace.id))
-    const remainingWorkspaces = workspaceRows.filter((workspace) => !orderedIds.has(workspace.id))
-
-    return [...orderedWorkspaces, ...remainingWorkspaces]
-  }, [optimisticWorkspaceOrderIds, workspaceRows])
+  const workspaceRowsForDisplay = useMemo(
+    () =>
+      optimisticWorkspaceOrderIds ? applyOptimisticOrder(workspaceRows, optimisticWorkspaceOrderIds) : workspaceRows,
+    [optimisticWorkspaceOrderIds, workspaceRows]
+  )
   const workdirDisplay = useMemo(
     () => createSessionWorkdirDisplayMaps(sessionItems, workspaceRowsForDisplay),
     [sessionItems, workspaceRowsForDisplay]
@@ -989,38 +944,13 @@ const Sessions = ({
     [t, updateSession]
   )
 
-  const showSessionImageExportToast = useCallback(
-    (request: AgentSessionImageActionRequest) => {
-      const key = `agent-session-image-export:${request.id}`
-      const loadingPromise = request.promise.finally(() => toast.closeToast(key)).catch(() => undefined)
-
-      toast.loading({
-        key,
-        title: t('chat.topics.export.image_exporting_keep_page'),
-        promise: loadingPromise,
-        onError: () => {}
-      })
-
-      void request.promise.then(
-        () => toast.success(t('chat.topics.export.image_saved')),
-        () => toast.error(t('chat.topics.export.failed'))
-      )
-    },
-    [t]
-  )
-
   const handleSessionImageAction = useCallback(
     (type: AgentSessionImageActionType, session: AgentSessionEntity) => {
       const request = requestAgentSessionImageAction(type, session)
-      if (type === 'export') {
-        showSessionImageExportToast(request)
-      } else {
-        void request.promise.catch(() => toast.error(t('common.copy_failed')))
-      }
-
+      showImageActionFeedback(type, request, 'agent-session-image-export', t)
       queueImageCaptureTarget(request, session)
     },
-    [queueImageCaptureTarget, showSessionImageExportToast, t]
+    [queueImageCaptureTarget, t]
   )
 
   const handleSaveSessionToNotes = useCallback(
