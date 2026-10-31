@@ -22,11 +22,20 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   const visible: State = state.key === key ? state : { key, loading: !!task }
   const result = visible.result
   const retry = useCallback(() => setRevision((value) => value + 1), [])
+  const resumeConversation = useRef(() => false)
+  resumeConversation.current = () => {
+    if (!result?.session) return false
+    // Activity retains the selection while disconnecting effects; only history needs refreshing.
+    setState((current) => ({ ...current, loading: false }))
+    refreshHistory()
+    return true
+  }
 
   useEffect(() => {
     const currentTask = taskRef.current
     const abort = new AbortController()
     controller.current = abort
+    if (resumeConversation.current()) return () => abort.abort()
     setState({ key, loading: !!currentTask })
     if (currentTask) {
       void resolveTaskConversation(currentTask, runId, abort.signal).then(
@@ -50,18 +59,29 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     try {
       const next = await readTaskConversationPage(task, result.nextPage, signal)
       if (signal?.aborted) return
-      setState((current) => ({
-        key,
-        loading: false,
-        newerRunId: current.newerRunId,
-        result: {
-          ...next,
-          ...(result.session || runId
-            ? { session: result.session, runId: result.runId, startedAt: result.startedAt }
-            : {}),
-          logs: [...new Map([...result.logs, ...next.logs].map((log) => [log.id, log])).values()]
-        }
-      }))
+      setState((current) =>
+        current.key !== key || !current.result
+          ? current
+          : {
+              key,
+              loading: false,
+              newerRunId: current.newerRunId,
+              result: {
+                ...next,
+                ...(current.result.session || runId
+                  ? {
+                      session: current.result.session,
+                      runId: current.result.runId,
+                      startedAt: current.result.startedAt
+                    }
+                  : {}),
+                logs: [
+                  ...current.result.logs,
+                  ...next.logs.filter((log) => !current.result!.logs.some((existing) => existing.id === log.id))
+                ]
+              }
+            }
+      )
     } catch (error) {
       if (!signal?.aborted) setState((current) => ({ ...current, loading: false, error }))
     } finally {
