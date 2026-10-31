@@ -28,6 +28,7 @@ interface MockGuest extends EventEmitter {
   }
   getTitle: Mock<() => string>
   getURL: Mock<() => string>
+  isCrashed: Mock<() => boolean>
   isDestroyed: Mock<() => boolean>
   isDevToolsOpened: Mock<() => boolean>
 }
@@ -40,7 +41,7 @@ const annotation: WebviewAnnotation = {
 
 function createGuest(
   sendCommand: (method: string, params?: Record<string, unknown>) => Promise<unknown>,
-  options: { title?: string; url?: string; devToolsOpened?: boolean } = {}
+  options: { title?: string; url?: string; crashed?: boolean; devToolsOpened?: boolean } = {}
 ): MockGuest {
   let attached = false
   return Object.assign(new EventEmitter(), {
@@ -62,6 +63,7 @@ function createGuest(
     }),
     getTitle: vi.fn(() => options.title ?? 'Example'),
     getURL: vi.fn(() => options.url ?? 'https://example.com/page'),
+    isCrashed: vi.fn(() => options.crashed ?? false),
     isDestroyed: vi.fn(() => false),
     isDevToolsOpened: vi.fn(() => options.devToolsOpened ?? false)
   })

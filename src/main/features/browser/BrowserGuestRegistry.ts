@@ -58,6 +58,7 @@ export class BrowserGuestRegistry implements Disposable {
       !window ||
       !guest ||
       guest.isDestroyed() ||
+      guest.isCrashed() ||
       guest.getType() !== 'webview' ||
       guest.hostWebContents !== window.webContents ||
       !profiles.some((profile) => guest.session === session.fromPartition(getWebviewPartition(profile)))
@@ -90,6 +91,32 @@ export class BrowserGuestRegistry implements Disposable {
     const onNavigation = (_event: unknown, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
       if (isMainFrame && !isInPlace) invalidateCursor()
     }
+    const sendHealth = (status: 'unresponsive' | 'responsive' | 'render-process-gone') => {
+      const target = this.targets.get(sessionId)
+      if (target?.tabId !== tabId || target.abort.signal.aborted) return
+      try {
+        application.get('IpcApiService').send(target.windowId, 'browser.guest.ensure_requested', {
+          kind: 'health',
+          sessionId,
+          scope: this.scope,
+          webviewId: guest.id,
+          status
+        })
+      } catch (error) {
+        logger.debug('Browser owner is unavailable', { error })
+      }
+    }
+    const onUnresponsive = () => sendHealth('unresponsive')
+    const onResponsive = () => sendHealth('responsive')
+    const onRenderProcessGone = () => {
+      const target = this.targets.get(sessionId)
+      if (target?.tabId !== tabId || target.abort.signal.aborted) return
+      sendHealth('render-process-gone')
+      dispose()
+    }
+    guest.on('unresponsive', onUnresponsive)
+    guest.on('responsive', onResponsive)
+    guest.on('render-process-gone', onRenderProcessGone)
     window.on('blur', hideCursor)
     guest.on('did-start-navigation', onNavigation)
     const debuggerEvents = guest.debugger
@@ -98,6 +125,9 @@ export class BrowserGuestRegistry implements Disposable {
       'abort',
       () => {
         cursor.dispose()
+        guest.removeListener('unresponsive', onUnresponsive)
+        guest.removeListener('responsive', onResponsive)
+        guest.removeListener('render-process-gone', onRenderProcessGone)
         guest.removeListener('did-start-navigation', onNavigation)
         debuggerEvents.removeListener('detach', invalidateCursor)
         window.removeListener('blur', hideCursor)
@@ -253,7 +283,8 @@ export class BrowserGuestRegistry implements Disposable {
     const ownerId = this.getOwner(context.sessionId)
     if (ownerId !== context.ownerId) throw new BrowserSessionError('not_allowed')
     const target = this.targets.get(context.sessionId)
-    if (!target || target.guest.isDestroyed() || target.abort.signal.aborted) return undefined
+    if (!target || target.guest.isDestroyed() || target.guest.isCrashed() || target.abort.signal.aborted)
+      return undefined
     target.ownerId = ownerId
     return target
   }

@@ -1,9 +1,11 @@
 import type { WebviewTag } from 'electron'
+import { RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { BrowserChrome } from '@renderer/components/BrowserChrome'
 import { BrowserOverlays } from '@renderer/components/BrowserOverlays'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
@@ -65,7 +67,17 @@ export function SessionBrowserView({
     setWebviewRevision((revision) => revision + 1)
   }, [resource?.guest])
   const activeProfile = resource?.securityProfile ?? securityProfile
-  const isReady = resource?.ready ?? false
+  const isReady = (resource?.ready ?? false) && !resource?.recoveryReason
+  const recovery = resource?.recoveryReason
+    ? {
+        message: t(
+          resource.recoveryReason === 'render-process-gone'
+            ? 'webview.browser.process_gone'
+            : 'webview.browser.unresponsive'
+        ),
+        onRecover: () => void browserRuntime.recover(sessionId)
+      }
+    : undefined
 
   return (
     <BrowserChrome
@@ -76,10 +88,28 @@ export function SessionBrowserView({
       historyEnabled={activeProfile === WebviewSecurityProfile.AgentBrowser}
       onNavigate={onNavigate}
       isWebviewReady={isReady}
+      canReload={isReady || !!resource?.recoveryReason}
+      onReload={recovery?.onRecover}
       isHostActive={isHostActive}
       target={target}
       onAnnotationSaved={onAnnotationSaved}
-      toolbarActions={toolbarActions}
+      toolbarActions={
+        <>
+          <Tooltip content={t('webview.browser.reset_page')} placement="bottom">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="rounded text-muted-foreground shadow-none active:scale-95 hover:text-foreground disabled:cursor-default disabled:active:scale-100 disabled:hover:bg-transparent"
+              aria-label={t('webview.browser.reset_page')}
+              disabled={!resource?.guest}
+              onClick={() => void browserRuntime.recover(sessionId)}>
+              <RotateCcw size={14} />
+            </Button>
+          </Tooltip>
+          {toolbarActions}
+        </>
+      }
       banner={activeProfile === WebviewSecurityProfile.AgentBrowser && <WebviewImportBanner />}>
       <div ref={setAnchor} className="h-full w-full" />
       {resource?.overlays &&
@@ -89,6 +119,7 @@ export function SessionBrowserView({
             targetId={target.id}
             isReady={isReady}
             isLoading={resource.loading}
+            recovery={recovery}
             errorMessage={
               resource.failed
                 ? t(

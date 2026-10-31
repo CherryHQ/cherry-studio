@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
+import en from '@renderer/i18n/locales/en-us.json'
 import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
 
 import { AgentBrowserView } from '../AgentBrowserView'
@@ -96,6 +97,66 @@ describe('AgentBrowserView', () => {
     })
   })
 
+  it('resolves the reset label in English', () => {
+    expect(en['webview.browser.reset_page']).toBe('Reset page')
+  })
+
+  it('resets a healthy guest and disables the control during the replacement gap', async () => {
+    let nextId = 40
+    const ids = new WeakMap<HTMLElement, number>()
+    const methods = {
+      getWebContentsId: function (this: HTMLElement) {
+        if (!ids.has(this)) ids.set(this, ++nextId)
+        return ids.get(this)
+      },
+      getTitle: () => 'Page',
+      getURL: () => 'https://example.com/committed',
+      isLoading: () => false,
+      canGoBack: () => false,
+      canGoForward: () => false,
+      stopFindInPage: () => {}
+    }
+    Object.assign(HTMLElement.prototype, methods)
+    browserRuntime.declare('session-a', 'tab-a')
+    try {
+      const view = render(
+        <AgentBrowserView
+          sessionId="session-a"
+          initialUrl="https://example.com/"
+          securityProfile="agent-browser"
+          onNavigate={vi.fn()}
+          target={{ id: 'agent-browser:session-a', label: 'Browser' }}
+          isHostActive
+        />
+      )
+      const reset = screen.getByRole('button', { name: 'webview.browser.reset_page' })
+      expect(reset).toBeDisabled()
+      view.rerender(
+        <>
+          <AgentBrowserView
+            sessionId="session-a"
+            initialUrl="https://example.com/"
+            securityProfile="agent-browser"
+            onNavigate={vi.fn()}
+            target={{ id: 'agent-browser:session-a', label: 'Browser' }}
+            isHostActive
+          />
+          <AgentBrowserRuntimeHost />
+        </>
+      )
+      await waitFor(() => expect(bridge.binding).toBe(41))
+      const old = screen.getByTestId('webview-browser-guest')
+      expect(reset).toBeEnabled()
+      fireEvent.click(reset)
+      expect(screen.getByTestId('webview-browser-guest')).not.toBe(old)
+      expect(browserRuntime.get('session-a')?.guestRevision).toBe(1)
+      await waitFor(() => expect(bridge.binding).toBe(42))
+    } finally {
+      cleanup()
+      for (const key of Object.keys(methods)) Reflect.deleteProperty(HTMLElement.prototype, key)
+    }
+  })
+
   it('keeps the bound guest and its page when the real Agent view hides, and releases it with its owner', async () => {
     let nativeTitle = 'Example page'
     const guestMethods = {
@@ -154,6 +215,20 @@ describe('AgentBrowserView', () => {
       const alert = screen.getByRole('alert')
       expect(alert).toHaveTextContent('webview.browser.load_failed')
       expect(browserRuntime.get('session-a')?.overlays).toContainElement(alert)
+
+      await act(() => guest.dispatchEvent(new Event('render-process-gone')))
+      expect(screen.getByRole('alert')).toHaveTextContent('webview.browser.process_gone')
+      expect(screen.getByRole('alert')).toHaveClass('pointer-events-auto')
+      view.rerender(harness(false))
+      act(() => browserRuntime.ensure('session-a'))
+      view.rerender(harness(true))
+      expect(screen.getByTestId('webview-browser-guest')).toBe(guest)
+      expect(browserRuntime.get('session-a')?.recoveryReason).toBe('render-process-gone')
+      act(() => {
+        screen.getByRole('alert').querySelector('button')!.click()
+      })
+      expect(screen.getByTestId('webview-browser-guest')).not.toBe(guest)
+      expect(browserRuntime.get('session-a')?.guestRevision).toBe(1)
 
       bridge.tabs = []
       view.rerender(harness(true))
