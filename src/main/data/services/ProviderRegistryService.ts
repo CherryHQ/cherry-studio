@@ -697,6 +697,37 @@ export function projectRuntimeReasoning(
 }
 
 /**
+ * A Chat/Responses endpoint without its own override that shares the registry
+ * baseUrl of the user-overridden sibling follows that override, so it never
+ * falls back to the vendor host the user replaced. Ambiguous overrides are ignored.
+ */
+const OPENAI_HOST_SIBLINGS: readonly EndpointType[] = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES
+]
+
+function inheritSharedHostOverride(
+  ep: EndpointType,
+  presetConfigs: Partial<Record<EndpointType, EndpointConfig>> | null,
+  rowConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null | undefined
+): string | undefined {
+  const presetUrl = presetConfigs?.[ep]?.baseUrl
+  if (!presetUrl || !rowConfigs || !OPENAI_HOST_SIBLINGS.includes(ep)) return undefined
+  const overrides = new Set<string>()
+  for (const [other, row] of Object.entries(rowConfigs)) {
+    if (
+      other !== ep &&
+      OPENAI_HOST_SIBLINGS.includes(other as EndpointType) &&
+      row?.baseUrl &&
+      presetConfigs?.[other as EndpointType]?.baseUrl === presetUrl
+    ) {
+      overrides.add(row.baseUrl)
+    }
+  }
+  return overrides.size === 1 ? [...overrides][0] : undefined
+}
+
+/**
  * Bridges the read-only provider registry (JSON) with SQLite user data.
  *
  * This service handles operations that require merging preset model/provider
@@ -853,7 +884,8 @@ class ProviderRegistryService {
         const config: EndpointConfig = {
           adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
         }
-        const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
+        const baseUrl =
+          rowConfig?.baseUrl ?? inheritSharedHostOverride(ep, presetConfigs, rowConfigs) ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
         if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
         // Dialect merges per key: the row states only the deviations the user found.

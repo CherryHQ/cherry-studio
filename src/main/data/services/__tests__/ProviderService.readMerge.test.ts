@@ -133,6 +133,25 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     }
   )
 
+  it('keeps a Responses endpoint on the user host when only the shared-host Chat URL was overridden', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        presetProviderId: 'cherryin',
+        name: 'CherryIN',
+        orderKey: 'a0',
+        defaultChatEndpoint: null,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://user-proxy.example/v1' } }
+      })
+      .run()
+
+    const configs = providerService.getByProviderId('cherryin').endpointConfigs
+    expect(configs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://user-proxy.example/v1')
+    expect(configs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://user-proxy.example/v1')
+    expect(configs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]?.baseUrl).toBe('https://open.cherryin.net')
+  })
+
   it.each([
     {
       scenario: 'the default connection',
