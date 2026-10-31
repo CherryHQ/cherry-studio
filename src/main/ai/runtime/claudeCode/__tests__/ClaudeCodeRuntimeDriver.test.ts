@@ -4126,7 +4126,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     }
 
-    async function connectWithSnapshot() {
+    async function connectWithSnapshot(baselinePermissionMode: string | null = null) {
       const queryQueue = createAsyncQueue<any>()
       const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
       const toolPolicySnapshot = {
@@ -4136,7 +4136,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
       mocks.createClaudeQuery.mockReturnValue(query)
       mocks.buildRequest.mockResolvedValue({
-        connectionConfig: makeConfig({}).config,
+        connectionConfig: makeConfig({ permissionMode: baselinePermissionMode }).config,
         key: 'warm-key',
         options: { model: 'sonnet' },
         settings: { toolPolicySnapshot },
@@ -4254,6 +4254,152 @@ describe('ClaudeCodeRuntimeDriver', () => {
       mocks.deriveConfig.mockResolvedValue({ ok: false, reason: 'unroutable' })
 
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('invalid')
+    })
+
+    it('rebuilds instead of invalidating when the model was disabled on a warm connection', async () => {
+      const { connection } = await connectWithSnapshot()
+
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      // 'invalid' closes the session silently; 'rebuild' reconnects through the cold build, whose
+      // availability check reports the configuration error to the turn.
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+    })
+
+    it('still applies newly disabled tools to the retained connection when the model is unavailable', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      const agent = { id: 'agent-1', disabledTools: ['Bash'], configuration: { permission_mode: 'acceptEdits' } }
+      mocks.getAgent.mockReturnValue(agent)
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      // The tightened restriction reaches the local gate; the permission mode stays at the
+      // connection's baseline (null here) because the rebuild applies mode changes.
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+      expect(toolPolicySnapshot.update).toHaveBeenCalledWith({
+        ...agent,
+        configuration: { permission_mode: undefined }
+      })
+    })
+
+    it('keeps the baseline permission mode when the model is unavailable and the mode changed too', async () => {
+      const { connection, toolPolicySnapshot, query } = await connectWithSnapshot('default')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        disabledTools: ['Bash'],
+        configuration: { permission_mode: 'bypassPermissions' }
+      })
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      // The looser mode is not adopted by the retained connection; only the tightened tool list is.
+      expect(toolPolicySnapshot.update).toHaveBeenCalledWith({
+        id: 'agent-1',
+        disabledTools: ['Bash'],
+        configuration: { permission_mode: 'default' }
+      })
+      expect(query.setPermissionMode).not.toHaveBeenCalled()
+    })
+
+    it('re-applies a disabled tool after the model recovers from an unavailable window', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      const unavailable = {
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      }
+
+      // Bash disabled while the route is healthy: applied live.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'], configuration: {} })
+      mocks.deriveConfig.mockResolvedValueOnce(makeConfig({ disabledTools: ['Bash'] }))
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+
+      // Provider disabled and Bash re-enabled: the fallback must refresh the cached facts too.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: [], configuration: {} })
+      mocks.deriveConfig.mockResolvedValueOnce(unavailable)
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      // Provider restored and Bash disabled again: the restriction must reach the snapshot.
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'], configuration: {} })
+      mocks.deriveConfig.mockResolvedValueOnce(makeConfig({ disabledTools: ['Bash'] }))
+      toolPolicySnapshot.update.mockClear()
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+      expect(toolPolicySnapshot.update).toHaveBeenCalledWith(expect.objectContaining({ disabledTools: ['Bash'] }))
+    })
+
+    it('does not advance the cached tool-policy facts when the fallback snapshot write fails', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'], configuration: {} })
+      toolPolicySnapshot.update.mockRejectedValueOnce(new Error('snapshot write failed'))
+      mocks.deriveConfig.mockResolvedValueOnce({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('failed')
+
+      // The cache still holds the pre-failure facts, so the healthy re-derive sees the difference
+      // and applies it instead of treating the unapplied restriction as already in force.
+      mocks.deriveConfig.mockResolvedValueOnce(makeConfig({ disabledTools: ['Bash'] }))
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(2)
+    })
+
+    it('records applied MCP and disabled-tool facts together after the fallback update', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        disabledTools: ['Bash', 'Read'],
+        mcps: ['mcp-b', 'mcp-a'],
+        configuration: {}
+      })
+      mocks.deriveConfig.mockResolvedValueOnce({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+
+      // The same facts re-derived on a healthy route are already enforced: no second update.
+      mocks.deriveConfig.mockResolvedValueOnce({
+        ok: true as const,
+        config: {
+          rebuildSignature: 'sig-1',
+          rebuildFactFingerprints: { modelId: 'model-hash-1', skills: 'skills-hash-1' },
+          live: { toolPolicy: { permissionMode: null, disabledTools: ['Bash', 'Read'], mcps: ['mcp-a', 'mcp-b'] } }
+        }
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('current')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledTimes(1)
+    })
+
+    it('fails closed when the tool policy cannot be applied while the model is unavailable', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: {} })
+      toolPolicySnapshot.update.mockRejectedValueOnce(new Error('snapshot write failed'))
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('failed')
     })
 
     it('serializes concurrent reconciles instead of interleaving them', async () => {

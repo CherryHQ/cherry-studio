@@ -97,4 +97,46 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
 
     expect(AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible(provider, model)).toBe(false)
   })
+
+  describe('claude-code gateway availability (#20285)', () => {
+    const isCompatible = AGENT_RUNTIME_CAPABILITIES['claude-code'].isModelCompatible
+
+    it('keeps an enabled routable model selectable', () => {
+      expect(isCompatible(makeProvider({ isEnabled: true }), makeModel({ isEnabled: true }))).toBe(true)
+    })
+
+    it('hides models of a disabled provider instead of leaving them selectable-but-unroutable', () => {
+      expect(isCompatible(makeProvider({ isEnabled: false }), makeModel({ isEnabled: true }))).toBe(false)
+    })
+
+    it('hides disabled models', () => {
+      expect(isCompatible(makeProvider({ isEnabled: true }), makeModel({ isEnabled: false }))).toBe(false)
+    })
+
+    it('stays fail-open for orphan models without a provider row', () => {
+      expect(isCompatible(undefined, makeModel({ isEnabled: true }))).toBe(true)
+    })
+  })
+
+  describe('pi gateway availability (#20285)', () => {
+    const piCompatible = AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible
+
+    it('keeps enabled models selectable', () => {
+      const provider = makeProvider({ isEnabled: true })
+      const model = makeModel({ isEnabled: true })
+      expect(piCompatible(provider, model)).toBe(true)
+    })
+
+    it('hides models of a disabled provider', () => {
+      const provider = makeProvider({ isEnabled: false })
+      const model = makeModel({ isEnabled: true })
+      expect(piCompatible(provider, model)).toBe(false)
+    })
+
+    it('hides disabled models', () => {
+      const provider = makeProvider({ isEnabled: true })
+      const model = makeModel({ isEnabled: false })
+      expect(piCompatible(provider, model)).toBe(false)
+    })
+  })
 })
