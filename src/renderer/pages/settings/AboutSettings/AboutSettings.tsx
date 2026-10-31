@@ -1,6 +1,6 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,8 +26,7 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn,
-  SettingTitle
+  SettingsContentColumn
 } from '@renderer/components/SettingsPrimitives'
 import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
@@ -108,15 +107,6 @@ const AboutSettings: FC = () => {
 
   const onOpenWebsite = (url: string) => {
     void openExternalWebsite(url)
-  }
-
-  const mailto = async () => {
-    const email = 'support@cherry-ai.com'
-    const subject = 'Cherry Studio Feedback'
-    const version = (await ipcApi.request('app.get_info')).version
-    const platform = window.electron.process.platform
-    const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
-    onOpenWebsite(url)
   }
 
   const debug = async () => {
@@ -209,19 +199,6 @@ const AboutSettings: FC = () => {
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle className="gap-2">
-          <span className="text-[15px] font-semibold">{t('settings.about.title')}</span>
-          <button
-            type="button"
-            aria-label={t('settings.about.repository')}
-            onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
-            className="inline-flex items-center justify-center rounded-md p-1 text-foreground transition-colors hover:bg-muted">
-            <Github aria-hidden="true" className="size-5" />
-          </button>
-        </SettingTitle>
-
-        <Divider className="my-1.5" />
-
         <div className="flex flex-wrap items-center justify-between gap-3 py-1">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
@@ -360,6 +337,14 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
+          icon={<Github className="size-4.5" />}
+          title={t('settings.about.repository.title')}
+          hint={t('settings.about.repository.hint')}
+          actionLabel={t('settings.about.repository.button')}
+          onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
           icon={<MessageSquareText className="size-4.5" />}
           title={t('settings.about.feedback.title')}
           actionLabel={t('settings.about.feedback.button')}
@@ -371,13 +356,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.enterprise.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={showEnterprise}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Mail className="size-4.5" />}
-          title={t('settings.about.contact.title')}
-          actionLabel={t('settings.about.contact.button')}
-          onAction={mailto}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -401,12 +379,14 @@ const AboutSettings: FC = () => {
 }
 
 function AboutActionRow({
+  hint,
   actionLabel,
   icon,
   id,
   onAction,
   title
 }: {
+  hint?: string
   actionLabel: string
   icon: ReactNode
   id?: string
@@ -418,6 +398,7 @@ function AboutActionRow({
       <SettingRowTitle className="gap-2.5">
         {icon}
         {title}
+        {hint && <span className="text-foreground-tertiary text-xs">{hint}</span>}
       </SettingRowTitle>
       <Button size="sm" onClick={() => void onAction()} variant="outline">
         {actionLabel}
