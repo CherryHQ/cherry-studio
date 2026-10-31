@@ -8,9 +8,11 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { ApiKeyWithStatus, ModelWithStatus } from '../../types/healthCheck'
 import { HealthStatus } from '../../types/healthCheck'
 import {
+  aggregateApiKeyResults,
   checkModelWithMultipleKeys,
   getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
+  healthCheckErrorToDisplayString,
   resolveModelCheckCredentials,
   summarizeHealthResults
 } from '../../utils/healthCheck'
@@ -37,6 +39,35 @@ const entries: ApiKeyEntry[] = [
   { id: 'key-2', key: 'sk-disabled', label: 'Disabled', isEnabled: false },
   { id: 'key-3', key: 'sk-backup', label: 'Backup', isEnabled: true }
 ]
+
+describe('healthCheckErrorToDisplayString', () => {
+  it('uses the localized unknown error for an opaque serialized throw', async () => {
+    await i18n.changeLanguage('zh-CN')
+    try {
+      const error = { name: null, message: null, stack: null, i18nKey: 'unknown' }
+      expect(healthCheckErrorToDisplayString(error)).toBe('未知错误')
+
+      const result = aggregateApiKeyResults([
+        {
+          kind: 'failed',
+          credential: { kind: 'api-key', entry: entries[0] },
+          status: HealthStatus.FAILED,
+          checking: false,
+          error
+        }
+      ])
+      expect(result.error?.message).toBe('未知错误')
+    } finally {
+      await i18n.changeLanguage('en-US')
+    }
+  })
+
+  it('keeps provider detail ahead of the generic fallback', () => {
+    expect(
+      healthCheckErrorToDisplayString({ name: null, message: 'Provider unavailable', stack: null, i18nKey: 'unknown' })
+    ).toBe('Provider unavailable')
+  })
+})
 
 function createModel(id: string, capabilities: Model['capabilities']): Model {
   return {
