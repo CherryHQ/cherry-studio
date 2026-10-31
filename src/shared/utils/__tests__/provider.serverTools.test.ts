@@ -138,6 +138,54 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
+  it('honors a user-enabled web-search capability on unrecognized models and hosts', () => {
+    const custom = model('private-model', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+
+    expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(true)
+    expect(isBuiltinWebFetchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
+  it('waives only model eligibility for a user-enabled capability, never the native search path', () => {
+    const custom = model('private-model', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+    const declaring = {
+      id: 'custom',
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' }]
+    } as Provider
+
+    // No declaration = no factory to serve a 'server' route, so the override stays off.
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom' } as Provider)).toBe(false)
+    // A declaration for another endpoint is not a deliverable path on this one.
+    expect(
+      isBuiltinWebSearchAvailable(
+        custom,
+        {
+          id: 'custom',
+          serverTools: [
+            { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+          ]
+        } as Provider,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, declaring)).toBe(true)
+  })
+
+  it('keeps the configured client search route when a capability toggle has no native path', () => {
+    const custom = model('private-model', {
+      capabilities: [MODEL_CAPABILITY.WEB_SEARCH, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+
+    expect(
+      resolveWebToolRoutes(custom, { id: 'custom', serverTools: [] } as Provider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: true,
+        modelToolsPreferred: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'client' })
+  })
+
   it('does not bypass endpoint restrictions for all-chat tools', () => {
     const host = {
       id: 'custom',
