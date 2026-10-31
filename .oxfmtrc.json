@@ -6,6 +6,7 @@
   "endOfLine": "lf",
   "ignorePatterns": [
     "**/*.md",
+    "website-docs/**",
     ".claude/**",
     ".conductor/**",
     ".yarn/**",
