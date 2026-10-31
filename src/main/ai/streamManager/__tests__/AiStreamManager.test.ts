@@ -744,6 +744,56 @@ describe('AiStreamManager', () => {
     expect(sent).toEqual(['Found it: 42'])
   })
 
+  // A desktop tool continuation can consume a channel-launched task's completion inside its own
+  // stream, which excludes the channel listener. The task's own report must still reach the chat
+  // its fire stashed, or the requesting chat receives only the fire's acknowledgment.
+  it('delivers a consumed task’s own report to the stashed recipients', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('working on it'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    await vi.waitFor(() => expect(sent).toEqual(['working on it']))
+    // The fire settles owing two tasks a delivery, then a desktop follow-up drops the recipients.
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-server']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // The desktop continuation consumed task-a's completion: only task-a's own report ships.
+    mgr.deliverStashedWakeTaskResult(topicId, 'task-a', 'task-a private result')
+    await vi.waitFor(() => expect(sent).toEqual(['working on it', 'task-a private result']))
+
+    // That obligation is paid; the co-spawned task's debt still holds the stash.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-server']))).toBe(false)
+    // Replaying the same completion delivers nothing twice.
+    mgr.deliverStashedWakeTaskResult(topicId, 'task-a', 'task-a private result')
+    await Promise.resolve()
+    expect(sent).toEqual(['working on it', 'task-a private result'])
+  })
+
   // A replacement turn starting while the previous turn's terminal dispatch awaits persistence
   // must not inherit that fire's `agent-task:` sentinel: the fire's completion callbacks would
   // then settle the scheduled fire with the wake's result (a wake error rejecting a successful

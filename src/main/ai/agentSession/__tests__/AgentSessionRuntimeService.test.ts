@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   noteTurnSettled: vi.fn(),
   clearPendingChannelListeners: vi.fn(),
   retireStashedWakeTaskIds: vi.fn(),
+  deliverStashedWakeTaskResult: vi.fn(),
   // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
   stashedWakeRecipientsDischarged: vi.fn(() => true),
   renewClaimedWakeRecipients: vi.fn(),
@@ -580,7 +581,8 @@ describe('AgentSessionRuntimeService', () => {
           clearPendingChannelListeners: mocks.clearPendingChannelListeners,
           stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
           renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients,
-          retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds
+          retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds,
+          deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult
         }
       }
       if (name === 'CacheService')
@@ -1183,9 +1185,10 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     // A foreground tool continuation consumes the completion even with other work live — the
-    // streaming turn is blocked on a tool whose output this very completion feeds — so the debt is
-    // retired AND the stashed recipient obligation it owed is reconciled in the same step.
-    it('retires the debt and its stash when a live tool continuation consumed the completion', () => {
+    // streaming turn is blocked on a tool whose output this very completion feeds. That stream
+    // excludes the channel listener, so the task's own report goes to the stashed recipients
+    // before the obligation is retired; otherwise the requesting chat sees only its acknowledgment.
+    it('delivers a consumed completion to the stash and retires the debt', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
       const entry = getEntry(service)
@@ -1199,15 +1202,22 @@ describe('AgentSessionRuntimeService', () => {
       const turn = (service as any).currentTurn(entry)
       turn.activeToolIds.add('tool-call-1')
       mocks.retireStashedWakeTaskIds.mockClear()
+      mocks.deliverStashedWakeTaskResult.mockClear()
 
       ;(service as any).publishBackgroundTaskEvent(entry, {
         taskId: 'task-channel',
         event: 'notification',
-        status: 'completed'
+        status: 'completed',
+        summary: 'PRIVATE desktop task result'
       } as any)
       const completed = (service as any).completedBackgroundTasks.get('session-1') as Map<string, boolean> | undefined
       expect(completed?.has('task-channel')).toBe(false)
-      expect(mocks.retireStashedWakeTaskIds).toHaveBeenCalledWith('agent-session:session-1', new Set(['task-channel']))
+      expect(mocks.deliverStashedWakeTaskResult).toHaveBeenCalledWith(
+        'agent-session:session-1',
+        'task-channel',
+        'PRIVATE desktop task result'
+      )
+      expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
       void service.closeSession('session-1')
     })
 

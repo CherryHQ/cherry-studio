@@ -347,6 +347,8 @@ export class AiStreamManager extends BaseService {
   private readonly config: AiStreamManagerConfig
   private nextStreamTurnSequence = 0
   private nextExecutionAttemptSequence = 0
+  /** Synthetic terminal ids for stashed task reports; negative, so no execution's id can match. */
+  private nextChannelReportAttemptId = -1
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<
@@ -1026,6 +1028,38 @@ export class AiStreamManager extends BaseService {
     for (const id of taskIds) debts.delete(id)
     if (debts.size === 0) this.pendingChannelListeners.delete(topicId)
     else this.pendingChannelListeners.set(topicId, { listeners: pending.listeners, owesTaskIds: debts })
+  }
+
+  /**
+   * Deliver a consumed task's own result to the recipients its fire stashed, then retire the debt.
+   * A desktop tool continuation consumes the completion inside a stream that excludes channel
+   * listeners, so without a task-specific report the requesting chat sees only its acknowledgment.
+   * The report goes through the listeners' normal terminal, never the desktop turn's output.
+   */
+  deliverStashedWakeTaskResult(topicId: string, taskId: string, report: string): void {
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (pending?.owesTaskIds.has(taskId) && report.trim()) {
+      // A negative id can never collide with an execution's, so every listener ships this report
+      // as its own terminal instead of deduplicating it against the reply it already delivered.
+      const attemptId = --this.nextChannelReportAttemptId
+      for (const listener of pending.listeners) {
+        try {
+          listener.prepareTerminal?.(attemptId)
+          listener.onChunk(
+            { type: 'text-delta', id: `background-task-result:${taskId}`, delta: report },
+            undefined,
+            undefined,
+            attemptId
+          )
+          void Promise.resolve(listener.onDone({ status: 'success', attemptId })).catch((error) => {
+            logger.warn('Failed to deliver a consumed background task result', { topicId, taskId, error })
+          })
+        } catch (error) {
+          logger.warn('Failed to deliver a consumed background task result', { topicId, taskId, error })
+        }
+      }
+    }
+    this.retireStashedWakeTaskIds(topicId, new Set([taskId]))
   }
 
   /**

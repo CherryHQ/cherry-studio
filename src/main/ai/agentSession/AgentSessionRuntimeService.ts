@@ -2932,11 +2932,15 @@ export class AgentSessionRuntimeService extends BaseService {
         // may already have moved the authority into the completion ledger when the driver drained
         // the task earlier, so the parked copy is retired here too: leaving either record
         // outstanding would hold `releaseDrainedTopicStream` open forever after the foreground
-        // settles and the background drains. Debts parked under other obligations (a notification
-        // recorded before their own turn ended) are unaffected — each task retires only its own id.
+        // settles and the background drains. That stream excludes the channel listener, so the
+        // task's own report is handed to the stashed recipients before the obligation goes: the
+        // requesting chat would otherwise see only its acknowledgment.
         authorities?.delete(data.taskId)
         this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
-        application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
+        const report = (data.summary ?? data.error ?? '').trim()
+        const streamManager = application.get('AiStreamManager')
+        if (report) streamManager.deliverStashedWakeTaskResult(entry.topicId, data.taskId, report)
+        else streamManager.retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
       } else if (authorities && authority !== undefined) {
         // A settled turn queued the result for the next generation: its receive-only wake pays
         // the stashed recipients, so the debt rides in `completedBackgroundTasks` until then.

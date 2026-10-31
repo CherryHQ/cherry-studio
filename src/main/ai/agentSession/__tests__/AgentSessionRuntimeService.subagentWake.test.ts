@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   clearPendingChannelListeners: vi.fn(),
   stashedWakeRecipientsDischarged: vi.fn(),
   retireStashedWakeTaskIds: vi.fn(),
+  deliverStashedWakeTaskResult: vi.fn(),
   renewClaimedWakeRecipients: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
@@ -130,6 +131,7 @@ beforeEach(() => {
         clearPendingChannelListeners: mocks.clearPendingChannelListeners,
         stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
         retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds,
+        deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult,
         renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients
       }
     }
