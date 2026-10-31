@@ -2249,6 +2249,45 @@ describe('listModels — DotHoosh live catalog', () => {
     expect(Object.keys(openaiCall.headers ?? {}).filter((key) => key !== 'authorization')).toEqual([])
   })
 
+  it('sends no provider headers when the keyless OpenAI base has a trailing-dot mirror host', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(tenantProvider('https://www.dothoosh.com./gateway', 'https://gateway.dothoosh.com/anthropic'))
+
+    const openaiCall = aiSdkGetFromApiMock.mock.calls.find(([arg]) => !arg.url.includes('/anthropic/'))![0]
+    expect(openaiCall.url).toBe('https://www.dothoosh.com./gateway/v1/models')
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(Object.keys(arg.headers ?? {})).toEqual([])
+    }
+  })
+
+  it('sends no provider headers when the keyless OpenAI base is the apex host that redirects to the mirror', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(tenantProvider('https://dothoosh.com/gateway', 'https://gateway.dothoosh.com/anthropic'))
+
+    const openaiCall = aiSdkGetFromApiMock.mock.calls.find(([arg]) => !arg.url.includes('/anthropic/'))![0]
+    expect(openaiCall.url).toBe('https://dothoosh.com/gateway/v1/models')
+    for (const [arg] of aiSdkGetFromApiMock.mock.calls) {
+      expect(Object.keys(arg.headers ?? {})).toEqual([])
+    }
+  })
+
+  it('keeps provider headers on a keyless base under a different registrable domain', async () => {
+    getRotatedApiKeyMock.mockReturnValue('')
+    answerByUrl()
+
+    await listModels(
+      tenantProvider('https://relay.dothoosh.example/gateway', 'https://relay.dothoosh.example/anthropic')
+    )
+
+    const openaiCall = aiSdkGetFromApiMock.mock.calls.find(([arg]) => !arg.url.includes('/anthropic/'))![0]
+    expect(openaiCall.url).toBe('https://relay.dothoosh.example/gateway/v1/models')
+    expect(openaiCall.headers).toMatchObject({ 'x-tenant': 'acme' })
+  })
+
   it('keeps provider headers on a keyless custom relay for both routes', async () => {
     getRotatedApiKeyMock.mockReturnValue('')
     answerByUrl()
