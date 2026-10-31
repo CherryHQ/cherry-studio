@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,7 +68,8 @@ const childProcessMock = vi.hoisted(() => ({
   exec: vi.fn(),
   execFile: vi.fn(),
   execAsync: vi.fn().mockResolvedValue({ stdout: '' }),
-  execFileAsync: vi.fn().mockResolvedValue({ stdout: '' })
+  execFileAsync: vi.fn().mockResolvedValue({ stdout: '' }),
+  probeResult: vi.fn().mockResolvedValue({ stdout: '', stderr: '' })
 }))
 
 vi.mock('@logger', () => ({
@@ -106,12 +108,29 @@ vi.mock('@main/services/RegionService', () => ({
 vi.mock('child_process', () => ({
   // run() awaits the child's spawn/error race before reporting success, so the
   // fake child must emit 'spawn' to its listener.
-  spawn: vi.fn(() => ({
-    once: (event: string, cb: () => void) => {
-      if (event === 'spawn') cb()
-    },
-    on: () => {}
-  })),
+  spawn: vi.fn((_command, args) => {
+    if (args?.[0] === '--version') {
+      const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter() })
+      void childProcessMock.probeResult().then(
+        ({ stdout, stderr }) => {
+          child.stdout.emit('data', Buffer.from(stdout))
+          child.stderr.emit('data', Buffer.from(stderr))
+          child.emit('close', 0, null)
+        },
+        (error) => {
+          child.stderr.emit('data', Buffer.from(error.stderr ?? ''))
+          child.emit('close', error.code ?? 1, error.signal ?? null)
+        }
+      )
+      return child
+    }
+    return {
+      once: (event: string, cb: () => void) => {
+        if (event === 'spawn') cb()
+      },
+      on: () => {}
+    }
+  }),
   exec: childProcessMock.exec,
   execFile: childProcessMock.execFile
 }))
@@ -179,6 +198,7 @@ describe('CodeCliService', () => {
     hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
+    childProcessMock.probeResult.mockResolvedValue({ stdout: '', stderr: '' })
     antigravityLaunchMock.mockResolvedValue({
       env: {
         GEMINI_API_KEY: 'antigravity-secret',
@@ -1063,7 +1083,7 @@ describe('CodeCliService', () => {
         claude: { name: 'claude', availability: { source: 'system', path: 'C:\\Tools\\claude.exe' } }
       })
       // Bun-standalone crash: non-zero exit carrying a segfault marker, no signal on Windows.
-      childProcessMock.execFileAsync.mockRejectedValueOnce(
+      childProcessMock.probeResult.mockRejectedValueOnce(
         Object.assign(new Error('Command failed with exit code 1'), {
           code: 1,
           stderr: 'Segmentation fault (Bun 1.4.0)'
@@ -1084,8 +1104,8 @@ describe('CodeCliService', () => {
 
         expect(result.success).toBe(false)
         if (result.success) throw new Error('Expected a crashing system Claude binary to fail')
-        expect(childProcessMock.execFileAsync).toHaveBeenCalledTimes(1)
-        expect(childProcessMock.execFileAsync).toHaveBeenCalledWith(
+        expect(vi.mocked(spawn)).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(spawn)).toHaveBeenCalledWith(
           'C:\\Tools\\claude.exe',
           ['--version'],
           // The probe must see the same login-shell env the terminal launch gets,
@@ -1093,7 +1113,7 @@ describe('CodeCliService', () => {
           // It must also run in the launch directory, or a project-scoped shim
           // can fail the check while the terminal launch would succeed.
           expect.objectContaining({
-            timeout: expect.any(Number),
+            stdio: ['ignore', 'pipe', 'pipe'],
             env: { PATH: '/usr/local/bin:/usr/bin' },
             cwd: 'C:\\Users\\me\\proj'
           })
@@ -1101,7 +1121,7 @@ describe('CodeCliService', () => {
         expect(result.message).toContain('C:\\Tools\\claude.exe')
         expect(result.message).toContain('crashed during startup')
         expect(result.message).toContain('managed Claude binary')
-        expect(vi.mocked(spawn)).not.toHaveBeenCalled()
+        expect(vi.mocked(spawn).mock.calls.every((call) => call[1]?.[0] === '--version')).toBe(true)
         expect(vi.mocked(fs.writeFileSync)).not.toHaveBeenCalled()
       } finally {
         vi.useRealTimers()
