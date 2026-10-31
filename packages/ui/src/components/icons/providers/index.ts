@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Total icons: 167
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -90,6 +90,7 @@ export { LeptonIcon as Lepton } from './lepton'
 export { LingxiIcon as Lingxi } from './lingxi'
 export { LiquidIcon as Liquid } from './liquid'
 export { LitellmIcon as Litellm } from './litellm/litellm'
+export { LlmmanIcon as Llmman } from './llmman/llmman'
 export { LmstudioIcon as Lmstudio } from './lmstudio'
 export { LongcatIcon as Longcat } from './longcat'
 export { MacosIcon as Macos } from './macos'
