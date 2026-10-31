@@ -194,6 +194,20 @@ describe('McpSettings', () => {
     }
     const logs: McpServerLogEntry[] = [
       { timestamp: 1700000000000, level: 'info', message: 'Server started' },
+      {
+        eventId: 'call-a:start',
+        timestamp: 1700000000000,
+        level: 'info',
+        message: 'Tool call started',
+        data: { callId: 'call-a' }
+      },
+      {
+        eventId: 'call-b:start',
+        timestamp: 1700000000000,
+        level: 'info',
+        message: 'Tool call started',
+        data: { callId: 'call-b' }
+      },
       { timestamp: 1700000001000, level: 'error', message: 'Connection failed', data: { detail: 'timeout' } }
     ]
     const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
@@ -225,8 +239,10 @@ describe('McpSettings', () => {
     const logListener = mocks.on.mock.calls.find(([event]) => event === 'mcp.server.log')?.[1]
     act(() => {
       logListener?.(liveLog)
+      logListener?.({ ...logs[1], serverId: currentServer.id })
     })
     expect(screen.getByText('Live log')).toBeInTheDocument()
+    expect(screen.getAllByText('Tool call started')).toHaveLength(2)
 
     // `.selectable` is the maintained contract that opts the log list out of the
     // global `user-select: none` (src/renderer/assets/styles/index.css).

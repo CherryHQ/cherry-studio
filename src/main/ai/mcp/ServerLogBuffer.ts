@@ -1,10 +1,4 @@
-export type McpServerLogEntry = {
-  timestamp: number
-  level: 'debug' | 'info' | 'warn' | 'error' | 'stderr' | 'stdout'
-  message: string
-  data?: any
-  source?: string
-}
+import type { McpServerLogEntry } from '@shared/types/mcp'
 
 /**
  * Lightweight ring buffer for per-server MCP logs.
