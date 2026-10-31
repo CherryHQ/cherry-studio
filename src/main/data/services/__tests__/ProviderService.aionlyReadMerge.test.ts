@@ -68,4 +68,30 @@ describe('ProviderService AiOnly read-time registry merge (#21168)', () => {
     expect(config.providerId).toBe('newapi')
     expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://api.aiionly.com/v1')
   })
+
+  it('refreshes stale rows and routes Gemini models through google-generate-content (#21249)', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'aionly',
+      presetProviderId: 'aionly',
+      name: 'AiOnly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.aiionly.com/v1',
+          adapterFamily: 'openai-compatible'
+        }
+      },
+      orderKey: 'a1'
+    })
+
+    const provider = providerService.getByProviderId('aionly')
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect(config.providerId).toBe('newapi')
+    expect((config.providerSettings as Record<string, unknown>).endpointType).toBe('gemini')
+    expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://api.aiionly.com/v1beta')
+  })
 })
