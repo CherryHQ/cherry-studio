@@ -243,7 +243,6 @@ export interface UseInfiniteQueryResult<TResponse> {
   loadNext: () => void
   refresh: () => Promise<unknown>
   reset: () => void
-  goToPage: (page: number) => void
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
 
@@ -298,6 +297,7 @@ function createInfiniteQueryKeyGetter(
  * @property reset - Reset to page 1
  */
 export interface UsePaginatedQueryResult<T> {
+  goToPage: (page: number) => void
   items: readonly T[]
   total: number
   page: number
