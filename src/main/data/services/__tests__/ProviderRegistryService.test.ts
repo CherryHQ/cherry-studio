@@ -14,6 +14,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -228,6 +229,32 @@ function setupMoonshotRegistryData() {
 function clearServiceCache() {
   providerRegistryService.clearCache()
 }
+
+it('keeps cached tokens free for the generated Gateway Flash offer', () => {
+  const models = JSON.parse(
+    readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+  ) as ReturnType<typeof readModelRegistry>
+  const offers = JSON.parse(
+    readFileSync(
+      new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+      'utf8'
+    )
+  ) as ReturnType<typeof readProviderModelRegistry>
+  const preset = models.models.find((model) => model.id === 'minimax-m3-1-flash')
+  const offer = offers.overrides.find(
+    (row) => row.providerId === 'gateway' && row.apiModelId === 'minimax/minimax-m3.1-flash'
+  )
+  if (!preset || !offer) throw new Error('Missing generated Gateway Flash offer')
+  const model = mergePresetModel(preset, offer, 'gateway')
+  const pricing = createAiUsagePricingSnapshot(model.pricing)
+  if (!pricing) throw new Error('Missing Gateway Flash pricing')
+  expect(
+    computeLanguageCost(
+      { inputTokens: 100_000, outputTokens: 0, inputTokenDetails: { cacheReadTokens: 100_000 } },
+      pricing
+    )?.cost
+  ).toBe(0)
+})
 
 describe('ProviderRegistryService', () => {
   const dbh = setupTestDatabase()
@@ -854,6 +881,51 @@ describe('ProviderRegistryService', () => {
       })
 
       expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
+    })
+
+    it('does not expose native Grok ratio controls for a provider without a preset', () => {
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      const providerId = 'custom-grok-relay'
+      const modelId = 'grok-imagine-image-2-0'
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId,
+          presetProviderId: null,
+          name: 'Custom Grok relay',
+          orderKey: generateOrderKeyBetween(null, null),
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://relay.example/v1' },
+            'openai-image-generation': { baseUrl: 'https://relay.example/v1' }
+          }
+        })
+        .run()
+
+      const lookup = providerRegistryService.lookupModel(providerId, modelId)
+      expect(lookup.registryOverride).toBeNull()
+      expect(lookup.presetModel?.id).toBe(modelId)
+      expect(providerRegistryService.getImageGenerationSupport(providerId, modelId)).toBeNull()
     })
 
     it('getImageGenerationSupport returns null when the model is unknown', async () => {

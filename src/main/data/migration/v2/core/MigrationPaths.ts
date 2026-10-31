@@ -6,7 +6,7 @@
  *
  * WARNING: Bypassing MigrationPaths and calling `app.getPath('userData')`
  * directly will cause data loss for v1 users who configured a custom
- * userData directory via `~/.cherrystudio/config/config.json`. On the
+ * userData directory via `{cherryHome}/config/config.json`. On the
  * first v2 launch, `app.getPath('userData')` returns the Electron default
  * — not the user's actual data directory — because `resolveUserDataLocation()`
  * has not yet migrated the legacy config into boot-config.json.
@@ -18,7 +18,7 @@ import path from 'node:path'
 import { app } from 'electron'
 
 import { loggerService } from '@logger'
-import { CHERRY_HOME } from '@main/core/paths/constants'
+import { CHERRY_HOME, DEV_PROFILE_ROOT } from '@main/core/paths/constants'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 
@@ -41,7 +41,7 @@ export interface MigrationPaths {
 
   /** Resolved v1 userData directory (accounts for legacy config.json custom path). */
   readonly userData: string
-  /** ~/.cherrystudio — cherry home directory. */
+  /** Cherry home directory (`~/.cherrystudio` by default). */
   readonly cherryHome: string
 
   // ── Derived from userData (pre-computed, consumers use directly) ──
@@ -129,7 +129,7 @@ export interface MigrationPathsResult {
  *   1. Start with the current `app.getPath('userData')` (set by
  *      `resolveUserDataLocation()` in preboot — may be the Electron
  *      default if boot-config.json had no entry).
- *   2. Read `~/.cherrystudio/config/config.json` for a legacy `appDataPath`.
+ *   2. Read `{cherryHome}/config/config.json` for a legacy `appDataPath`.
  *   3. If a valid custom path is found and differs from current:
  *      - Call `app.setPath('userData', ...)` so Chromium-level storage
  *        (IndexedDB, localStorage) initializes at the correct location
@@ -163,14 +163,16 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   let dataLocation: string | undefined
 
   const exe = getNormalizedExecutablePath()
-  const bootConfigEntry = bootConfigService.get('app.user_data_path')?.[exe]
+  const bootConfigEntry = DEV_PROFILE_ROOT ? undefined : bootConfigService.get('app.user_data_path')?.[exe]
 
   // ── Front gate P: split the boot-config short-circuit ──
   //
   // resolveUserDataLocation() (preboot) has already run: if a boot-config
   // entry existed and was VALID, it setPath'd userData to it; if it existed
   // but was INVALID, it silently fell through to the Electron default.
-  if (bootConfigEntry) {
+  if (DEV_PROFILE_ROOT) {
+    logger.info('Dev profile root active, skipping legacy userData redirects', { currentUserData })
+  } else if (bootConfigEntry) {
     if (isUsableDataDir(bootConfigEntry)) {
       // Valid → current userData already IS the target. Skip legacy probing.
       logger.info('Boot-config userData entry present and valid, skipping legacy detection', { exe })

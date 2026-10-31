@@ -1,24 +1,30 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
+import { useTabsContext } from '@renderer/hooks/tab'
+
+import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
   emojiIconProps: [] as Array<{ emoji: string; size?: number; fontSize?: number; className?: string }>,
   emitResourceListReveal: vi.fn(),
-  ipcRequest: vi.fn(() => Promise.resolve(undefined)),
+  ipcRequest: vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined),
   macTransparentState: { value: false },
-  platformState: { isMac: false },
+  platformState: { isMac: false, isWin: false },
   showSearchPopup: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest }
+  ipcApi: { request: mocks.ipcRequest },
+  useIpcOn: vi.fn()
 }))
+
+vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
@@ -55,7 +61,9 @@ vi.mock('@renderer/utils/platform', () => ({
     return mocks.platformState.isMac
   },
   isLinux: false,
-  isWin: false,
+  get isWin() {
+    return mocks.platformState.isWin
+  },
   platform: 'linux'
 }))
 
@@ -88,13 +96,9 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-vi.mock('../ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
-  return {
-    ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
-  }
-})
+vi.mock('../ShellTabBarActions', () => ({
+  ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+}))
 
 vi.mock('../../WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
@@ -103,7 +107,8 @@ vi.mock('../../WindowControls', () => ({
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({
-    t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key)
+    t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key),
+    i18n: { language: 'en' }
   })
 }))
 
@@ -183,13 +188,23 @@ const firePointerDoubleClick = (element: Element, pointerType: 'mouse' | 'touch'
 
 afterEach(() => {
   cleanup()
+  MockUseCacheUtils.resetMocks()
   vi.clearAllMocks()
   mocks.emojiIconProps.length = 0
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
+  mocks.platformState.isWin = false
 })
 
 describe('AppShellTabBar', () => {
+  it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
+    mocks.platformState.isWin = true
+    renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
+    expect(document.querySelector<HTMLElement>('[data-ui="app.tab-bar"]')?.style.minHeight).toBe(
+      'env(titlebar-area-height, 0px)'
+    )
+  })
+
   const renderTabBar = (
     props?: Partial<ComponentProps<typeof AppShellTabBar>>,
     wrapperProps?: ComponentProps<'div'>
@@ -217,6 +232,14 @@ describe('AppShellTabBar', () => {
     return closeTab
   }
 
+  it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
+    renderTabBar({ tabs: [createTab('home')] })
+
+    expect(screen.queryByRole('button', { name: 'sidebar.account_menu' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-tab-strip').querySelector('[data-tab-id="home"]')).toBeVisible()
+  })
+
   it('names an icon-only pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
 
@@ -225,16 +248,130 @@ describe('AppShellTabBar', () => {
     expect(screen.getByRole('button', { name: 'Emoji' })).toHaveAttribute('title', 'Emoji')
   })
 
-  it('opens launchpad from the plus button', async () => {
+  it('appends a fresh launchpad from the plus button while a middle tab is active', async () => {
     const user = userEvent.setup()
-    const openTab = vi.fn()
-    const tabs = [createTab('home')]
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [createTab('home'), createTab('a'), createTab('b')])
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'a')
+    function TabBar() {
+      return <AppShellTabBar {...useTabsContext()} />
+    }
+    const { result } = renderHook(useTabsContext, {
+      wrapper: ({ children }) => (
+        <TabsProvider>
+          {children}
+          <TabBar />
+        </TabsProvider>
+      )
+    })
 
-    renderTabBar({ tabs, activeTabId: 'home', openTab })
+    for (const count of [4, 5]) {
+      act(() => result.current.setActiveTab('a'))
+      await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
-    await user.click(screen.getByRole('button', { name: 'Launchpad' }))
+      expect(result.current.tabs).toHaveLength(count)
+      expect(result.current.tabs.slice(0, 3).map((tab) => tab.id)).toEqual(['home', 'a', 'b'])
+      expect(result.current.tabs.at(-1)?.url).toBe('/app/launchpad')
+      expect(result.current.activeTabId).toBe(result.current.tabs.at(-1)?.id)
+    }
+  })
 
-    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+  // Protect the persistent selected-tab indicator across selection and pointer closing.
+  describe.each([false, true])('selected indicator (transparent macOS: %s)', (transparent) => {
+    const normalTabs = [
+      createTab('alpha', { title: 'Conversation Alpha', url: '/app/chat?topicId=alpha' }),
+      createTab('beta', { title: 'Conversation Beta', url: '/app/chat?topicId=beta' })
+    ]
+    const pinnedTab = createTab('pinned', {
+      title: 'Pinned conversation',
+      url: '/app/chat?topicId=pinned',
+      isPinned: true
+    })
+
+    const renderProvider = (includePinned = false) => {
+      mocks.macTransparentState.value = transparent
+      MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', normalTabs)
+      MockUseCacheUtils.setPersistCacheValue('ui.tab.pinned_tabs', includePinned ? [pinnedTab] : [])
+      MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'alpha')
+      function TabBar() {
+        return <AppShellTabBar {...useTabsContext()} />
+      }
+      return renderHook(useTabsContext, {
+        wrapper: ({ children }) => (
+          <TabsProvider>
+            {children}
+            <TabBar />
+          </TabsProvider>
+        )
+      })
+    }
+    const button = (tab: Tab) => screen.getByRole('button', { name: tab.title })
+    const expectIndicator = (tab: Tab, selected: boolean) => {
+      const outer = button(tab)
+      expect(outer).toHaveAttribute('data-tab-id', tab.id)
+      // Pending closes retain their visual selection while navigation moves to the survivor.
+      if (selected) expect(outer).toHaveAttribute('data-active', 'true')
+      else expect(outer).not.toHaveAttribute('data-active')
+    }
+
+    it('transfers selection ownership between normal and pinned conversation tabs', () => {
+      const { result } = renderProvider(true)
+      for (const selected of [normalTabs[0], normalTabs[1], pinnedTab, normalTabs[0]]) {
+        fireEvent.click(button(selected))
+        expect(result.current.activeTabId).toBe(selected.id)
+        for (const tab of [...normalTabs, pinnedTab]) expectIndicator(tab, tab.id === selected.id)
+      }
+    })
+
+    it('keeps an active pointer-closing tab selected through handover and removal', () => {
+      const restoreAnimation = mockCloseAnimation()
+      try {
+        const { result } = renderProvider()
+        const [departing, survivor] = normalTabs
+        fireEvent.click(within(button(departing)).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+        expectIndicator(departing, true)
+        expectIndicator(survivor, false)
+        act(() => {
+          vi.advanceTimersByTime(32)
+        })
+        expect(result.current.activeTabId).toBe(survivor.id)
+        expectIndicator(departing, true)
+        expectIndicator(survivor, true)
+        act(() => {
+          vi.advanceTimersByTime(200)
+        })
+        expect(screen.queryByRole('button', { name: departing.title })).not.toBeInTheDocument()
+        expectIndicator(survivor, true)
+      } finally {
+        cleanup()
+        restoreAnimation()
+      }
+    })
+
+    it('never upgrades an inactive pointer-closing tab to the selected indicator', () => {
+      const restoreAnimation = mockCloseAnimation()
+      try {
+        renderProvider()
+        const [active, departing] = normalTabs
+        fireEvent.mouseEnter(button(departing))
+        fireEvent.click(within(button(departing)).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+        expectIndicator(departing, false)
+        expectIndicator(active, true)
+        act(() => {
+          vi.advanceTimersByTime(32)
+        })
+        expectIndicator(departing, false)
+        expectIndicator(active, true)
+        expect(button(departing)).toHaveAttribute('data-hovered', 'true')
+        act(() => {
+          vi.advanceTimersByTime(200)
+        })
+        expect(screen.queryByRole('button', { name: departing.title })).not.toBeInTheDocument()
+        expectIndicator(active, true)
+      } finally {
+        cleanup()
+        restoreAnimation()
+      }
+    })
   })
 
   it('renders preset and installed mini app icons at the same circular size', () => {
@@ -289,73 +426,94 @@ describe('AppShellTabBar', () => {
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
   })
 
-  it('detaches the focused tab when dragged outside the tab bar', () => {
-    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-      const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
-      return {
-        width: isTabBar ? 800 : 160,
-        height: isTabBar ? 44 : 30,
-        top: 0,
-        left: 0,
-        right: isTabBar ? 800 : 160,
-        bottom: isTabBar ? 44 : 30,
-        x: 0,
-        y: 0,
-        toJSON: () => ({})
-      }
-    })
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
-      configurable: true,
-      value: vi.fn()
-    })
-
-    try {
-      const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
-      const closeTab = renderTabBar({
-        tabs: [settingsTab],
-        activeTabId: settingsTab.id,
-        isFocusedTab: true,
-        detachTab: vi.fn()
+  it.each(['success', 'failure'])(
+    'handles drag detach %s without losing the source or retrying a failed gesture',
+    async (outcome) => {
+      const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+      const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
+        return {
+          width: isTabBar ? 800 : 160,
+          height: isTabBar ? 44 : 30,
+          top: 0,
+          left: 0,
+          right: isTabBar ? 800 : 160,
+          bottom: isTabBar ? 44 : 30,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        }
       })
-      const tab = screen.getByRole('button', { name: 'common.back' })
-      const pointerDown = new MouseEvent('pointerdown', {
-        bubbles: true,
-        button: 0,
-        clientX: 100,
-        clientY: 20,
-        screenX: 100,
-        screenY: 20
+      Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+        configurable: true,
+        value: vi.fn()
       })
-      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
-      fireEvent(tab, pointerDown)
 
-      const pointerMove = new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 100,
-        clientY: 100,
-        screenX: 100,
-        screenY: 100
-      })
-      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
-      fireEvent(document, pointerMove)
-
-      expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'tab.detach',
-        expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
+      let accept!: () => void
+      let reject!: (error: Error) => void
+      mocks.ipcRequest.mockReturnValueOnce(
+        new Promise<void>((resolve, fail) => {
+          accept = resolve
+          reject = fail
+        })
       )
-      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
-    } finally {
-      if (originalSetPointerCapture) {
-        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
-      }
-      rectSpy.mockRestore()
-    }
-  })
+      try {
+        const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+        const closeTab = renderTabBar({
+          tabs: [settingsTab],
+          activeTabId: settingsTab.id,
+          isFocusedTab: true,
+          detachTab: vi.fn()
+        })
+        const tab = screen.getByRole('button', { name: 'common.back' })
+        const pointerDown = new MouseEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          clientX: 100,
+          clientY: 20,
+          screenX: 100,
+          screenY: 20
+        })
+        Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+        fireEvent(tab, pointerDown)
 
-  it('positions the detached window when a fast drag drops right after the detaching move', () => {
+        const pointerMove = new MouseEvent('pointermove', {
+          bubbles: true,
+          clientX: 100,
+          clientY: 100,
+          screenX: 100,
+          screenY: 100
+        })
+        Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
+        fireEvent(document, pointerMove)
+
+        expect(mocks.ipcRequest).toHaveBeenCalledWith(
+          'tab.detach',
+          expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
+        )
+        expect(closeTab).not.toHaveBeenCalled()
+        if (outcome === 'success') {
+          await act(async () => accept())
+          expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+        } else {
+          await act(async () => reject(new Error('window creation failed')))
+          fireEvent(document, pointerMove)
+          expect(mocks.ipcRequest).toHaveBeenCalledTimes(1)
+          expect(closeTab).not.toHaveBeenCalled()
+          expect(screen.getByRole('button', { name: 'common.back' })).toBeVisible()
+        }
+      } finally {
+        if (originalSetPointerCapture) {
+          Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+        } else {
+          Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+        }
+        rectSpy.mockRestore()
+      }
+    }
+  )
+
+  it('positions a fast-dropped window without closing its source before main-process delivery', async () => {
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
       return {
@@ -381,6 +539,12 @@ describe('AppShellTabBar', () => {
       value: { ipcRenderer: { send: moveWindowSend } }
     })
 
+    let accept!: () => void
+    mocks.ipcRequest.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        accept = resolve
+      })
+    )
     try {
       const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
       const closeTab = renderTabBar({
@@ -431,6 +595,8 @@ describe('AppShellTabBar', () => {
         document.dispatchEvent(pointerUp)
       })
 
+      expect(closeTab).not.toHaveBeenCalled()
+      await act(async () => accept())
       expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
       expect(moveWindowSend).toHaveBeenCalledWith(
         'tab:move-window',
@@ -1143,10 +1309,12 @@ describe('AppShellTabBar', () => {
     vi.useFakeTimers()
     Object.defineProperty(globalThis, 'requestAnimationFrame', {
       configurable: true,
+      writable: true,
       value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
     })
     Object.defineProperty(globalThis, 'cancelAnimationFrame', {
       configurable: true,
+      writable: true,
       value: (id: number) => window.clearTimeout(id)
     })
 

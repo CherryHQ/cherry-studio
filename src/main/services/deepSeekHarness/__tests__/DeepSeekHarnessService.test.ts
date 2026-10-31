@@ -252,6 +252,47 @@ describe('DeepSeekHarnessService', () => {
   })
 
   it.each([
+    ['./', 'relative form emitted by dsh 0.1.7-rc.2'],
+    ['http://127.0.0.1:43123/', 'absolute form targeting the same root resource']
+  ])('exchanges the token for a 303 whose Location resolves to the root: %s (%s)', async (location) => {
+    vi.useFakeTimers()
+    const token = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ'
+    const readyUrl = `http://127.0.0.1:43123/?token=${token}`
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 303,
+      headers: new Headers({ location }),
+      body: { cancel: vi.fn(async () => undefined) }
+    } as unknown as Response)
+    spawnChild((child) => {
+      child.stdout.write('dsh web: http://127.0.0.1:43123/?token=abcdefghijklmnop')
+      child.stdout.write('qrstuvwxyzABCDEFGHIJKLMNOPQ\n')
+    })
+    const service = new DeepSeekHarnessService()
+    const start = service.start(startInput)
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await expect(start).resolves.toEqual({ success: true, url: readyUrl })
+    await service.stop()
+  })
+
+  it('does not accept a 303 whose Location resolves elsewhere', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 303,
+      headers: new Headers({ location: '/admin' }),
+      body: { cancel: vi.fn(async () => undefined) }
+    } as unknown as Response)
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+
+    const result = await new DeepSeekHarnessService().start(startInput)
+
+    expect(result).toEqual({
+      success: false,
+      message: expect.stringContaining('Web UI returned HTTP 303')
+    })
+  })
+
+  it.each([
     'https://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
     'http://localhost:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
     'http://2130706433:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',

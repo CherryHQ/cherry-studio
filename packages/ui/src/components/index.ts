@@ -1,4 +1,5 @@
 // Primitive Components
+export { BarVisualizer, type BarVisualizerProps, type BarVisualizerState } from './primitives/bar-visualizer'
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copy-button'
@@ -24,6 +25,7 @@ export {
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,
+  TooltipSurface,
   TooltipTrigger
 } from './primitives/tooltip'
 
@@ -86,11 +88,10 @@ export {
   type CodeEditorHandles,
   type CodeEditorProps,
   type CodeMirrorTheme,
+  getCherryCmTheme,
   getCmThemeByName,
   getCmThemeNames
 } from './composites/code-editor'
-// DraggableList
-export { DraggableList, useDraggableReorder } from './composites/draggable-list'
 export {
   Form,
   FormControl,
@@ -138,7 +139,7 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
-export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
+export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
 // Sortable
 export {
   CompositeInput,
@@ -146,7 +147,13 @@ export {
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
-export { BlurCancelPointerSensor, Sortable } from './composites/sortable'
+export {
+  BlurCancelPointerSensor,
+  Sortable,
+  type SortableAccessibility,
+  type SortableDragHandleProps,
+  type SortableItemId
+} from './composites/sortable'
 // TreeView
 export {
   type DragPosition,

@@ -25,7 +25,7 @@ create a leaky mega-abstraction:
 
 | Flow | Where | Why separate |
 | --- | --- | --- |
-| MCP remote servers | `src/main/ai/mcp/oauth/` | SDK-driven (`@modelcontextprotocol/sdk` `OAuthClientProvider`) + dynamic client registration (RFC 7591); control is inverted — the SDK drives, we implement an interface. Storage is per-server-URL JSON files. |
+| MCP remote servers | `src/main/ai/mcp/oauth/` | SDK-driven (`@modelcontextprotocol/client` `OAuthClientProvider`) + dynamic client registration (RFC 7591); control is inverted — the SDK drives, we implement an interface. Storage is per-server-URL JSON files. |
 | GitHub Copilot | `src/main/services/CopilotService.ts` | Device flow (RFC 8628) — no redirect/callback; encrypted-file storage. |
 | Nutstore | `src/main/services/nutstore/` | Proprietary SSO with custom encryption — not standard OAuth. |
 | Feishu / WeChat | `src/main/ai/channels/adapters/` | Proprietary device/binary protocols — not OAuth. |

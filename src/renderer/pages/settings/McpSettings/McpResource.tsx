@@ -13,6 +13,7 @@ import {
 import type { McpResource } from '@shared/types/mcp'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'
+import McpResourcePreview from './McpResourcePreview'
 
 interface McpResourcesSectionProps {
   resources: McpResource[]
@@ -89,7 +90,10 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
                     )}
                   </ColFlex>
                 </AccordionTrigger>
-                <AccordionContent className="px-3 select-text">{renderResourceProperties(resource)}</AccordionContent>
+                <AccordionContent className="px-3 select-text">
+                  {renderResourceProperties(resource)}
+                  <McpResourcePreview serverId={resource.serverId} uri={resource.uri} />
+                </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>

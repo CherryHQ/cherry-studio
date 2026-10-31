@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-30-merman-mermaid.md
+2026-10-30-merman-mermaid.md: fb2aee06a3bf750695babbc1fbbcef799ab5f514
+2026-10-30-merman-mermaid.zh.md: f936f1138f375749f188d06c717c82455c2009e6

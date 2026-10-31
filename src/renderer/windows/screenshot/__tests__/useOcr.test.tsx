@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { OcrTextLine } from '../hooks/useOcr'
+import type { OcrTextLine } from '@shared/ipc/schemas/screenshot'
+
 import { useOcr } from '../hooks/useOcr'
 import type { SelectionRect } from '../types'
 
@@ -13,10 +14,9 @@ const writeText = vi.fn()
 /** Anything at or above MIN_SIZE, so the hook does not treat it as a drag that just started. */
 const SELECTION: SelectionRect = { x: 10, y: 20, width: 100, height: 50 }
 
-const word = (text: string, x: number, y: number, width = 40, height = 12) => ({
+const line = (text: string, x: number, y: number, width = 40, height = 12) => ({
   text,
-  box: { x, y, width, height },
-  confidence: 0.9
+  box: { x, y, width, height }
 })
 
 /** Drives the hook the way the overlay does: one media id, one settled selection. */
@@ -48,7 +48,7 @@ describe('useOcr', () => {
   })
 
   it('recognizes the selection in physical pixels once the debounce elapses', async () => {
-    ipc.request.mockResolvedValue({ status: 'ok', lines: [[word('hello', 0, 0)]] })
+    ipc.request.mockResolvedValue({ status: 'ok', lines: [line('hello', 0, 0)] })
     const { result } = renderOcr()
 
     // The debounce is what keeps a drag from firing a recognition per pointer move.
@@ -64,20 +64,16 @@ describe('useOcr', () => {
     expect(result.current.status).toBe('done')
   })
 
-  it('merges the words of one line into a single span covering their glyphs', async () => {
+  it('keeps crop-relative glyph bounds unchanged for the selectable text layer', async () => {
     ipc.request.mockResolvedValue({
       status: 'ok',
-      // As the detector reports them: each glyph run grown by 0.4 of its own height per
-      // vertical side and 0.6 per horizontal side, so 'good' is really 28×10 at (106, 54).
-      lines: [[word('good', 100, 50, 40, 18), word('morning', 150, 48, 60, 27)]]
+      lines: [line('native line', 100, 50, 400, 30)]
     })
     const { result } = renderOcr()
     await settleRecognition()
 
-    // Per-word spans would multiply the gaps the selection logic clamps into and
-    // change the copied text; the union box is what one span has to cover.
     expect(result.current.lines).toEqual<OcrTextLine[]>([
-      { text: 'good morning', box: { x: 106, y: 54, width: 95, height: 15 } }
+      { text: 'native line', box: { x: 100, y: 50, width: 400, height: 30 } }
     ])
   })
 
@@ -90,7 +86,7 @@ describe('useOcr', () => {
   })
 
   it('waits for an explicit request when auto OCR is off, then recognizes on demand', async () => {
-    ipc.request.mockResolvedValue({ status: 'ok', lines: [[word('later', 0, 0)]] })
+    ipc.request.mockResolvedValue({ status: 'ok', lines: [line('later', 0, 0)] })
     const { result } = renderOcr({ autoStart: false })
     await settleRecognition()
 
@@ -153,12 +149,12 @@ describe('useOcr', () => {
     const { result, rerender } = renderOcr()
     await settleRecognition()
 
-    ipc.request.mockResolvedValueOnce({ status: 'ok', lines: [[word('current', 0, 0)]] })
+    ipc.request.mockResolvedValueOnce({ status: 'ok', lines: [line('current', 0, 0)] })
     rerender({ selection: { ...SELECTION, width: 160 } })
     await settleRecognition()
 
     await act(async () => {
-      resolveFirst({ status: 'ok', lines: [[word('stale', 0, 0)]] })
+      resolveFirst({ status: 'ok', lines: [line('stale', 0, 0)] })
     })
 
     expect(result.current.lines.map((line) => line.text)).toEqual(['current'])
@@ -167,7 +163,7 @@ describe('useOcr', () => {
   it('copies every recognized line, newline-joined', async () => {
     ipc.request.mockResolvedValue({
       status: 'ok',
-      lines: [[word('first', 0, 0)], [word('second', 0, 20)]]
+      lines: [line('first', 0, 0), line('second', 0, 20)]
     })
     const { result } = renderOcr()
     await settleRecognition()
@@ -186,7 +182,7 @@ describe('useOcr', () => {
 
     act(() => result.current.resetOcr())
     await act(async () => {
-      resolvePrevious({ status: 'ok', lines: [[word('previous capture', 0, 0)]] })
+      resolvePrevious({ status: 'ok', lines: [line('previous capture', 0, 0)] })
     })
 
     // A pooled overlay never unmounts, so a late result would land on the new capture.

@@ -22,6 +22,7 @@ import {
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
+  svgToCanvas,
   transformImageToPng,
   waitForCaptureAssets
 } from '../image'
@@ -250,6 +251,18 @@ describe('utils/image', () => {
   })
 
   describe('captureScrollable', () => {
+    it('uses the selected solid conversation backdrop when rasterizing a canvas', async () => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: rgba(25, 25, 25, 0.55); --chat-message-well-solid: #141414'
+
+      await captureScrollable({ current: root }, '--chat-message-well-solid')
+
+      expect(htmlToImage.toCanvas).toHaveBeenLastCalledWith(
+        root,
+        expect.objectContaining({ backgroundColor: '#141414' })
+      )
+    })
+
     it('should return canvas when elRef.current exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
@@ -1404,6 +1417,62 @@ describe('utils/image', () => {
       expect(
         isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, viewBox: '0 0 100 100' } })
       ).toBe(false)
+    })
+  })
+
+  describe('svgToCanvas', () => {
+    class FakeImage {
+      static latest: FakeImage | undefined
+      crossOrigin = ''
+      src = ''
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      constructor() {
+        FakeImage.latest = this
+      }
+    }
+
+    const makeSvg = () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 20 10')
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      text.textContent = '中文 🌸 # & %'
+      svg.append(text)
+      return svg
+    }
+
+    beforeEach(() => {
+      FakeImage.latest = undefined
+      vi.stubGlobal('Image', FakeImage)
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        scale: vi.fn(),
+        drawImage: vi.fn()
+      } as unknown as CanvasRenderingContext2D)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('preserves Unicode labels and SVG dimensions when rasterizing', async () => {
+      const pending = svgToCanvas(makeSvg(), 2)
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      const response = dataUrlToBlob(FakeImage.latest!.src)
+      const xml = new TextDecoder().decode(await readBlobBytes(response))
+      const svg = new DOMParser().parseFromString(xml, 'image/svg+xml')
+      expect(svg.querySelector('text')?.textContent).toBe('中文 🌸 # & %')
+
+      FakeImage.latest?.onload?.()
+      const canvas = await pending
+      expect([canvas.width, canvas.height]).toEqual([40, 20])
+    })
+
+    it('rejects when the SVG image fails to load', async () => {
+      const pending = svgToCanvas(makeSvg())
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      FakeImage.latest?.onerror?.()
+      await expect(pending).rejects.toThrow('Failed to load SVG image')
     })
   })
 })

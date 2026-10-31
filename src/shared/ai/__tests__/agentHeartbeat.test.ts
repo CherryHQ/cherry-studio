@@ -6,7 +6,8 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
   isHeartbeatEnabled,
   MAX_HEARTBEAT_INTERVAL_MINUTES,
-  MIN_HEARTBEAT_INTERVAL_MINUTES
+  MIN_HEARTBEAT_INTERVAL_MINUTES,
+  normalizeHeartbeatTimeoutMinutes
 } from '../agentHeartbeat'
 
 describe('clampHeartbeatIntervalMinutes', () => {
@@ -47,14 +48,26 @@ describe('clampHeartbeatIntervalMinutes', () => {
 })
 
 describe('isHeartbeatEnabled', () => {
-  it('defaults to on when the toggle was never written', () => {
-    expect(DEFAULT_HEARTBEAT_ENABLED).toBe(true)
-    expect(isHeartbeatEnabled({})).toBe(true)
-    expect(isHeartbeatEnabled({ heartbeat_enabled: undefined })).toBe(true)
+  it('defaults to off when the toggle was never written', () => {
+    expect(DEFAULT_HEARTBEAT_ENABLED).toBe(false)
+    expect(isHeartbeatEnabled({})).toBe(false)
+    expect(isHeartbeatEnabled({ heartbeat_enabled: undefined })).toBe(false)
   })
 
   it('honors an explicit toggle in both directions', () => {
     expect(isHeartbeatEnabled({ heartbeat_enabled: true })).toBe(true)
     expect(isHeartbeatEnabled({ heartbeat_enabled: false })).toBe(false)
+  })
+})
+
+// Malformed stored deadlines must not turn into immediate or unbounded timers.
+describe('normalizeHeartbeatTimeoutMinutes', () => {
+  it('preserves configured deadlines and bounds invalid or oversized values', () => {
+    expect(normalizeHeartbeatTimeoutMinutes(10)).toBe(10)
+    expect(normalizeHeartbeatTimeoutMinutes(undefined)).toBe(2)
+    expect(normalizeHeartbeatTimeoutMinutes(0)).toBe(2)
+    expect(normalizeHeartbeatTimeoutMinutes(Number.NaN)).toBe(2)
+    expect(normalizeHeartbeatTimeoutMinutes(1.5)).toBe(2)
+    expect(normalizeHeartbeatTimeoutMinutes(1e9)).toBe(1440)
   })
 })

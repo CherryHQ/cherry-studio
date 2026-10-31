@@ -4,6 +4,7 @@
     "declaration": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmitOnError": false,
@@ -12,7 +13,8 @@
     "rootDir": "./src",
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2020"
+    "target": "ES2020",
+    "types": ["node"]
   },
   "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/__tests__/**"],
   "include": ["src/**/*"]

@@ -34,6 +34,10 @@ const POSITION_MOTION_EVENTS = [
   'transitioncancel'
 ] as const
 
+// The overlay lives in an untrusted page, so only a literal colour the host already
+// resolved may reach it — never a var() chain or arbitrary declaration text.
+const CSS_COLOR_PATTERN = /^(?:#[0-9a-f]{3,8}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([a-z0-9\s%.,/+-]*\))$/i
+
 const createGuestUuid = () => uuidv4({ random: crypto.getRandomValues(new Uint8Array(16)) })
 
 const OVERLAY_CSS = `
@@ -49,11 +53,15 @@ const OVERLAY_CSS = `
   .highlight {
     position: fixed;
     display: none;
-    border: 2px solid var(--annotation-accent);
+    border: 2px solid color-mix(in srgb, var(--annotation-accent) 40%, transparent);
     border-radius: 4px;
     background: color-mix(in srgb, var(--annotation-accent) 12%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--annotation-surface) 70%, transparent);
     pointer-events: none;
+  }
+
+  .highlight.active {
+    border-color: var(--annotation-accent);
   }
 
   .marquee {
@@ -85,7 +93,7 @@ const OVERLAY_CSS = `
     border: 2px solid var(--annotation-surface);
     border-radius: 999px;
     background: var(--annotation-accent);
-    color: white;
+    color: var(--annotation-accent-foreground);
     box-shadow: 0 2px 8px color-mix(in srgb, black 28%, transparent);
     cursor: pointer;
     font: 700 12px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -452,6 +460,8 @@ export class WebviewAnnotationController {
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
   private theme: WebviewAnnotationTheme = 'light'
+  private accent: string | null = null
+  private accentForeground: string | null = null
   private updateFrame: number | null = null
 
   constructor(
@@ -482,6 +492,8 @@ export class WebviewAnnotationController {
         this.configured = true
         this.locale = command.locale
         this.theme = command.theme
+        this.accent = command.accent ?? null
+        this.accentForeground = command.accentForeground ?? null
         this.applyTheme()
         break
       case 'set_enabled':
@@ -632,8 +644,19 @@ export class WebviewAnnotationController {
   private applyTheme() {
     if (!this.overlayHost) return
     const dark = this.theme === 'dark'
-    this.overlayHost.style.setProperty('--annotation-accent', dark ? '#818cf8' : '#4f46e5', 'important')
-    this.overlayHost.style.setProperty('--annotation-focus', dark ? '#c7d2fe' : '#3730a3', 'important')
+    const fallbackAccent = dark ? '#818cf8' : '#4f46e5'
+    const fallbackFocus = dark ? '#c7d2fe' : '#3730a3'
+    const validAccent = this.accent && CSS_COLOR_PATTERN.test(this.accent) ? this.accent : null
+    const validAccentForeground =
+      this.accentForeground && CSS_COLOR_PATTERN.test(this.accentForeground) ? this.accentForeground : null
+    this.overlayHost.style.setProperty('--annotation-accent', validAccent ?? fallbackAccent, 'important')
+    this.overlayHost.style.setProperty('--annotation-accent-foreground', validAccentForeground ?? 'white', 'important')
+    // Derived from the accent rather than equal to it, so a focused pin's ring stays visible against its own fill.
+    this.overlayHost.style.setProperty(
+      '--annotation-focus',
+      validAccent ? `color-mix(in srgb, var(--annotation-accent) 70%, ${dark ? 'white' : 'black'})` : fallbackFocus,
+      'important'
+    )
     this.overlayHost.style.setProperty('--annotation-surface', dark ? '#0f172a' : '#ffffff', 'important')
   }
 
@@ -1380,6 +1403,7 @@ export class WebviewAnnotationController {
     const highlightedElement = this.highlightElement
     if (this.highlight && highlightedElement?.isConnected) {
       const rect = highlightedElement.getBoundingClientRect()
+      this.highlight.classList.toggle('active', highlightedElement === this.editorElement)
       this.highlight.style.display = rect.width > 0 && rect.height > 0 ? 'block' : 'none'
       this.highlight.style.left = `${rect.left}px`
       this.highlight.style.top = `${rect.top}px`

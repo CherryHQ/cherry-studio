@@ -12,6 +12,7 @@ import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/prim
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
@@ -96,7 +97,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     }
   }, [oauthTokenOverride, remoteHasOAuthToken])
 
-  // Top-up happens in the system browser (see WindowManager.setWindowOpenHandler),
+  // Top-up happens in the system browser,
   // so the balance refresh must wait for the user to come back.
   useEffect(() => {
     const handleWindowFocus = () => {
@@ -199,7 +200,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const handleTopup = useCallback(() => {
     topupInProgressRef.current = true
-    window.open(CHERRYIN_TOPUP_URL, '_blank')
+    void openExternalWebsite(CHERRYIN_TOPUP_URL)
   }, [])
 
   if (!provider) {

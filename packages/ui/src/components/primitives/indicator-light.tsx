@@ -1,4 +1,3 @@
-// Original: src/renderer/components/IndicatorLight.tsx
 import React from 'react'
 
 interface IndicatorLightProps {

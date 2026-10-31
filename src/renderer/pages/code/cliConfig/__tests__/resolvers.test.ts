@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
-import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
+import {
+  resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolveMinimaxProviderInfo,
+  resolvePiProviderInfo
+} from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -181,6 +186,52 @@ describe('resolvePiProviderInfo', () => {
       api: 'google-generative-ai',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
       endpointType: 'google-generate-content'
+    })
+  })
+})
+
+describe('resolveMinimaxProviderInfo', () => {
+  it('prefers a model-supported endpoint and maps it to MiniMax Code api names', () => {
+    expect(
+      resolveMinimaxProviderInfo(
+        provider({
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('maps a chat-completions endpoint to the openai-completions transport', () => {
+    expect(
+      resolveMinimaxProviderInfo(
+        provider({ endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example/v1' } } })
+      )
+    ).toEqual({
+      api: 'openai-completions',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+
+  it('strips the trailing API version from an Anthropic-compatible endpoint', () => {
+    expect(
+      resolveMinimaxProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' } } }),
+        ['anthropic-messages']
+      )
+    ).toEqual({
+      api: 'anthropic-messages',
+      baseUrl: 'https://anthropic.example',
+      endpointType: 'anthropic-messages'
     })
   })
 })

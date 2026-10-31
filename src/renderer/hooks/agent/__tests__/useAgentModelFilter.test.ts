@@ -1,28 +1,10 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { createElement, type PropsWithChildren } from 'react'
-import { SWRConfig } from 'swr'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderHook } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { useAgentModelDisabled, useAgentModelFilter } from '../useAgentModelFilter'
-
-const mocks = vi.hoisted(() => ({
-  availability: {
-    entitledModelIds: [] as Model['id'][],
-    quotaExhaustedModelIds: [] as Model['id'][]
-  },
-  ipcRequest: vi.fn(),
-  statusChanged: undefined as (() => void) | undefined
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest },
-  useIpcOn: (_event: string, listener: () => void) => {
-    mocks.statusChanged = listener
-  }
-}))
+import { useAgentModelFilter } from '../useAgentModelFilter'
 
 function model(capabilities: Model['capabilities'] = []): Model {
   return {
@@ -35,29 +17,6 @@ function model(capabilities: Model['capabilities'] = []): Model {
     isEnabled: true,
     isHidden: false
   }
-}
-
-function cloudModel(id: string): Model {
-  return {
-    ...model(),
-    id: `cherryai-subscription::${id}`,
-    providerId: 'cherryai-subscription',
-    apiModelId: id,
-    name: id
-  }
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
-}
-
-function wrapper() {
-  const cache = new Map()
-  return ({ children }: PropsWithChildren) => createElement(SWRConfig, { value: { provider: () => cache } }, children)
 }
 
 const providers = {
@@ -87,12 +46,6 @@ describe('useAgentModelFilter', () => {
     expect(result.current(model([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
   })
 
-  it('keeps Cloud models visible so the disabled predicate owns availability', () => {
-    const { result } = renderHook(() => useAgentModelFilter(undefined))
-
-    expect(result.current(cloudModel('deepseek-go'))).toBe(true)
-  })
-
   describe('pi agents', () => {
     it('allows models on providers pi can drive', () => {
       const { result } = renderHook(() => useAgentModelFilter('pi'))
@@ -111,13 +64,13 @@ describe('useAgentModelFilter', () => {
       ).toBe(true)
     })
 
-    it('filters models whose provider has no pi API mapping', () => {
+    it('keeps gateway-routable models available while filtering missing providers', () => {
       const { result } = renderHook(() => useAgentModelFilter('pi'))
 
-      // Vertex is unsupported for pi (D2).
+      // Vertex retains its model through the local gateway.
       expect(
         result.current({ ...model(), providerId: 'vertex', id: 'vertex::gemini-2.5-pro' }, providers.vertex as Provider)
-      ).toBe(false)
+      ).toBe(true)
       // Unknown provider (no entry) cannot be resolved → filtered.
       expect(result.current({ ...model(), providerId: 'ghost', id: 'ghost::model' })).toBe(false)
     })
@@ -127,64 +80,5 @@ describe('useAgentModelFilter', () => {
 
       expect(result.current({ ...model([MODEL_CAPABILITY.EMBEDDING]), providerId: 'openai' })).toBe(false)
     })
-  })
-})
-
-describe('useAgentModelDisabled', () => {
-  beforeEach(() => {
-    mocks.availability = { entitledModelIds: [], quotaExhaustedModelIds: [] }
-    mocks.ipcRequest.mockReset().mockImplementation(async () => mocks.availability)
-    mocks.statusChanged = undefined
-  })
-
-  it('keeps Cloud models disabled until the first snapshot arrives', () => {
-    mocks.ipcRequest.mockReturnValue(new Promise(() => undefined))
-    const cloud = cloudModel('deepseek-go')
-    const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
-
-    expect(result.current(cloud)).toBe(true)
-    expect(result.current(model())).toBe(false)
-  })
-
-  it('applies entitlements and quota exhaustion from the synchronized snapshot', async () => {
-    const available = cloudModel('deepseek-go')
-    const exhausted = cloudModel('deepseek-free')
-    mocks.availability = {
-      entitledModelIds: [available.id, exhausted.id],
-      quotaExhaustedModelIds: [exhausted.id]
-    }
-    const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
-
-    await waitFor(() => expect(result.current(available)).toBe(false))
-    expect(result.current(exhausted)).toBe(true)
-  })
-
-  it('does not synchronize while disabled', async () => {
-    renderHook(() => useAgentModelDisabled(false), { wrapper: wrapper() })
-
-    await act(async () => Promise.resolve())
-    expect(mocks.ipcRequest).not.toHaveBeenCalled()
-  })
-
-  it('keeps models disabled when an older sign-in refresh finishes after sign out', async () => {
-    const cloud = cloudModel('deepseek-go')
-    mocks.availability = {
-      entitledModelIds: [cloud.id],
-      quotaExhaustedModelIds: []
-    }
-    const pendingRefresh = deferred<typeof mocks.availability>()
-    const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
-    await waitFor(() => expect(result.current(cloud)).toBe(false))
-
-    mocks.ipcRequest.mockImplementationOnce(() => pendingRefresh.promise)
-    act(() => mocks.statusChanged?.())
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
-    act(() => mocks.statusChanged?.())
-    pendingRefresh.resolve({
-      entitledModelIds: [cloud.id],
-      quotaExhaustedModelIds: []
-    })
-
-    await waitFor(() => expect(result.current(cloud)).toBe(true))
   })
 })

@@ -45,10 +45,24 @@ export const systemRequestSchemas = {
   // Takes no input on purpose: the pane URL is a fixed constant in main, and its
   // `x-apple.systempreferences:` scheme is not one `system.shell.open_website` accepts.
   'system.mac.open_screen_capture_settings': defineRoute({ input: z.void(), output: z.void() }),
-  // OS-shell integration — fire-and-forget delegations to Electron's `shell` module.
-  // `open_website` screens the URL scheme in the handler before opening it externally.
+  // URL routes share MainWindowService's validation and external-application confirmation.
   'system.shell.open_path': defineRoute({ input: z.string(), output: z.void() }),
-  'system.shell.open_external_website': defineRoute({ input: z.string(), output: z.void() }),
+  'system.shell.open_external_website': defineRoute({
+    input: z.union([
+      z.string(),
+      z.object({
+        url: z.string(),
+        options: z
+          .object({
+            activate: z.boolean().optional(),
+            workingDirectory: z.string().optional(),
+            logUsage: z.boolean().optional()
+          })
+          .optional()
+      })
+    ]),
+    output: z.void()
+  }),
   'system.shell.open_website': defineRoute({ input: z.string(), output: z.void() })
 }
 

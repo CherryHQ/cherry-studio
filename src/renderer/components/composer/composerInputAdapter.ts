@@ -6,19 +6,38 @@
  * than a stub.
  */
 
-import type { Editor, JSONContent } from '@tiptap/core'
+import { type Editor, type JSONContent, selectionToInsertionEnd } from '@tiptap/core'
+import { Fragment, Slice } from '@tiptap/pm/model'
 
 import {
   getComposerCursorTextOffset,
   getComposerInputText,
-  getComposerPositionAtTextOffset
+  getComposerPositionAtTextOffset,
+  getComposerTextOffset
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
+import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from './composerDraft'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
+import {
+  createPromptVariableInlineContent,
+  getNextPromptVariableIndex,
+  PROMPT_VARIABLE_TOKENIZATION_META
+} from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
+
+export function appendComposerText(editor: Editor, text: string): boolean {
+  if (editor.isDestroyed) return false
+  if (!text) return true
+  const current = serializeComposerDocument(editor).text
+  const appended = current ? `\n${text}` : text
+  return editor
+    .chain()
+    .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, false)
+    .insertContentAt(editor.state.doc.content.size - 1, createComposerPlainTextContent(appended))
+    .run()
+}
 
 export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
   const transaction = editor.state.tr
@@ -73,10 +92,35 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
   return {
     getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
+    getSelectionEndOffset: () => getComposerTextOffset(editor, editor.state.selection.to),
+    captureReplaceRange: () => ({
+      from: editor.state.selection.from,
+      to: editor.state.selection.to
+    }),
+    replaceRange: (range, text) => {
+      if (!Number.isInteger(range.from) || !Number.isInteger(range.to) || range.from < 0 || range.to < range.from) {
+        return false
+      }
+      if (range.to > editor.state.doc.content.size) return false
+      const content = Fragment.fromArray(
+        buildInsertedInlineContent(editor, text, { tokenizeVariables: false }).map((node) =>
+          editor.schema.nodeFromJSON(node)
+        )
+      )
+      const transaction = editor.state.tr
+        .replaceRange(range.from, range.to, new Slice(content, 0, 0))
+        .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, false)
+      if (serializeComposerDocument(transaction.doc.toJSON()).text.length > COMPOSER_INPUT_MAX_LENGTH) return false
+      selectionToInsertionEnd(transaction, 0, -1)
+      editor.view.dispatch(transaction)
+      editor.commands.focus()
+      return true
+    },
     insertText: (insertedText, options) => {
       editor
         .chain()
         .focus()
+        .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, options?.tokenizeVariables !== false)
         .insertContent(buildInsertedInlineContent(editor, insertedText, options))
         .run()
     },

@@ -1,5 +1,5 @@
 import { CircleX, Copy, Loader2, Pause } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -11,13 +11,14 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 
 interface FooterProps {
+  children?: ReactNode
   content?: string
   loading?: boolean
   onPause?: () => void
   onRegenerate?: () => void
 }
 
-const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause, onRegenerate }) => {
+const WindowFooter: FC<FooterProps> = ({ children, content = '', loading = false, onPause, onRegenerate }) => {
   const { t } = useTranslation()
 
   const [isWindowFocus, setIsWindowFocus] = useState(true)
@@ -156,7 +157,7 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause,
 
   const footerButtonClassName = (enabled: boolean, hovered: boolean, danger = false) =>
     cn(
-      'flex h-[22px] cursor-pointer flex-row items-center gap-1.5 overflow-hidden rounded bg-muted px-2 text-xs text-ellipsis whitespace-nowrap text-muted-foreground transition-colors select-none',
+      'flex h-[22px] min-w-0 cursor-pointer flex-row items-center gap-1.5 overflow-hidden rounded bg-muted px-2 text-xs text-ellipsis whitespace-nowrap text-muted-foreground transition-colors select-none [&_.btn-icon]:shrink-0',
       enabled ? 'opacity-100' : 'opacity-20',
       danger
         ? 'hover:text-error hover:[&_.btn-icon]:text-error'
@@ -169,26 +170,26 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause,
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
       className={cn(
-        'absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] max-w-[480px] min-w-min -translate-x-1/2 flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300',
+        'absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] max-w-[480px] -translate-x-1/2 flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300 focus-within:opacity-100',
         isShowMe || isContainerHovered ? 'opacity-100' : 'opacity-0'
       )}>
-      <div className="flex flex-row items-center justify-center gap-1.5 text-xs text-muted-foreground">
+      <div className="flex max-w-full min-w-0 flex-row items-center justify-center gap-1.5 text-xs text-muted-foreground">
         <button
           type="button"
           onClick={handleEsc}
           className={footerButtonClassName(isWindowFocus, isEscHovered, loading)}>
           {loading ? (
             <>
-              <span className="relative size-4">
+              <span className="relative size-4 shrink-0">
                 <Pause size={14} className="btn-icon absolute top-px left-px text-error" />
                 <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error" />
               </span>
-              {t('selection.action.window.esc_stop')}
+              <span className="truncate">{t('selection.action.window.esc_stop')}</span>
             </>
           ) : (
             <>
               <CircleX size={14} className="btn-icon" />
-              {t('selection.action.window.esc_close')}
+              <span className="truncate">{t('selection.action.window.esc_close')}</span>
             </>
           )}
         </button>
@@ -198,7 +199,7 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause,
             onClick={handleRegenerate}
             className={footerButtonClassName(isWindowFocus, isRegenerateHovered)}>
             <RefreshIcon size={14} className="btn-icon" />
-            {t('selection.action.window.r_regenerate')}
+            <span className="truncate">{t('selection.action.window.r_regenerate')}</span>
           </button>
         )}
         <button
@@ -206,8 +207,9 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause,
           onClick={handleCopy}
           className={footerButtonClassName(isWindowFocus && !!content, isCopyHovered)}>
           <Copy size={14} className="btn-icon" />
-          {t('selection.action.window.c_copy')}
+          <span className="truncate">{t('selection.action.window.c_copy')}</span>
         </button>
+        {children}
       </div>
     </div>
   )

@@ -53,6 +53,7 @@ const models = modelsRaw.models as Array<{
   }
   reasoning?: {
     controls?: Array<{ kind: string; values?: string[] }>
+    supportedEfforts?: string[]
   }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
@@ -96,6 +97,14 @@ const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
   const baseIds = new Set(ids)
+
+  it.each(['openai-image-generation', 'openai-image-edit'] as const)(
+    'ships the New API adapter for %s without a secondary host',
+    (endpointType) => {
+      const preset = providers.find((provider) => provider.id === 'new-api')
+      expect(preset?.endpointConfigs?.[endpointType]).toEqual({ adapterFamily: 'newapi' })
+    }
+  )
 
   it.each([
     // OpenRouter renamed the vendor prefix (Microsoft → MicrosoftAI) in the same batch as MiniMax → MiniMaxAI.
@@ -371,9 +380,12 @@ describe('catalog invariants (data/*.json)', () => {
   it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'advertises only the official DeepSeek V4 reasoning efforts for %s',
     (id) => {
-      expect(models.find((model) => model.id === id)?.reasoning?.controls).toEqual([
-        { kind: 'effort', values: ['none', 'low', 'high', 'max'] }
-      ])
+      expect(models.find((model) => model.id === id)).toMatchObject({
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }],
+          supportedEfforts: ['none', 'low', 'high', 'max']
+        }
+      })
     }
   )
 

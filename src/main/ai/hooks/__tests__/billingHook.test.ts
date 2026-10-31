@@ -201,6 +201,92 @@ describe('createLanguageUsageMiddleware', () => {
     expect(recordInvocation).not.toHaveBeenCalled()
   })
 
+  it('records flat provider usage without the gateway normalize middleware', async () => {
+    const middleware = createLanguageUsageMiddleware(context)
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        cachedInputTokens: 40
+      }
+    } as unknown as LanguageModelV3StreamPart
+
+    const wrapped = await middleware.wrapStream!({
+      doStream: async () => ({ stream: streamOf([flatFinish]) })
+    } as never)
+    await readAll(wrapped.stream)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: {
+          inputTokens: 100,
+          outputTokens: 20,
+          totalTokens: 120,
+          noCacheTokens: 60,
+          cacheReadTokens: 40
+        }
+      })
+    )
+  })
+
+  it('records flat reasoning tokens and output-only usage', async () => {
+    const middleware = createLanguageUsageMiddleware(context)
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: { outputTokens: 15, reasoningTokens: 4, totalTokens: 15 }
+    } as unknown as LanguageModelV3StreamPart
+
+    const wrapped = await middleware.wrapStream!({
+      doStream: async () => ({ stream: streamOf([flatFinish]) })
+    } as never)
+    await readAll(wrapped.stream)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: {
+          outputTokens: 15,
+          totalTokens: 15,
+          reasoningTokens: 4
+        }
+      })
+    )
+  })
+
+  it('records flat provider usage from generate without the gateway normalize middleware', async () => {
+    const middleware = createLanguageUsageMiddleware(context)
+    const flatUsage = {
+      inputTokens: 50,
+      outputTokens: 10,
+      totalTokens: 60,
+      cachedInputTokens: 15
+    } as unknown as LanguageModelV3Usage
+
+    await middleware.wrapGenerate!({
+      doGenerate: async () => ({
+        usage: flatUsage,
+        content: [],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        warnings: []
+      })
+    } as never)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: {
+          inputTokens: 50,
+          outputTokens: 10,
+          totalTokens: 60,
+          noCacheTokens: 35,
+          cacheReadTokens: 15
+        }
+      })
+    )
+  })
+
   it('records normalized gateway usage instead of the provider flat shape', async () => {
     const capture = createLanguageUsageMiddleware(context)
     const gatewayUsageNormalizeMiddleware = await getGatewayUsageNormalizeMiddleware()
@@ -232,6 +318,39 @@ describe('createLanguageUsageMiddleware', () => {
           noCacheTokens: 60,
           cacheReadTokens: 40
         }
+      })
+    )
+  })
+
+  it('preserves provider cost when gateway normalization runs before billing capture', async () => {
+    const capture = createLanguageUsageMiddleware({
+      ...context,
+      trustProviderReportedCost: true,
+      reportedCostCurrency: 'USD'
+    })
+    const gatewayUsageNormalizeMiddleware = await getGatewayUsageNormalizeMiddleware()
+    const rawFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        raw: { cost: 0.0123 }
+      }
+    } as unknown as LanguageModelV3StreamPart
+
+    const wrapped = await capture.wrapStream!({
+      doStream: () =>
+        gatewayUsageNormalizeMiddleware.wrapStream!({
+          doStream: async () => ({ stream: streamOf([rawFinish]) })
+        } as never)
+    } as never)
+    await readAll(wrapped.stream)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCost: { amount: 0.0123, currency: 'USD' }
       })
     )
   })

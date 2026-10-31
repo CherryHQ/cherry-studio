@@ -32,7 +32,9 @@ vi.mock('@renderer/services/popup', async (importOriginal) => await importOrigin
 vi.mock('@data/CacheService', () => ({
   cacheService: { isSharedCacheReady: () => true, onSharedCacheReady: vi.fn() }
 }))
-vi.mock('@data/hooks/useCache', () => ({ useSharedCacheValue: () => mocks.doctorState }))
+vi.mock('@data/hooks/useCache', () => ({
+  useSharedCacheValue: (key: string) => (key.startsWith('doctor.state.') ? mocks.doctorState : undefined)
+}))
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
   useAppUpdateState: () => ({
     appUpdateState: {
@@ -157,7 +159,8 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'report' })
     })
 
-    const dialog = await screen.findByRole('dialog')
+    // The first test pays the lazy DoctorDialog import, which exceeds the default 1s wait cold.
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 })
     expect(dialog).toHaveClass('max-h-[calc(100vh-100px)]')
     expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
     expect(dialog).not.toHaveAccessibleDescription()

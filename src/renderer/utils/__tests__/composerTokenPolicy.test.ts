@@ -16,8 +16,12 @@ import {
 } from '../composerTokenPolicy'
 
 describe('composerTokenPolicy', () => {
-  it('keeps every active input token available to the private rich clipboard', () => {
-    expect(COMPOSER_CLIPBOARD_TOKEN_KINDS).toEqual(COMPOSER_INPUT_TOKEN_KINDS)
+  it('keeps every portable input token available to the private rich clipboard', () => {
+    // `messagePart` is the one input kind that is not content: it addresses a position inside one
+    // specific message, so it must not travel to another composer, where it could only render and
+    // then vanish on send.
+    expect(COMPOSER_CLIPBOARD_TOKEN_KINDS).toEqual(COMPOSER_INPUT_TOKEN_KINDS.filter((kind) => kind !== 'messagePart'))
+    expect(isComposerClipboardTokenKind('messagePart')).toBe(false)
   })
 
   it('keeps prompt variables editor-only and legacy commands message-only', () => {

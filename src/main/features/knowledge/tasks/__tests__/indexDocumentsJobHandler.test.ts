@@ -22,6 +22,7 @@ import {
   FILE_ITEM_ID,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
+  knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemUpdateSnapshotRelativePathMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
@@ -467,6 +468,22 @@ describe('index-documents job handler', () => {
     expect(fetchKnowledgeWebPageMock.mock.invocationCallOrder[0]).toBeLessThan(
       knowledgeLockManager.runExclusive.mock.invocationCallOrder[0]
     )
+  })
+
+  it('keeps a deleting item’s path reserved when naming a new URL snapshot', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1'))
+    // Its copy never landed, so no file on disk guards the name, yet its cleanup will still unlink it.
+    const deletingFile = createFileItem('file-deleting', 'deleting')
+    knowledgeItemGetItemsByBaseIdMock.mockImplementation((_baseId: string, options?: { includeDeleting?: boolean }) =>
+      options?.includeDeleting ? [deletingFile] : []
+    )
+    captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
+
+    const reserved = captureUrlSnapshotFileMock.mock.calls[0][3] as Set<string>
+    expect(reserved.has(deletingFile.data.relativePath)).toBe(true)
   })
 
   it('does not fetch a URL that already has a captured snapshot', async () => {
