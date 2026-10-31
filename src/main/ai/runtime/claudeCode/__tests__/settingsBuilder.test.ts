@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import type { McpSdkServerConfigWithInstance, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 import { Server } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -2823,11 +2823,33 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const hook = settings.hooks!.UserPromptSubmit![0].hooks[0]
-    const submit = () =>
-      hook({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {
-        signal: new AbortController().signal
-      })
+    const callbacks = settings.hooks!.UserPromptSubmit![0].hooks
+    expect(callbacks).toHaveLength(16)
+    const submit = async () => {
+      const outputs = (await Promise.all(
+        callbacks.map((hook) =>
+          hook({ hook_event_name: 'UserPromptSubmit', session_id: 'session-1' } as never, undefined, {
+            signal: new AbortController().signal
+          })
+        )
+      )) as SyncHookJSONOutput[]
+      if (outputs.every((output) => Object.keys(output).length === 0)) {
+        expect(outputs).toEqual(Array.from({ length: 16 }, () => ({})))
+        return {}
+      }
+      expect(outputs.slice(1)).toEqual(Array.from({ length: 15 }, () => ({})))
+      const output = outputs[0].hookSpecificOutput!
+      expect(output.hookEventName).toBe('UserPromptSubmit')
+      if (!('additionalContext' in output)) throw new Error('Missing identity context')
+      const context = output.additionalContext!
+      expect(context.length).toBeLessThanOrEqual(10_000)
+      const header = /^<agent_identity_part batch="[^"]+" part="1\/1" units="(\d+)" truncated="false">\n/.exec(context)
+      expect(header).not.toBeNull()
+      const start = context.indexOf('part is not a complete snapshot.\n') + 'part is not a complete snapshot.\n'.length
+      const end = start + Number(header![1])
+      expect(context.slice(end)).toBe('\n</agent_identity_part>')
+      return { hookSpecificOutput: { additionalContext: context.slice(start, end) } }
+    }
     mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
     expect(await submit()).toMatchObject({
       hookSpecificOutput: { additionalContext: '<agent_identity>Persona A</agent_identity>' }

@@ -24,6 +24,52 @@ import { createPiIdentityExtension } from './pi/identityExtension'
 
 type Request = { system: unknown; messages: unknown; model: string; stream?: boolean }
 
+function messageText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.map(messageText).join('\n')
+  if (value && typeof value === 'object') return Object.values(value).map(messageText).join('\n')
+  return ''
+}
+
+function identityParts(text: string) {
+  const parts: { batch: string; part: number; total: number; body: string; context: string }[] = []
+  const header = /<agent_identity_part batch="([^"]+)" part="(\d+)\/(\d+)" units="(\d+)" truncated="false">\n/g
+  let match: RegExpExecArray | null
+  while ((match = header.exec(text))) {
+    const instructionEnd = text.indexOf('part is not a complete snapshot.\n', header.lastIndex)
+    expect(instructionEnd).toBeGreaterThanOrEqual(header.lastIndex)
+    const start = instructionEnd + 'part is not a complete snapshot.\n'.length
+    const end = start + Number(match[4])
+    expect(text.slice(end, end + '\n</agent_identity_part>'.length)).toBe('\n</agent_identity_part>')
+    parts.push({
+      batch: match[1],
+      part: Number(match[2]),
+      total: Number(match[3]),
+      body: text.slice(start, end),
+      context: text.slice(match.index, end + '\n</agent_identity_part>'.length)
+    })
+    header.lastIndex = end + '\n</agent_identity_part>'.length
+  }
+  return parts
+}
+
+function reassembleIdentity(text: string, expected: string): string {
+  const parts = identityParts(text)
+  expect(parts.length).toBeGreaterThan(0)
+  const snapshot = parts
+    .toSorted((a, b) => a.part - b.part)
+    .map((part) => part.body)
+    .join('')
+  expect(snapshot).toBe(expected)
+  for (const part of parts) expect(part.context.length).toBeLessThanOrEqual(10_000)
+  expect(new Set(parts.map((part) => part.batch)).size).toBe(1)
+  const numbers = parts.map((part) => part.part)
+  expect(new Set(numbers).size).toBe(numbers.length)
+  expect(numbers.toSorted((a, b) => a - b)).toEqual(Array.from({ length: parts[0].total }, (_, i) => i + 1))
+  for (const part of parts) expect(part.total).toBe(parts.length)
+  return snapshot
+}
+
 describe('Identity delivered by the native SDKs', () => {
   let root: string
   let server: Server
@@ -245,6 +291,172 @@ describe('Identity delivered by the native SDKs', () => {
     expect(lastMessages()).toContain('IDENTITY_SOUL_C')
     expect(lastMessages()).toContain('IDENTITY_USER_C')
     expect(lastMessages()).toContain('IDENTITY_FACT_C')
+  }, 30_000)
+
+  it('delivers the complete oversized Claude identity without a tool read', async () => {
+    await writeIdentity('OVERSIZED')
+    const sentinel = 'IDENTITY_FACT_TAIL_22945_7d2c86ea'
+    await writeFile(path.join(root, 'memory', 'FACT.md'), 'f'.repeat(30_000) + sentinel)
+    const snapshot = await new PromptBuilder().buildMemoriesSection(root)
+    expect(snapshot.length).toBeGreaterThan(10_000)
+    expect(snapshot.indexOf(sentinel)).toBeGreaterThan(30_000)
+    const completion = Promise.withResolvers<void>()
+    const prompt = (async function* (): AsyncGenerator<SDKUserMessage> {
+      yield { type: 'user', session_id: '', parent_tool_use_id: null, message: { role: 'user', content: 'Say hello.' } }
+      await completion.promise
+    })()
+    const stream = query({
+      prompt,
+      options: {
+        cwd: root,
+        abortController,
+        env: {
+          PATH: process.env.PATH,
+          TMPDIR: root,
+          ANTHROPIC_API_KEY: 'local-test-key',
+          ANTHROPIC_BASE_URL: baseUrl,
+          CLAUDE_CONFIG_DIR: path.join(root, 'config'),
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+          DISABLE_TELEMETRY: '1',
+          DISABLE_ERROR_REPORTING: '1'
+        },
+        model: 'claude-sonnet-4-5-20250929',
+        tools: [],
+        mcpServers: {},
+        strictMcpConfig: true,
+        settingSources: [],
+        settings: { autoMemoryEnabled: false },
+        hooks: createClaudeCodeIdentityHooks(root)
+      }
+    })
+    let results = 0
+    try {
+      for await (const message of stream) {
+        if (message.type === 'result') {
+          expect(message.is_error).toBe(false)
+          results++
+          completion.resolve()
+        }
+      }
+      expect(requests.length).toBeGreaterThan(0)
+      const text = messageText(requests.at(-1)!.messages)
+      expect(text).toContain(sentinel)
+      expect(reassembleIdentity(text, snapshot)).toBe(snapshot)
+      expect(results).toBe(1)
+    } finally {
+      completion.resolve()
+      stream.close()
+    }
+  }, 30_000)
+
+  it('refreshes oversized identity through unchanged turns, native compact, and resume', async () => {
+    const builder = new PromptBuilder()
+    const tails = ['A', 'B', 'C'].map((revision) => `LONG_FACT_TAIL_22945_${revision}_ed9761`)
+    const writeLong = async (revision: number) => {
+      await writeIdentity(String(revision))
+      await writeFile(path.join(root, 'memory', 'FACT.md'), 'f'.repeat(30_000) + tails[revision])
+      return builder.buildMemoriesSection(root)
+    }
+    const snapshots = [await writeLong(0)]
+    const options = {
+      cwd: root,
+      abortController,
+      env: {
+        PATH: process.env.PATH,
+        TMPDIR: root,
+        ANTHROPIC_API_KEY: 'local-test-key',
+        ANTHROPIC_BASE_URL: baseUrl,
+        CLAUDE_CONFIG_DIR: path.join(root, 'config'),
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        DISABLE_TELEMETRY: '1',
+        DISABLE_ERROR_REPORTING: '1'
+      },
+      model: 'claude-sonnet-4-5-20250929',
+      tools: [],
+      mcpServers: {},
+      strictMcpConfig: true,
+      settingSources: [],
+      settings: { autoMemoryEnabled: false }
+    }
+    const hooks = createClaudeCodeIdentityHooks(root)
+    const sources: string[] = []
+    const unchangedOutputs: unknown[] = []
+    let turn = 0
+    for (const [event, matchers] of Object.entries(hooks)) {
+      for (const matcher of matchers)
+        matcher.hooks = matcher.hooks.map((callback) => async (input, id, context) => {
+          const result = await callback(input, id, context)
+          if (input.hook_event_name === 'SessionStart') sources.push(input.source)
+          if (turn === 2 && event === 'UserPromptSubmit') unchangedOutputs.push(result)
+          return result
+        })
+    }
+    const turns = ['first', 'changed', 'unchanged', '/compact', 'after compact']
+    let done = Promise.withResolvers<void>()
+    const prompt = (async function* (): AsyncGenerator<SDKUserMessage> {
+      for (const [index, content] of turns.entries()) {
+        turn = index
+        if (index === 1) snapshots[1] = await writeLong(1)
+        const completion = done.promise
+        yield { type: 'user', session_id: '', parent_tool_use_id: null, message: { role: 'user', content } }
+        await completion
+      }
+    })()
+    const stream = query({ prompt, options: { ...options, hooks } })
+    const contexts: string[] = []
+    let sessionId: string | undefined
+    try {
+      for await (const message of stream) {
+        sessionId = message.session_id
+        if (message.type !== 'result') continue
+        expect(message.is_error).toBe(false)
+        contexts.push(messageText(requests.at(-1)!.messages))
+        const previous = done
+        done = Promise.withResolvers<void>()
+        previous.resolve()
+      }
+    } finally {
+      done.resolve()
+      stream.close()
+    }
+    expect(contexts).toHaveLength(5)
+    const expectCurrent = (text: string, revision: number) => {
+      expect(text).toContain(tails[revision])
+      const parts = identityParts(text)
+      const tailPart = parts.find((part) => part.body.includes(tails[revision]))
+      expect(tailPart).toBeDefined()
+      const batch = parts.filter((part) => part.batch === tailPart!.batch)
+      expect(reassembleIdentity(batch.map((part) => part.context).join('\n'), snapshots[revision])).toBe(
+        snapshots[revision]
+      )
+    }
+    expectCurrent(contexts[0], 0)
+    for (const stage of [1, 2, 4]) expectCurrent(contexts[stage], 1)
+    expect(unchangedOutputs).toEqual(Array.from({ length: 16 }, () => ({})))
+    expect(sources).toContain('compact')
+    expect(contexts[4]).not.toContain(tails[0])
+    snapshots[2] = await writeLong(2)
+    expect(sessionId).toBeDefined()
+    const resumed = query({
+      prompt: 'after resume',
+      options: {
+        ...options,
+        resume: sessionId,
+        hooks: createClaudeCodeIdentityHooks(root)
+      }
+    })
+    let resumedResults = 0
+    try {
+      for await (const message of resumed)
+        if (message.type === 'result') {
+          expect(message.is_error).toBe(false)
+          resumedResults++
+        }
+    } finally {
+      resumed.close()
+    }
+    expect(resumedResults).toBe(1)
+    expectCurrent(messageText(requests.at(-1)!.messages), 2)
   }, 30_000)
 
   it('replaces the Pi system section, preserves it after compaction, and reloads on resume', async () => {

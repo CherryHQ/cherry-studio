@@ -118,6 +118,9 @@ describe('PromptBuilder', () => {
 
     expect(base).toEqual({ kind: 'native' })
     expect(result).toContain('## Memories')
+    expect(result).toContain(
+      'one or more <agent_identity_part> contexts. Parts may arrive in any order; concatenate their bodies by part number'
+    )
     expect(result).toContain(posix('`/workspace/SOUL.md`'))
   })
 
