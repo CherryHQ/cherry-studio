@@ -1,5 +1,11 @@
 {
-  "roots": [".agents/notes", "CONTRIBUTING.md", "docs/i18n", "docs/references/file/file-editing.md"],
+  "roots": [
+    ".agents/notes",
+    "CONTRIBUTING.md",
+    "docs/i18n",
+    "docs/references/file/file-editing.md",
+    "docs/references/job-and-scheduler/scheduled-tasks-page.md"
+  ],
   "excluded": [
     ".agents/notes/AGENTS.md",
     ".agents/notes/implemented/AGENTS.md",

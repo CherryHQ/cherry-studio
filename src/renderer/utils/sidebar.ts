@@ -70,6 +70,10 @@ const SIDEBAR_APP_DEFINITIONS = [
     }
   },
   {
+    id: 'scheduled_tasks',
+    routePrefix: '/app/scheduled-tasks'
+  },
+  {
     id: 'paintings',
     routePrefix: '/app/paintings',
     resolveUrl: ({ defaultPaintingProvider }) => `/app/paintings/${defaultPaintingProvider}`

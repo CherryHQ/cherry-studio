@@ -16,6 +16,7 @@ Cherry Studio unified background job + time-scheduling system.
 | [concurrency-and-locks.md](./concurrency-and-locks.md) | Four-layer lock model + business-level resource locks | Handler authors |
 | [handler-authoring.md](./handler-authoring.md) | How to write a JobHandler (recovery / retry / catchUp / progress) | Handler authors |
 | [migration-checklist.md](./migration-checklist.md) | Step-by-step checklist for migrating existing services | Service migrators |
+| [scheduled-tasks-page.md](./scheduled-tasks-page.md) | Task page usage, conversation selection, pagination, and shortcut upgrades | Feature contributors |
 | [Scheduled tasks page Spec](../../../.agents/notes/proposed/feature/2026-10-31-scheduled-tasks-page.md) | Proposed: dedicated sidebar page, task groups, and associated conversations | Product and implementation contributors |
 
 ## Quick navigation

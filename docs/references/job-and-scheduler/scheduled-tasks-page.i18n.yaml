@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write docs/references/job-and-scheduler/scheduled-tasks-page.md
+scheduled-tasks-page.md: 17060f5cb6dbd787152cf85f433f73bb00c1b7e7
+scheduled-tasks-page.zh.md: ceffebf186da788351db3f2bc436695ea7ea61d6
