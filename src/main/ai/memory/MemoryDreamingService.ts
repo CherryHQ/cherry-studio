@@ -2,8 +2,10 @@ import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import type { JobContext } from '@main/core/job/types'
@@ -58,7 +60,7 @@ export class MemoryDreamingService extends BaseService {
   private epoch = 0
   private active?: { scope: MemoryScope; controller: AbortController; extraction?: ExtractionTicket }
   private extractionBoundary = Date.now()
-  private readonly entityBoundaries = new Map<string, number>()
+  private readonly sourceBoundaries = new Map<string, number>()
   private readonly extractions: ExtractionTicket[] = []
 
   protected onInit(): void {
@@ -102,6 +104,18 @@ export class MemoryDreamingService extends BaseService {
       })
     )
     this.registerDisposable(assistantDataService.onMemoryAccessRevoked((id) => this.resetExtraction(`assistant/${id}`)))
+    this.registerDisposable(
+      topicService.onMemoryAccessRevoked((id) => this.resetExtraction(`memory:extraction:assistant/${id}`))
+    )
+    this.registerDisposable(
+      agentSessionService.onSessionUpdated(({ sessionId }) => {
+        try {
+          agentSessionService.getConversationById(sessionId)
+        } catch {
+          this.resetExtraction(`memory:extraction:agent/${sessionId}`)
+        }
+      })
+    )
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => {
         for (const responseId of event.memoryResponseIds ?? [])
@@ -306,17 +320,18 @@ export class MemoryDreamingService extends BaseService {
     if (Object.values(state.files).some((file) => file.changes >= 10)) this.wake()
   }
 
-  private resetExtraction(entityKey?: string): void {
-    if (entityKey) this.entityBoundaries.set(entityKey, Date.now())
+  private resetExtraction(sourceKey?: string): void {
+    if (sourceKey) this.sourceBoundaries.set(sourceKey, Date.now())
     else this.extractionBoundary = Date.now()
+    const matches = (ticket: ExtractionTicket) =>
+      !sourceKey || ticket.entityKey === sourceKey || ticket.key === sourceKey
     for (let i = this.extractions.length - 1; i >= 0; i--) {
-      if (!entityKey || this.extractions[i].entityKey === entityKey) {
+      if (matches(this.extractions[i])) {
         finishExtraction(this.extractions[i], 'cancelled')
         this.extractions.splice(i, 1)
       }
     }
-    if (this.active?.extraction && (!entityKey || this.active.extraction.entityKey === entityKey))
-      this.active.controller.abort('source-invalidated')
+    if (this.active?.extraction && matches(this.active.extraction)) this.active.controller.abort('source-invalidated')
   }
 
   private captureExtraction(input: ExtractionInput): void {
@@ -331,7 +346,14 @@ export class MemoryDreamingService extends BaseService {
         createdAt: resolved.createdAt,
         hash: resolved.hash
       }
-      if (source.createdAt <= Math.max(this.extractionBoundary, this.entityBoundaries.get(source.entityKey) ?? 0))
+      if (
+        source.createdAt <=
+        Math.max(
+          this.extractionBoundary,
+          this.sourceBoundaries.get(source.entityKey) ?? 0,
+          this.sourceBoundaries.get(source.key) ?? 0
+        )
+      )
         return
       if (!admitExtraction(source)) return
       if (this.extractions.length >= 32) {

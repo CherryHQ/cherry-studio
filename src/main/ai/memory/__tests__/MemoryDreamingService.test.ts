@@ -1,3 +1,4 @@
+import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -21,7 +22,9 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { AgentSessionTurnTerminalEvent } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import type { AiService } from '@main/ai/AiService'
@@ -275,12 +278,68 @@ describe('memory organization lifecycle and commit fences', () => {
     expect((await session.read('MEMORY.md')).content).toBe('Existing fact with an exception.\n')
   })
 
+  it.each(['queued', 'running'] as const)(
+    'keeps extraction after a title-only topic update while %s',
+    async (stage) => {
+      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      const chat = conversation()
+      const rename = () => {
+        vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+        topicService.update(chat.topicId, { name: 'Generated title', isNameManuallyEdited: false })
+      }
+      generate.mockImplementationOnce(async () => {
+        if (stage === 'running') rename()
+        return {
+          text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+          finishReason: 'stop'
+        }
+      })
+      chat.emit()
+      if (stage === 'queued') rename()
+      expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+      expect((await session.read('MEMORY.md')).content).toBe('- "I prefer concise answers."\n')
+      chat.emit()
+      expect(await dreaming.execute(job())).toEqual({ idle: true })
+    }
+  )
+
+  it.each(['owner', 'move', 'delete'] as const)(
+    'discards queued extraction after topic %s and restoration',
+    async (action) => {
+      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      const chat = conversation()
+      const other = conversation()
+      chat.emit()
+      if (action === 'owner') {
+        topicService.update(chat.topicId, { assistantId: null })
+        topicService.update(chat.topicId, { assistantId: chat.assistantId })
+      } else if (action === 'move') {
+        topicService.move(chat.topicId, { assistantId: other.assistantId, order: { position: 'first' } })
+        topicService.move(chat.topicId, { assistantId: chat.assistantId, order: { position: 'first' } })
+      } else {
+        topicService.delete(chat.topicId)
+        topicService.restore(chat.topicId)
+      }
+      chat.emit()
+      expect(await dreaming.execute(job())).toEqual({ idle: true })
+      expect(generate).not.toHaveBeenCalled()
+      other.emit()
+      generate.mockResolvedValueOnce({
+        text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+        finishReason: 'stop'
+      })
+      expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    }
+  )
+
   it.each([
     'edit',
     'delete-user',
     'delete-response',
     'delete-topic',
     'owner',
+    'owner-roundtrip',
+    'topic-restore',
     'access-off-on',
     'parent-off-on',
     'clear',
@@ -306,6 +365,14 @@ describe('memory organization lifecycle and commit fences', () => {
     if (action === 'delete-topic') dbh.db.delete(topicTable).where(eq(topicTable.id, chat.topicId)).run()
     if (action === 'owner')
       dbh.db.update(topicTable).set({ assistantId: null }).where(eq(topicTable.id, chat.topicId)).run()
+    if (action === 'owner-roundtrip') {
+      topicService.update(chat.topicId, { assistantId: null })
+      topicService.update(chat.topicId, { assistantId: chat.assistantId })
+    }
+    if (action === 'topic-restore') {
+      topicService.delete(chat.topicId)
+      topicService.restore(chat.topicId)
+    }
     if (action === 'access-off-on') {
       assistantDataService.update(chat.assistantId, { settings: { enableSharedMemory: false } })
       assistantDataService.update(chat.assistantId, { settings: { enableSharedMemory: true } })
@@ -419,86 +486,103 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(await outcome).toEqual({ extracted: 1 })
   })
 
-  it.each(['desktop', 'channel', 'background', 'headless', 'failed', 'disabled'] as const)(
-    'enforces %s agent source eligibility',
-    async (kind) => {
-      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
-      const agentId = randomUUID(),
-        sessionId = randomUUID(),
-        workspaceId = randomUUID()
+  it.each([
+    'desktop',
+    'renamed-queued',
+    'renamed-running',
+    'restored-queued',
+    'restored-running',
+    'channel',
+    'background',
+    'headless',
+    'failed',
+    'disabled'
+  ] as const)('enforces %s agent source eligibility', async (kind) => {
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+    const agentId = randomUUID(),
+      sessionId = randomUUID(),
+      workspaceId = randomUUID()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: agentId,
+        type: 'pi',
+        name: 'Agent',
+        instructions: '',
+        orderKey: 'a0',
+        configuration: { shared_memory_enabled: kind !== 'disabled' }
+      })
+      .run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: workspaceId, name: 'W', path: '/workspace', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: sessionId,
+        agentId,
+        workspaceId,
+        name: 'S',
+        orderKey: 'a0',
+        type: kind === 'background' ? 'background' : 'conversation'
+      })
+      .run()
+    if (kind === 'channel') {
+      const channelId = randomUUID()
       dbh.db
-        .insert(agentTable)
-        .values({
-          id: agentId,
-          type: 'pi',
-          name: 'Agent',
-          instructions: '',
-          orderKey: 'a0',
-          configuration: { shared_memory_enabled: kind !== 'disabled' }
-        })
+        .insert(agentChannelTable)
+        .values({ id: channelId, name: 'C', type: 'telegram', agentId, workspace: { type: 'system' }, config: {} })
         .run()
-      dbh.db
-        .insert(agentWorkspaceTable)
-        .values({ id: workspaceId, name: 'W', path: '/workspace', orderKey: 'a0' })
-        .run()
-      dbh.db
-        .insert(agentSessionTable)
-        .values({
-          id: sessionId,
-          agentId,
-          workspaceId,
-          name: 'S',
-          orderKey: 'a0',
-          type: kind === 'background' ? 'background' : 'conversation'
-        })
-        .run()
-      if (kind === 'channel') {
-        const channelId = randomUUID()
-        dbh.db
-          .insert(agentChannelTable)
-          .values({ id: channelId, name: 'C', type: 'telegram', agentId, workspace: { type: 'system' }, config: {} })
-          .run()
-        dbh.db.insert(agentChannelSessionTable).values({ sessionId, channelId }).run()
-      }
+      dbh.db.insert(agentChannelSessionTable).values({ sessionId, channelId }).run()
+    }
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+    const [user] = dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        sessionId,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'I prefer concise answers.' }] }
+      })
+      .returning()
+      .all()
+    const [response] = dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        sessionId,
+        role: 'assistant',
+        status: kind === 'failed' ? 'error' : 'success',
+        data: { parts: [] },
+        messageSnapshot: { id: agentId, name: 'Agent', model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' } }
+      })
+      .returning()
+      .all()
+    const changeSession = () => {
       vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
-      const [user] = dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          sessionId,
-          role: 'user',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: 'I prefer concise answers.' }] }
-        })
-        .returning()
-        .all()
-      const [response] = dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          sessionId,
-          role: 'assistant',
-          status: kind === 'failed' ? 'error' : 'success',
-          data: { parts: [] },
-          messageSnapshot: { id: agentId, name: 'Agent', model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' } }
-        })
-        .returning()
-        .all()
-      generate.mockResolvedValueOnce({
+      if (kind.startsWith('renamed')) agentSessionService.update(sessionId, { name: 'Generated title' })
+      if (kind.startsWith('restored')) {
+        agentSessionService.delete(sessionId)
+        agentSessionService.restore(sessionId)
+      }
+    }
+    generate.mockImplementationOnce(async () => {
+      if (kind.endsWith('running')) changeSession()
+      return {
         text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
         finishReason: 'stop'
-      })
-      agentTurns.fire({
-        sessionId,
-        assistantMessageId: response.id,
-        status: 'success',
-        boundary: 'turn',
-        ...(kind === 'headless' ? {} : { memoryUserMessageId: user.id })
-      })
-      expect(await dreaming.execute(job())).toEqual(kind === 'desktop' ? { extracted: 1 } : { idle: true })
-      expect((await session.read('MEMORY.md')).content ?? '').toBe(
-        kind === 'desktop' ? '- "I prefer concise answers."\n' : ''
-      )
-    }
-  )
+      }
+    })
+    agentTurns.fire({
+      sessionId,
+      assistantMessageId: response.id,
+      status: 'success',
+      boundary: 'turn',
+      ...(kind === 'headless' ? {} : { memoryUserMessageId: user.id })
+    })
+    if (kind.endsWith('queued')) changeSession()
+    const eligible = kind === 'desktop' || kind.startsWith('renamed')
+    if (kind === 'restored-running') await expect(dreaming.execute(job())).rejects.toBeInstanceOf(Error)
+    else expect(await dreaming.execute(job())).toEqual(eligible ? { extracted: 1 } : { idle: true })
+    expect((await session.read('MEMORY.md')).content ?? '').toBe(eligible ? '- "I prefer concise answers."\n' : '')
+  })
 
   it('counts only changed controlled writes and keeps the earliest pending time across recovery', async () => {
     await save('First fact')

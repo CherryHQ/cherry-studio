@@ -31,13 +31,11 @@ export function readExtractionSource(input: ExtractionInput) {
   const turn = { assertActive: (): undefined => undefined, isHeadless: () => false }
   let entityKey: string
   let ownerUpdatedAt: number
-  let conversationUpdatedAt: string
   let user: typeof messageTable.$inferSelect | typeof agentSessionMessageTable.$inferSelect | undefined
   let response: typeof user
   let authority: ReturnType<typeof assistantMemoryAuthority>
   if (input.kind === 'assistant') {
     const topic = topicService.getById(input.topicId)
-    conversationUpdatedAt = topic.updatedAt
     if (!topic.assistantId) throw new DreamingError('unavailable')
     authority = assistantMemoryAuthority(
       { kind: 'conversation', topicId: topic.id, assistantId: topic.assistantId },
@@ -58,7 +56,6 @@ export function readExtractionSource(input: ExtractionInput) {
     if (!user || user.topicId !== topic.id || user.deletedAt) throw new DreamingError('unavailable')
   } else {
     const session = agentSessionService.getConversationById(input.sessionId)
-    conversationUpdatedAt = session.updatedAt
     authority = agentMemoryAuthority(session.id, 'shared', turn)
     entityKey = `agent/${session.agentId}`
     ownerUpdatedAt = Date.parse(agentService.getAgent(session.agentId!)!.updatedAt)
@@ -94,7 +91,7 @@ export function readExtractionSource(input: ExtractionInput) {
     key: `memory:extraction:${input.kind}/${input.kind === 'assistant' ? input.topicId : input.sessionId}`,
     messageId: user.id,
     createdAt: user.createdAt,
-    hash: memoryHash(Buffer.from(JSON.stringify({ user, response, entityKey, ownerUpdatedAt, conversationUpdatedAt }))),
+    hash: memoryHash(Buffer.from(JSON.stringify({ user, response, entityKey, ownerUpdatedAt }))),
     text
   }
 }
