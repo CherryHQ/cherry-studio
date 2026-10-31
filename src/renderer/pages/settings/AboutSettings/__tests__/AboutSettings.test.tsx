@@ -191,7 +191,7 @@ describe('AboutSettings repository entry', () => {
     await renderAboutSettings()
 
     expect(screen.getByText('Open-source project')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('button', { name: 'Support' }))
 
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', REPOSITORY_URL)
   })
