@@ -618,6 +618,8 @@ function ItemActions({ active, children, className, pinned, ref, ...props }: Ite
       data-resource-list-item-actions="true"
       className={cn(
         '-ml-1.5 -mr-1 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
+        // Keep the title anchor stable when the pointer enters its portaled preview.
+        'group-has-[[data-slot=hover-card-trigger][data-state=open]]:grid-cols-[1fr]',
         'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100 data-[pinned=true]:pointer-events-auto data-[pinned=true]:grid-cols-[1fr] data-[pinned=true]:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100',
         className
       )}

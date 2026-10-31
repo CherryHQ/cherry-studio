@@ -22,7 +22,13 @@ Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
 and the IM `ChannelAdapterListener`), and the resulting `UIMessageChunk` stream
 is translated back into the caller's dialect by the adapter system. Models,
-knowledge, and MCP routes call their owning services directly.
+knowledge, and MCP routes call their owning services directly. Client tool calls with object arguments retain their names, identities and arguments even when
+input validation fails; the client harness validates them and can return a tool error for model correction.
+Invalid non-object arguments terminate the response through its error channel because they cannot be
+represented as tool argument objects without changing their meaning. The gateway never executes client
+tools or substitutes an empty argument object for invalid input.
+Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
+external callers cannot override these through internal headers.
 
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
@@ -39,7 +45,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent needs a model bridge | Cherry Studio shows **Enable the API Gateway?** when the selected runtime/model route requires it. Choose **Enable** to use that route, or leave it disabled and choose a route that can connect directly. |
+| An Agent needs a model bridge | Agent traffic uses the internal loopback listener, started on demand independently of the public gateway setting. Pi registers its native providers against this listener. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
@@ -293,11 +299,13 @@ The OpenAI, Anthropic, and Gemini generation routes call
      returned as a JSON `Response`.
 7. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
    `aiStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
-   **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — and any mid-stream abort
-   surface as a **failure**, not a truncated success. Before streaming response
-   commitment, an upstream pause rejects with **504**; after commitment it emits
-   a per-dialect error frame (`buildStreamErrorFrame`). Non-streaming requests
-   return **504**. The server's per-request timeout is **5 minutes** (`server.ts`),
+   **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — surfaces as an upstream
+   pause. Upstream pauses and [recognized statusless interruptions](#error-handling)
+   surface as a **failure**, not a truncated success: before streaming response
+   commitment and for non-streaming requests they return **504**; after commitment
+   they emit a per-dialect error frame (`buildStreamErrorFrame`). Client disconnect
+   abandons the response without surfacing a gateway error.
+   The server's per-request timeout is **5 minutes** (`server.ts`),
    with `setTimeout(0)` so live SSE connections are not socket-timed-out.
 
 ```
@@ -318,10 +326,12 @@ A streaming request has two error regimes:
 
 - **Before commitment:** `processMessage` has not returned its `Response` yet.
   Adapter-generated startup frames remain buffered. A provider error rejects
-  with the original serialized error, so the route returns its real HTTP status
-  and dialect envelope (for example, HTTP 400 or 503). An idle-timeout pause
-  rejects as HTTP 504. AI SDK `start`, step, metadata, partial tool-input, and
-  tool-output chunks do not commit the response.
+  with the original serialized error, so the route preserves provider 4xx/5xx
+  statuses but rewrites an extracted 2xx to **502**: an error in the failure path
+  must not leave as an HTTP success. See [Error handling](#error-handling) for
+  status classification and dialect envelopes. An idle-timeout pause or recognized
+  statusless interruption rejects as HTTP 504. AI SDK `start`, step, metadata, partial
+  tool-input, and tool-output chunks do not commit the response.
 - **After commitment:** once text/reasoning output, an available tool call, a
   finish chunk, or clean completion commits HTTP 200, headers can no longer
   change. A later error or pause therefore emits the dialect's terminal SSE
@@ -522,13 +532,24 @@ their own `status`/`code` and are mapped straight into the selected envelope.
 Built-in Elysia `VALIDATION` / `NOT_FOUND` / `PARSE` codes map to 400/404/400
 (422 for REST validation). Explicit HTTP responses thrown by custom parsers,
 such as the pairing body's `413`, are preserved through Elysia's `ParseError` wrapper.
-Unknown provider/runtime errors are shaped by
-`transformAnthropicError` / `transformOpenAiError` — **status-driven**: they read
-`statusCode` off the AI-SDK `SerializedError`, so a provider 401/429/… keeps its
-real status and message instead of flattening to 500. Internal-error messages are
-gated behind `isDev`, and the AI-SDK error extras (`stack` / `url` /
-request+response bodies) are dropped — for both the JSON handlers and the
-streaming `buildStreamErrorFrame`.
+Provider/runtime errors in `transformAnthropicError`, `transformOpenAiError`, and
+`transformGoogleError` use numeric `status`, then numeric `statusCode`, and prefer
+structured `error.message` over `message`. An existing status preserves the selected
+provider message. Without a status, `TimeoutError` or an exact message of
+`Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
+`Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
+`AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
+`Upstream stream aborted`. These matches classify the available error shape and
+do not establish upstream provenance. An extracted status in `[200, 300)` is
+normalized to **502** for `/v1/messages`, `/v1/chat`, `/v1/responses`, `/v1beta`,
+and their SSE error frames: the AI SDK can create an `APICallError` with
+`statusCode: response.status` when an upstream 2xx body is unusable, and returning
+that 2xx would make clients parse the error as a successful response.
+An already committed SSE response remains HTTP 200 and can report the normalized
+server-error classification only in its terminal error frame.
+Unmatched statusless errors remain 500 with
+internal messages shown only in development. JSON responses and terminal SSE error
+frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
 
 ## Key invariants
 

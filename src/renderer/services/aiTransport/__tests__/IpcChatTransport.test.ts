@@ -332,7 +332,7 @@ describe('IpcChatTransport', () => {
   })
 
   it('reconnectToStream returns stream when attached', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks: [] })
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', replayThrough: {}, bufferedChunks: [] })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)

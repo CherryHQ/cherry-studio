@@ -4,6 +4,7 @@ import type * as PathModule from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileUtils from '@main/utils/file'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
@@ -170,7 +171,8 @@ vi.mock('@main/data/db/restore/appliedChain', () => ({
   readAppliedChain: mockReadAppliedChain
 }))
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  isOutsidePath: (await importOriginal<typeof FileUtils>()).isOutsidePath,
   createAtomicWriteStream: mockCreateAtomicWriteStream,
   ensureDir: (target: string) => fs.ensureDir(target)
 }))
@@ -1912,24 +1914,37 @@ describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
     vi.mocked(WebDav).mockClear()
   })
 
-  it('reuses the client while connection fields (incl. TLS flag) are unchanged', () => {
+  it('reuses the client while connection fields (incl. TLS flag) are unchanged', async () => {
     const manager = new BackupManager()
     const config = { webdavHost: 'https://example.com', webdavUser: 'u', webdavPass: 'p', webdavPath: '/' }
 
-    const first = (manager as any).getWebDavInstance(config)
-    const second = (manager as any).getWebDavInstance({ ...config })
+    const first = await (manager as any).getWebDavInstance(config)
+    const second = await (manager as any).getWebDavInstance({ ...config })
 
     expect(second).toBe(first)
     expect(WebDav).toHaveBeenCalledTimes(1)
   })
 
-  it('recreates the client when allowSelfSignedTls changes', () => {
+  it('shares one client between concurrent first callers', async () => {
     const manager = new BackupManager()
     const config = { webdavHost: 'https://example.com' }
 
-    const before = (manager as any).getWebDavInstance(config)
-    const optedIn = (manager as any).getWebDavInstance({ ...config, allowSelfSignedTls: true })
-    const reverted = (manager as any).getWebDavInstance(config)
+    const [first, second] = await Promise.all([
+      (manager as any).getWebDavInstance(config),
+      (manager as any).getWebDavInstance({ ...config })
+    ])
+
+    expect(second).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+
+  it('recreates the client when allowSelfSignedTls changes', async () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com' }
+
+    const before = await (manager as any).getWebDavInstance(config)
+    const optedIn = await (manager as any).getWebDavInstance({ ...config, allowSelfSignedTls: true })
+    const reverted = await (manager as any).getWebDavInstance(config)
 
     expect(optedIn).not.toBe(before)
     expect(reverted).not.toBe(optedIn)
@@ -1938,11 +1953,11 @@ describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
     expect(WebDav).toHaveBeenNthCalledWith(3, { webdavHost: 'https://example.com' })
   })
 
-  it('treats undefined and false as the same TLS setting (no needless recreation)', () => {
+  it('treats undefined and false as the same TLS setting (no needless recreation)', async () => {
     const manager = new BackupManager()
 
-    const first = (manager as any).getWebDavInstance({ webdavHost: 'https://example.com' })
-    const explicitFalse = (manager as any).getWebDavInstance({
+    const first = await (manager as any).getWebDavInstance({ webdavHost: 'https://example.com' })
+    const explicitFalse = await (manager as any).getWebDavInstance({
       webdavHost: 'https://example.com',
       allowSelfSignedTls: false
     })

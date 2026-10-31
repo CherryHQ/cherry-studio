@@ -12,6 +12,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -73,7 +74,7 @@ describe('internal/entry/lifecycle', () => {
         clear: vi.fn()
       },
       versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
+      contentWriteLock: new KeyedMutex()
     }
   })
 

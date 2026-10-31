@@ -1,7 +1,9 @@
-import type { ModelMessage, UIMessage } from 'ai'
+import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import { MODALITY } from '@cherrystudio/provider-registry'
+import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
 import type { Model } from '@shared/data/types/model'
 
 import {
@@ -11,6 +13,7 @@ import {
   routeToolResultMedia,
   stripUnsupportedMedia
 } from '../messageCapabilities'
+import { toModelMessages } from '../messageRules'
 
 const model = (inputModalities: string[]): Model => ({ capabilities: [], inputModalities }) as unknown as Model
 
@@ -171,4 +174,51 @@ describe('routeToolResultMedia', () => {
     expect(JSON.stringify(withoutVision)).not.toContain('image-data')
     expect(withoutVision).toHaveLength(1)
   })
+})
+
+it('#22441 routes only the winning duplicate image and the distinct call image with their anchors', async () => {
+  const imagePart = (toolCallId: string, data: string): UIMessage['parts'][number] => ({
+    type: 'tool-read_media',
+    toolCallId,
+    state: 'output-available',
+    input: { image: data },
+    output: { content: [{ type: 'image', data, mimeType: 'image/png' }] }
+  })
+  const messages = await toModelMessages(
+    [
+      {
+        id: 'images',
+        role: 'assistant',
+        parts: [imagePart('dup', 'WINNER'), imagePart('dup', 'LOSER'), imagePart('other', 'DISTINCT')]
+      }
+    ],
+    { image: true, video: false, audio: false },
+    {
+      read_media: tool({
+        inputSchema: z.object({ image: z.string() }),
+        toModelOutput: ({ output }) => mcpResultToModelOutput(output)
+      })
+    },
+    { image: false, video: false, audio: false }
+  )
+  expect(messages.filter((message) => message.role === 'user')).toEqual([
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: '[tool-result attachment call_id="dup" image=1]' },
+        { type: 'image', image: 'WINNER', mediaType: 'image/png' },
+        { type: 'text', text: '[tool-result attachment call_id="other" image=1]' },
+        { type: 'image', image: 'DISTINCT', mediaType: 'image/png' }
+      ]
+    }
+  ])
+  const parts = messages.flatMap<Exclude<ModelMessage['content'], string>[number]>((message) =>
+    Array.isArray(message.content) ? message.content : []
+  )
+  expect(parts.filter((part) => part.type === 'tool-call')).toEqual([
+    expect.objectContaining({ toolCallId: 'dup', input: { image: 'WINNER' } }),
+    expect.objectContaining({ toolCallId: 'other', input: { image: 'DISTINCT' } })
+  ])
+  expect(parts.filter((part) => part.type === 'tool-result').map((part) => part.toolCallId)).toEqual(['dup', 'other'])
+  expect(JSON.stringify(messages)).not.toContain('LOSER')
 })

@@ -3,6 +3,7 @@ import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
+import semver from 'semver'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -15,10 +16,14 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
+import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
+import type { OutputFor } from '@shared/ipc/types'
 import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
   hasMultiLanguageReleaseNotes,
+  isStableReleaseVersion,
   localizeReleaseNotes,
   mergeReleaseHistory,
   parseReleaseHistory,
@@ -158,8 +163,15 @@ export class AppUpdaterService extends BaseService {
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
-    const onUpdateNotAvailable = () => {
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
+    const onUpdateNotAvailable = (updateInfo: UpdateInfo) => {
+      const result = this.resolveNotAvailableResult(updateInfo)
+      if (!result.isCurrent) {
+        logger.warn(
+          `managed feed target ${result.feedVersion} differs from installed ${result.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
+        )
+      }
+      const payload: AppUpdaterNotAvailablePayload = { isCurrent: result.isCurrent }
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', payload)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
@@ -307,6 +319,26 @@ export class AppUpdaterService extends BaseService {
     return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
   }
 
+  public async getUpgradeReleaseNotes(targetVersion: string): Promise<OutputFor<'app.updater.upgrade_notes.get'>> {
+    const fromVersion = app.getVersion()
+    if (
+      !isStableReleaseVersion(fromVersion) ||
+      !isStableReleaseVersion(targetVersion) ||
+      !semver.gt(targetVersion, fromVersion)
+    ) {
+      throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'Expected a stable upgrade range')
+    }
+    const history = await this.fetchReleaseHistory()
+    return {
+      fromVersion,
+      toVersion: targetVersion,
+      historyStatus: history ? 'available' : 'unavailable',
+      releases: (history ?? [])
+        .filter(({ version }) => semver.gt(version, fromVersion) && semver.lte(version, targetVersion))
+        .sort((left, right) => semver.rcompare(left.version, right.version))
+    }
+  }
+
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
@@ -411,6 +443,31 @@ export class AppUpdaterService extends BaseService {
   public quitAndInstall() {
     application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
+  }
+
+  /**
+   * Feed/install mismatch means withheld (withdrawn/stale/staged). A prerelease install stays
+   * current against an older (e.g. stable) feed, but not when the feed advertises a newer version.
+   * Unparseable versions stay current.
+   */
+  private resolveNotAvailableResult(updateInfo: UpdateInfo | null | undefined): {
+    currentVersion: string
+    feedVersion: string | null
+    isCurrent: boolean
+  } {
+    const currentVersion = app.getVersion()
+    const feedVersion = updateInfo?.version || null
+    let isCurrent = true
+    if (feedVersion) {
+      try {
+        isCurrent =
+          semver.eq(feedVersion, currentVersion) ||
+          (semver.prerelease(currentVersion) !== null && !semver.gt(feedVersion, currentVersion))
+      } catch {
+        // Unparseable versions fail closed to current.
+      }
+    }
+    return { currentVersion, feedVersion, isCurrent }
   }
 
   /**

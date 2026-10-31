@@ -8,6 +8,7 @@ import {
   CACHE_CLEANUP_SIZE_COMPLETENESS
 } from '../../types/cacheCleanup'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
+import { isStableReleaseVersion } from '../../utils/releaseNotes'
 import { defineRoute } from '../define'
 
 const relocationInspectionSchema = z.discriminatedUnion('valid', [
@@ -97,13 +98,33 @@ export const appRequestSchemas = {
       .min(1)
       .nullable()
   }),
+  'app.updater.upgrade_notes.get': defineRoute({
+    input: z.object({ targetVersion: z.string().refine(isStableReleaseVersion) }),
+    output: z.object({
+      fromVersion: z.string(),
+      toVersion: z.string(),
+      historyStatus: z.enum(['available', 'unavailable']),
+      releases: z.array(z.object({ version: z.string(), releaseNotes: z.string() }))
+    })
+  }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
+}
+
+/**
+ * A `not_available` result is not always "already current": electron-updater
+ * reports it with the feed's target even when that target is older than the
+ * install (withdrawn or stale feed) or newer but unoffered (staged rollout).
+ * `isCurrent` carries the explicit comparison so the UI never presents a
+ * withheld rollout as up to date. The compared versions stay in main-process logs.
+ */
+export type AppUpdaterNotAvailablePayload = {
+  isCurrent: boolean
 }
 
 export type AppEventSchemas = {
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
-  'app.updater.not_available': void
+  'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
 }

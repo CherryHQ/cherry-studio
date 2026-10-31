@@ -1,5 +1,29 @@
 # @cherrystudio/file-preview
 
+## 0.2.3
+
+### Patch Changes
+
+- [#22548](https://github.com/CherryHQ/cherry-studio/pull/22548) [`a48cb07`](https://github.com/CherryHQ/cherry-studio/commit/a48cb075dda8053226081617308a157c4be4039e) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Enable native text selection and copying in DOCX previews while preserving paragraph references during text dragging.
+
+## 0.2.2
+
+### Patch Changes
+
+- [#22348](https://github.com/CherryHQ/cherry-studio/pull/22348) [`909214f`](https://github.com/CherryHQ/cherry-studio/commit/909214f68dd50bc04f1687c5ffc8845d4aac4fc4) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Italian translations for file-preview controls and messages.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#20897](https://github.com/CherryHQ/cherry-studio/pull/20897) [`9e64ff8`](https://github.com/CherryHQ/cherry-studio/commit/9e64ff899b6ec4cb5b6a765baa0ba42fb325596e) Thanks [@ousugo](https://github.com/ousugo)! - Preserve valid reading state when refreshing the same document, while replacing its source session and rejecting obsolete selection and failure callbacks.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#22376](https://github.com/CherryHQ/cherry-studio/pull/22376) [`3d75b7a`](https://github.com/CherryHQ/cherry-studio/commit/3d75b7a0ac6078f0821ebba7ce88a6af8835665f) Thanks [@DeJeune](https://github.com/DeJeune)! - Add read-only RTF previews with formatted text, Unicode and legacy code pages, embedded images, safe links, and a 10 MiB source limit.
+
 ## 0.1.3
 
 ### Patch Changes

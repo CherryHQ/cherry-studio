@@ -308,7 +308,7 @@ describe('LaunchpadPage', () => {
 
     const systemSortable = mocks.sortableCalls.find((call) => call.itemKey === 'id')
     act(() => {
-      systemSortable.onDragStart({ active: { id: 'knowledge' } })
+      systemSortable.onDragStart({ activeId: 'knowledge' })
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Knowledge' }))
