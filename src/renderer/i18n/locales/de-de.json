@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Das Standardmodell benötigt mehr Kapazität. Wechseln Sie das Modell oder verkleinern Sie die Erinnerungsdateien.",
   "settings.memory.dreaming.failed": "Nicht abgeschlossen. Prüfen Sie die Erinnerungen und versuchen Sie es erneut oder stellen Sie die letzten Änderungen wieder her.",
   "settings.memory.dreaming.last_result": "Letztes Ergebnis: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Letzter Lauf: {{time}}",
   "settings.memory.dreaming.model_required": "Wählen Sie ein verfügbares Standardmodell.",
   "settings.memory.dreaming.result.cancelled": "Abgebrochen",
   "settings.memory.dreaming.result.completed": "Abgeschlossen",

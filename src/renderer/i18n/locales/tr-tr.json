@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Varsayılan modelin daha fazla kapasiteye ihtiyacı var. Modeli değiştirin veya bellek dosyalarını küçültün.",
   "settings.memory.dreaming.failed": "Düzenleme tamamlanmadı. Belleği inceleyip yeniden deneyin veya son değişiklikleri geri yükleyin.",
   "settings.memory.dreaming.last_result": "Son sonuç: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Son çalıştırma: {{time}}",
   "settings.memory.dreaming.model_required": "Kullanılabilir bir varsayılan model seçin.",
   "settings.memory.dreaming.result.cancelled": "İptal edildi",
   "settings.memory.dreaming.result.completed": "Tamamlandı",

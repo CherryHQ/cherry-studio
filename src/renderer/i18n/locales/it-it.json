@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Il modello predefinito richiede più capacità. Cambia modello o riduci i file di memoria.",
   "settings.memory.dreaming.failed": "Organizzazione incompleta. Controlla la memoria e riprova oppure ripristina le ultime modifiche.",
   "settings.memory.dreaming.last_result": "Ultimo risultato: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Ultima esecuzione: {{time}}",
   "settings.memory.dreaming.model_required": "Seleziona un modello predefinito disponibile.",
   "settings.memory.dreaming.result.cancelled": "Annullato",
   "settings.memory.dreaming.result.completed": "Completato",

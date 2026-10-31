@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Le modèle par défaut nécessite plus de capacité. Changez de modèle ou réduisez les fichiers de mémoire.",
   "settings.memory.dreaming.failed": "Organisation inachevée. Vérifiez la mémoire et réessayez, ou restaurez les dernières modifications.",
   "settings.memory.dreaming.last_result": "Dernier résultat : {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Dernière exécution : {{time}}",
   "settings.memory.dreaming.model_required": "Choisissez un modèle par défaut disponible.",
   "settings.memory.dreaming.result.cancelled": "Annulé",
   "settings.memory.dreaming.result.completed": "Terminé",

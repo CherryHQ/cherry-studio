@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Modelul implicit necesită mai multă capacitate. Schimbă modelul sau micșorează fișierele de memorie.",
   "settings.memory.dreaming.failed": "Organizarea nu s-a încheiat. Verifică memoria și reîncearcă sau restaurează ultimele modificări.",
   "settings.memory.dreaming.last_result": "Ultimul rezultat: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Ultima rulare: {{time}}",
   "settings.memory.dreaming.model_required": "Alege un model implicit disponibil.",
   "settings.memory.dreaming.result.cancelled": "Anulat",
   "settings.memory.dreaming.result.completed": "Finalizat",

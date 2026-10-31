@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "默认模型容量不可用或不足。请切换默认模型或缩小记忆文件后重试。",
   "settings.memory.dreaming.failed": "整理未完成。请检查记忆后重试，或恢复最近修改。",
   "settings.memory.dreaming.last_result": "最近运行结果：{{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "上次整理：{{time}}",
   "settings.memory.dreaming.model_required": "请先选择可用的默认模型。",
   "settings.memory.dreaming.result.cancelled": "已取消",
   "settings.memory.dreaming.result.completed": "已完成",

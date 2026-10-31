@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "The default model needs more capacity. Choose another default model or reduce the memory files.",
   "settings.memory.dreaming.failed": "Organization did not finish. Review memory and retry, or recover the latest changes.",
   "settings.memory.dreaming.last_result": "Last result: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Last run: {{time}}",
   "settings.memory.dreaming.model_required": "Choose an available default model to organize memory.",
   "settings.memory.dreaming.result.cancelled": "Cancelled",
   "settings.memory.dreaming.result.completed": "Completed",

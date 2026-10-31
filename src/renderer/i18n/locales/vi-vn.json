@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Mô hình mặc định cần dung lượng lớn hơn. Hãy đổi mô hình hoặc giảm kích thước tệp bộ nhớ.",
   "settings.memory.dreaming.failed": "Chưa sắp xếp xong. Hãy kiểm tra bộ nhớ và thử lại hoặc khôi phục thay đổi gần nhất.",
   "settings.memory.dreaming.last_result": "Kết quả gần nhất: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Lần chạy gần nhất: {{time}}",
   "settings.memory.dreaming.model_required": "Hãy chọn một mô hình mặc định khả dụng.",
   "settings.memory.dreaming.result.cancelled": "Đã hủy",
   "settings.memory.dreaming.result.completed": "Hoàn tất",

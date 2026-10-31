@@ -4881,7 +4881,6 @@
   "settings.memory.dreaming.budget": "Модели по умолчанию требуется больше ёмкости. Выберите другую модель или уменьшите файлы памяти.",
   "settings.memory.dreaming.failed": "Упорядочивание не завершено. Проверьте память и повторите попытку или восстановите последние изменения.",
   "settings.memory.dreaming.last_result": "Последний результат: {{result}} · {{time}}",
-  "settings.memory.dreaming.last_run": "Последний запуск: {{time}}",
   "settings.memory.dreaming.model_required": "Выберите доступную модель по умолчанию.",
   "settings.memory.dreaming.result.cancelled": "Отменено",
   "settings.memory.dreaming.result.completed": "Завершено",
