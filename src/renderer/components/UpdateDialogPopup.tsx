@@ -16,7 +16,6 @@ import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 
 import { ReleaseNotes } from './ReleaseNotes'
 
@@ -31,6 +30,7 @@ type Props = ShowParams & PopupInjectedProps<Record<string, never>>
 const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
   const { t } = useTranslation()
   const [isInstalling, setIsInstalling] = useState(false)
+  const [installError, setInstallError] = useState<string | null>(null)
   const { updateAppUpdateState } = useAppUpdateState()
   useEffect(() => {
     if (releaseInfo) {
@@ -40,15 +40,14 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
 
   const handleInstall = async () => {
     setIsInstalling(true)
+    setInstallError(null)
     try {
-      // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-      // await handleSaveData()
       await ipcApi.request('app.updater.quit_and_install')
       resolve({})
     } catch (error) {
-      logger.error('Failed to save data before update', error as Error)
+      logger.error('Failed to install the downloaded update', error as Error)
       setIsInstalling(false)
-      toast.error(t('update.saveDataError'))
+      setInstallError(t('update.installFailed'))
     }
   }
 
@@ -93,6 +92,11 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
           <ReleaseNotes content={releaseNotesText} />
         </Scrollbar>
         <Divider className="my-0" />
+        {installError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {installError}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={onIgnore} disabled={isInstalling}>
             {t('update.later')}
