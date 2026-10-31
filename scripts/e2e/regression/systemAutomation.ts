@@ -870,25 +870,36 @@ async function saveNativeFileWindows(
     'if ($readback.ToString() -cne $target) { throw "Native save filename does not match the requested path" }',
     '$dialogHandle = $dialog.Current.NativeWindowHandle',
     '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-    // The dialog is asynchronous: confirm the file exists before reporting success, and accept a
-    // replace prompt so a rerun into the same directory does not stall on a second window.
+    // The dialog is asynchronous: wait for the file the dialog actually wrote. The window may append
+    // the extension from the application's filter, so accept the proposed name with or without one.
+    '$base = [IO.Path]::GetFileName($target)',
+    '$clickedAt = [DateTime]::UtcNow',
+    '$notes = @()',
+    '$written = $null',
     '$writeDeadline = [DateTime]::UtcNow.AddSeconds(30)',
-    'while (-not (Test-Path -LiteralPath $target) -and [DateTime]::UtcNow -lt $writeDeadline) {',
-    '  $prompts = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.NativeWindowHandle -ne $dialogHandle })',
-    '  foreach ($prompt in $prompts) {',
-    '    $yes = $prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "6"))',
-    '    if ($yes -and $yes.Current.NativeWindowHandle) { $null = [NativeSaveDialog]::SendMessage([IntPtr]$yes.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    'while (-not $written -and [DateTime]::UtcNow -lt $writeDeadline) {',
+    '  $candidates = @(Get-ChildItem -LiteralPath $directory -ErrorAction SilentlyContinue | Where-Object { ($_.Name -eq $base -or $_.Name.StartsWith($base + ".")) -and $_.LastWriteTime.ToUniversalTime() -ge $clickedAt.AddSeconds(-2) })',
+    '  if ($candidates.Count -gt 0) { $written = ($candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName; break }',
+    '  $others = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.NativeWindowHandle -ne $dialogHandle })',
+    '  foreach ($prompt in $others) {',
+    '    if ($prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)) { continue }',
+    '    $textCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)',
+    '    $text = @($prompt.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object { $_.Current.Name }) -join " "',
+    '    $notes += ("prompt " + $prompt.Current.Name + ": " + $text)',
+    '    $answer = $prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "6"))',
+    '    if (-not $answer) { $answer = $prompt.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1")) }',
+    '    if ($answer -and $answer.Current.NativeWindowHandle) { $null = [NativeSaveDialog]::SendMessage([IntPtr]$answer.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
     '  }',
     '  Start-Sleep -Milliseconds 250',
     '}',
-    'if (-not (Test-Path -LiteralPath $target)) {',
+    'if (-not $written) {',
     '  $open = @()',
     '  $files = @()',
     '  try { $open = @($root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition) | ForEach-Object { $_.Current.ClassName + ":" + $_.Current.Name }) } catch { $open = @("unavailable") }',
     '  try { $files = @(Get-ChildItem -LiteralPath $directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) } catch { $files = @("unavailable") }',
-    `  throw ("Native save dialog did not write {0}. Windows: {1}. Directory: {2}" -f $target, ($open -join " ; "), ($files -join ", "))`,
+    `  throw ("Native save dialog did not write {0}. Windows: {1}. Prompts: {2}. Directory: {3}" -f $target, ($open -join " ; "), ($notes -join " ; "), ($files -join ", "))`,
     '}',
-    'Write-Output $target'
+    'Write-Output $written'
   ].join('\n')
   const output = await runAsyncCapture(
     'powershell.exe',
