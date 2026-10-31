@@ -60,6 +60,8 @@ export const USER_ABORT = 'cherry.user-abort'
 
 export interface AgentRuntimeSession {
   session: AgentSession
+  /** The configured summary callback, for adapter wiring validation. */
+  readonly compactionSummarizer?: AgentRuntimeCompaction['summarize']
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
   /**
@@ -226,6 +228,7 @@ async function buildSession(
   }
   const owner: AgentRuntimeSession = {
     session,
+    compactionSummarizer: compaction?.summarize,
     prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
     compact: (customInstructions) => held(() => session.compact(customInstructions)),
     abort() {
