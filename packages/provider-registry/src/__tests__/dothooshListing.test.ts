@@ -194,6 +194,75 @@ describe('parseDotHooshListings — capabilities of the selected protocol', () =
   })
 })
 
+describe('parseDotHooshListings — Anthropic route capabilities', () => {
+  const OA = (id: string, params: string[]) => ({
+    id,
+    protocols: [{ protocol: 'anthropic-messages' }, { protocol: 'openai-chat-completions' }],
+    supported_parameters: params
+  })
+  const AN = (id: string, params: string[]) => ({ id, supported_parameters: params })
+  const FULL = [
+    'include_reasoning',
+    'max_tokens',
+    'reasoning',
+    'response_format',
+    'structured_outputs',
+    'tool_choice',
+    'tools'
+  ]
+
+  // Bug caught: Pi and the other Anthropic-first consumers pick the Anthropic route, which rejects the tools the model advertises.
+  it('leaves the Anthropic route off a model whose Anthropic listing does not verify its tools, reasoning or structured output', () => {
+    const [model] = parseDotHooshListings({
+      openai: { data: [OA('deepseek-flash', FULL)] },
+      anthropic: { data: [AN('deepseek-flash', ['max_tokens'])] }
+    })
+    expect(model.endpointTypes).toEqual(['openai-chat-completions'])
+    expect(model.capabilities.add).toEqual(expect.arrayContaining(['function-call', 'reasoning', 'structured-output']))
+  })
+
+  // Bug caught: the Anthropic route is dropped even when it verifies every capability the model advertises.
+  it('keeps the Anthropic route when its listing verifies every capability the OpenAI route declares', () => {
+    const [model] = parseDotHooshListings({
+      openai: { data: [OA('deepseek-flash', FULL)] },
+      anthropic: {
+        data: [AN('deepseek-flash', ['max_tokens', 'reasoning', 'structured_outputs', 'tool_choice', 'tools'])]
+      }
+    })
+    expect(model.endpointTypes).toEqual(['openai-chat-completions', 'anthropic-messages'])
+  })
+
+  // Bug caught: a partial cover (tools and reasoning but no structured output) is counted as a capable route.
+  it('drops the Anthropic route when its listing misses one declared capability', () => {
+    const [model] = parseDotHooshListings({
+      openai: { data: [OA('deepseek-flash', FULL)] },
+      anthropic: { data: [AN('deepseek-flash', ['max_tokens', 'reasoning', 'tools'])] }
+    })
+    expect(model.endpointTypes).toEqual(['openai-chat-completions'])
+  })
+
+  // Bug caught: a model that declares no route capability loses a valid Anthropic route.
+  it('keeps the Anthropic route for a model that declares no route capability', () => {
+    const [model] = parseDotHooshListings({
+      openai: { data: [OA('m', ['max_tokens'])] },
+      anthropic: { data: [AN('m', ['max_tokens'])] }
+    })
+    expect(model.endpointTypes).toEqual(['openai-chat-completions', 'anthropic-messages'])
+  })
+
+  // Bug caught: Anthropic-only models (the live Claude entries) are dropped or stripped of their capabilities.
+  it('keeps an Anthropic-only model on the Anthropic route with its capabilities', () => {
+    const [model] = parseDotHooshListings({
+      openai: { data: [] },
+      anthropic: {
+        data: [AN('claude-opus-5-5', ['include_reasoning', 'max_tokens', 'reasoning', 'tool_choice', 'tools'])]
+      }
+    })
+    expect(model.endpointTypes).toEqual(['anthropic-messages'])
+    expect(model.capabilities.add).toEqual(expect.arrayContaining(['function-call', 'reasoning']))
+  })
+})
+
 describe('parseDotHooshListings — tier carry-over', () => {
   const usd = (perMillionTokens: number) => ({ currency: 'USD', perMillionTokens })
   const priced = (pricing: object, pricing_tiers: object[]) =>

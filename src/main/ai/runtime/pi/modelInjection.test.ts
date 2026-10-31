@@ -9,6 +9,7 @@ import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { parseDotHooshListings } from '@cherrystudio/provider-registry'
 import type { ReasoningWireProfile } from '@cherrystudio/provider-registry'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
@@ -221,6 +222,51 @@ describe('buildPiProviderInjection', () => {
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
     expect(injection.providerConfig.api).toBe('openai-completions')
+  })
+
+  // Bug caught: Pi resolves the DotHoosh DeepSeek Anthropic route, which rejects the tools the model advertises.
+  it('does not send a DotHoosh model to the Anthropic route when its Anthropic listing lacks the tools', () => {
+    const [listed] = parseDotHooshListings({
+      openai: {
+        data: [
+          {
+            id: 'deepseek-flash',
+            protocols: [{ protocol: 'anthropic-messages' }, { protocol: 'openai-chat-completions' }],
+            supported_parameters: [
+              'max_tokens',
+              'reasoning',
+              'response_format',
+              'structured_outputs',
+              'tool_choice',
+              'tools'
+            ]
+          }
+        ]
+      },
+      anthropic: { data: [{ id: 'deepseek-flash', supported_parameters: ['max_tokens'] }] }
+    })
+    const provider = makeProvider({
+      id: 'dothoosh',
+      name: 'DotHoosh',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.dothoosh.com' },
+        'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://gateway.dothoosh.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.dothoosh.com/anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'dothoosh::deepseek-flash',
+      providerId: 'dothoosh',
+      apiModelId: 'deepseek-flash',
+      endpointTypes: listed.endpointTypes
+    })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).not.toBe('anthropic-messages')
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).not.toContain('/anthropic')
   })
 
   it('maps an OpenAI-compatible provider (chat-completions)', () => {
