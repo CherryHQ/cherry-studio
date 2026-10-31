@@ -14,7 +14,17 @@ diff --git a/dist/index.js b/dist/index.js
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -599,6 +603,17 @@
+@@ -592,7 +596,8 @@
+     if (text != null && text.length > 0) {
+       content.push({ type: "text", text });
+     }
+-    const reasoning = (_a = choice.message.reasoning_content) != null ? _a : choice.message.reasoning;
++    // Copilot's Claude models put the readable chain in `reasoning_text`.
++    const reasoning = choice.message.reasoning_content ?? choice.message.reasoning ?? choice.message.reasoning_text;
+     if (reasoning != null && reasoning.length > 0) {
+       content.push({
+         type: "reasoning",
+@@ -599,6 +604,17 @@
          text: reasoning
        });
      }
@@ -32,7 +42,17 @@ diff --git a/dist/index.js b/dist/index.js
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -758,6 +773,17 @@
+@@ -725,7 +741,8 @@
+             if ((choice == null ? void 0 : choice.delta) == null) {
+               return;
+             }
+             const delta = choice.delta;
+-            const reasoningContent = (_b = delta.reasoning_content) != null ? _b : delta.reasoning;
++            // Copilot's Claude models put the readable chain in `reasoning_text`.
++            const reasoningContent = delta.reasoning_content ?? delta.reasoning ?? delta.reasoning_text;
+             if (reasoningContent) {
+               if (!isActiveReasoning) {
+@@ -758,6 +775,17 @@
                  delta: delta.content
                });
              }
@@ -50,7 +70,7 @@ diff --git a/dist/index.js b/dist/index.js
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -867,7 +893,7 @@
+@@ -867,7 +895,7 @@
                  controller.enqueue({
                    type: "tool-input-delta",
                    id: toolCall.id,
@@ -59,7 +79,16 @@ diff --git a/dist/index.js b/dist/index.js
                  });
                }
              }
-@@ -983,6 +1009,14 @@
+@@ -968,6 +996,8 @@
+         role: import_v43.z.literal("assistant").nullish(),
+         content: import_v43.z.string().nullish(),
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
++        // Copilot's Claude models put the readable chain in `reasoning_text`.
++        reasoning_text: import_v43.z.string().nullish(),
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+@@ -983,6 +1013,14 @@
                }).nullish()
              }).nullish()
            })
@@ -74,7 +103,17 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -1011,7 +1045,7 @@
+@@ -1001,7 +1039,9 @@
+         content: import_v43.z.string().nullish(),
+         // Most openai-compatible models set `reasoning_content`, but some
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
++        // Copilot's Claude models put the readable chain in `reasoning_text`.
++        reasoning_text: import_v43.z.string().nullish(),
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+@@ -1011,7 +1051,7 @@
              function: import_v43.z.object({
                name: import_v43.z.string().nullish(),
                arguments: import_v43.z.string().nullish()
@@ -83,7 +122,7 @@ diff --git a/dist/index.js b/dist/index.js
              // Support for Google Gemini thought signatures via OpenAI compatibility
              extra_content: import_v43.z.object({
                google: import_v43.z.object({
-@@ -1019,6 +1053,14 @@
+@@ -1019,6 +1059,14 @@
                }).nullish()
              }).nullish()
            })
@@ -98,7 +137,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1577,7 +1619,7 @@
+@@ -1577,7 +1625,7 @@
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -107,7 +146,7 @@ diff --git a/dist/index.js b/dist/index.js
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1585,13 +1627,23 @@
+@@ -1585,13 +1633,23 @@
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -132,7 +171,7 @@ diff --git a/dist/index.js b/dist/index.js
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1719,11 @@
+@@ -1667,7 +1725,11 @@
          fetch: this.config.fetch
        });
        return {
@@ -145,7 +184,7 @@ diff --git a/dist/index.js b/dist/index.js
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1732,7 @@
+@@ -1676,7 +1738,7 @@
          }
        };
      }
@@ -154,7 +193,7 @@ diff --git a/dist/index.js b/dist/index.js
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1743,8 @@
+@@ -1687,8 +1749,8 @@
          prompt,
          n,
          size,
@@ -165,7 +204,7 @@ diff --git a/dist/index.js b/dist/index.js
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1755,28 @@
+@@ -1699,8 +1761,28 @@
        abortSignal,
        fetch: this.config.fetch
      });
@@ -195,7 +234,7 @@ diff --git a/dist/index.js b/dist/index.js
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1787,7 @@
+@@ -1711,7 +1793,7 @@
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -220,7 +259,17 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -585,6 +589,17 @@
+@@ -578,7 +582,8 @@
+     if (text != null && text.length > 0) {
+       content.push({ type: "text", text });
+     }
+-    const reasoning = (_a = choice.message.reasoning_content) != null ? _a : choice.message.reasoning;
++    // Copilot's Claude models put the readable chain in `reasoning_text`.
++    const reasoning = choice.message.reasoning_content ?? choice.message.reasoning ?? choice.message.reasoning_text;
+     if (reasoning != null && reasoning.length > 0) {
+       content.push({
+         type: "reasoning",
+@@ -585,6 +590,17 @@
          text: reasoning
        });
      }
@@ -238,7 +287,17 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -744,6 +759,17 @@
+@@ -711,7 +727,8 @@
+             if ((choice == null ? void 0 : choice.delta) == null) {
+               return;
+             }
+             const delta = choice.delta;
+-            const reasoningContent = (_b = delta.reasoning_content) != null ? _b : delta.reasoning;
++            // Copilot's Claude models put the readable chain in `reasoning_text`.
++            const reasoningContent = delta.reasoning_content ?? delta.reasoning ?? delta.reasoning_text;
+             if (reasoningContent) {
+               if (!isActiveReasoning) {
+@@ -744,6 +761,17 @@
                  delta: delta.content
                });
              }
@@ -256,7 +315,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -853,7 +879,7 @@
+@@ -853,7 +881,7 @@
                  controller.enqueue({
                    type: "tool-input-delta",
                    id: toolCall.id,
@@ -265,7 +324,16 @@ diff --git a/dist/index.mjs b/dist/index.mjs
                  });
                }
              }
-@@ -969,6 +995,14 @@
+@@ -954,6 +982,8 @@
+         role: z3.literal("assistant").nullish(),
+         content: z3.string().nullish(),
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
++        // Copilot's Claude models put the readable chain in `reasoning_text`.
++        reasoning_text: z3.string().nullish(),
+         tool_calls: z3.array(
+           z3.object({
+@@ -969,6 +999,14 @@
                }).nullish()
              }).nullish()
            })
@@ -280,7 +348,17 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -997,7 +1031,7 @@
+@@ -987,7 +1025,9 @@
+         content: z3.string().nullish(),
+         // Most openai-compatible models set `reasoning_content`, but some
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
++        // Copilot's Claude models put the readable chain in `reasoning_text`.
++        reasoning_text: z3.string().nullish(),
+         tool_calls: z3.array(
+           z3.object({
+@@ -997,7 +1037,7 @@
              function: z3.object({
                name: z3.string().nullish(),
                arguments: z3.string().nullish()
@@ -289,7 +367,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              // Support for Google Gemini thought signatures via OpenAI compatibility
              extra_content: z3.object({
                google: z3.object({
-@@ -1005,6 +1039,14 @@
+@@ -1005,6 +1045,14 @@
                }).nullish()
              }).nullish()
            })
@@ -304,7 +382,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }).nullish(),
        finish_reason: z3.string().nullish()
-@@ -1581,7 +1623,7 @@
+@@ -1581,7 +1629,7 @@
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -313,7 +391,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1589,7 +1631,7 @@
+@@ -1589,7 +1637,7 @@
  };
  var openaiTextEmbeddingResponseSchema = z7.object({
    data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
@@ -322,7 +400,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1605,6 +1647,16 @@
+@@ -1605,6 +1653,16 @@
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -339,7 +417,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1732,11 @@
+@@ -1680,7 +1738,11 @@
          fetch: this.config.fetch
        });
        return {
@@ -352,7 +430,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1745,7 @@
+@@ -1689,7 +1751,7 @@
          }
        };
      }
@@ -361,7 +439,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1756,8 @@
+@@ -1700,8 +1762,8 @@
          prompt,
          n,
          size,
@@ -372,7 +450,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1768,28 @@
+@@ -1712,8 +1774,28 @@
        abortSignal,
        fetch: this.config.fetch
      });
@@ -402,7 +480,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1800,7 @@
+@@ -1724,7 +1806,7 @@
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({
