@@ -12,13 +12,15 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
+import { openRouteInMainWindow, openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'
+import { prepareWorkspaceRoute } from './handlers/openWorkspace'
 import { handleProvidersProtocolUrl } from './handlers/providersImport'
+import { type LaunchInput, parseLaunchInput } from './launchInput'
 
 export const CHERRY_STUDIO_PROTOCOL = 'cherrystudio'
 
@@ -33,7 +35,8 @@ const logger = loggerService.withContext('ProtocolService')
 // open-url events to fire before our listener attaches. MainWindowService is resolved
 // at call time inside listener callbacks — safe because OS events fire post-bootstrap.
 export class ProtocolService extends BaseService {
-  private pendingProtocolUrls: string[] = []
+  private pendingLaunchInputs: (LaunchInput & { workspace: boolean; windowShown?: boolean; route?: string })[] = []
+  private isProcessingLaunchInputs = false
   private pendingMcpInstallRequests: ProtocolMcpInstallRequest[] = []
   private areServicesReady = false
   private isMainRendererReady = false
@@ -68,31 +71,25 @@ export class ProtocolService extends BaseService {
     app.on('open-url', openUrlHandler)
     this.registerDisposable(() => app.removeListener('open-url', openUrlHandler))
 
-    // 3) Windows/Linux second-instance: sole owner.
-    //    - argv carries `cherrystudio://...` → dispatch to URL handler; each handler
-    //      self-routes focus (mcp / navigate raise Main, providers / oauth do not),
-    //      so we never raise Main behind their backs.
-    //    - argv carries no URL → plain re-launch (user double-clicked the icon while
-    //      the app is running); surface the main window. MainWindowService is
-    //      WhenReady, fully alive by the time any 'second-instance' can fire.
+    // Capture secondary launches before resolving any WhenReady service.
     const secondInstanceHandler = (_event: Electron.Event, argv: string[]) => {
-      const url = argv.find((arg) => arg.startsWith(`${CHERRY_STUDIO_PROTOCOL}://`))
-      if (url) {
-        this.handleProtocolUrl(url)
-      } else {
+      const input = parseLaunchInput(argv, !!process.defaultApp)
+      if (input) {
+        this.handleLaunchInput(input)
+      } else if (this.areServicesReady) {
         application.get('MainWindowService').showMainWindow()
       }
     }
     app.on('second-instance', secondInstanceHandler)
     this.registerDisposable(() => app.removeListener('second-instance', secondInstanceHandler))
 
-    // 4) Windows/Linux cold-start: initial argv may contain the URL
-    this.handleArgvForUrl(process.argv)
+    const input = parseLaunchInput(process.argv, !!process.defaultApp)
+    if (input) this.handleLaunchInput(input)
   }
 
   protected async onAllReady() {
     this.areServicesReady = true
-    this.flushPendingProtocolUrls()
+    void this.flushPendingLaunchInputs()
 
     // Runs after all bootstrap phases — application.getPath() is safe
     await this.setupAppImageDeepLink()
@@ -104,7 +101,7 @@ export class ProtocolService extends BaseService {
     }
 
     this.isMainRendererReady = true
-    this.flushPendingProtocolUrls()
+    void this.flushPendingLaunchInputs()
   }
 
   public listPendingMcpInstallRequests(windowId: string): ProtocolMcpInstallRequest[] {
@@ -159,33 +156,75 @@ export class ProtocolService extends BaseService {
   }
 
   private handleProtocolUrl(url: string) {
-    if (!url) return
-
-    if (!this.areServicesReady || !this.isMainRendererReady) {
-      this.pendingProtocolUrls.push(url)
-      return
-    }
-
-    this.dispatchProtocolUrl(url)
+    if (url) this.handleLaunchInput({ kind: 'protocol', url })
   }
 
-  private flushPendingProtocolUrls() {
-    if (!this.areServicesReady || !this.isMainRendererReady) {
-      return
+  private handleLaunchInput(input: LaunchInput) {
+    let workspace = input.kind === 'folder'
+    if (input.kind === 'protocol') {
+      try {
+        workspace = new URL(input.url).hostname.toLowerCase() === 'open'
+      } catch {
+        // Malformed protocol URLs are handled by the normal dispatch error boundary.
+      }
     }
+    this.pendingLaunchInputs.push({ ...input, workspace })
+    void this.flushPendingLaunchInputs()
+  }
 
-    const pendingUrls = this.pendingProtocolUrls.splice(0)
-    for (const url of pendingUrls) {
-      this.dispatchProtocolUrl(url)
+  private async flushPendingLaunchInputs() {
+    if (!this.areServicesReady || this.isProcessingLaunchInputs) return
+
+    this.isProcessingLaunchInputs = true
+    try {
+      while (this.pendingLaunchInputs.length) {
+        const request = this.pendingLaunchInputs[0]
+        const workspaceRequest = this.pendingLaunchInputs.find((input) => input.workspace && !input.windowShown)
+        if (workspaceRequest) {
+          workspaceRequest.windowShown = true
+          application.get('MainWindowService').showMainWindow()
+        }
+        if (!this.isMainRendererReady) return
+
+        if (request.workspace) {
+          if (!request.route) {
+            request.route = await (request.kind === 'folder'
+              ? prepareWorkspaceRoute(request.operand)
+              : this.dispatchProtocolUrl(request.url))
+            if (!request.route) {
+              this.pendingLaunchInputs.shift()
+              continue
+            }
+          }
+          const mainWindow = application.get('WindowManager').getWindowsByType(WindowType.Main)[0]
+          if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+            this.isMainRendererReady = false
+            request.windowShown = false
+            application.get('MainWindowService').showMainWindow()
+            return
+          }
+          if (!this.isMainRendererReady) return
+          openRouteInMainWindow(request.route)
+        } else if (request.kind === 'protocol') {
+          void this.dispatchProtocolUrl(request.url)
+        }
+        this.pendingLaunchInputs.shift()
+      }
+    } finally {
+      this.isProcessingLaunchInputs = false
     }
   }
 
-  private dispatchProtocolUrl(url: string) {
+  private dispatchProtocolUrl(url: string): Promise<string | undefined> | undefined {
     try {
       const urlObj = new URL(url)
       const params = new URLSearchParams(urlObj.search)
 
       switch (urlObj.hostname.toLowerCase()) {
+        case 'open':
+          // URLSearchParams tolerates invalid escapes; validate the raw transport first.
+          decodeURIComponent(urlObj.search)
+          return prepareWorkspaceRoute(params.get('path') ?? '')
         case 'mcp':
           this.handleMcpInstallProtocolUrl(urlObj)
           return
@@ -224,6 +263,7 @@ export class ProtocolService extends BaseService {
     } catch (error) {
       logger.error('Failed to handle protocol URL', error as Error)
     }
+    return undefined
   }
 
   private handleMcpInstallProtocolUrl(url: URL) {
@@ -237,11 +277,6 @@ export class ProtocolService extends BaseService {
     this.pendingMcpInstallRequests.push({ requestId, servers })
     logger.debug('Prepared MCP protocol install preview', { count: servers.length })
     openSettingsInMainWindow(`/settings/mcp/servers?protocolInstallRequestId=${requestId}`)
-  }
-
-  private handleArgvForUrl(args: string[]) {
-    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-    if (url) this.handleProtocolUrl(url)
   }
 
   /**

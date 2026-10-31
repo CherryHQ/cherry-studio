@@ -51,6 +51,21 @@ describe('conversation entry route guards', () => {
     })
   })
 
+  it('keeps a workspace landing session-free despite a remembered session', async () => {
+    mocks.resolveAgentEntrySessionId.mockResolvedValue('session-last')
+    await expect(agentBeforeLoad({ search: { workspaceId: 'workspace-a' } })).resolves.toBeUndefined()
+    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+  })
+
+  it('still resolves an agent identity ahead of a workspace', async () => {
+    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-agent')
+    await expect(agentBeforeLoad({ search: { agentId: 'agent-a', workspaceId: 'workspace-a' } })).rejects.toMatchObject(
+      {
+        options: { search: { sessionId: 'session-agent' } }
+      }
+    )
+  })
+
   it('does not resolve an agent entry that already carries a session id', async () => {
     await expect(agentBeforeLoad({ search: { sessionId: 'session-a' } })).resolves.toBeUndefined()
   })

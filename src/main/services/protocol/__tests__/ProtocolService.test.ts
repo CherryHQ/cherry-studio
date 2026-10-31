@@ -1,6 +1,10 @@
 import { EventEmitter } from 'node:events'
+import fs from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -10,6 +14,7 @@ const {
   ipcApiServiceMock,
   mainWindowServiceMock,
   mcpServerServiceMock,
+  openRouteInMainWindowMock,
   openSettingsInMainWindowMock,
   platformMock,
   windowManagerMock
@@ -45,6 +50,9 @@ const {
     isWin: false
   }
   const windowManagerMock = {
+    getWindowsByType: vi.fn(() => [
+      { isDestroyed: (): boolean => false, webContents: { isDestroyed: (): boolean => false } }
+    ]),
     getWindowType: vi.fn(() => 'main'),
     onWindowCreatedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
     onWindowDestroyedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn())
@@ -56,6 +64,7 @@ const {
     ipcApiServiceMock,
     mainWindowServiceMock,
     mcpServerServiceMock,
+    openRouteInMainWindowMock: vi.fn(),
     openSettingsInMainWindowMock,
     platformMock,
     windowManagerMock
@@ -74,17 +83,14 @@ vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: mcpServerServiceMock
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'IpcApiService') return ipcApiServiceMock
-      if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'WindowManager') return windowManagerMock
-      throw new Error(`unexpected service: ${name}`)
-    },
-    getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    IpcApiService: ipcApiServiceMock,
+    MainWindowService: mainWindowServiceMock,
+    WindowManager: windowManagerMock
+  })
+})
 
 vi.mock('@main/core/lifecycle', () => {
   class MockBaseService {
@@ -101,6 +107,7 @@ vi.mock('@main/core/lifecycle', () => {
 })
 
 vi.mock('@main/services/mainWindowNavigation', () => ({
+  openRouteInMainWindow: openRouteInMainWindowMock,
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
@@ -118,9 +125,14 @@ vi.mock('../handlers/providersImport', () => ({
   handleProvidersProtocolUrl: handlersMock.handleProvidersProtocolUrl
 }))
 
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+
+import * as openWorkspace from '../handlers/openWorkspace'
 import { ProtocolService } from '../ProtocolService'
 
 describe('ProtocolService', () => {
+  const dbh = setupTestDatabase()
+  let folder: string
   let service: ProtocolService
   let originalArgv: string[]
   let originalDefaultApp: boolean | undefined
@@ -138,17 +150,25 @@ describe('ProtocolService', () => {
     service.onMainRendererReady('main-1')
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
+    process.argv = ['electron', '.']
+    setDefaultApp(true)
+    folder = await fs.mkdtemp(path.join(tmpdir(), 'protocol-workspace-'))
+    windowManagerMock.getWindowsByType.mockReturnValue([
+      { isDestroyed: () => false, webContents: { isDestroyed: () => false } }
+    ])
     platformMock.isLinux = false
     platformMock.isPortable = false
     platformMock.isWin = false
     service = new ProtocolService()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await fs.rm(folder, { recursive: true, force: true })
     process.argv = originalArgv
     setDefaultApp(originalDefaultApp)
     vi.unstubAllEnvs()
@@ -404,6 +424,160 @@ describe('ProtocolService', () => {
     })
   })
 
+  describe('workspace launch delivery', () => {
+    function secondInstance(operand: string) {
+      const listener = appMock.on.mock.calls.find(([event]) => event === 'second-instance')?.[1]
+      if (!listener) throw new Error('Missing second-instance listener')
+      listener({}, ['electron', '.', operand])
+    }
+
+    function destroyMain() {
+      const listener = windowManagerMock.onWindowDestroyedByType.mock.calls[0][1] as () => void
+      listener()
+    }
+
+    it('registers and routes a second-instance folder only after readiness', async () => {
+      await (service as any).onInit()
+      secondInstance(folder)
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+      await (service as any).onAllReady()
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+      service.onMainRendererReady('main-1')
+      await vi.waitFor(() => expect(openRouteInMainWindowMock).toHaveBeenCalledOnce())
+      const [workspace] = dbh.db.select().from(agentWorkspaceTable).all()
+      expect(workspace.path).toBe(folder)
+      expect(openRouteInMainWindowMock).toHaveBeenCalledWith(`/app/agents?workspaceId=${workspace.id}`)
+    })
+
+    it('registers a cold-start file URL after opening Main and renderer readiness', async () => {
+      process.argv = ['electron', '.', pathToFileURL(folder).href]
+      await (service as any).onInit()
+      await (service as any).onAllReady()
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
+      service.onMainRendererReady('main-1')
+      await vi.waitFor(() => expect(openRouteInMainWindowMock).toHaveBeenCalledOnce())
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toMatchObject([{ path: folder }])
+    })
+
+    it.each(['missing', 'destroyed'])(
+      'wakes a %s Main before waiting for readiness, even for rejected input',
+      async (state) => {
+        await (service as any).onInit()
+        windowManagerMock.getWindowsByType.mockReturnValue(
+          state === 'missing' ? [] : [{ isDestroyed: () => true, webContents: { isDestroyed: () => true } }]
+        )
+        ;(service as any).handleProtocolUrl('cherrystudio://open?path=relative')
+        expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+        await (service as any).onAllReady()
+        expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
+        expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
+        expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+      }
+    )
+
+    it('retains a prepared route across readiness loss without registering it twice or losing the batch', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const prepare = openWorkspace.prepareWorkspaceRoute
+      let release!: () => void
+      const paused = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const preparation = vi.spyOn(openWorkspace, 'prepareWorkspaceRoute').mockImplementationOnce(async (directory) => {
+        await paused
+        return prepare(directory)
+      })
+      secondInstance(folder)
+      secondInstance('relative')
+      const next = path.join(folder, 'next')
+      await fs.mkdir(next)
+      secondInstance(next)
+      destroyMain()
+      release()
+      await vi.waitFor(() => expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1))
+      expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
+      service.onMainRendererReady('main-1')
+      await vi.waitFor(() => expect(openRouteInMainWindowMock).toHaveBeenCalledTimes(2))
+      const workspaces = dbh.db.select().from(agentWorkspaceTable).all()
+      const idFor = (directory: string) => workspaces.find((row) => row.path === directory)!.id
+      expect(openRouteInMainWindowMock.mock.calls).toEqual([
+        [`/app/agents?workspaceId=${idFor(folder)}`],
+        [`/app/agents?workspaceId=${idFor(next)}`]
+      ])
+      expect(preparation.mock.calls.map(([directory]) => directory)).toEqual([folder, 'relative', next])
+    })
+
+    it('wakes Main for a folder even when an earlier protocol URL is waiting for the renderer', async () => {
+      await (service as any).onInit()
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/knowledge')
+      secondInstance(folder)
+      await (service as any).onAllReady()
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      service.onMainRendererReady('main-1')
+      await vi.waitFor(() => expect(openRouteInMainWindowMock).toHaveBeenCalledOnce())
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/knowledge'))
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toMatchObject([{ path: folder }])
+    })
+
+    it('retains the prepared route when the live renderer disappears during validation', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const prepare = openWorkspace.prepareWorkspaceRoute
+      vi.spyOn(openWorkspace, 'prepareWorkspaceRoute').mockImplementationOnce(async (directory) => {
+        const route = await prepare(directory)
+        windowManagerMock.getWindowsByType.mockReturnValue([])
+        return route
+      })
+      secondInstance(folder)
+      await vi.waitFor(() => expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(2))
+      expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
+      windowManagerMock.getWindowsByType.mockReturnValue([
+        { isDestroyed: () => false, webContents: { isDestroyed: () => false } }
+      ])
+      service.onMainRendererReady('main-1')
+      await vi.waitFor(() => expect(openRouteInMainWindowMock).toHaveBeenCalledOnce())
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    })
+
+    it('consumes open deep links in main and decodes special characters exactly once', async () => {
+      const directory = path.join(folder, '中文 + # %2F')
+      await fs.mkdir(directory)
+      await markProtocolHandlingReady()
+      const url = new URL('cherrystudio://open')
+      url.searchParams.set('path', directory)
+      ;(service as any).handleProtocolUrl(url.href)
+      await vi.waitFor(() => expect(openRouteInMainWindowMock).toHaveBeenCalledOnce())
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toMatchObject([{ path: directory }])
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    })
+
+    it('rejects malformed UTF-8 even when forgiving decoding would name an existing directory', async () => {
+      await fs.mkdir(path.join(folder, 'replacement-�'))
+      await markProtocolHandlingReady()
+      ;(service as any).handleProtocolUrl(`cherrystudio://open?path=${encodeURIComponent(folder)}%2Freplacement-%FF`)
+      await vi.waitFor(() => expect((service as any).pendingLaunchInputs).toEqual([]))
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+      expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    })
+
+    it.each(['%FF', '%', '%C0%AF', 'file%3A%2F%2F%2Ffolder', ''])(
+      'quietly consumes rejected open path %j without OAuth broadcast',
+      async (value) => {
+        await markProtocolHandlingReady()
+        ;(service as any).handleProtocolUrl(`cherrystudio://open?path=${value}`)
+        await vi.waitFor(() => expect((service as any).pendingLaunchInputs).toEqual([]))
+        expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+        expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
+        expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+        expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
+      }
+    )
+  })
+
   describe('second-instance handler', () => {
     function getSecondInstanceHandler() {
       const call = appMock.on.mock.calls.find((call) => call[0] === 'second-instance')
@@ -436,6 +610,7 @@ describe('ProtocolService', () => {
 
     it('surfaces the main window when argv has no protocol URL', async () => {
       await (service as any).onInit()
+      await (service as any).onAllReady()
       const handler = getSecondInstanceHandler()
 
       handler({}, ['/path/to/electron', '.'])
