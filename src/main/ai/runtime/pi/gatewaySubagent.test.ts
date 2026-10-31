@@ -1,5 +1,6 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, scriptedModel, gatewayModel, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -19,7 +20,6 @@ import {
   toolResultOf,
   toolResults
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
 
 const DELEGATE_A = 'Delegate the check of module A'
 const TASK_A = { description: 'Check module A', prompt: 'TASK-A: inspect module A' }

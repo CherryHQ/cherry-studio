@@ -1,5 +1,6 @@
 import { Type } from '@earendil-works/pi-ai'
 import { createToolSearchExtension, defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
+import { createTestSession, finish, hostStore, gatewayModel, tempDir, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,7 +13,6 @@ import {
   toolResultOf,
   toolResults
 } from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel, tempDir, textParts } from './gatewaySupport'
 
 const forkA = { description: 'Check A', prompt: 'TASK-A', fork: true }
 const forkB = { description: 'Check B', prompt: 'TASK-B', fork: true }
