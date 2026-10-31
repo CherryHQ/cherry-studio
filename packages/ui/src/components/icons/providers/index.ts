@@ -4,8 +4,9 @@
  * Do not edit manually
  *
  * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Total icons: 167
  */
+export { AistupidlevelIcon as Aistupidlevel } from './aistupidlevel/aistupidlevel'
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { AbacusIcon as Abacus } from './abacus'
