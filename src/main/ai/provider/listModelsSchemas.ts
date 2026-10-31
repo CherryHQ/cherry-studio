@@ -57,6 +57,36 @@ export const PoeModelsResponseSchema = z
     return { ...response, data, skippedModelCount: response.data.length - data.length }
   })
 
+// === Hubris (OpenAI-compatible, with per-model catalogue metadata) ===
+
+// Metadata fields fall back to undefined on a bad value instead of dropping the model:
+// the id alone is enough to list it.
+const HubrisModelSchema = OpenAIModelSchema.extend({
+  display_name: z.string().optional().catch(undefined),
+  description: z.string().optional().catch(undefined),
+  context_length: z.number().optional().catch(undefined),
+  input_modalities: z.array(z.string()).optional().catch(undefined),
+  output_modalities: z.array(z.string()).optional().catch(undefined),
+  supported_parameters: z.array(z.string()).optional().catch(undefined)
+})
+
+export type HubrisModelResponseItem = z.output<typeof HubrisModelSchema>
+
+export const HubrisModelsResponseSchema = z
+  .looseObject({
+    data: z.array(
+      z.unknown().transform((model) => {
+        const parsed = HubrisModelSchema.safeParse(model)
+        return parsed.success ? parsed.data : undefined
+      })
+    ),
+    object: z.string().optional()
+  })
+  .transform((response) => {
+    const data = response.data.filter((model): model is HubrisModelResponseItem => model !== undefined)
+    return { ...response, data, skippedModelCount: response.data.length - data.length }
+  })
+
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
   data: z.array(

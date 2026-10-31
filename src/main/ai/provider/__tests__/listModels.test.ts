@@ -20,7 +20,7 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
-import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
+import { AIHubMixModelsResponseSchema, HubrisModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -1067,6 +1067,135 @@ describe('listModels — openRouterFetcher image models', () => {
       ]
     })
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(apiKey)
+  })
+})
+
+describe('listModels — hubrisFetcher catalogue metadata', () => {
+  function makeHubrisProvider(overrides: Parameters<typeof makeProvider>[0] = {}) {
+    return makeProvider({
+      id: 'hubris',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.hubris.pw/v1' }
+      },
+      ...overrides
+    })
+  }
+
+  const sonnet = {
+    id: 'anthropic/claude-sonnet-5',
+    owned_by: 'anthropic',
+    display_name: 'Anthropic: Claude Sonnet 5',
+    context_length: 1_000_000,
+    input_modalities: ['text', 'image', 'file'],
+    output_modalities: ['text'],
+    supported_parameters: ['max_tokens', 'reasoning', 'reasoning_effort', 'tools', 'tool_choice']
+  }
+  const embedding = {
+    id: 'openai/text-embedding-3-small',
+    owned_by: 'openai',
+    display_name: 'OpenAI: Text Embedding 3 Small',
+    context_length: 8192,
+    input_modalities: ['text'],
+    output_modalities: ['embeddings'],
+    supported_parameters: []
+  }
+
+  function mockHubrisCatalog(chat: unknown[], embeddings: unknown[] | Error = [embedding]) {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('?output_modalities=embeddings')) {
+        return embeddings instanceof Error
+          ? Promise.reject(embeddings)
+          : Promise.resolve({ value: { data: embeddings } })
+      }
+      return Promise.resolve({ value: { data: chat } })
+    })
+  }
+
+  it('maps display name, modalities, context window, tools and reasoning from the catalogue', async () => {
+    mockHubrisCatalog([sonnet])
+
+    const { models } = await listModels(makeHubrisProvider())
+
+    expect(models.find((model) => model.apiModelId === 'anthropic/claude-sonnet-5')).toMatchObject({
+      name: 'Anthropic: Claude Sonnet 5',
+      ownedBy: 'anthropic',
+      contextWindow: 1_000_000,
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+    })
+  })
+
+  it('keeps only text-output rows as chat models and lists embeddings with the embeddings endpoint', async () => {
+    mockHubrisCatalog([
+      sonnet,
+      { id: 'openai/gpt-image-2', output_modalities: ['image'] },
+      { id: 'openai/tts-2', output_modalities: ['speech'] }
+    ])
+
+    const { models } = await listModels(makeHubrisProvider())
+
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
+      'https://api.hubris.pw/v1/models',
+      'https://api.hubris.pw/v1/models?output_modalities=embeddings'
+    ])
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'anthropic/claude-sonnet-5',
+      'openai/text-embedding-3-small'
+    ])
+    expect(models[1]).toMatchObject({
+      name: 'OpenAI: Text Embedding 3 Small',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+    })
+  })
+
+  it('declares no tool or reasoning capability when the catalogue does not list those parameters', async () => {
+    mockHubrisCatalog([
+      {
+        id: 'mistralai/mistral-small',
+        display_name: 'Mistral: Mistral Small',
+        input_modalities: ['text'],
+        output_modalities: ['text'],
+        supported_parameters: ['max_tokens', 'temperature']
+      }
+    ])
+
+    const { models } = await listModels(makeHubrisProvider())
+
+    expect(models[0]).toMatchObject({ capabilities: [], inputModalities: [MODALITY.TEXT] })
+  })
+
+  it('keeps a row whose metadata is malformed and skips a row without an id', () => {
+    const parsed = HubrisModelsResponseSchema.parse({
+      data: [{ id: 'qwen/qwen-plus', display_name: 42, context_length: 'big', supported_parameters: null }, {}]
+    })
+
+    expect(parsed.data).toEqual([expect.objectContaining({ id: 'qwen/qwen-plus' })])
+    expect(parsed.data[0]).toMatchObject({
+      display_name: undefined,
+      context_length: undefined,
+      supported_parameters: undefined
+    })
+    expect(parsed.skippedModelCount).toBe(1)
+  })
+
+  it('keeps the chat models when the embeddings list fails', async () => {
+    mockHubrisCatalog([sonnet], new Error('embeddings list unavailable'))
+
+    const { models } = await listModels(makeHubrisProvider())
+
+    expect(models.map((model) => model.apiModelId)).toEqual(['anthropic/claude-sonnet-5'])
+  })
+
+  it('routes a copied Hubris provider (uuid id + presetProviderId) through the same fetcher', async () => {
+    mockHubrisCatalog([sonnet])
+
+    const { models } = await listModels(
+      makeHubrisProvider({ id: '5f0c9a8e-2b1d-4e7a-9c3f-1a2b3c4d5e6f', presetProviderId: 'hubris' })
+    )
+
+    expect(models[0]).toMatchObject({ name: 'Anthropic: Claude Sonnet 5' })
   })
 })
 
