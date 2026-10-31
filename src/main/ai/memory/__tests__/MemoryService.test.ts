@@ -1,19 +1,32 @@
+import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rmdir, unlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { topicTable } from '@data/db/schemas/topic'
+import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
-import { assistantMemoryAuthority, type MemoryAuthority } from '../memoryAuthority'
+import {
+  agentMemoryAuthority,
+  assistantMemoryAuthority,
+  editorMemoryAuthority,
+  type MemoryAuthority
+} from '../memoryAuthority'
 import { MemoryService } from '../MemoryService'
 import type { MemoryApproval } from '../MemoryStore'
 
@@ -42,11 +55,108 @@ beforeEach(async () => {
 afterEach(async () => {
   await service['onStop']()
   vi.restoreAllMocks()
+  MockApplicationUtils.resetServices()
   await removeFixture(fixture)
 })
 
 describe('lifecycle memory owner', () => {
   const dbh = setupTestDatabase()
+
+  async function seedAgentSession() {
+    const agentId = randomUUID()
+    const sessionId = randomUUID()
+    const workspaceId = randomUUID()
+    dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'A', instructions: '', orderKey: 'a0' }).run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: workspaceId, name: 'W', path: fixture, orderKey: 'a0' }).run()
+    dbh.db.insert(agentSessionTable).values({ id: sessionId, agentId, workspaceId, name: 'S', orderKey: 'a0' }).run()
+    await mkdir(path.join(fixture, 'feature.agents.data', agentId), { recursive: true })
+    return { agentId, sessionId }
+  }
+
+  it.each(['disable', 'owner'] as const)(
+    'permanently expires a channel edit after %s and restoration',
+    async (change) => {
+      const { agentId, sessionId } = await seedAgentSession()
+      const channel = agentChannelService.createChannel({
+        name: 'Channel',
+        type: 'telegram',
+        agentId,
+        workspace: { type: 'system' },
+        config: { bot_token: 'test-token', allowed_chat_ids: [] },
+        isActive: true
+      })
+      dbh.db.insert(agentChannelSessionTable).values({ channelId: channel.id, sessionId }).run()
+      const open = () =>
+        service.open(
+          agentMemoryAuthority(sessionId, 'private', {
+            assertActive: () => undefined,
+            isHeadless: () => false
+          })
+        )
+      const session = open()
+      const read = await session.read('MEMORY.md')
+      await expect(
+        session.commit([{ kind: 'write', receipt: read.receipt, content: 'Stale' }], async () => {
+          agentChannelService.updateChannel(channel.id, change === 'disable' ? { isActive: false } : { agentId: null })
+          agentChannelService.updateChannel(channel.id, { isActive: true, agentId })
+          return () => undefined
+        })
+      ).rejects.toThrow('expired')
+      await expect(session.read('MEMORY.md')).rejects.toThrow('expired')
+      const fresh = open()
+      const current = await fresh.read('MEMORY.md')
+      expect(current.content).toBe('')
+      await fresh.commit([{ kind: 'write', receipt: current.receipt, content: 'Fresh read' }], approve)
+      expect((await fresh.read('MEMORY.md')).content).toBe('Fresh read')
+    }
+  )
+
+  it('keeps a channel receipt valid after a rename or an unrelated channel is disabled', async () => {
+    const { agentId, sessionId } = await seedAgentSession()
+    const data = {
+      name: 'Channel',
+      type: 'telegram' as const,
+      agentId,
+      workspace: { type: 'system' as const },
+      config: { bot_token: 'test-token', allowed_chat_ids: [] },
+      isActive: true
+    }
+    const channel = agentChannelService.createChannel(data)
+    const other = agentChannelService.createChannel(data)
+    dbh.db.insert(agentChannelSessionTable).values({ channelId: channel.id, sessionId }).run()
+    const session = service.open(
+      agentMemoryAuthority(sessionId, 'private', {
+        assertActive: () => undefined,
+        isHeadless: () => false
+      })
+    )
+    const read = await session.read('MEMORY.md')
+    agentChannelService.updateChannel(channel.id, { name: 'Renamed' })
+    agentChannelService.updateChannel(other.id, { isActive: false })
+    await session.commit([{ kind: 'write', receipt: read.receipt, content: 'Still authorized' }], approve)
+    expect((await session.read('MEMORY.md')).content).toBe('Still authorized')
+  })
+
+  it('expires a private editor when its Agent is deleted and restored during approval', async () => {
+    const { agentId } = await seedAgentSession()
+    MockApplicationUtils.setService('WindowManager', { getWindowType: () => 'main', getWindow: () => ({}) })
+    const open = () => service.open(editorMemoryAuthority('main', { kind: 'private', agentId }))
+    const session = open()
+    const read = await session.read('MEMORY.md')
+    await expect(
+      session.commit([{ kind: 'write', receipt: read.receipt, content: 'Stale editor' }], async () => {
+        agentService.deleteAgent(agentId)
+        agentService.restoreAgent(agentId)
+        return () => undefined
+      })
+    ).rejects.toThrow('expired')
+    await expect(session.read('MEMORY.md')).rejects.toThrow('expired')
+    const fresh = open()
+    const current = await fresh.read('MEMORY.md')
+    expect(current.content).toBe('')
+    await fresh.commit([{ kind: 'write', receipt: current.receipt, content: 'Fresh editor' }], approve)
+    expect((await fresh.read('MEMORY.md')).content).toBe('Fresh editor')
+  })
 
   it('reopens admission after lifecycle initialization without reviving old sessions', async () => {
     await service._doInit()
