@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
-import { protocol } from 'electron'
+import { protocol, session } from 'electron'
+import parseRange from 'range-parser'
 
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isAppRendererUrl } from '@main/core/security/validateSender'
 
 import { CHERRY_MEDIA_SCHEME, MEDIA_KINDS, type MediaEntry, type MediaKind } from './types'
 
@@ -32,6 +34,24 @@ export class MediaProtocolService extends BaseService {
   protected async onInit(): Promise<void> {
     // `protocol.handle` requires an app-ready process, hence Phase.WhenReady.
     protocol.handle(CHERRY_MEDIA_SCHEME, (request) => this.handleRequest(request))
+    session.defaultSession.webRequest.onBeforeRequest(
+      { urls: [`${CHERRY_MEDIA_SCHEME}://*/*`] },
+      (details, callback) => {
+        const url = new URL(details.url)
+        const entry = this.stores.get(url.hostname as MediaKind)?.get(url.pathname.slice(1))
+        const access = entry?.access
+        callback({
+          cancel: Boolean(
+            access &&
+            (details.webContentsId !== access.webContentsId ||
+              !details.frame ||
+              details.frame !== details.frame.top ||
+              !isAppRendererUrl(details.frame.url))
+          )
+        })
+      }
+    )
+    this.registerDisposable(() => session.defaultSession.webRequest.onBeforeRequest(null))
     this.registerDisposable(() => protocol.unhandle(CHERRY_MEDIA_SCHEME))
     this.registerDisposable(() => this.stores.clear())
     logger.info('Media protocol handler registered', { scheme: CHERRY_MEDIA_SCHEME })
@@ -41,14 +61,14 @@ export class MediaProtocolService extends BaseService {
    * Store a buffer and return its id. The caller owns the entry's lifetime and
    * must pair this with `remove()` — nothing reclaims it automatically.
    */
-  store(kind: MediaKind, data: Buffer, mimeType: string): string {
+  store(kind: MediaKind, data: Buffer, mimeType: string, access?: MediaEntry['access']): string {
     const id = randomUUID()
     let kindStore = this.stores.get(kind)
     if (!kindStore) {
       kindStore = new Map()
       this.stores.set(kind, kindStore)
     }
-    kindStore.set(id, { data, mimeType })
+    kindStore.set(id, { data, mimeType, access })
     return id
   }
 
@@ -63,6 +83,9 @@ export class MediaProtocolService extends BaseService {
   }
 
   private handleRequest(request: Request): Response {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } })
+    }
     const url = new URL(request.url)
     const kind = url.hostname
 
@@ -81,8 +104,36 @@ export class MediaProtocolService extends BaseService {
       return new Response('Not found', { status: 404 })
     }
 
-    return new Response(new Uint8Array(entry.data), {
-      headers: { 'Content-Type': entry.mimeType }
+    const headers = new Headers({
+      'Content-Type': entry.mimeType,
+      'Content-Length': String(entry.data.length),
+      'Cache-Control': 'no-store'
     })
+    let data = entry.data
+    let status = 200
+    if (kind === 'audio') {
+      headers.set('Accept-Ranges', 'bytes')
+      const range = request.headers.get('Range')
+      if (range && request.method === 'GET') {
+        const ranges = parseRange(data.length, range, { combine: true })
+        if (ranges === -1) {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              'Content-Range': `bytes */${data.length}`,
+              'Cache-Control': 'no-store'
+            }
+          })
+        }
+        if (Array.isArray(ranges) && ranges.type === 'bytes' && ranges.length === 1) {
+          const { start, end } = ranges[0]
+          headers.set('Content-Range', `bytes ${start}-${end}/${data.length}`)
+          data = data.subarray(start, end + 1)
+          headers.set('Content-Length', String(data.length))
+          status = 206
+        }
+      }
+    }
+    return new Response(request.method === 'HEAD' ? null : new Uint8Array(data), { status, headers })
   }
 }

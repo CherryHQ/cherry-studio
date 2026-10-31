@@ -8,7 +8,8 @@ const baseFileName = `${baseLocale}.json`
 
 const catalogDirectories = [
   path.join(__dirname, '../src/renderer/i18n/locales'),
-  path.join(__dirname, '../src/main/i18n/locales')
+  path.join(__dirname, '../src/main/i18n/locales'),
+  path.join(__dirname, '../packages/file-preview/src/locales')
 ]
 
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */

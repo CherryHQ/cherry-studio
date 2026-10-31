@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Combobox, Input } from '@cherrystudio/ui'
 import { AGENT_LANGUAGE_PRESETS, validateAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
+import { cn } from '@renderer/utils/style'
 
 // Exceeds AGENT_LANGUAGE_MAX_LENGTH, so it can never equal a valid language.
 const FOLLOW_VALUE = '__follow_conversation_language_sentinel__[too-long-to-be-a-language]'
@@ -14,6 +15,7 @@ type AgentLanguageFieldProps = {
   customPlaceholder: string
   comboLabel: string
   inputLabel: string
+  className?: string
 }
 
 export function AgentLanguageField({
@@ -22,7 +24,8 @@ export function AgentLanguageField({
   nullOptionLabel,
   customPlaceholder,
   comboLabel,
-  inputLabel
+  inputLabel,
+  className
 }: AgentLanguageFieldProps) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState(value ?? '')
@@ -66,8 +69,9 @@ export function AgentLanguageField({
   }
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div className={cn('grid w-full grid-cols-1 gap-2', className)}>
       <Combobox
+        className="min-w-0"
         options={[
           { value: FOLLOW_VALUE, label: nullOptionLabel },
           ...AGENT_LANGUAGE_PRESETS.map((preset) => ({ value: preset, label: preset })),
@@ -94,7 +98,7 @@ export function AgentLanguageField({
         spellCheck={false}
       />
       {errorKey ? (
-        <p id={errorId} role="alert" className="text-destructive text-xs">
+        <p id={errorId} role="alert" className="col-span-full text-destructive text-xs">
           {t(errorKey)}
         </p>
       ) : null}

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import type { Message } from '@shared/data/types/message'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 // i18n is only used for display strings and error text; return the
 // defaultValue so assertions stay independent of the translation catalog.
@@ -239,6 +240,22 @@ describe('importService.importNativeTopic', () => {
     expect(response.success).toBe(false)
     expect(response.topicsCount).toBe(0)
     expect(ipcRequest).toHaveBeenCalledWith('trash.topic.delete_permanently', { topicIds: ['new-topic'] })
+  })
+
+  it('purges a partially imported native topic archived by another window', async () => {
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+      if (path === '/topics') return { id: 'archived-native' }
+      throw new Error('native persistence failed')
+    })
+    ipcRequest.mockRejectedValue(new IpcError('TRASH_TARGET_NOT_FOUND', 'Topic not found'))
+    vi.mocked(dataApiService.delete).mockResolvedValue(undefined)
+
+    const result = await importService.importNativeTopic(nativeFileContent(false))
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('native persistence failed')
+    expect(dataApiService.delete).toHaveBeenCalledWith('/topics/archived-native', { query: { permanent: true } })
+    expect(ipcRequest).not.toHaveBeenCalledWith('trash.assistant.delete_permanently', expect.anything())
   })
 
   it('fails invalid files without writing anything', async () => {

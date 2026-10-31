@@ -1,0 +1,5 @@
+export { DocumentAnchorSchema, SELECTION_EXCERPT_MAX_LENGTH } from './documentAnchor'
+export type { DocumentAnchor } from './documentAnchor'
+export type { PreviewSelection } from './selection'
+export { assertPreviewRange, PreviewError } from './source'
+export type { PreviewDocument, PreviewErrorCode, PreviewSource } from './source'

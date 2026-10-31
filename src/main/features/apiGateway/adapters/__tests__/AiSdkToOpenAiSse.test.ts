@@ -15,6 +15,7 @@ interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
   cacheReadTokens?: number
+  reasoningTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
@@ -27,6 +28,9 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
             outputTokens: usage.outputTokens ?? 0,
             ...(usage.cacheReadTokens !== undefined
               ? { inputTokenDetails: { cacheReadTokens: usage.cacheReadTokens } }
+              : {}),
+            ...(usage.reasoningTokens !== undefined
+              ? { outputTokenDetails: { reasoningTokens: usage.reasoningTokens } }
               : {})
           }
         }
@@ -131,6 +135,25 @@ describe('AiSdkToOpenAiSse', () => {
 
       expect(events.filter((e) => e.choices[0].delta.tool_calls).length).toBe(1)
     })
+
+    it('emits an empty arguments object for an arg-less tool call', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      // A tool whose schema declares no parameters resolves with `input: undefined`;
+      // `JSON.stringify(undefined)` is `undefined`, which JSON serialization drops, so
+      // the emitted tool_call would lack the required `arguments` field.
+      const stream = createMockStream([
+        { type: 'tool-input-available', toolCallId: 'call_1', toolName: 'list_files', input: undefined },
+        createFinish('tool-calls')
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const toolChunk = events.find((e) => e.choices[0].delta.tool_calls)
+      const emitted = toolChunk?.choices[0].delta.tool_calls?.[0]
+
+      // `arguments` must survive SSE serialization, which is what an OpenAI client parses.
+      expect(emitted?.function?.arguments).toBe('{}')
+      expect(JSON.parse(JSON.stringify(emitted ?? {}))).toMatchObject({ function: { arguments: '{}' } })
+    })
   })
 
   describe('Finish Reasons', () => {
@@ -172,6 +195,31 @@ describe('AiSdkToOpenAiSse', () => {
       )
 
       expect(events.at(-1)!.usage).toEqual({ prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 })
+    })
+
+    it('projects reasoning tokens onto the terminal usage alongside the reasoning-inclusive total', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('hi'),
+        createFinish('stop', { inputTokens: 10, outputTokens: 20, reasoningTokens: 5 })
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      expect(events.at(-1)!.usage).toEqual({
+        prompt_tokens: 10,
+        completion_tokens: 20,
+        total_tokens: 30,
+        completion_tokens_details: { reasoning_tokens: 5 }
+      })
+    })
+
+    it('omits completion token details when the provider does not report reasoning tokens', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      const events = await collectEvents(
+        adapter.transform(createMockStream([createFinish('stop', { inputTokens: 10, outputTokens: 20 })]))
+      )
+
+      expect(events.at(-1)!.usage).toEqual({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
     })
   })
 
@@ -223,6 +271,26 @@ describe('AiSdkToOpenAiSse', () => {
         completion_tokens: 20,
         total_tokens: 30,
         prompt_tokens_details: { cached_tokens: 0 }
+      })
+    })
+
+    it('preserves an explicit zero reasoning-token count in the non-streaming response', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('Hello world'),
+        createFinish('stop', { inputTokens: 10, outputTokens: 20, reasoningTokens: 0 })
+      ])
+      const reader = adapter.transform(stream).getReader()
+      while (!(await reader.read()).done) {
+        /* drain to populate state */
+      }
+      reader.releaseLock()
+
+      expect(adapter.buildNonStreamingResponse().usage).toEqual({
+        prompt_tokens: 10,
+        completion_tokens: 20,
+        total_tokens: 30,
+        completion_tokens_details: { reasoning_tokens: 0 }
       })
     })
   })

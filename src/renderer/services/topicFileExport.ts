@@ -20,6 +20,8 @@ import { createFilePathHandle } from '@shared/utils/file'
 const logger = loggerService.withContext('TopicFileExport')
 
 export const TOPIC_CHANGED_DURING_EXPORT = 'Topic changed during export'
+export const INCOMPLETE_TOPIC_TREE_EXPORT =
+  'Topic export is incomplete: the tree contains children not included in the snapshot'
 
 // The concrete tree path reverse-matches several schema routes, so the client
 // types the response as a union; narrow it before use.
@@ -48,10 +50,19 @@ function assertSameTreeSnapshot(before: TreeResponse, after: TreeResponse): void
   }
 }
 
+/** The canvas tree can cap deep inactive branches; never export that as a complete topic. */
+function assertCompleteTreeSnapshot(tree: TreeResponse, messages: readonly Message[]): void {
+  const parentsWithReturnedChildren = new Set(messages.map((message) => message.parentId))
+  const nodes = [...tree.nodes, ...tree.siblingsGroups.flatMap((group) => group.nodes)]
+  for (const node of nodes) {
+    if (node.hasChildren && !parentsWithReturnedChildren.has(node.id)) {
+      throw new Error(INCOMPLETE_TOPIC_TREE_EXPORT)
+    }
+  }
+}
+
 async function fetchTopicTree(topicId: string): Promise<TreeResponse> {
-  const treeResponse = await dataApiService.get(`/topics/${topicId}/tree`, {
-    query: { depth: -1 }
-  })
+  const treeResponse = await dataApiService.get(`/topics/${topicId}/tree`)
   if (!isTreeResponse(treeResponse)) {
     throw new Error('Unexpected topic tree response')
   }
@@ -296,7 +307,10 @@ export async function collectTopicFileData(topicId: string): Promise<CherryTopic
   const tree = await fetchTopicTree(topicId)
   const nodeIds = collectTreeNodeIds(tree)
   const messages = await fetchTopicMessages(topicId, nodeIds, tree.rootId)
-  assertSameTreeSnapshot(tree, await fetchTopicTree(topicId))
+  assertCompleteTreeSnapshot(tree, messages)
+  const verifiedTree = await fetchTopicTree(topicId)
+  assertSameTreeSnapshot(tree, verifiedTree)
+  assertCompleteTreeSnapshot(verifiedTree, messages)
   const file = buildCherryTopicFile({
     topic,
     assistant: await fetchAssistantSnapshot(topic.assistantId),

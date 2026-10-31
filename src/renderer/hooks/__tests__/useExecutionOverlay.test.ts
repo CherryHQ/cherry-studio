@@ -201,6 +201,35 @@ afterEach(() => {
 })
 
 describe('useExecutionOverlay', () => {
+  it('delivers live snapshots with attempt identity before finish and detaches on leave', async () => {
+    const updates: Array<{ attemptId: number; text: string }> = []
+    let leaves = 0
+    const { unmount } = renderHook(() =>
+      useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], [asst('anchor-a')], {
+        onUpdate: (_id, event) =>
+          updates.push({
+            attemptId: event.attemptId,
+            text: event.message.parts
+              .filter((part) => part.type === 'text')
+              .map((part) => part.text)
+              .join('')
+          }),
+        onLeave: () => {
+          leaves++
+        }
+      })
+    )
+    streamText(A, 'text-live', 'Available before EOF.')
+    await waitFor(() => expect(updates.at(-1)?.text).toBe('Available before EOF.'))
+    expect(updates.at(-1)?.attemptId).toBe(exec(A, 'anchor-a').attemptId)
+    unmount()
+    const count = updates.length
+    fake.emit(A, { type: 'text-delta', id: 'text-live', delta: ' After departure.' })
+    await drainStreamMicrotasks()
+    expect(updates).toHaveLength(count)
+    expect(leaves).toBe(1)
+  })
+
   it('N1 — anchored overlay isolation: each execution lands only on its own anchor', async () => {
     const ui = [asst('anchor-a'), asst('anchor-b')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], ui))

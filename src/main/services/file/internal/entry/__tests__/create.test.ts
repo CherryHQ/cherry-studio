@@ -1,3 +1,4 @@
+import { mkdirSync, unlinkSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -5,10 +6,11 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hashContent } from '@main/utils/file/contentHash'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, UrlStringSchema } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -146,7 +148,8 @@ describe('internal/entry/create.createInternal', () => {
       // written but BEFORE the DB row commits. Without the bestEffortCleanup
       // call in createInternal, the orphan blob would persist until the next
       // startup file sweep — the regression this test pins.
-      const insertErr = new Error('UNIQUE constraint failed: file_entry.id')
+      const insertErr = Object.assign(new Error(`private input at ${filesDir}`), { code: 'SQLITE_CONSTRAINT' })
+      mockMainLoggerService.warn.mockClear()
       const spy = vi.spyOn(fileEntryService, 'create').mockImplementationOnce(() => {
         throw insertErr
       })
@@ -165,6 +168,39 @@ describe('internal/entry/create.createInternal', () => {
       const { readdir } = await import('node:fs/promises')
       const remaining = await readdir(filesDir)
       expect(remaining).toEqual([])
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        [expect.stringContaining('DB insert failed'), { id: expect.any(String), code: 'SQLITE_CONSTRAINT' }]
+      ])
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(filesDir)
+    })
+
+    it('reports failed rollback without logging physical paths or the private insert error', async () => {
+      const insertErr = new Error(`private input at ${filesDir}`)
+      mockMainLoggerService.warn.mockClear()
+      vi.spyOn(fileEntryService, 'create').mockImplementationOnce((row) => {
+        if (row.origin !== 'internal') throw new Error('expected internal entry')
+        const physical = path.join(filesDir, `${row.id}.bin`)
+        unlinkSync(physical)
+        mkdirSync(physical)
+        throw insertErr
+      })
+      await expect(
+        createInternal(deps, {
+          source: 'bytes',
+          data: new Uint8Array([1]),
+          name: 'private',
+          ext: 'bin',
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+      ).rejects.toBe(insertErr)
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        [expect.stringContaining('DB insert failed'), { id: expect.any(String), code: 'UNKNOWN' }],
+        [
+          expect.stringContaining('cleanup unlink failed'),
+          { id: expect.any(String), code: expect.stringMatching(/^(EPERM|EISDIR)$/) }
+        ]
+      ])
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(filesDir)
     })
   })
 
@@ -223,6 +259,31 @@ describe('internal/entry/create.createInternal', () => {
       })
       expect(entry.name).toBe('no-extension-here')
       expect(entry.ext).toBeNull()
+    })
+
+    it.each([
+      { url: '/photo.PNG?token=secret', request: '/photo.PNG?token=secret', name: 'photo', ext: 'png' },
+      { url: '/photo.png#preview.jpg', request: '/photo.png', name: 'photo', ext: 'png' },
+      {
+        url: '/photo.png?signature=a.b/c#preview.gif',
+        request: '/photo.png?signature=a.b/c',
+        name: 'photo',
+        ext: 'png'
+      },
+      { url: '/download?filename=photo.png', request: '/download?filename=photo.png', name: 'download', ext: null },
+      { url: '/download#photo.png', request: '/download', name: 'download', ext: null }
+    ])('uses pathname metadata while downloading the full URL: $url', async ({ url, request, name, ext }) => {
+      const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+      routes.set(request, { status: 200, body: bytes })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: UrlStringSchema.parse(`${baseUrl}${url}`),
+        cleanupPolicy: 'manual'
+      })
+      expect(entry).toMatchObject({ name, ext, size: bytes.length, contentHash: hashContent(bytes) })
+      expect(fileEntryService.getById(entry.id)).toMatchObject({ name, ext })
+      const physical = path.join(filesDir, `${entry.id}${ext ? `.${ext}` : ''}`)
+      expect(await readFile(physical)).toEqual(bytes)
     })
 
     it('strips only the final dot segment when the path contains multiple dots', async () => {

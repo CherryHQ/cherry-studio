@@ -16,11 +16,16 @@ import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
+import { runPathMutationExclusive } from '../../pathMutationLock'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/rename')
 
 export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {
+  return deps.contentWriteLock.runExclusive(id, () => runPathMutationExclusive(() => renameLocked(deps, id, newName)))
+}
+
+async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {
   // Up-front name validation rejects path separators, `..`, null bytes, and
   // over-length input before any FS or DB side effect. Pairs with the
   // service-level guard in FileEntryService.update / setExternalPathAndName;

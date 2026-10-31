@@ -10,6 +10,7 @@ import type { OverlayAction, OverlayState, SelectionRect } from './types'
 const MIN_SELECTION_SIZE = 3
 
 export const initialState: OverlayState = {
+  resultMessage: '',
   phase: 'idle',
   selection: null,
   dragOrigin: null,
@@ -71,6 +72,8 @@ function clampMovePosition(rect: SelectionRect, vw: number, vh: number): Selecti
 
 export function overlayReducer(state: OverlayState, action: OverlayAction): OverlayState {
   switch (action.type) {
+    case 'SET_RESULT_MESSAGE':
+      return { ...state, resultMessage: action.text }
     case 'POINTER_DOWN_BACKGROUND': {
       return {
         ...state,

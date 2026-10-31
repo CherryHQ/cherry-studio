@@ -1,5 +1,7 @@
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
 
+import { extractLegacyDocText } from '@main/utils/legacyDoc'
+
 /**
  * Reader for legacy binary Word documents (`.doc`, OLE2 compound format).
  *
@@ -10,9 +12,7 @@ import { Document, FileReader, type Metadata } from '@vectorstores/core'
  */
 export class DocReader extends FileReader<Document<Metadata>> {
   async loadDataAsContent(fileContent: Uint8Array): Promise<Document<Metadata>[]> {
-    const { default: WordExtractor } = await import('word-extractor')
-    const extracted = await new WordExtractor().extract(Buffer.from(fileContent))
-    const text = extracted.getBody().trim()
+    const text = await extractLegacyDocText(Buffer.from(fileContent))
 
     return text ? [new Document({ text })] : []
   }

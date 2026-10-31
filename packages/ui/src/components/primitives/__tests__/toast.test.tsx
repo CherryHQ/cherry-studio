@@ -106,6 +106,41 @@ describe('Toast', () => {
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
   })
 
+  it('shows technical details only on request while preserving the recovery action', async () => {
+    const user = userEvent.setup()
+    render(<ToastViewport />)
+    act(() => {
+      toast.warning({ title: 'Configure your provider', details: 'HTTP 401: invalid_api_key' })
+    })
+    expect(screen.getByText('HTTP 401: invalid_api_key')).not.toBeVisible()
+    await user.click(screen.getByText('View details'))
+    expect(screen.getByText('HTTP 401: invalid_api_key')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByText('Configure your provider')).not.toBeInTheDocument()
+  })
+
+  it('settles manual loading in place and ignores a superseded promise', async () => {
+    let settle!: () => void
+    render(<ToastViewport />)
+    act(() => {
+      toast.loading({
+        key: 'request',
+        title: 'Old request',
+        promise: new Promise<void>((resolve) => {
+          settle = resolve
+        })
+      })
+      toast.loading({ key: 'request', title: 'Retrying' })
+    })
+    expect(screen.getByText('Retrying')).toBeInTheDocument()
+    await act(async () => {
+      toast.success({ key: 'request', title: 'Recovered' })
+      settle()
+    })
+    expect(screen.getByText('Recovered')).toBeInTheDocument()
+    expect(toast.getToastQueue().toasts).toHaveLength(1)
+  })
+
   it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
     const user = userEvent.setup()
     const onToastClick = vi.fn()
@@ -129,6 +164,40 @@ describe('Toast', () => {
     expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
     expect(onToastClick).not.toHaveBeenCalled()
     expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs the secondary action without disturbing the primary one, then dismisses the toast', async () => {
+    // The archive action navigates instead of restoring, so it must not also fire the
+    // primary action or the toast's own click handler.
+    const user = userEvent.setup()
+    const onSecondaryAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+    const onAction = vi.fn()
+    const onToastClick = vi.fn()
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'archived-item',
+        onClick: onToastClick,
+        secondaryAction: { label: 'View in Archive', onClick: onSecondaryAction },
+        title: 'Archived Draft'
+      })
+    })
+
+    const secondaryButton = screen.getByRole('button', { name: 'View in Archive' })
+
+    expect(secondaryButton).toHaveAttribute('data-variant', 'link')
+
+    await user.click(secondaryButton)
+
+    expect(onSecondaryAction).toHaveBeenCalledTimes(1)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
   })
 
   it('aligns actionable toast controls to the primary content row', () => {
@@ -230,8 +299,8 @@ describe('Toast', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('uses configured labels for fallback loading states and close button', async () => {
-    const labels: Partial<ToastLabels> = {
+  it('accepts the original label shape and defaults the details label', async () => {
+    const labels: ToastLabels = {
       close: 'Dismiss',
       error: 'Localized error',
       errorDescription: 'Localized fallback error',
@@ -243,11 +312,12 @@ describe('Toast', () => {
     render(<ToastViewport labels={labels} />)
 
     await act(async () => {
-      localizedToast.loading({ promise: Promise.resolve() })
+      localizedToast.loading({ promise: Promise.resolve(), details: 'Operation details' })
     })
 
     expect(screen.getByText('Localized success')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
+    expect(screen.getByText('View details')).toBeInTheDocument()
   })
 
   it('keeps loading rejection errors sticky and calls onError', async () => {

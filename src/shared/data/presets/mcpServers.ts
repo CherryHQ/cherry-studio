@@ -57,7 +57,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.mcpAutoInstall,
-    reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
+    reference: 'https://docs.cherry-ai.com/advanced-basic/extensions/mcp',
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -110,7 +110,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop'],
+    // An unconfigured server uses <userData>/Workspace; a platform-shaped path would bypass that fallback.
     disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,

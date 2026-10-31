@@ -11,7 +11,6 @@ const runtime = {
   stopServer: vi.fn(),
   listPrompts: vi.fn(),
   listResources: vi.fn(),
-  checkMcpConnectivity: vi.fn(),
   abortTool: vi.fn(),
   getServerVersion: vi.fn(),
   getServerLogs: vi.fn()
@@ -44,11 +43,6 @@ describe('mcpHandlers', () => {
   it('list_prompts returns the prompt list from McpRuntimeService', async () => {
     runtime.listPrompts.mockResolvedValue([{ name: 'p' }])
     expect(await mcpHandlers['mcp.server.list_prompts']({ serverId: 's' }, ctx)).toEqual([{ name: 'p' }])
-  })
-
-  it('check_connectivity returns the boolean result', async () => {
-    runtime.checkMcpConnectivity.mockResolvedValue(true)
-    expect(await mcpHandlers['mcp.server.check_connectivity']({ serverId: 's' }, ctx)).toBe(true)
   })
 
   it('abort_tool_call forwards the callId and isolation scope', async () => {

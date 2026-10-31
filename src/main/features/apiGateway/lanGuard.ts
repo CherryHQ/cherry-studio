@@ -1,21 +1,14 @@
 import { application } from '@application'
 
-/**
- * When the gateway binds the LAN (`0.0.0.0`) the same listener serves both the
- * desktop's own loopback consumers and remote mobile clients. Only the pairing
- * bootstrap and the paired-device provider export are meant to cross the LAN;
- * the generation, MCP, and knowledge routes must stay loopback-only (an exposed
- * MCP proxy is remote tool execution, and the chat routes leak the desktop API
- * key over the wire). This screens every request by its socket peer: loopback
- * and in-process callers are unrestricted, a remote peer may reach only the
- * allow-listed routes.
- */
+import { REMOTE_CONNECT_PATH } from './routes/remote'
 
-/** Routes a non-loopback (LAN) client is permitted to reach. */
-const LAN_ALLOWED_ROUTES: ReadonlyArray<readonly [method: string, path: string]> = [
-  ['POST', '/pair'],
-  ['GET', '/v1/export/providers']
-]
+/**
+ * When the gateway binds the LAN (`0.0.0.0`) the same listener serves the
+ * desktop's own loopback consumers and the encrypted WebSocket upgrade used by
+ * remote devices. No other HTTP route may cross the LAN: an exposed MCP proxy is
+ * remote tool execution, and the chat routes leak the desktop API key over the
+ * wire. This screens every request by its socket peer.
+ */
 
 /**
  * A missing address is treated as loopback: it only occurs for in-process
@@ -24,10 +17,6 @@ const LAN_ALLOWED_ROUTES: ReadonlyArray<readonly [method: string, path: string]>
 export function isLoopbackAddress(address: string | undefined): boolean {
   if (!address) return true
   return address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.')
-}
-
-export function isLanAllowedRoute(method: string, pathname: string): boolean {
-  return LAN_ALLOWED_ROUTES.some(([allowedMethod, allowedPath]) => method === allowedMethod && pathname === allowedPath)
 }
 
 /** The srvx Node request exposes the peer address as `.ip` (its raw socket underneath). */
@@ -39,16 +28,19 @@ function readRemoteAddress(request: Request): string | undefined {
   return carrier.ip ?? carrier.runtime?.node?.req?.socket?.remoteAddress
 }
 
-/**
- * Returns a 403 body when LAN access is disabled or the route is loopback-only,
- * or `undefined` to let the request proceed.
- */
+/** Returns a 403 body for a non-loopback request unless it is the remote-access upgrade. */
 export function screenLanRequest(request: Request, pathname: string): { error: string } | undefined {
+  const preferences = application.get('PreferenceService')
+  const enabled =
+    preferences.get('feature.api_gateway.enabled') && preferences.get('feature.api_gateway.host') === '0.0.0.0'
+  if (pathname === REMOTE_CONNECT_PATH && !enabled) return { error: 'Forbidden: LAN access is disabled' }
   if (isLoopbackAddress(readRemoteAddress(request))) return undefined
-  // A local task can keep the listener alive after stopping; LAN access must still be revoked.
-  if (application.get('PreferenceService').get('feature.api_gateway.host') !== '0.0.0.0') {
-    return { error: 'Forbidden: LAN access is disabled' }
-  }
-  if (isLanAllowedRoute(request.method, pathname)) return undefined
+  if (!enabled) return { error: 'Forbidden: LAN access is disabled' }
+  if (
+    request.method === 'GET' &&
+    pathname === REMOTE_CONNECT_PATH &&
+    request.headers.get('upgrade')?.toLowerCase() === 'websocket'
+  )
+    return undefined
   return { error: 'Forbidden: this endpoint is not reachable over the LAN' }
 }

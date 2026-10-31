@@ -1,1 +1,1 @@
-export { useHasWindowControls, default as WindowControls, WindowRestoreIcon } from './WindowControls'
+export { default as WindowControls, WINDOW_CONTROLS_OVERLAY_WIDTH } from './WindowControls'

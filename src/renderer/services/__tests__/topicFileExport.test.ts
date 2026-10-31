@@ -16,7 +16,8 @@ vi.mock('@renderer/i18n/resolver', () => ({
 const ipcRequest = vi.hoisted(() => vi.fn())
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
 
-const { collectTopicFileData, exportTopicAsFile, TOPIC_CHANGED_DURING_EXPORT } = await import('../topicFileExport')
+const { collectTopicFileData, exportTopicAsFile, TOPIC_CHANGED_DURING_EXPORT, INCOMPLETE_TOPIC_TREE_EXPORT } =
+  await import('../topicFileExport')
 
 function makeMessage(overrides: Partial<Message> & Pick<Message, 'id' | 'role'>): Message {
   const { id, role, ...rest } = overrides
@@ -137,6 +138,37 @@ describe('topicFileExport', () => {
 
   afterEach(() => {
     delete (window as any).api
+  })
+
+  it.each(['node', 'sibling'])(
+    'rejects a static truncated %s branch instead of exporting missing descendants',
+    async (kind) => {
+      const original = vi.mocked(dataApiService.get).getMockImplementation()!
+      vi.mocked(dataApiService.get).mockImplementation(async (...args) => {
+        const result = await original(...args)
+        if (args[0] !== '/topics/topic-1/tree') return result
+        const tree = result as any
+        if (kind === 'node') tree.nodes.find((node: any) => node.id === 'a1').hasChildren = true
+        else tree.siblingsGroups[0].nodes.find((node: any) => node.id === 'a2a').hasChildren = true
+        return tree
+      })
+      await expect(collectTopicFileData('topic-1')).rejects.toThrow(INCOMPLETE_TOPIC_TREE_EXPORT)
+      expect(saveMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts a node whose children are present in a sibling group', async () => {
+    const original = vi.mocked(dataApiService.get).getMockImplementation()!
+    vi.mocked(dataApiService.get).mockImplementation(async (...args) => {
+      const result = await original(...args)
+      if (args[0] === '/topics/topic-1/tree') {
+        const tree = result as any
+        tree.nodes.find((node: any) => node.id === 'u2').hasChildren = true
+      }
+      return result
+    })
+    const file = await collectTopicFileData('topic-1')
+    expect(file.messages.map((message) => message.sourceId)).toContain('a2b')
   })
 
   it('collects the whole tree including sibling groups into a valid file', async () => {

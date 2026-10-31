@@ -9,8 +9,8 @@ describe('modelSource', () => {
   })
 
   it('keeps the non-default source as fallback', () => {
-    expect(modelSourceOrder('china-first')).toEqual(['modelscope', 'huggingface'])
-    expect(modelSourceOrder('global-first')).toEqual(['huggingface', 'modelscope'])
+    expect(modelSourceOrder('china-first')).toEqual(['modelscope', 'hf-mirror', 'huggingface'])
+    expect(modelSourceOrder('global-first')).toEqual(['huggingface', 'hf-mirror', 'modelscope'])
   })
 
   it('builds HuggingFace file URLs with the {model}/resolve/{revision} route', () => {
@@ -22,6 +22,12 @@ describe('modelSource', () => {
   it('builds ModelScope file URLs with the models/ prefix and master branch', () => {
     expect(resolveModelFileUrl('modelscope', 'PaddlePaddle/PP-OCRv6_medium_rec_onnx', 'inference.onnx')).toBe(
       'https://www.modelscope.cn/models/PaddlePaddle/PP-OCRv6_medium_rec_onnx/resolve/master/inference.onnx'
+    )
+  })
+
+  it('uses an explicit immutable revision when the catalog provides one', () => {
+    expect(resolveModelFileUrl('hf-mirror', 'org/model', 'model.onnx', 'a'.repeat(40))).toBe(
+      `https://hf-mirror.com/org/model/resolve/${'a'.repeat(40)}/model.onnx`
     )
   })
 })

@@ -91,6 +91,15 @@ export function defaultHeaders(provider: Provider): Record<string, string> {
   )
 }
 
+/**
+ * App defaults plus the user's extra headers, never the stored API key: for a
+ * provider that authenticates with nothing, where sending the key would hand a
+ * credential to whatever host the base URL points at.
+ */
+export function headersWithoutCredentials(provider: Provider): Record<string, string> {
+  return mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
+}
+
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
   const trimmedHost = (apiHost || '').trim()
   if (!trimmedHost.endsWith('#')) {

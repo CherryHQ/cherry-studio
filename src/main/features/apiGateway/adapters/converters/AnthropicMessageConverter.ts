@@ -193,15 +193,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
     }
 
-    // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
-    const toolCallIdToName = new Map<string, string>()
+    // tool_use id → result conversion.
     const toolResults = new Map<string, ToolResultConversion>()
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
-        if (block.type === 'tool_use') {
-          toolCallIdToName.set(block.id, block.name)
-        } else if (block.type === 'tool_result') {
+        if (block.type === 'tool_result') {
           toolResults.set(
             block.tool_use_id,
             block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }

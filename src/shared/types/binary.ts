@@ -85,3 +85,5 @@ export type BinaryToolSnapshot = {
   availability: BinaryAvailability
   operation?: BinaryOperation
 }
+
+export type BinaryToolInstalledSizes = Record<string, number | null>

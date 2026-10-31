@@ -1,3 +1,4 @@
+import { zodSchema } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { jsonSchemaToZod } from '../converters/jsonSchemaToZod'
@@ -66,6 +67,54 @@ describe('jsonSchemaToZod', () => {
     expect(schema.safeParse({ name: 'a' }).success).toBe(true) // age optional
     expect(schema.safeParse({ name: 'a', age: 3 }).success).toBe(true)
     expect(schema.safeParse({ age: 3 }).success).toBe(false) // name required
+  })
+
+  it.each([undefined, true, {}])('preserves form schemas with additionalProperties=%j', (additionalProperties) => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        requestedSchema: { type: 'object', ...(additionalProperties === undefined ? {} : { additionalProperties }) }
+      },
+      required: ['message', 'requestedSchema']
+    })
+    const args = {
+      message: 'Enter your name and language preference',
+      requestedSchema: {
+        type: 'object',
+        properties: { name: { type: 'string' }, language: { type: 'string', enum: ['en', 'zh'] } },
+        required: ['name', 'language']
+      }
+    }
+
+    expect(schema.parse(args)).toEqual(args)
+    expect(schema.safeParse({ requestedSchema: args.requestedSchema }).success).toBe(false)
+    expect(zodSchema(schema).jsonSchema).toMatchObject({
+      properties: { requestedSchema: { type: 'object', properties: {}, additionalProperties: {} } }
+    })
+  })
+
+  it('rejects extra fields when additionalProperties is false', () => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      additionalProperties: false
+    })
+    expect(schema.parse({ name: 'Alice' })).toEqual({ name: 'Alice' })
+    expect(schema.safeParse({ name: 'Alice', extra: true }).success).toBe(false)
+    expect(zodSchema(schema).jsonSchema).toMatchObject({ additionalProperties: false })
+  })
+
+  it('validates additional fields against their schema while preserving declared fields', () => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      additionalProperties: { type: 'integer', minimum: 0 }
+    })
+    expect(schema.parse({ name: 'Alice', score: 3 })).toEqual({ name: 'Alice', score: 3 })
+    expect(schema.safeParse({ score: -1 }).success).toBe(false)
+    expect(schema.safeParse({ score: '3' }).success).toBe(false)
+    expect(zodSchema(schema).jsonSchema).toMatchObject({ additionalProperties: { type: 'integer', minimum: 0 } })
   })
 
   it('maps a boolean `true` property schema to "accept anything"', () => {

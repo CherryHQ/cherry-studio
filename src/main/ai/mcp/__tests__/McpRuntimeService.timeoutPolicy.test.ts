@@ -1,17 +1,12 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  CallToolRequestSchema,
-  type CallToolResult,
-  ListToolsRequestSchema,
-  type Progress
-} from '@modelcontextprotocol/sdk/types.js'
+import { InMemoryTransport, type CallToolResult, type Progress } from '@modelcontextprotocol/client'
+import { Server } from '@modelcontextprotocol/server'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
+
+import { ClientMcpConnection } from '../connections/ClientMcpConnection'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -60,17 +55,24 @@ describe('McpRuntimeService.callTool timeout policy', () => {
   })
 
   /** Real SDK client wired to an in-memory server whose tool handler is `handler`. */
-  async function connectRealClient(handler: CallHandler): Promise<Client> {
+  async function connectRealClient(handler: CallHandler): Promise<ClientMcpConnection> {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-    const server = new McpServer({ name: 'slow', version: '1.0.0' }, { capabilities: { tools: {} } })
-    server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    const server = new Server({ name: 'slow', version: '1.0.0' }, { capabilities: { tools: {} } })
+    server.setRequestHandler('tools/list', async () => ({
       tools: [{ name: 'slow-tool', description: 'slow', inputSchema: { type: 'object' } }]
     }))
-    server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
-      handler(request as Parameters<CallHandler>[0], extra)
+    server.setRequestHandler('tools/call', async (request, context) =>
+      handler(request as Parameters<CallHandler>[0], {
+        signal: context.mcpReq.signal,
+        sendNotification: (notification) => server.notification(notification)
+      })
     )
     await server.connect(serverTransport)
-    const client = new Client({ name: 'cherry-test', version: '1.0.0' }, { capabilities: {} })
+    const client = new ClientMcpConnection(
+      { name: 'cherry-test', version: '1.0.0' },
+      { capabilities: { elicitation: { form: {}, url: {} }, sampling: {}, roots: {} } },
+      { toolsChanged() {}, promptsChanged() {}, resourcesChanged() {}, resourceUpdated() {}, log() {} }
+    )
     await client.connect(clientTransport)
     return client
   }
@@ -83,7 +85,7 @@ describe('McpRuntimeService.callTool timeout policy', () => {
     getByIdMock.mockReturnValue(serverWith({ timeout: 1 }))
     const client = await connectRealClient(async () => new Promise<CallToolResult>(() => {}))
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue(client)
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue(client)
 
     const call = service.callTool({ serverId: 'srv', name: 'slow-tool', args: {} })
     const rejection = expect(call).rejects.toThrow(/timed out/i)
@@ -114,7 +116,7 @@ describe('McpRuntimeService.callTool timeout policy', () => {
       return { content: [{ type: 'text', text: 'done after renewal' }] }
     })
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue(client)
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue(client)
 
     // Outlives the 1s per-progress window thanks to renewal; dead at 1s if reset is dropped.
     const call = service.callTool({ serverId: 'srv', name: 'slow-tool', args: {} })
@@ -140,7 +142,7 @@ describe('McpRuntimeService.callTool timeout policy', () => {
       return new Promise<CallToolResult>(() => {})
     })
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue(client)
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue(client)
 
     const call = service.callTool({ serverId: 'srv', name: 'slow-tool', args: {} })
     const rejection = expect(call).rejects.toThrow(/maximum total timeout exceeded/i)

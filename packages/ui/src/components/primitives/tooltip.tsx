@@ -10,7 +10,7 @@ import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import { usePortalContainer } from './portal-container'
+import { useTooltipPortalContainer, useTooltipZIndex } from './portal-container'
 
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
@@ -323,20 +323,33 @@ const contentStyles =
 const arrowStyles =
   'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'
 
+/**
+ * Default gap between tooltip content and its trigger. Content rendered flush with the trigger
+ * (sideOffset = 0) overlaps the trigger's hit area: once the pointer lands on the tooltip, the
+ * anchor loses :hover, hover-driven regions around it collapse and move the anchor, and the
+ * tooltip instantly reopens within Radix's skipDelayDuration - a hover feedback loop. Keeping
+ * the floating content clear of the trigger breaks that loop at the root. Callers can still
+ * pass sideOffset explicitly to opt out.
+ */
+export const TOOLTIP_DEFAULT_SIDE_OFFSET = 8
+
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   children,
   portalContainer,
   showArrow = true,
   forceMount,
+  style,
   ...props
 }: TooltipContentProps) {
-  const defaultPortalContainer = usePortalContainer()
+  const defaultPortalContainer = useTooltipPortalContainer()
+  const zIndex = useTooltipZIndex()
   const contentVisible = React.use(TooltipOverlayContext)
   // 显式 forceMount 保留 Radix 公共契约（closed 也常驻 DOM），豁免 150ms 门控
   if (contentVisible === false && !forceMount) return null
   const container = portalContainer ?? defaultPortalContainer ?? undefined
+  const contentStyle = zIndex ? { zIndex, ...style } : style
   const arrow = showArrow ? <RadixArrow width={12} height={6} className={arrowStyles} /> : null
   // 有 overlay context（TooltipRoot 组合）时挂载由门控接管：forceMount + 150ms 退出窗口；
   // 显式 forceMount 内容由用户持有生命周期，不带清扫标记；独立使用保持 Radix 原生 presence 卸载。
@@ -349,6 +362,7 @@ function TooltipContent({
           sideOffset={sideOffset}
           forceMount
           className={cn(contentStyles, className)}
+          style={contentStyle}
           {...props}>
           {children}
           {arrow}
@@ -364,6 +378,7 @@ function TooltipContent({
         sideOffset={sideOffset}
         forceMount={forceMount}
         className={cn(contentStyles, className)}
+        style={contentStyle}
         {...props}>
         {children}
         {arrow}
@@ -401,7 +416,7 @@ export const Tooltip = ({
   title,
   placement,
   delay = 0,
-  sideOffset = 0,
+  sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   showArrow = true,
   fullWidthTrigger = false,
   classNames,
@@ -414,7 +429,8 @@ export const Tooltip = ({
   asChild = false
 }: TooltipProps) => {
   const tooltipContent = content ?? title
-  const defaultPortalContainer = usePortalContainer()
+  const defaultPortalContainer = useTooltipPortalContainer()
+  const zIndex = useTooltipZIndex()
   // An inactive surface drops the tooltip exactly like a disabled one; the disabled pass also
   // resets the open state so nothing resurfaces unhovered when the surface comes back.
   const surfaceActive = React.use(TooltipSurfaceContext)
@@ -464,7 +480,8 @@ export const Tooltip = ({
               side={side}
               align={align}
               sideOffset={sideOffset}
-              className={cn(contentStyles, classNames?.content, className)}>
+              className={cn(contentStyles, classNames?.content, className)}
+              style={zIndex ? { zIndex } : undefined}>
               {tooltipContent}
               {showArrow && <RadixArrow width={12} height={6} className={arrowStyles} />}
             </RadixContent>

@@ -153,6 +153,7 @@ const defaultStatProbe = async (path: AbsoluteFilePath): Promise<DanglingState> 
 class DanglingCacheImpl implements DanglingCache {
   private readonly byEntryId = new Map<FileEntryId, CachedState>()
   private readonly pathToEntryIds = new Map<AbsoluteFilePath, Set<FileEntryId>>()
+  private readonly pendingProbes = new Map<FileEntryId, symbol>()
   private readonly _emitter = new Emitter<DanglingStateChangedEvent>()
   public readonly onDanglingStateChanged: Event<DanglingStateChangedEvent> = this._emitter.event
 
@@ -189,10 +190,17 @@ class DanglingCacheImpl implements DanglingCache {
     // declares `externalPath` on the internal variant).
     if (entry.origin !== 'external') return 'present'
     const path = entry.externalPath
-    const state = await this.statProbe(path)
-    if (state === 'unknown') return 'unknown'
-    this.commit(entry.id, state, 'stat')
-    return state
+    const probe = Symbol()
+    this.pendingProbes.set(entry.id, probe)
+    try {
+      const state = await this.statProbe(path)
+      if (this.pendingProbes.get(entry.id) !== probe) return this.byEntryId.get(entry.id)?.state ?? 'unknown'
+      if (state === 'unknown') return 'unknown'
+      this.commit(entry.id, state, 'stat')
+      return state
+    } finally {
+      if (this.pendingProbes.get(entry.id) === probe) this.pendingProbes.delete(entry.id)
+    }
   }
 
   /**
@@ -202,6 +210,7 @@ class DanglingCacheImpl implements DanglingCache {
    * silent — see architecture §11.7 emission rules.
    */
   private commit(id: FileEntryId, next: ObservedPresence, source: CachedState['source']): void {
+    this.pendingProbes.delete(id)
     const prev = this.byEntryId.get(id)?.state
     this.byEntryId.set(id, { state: next, observedAt: this.now(), source })
     if (prev !== next) this._emitter.fire({ id, state: next })
@@ -221,10 +230,12 @@ class DanglingCacheImpl implements DanglingCache {
       set = new Set()
       this.pathToEntryIds.set(externalPath, set)
     }
+    if (!set.has(entryId)) this.pendingProbes.delete(entryId)
     set.add(entryId)
   }
 
   removeEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void {
+    this.pendingProbes.delete(entryId)
     const set = this.pathToEntryIds.get(externalPath)
     if (!set) return
     set.delete(entryId)
@@ -254,6 +265,7 @@ class DanglingCacheImpl implements DanglingCache {
   }
 
   clear(): void {
+    this.pendingProbes.clear()
     this.byEntryId.clear()
     this.pathToEntryIds.clear()
   }

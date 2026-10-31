@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react'
+import type { TFunction } from 'i18next'
 import { ChevronDown } from 'lucide-react'
 import { type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +14,7 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { archiveExts, getFileTypeByExt } from '@shared/utils/file'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
@@ -64,6 +66,42 @@ function getArtifactFileName(path: string): string {
   const normalized = path.trim().replace(/[\\/]+$/g, '')
   const segments = normalized.split(/[\\/]+/).filter(Boolean)
   return segments.at(-1) ?? path
+}
+
+const artifactDocumentFormats: Record<string, [string, string]> = {
+  doc: ['chat.input.tools.file_type.document', 'Word'],
+  docx: ['chat.input.tools.file_type.document', 'Word'],
+  pdf: ['chat.input.tools.file_type.document', 'PDF'],
+  md: ['chat.input.tools.file_type.document', 'Markdown'],
+  markdown: ['chat.input.tools.file_type.document', 'Markdown'],
+  rtf: ['chat.input.tools.file_type.document', 'RTF'],
+  odt: ['chat.input.tools.file_type.document', 'OpenDocument'],
+  ppt: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
+  pptx: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
+  odp: ['chat.input.tools.file_type.presentation', 'OpenDocument'],
+  xls: ['chat.input.tools.file_type.spreadsheet', 'Excel'],
+  xlsx: ['chat.input.tools.file_type.spreadsheet', 'Excel'],
+  ods: ['chat.input.tools.file_type.spreadsheet', 'OpenDocument'],
+  csv: ['chat.input.tools.file_type.spreadsheet', 'CSV'],
+  tsv: ['chat.input.tools.file_type.spreadsheet', 'TSV'],
+  html: ['chat.input.tools.file_type.webpage', 'HTML'],
+  htm: ['chat.input.tools.file_type.webpage', 'HTML']
+}
+
+function getArtifactFileTypeLabel(fileName: string, t: TFunction): string {
+  const dot = fileName.lastIndexOf('.')
+  const extension = dot > 0 ? fileName.slice(dot + 1).toLowerCase() : ''
+  if (!extension) return t('chat.input.tools.file_type.file')
+
+  const format = Object.hasOwn(artifactDocumentFormats, extension) ? artifactDocumentFormats[extension] : undefined
+  if (format) return t(format[0], { format: format[1] })
+  if (archiveExts.some((ext) => ext === `.${extension}`)) return t('chat.input.tools.file_type.archive')
+
+  const type = getFileTypeByExt(extension)
+  if (type === 'image') return t('files.image')
+  if (type === 'audio') return t('files.audio')
+  if (type === 'video') return t('files.video')
+  return t('chat.input.tools.file_type.extension', { format: extension.toUpperCase() })
 }
 
 function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) {
@@ -165,18 +203,35 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   ])
 
   const card = (
-    <div className="group/artifact flex w-full max-w-xl items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle transition-colors hover:bg-accent">
+    <div className="group/artifact flex w-full min-w-0 items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle transition-colors hover:bg-accent">
       <button
         type="button"
         aria-disabled={!openArtifactFile}
         onClick={openArtifactFile ? handlePreview : undefined}
         title={displayPath}
         aria-label={`${t('common.preview')} ${fileName}`}
-        className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left aria-disabled:cursor-default">
+        className="group/preview flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left aria-disabled:cursor-default">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
           <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
         </span>
-        <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
+          <span aria-hidden className="grid min-w-0 text-muted-foreground text-xs leading-4">
+            <span
+              className={
+                openArtifactFile
+                  ? 'col-start-1 row-start-1 truncate group-hover/preview:invisible group-focus-visible/preview:invisible'
+                  : 'col-start-1 row-start-1 truncate'
+              }>
+              {getArtifactFileTypeLabel(fileName, t)}
+            </span>
+            {openArtifactFile && (
+              <span className="invisible col-start-1 row-start-1 truncate group-hover/preview:visible group-focus-visible/preview:visible">
+                {t('chat.input.tools.open_preview')}
+              </span>
+            )}
+          </span>
+        </span>
       </button>
       {hasOpenActions && (
         <CommandPopupMenu

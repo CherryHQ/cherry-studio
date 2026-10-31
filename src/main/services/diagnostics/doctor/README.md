@@ -150,3 +150,40 @@ chat request; non-chat models skip without prompting. NetworkService retains own
 The contextual API does not replace the existing Doctor report cache. Error Details uses the contextual run route,
 renders the three connectivity steps, supports confirmation, cancellation and in-place retry, and can open the
 separate global full-system Doctor without replacing the contextual report.
+
+## AI analysis (Doctor Agent)
+
+`DoctorAgentService` runs the `doctor` built-in Agent (bundle `resources/builtin-agents/cherry-doctor`) over a
+completed report: one headless turn in a hidden `background` session, published on
+`doctorAgentStateCacheKey(key)` as streamed text, tool calls, proposals and a change ledger. The key is the scope,
+or `scope#messageId` when the dialog was opened from a failed message (`DoctorAgentIncident`): each failure gets its
+own analysis, and its redacted error parts go into the prompt. Routes:
+`diagnostics.doctor.agent.{start,cancel,apply,undo}`. The renderer entry is the footer button "AI consultation"
+(`DoctorAgentDialog`: model picker → consultation with proposals/ledger) in the Doctor panel and the Error Details
+dialog; a completed analysis also shows as the `DoctorAgentAccordionItem` row above the checks.
+
+Diagnosis is open-ended: the Agent mounts the `assistant` server (`diagnose`, `product_info`) and the `doctor`
+server (`session`, `read_file`, `report`, `data_api`, `preference`, `probe_endpoint`, `doctor_fix`; see `ai/agents/doctor/doctorTools.ts`).
+`session` reads only the incident's conversation (`ai/agents/doctor/doctorIncident.ts`): `overview`, `messages`,
+`logs` (JSONL lines naming its topic/session id, including the API gateway's `agentSessionId`) and `request`
+(endpoint now vs at error time, request-body shape without message text), plus `transcript` for Agent sessions via
+the runtime driver's optional `readTranscriptEvidence` (Claude Code only so far). It takes no conversation id argument.
+`read_file` is the only filesystem reach: the log dir plus an allowlist of userData app state (`logs/`, `config.json`, `Toolchain/`, `Crashpad/`), tail-first, secrets redacted.
+Files are opened without following symlinks and checked by inode before reading. Directory listing uses a stable
+file-descriptor alias on Linux and is refused on platforms that cannot provide one —
+the core Read/Glob/Grep tools stay disabled because the workspace-escape guard does not hold under bypassPermissions.
+Reads pass through `redactForModel`. Writes are bounded by `doctorWrites.ts`, not by the catalog:
+
+| Write | Path it reuses | Runs |
+|-------|----------------|------|
+| `doctor_fix` | `DoctorService.fix` (runId-bound, re-probed) | immediately when the fix is `reversible` and needs no relaunch, otherwise as a proposal |
+| `data_api_patch` | DataApi `PATCH` on providers / mcp-servers / assistants / agents | proposal |
+| `preference_set` | `PreferenceService.set`, keys in `PREFERENCE_WRITE_ALLOWLIST` | proposal |
+
+A proposal runs only when the user applies it from the panel, only while the report it was reasoned from is still
+current, and writes for one scope are serialized so a double click cannot apply twice. Every executed write lands in
+the ledger with the snapshot `undoWrite` restores; undo refuses once the field changed again, and catalog fixes are
+not undoable. Credential fields at any depth, fields whose stored value carries a credential, credential-bearing proxy
+URLs, POST/DELETE, API-key routes and the core Bash/Edit/Write tools are never reachable. Preference writes are
+validated against a per-key schema. The doctor Agent row is excluded from Agent lists and search. The Agent runs with `bypassPermissions` because the headless
+turn has no responder; that is why every `doctor` tool policy is `auto` and the gate lives in the proposal model.
