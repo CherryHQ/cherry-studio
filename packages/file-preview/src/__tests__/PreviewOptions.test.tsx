@@ -79,6 +79,18 @@ describe('host preview options', () => {
     expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('100%')
   })
 
+  it('scales the page up to fill a pane wider than the paper', async () => {
+    render(<Preview source={createSource()} options={{ docx: { initialZoom: 'fit-width' } }} />)
+    await screen.findByText('Landscape page')
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('38%')
+
+    resize(1200)
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('120%')
+
+    resize(4000)
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('200%')
+  })
+
   it('moves the inset from the outer viewport to the unscaled document scroll region only when requested', async () => {
     const source = createSource()
     const view = render(<Preview source={source} />)
