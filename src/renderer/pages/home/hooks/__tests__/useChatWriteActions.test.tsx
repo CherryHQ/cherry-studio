@@ -66,6 +66,8 @@ function renderActions(
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
+  const commitReplacement = vi.fn()
+  const prepareMessageReplacement = vi.fn(() => commitReplacement)
   const { result, rerender } = renderHook(
     ({ composerModelId }) =>
       useChatWriteActions({
@@ -79,6 +81,7 @@ function renderActions(
         cache,
         seedReservedMessages,
         scrollToBottom,
+        prepareMessageReplacement,
         startNewContextBlocked,
         composerModelId
       }),
@@ -91,6 +94,8 @@ function renderActions(
     cache,
     scrollToBottom,
     regenerate,
+    prepareMessageReplacement,
+    commitReplacement,
     seedReservedMessages
   }
 }
@@ -783,9 +788,19 @@ describe('useChatWriteActions — fork and resend', () => {
 
   it('opens a stream after a successful edit-and-resend', async () => {
     const cache = makeCache()
-    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
+    const { actions, prepareMessageReplacement, commitReplacement, seedReservedMessages } = renderActions(
+      [uiMsg('u1', 'user', 'vroot')],
+      cache
+    )
+    vi.mocked(cache.createSiblingTrigger).mockImplementationOnce(async () => {
+      expect(prepareMessageReplacement).toHaveBeenCalledWith('u1')
+      return createForkedUser() as never
+    })
+    seedReservedMessages.mockImplementationOnce(async () => {
+      // The viewport must capture the old turn before optimistic rows change.
+      expect(commitReplacement).toHaveBeenCalledWith('forked-user')
+    })
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
       reasoningEffort: 'high',

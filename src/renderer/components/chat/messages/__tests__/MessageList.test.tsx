@@ -302,6 +302,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       React.useImperativeHandle(
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
+          prepareContentReplacement: () => vi.fn(),
           scrollToBottom,
           scrollToTop,
           scrollToKey,
