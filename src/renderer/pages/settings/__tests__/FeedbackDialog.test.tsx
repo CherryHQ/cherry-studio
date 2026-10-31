@@ -64,17 +64,49 @@ describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
+    Object.defineProperty(window.electron, 'process', {
+      configurable: true,
+      value: { platform: 'darwin' }
+    })
   })
 
-  it('places report a problem before the feedback assistant and GitHub', () => {
+  it('orders diagnostics, the feedback assistant, GitHub, and email contact', () => {
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
     const agent = screen.getByRole('button', { name: /Feedback assistant/ })
     const github = screen.getByRole('button', { name: /GitHub Issue/ })
     const report = screen.getByRole('button', { name: /Report a problem/i })
+    const email = screen.getByRole('button', { name: /Contact/ })
 
     expect(report.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(github.compareDocumentPosition(email)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('closes the chooser and opens an email draft with version and platform details', async () => {
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'app.get_info') return { version: '2.1.9' }
+      if (route === 'system.shell.open_external_website') {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      }
+      return undefined
+    })
+    render(<ControlledFeedbackDialog />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Contact/ }))
+
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        expect.stringMatching(/^mailto:/)
+      )
+    )
+    const request = mocks.ipcRequest.mock.calls.find(([route]) => route === 'system.shell.open_external_website')
+    const url = new URL(request![1] as string)
+    expect(url.pathname).toBe('support@cherry-ai.com')
+    expect(url.searchParams.get('subject')).toBe('Cherry Studio Feedback')
+    expect(url.searchParams.get('body')).toContain('Version: 2.1.9')
+    expect(url.searchParams.get('body')).toContain('Platform: darwin')
   })
 
   it('closes feedback before opening the problem report panel', async () => {

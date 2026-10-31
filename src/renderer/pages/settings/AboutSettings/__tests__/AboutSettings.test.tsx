@@ -1,7 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as StreamdownModule from 'streamdown'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
+
+vi.unmock('@cherrystudio/ui')
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -56,11 +61,19 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => (key === 'settings.doctor.entry.title' ? 'System diagnostics' : key)
+    t: (key: string) =>
+      key === 'settings.about.repository.button' ||
+      key === 'settings.about.repository.title' ||
+      key === 'settings.about.contact.title'
+        ? enUS[key as keyof typeof enUS]
+        : key === 'settings.doctor.entry.title'
+          ? 'System diagnostics'
+          : key
   })
 }))
 
-vi.mock('streamdown', () => ({
+vi.mock('streamdown', async (importOriginal) => ({
+  ...(await importOriginal<typeof StreamdownModule>()),
   Streamdown: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
@@ -131,9 +144,11 @@ describe('AboutSettings diagnostics entry', () => {
     const user = userEvent.setup()
     await renderAboutSettings()
 
+    expect(screen.queryByText('Contact')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'settings.about.feedback.button' }))
 
     expect(screen.getByRole('heading', { name: 'settings.about.feedback.dialog.title' })).toBeVisible()
+    expect(screen.getByRole('button', { name: /Contact/ })).toBeVisible()
     expect(mocks.showDoctor).not.toHaveBeenCalled()
   })
 })
@@ -148,19 +163,36 @@ describe('AboutSettings repository controls accessibility', () => {
     })
   })
 
-  it('names the GitHub icon and app logo by their repository destination and hides decorative media', async () => {
+  it('names the app logo by its repository destination and hides decorative media', async () => {
     const user = userEvent.setup()
     await renderAboutSettings()
 
-    const repositoryButtons = screen.getAllByRole('button', { name: 'settings.about.repository' })
-    expect(repositoryButtons).toHaveLength(2)
+    const repositoryButton = screen.getByRole('button', { name: 'settings.about.repository' })
     expect(screen.queryByRole('button', { name: 'Cherry Studio' })).not.toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
 
-    await user.click(repositoryButtons[0])
+    await user.click(repositoryButton)
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', REPOSITORY_URL)
+  })
+})
 
-    await user.click(repositoryButtons[1])
+describe('AboutSettings repository entry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.search = {}
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'app.get_info') return { isPortable: false, version: '2.0.0' }
+      return undefined
+    })
+  })
+
+  it('opens the project repository from the list entry', async () => {
+    const user = userEvent.setup()
+    await renderAboutSettings()
+
+    expect(screen.getByText('Open-source project')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Support' }))
+
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', REPOSITORY_URL)
   })
 })
