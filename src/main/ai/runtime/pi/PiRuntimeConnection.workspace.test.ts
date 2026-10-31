@@ -113,6 +113,7 @@ beforeEach(async () => {
   } as unknown as PiConnectionSnapshot
   mocks.capture.mockImplementation(async () => snapshot)
   mocks.resolveInjection.mockResolvedValue({
+    providerConfig: { models: [] },
     providerName: 'provider',
     api: 'openai-completions',
     modelId: 'model',
