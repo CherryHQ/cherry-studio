@@ -115,6 +115,7 @@ import {
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
+import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -354,6 +355,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
+  private readonly failedClosureResumeTokens = new WeakMap<AgentRuntimeConnection, string>()
   private readonly pendingEditInputs = new Map<
     Electron.WebContents,
     { counts: Map<string, number>; dispose: () => void }
@@ -489,6 +491,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
+    const blockedSessions = await relocateSystemWorkspaces()
     await this.forks.recover()
 
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
@@ -496,7 +499,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
-    this.reconcileStalePendingMessages()
+    this.reconcileStalePendingMessages(blockedSessions)
     recoverSessionDeliveries()
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
 
@@ -509,9 +512,11 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
-  private reconcileStalePendingMessages(): void {
+  private reconcileStalePendingMessages(protectedSessions = new Set<string>()): void {
     try {
-      const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
+      const stale = agentSessionMessageService
+        .findCrashOrphanedAssistantMessages()
+        .filter((row) => !protectedSessions.has(row.sessionId))
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
       logger.info('Reconciling crash-orphaned pending agent-session messages', {
@@ -1315,6 +1320,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  /** Connections without confirmed teardown still own their runtime transcripts. */
   listClaimedResumeTokens(): ReadonlySet<string> {
     const claimedResumeTokens = new Set<string>()
     for (const entry of this.entries.values()) {
@@ -1322,6 +1328,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const closing of this.closingSessions.values()) {
       if (closing.resumeToken) claimedResumeTokens.add(closing.resumeToken)
+    }
+    for (const connections of this.failedClosures.values()) {
+      for (const connection of connections) {
+        const resumeToken = this.failedClosureResumeTokens.get(connection)
+        if (resumeToken) claimedResumeTokens.add(resumeToken)
+      }
     }
     return claimedResumeTokens
   }
@@ -3507,8 +3519,12 @@ export class AgentSessionRuntimeService extends BaseService {
     strict = false
   ): Promise<void> {
     if (!connection) return
+    const resumeToken =
+      this.entries.get(sessionId)?.lastResumeToken ??
+      this.closingSessions.get(sessionId)?.resumeToken ??
+      this.failedClosureResumeTokens.get(connection)
     const settled = Promise.withResolvers<void>()
-    void this.trackSessionClosing(sessionId, settled.promise, this.entries.get(sessionId)?.lastResumeToken)
+    void this.trackSessionClosing(sessionId, settled.promise, resumeToken)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
@@ -3516,6 +3532,7 @@ export class AgentSessionRuntimeService extends BaseService {
         Promise.resolve(closing).then(() => {
           const failed = this.failedClosures.get(sessionId)
           failed?.delete(connection)
+          this.failedClosureResumeTokens.delete(connection)
           if (failed?.size === 0) this.failedClosures.delete(sessionId)
           this.syncRuntimeActivity()
         }),
@@ -3526,6 +3543,7 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       const failed = this.failedClosures.get(sessionId) ?? new Set<AgentRuntimeConnection>()
       failed.add(connection)
+      if (resumeToken) this.failedClosureResumeTokens.set(connection, resumeToken)
       this.failedClosures.set(sessionId, failed)
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       if (strict) throw new AgentSessionEditError('close_failed')

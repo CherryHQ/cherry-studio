@@ -78,31 +78,43 @@ describe('provider reasoning contracts', () => {
     expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
   })
 
-  // Both current models must translate xhigh to DeepSeek's supported max effort.
-  it.each(['deepseek-flash', 'deepseek-v4-pro'])('maps %s reasoning to the official effort vocabulary', (modelId) => {
-    const contracts = override('deepseek', modelId).reasoningContracts
-    const responsesWire = contracts?.['openai-responses']?.wire
-    expect(responsesWire?.off?.operations).toEqual([
+  // Every shipping DeepSeek V4 model must offer the off switch and translate xhigh to max.
+  it.each(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
+    'maps %s reasoning to the official effort vocabulary',
+    (modelId) => {
+      const contracts = override('deepseek', modelId).reasoningContracts
+      const responsesWire = contracts?.['openai-responses']?.wire
+      expect(responsesWire?.off?.operations).toEqual([
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+      ])
+      expect(responsesWire?.auto?.effortMap).toEqual({
+        auto: 'high',
+        minimal: 'low',
+        low: 'low',
+        medium: 'high',
+        xhigh: 'max'
+      })
+      expect(responsesWire?.effort).toMatchObject({
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+      expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+        operations: [
+          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+          { target: 'reasoningEffort', value: { source: 'effort' } }
+        ],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+    }
+  )
+
+  it('carries the off switch on the provider-level DeepSeek Responses endpoint', () => {
+    const responsesFormat = provider('deepseek').endpointConfigs?.['openai-responses']?.reasoningFormat as {
+      wire?: { off?: { operations?: unknown[] } }
+    }
+    expect(responsesFormat?.wire?.off?.operations).toEqual([
       { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
     ])
-    expect(responsesWire?.auto?.effortMap).toEqual({
-      auto: 'high',
-      minimal: 'low',
-      low: 'low',
-      medium: 'high',
-      xhigh: 'max'
-    })
-    expect(responsesWire?.effort).toMatchObject({
-      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
-    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-        { target: 'reasoningEffort', value: { source: 'effort' } }
-      ],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
   })
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
@@ -274,5 +286,42 @@ describe('provider reasoning contracts', () => {
     expect(
       provider('dashscope').overrides?.some((entry) => entry.modelId === modelId && entry.reasoningContracts)
     ).toBe(false)
+  })
+})
+
+// QwenCloud serves DeepSeek-V4 and GLM-5.2 on both Chat and Responses, each with its own
+// documented effort ladder (docs third-party-models pages + the Responses API reference).
+describe('qwencloud reasoning contracts', () => {
+  // The Responses ladder is endpoint-wide: seven tiers documented to default to `xhigh`.
+  it('carries the endpoint-wide Responses ladder on the dual-endpoint third-party lines', () => {
+    for (const modelId of ['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2']) {
+      const support = override('qwencloud', modelId).reasoningContracts?.['openai-responses']?.support
+      expect(support?.supportedEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+      expect(support?.defaultEffort).toBe('xhigh')
+    }
+  })
+
+  it('keeps DeepSeek-V4 Chat on its five-tier high-default ladder', () => {
+    const support = override('qwencloud', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.support
+    expect(support?.supportedEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+    expect(support?.defaultEffort).toBe('high')
+  })
+
+  it('drops the unsupported max tier from glm-5.1 Chat', () => {
+    const support = override('qwencloud', 'glm-5.1').reasoningContracts?.['openai-chat-completions']?.support
+    expect(support?.supportedEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+  })
+
+  // `enable_thinking` outranks `reasoning_effort`, so the effort tier must pin thinking on
+  // explicitly instead of leaning on the models' thinking-on default.
+  it('pins enable_thinking on the third-party effort wire', () => {
+    const wire = override('qwencloud', 'glm-5.2').reasoningContracts?.['openai-chat-completions']?.wire
+    const targets = wire?.effort?.operations?.map((op) => [op.target, op.value])
+    expect(targets).toEqual(
+      expect.arrayContaining([
+        ['enable_thinking', { source: 'literal', value: true }],
+        ['reasoning_effort', { source: 'effort' }]
+      ])
+    )
   })
 })

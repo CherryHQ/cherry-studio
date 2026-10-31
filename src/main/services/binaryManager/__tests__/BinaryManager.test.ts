@@ -2438,6 +2438,100 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
     })
 
+    describe('external version targets', () => {
+      const bundledService = (version: string | undefined) => {
+        const service = makeService()
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        mockFs.existsSync.mockImplementation((...args: unknown[]) => String(args[0]) === '/mock/cherry.bin/uv')
+        mockFs.readFileSync.mockImplementation((candidate) => {
+          if (String(candidate) === '/mock/cherry.bin/.uv-version' && version !== undefined) return version
+          throw new Error('ENOENT')
+        })
+        return service
+      }
+
+      it.each([
+        ['0.11.16', '0.13.4'],
+        ['0.13.6', '0.13.4'],
+        [undefined, '0.13.4'],
+        ['', '0.13.4'],
+        ['0.13.6', 'latest'],
+        ['0.13.6', '0.13'],
+        ['latest', 'latest']
+      ])('rejects bundled marker %s with unproven exact target %s', async (version, targetVersion) => {
+        const service = bundledService(version)
+        const error = `Cannot satisfy uv@${targetVersion}: source=bundled; bundled version=${version || 'unknown (version marker missing or empty)'}. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.`
+
+        await expect(service.installByName({ name: 'uv', targetVersion })).rejects.toThrow(error)
+        await expect(service.installByName({ name: 'uv', targetVersion })).rejects.toThrow(error)
+        expect((await service.getToolSnapshots(['uv'])).uv).toMatchObject({
+          availability: { source: 'bundled' },
+          application: { status: 'absent' },
+          operation: { status: 'failed', action: 'install', error, targetVersion }
+        })
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+          uv: { status: 'failed', action: 'install', error, targetVersion }
+        })
+        await expect(service.getToolInventory()).resolves.toContainEqual({
+          name: 'uv',
+          recipe: 'uv',
+          status: 'failed',
+          ...(version ? { version } : {})
+        })
+        expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      })
+
+      it.each(['0.13.6', 'v0.13.6', undefined, ''])(
+        'accepts bundled marker 0.13.6 with target %s and clears a prior failure',
+        async (targetVersion) => {
+          const service = bundledService('0.13.6')
+          MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+            uv: { status: 'failed', action: 'install', error: 'previous target failed', targetVersion: '0.13.4' }
+          })
+
+          await expect(service.installByName({ name: 'uv', targetVersion })).resolves.toBeUndefined()
+
+          expect((await service.getToolSnapshots(['uv'])).uv.operation).toBeUndefined()
+          expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+          await expect(service.getToolInventory()).resolves.toContainEqual({
+            name: 'uv',
+            recipe: 'uv',
+            status: 'ready',
+            version: '0.13.6'
+          })
+          expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+          expect(mockPreferenceService.set).not.toHaveBeenCalled()
+        }
+      )
+
+      it('rejects an explicit system target without probing its version, then accepts a name-only request', async () => {
+        const service = makeService()
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        const error =
+          'Cannot satisfy fd@11.0.0: source=system; installed version cannot be verified. Cherry Studio cannot update or replace this system installation. Manage it outside Cherry Studio, or omit the version target (requestedVersion in cli_install) to use the available executable.'
+
+        await expect(service.installByName({ name: 'fd', targetVersion: '11.0.0' })).rejects.toThrow(error)
+        expect((await service.getToolSnapshots(['fd'])).fd).toMatchObject({
+          availability: { source: 'system', path: '/usr/local/bin/fd' },
+          operation: { status: 'failed', action: 'install', error, targetVersion: '11.0.0' }
+        })
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+          fd: { status: 'failed', action: 'install', error, targetVersion: '11.0.0' }
+        })
+        await expect(service.getToolInventory()).resolves.toContainEqual(
+          expect.objectContaining({ name: 'fd', status: 'failed' })
+        )
+
+        await expect(service.installByName({ name: 'fd' })).resolves.toBeUndefined()
+        expect((await service.getToolSnapshots(['fd'])).fd.operation).toBeUndefined()
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+        expect(mockExecFileAsync.mock.calls.every(([bin, args]) => bin === '/mock/mise' && args[0] === 'ls')).toBe(true)
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      })
+    })
+
     it('rejects a name-only install that resolves to a conflicting installation', async () => {
       const service = makeService()
       mockFs.existsSync.mockImplementation((...args: unknown[]) => String(args[0]).includes('shims'))
@@ -4084,6 +4178,40 @@ describe('BinaryManager', () => {
   })
 
   describe('Agent CLI inventory', () => {
+    it('retains a targeted failure over bundled runnability until a successful install', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      mockFs.existsSync.mockImplementation((...args: unknown[]) => String(args[0]) === '/mock/cherry.bin/uv')
+      mockFs.readFileSync.mockImplementation((candidate) => {
+        if (String(candidate) === '/mock/cherry.bin/.uv-version') return '0.13.6'
+        throw new Error('ENOENT')
+      })
+      const operation = { status: 'failed', action: 'install', error: 'target mismatch', targetVersion: '0.13.4' }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', { uv: operation })
+
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toEqual(operation)
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'uv',
+        recipe: 'uv',
+        status: 'failed',
+        version: '0.13.6'
+      })
+
+      await service.installByName({ name: 'uv', targetVersion: 'v0.13.6' })
+
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toBeUndefined()
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'uv',
+        recipe: 'uv',
+        status: 'ready',
+        version: '0.13.6'
+      })
+      expect(mockExecFileAsync.mock.calls.every(([, args]) => args[0] === 'ls')).toBe(true)
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
     it('cancels the owned mise query and does not proceed to shim traversal', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

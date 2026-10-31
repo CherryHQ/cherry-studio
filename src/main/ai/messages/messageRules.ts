@@ -167,6 +167,92 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
   })
 }
 
+/** Replay input that is not a JSON object reaches providers as tool_use.input; Anthropic rejects it: "Input should be an object" (#22503).
+ * Drop the whole part (call, result and approval) from replay; the stored/UI part stays untouched.
+ */
+function dropNonObjectToolInputs(messages: UIMessage[]): UIMessage[] {
+  let out: UIMessage[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    let parts: UIMessage['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (
+        isToolUIPart(part) &&
+        (part.state === 'output-error' ||
+          part.state === 'output-available' ||
+          part.state === 'output-denied' ||
+          part.state === 'approval-responded')
+      ) {
+        const input =
+          part.state === 'output-error' ? (part.input ?? ('rawInput' in part ? part.rawInput : undefined)) : part.input
+        const isObject = input !== null && typeof input === 'object' && !Array.isArray(input)
+        if (!isObject) {
+          parts ??= message.parts.slice(0, partIndex)
+          return
+        }
+      }
+      parts?.push(part)
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
+ * Two persisted parts can share one wire id (#22441). Strict providers require exactly
+ * one call and one result per id, so keep the strongest local evidence in its own slot.
+ */
+export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T[] {
+  const groups = new Map<
+    string,
+    { messageIndex: number; partIndex: number; priority: number; providerExecuted: boolean }
+  >()
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part)) return
+      const priority =
+        part.state === 'output-error' ||
+        part.state === 'output-denied' ||
+        (part.state === 'output-available' && part.preliminary !== true)
+          ? 2
+          : part.state === 'approval-responded'
+            ? 1
+            : 0
+      const group = groups.get(part.toolCallId)
+      if (!group) {
+        groups.set(part.toolCallId, {
+          messageIndex,
+          partIndex,
+          priority,
+          providerExecuted: part.providerExecuted === true
+        })
+      } else {
+        group.providerExecuted ||= part.providerExecuted === true
+        if (priority > group.priority) Object.assign(group, { messageIndex, partIndex, priority })
+      }
+    })
+  })
+
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    const parts = message.parts.filter((part, partIndex) => {
+      if (!isToolUIPart(part)) return true
+      const group = groups.get(part.toolCallId)!
+      return group.providerExecuted || (group.messageIndex === messageIndex && group.partIndex === partIndex)
+    })
+    if (parts.length !== message.parts.length) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
 /**
  * Give the model the same attributed wording the runtimes send. Rewrites the copy handed to
  * `convertToModelMessages`, covering both the answered (`approval-responded`) and the terminal
@@ -200,7 +286,8 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  * render persisted tool-output envelopes back into their <persisted-output> markers →
  * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
  * strip media the model can't accept → drop tool
- * calls parked on an unanswered approval → restore inferable legacy step boundaries →
+ * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
+ * restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -214,7 +301,9 @@ export async function toModelMessages(
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
-    dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
+    deduplicateLocalToolParts(
+      dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+    )
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)

@@ -16,6 +16,7 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 import { forkPiSession } from './piFork'
@@ -189,7 +190,7 @@ vi.mock('./piMcpExtension', async (importOriginal) => ({
 vi.mock('./modelInjection', () => ({
   resolvePiProviderInjectionForSession: mocks.resolveInjection,
   usesPiGateway: mocks.usesPiGateway,
-  materializePiProviderStream: async (injection: any) => ({
+  materializePiProviderStream: async (injection: { providerConfig: unknown; suppressReasoningSummary: boolean }) => ({
     providerConfig: injection.providerConfig,
     streamSimple: mocks.providerStreamSimple
   })
@@ -316,6 +317,10 @@ function approvalGateHandler(): (event: unknown, ctx: unknown) => Promise<{ bloc
   return handler
 }
 
+function userMessageStart(text: string): AgentSessionEvent {
+  return { type: 'message_start', message: { role: 'user', content: [{ type: 'text', text }] } } as AgentSessionEvent
+}
+
 async function collectUntilTerminal(events: AsyncIterable<AgentRuntimeEvent>): Promise<AgentRuntimeEvent[]> {
   const out: AgentRuntimeEvent[] = []
   const iter = events[Symbol.asyncIterator]()
@@ -420,6 +425,7 @@ beforeEach(() => {
   mocks.resolveInjection.mockReturnValue({
     providerName: 'p',
     api: 'anthropic-messages',
+    suppressReasoningSummary: false,
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
     apiKey: 'real-key',
     modelId: 'm',
@@ -529,6 +535,45 @@ describe('PiRuntimeConnection', () => {
         await connection.close()
         MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
       }
+    }
+  )
+
+  it.each<ReasoningEffortOption | undefined>(['max', 'ultra', 'default', 'auto', undefined])(
+    'forwards the turn selection %s instead of silently using the SDK default',
+    async (reasoningEffort) => {
+      const conn = await new PiRuntimeConnection({ ...input, reasoningEffort }).start()
+      expect(mocks.createOpts?.thinkingLevel).toBe(
+        reasoningEffort === 'max' || reasoningEffort === 'ultra' ? reasoningEffort : undefined
+      )
+      await conn.close()
+    }
+  )
+
+  it('uses explicit max rather than conflicting persisted high at session creation', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { reasoning_effort: 'high' } })
+    const conn = await new PiRuntimeConnection({ ...input, reasoningEffort: 'max' }).start()
+    expect(mocks.createOpts?.thinkingLevel).toBe('max')
+    await conn.close()
+  })
+
+  it.each<{
+    before: ReasoningEffortOption | undefined
+    after: ReasoningEffortOption
+    expected: 'current' | 'rebuild'
+  }>([
+    { before: 'default', after: 'max', expected: 'rebuild' },
+    { before: 'max', after: 'low', expected: 'rebuild' },
+    { before: undefined, after: 'default', expected: 'current' },
+    { before: 'auto', after: 'default', expected: 'current' },
+    { before: 'medium', after: 'medium', expected: 'current' },
+    { before: 'medium', after: 'high', expected: 'rebuild' }
+  ])(
+    'reconciles $before → $after as $expected with an unchanged Agent snapshot',
+    async ({ before, after, expected }) => {
+      const conn = await new PiRuntimeConnection({ ...input, reasoningEffort: before }).start()
+      Object.defineProperty(fakeSession, 'thinkingLevel', { configurable: true, value: 'high' })
+      await expect(conn.reconcile({ modelId: input.modelId, reasoningEffort: after })).resolves.toBe(expected)
+      await conn.close()
     }
   )
 
@@ -1382,7 +1427,7 @@ describe('PiRuntimeConnection', () => {
     expect(conn.redirect(steer)).toBe(true)
     const cb = mocks.subscribeCb!
 
-    cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
+    cb(userMessageStart(mocks.steer.mock.calls[0][0]))
     cb({ type: 'message_start', message: { role: 'assistant' } } as unknown as AgentSessionEvent)
     cb({
       type: 'message_update',
@@ -1397,6 +1442,45 @@ describe('PiRuntimeConnection', () => {
     expect(events[boundaryIndex]).toMatchObject({ type: 'steer-boundary', inputs: [steer] })
     expect(boundaryIndex).toBeGreaterThanOrEqual(0)
     expect(boundaryIndex).toBeLessThan(chunkIndex)
+  })
+
+  // Breaks when a steer accepted while a run starts (pi 1.2 streams from the start, e.g. during a
+  // startup compaction) is matched to a later user message by its text: identical redirects, or the
+  // run's own re-queued reminder prompt, then consume each other's boundaries.
+  it('queues redirects until the run it started has sent its prompt, then delivers steers in order', async () => {
+    let settlePrompt!: () => void
+    mocks.prompt.mockImplementationOnce(() => new Promise<void>((resolve) => (settlePrompt = resolve)))
+    const conn = await new PiRuntimeConnection(input).start()
+    const cb = mocks.subscribeCb!
+    const iter = conn.events[Symbol.asyncIterator]()
+    let next = iter.next()
+    const emitted = async () => {
+      const out: AgentRuntimeEvent[] = []
+      for (;;) {
+        const result = await Promise.race([next, new Promise<undefined>((resolve) => setTimeout(resolve, 20))])
+        if (!result || result.done) return out
+        out.push(result.value)
+        next = iter.next()
+      }
+    }
+
+    conn.send(userInput('same words', true))
+    mocks.isStreaming = true
+    expect(conn.redirect(userInput('same words'))).toBe(false)
+    expect(conn.redirect(userInput('same words'))).toBe(false)
+    expect(mocks.steer).not.toHaveBeenCalled()
+
+    cb(userMessageStart(mocks.prompt.mock.calls[0][0] as string))
+    expect((await emitted()).map((event) => event.type)).not.toContain('steer-boundary')
+    const first = userInput('same words')
+    const second = { ...userInput('same words'), message: { ...userInput('same words').message, id: 'msg-again' } }
+    expect(conn.redirect(first)).toBe(true)
+    expect(conn.redirect(second)).toBe(true)
+    cb(userMessageStart(mocks.steer.mock.calls[0][0]))
+    expect(await emitted()).toEqual([{ type: 'steer-boundary', inputs: [first] }])
+    cb(userMessageStart(mocks.steer.mock.calls[1][0]))
+    expect(await emitted()).toEqual([{ type: 'steer-boundary', inputs: [second] }])
+    settlePrompt()
   })
 
   it('emits undelivered steers before turn-complete when the turn ends first', async () => {

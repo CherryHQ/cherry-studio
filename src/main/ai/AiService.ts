@@ -329,6 +329,8 @@ export interface AiImageRequest extends AiRequest {
    * `splitParamValues`.
    */
   paramValues: ParamValues
+  /** Per-attempt provider submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /**
    * Cleanup policy stamped on the generated **output** FileEntries. AiService is
    * infrastructure — the calling business feature decides the policy
@@ -1032,8 +1034,18 @@ export class AiService extends BaseService {
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
+    // Assistant-bound models resolve here without the caller spelling out
+    // `uniqueModelId` — fall back to the assistant's model so transport providers
+    // keep their native routing instead of dropping to the generic image path.
+    const effectiveUniqueModelId = request.uniqueModelId ?? assistant?.modelId
+    if (effectiveUniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+      return await this.generateImageViaJob(
+        { ...request, uniqueModelId: effectiveUniqueModelId, inputImages },
+        structured,
+        vendorBag,
+        signal,
+        source
+      )
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
@@ -1195,6 +1207,7 @@ export class AiService extends BaseService {
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
+        ...(request.requestTimeoutMs && { requestTimeoutMs: request.requestTimeoutMs }),
         ...(source && { source }),
         providerParams,
         cleanupPolicy: request.cleanupPolicy

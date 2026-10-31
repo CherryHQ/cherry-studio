@@ -10,6 +10,7 @@ import {
   isDictationShortcutModifier,
   parseDictationShortcut
 } from '@renderer/utils/dictationShortcut'
+import { getDictationTarget } from '@renderer/utils/dictationTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { SupportedPlatform } from '@shared/types/command'
 
@@ -62,18 +63,9 @@ export function useDictationShortcuts(): void {
       void previous?.run.stop().catch(() => undefined)
     }
     const activateFocusedTarget = () => {
-      const element = document.activeElement
-      const surface = element?.closest('[data-voice-target-id]')
-      const targetId = surface?.getAttribute('data-voice-target-id')
-      if (!(element instanceof HTMLElement) || !surface || !targetId) return false
-      return (
-        ((element.isContentEditable &&
-          (surface === element || surface.querySelector('[contenteditable="true"]') === element)) ||
-          (surface === element &&
-            element.matches('textarea:not(:disabled):not([readonly]), input:not(:disabled):not([readonly])'))) &&
-        voiceTargetManager.markCurrent(targetId) &&
-        voiceTargetManager.captureCurrent()?.owner === window
-      )
+      const target = getDictationTarget(document.activeElement)
+      if (!target || target.input !== document.activeElement) return false
+      return voiceTargetManager.markCurrent(target.targetId) && voiceTargetManager.captureCurrent()?.owner === window
     }
     const start = (mode: 'hold' | 'toggle') => {
       const snapshot = dictationService.getSnapshot()

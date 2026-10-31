@@ -1,5 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -118,10 +118,261 @@ describe('AskUserQuestionComposer', () => {
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
   })
 
+  it('keeps a 2000-character option description complete with wrapping and bounded scrolling', () => {
+    const marker = 'END-OF-DESCRIPTION-22984'
+    const description = `${'Consider structured logging across every service. '.repeat(50).slice(0, 2000 - marker.length)}${marker}`
+    render(
+      <AskUserQuestionComposer
+        request={makeRequest([
+          {
+            ...questions[0],
+            options: [
+              { label: 'Winston', description },
+              { label: 'Pino', description: 'JSON native' }
+            ]
+          }
+        ])}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const row = screen.getByRole('button', { name: /Winston/ })
+    const span = within(row).getByText(description)
+    // The list shrinks inside the bounded panel so every option remains reachable.
+    expect.soft(row.parentElement).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect.soft(row.parentElement).not.toHaveClass('min-h-0')
+    expect(row.parentElement).not.toHaveClass('max-h-[50vh]')
+    expect(span).toHaveClass(
+      'block',
+      'whitespace-pre-wrap',
+      'break-words',
+      'font-medium',
+      'text-muted-foreground',
+      'text-xs',
+      'leading-4'
+    )
+    expect(span).not.toHaveClass('truncate')
+    expect.soft(span).not.toHaveClass('max-h-36')
+    expect.soft(span).not.toHaveClass('overflow-y-auto')
+    expect(span.textContent).toBe(description)
+    expect(span.textContent).toHaveLength(2000)
+    expect(span.textContent).toMatch(/END-OF-DESCRIPTION-22984$/)
+  })
+
+  it('bounds four twelve-line multi-select options in one scrollable list while retaining every control', () => {
+    const options = Array.from({ length: 4 }, (_, optionIndex) => ({
+      label: `Option ${optionIndex + 1}`,
+      description: Array.from({ length: 12 }, (_, lineIndex) => `Option ${optionIndex + 1} line ${lineIndex + 1}`).join(
+        '\n'
+      )
+    }))
+    render(
+      <AskUserQuestionComposer
+        request={makeRequest([{ ...questions[0], options, multiSelect: true }, questions[1]])}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const firstOption = screen.getByRole('button', { name: /Option 1/ })
+    // The list shrinks inside the bounded panel; each description stays fully expanded.
+    expect.soft(firstOption.parentElement).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect.soft(firstOption.parentElement).not.toHaveClass('min-h-0')
+    expect(firstOption.parentElement).not.toHaveClass('max-h-[50vh]')
+    for (const option of options) {
+      const row = screen.getByRole('button', { name: new RegExp(option.label) })
+      const span = within(row).getByText(
+        (_, element) => element?.tagName === 'SPAN' && element.textContent === option.description
+      )
+      expect(row).toBeInTheDocument()
+      expect(span.textContent).toBe(option.description)
+      expect(span).not.toHaveClass('truncate')
+      expect.soft(span).not.toHaveClass('max-h-36')
+      expect.soft(span).not.toHaveClass('overflow-y-auto')
+    }
+    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Enter your answer...' })).toBeInTheDocument()
+  })
+
+  it('preserves all twelve authored lines in an option description', () => {
+    const description = Array.from({ length: 12 }, (_, index) => `Logging consideration ${index + 1}`).join('\n')
+    render(
+      <AskUserQuestionComposer
+        request={makeRequest([
+          {
+            ...questions[0],
+            options: [
+              { label: 'Winston', description },
+              { label: 'Pino', description: 'JSON native' }
+            ]
+          }
+        ])}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const row = screen.getByRole('button', { name: /Winston/ })
+    const span = within(row).getByText(
+      (_, element) => element?.tagName === 'SPAN' && element.textContent === description
+    )
+    expect(span.textContent).toBe(description)
+    expect(span).toHaveClass('whitespace-pre-wrap')
+    expect(span).not.toHaveClass('truncate')
+  })
+
+  it('allows a 256-character unbroken description token to wrap', () => {
+    const description = 'x'.repeat(256)
+    render(
+      <AskUserQuestionComposer
+        request={makeRequest([
+          {
+            ...questions[0],
+            options: [
+              { label: 'Winston', description },
+              { label: 'Pino', description: 'JSON native' }
+            ]
+          }
+        ])}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const span = within(screen.getByRole('button', { name: /Winston/ })).getByText(description)
+    expect(span.textContent).toBe(description)
+    expect(span).not.toHaveClass('truncate')
+    expect(span).toHaveClass('break-words')
+  })
+
+  it('keeps Space and Enter toggling a multi-select option without submitting', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(
+      <AskUserQuestionComposer request={makeRequest([{ ...questions[0], multiSelect: true }])} onRespond={onRespond} />
+    )
+
+    const row = screen.getByRole('button', { name: /Winston/ })
+    row.focus()
+    expect(row).toHaveFocus()
+    expect(row).toHaveAttribute('aria-pressed', 'false')
+    await user.keyboard(' ')
+    expect(row).toHaveAttribute('aria-pressed', 'true')
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.keyboard('{Enter}')
+    expect(row).toHaveAttribute('aria-pressed', 'false')
+    expect(onRespond).not.toHaveBeenCalled()
+
+    await user.keyboard(' ')
+    await user.click(screen.getByText('Submit'))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approved: true,
+        updatedInput: expect.objectContaining({ answers: { 'Choose logger': 'Winston' } })
+      })
+    )
+  })
+
+  it('omits absent descriptions and retains the layout contract for a short single-line description', () => {
+    const input = {
+      questions: [
+        {
+          ...questions[0],
+          options: [{ label: 'Winston', description: 'Mature ecosystem' }, { label: 'Pino' }]
+        }
+      ]
+    }
+    const baseRequest = makeRequest()
+    const request: AskUserQuestionComposerRequest = {
+      ...baseRequest,
+      input,
+      match: {
+        ...baseRequest.match,
+        input,
+        part: { ...baseRequest.match.part, input } as CherryMessagePart
+      }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    const bareRow = screen.getByRole('button', { name: /Pino/ })
+    expect(within(bareRow).getByText('Pino').nextElementSibling).toBeNull()
+    const span = within(screen.getByRole('button', { name: /Winston/ })).getByText('Mature ecosystem')
+    expect(span.textContent).toBe('Mature ecosystem')
+    expect(span).toHaveClass(
+      'block',
+      'whitespace-pre-wrap',
+      'break-words',
+      'font-medium',
+      'text-muted-foreground',
+      'text-xs',
+      'leading-4'
+    )
+    expect(span).not.toHaveClass('max-h-36')
+    expect(span).not.toHaveClass('overflow-y-auto')
+    expect(span).not.toHaveClass('truncate')
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 
     expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  })
+
+  it('bounds the complete panel to the stage and lets only the option list shrink', () => {
+    const stage = document.createElement('div')
+    stage.setAttribute('data-composer-stage', '')
+    Object.defineProperty(stage, 'clientHeight', { value: 512, configurable: true })
+    document.body.appendChild(stage)
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />, { container: stage })
+
+    const headingRow = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!
+    const card = headingRow.parentElement!
+    const list = screen.getByRole('button', { name: /Winston/ }).parentElement!
+    const answerRow = screen.getByRole('button', { name: 'Skip' }).parentElement!
+
+    // The complete-panel bound must leave the heading and growing answer outside the shrinking
+    // list; when those fixed regions exhaust the budget, the panel scrolls and the list keeps
+    // a readable floor instead of collapsing.
+    expect(card.style.maxHeight).toBe('512px')
+    expect(card).toHaveClass('flex', 'min-h-0', 'flex-col', 'overflow-y-auto', 'overscroll-contain')
+    expect(card).not.toHaveClass('overflow-hidden')
+    expect(list).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect(list).not.toHaveClass('min-h-0')
+    expect(list).not.toHaveClass('max-h-[50vh]')
+    expect(headingRow).toHaveClass('shrink-0')
+    expect(answerRow).toHaveClass('shrink-0')
+  })
+
+  it('subtracts the root computed padding from the stage height budget', () => {
+    const resizeObserver = globalThis.ResizeObserver
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      const stage = document.createElement('div')
+      stage.setAttribute('data-composer-stage', '')
+      Object.defineProperty(stage, 'clientHeight', { value: 512, configurable: true })
+      document.body.appendChild(stage)
+      const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />, {
+        container: stage
+      })
+
+      const root = container.firstElementChild as HTMLElement
+      root.style.paddingBottom = '18px'
+      fireEvent.resize(window)
+
+      const card = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!.parentElement!
+      // Root padding shares the stage budget with the card, keeping the heading inside the stage.
+      expect(card.style.maxHeight).toBe('494px')
+    } finally {
+      vi.stubGlobal('ResizeObserver', resizeObserver)
+    }
+  })
+
+  it('leaves the panel unbounded when there is no measurable stage', () => {
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    const card = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!.parentElement!
+    expect(card.style.maxHeight).toBe('')
   })
 
   it('auto advances after option selection and submits a custom input as an answer option', async () => {
