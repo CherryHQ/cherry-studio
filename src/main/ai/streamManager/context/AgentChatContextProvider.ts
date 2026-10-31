@@ -309,6 +309,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   ): Promise<PreparedDispatch> {
     const validated = await this.validateDispatch(req, authority)
     const runtime = application.get('AgentSessionRuntimeService')
+    await runtime.ensureRuntimeResetComplete(validated.sessionId)
     runtime.assertSessionWritable(validated.sessionId)
     if (req.trigger === 'edit-agent-message') {
       if (ctx?.hasLiveStream) throw new AgentSessionEditError('busy')

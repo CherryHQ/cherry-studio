@@ -20,6 +20,7 @@ import {
   createClaudeCodeProcessDiagnostics,
   type SpawnProcess
 } from '../ClaudeCodeProcessManager'
+import { createClaudeCodeProcessExitError } from '../processExitDiagnostics'
 
 /** The production class takes no constructor args (container contract); tests swap the seam here. */
 class TestProcessManager extends ClaudeCodeProcessManager {
@@ -89,6 +90,58 @@ const spawnOptions: SpawnOptions = {
 }
 
 describe('ClaudeCodeProcessManager', () => {
+  it.each(['throw', 'error', 'exit'] as const)('attributes %s failure to the immutable spawn facts', async (path) => {
+    const child = createFakeChild({ pid: path === 'error' ? undefined : 123 })
+    const secret = 'planted-secret-private'
+    const diagnostics = createClaudeCodeProcessDiagnostics({ sessionId: 'cherry-session' }, 'spawn-ref')
+    const manager = new TestProcessManager(() => {
+      if (path === 'throw') throw new Error(secret)
+      return child.process
+    })
+    const args = ['--resume=T', '--model', secret, '--settings', secret]
+    if (path === 'throw') {
+      expect(() => manager.spawn({ ...spawnOptions, args, env: { SECRET: secret } }, diagnostics)).toThrow()
+    } else {
+      const managed = manager.spawn({ ...spawnOptions, args, env: { SECRET: secret } }, diagnostics)
+      args[0] = '--resume=changed-after-spawn'
+      if (path === 'error') {
+        managed.on('error', () => undefined)
+        child.emitError(new Error(secret))
+      } else {
+        child.stderr.end()
+        child.emitExit(1)
+        await vi.waitFor(() => expect(diagnostics.exitCode).toBe(1))
+      }
+    }
+    const warning = mockMainLoggerService.warn.mock.calls.find(
+      ([message]) => message === 'Claude Code process failed'
+    )?.[1]
+    expect(warning).toMatchObject({
+      reference: 'spawn-ref',
+      sessionId: 'cherry-session',
+      resumeToken: 'T',
+      spawnArgsFingerprint: expect.stringMatching(/^claude-spawn-v1:[0-9a-f]{64}$/),
+      category: 'unknown',
+      ...(path === 'exit' ? { exitCode: 1 } : { spawnFailed: true })
+    })
+    expect(Object.isFrozen(diagnostics.spawn)).toBe(true)
+    expect(JSON.stringify(warning)).not.toContain(secret)
+    expect(JSON.stringify(createClaudeCodeProcessExitError(new Error(secret), diagnostics))).not.toContain(secret)
+    child.stderr.destroy()
+  })
+
+  it('keeps a fresh spawn resume selector null after native session discovery', async () => {
+    const child = createFakeChild()
+    const diagnostics = createClaudeCodeProcessDiagnostics({ sessionId: 'cherry-fresh' })
+    new TestProcessManager(() => child.process).spawn(spawnOptions, diagnostics)
+    child.stderr.end()
+    child.emitExit(1)
+    await vi.waitFor(() => expect(diagnostics.exitCode).toBe(1))
+    expect(
+      mockMainLoggerService.warn.mock.calls.find(([message]) => message === 'Claude Code process failed')?.[1]
+    ).toMatchObject({ sessionId: 'cherry-fresh', resumeToken: null })
+  })
+
   it('confirms native exit only after the OS exit event, not after a kill request', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(() => child.process)
@@ -238,7 +291,7 @@ describe('ClaudeCodeProcessManager', () => {
         throw retryError
       })
     const manager = new TestProcessManager(spawnProcess)
-    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'diagnostic-ref')
 
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
     Object.defineProperty(process, 'getuid', { value: () => 501, configurable: true })
@@ -262,7 +315,7 @@ describe('ClaudeCodeProcessManager', () => {
   it('drains a bounded stderr tail before delivering exit diagnostics', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(vi.fn(() => child.process))
-    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'diagnostic-ref')
     const managed = manager.spawn(spawnOptions, diagnostics)
     const onExit = vi.fn()
     managed.once('exit', onExit)
@@ -284,7 +337,7 @@ describe('ClaudeCodeProcessManager', () => {
   it('bounds the stderr tail by UTF-8 bytes', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(vi.fn(() => child.process))
-    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'diagnostic-ref')
     const managed = manager.spawn(spawnOptions, diagnostics)
     const onExit = vi.fn()
     managed.once('exit', onExit)
@@ -300,7 +353,7 @@ describe('ClaudeCodeProcessManager', () => {
   it('logs only structured diagnostics without stderr content', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(vi.fn(() => child.process))
-    const managed = manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics('diagnostic-ref'))
+    const managed = manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics(undefined, 'diagnostic-ref'))
     const onExit = vi.fn()
     managed.once('exit', onExit)
 

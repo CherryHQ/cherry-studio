@@ -143,3 +143,10 @@ UI-history import or empty-session fallback when native history is unavailable.
 - [Agent Session Runtime](./agent-session-runtime.md) — host lifecycle, follow-ups, and resume
 - [Adding an Agent Runtime](./adding-a-runtime.md) — driver registration and capability boundaries
 - [Data Layer](../data/README.md) — SQLite service and transaction conventions
+
+A session's automatic Claude runtime reset preserves its visible conversation and checkpoint
+anchors while clearing all historical resume tokens and native session IDs. The next user
+turn starts fresh native context without replaying failed input or reconstructing UI history.
+Abandoned native transcripts lose their persisted retention claims, so old native fork
+checkpoints are no longer retained indefinitely and may later report missing backing history.
+See [automatic runtime reset](./agent-session-runtime.md#claude-process-diagnostics-and-automatic-reset).

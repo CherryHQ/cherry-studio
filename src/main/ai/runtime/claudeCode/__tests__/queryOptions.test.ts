@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { createClaudeCodeQueryOptions, resolveClaudeConfigDirectory } = await import('../queryOptions')
 
 afterEach(() => {
@@ -18,6 +17,23 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(resolveClaudeConfigDirectory({})).toBe('/registered/default')
     expect(resolveClaudeConfigDirectory({ CLAUDE_CONFIG_DIR: '/child/custom' })).toBe('/child/custom')
   })
+  it.each([undefined, { sessionId: 'cherry-session' }])(
+    'binds optional diagnostic identity outside SDK options: %j',
+    (diagnosticContext) => {
+      let captured: any
+      vi.spyOn(application, 'get').mockReturnValue({
+        spawn: (_options: unknown, diagnostics: unknown) => {
+          captured = diagnostics
+          return {}
+        }
+      } as never)
+      const options = createClaudeCodeQueryOptions({ modelId: 'sonnet', settings: {}, diagnosticContext })
+      options.spawnClaudeCodeProcess!({ command: 'claude', args: [], env: {}, signal: new AbortController().signal })
+      expect(captured.sessionId).toBe(diagnosticContext?.sessionId ?? null)
+      expect(options).not.toHaveProperty('diagnosticContext')
+    }
+  )
+
   it('strips Cherry-only runtime settings before passing options to the SDK', () => {
     const ignoredSpawn = vi.fn()
     const opts = createClaudeCodeQueryOptions({
@@ -41,6 +57,5 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('toolPolicySnapshot')
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')
     expect(opts).not.toHaveProperty('mcpToolMetadata')
-    expect(opts.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
   })
 })

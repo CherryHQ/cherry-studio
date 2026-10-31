@@ -41,6 +41,8 @@ const mocks = vi.hoisted(() => ({
   hasTerminalPersistenceInFlight: vi.fn(),
   whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
+  hasRequiredRuntimeReset: vi.fn(),
+  ensureRuntimeResetComplete: vi.fn(),
   closeSession: vi.fn(),
   getPath: vi.fn(),
   purgeSystemWorkspace: vi.fn(),
@@ -148,6 +150,8 @@ const runtime = {
   listActiveWork: () => [],
   drainInFlight: async () => ({ stragglerIds: [] }),
   isSessionBusy: mocks.runtimeBusy,
+  hasRequiredRuntimeReset: mocks.hasRequiredRuntimeReset,
+  ensureRuntimeResetComplete: mocks.ensureRuntimeResetComplete,
   isSessionBusyForArchive: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
   onTurnTerminal: (listener: (event: any) => void) => {
@@ -247,6 +251,8 @@ describe('AgentSessionDeliveryService', () => {
     mocks.withDispatchLock.mockImplementation((_topicId: string, fn: () => Promise<unknown>) => fn())
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
+    mocks.hasRequiredRuntimeReset.mockReturnValue(false)
+    mocks.ensureRuntimeResetComplete.mockReset().mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
@@ -353,6 +359,117 @@ describe('AgentSessionDeliveryService', () => {
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
     expect(mocks.send).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { resetAt: 'before validation', resetFails: false },
+    { resetAt: 'during validation', resetFails: false },
+    { resetAt: 'before validation', resetFails: true },
+    { resetAt: 'during validation', resetFails: true },
+    { resetAt: 'none', resetFails: false }
+  ])('delivers exactly once with reset=$resetAt, resetFails=$resetFails', async ({ resetAt, resetFails }) => {
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    const dispatchMutex = new KeyedMutex()
+    mocks.withDispatchLock.mockImplementation((topicId: string, fn: () => Promise<unknown>) =>
+      dispatchMutex.runExclusive(topicId, fn)
+    )
+    const request = structuredClone(accepted)
+    const outcomes: string[] = []
+    let releaseReset!: () => void
+    let rejectReset!: (error: Error) => void
+    const reset = new Promise<void>((resolve, reject) => {
+      releaseReset = resolve
+      rejectReset = reject
+    })
+    mocks.ensureRuntimeResetComplete.mockReturnValue(reset)
+    mocks.hasRequiredRuntimeReset.mockReturnValue(resetAt === 'before validation')
+    if (resetAt === 'during validation') {
+      const validated = await mocks.validateDispatch()
+      mocks.validateDispatch.mockImplementationOnce(async () => {
+        await Promise.resolve()
+        mocks.hasRequiredRuntimeReset.mockReturnValue(true)
+        return validated
+      })
+    }
+    mocks.listAccepted.mockImplementation(() => (request.delivery.status === 'accepted' ? [request] : []))
+    mocks.getMessage.mockImplementation((_sessionId: string, messageId: string) =>
+      messageId === request.id ? request : assistant
+    )
+    mocks.claim.mockImplementation(() => {
+      request.delivery.status = 'delivering'
+      request.delivery.turnRef = assistant.id
+      return request
+    })
+    mocks.findByTurnRef.mockImplementation(() => (request.delivery.status === 'delivering' ? request : null))
+    mocks.finalize.mockImplementation(({ outcome }: { outcome: string }) => {
+      request.delivery.status = 'consumed'
+      outcomes.push(outcome)
+      return null
+    })
+
+    service.kick('target')
+    await expect(service.drainSessionQueues(['target'])).resolves.toBeUndefined()
+    if (resetAt !== 'none') {
+      expect(mocks.getMessage('target', request.id).delivery.status).toBe('accepted')
+      expect(mocks.persistDispatchTx).not.toHaveBeenCalled()
+      expect(mocks.claim).not.toHaveBeenCalled()
+      expect(mocks.finalize).not.toHaveBeenCalled()
+      expect(mocks.activateDispatch).not.toHaveBeenCalled()
+      expect(outcomes).toEqual([])
+      expect(mocks.ensureRuntimeResetComplete).toHaveBeenCalledExactlyOnceWith('target')
+
+      if (resetFails) {
+        rejectReset(new Error('warm query close failed'))
+        await flush()
+        await service.drainSessionQueues(['target'])
+        expect(mocks.getMessage('target', request.id).delivery.status).toBe('accepted')
+        expect(mocks.claim).not.toHaveBeenCalled()
+        expect(mocks.finalize).not.toHaveBeenCalled()
+        expect(mocks.ensureRuntimeResetComplete).toHaveBeenCalledTimes(1)
+        const retryReset = new Promise<void>((resolve) => {
+          releaseReset = resolve
+        })
+        mocks.ensureRuntimeResetComplete.mockReturnValueOnce(retryReset)
+        service.kick('target')
+        await service.drainSessionQueues(['target'])
+        expect(mocks.getMessage('target', request.id).delivery.status).toBe('accepted')
+        expect(mocks.ensureRuntimeResetComplete).toHaveBeenCalledTimes(2)
+        mocks.hasRequiredRuntimeReset.mockReturnValue(false)
+        releaseReset()
+        await flush()
+      } else {
+        mocks.hasRequiredRuntimeReset.mockReturnValue(false)
+        releaseReset()
+        await flush()
+      }
+      await service.drainSessionQueues(['target'])
+    } else {
+      expect(mocks.ensureRuntimeResetComplete).not.toHaveBeenCalled()
+    }
+
+    expect(mocks.getMessage('target', request.id).delivery).toMatchObject({
+      status: 'delivering',
+      turnRef: assistant.id
+    })
+    expect(mocks.claim).toHaveBeenCalledExactlyOnceWith({}, 'target', request.id, assistant.id)
+    expect(mocks.activateDispatch).toHaveBeenCalledOnce()
+    expect(mocks.send).toHaveBeenCalledOnce()
+    for (const listener of mocks.terminalListeners) {
+      listener({ sessionId: 'target', assistantMessageId: assistant.id, status: 'success' })
+    }
+    await service.drainInFlight({ timeoutMs: 100 })
+    expect(mocks.getMessage('target', request.id).delivery.status).toBe('consumed')
+    expect(outcomes).toEqual(['success'])
+    expect(mocks.finalize).toHaveBeenCalledOnce()
+
+    service.kick('target')
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).toHaveBeenCalledOnce()
+    expect(mocks.activateDispatch).toHaveBeenCalledOnce()
+    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(outcomes).toEqual(['success'])
+    expect(mocks.logger.error).not.toHaveBeenCalled()
   })
 
   it('reruns a coalesced kick that arrives before the blocked kick releases single-flight ownership', async () => {

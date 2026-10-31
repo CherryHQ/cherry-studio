@@ -16,7 +16,12 @@ import {
   createSpawnClaudeCodeProcess,
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
-import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
+import {
+  type ClaudeCodeDiagnosticContext,
+  type ClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
+  isClaudeCodeProcessFailure
+} from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -31,6 +36,7 @@ type WarmQueryEntry = {
 }
 
 export interface WarmQueryRequest {
+  diagnosticContext?: ClaudeCodeDiagnosticContext
   key: string
   options: Options
   initializeTimeoutMs?: number
@@ -175,6 +181,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
+    if (application.get('AgentSessionRuntimeService').hasRequiredRuntimeReset(sessionId)) return
     const preparing = this.prepareAgentSession(sessionId)
     const preparations = this.preparingSessions.get(sessionId) ?? new Set<Promise<void>>()
     this.preparingSessions.set(sessionId, preparations)
@@ -192,7 +199,9 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
+      const traced = await this.withTraceEnv(sessionId, warmRequest)
+      if (application.get('AgentSessionRuntimeService').hasRequiredRuntimeReset(sessionId)) return
+      await this.prewarm(traced)
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
     }
@@ -234,6 +243,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')
+    const sessionId = request.diagnosticContext?.sessionId
+    if (sessionId && application.get('AgentSessionRuntimeService').hasRequiredRuntimeReset(sessionId)) return
     const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
@@ -253,7 +264,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       this.closeDetached(request.key, existing)
     }
 
-    const processDiagnostics = createClaudeCodeProcessDiagnostics()
+    const processDiagnostics = createClaudeCodeProcessDiagnostics(request.diagnosticContext)
     const promise = startup({
       options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
       initializeTimeoutMs: request.initializeTimeoutMs
@@ -261,7 +272,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       if (this.entries.get(request.key)?.promise === promise) {
         this.entries.delete(request.key)
       }
-      logger.warn('Claude warm query startup failed', { key: request.key, error })
+      logger.warn('Claude warm query startup failed', {
+        key: request.key,
+        error: isClaudeCodeProcessFailure(error, processDiagnostics)
+          ? createClaudeCodeProcessExitError(error, processDiagnostics)
+          : error
+      })
       return undefined
     })
 

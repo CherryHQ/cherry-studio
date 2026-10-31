@@ -247,6 +247,14 @@ export class AgentSessionDeliveryService extends BaseService {
         outcome = 'blocked'
         return
       }
+      if (runtime.hasRequiredRuntimeReset(message.sessionId)) {
+        void runtime
+          .ensureRuntimeResetComplete(message.sessionId)
+          .then(() => this.kick(message.sessionId))
+          .catch(() => undefined)
+        outcome = 'blocked'
+        return
+      }
       if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
         outcome = 'blocked'
         return
@@ -289,6 +297,14 @@ export class AgentSessionDeliveryService extends BaseService {
       // have changed admission state while the driver was validating the target.
       if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
         this.suppressedSessionIds.add(message.sessionId)
+        outcome = 'blocked'
+        return
+      }
+      if (runtime.hasRequiredRuntimeReset(message.sessionId)) {
+        void runtime
+          .ensureRuntimeResetComplete(message.sessionId)
+          .then(() => this.kick(message.sessionId))
+          .catch(() => undefined)
         outcome = 'blocked'
         return
       }

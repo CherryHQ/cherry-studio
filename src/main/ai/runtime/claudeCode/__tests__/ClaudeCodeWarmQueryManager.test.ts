@@ -78,6 +78,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { hasRequiredRuntimeReset: () => false }
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
       }
@@ -88,6 +89,64 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('keeps startup identity and spawn facts when a warm query is consumed under a different diagnostic context', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    const facts = Object.freeze({ resumeToken: 'parked-T', spawnArgsFingerprint: 'claude-spawn-v1:' + 'a'.repeat(64) })
+    let parked: any
+    applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { hasRequiredRuntimeReset: () => false }
+      if (name === 'ClaudeCodeProcessManager')
+        return {
+          spawn: (_options: unknown, diagnostics: any) => {
+            parked = diagnostics
+            diagnostics.spawn = facts
+          }
+        }
+      throw new Error(name)
+    })
+    startupMock.mockImplementationOnce(async ({ options }) => {
+      options.spawnClaudeCodeProcess({ command: 'claude', args: ['--resume=parked-T'] })
+      expect(parked.sessionId).toBe('parked-session')
+      return warm
+    })
+    const request = {
+      key: 'session-1',
+      options: { model: 'sonnet' },
+      diagnosticContext: { sessionId: 'parked-session' }
+    }
+    await manager.prewarm(request)
+    const reference = parked.reference
+    const consumed = await manager.consume({ ...request, diagnosticContext: { sessionId: 'consumer-session' } })
+    expect(consumed?.warmQuery).toBe(warm)
+    expect(consumed?.processDiagnostics).toBe(parked)
+    expect(consumed?.processDiagnostics).toMatchObject({ reference, sessionId: 'parked-session', spawn: facts })
+    expect(startupMock.mock.calls.at(-1)?.[0].options).not.toHaveProperty('diagnosticContext')
+    await manager.closeAll()
+  })
+
+  it('skips required resets before preparation and rechecks after an asynchronous warm build', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    let resetting = true
+    applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { hasRequiredRuntimeReset: () => resetting }
+      if (name === 'ClaudeCodeTraceBridgeService') return { isTraceModeEnabled: () => false }
+      throw new Error(name)
+    })
+    await manager.prewarmAgentSession('session-1')
+    expect(buildWarmRequestMock).not.toHaveBeenCalled()
+    resetting = false
+    const built = Promise.withResolvers<any>()
+    buildWarmRequestMock.mockReturnValueOnce(built.promise)
+    const preparation = manager.prewarmAgentSession('session-1')
+    await vi.waitFor(() => expect(buildWarmRequestMock).toHaveBeenCalledOnce())
+    resetting = true
+    built.resolve({ key: 'session-1', diagnosticContext: { sessionId: 'session-1' }, options: {} })
+    await preparation
+    expect(startupMock).not.toHaveBeenCalled()
+    expect(await manager.consume({ key: 'session-1', options: {} })).toBeUndefined()
   })
 
   it('consumes a matching warm query once', async () => {
