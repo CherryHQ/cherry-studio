@@ -35,6 +35,7 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { McpTool } from '@shared/types/mcp'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -916,6 +917,211 @@ describe('AgentService', () => {
 
       const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual([])
+    })
+
+    it('migrates denial rules when a mount change reallocates keys', async () => {
+      // A's configured name equals unmounted B's id, so A holds that key and the denial
+      // `mcp__id-b__run` targets A. Mounting B (name `other`) reserves B's id and moves A onto
+      // its own id — the saved denial must follow A instead of translating onto B's tools. The
+      // cold catalog cannot prove the identity fragment's raw spelling, so the name-keyed
+      // original also survives: it over-blocks B's literally-named `run` through B's native id
+      // form (fail-closed) instead of leaving A's denial unenforceable.
+      await insertMcpServer('id-a', 'id-b')
+      await insertMcpServer('id-b', 'other')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Migrate',
+        model: TEST_MODEL_ID,
+        mcps: ['id-a'],
+        disabledTools: ['mcp__id-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-a', 'id-b'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-b__run', 'mcp__id-a__run'])
+    })
+
+    it('reserves a mounted browser id so a server named after it keeps its own id key across the mount change', async () => {
+      // The runtime reserves every mounted id BEFORE skipping the in-memory browser, so
+      // mounting the browser displaces a server named after the browser's id onto its own id.
+      // The migration compared browser-filtered sets on both sides: the browser's id was never
+      // reserved, the displacement was invisible, and the denial stayed keyed by the browser's
+      // id — an identity the runtime never registers — re-enabling the tool after reconnect.
+      await dbh.db.insert(mcpServerTable).values({
+        id: 'id-browser',
+        name: '@cherry/browser',
+        type: 'inMemory',
+        sortOrder: 0,
+        isActive: false
+      })
+      await insertMcpServer('srv-s', 'id-browser')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Browser Id Reserve',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-s'],
+        disabledTools: ['mcp__id-browser__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-browser', 'srv-s'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      // Mounting the browser reserves `id-browser`, so `srv-s` moves onto its own id and the
+      // denial follows onto the identity the runtime actually registers. The cold catalog
+      // cannot prove the identity fragment's raw spelling, so the name-keyed original also
+      // survives (owner-bound; the browser registers nothing, so it over-blocks nobody).
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-browser__run', 'mcp__srv-s__run'])
+    })
+
+    it('keeps the persisted mount order equal to the submitted order so migration matches runtime allocation', async () => {
+      // A and B are both named `docs`; B mounts second, so its denial lives under its id key.
+      // Reordering the mounts to [B, A] hands `docs` to B — but only if the junction rows carry
+      // the submitted order. Rows written with per-row Date.now() defaults tie inside the same
+      // millisecond, and a timestamp-only reader returns ties in an unspecified order, so the
+      // migration's array-order prediction diverges from the runtime allocation: B stays on its
+      // id while its denial moves to `docs`, and B's run tool executes.
+      await insertMcpServer('srv-a', 'docs')
+      await insertMcpServer('srv-b', 'docs')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Order',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-a', 'srv-b'],
+        disabledTools: ['mcp__srv-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['srv-b', 'srv-a'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      // The persisted order is the allocation order both sides share: B claims `docs`, A falls
+      // back to its id.
+      expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
+      // B's denial followed B onto the key B actually holds after the reorder; the raw id form
+      // stays because Pi matches `mcp__<id>__tool` verbatim regardless of the allocated key.
+      expect(reloaded?.disabledTools).toEqual(['mcp__srv-b__run', 'mcp__docs__run'])
+    })
+
+    it('keeps the Pi-supported UUID denial and emits the camelized alias when unmounting promotes the server to a mixed-case key', async () => {
+      // A and B are both named `GitHub`; B mounts second, so its denial was saved under the raw
+      // id form. Unmounting A hands the name to B — Pi registers servers under their id and
+      // matches `mcp__<id>__tool` verbatim (dropping the original re-enables the disabled tool),
+      // and it also resolves through `buildFunctionCallToolName('GitHub', 'run')`
+      // (`mcp__github__run`), which the migration must emit alongside the runtime key form.
+      await insertMcpServer('id-a', 'GitHub')
+      await insertMcpServer('id-b', 'GitHub')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Pi Alias',
+        model: TEST_MODEL_ID,
+        mcps: ['id-a', 'id-b'],
+        disabledTools: ['mcp__id-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-b'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-b__run', 'mcp__GitHub__run', 'mcp__github__run'])
+    })
+
+    it('moves a departing server denial onto its id when unmounting releases the shared name to its sibling', async () => {
+      // A and B are both named `docs`; A mounts first, owns the name, and disabling A.run saved
+      // `mcp__docs__run`. Unmounting A skipped the departing server in the migration, so the
+      // denial stayed keyed `docs` — the key B is promoted onto. Remounting A (which returns
+      // under its id) left the denial on B's runtime name: A ran under Full Access. The denial
+      // must move onto A's id before the name is released. The cold catalog cannot produce an
+      // enforceable replacement, so the name-keyed original also survives the takeover: it
+      // re-enforces A's denial the moment A remounts and over-blocks B's same-camelization
+      // `run` (fail-closed) instead of letting the explicitly disabled tool execute.
+      await insertMcpServer('srv-a', 'docs')
+      await insertMcpServer('srv-b', 'docs')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Departing Owner',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-a', 'srv-b'],
+        disabledTools: ['mcp__docs__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['srv-b'] })
+      // A's id registers under its raw form (hyphens survive the SDK segment, so raw and
+      // SDK-segment fold into one entry); `mcp__docs__run` stays — the cold catalog leaves it
+      // the only enforceable spelling, bound to the released segment (B over-blocked).
+      expect(agentService.getAgent(created.id)?.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-a__run'])
+
+      agentService.updateAgent(created.id, { mcps: ['srv-b', 'srv-a'] })
+      const reloaded = agentService.getAgent(created.id)
+      // A returned under its id and stays denied; B holds `docs` under the inherited over-block.
+      expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
+      expect(reloaded?.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-a__run'])
+    })
+
+    it('resolves a camelized Pi denial onto the raw stable-id form when unmounting releases the name', async () => {
+      // Pi saves the denial through `buildFunctionCallToolName`, which camelizes the raw tool:
+      // server `docs` + raw `get_time` persists `mcp__docs__getTime`. Unmounting releases the
+      // configured-name key, so the rewrite lands on the stable id — and a camelized fragment
+      // under the id names nothing (Pi registers the raw tool and matches
+      // `mcp__<id>__get_time` verbatim). The migration reads the server's tool catalog from the
+      // shared cache and emits the raw stable-id form alongside the camelized copies. The
+      // release is unclaimed and the catalog resolution is partial — the snapshot spellings
+      // cannot prove every raw spelling the alias represented — so the owner-bound original
+      // persists and re-enforces the denial on remount.
+      await insertMcpServer('srv-a', 'docs')
+      application.get('CacheService').setShared(`mcp.tools.srv-a`, [{ name: 'get_time' } as unknown as McpTool])
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Camelized Alias Unmount',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-a'],
+        disabledTools: ['mcp__docs__getTime']
+      })
+
+      agentService.updateAgent(created.id, { mcps: [] })
+
+      expect(agentService.getAgent(created.id)?.disabledTools).toEqual([
+        'mcp__docs__getTime',
+        'mcp__srv-a__getTime',
+        'mcp__srv-a__gettime',
+        'mcp__srv-a__get_time'
+      ])
+    })
+
+    it('reads same-timestamp mount rows in mcpServerId order', async () => {
+      // Rows written by older versions (or createAgent) can share one timestamp: readers must
+      // break ties by mcpServerId so migration old-reads and runtime allocation agree on legacy
+      // rows too, not only on rows this write path orders explicitly.
+      await insertMcpServer('srv-a', 'docs')
+      await insertMcpServer('srv-b', 'docs')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Ties',
+        model: TEST_MODEL_ID
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: created.id, mcpServerId: 'srv-b', createdAt: 1000 },
+        { agentId: created.id, mcpServerId: 'srv-a', createdAt: 1000 }
+      ])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['srv-a', 'srv-b'])
+    })
+
+    it('leaves an explicitly submitted disabledTools list untouched on a mount change', async () => {
+      await insertMcpServer('id-a', 'id-b')
+      await insertMcpServer('id-b', 'other')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Submit',
+        model: TEST_MODEL_ID,
+        mcps: ['id-a'],
+        disabledTools: ['mcp__id-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-a', 'id-b'], disabledTools: ['Bash'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      // A PATCH carrying disabledTools owns the list — migration must not override it.
+      expect(reloaded?.disabledTools).toEqual(['Bash'])
     })
   })
 

@@ -2,9 +2,15 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { McpTool } from '@shared/types/mcp'
 
 describe('McpServerService', () => {
   const dbh = setupTestDatabase()
@@ -162,6 +168,337 @@ describe('McpServerService', () => {
       expect(row.name).toBe('updated-name')
     })
 
+    it('migrates saved denial rules onto the new key when the server is renamed', async () => {
+      await seedServer({ id: 'srv-1', name: 'docs' })
+      const [keyA, keyB] = generateOrderKeySequence(2)
+      await dbh.db.insert(agentTable).values([
+        {
+          id: 'agent-1',
+          type: 'chat',
+          name: 'with-denial',
+          instructions: '',
+          orderKey: keyA,
+          disabledTools: ['mcp__docs__run', 'mcp__other__run']
+        },
+        {
+          id: 'agent-2',
+          type: 'chat',
+          name: 'without-denial',
+          instructions: '',
+          orderKey: keyB,
+          disabledTools: ['mcp__other__run']
+        }
+      ])
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'github' })
+
+      const [renamed] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The `docs`-keyed rule follows the rename; the cold catalog cannot prove the identity
+      // fragment's raw spelling, so the name-keyed original also survives (owner-bound while
+      // the released key stays unclaimed). The other server's rule is untouched.
+      expect(renamed.disabledTools).toEqual(['mcp__docs__run', 'mcp__github__run', 'mcp__other__run'])
+      const [untouched] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-2'))
+      // agent-2 does not mount the server: a name match alone must never steal its rules.
+      expect(untouched.disabledTools).toEqual(['mcp__other__run'])
+    })
+
+    it('resolves a camelized agent denial to its raw tool and Pi alias when the server is renamed', async () => {
+      // Pi saves denials through `buildFunctionCallToolName`, which camelizes the raw tool:
+      // server `docs` + raw `get_time` persists `mcp__docs__getTime`. Renaming onto the
+      // mixed-case `GitHub` must resolve the fragment against the server's tool catalog (the
+      // shared `mcp.tools.<serverId>` cache) and emit the raw spelling the SDK serves
+      // (`mcp__GitHub__get_time`) plus the alias Pi resolves
+      // (`buildFunctionCallToolName('GitHub', 'get_time')` = `mcp__github__getTime`). The
+      // resolution is partial — the catalog spellings cannot prove every historical raw
+      // spelling the alias represented — and the released key stays unclaimed, so the
+      // owner-bound original persists alongside the copies.
+      await seedServer({ id: 'srv-camel', name: 'docs' })
+      application.get('CacheService').setShared(`mcp.tools.srv-camel`, [{ name: 'get_time' } as unknown as McpTool])
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-camelized-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__getTime']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-camel' })
+
+      mcpServerService.update('srv-camel', { name: 'GitHub' })
+
+      const [renamed] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(renamed.disabledTools).toEqual([
+        'mcp__docs__getTime',
+        'mcp__GitHub__getTime',
+        'mcp__github__gettime',
+        'mcp__GitHub__get_time',
+        'mcp__github__getTime'
+      ])
+    })
+
+    it('leaves rules of agents that mount a same-named sibling untouched when the unmounted server is renamed', async () => {
+      // Duplicate names are accepted: `srv-a` and `srv-b` are both named `docs` and the agent
+      // mounts only `srv-a`. Renaming unmounted `srv-b` must not rewrite the agent's
+      // `mcp__docs__run`, which names the mounted server's tool.
+      await seedServer({ id: 'srv-a', name: 'docs' })
+      await seedServer({ id: 'srv-b', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'mounts-a',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run', 'mcp__other__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-a' })
+
+      mcpServerService.update('srv-b', { name: 'github' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__other__run'])
+    })
+
+    it('follows the post-rename allocation when the new name is reserved', async () => {
+      // `skills` is a built-in key: the runtime falls back to the server id, so the saved rule
+      // must follow onto `mcp__<id>__run`, not onto a name no tool will ever register under.
+      await seedServer({ id: 'srv-1', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'skills' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The cold catalog cannot prove the identity fragment's raw spelling, so the released
+      // name-keyed original also survives (owner-bound while unclaimed).
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-1__run'])
+    })
+
+    it('matches runtime eligibility by excluding the in-memory browser from rename allocations', async () => {
+      // The runtime never mounts the in-memory browser (agentMcpServers skips it), so it must
+      // not claim an allocation key here either: with it counted, the server NAMED
+      // `_cherry_browser` is displaced onto its UUID and its denial is migrated to an identity
+      // the runtime never registers, re-enabling the explicitly disabled tool after reconnect.
+      await seedServer({ id: 'srv-browser', name: '@cherry/browser', type: 'inMemory' })
+      await seedServer({ id: 'srv-named', name: '_cherry_browser' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-browser',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp___cherry_browser__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-browser' },
+        { agentId: 'agent-1', mcpServerId: 'srv-named' }
+      ])
+
+      mcpServerService.update('srv-named', { name: 'docs' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The named server owned `_cherry_browser` all along (the browser claims nothing), so the
+      // denial follows its rename onto `docs`; the cold catalog cannot prove the identity
+      // fragment's raw spelling, so the released name-keyed original also survives.
+      expect(agent.disabledTools).toEqual(['mcp___cherry_browser__run', 'mcp__docs__run'])
+    })
+
+    it('reserves a mounted browser id so renaming a server onto that id keeps its own id key', async () => {
+      // The runtime reserves every mounted id BEFORE skipping the in-memory browser
+      // (resolveMountedAgentMcpServers), so a server renamed onto the browser's id falls back
+      // to its own id there. The migration derived its reservations from the browser-filtered
+      // mount list: the renamed server claimed the browser's id and the denial moved onto
+      // `mcp__srv-browser__run` — an identity no runtime ever registers — re-enabling the
+      // explicitly disabled tool after reconnect.
+      await seedServer({ id: 'srv-browser', name: '@cherry/browser', type: 'inMemory' })
+      await seedServer({ id: 'srv-s', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'renamed-onto-browser-id',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-browser' },
+        { agentId: 'agent-1', mcpServerId: 'srv-s' }
+      ])
+
+      mcpServerService.update('srv-s', { name: 'srv-browser' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The browser's id is reserved in the post-rename allocation, so the server keeps its own
+      // id key and the denial follows onto the identity the runtime actually registers. The
+      // cold catalog cannot prove the identity fragment's raw spelling, so the released
+      // name-keyed original also survives (owner-bound while unclaimed).
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-s__run'])
+    })
+
+    it('migrates the sibling displaced when a browser rename claims its configured name', async () => {
+      // The in-memory browser (`@cherry/browser`) is never registered, so it holds no
+      // allocation key and `_cherry_fetch` belongs to the sibling named that. The PATCH
+      // renames the browser to `@cherry/fetch`, which makes it a candidate: it claims
+      // `_cherry_fetch` and displaces the sibling onto its UUID. Filtering the browser out by
+      // its PRE-rename name in both allocations hides the displacement entirely and leaves the
+      // sibling's denial on a key that has become the renamed server's registered identity —
+      // the explicitly disabled tool executes under the sibling's UUID after reconnect.
+      await seedServer({ id: 'srv-browser', name: '@cherry/browser', type: 'inMemory' })
+      await seedServer({ id: 'srv-named', name: '_cherry_fetch' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp___cherry_fetch__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-browser' },
+        { agentId: 'agent-1', mcpServerId: 'srv-named' }
+      ])
+
+      mcpServerService.update('srv-browser', { name: '@cherry/fetch' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The sibling's denial follows onto its UUID identity. The cold catalog cannot prove the
+      // identity fragment's raw spelling, so the name-keyed original also survives — it spells
+      // the renamed server's identity and over-blocks its same-named tool, the accepted
+      // fail-closed direction.
+      expect(agent.disabledTools).toEqual(['mcp___cherry_fetch__run', 'mcp__srv-named__run'])
+    })
+
+    it('copies lossy-hashed rules onto the new lossy base when a normalized name is renamed', async () => {
+      // `Old server` registers lossy (`mcp__oldServer__run_<hash>`); the hash binds the old
+      // name, so the rename copies the entry onto the new lossy base and keeps the original.
+      await seedServer({ id: 'srv-1', name: 'Old server' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__oldServer__run_4f7413c24ae4']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'New server' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual([
+        'mcp__oldServer__run_4f7413c24ae4',
+        'mcp__newServer__run_4f7413c24ae4',
+        'mcp__New_server__run_4f7413c24ae4',
+        // The tail can also be a plain literal tool name, so the complete literal destination
+        // (Pi's camelized-tool alias) rides along with the hashed copies.
+        'mcp__newServer__run4f7413c24ae4'
+      ])
+    })
+
+    it('keeps a denial that doubles as another mounted server native Pi identity through a rename', async () => {
+      // A's configured name equals B's id in Pi's registered segment form (hyphens underscored):
+      // A claims that key, B registers natively under `mcp__<b id underscored>__run`, and the
+      // saved denial for B spells exactly that string. Renaming A must migrate A's rule while
+      // retaining B's identity — interpreting the string as A's old-name rule alone would drop
+      // it and re-enable B's tool on Pi after reconnect.
+      const idB = 'cccccccc-dddd-4eee-8fff-000000000000'
+      const piForm = idB.replace(/-/g, '_')
+      await seedServer({ id: 'srv-a', name: piForm })
+      await seedServer({ id: idB, name: 'bee' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-native-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: [`mcp__${piForm}__run`]
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-a' },
+        { agentId: 'agent-1', mcpServerId: idB }
+      ])
+
+      mcpServerService.update('srv-a', { name: 'other' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // B's native identity survives alongside A's migrated configured-name rule.
+      expect(agent.disabledTools).toEqual([`mcp__${piForm}__run`, 'mcp__other__run'])
+    })
+
+    it('emits the SDK-normalized identity when a rename destination needs underscoring', async () => {
+      // Renaming to `Docs MCP` must persist the identity the SDK actually invokes
+      // (`mcp__Docs_MCP__run`, spaces underscored) alongside the raw-key and camelized forms,
+      // or the previously disabled tool reconnects unblocked.
+      await seedServer({ id: 'srv-1', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'Docs MCP' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // The cold catalog cannot prove the identity fragment's raw spelling, so the released
+      // name-keyed original also survives alongside the SDK-normalized identity.
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__Docs_MCP__run', 'mcp__docsMcp__run'])
+    })
+
+    it('keeps an explicitly submitted disabledTools list on a combined rename update', async () => {
+      // A PATCH carrying both name and disabledTools owns the list: migrating the stored rules
+      // over it would silently discard the requested denial.
+      await seedServer({ id: 'srv-1', name: 'docs', disabledTools: ['mcp__docs__run'] })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'github', disabledTools: ['delete'] })
+
+      const [server] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
+      expect(server.disabledTools).toEqual(['delete'])
+      // Agent-mounted rules still follow the rename — the submitted list only owns the server's
+      // own field. The cold catalog cannot prove the identity fragment's raw spelling, so the
+      // released name-keyed original also survives.
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__github__run'])
+    })
+
+    it('lets an explicit empty disabledTools list clear the server rules on a combined rename update', async () => {
+      await seedServer({ id: 'srv-1', name: 'docs', disabledTools: ['mcp__docs__run'] })
+
+      mcpServerService.update('srv-1', { name: 'github', disabledTools: [] })
+
+      const [server] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
+      expect(server.disabledTools).toEqual([])
+    })
+
     it('should throw NOT_FOUND when updating non-existent server', () => {
       let err: unknown
       try {
@@ -203,6 +540,44 @@ describe('McpServerService', () => {
 
       const rows = await dbh.db.select().from(mcpServerTable)
       expect(rows).toHaveLength(0)
+    })
+
+    it('migrates denial rules onto the departing server id before a same-named sibling inherits the key', async () => {
+      // A and B are both named `docs`; A mounts first and owns the key, so disabling A.run
+      // saved `mcp__docs__run`. Deleting A removes its association — if the removal releases
+      // the key without applying the allocation migration, B inherits `docs` and A's
+      // restriction denies B's previously enabled tool. The removal must migrate the saved
+      // rules transactionally, exactly like the ordinary mount-update path.
+      await seedServer({ id: 'srv-a', name: 'docs' })
+      await seedServer({ id: 'srv-b', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run', 'mcp__other__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-a', createdAt: 1000 },
+        { agentId: 'agent-1', mcpServerId: 'srv-b', createdAt: 1001 }
+      ])
+
+      mcpServerService.delete('srv-a')
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // A's denial follows A onto its stable id; the unrelated rule is untouched. The cold
+      // catalog cannot produce an enforceable replacement, so the name-keyed original also
+      // survives the takeover: it re-enforces A's denial on a remount and over-blocks B's
+      // same-camelization `run` (fail-closed) instead of letting the disabled tool execute.
+      expect(agent.disabledTools).toEqual(['mcp__docs__run', 'mcp__srv-a__run', 'mcp__other__run'])
+      // Enforcement seam: B inherits the `docs` key after the deletion, and the kept alias —
+      // the only spelling a cold catalog leaves enforceable — binds B's same-camelization tool
+      // (fail-closed over-block).
+      const denied = translateLegacyMcpToolRules(agent.disabledTools, new Map([['srv-b', 'docs']]))
+      expect(denied).toContain('mcp__docs__run')
+      expect(denied).toContain('mcp__srv-a__run')
     })
 
     it('should throw NOT_FOUND when deleting non-existent server', () => {

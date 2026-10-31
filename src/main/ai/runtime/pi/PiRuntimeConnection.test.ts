@@ -14,6 +14,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { buildFunctionCallToolName, migrateAgentDisabledToolsForAllocationChange } from '@shared/ai/tools/mcpToolName'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -2163,6 +2164,288 @@ describe('PiRuntimeConnection', () => {
         gateHandler()({ type: 'tool_call', toolName: nativeName, toolCallId: 'blocked', input: {} }, {})
       ).resolves.toMatchObject({ block: true })
     })
+
+    it('enforces the raw stable-id form the camelized-alias migration emits', async () => {
+      // The unmount migration resolves Pi's camelized saved denial (server `docs` + raw
+      // `get_time` persisted as `mcp__docs__getTime`) onto the stable id. Pi registers the raw
+      // tool and matches `mcp__<id>__get_time` verbatim — the camelized copies under the id name
+      // nothing — so the raw form the migration emits is the identity that must block.
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'docs'
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: [`mcp__${serverId}__getTime`, `mcp__${serverId}__gettime`, `mcp__${serverId}__get_time`]
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'get_time' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverId, 'get_time')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+    it('enforces the raw stable-id form the bounded-alias migration emits', async () => {
+      // A raw tool past `buildFunctionCallToolName`'s 63-char cap persists a BOUNDED alias
+      // (`get_` + 90 a's → a truncated camelization plus the server hash), which the
+      // complete-camelization comparison can never resolve — even with the raw tool sitting in
+      // a warm catalog. The migration must replay the bounded build against the catalog
+      // identities and emit the raw stable-id form; Pi matches `mcp__<id>__<raw>` verbatim, so
+      // that emitted form is what has to block here.
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'docs'
+      const raw = `get_${'a'.repeat(90)}`
+      const bounded = buildFunctionCallToolName(serverName, raw)
+      const persisted = migrateAgentDisabledToolsForAllocationChange([bounded], {
+        oldMountedServers: [{ mcpId: serverId, name: serverName }],
+        newMountedServers: [],
+        reservedKeys: ['skills', 'assistant', 'agent-memory'],
+        toolNamesByServerId: new Map([[serverId, [raw]]])
+      })
+      expect(persisted).toContain(`mcp__${serverId}__${raw}`)
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: raw }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverId, raw)
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
+    it('enforces the denial a cold-catalog migration preserves through remount', async () => {
+      // Cold catalog at unmount: no entry can resolve the camelized fragment, so the
+      // ID-qualified replacements (`mcp__<id>__getTime`/`gettime`) match none of Pi's
+      // identities — Pi checks the configured-name alias and the raw `mcp__<id>__get_time`
+      // form only. The migration must keep the name-keyed original: it is owner-bound (no
+      // other mounted server registers under `docs` once the key is released unclaimed) and
+      // it is the one restriction that turns enforceable again the moment the server remounts
+      // under the same name, because Pi derives its alias from the mounted configured name.
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'docs'
+      const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [{ mcpId: serverId, name: serverName }],
+        newMountedServers: [],
+        reservedKeys: ['skills', 'assistant', 'agent-memory']
+      })
+      expect(persisted).toContain('mcp__docs__getTime')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'get_time' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverId, 'get_time')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
+    it('enforces a cold-catalog identity-camelization denial through remount', async () => {
+      // Raw `RUN` persists as the alias `mcp__docs__run` — `buildFunctionCallToolName` camelizes
+      // the raw tool, so a saved fragment that is already its own camelization cannot prove its
+      // raw spelling (`RUN` and `run` both camelize to `run`), and with a cold catalog the
+      // id-keyed copy `mcp__<id>__run` matches neither Pi identity (the verbatim raw stable id
+      // `mcp__<id>__RUN` or the configured-name alias). The migration must keep the alias: it is
+      // the one form Pi re-resolves when the server remounts under the same name.
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'docs'
+      const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+        oldMountedServers: [{ mcpId: serverId, name: serverName }],
+        newMountedServers: [],
+        reservedKeys: ['skills', 'assistant', 'agent-memory']
+      })
+      expect(persisted).toContain('mcp__docs__run')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'RUN' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverId, 'RUN')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
+    it('enforces a cold-catalog takeover denial for the remounted owner', async () => {
+      // Duplicate names: A (`docs`) departs and B claims the released key. With a cold catalog
+      // no replacement is enforceable, so the migration keeps the name-keyed alias even though
+      // the segment changed owners: dropping it would permit A's explicitly disabled tool, while
+      // keeping it fail-closed over-blocks the claimant's same-camelization tool and re-enforces
+      // A's denial on any remount — Pi derives the alias from the configured name, which A keeps
+      // even when it remounts onto its id under the duplicate.
+      const serverIdA = '12345678-1234-4234-8234-123456789abc'
+      const serverIdB = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
+      const serverName = 'docs'
+      const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [
+          { mcpId: serverIdA, name: serverName },
+          { mcpId: serverIdB, name: serverName }
+        ],
+        newMountedServers: [{ mcpId: serverIdB, name: serverName }],
+        reservedKeys: ['skills', 'assistant', 'agent-memory']
+      })
+      expect(persisted).toContain('mcp__docs__getTime')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'get_time' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverIdA, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverIdA, 'get_time')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
+    it('over-blocks the name claimant a cold-catalog takeover binds the alias to', async () => {
+      // The same persisted state mounted for the CLAIMANT: the kept alias names the segment B
+      // now registers, so B's same-camelization tool is denied too — the fail-closed cost of
+      // preserving an enforceable owner-bound restriction through a namespace takeover (an
+      // allowed tool denied) instead of permitting the explicitly disabled one.
+      const serverIdB = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
+      const serverName = 'docs'
+      const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__getTime'], {
+        oldMountedServers: [
+          { mcpId: '12345678-1234-4234-8234-123456789abc', name: serverName },
+          { mcpId: serverIdB, name: serverName }
+        ],
+        newMountedServers: [{ mcpId: serverIdB, name: serverName }],
+        reservedKeys: ['skills', 'assistant', 'agent-memory']
+      })
+      expect(persisted).toContain('mcp__docs__getTime')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'get_time' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverIdB, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverIdB, 'get_time')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
+    it('enforces a partial-catalog takeover denial for a mixed-case raw tool', async () => {
+      // Raw `rUn` persists as the alias `mcp__docs__run`; the snapshot lists only the lowercase
+      // sibling `run`, which resolves the fragment without proving the spellings it does not
+      // hold. A departs and B claims `docs`. The sibling-backed copies name only the
+      // conventional fold-class spellings on the stable id (`RUN`/`Run`), so stepping the
+      // original aside leaves neither of the remounted raw's two identities blocked: the
+      // configured-name alias Pi derives from `rUn` (`mcp__docs__run`) was dropped, and no
+      // stable-id copy spells `rUn`. The migration keeps the original — resolution is always
+      // partial — and its over-block of the claimant's same-camelization tool is the accepted
+      // fail-closed direction.
+      const serverIdA = '12345678-1234-4234-8234-123456789abc'
+      const serverIdB = 'abcdefab-cdef-4abc-8def-abcdefabcdef'
+      const serverName = 'docs'
+      const persisted = migrateAgentDisabledToolsForAllocationChange(['mcp__docs__run'], {
+        oldMountedServers: [
+          { mcpId: serverIdA, name: serverName },
+          { mcpId: serverIdB, name: serverName }
+        ],
+        newMountedServers: [{ mcpId: serverIdB, name: serverName }],
+        reservedKeys: ['skills', 'assistant', 'agent-memory'],
+        toolNamesByServerId: new Map([[serverIdA, ['run']]])
+      })
+      expect(persisted).toContain('mcp__docs__run')
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: persisted ?? []
+      })
+      mocks.listMcpTools.mockReturnValue([{ name: 'rUn' }])
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverIdA, name: serverName }]])
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      try {
+        const piName = buildPiMcpToolName(serverIdA, 'rUn')
+        expect(mocks.createOpts?.excludeTools).toContain(piName)
+        await expect(
+          gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await conn.close()
+      }
+    })
+
     it('preserves a migrated built-in MCP prohibition', async () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
