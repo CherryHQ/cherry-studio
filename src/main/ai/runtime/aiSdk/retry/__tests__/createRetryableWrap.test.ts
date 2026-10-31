@@ -1,6 +1,8 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
+
+import { serializeError, type SerializeErrorContext } from '@main/ai/utils/serializeError'
 
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
@@ -409,4 +411,168 @@ describe('createRetryableWrap', () => {
       { type: 'error', error: streamError }
     ])
   })
+
+  it('checks each actual fallback call after option overrides, including later expanded tool turns', async () => {
+    const fallbackGenerate = vi.fn().mockResolvedValue(okResult)
+    const canDispatch = vi.fn(async (call: LanguageModelV3CallOptions) => JSON.stringify(call.prompt).length < 100)
+    const resolve = vi.fn(async () => ({
+      model: makeFakeLanguageModel('small', fallbackGenerate),
+      options: { maxOutputTokens: 40 },
+      canDispatch
+    }))
+    const wrapped = createRetryableWrap({ fallbacks: [resolve], retryPolicy: policy() })!(
+      makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401)))
+    )
+    const short = {
+      prompt: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'hello' }] }],
+      maxOutputTokens: 10
+    }
+    await wrapped.doGenerate(short)
+    expect(fallbackGenerate).toHaveBeenCalledTimes(1)
+    expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ prompt: short.prompt, maxOutputTokens: 40 }))
+    const expanded = {
+      prompt: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'x'.repeat(1000) }] }]
+    }
+    await expect(wrapped.doGenerate(expanded)).rejects.toThrow()
+    expect(canDispatch).toHaveBeenCalledTimes(2)
+    expect(fallbackGenerate).toHaveBeenCalledTimes(1)
+  })
+
+  it('checks actual streaming fallback calls without dropping an inherited output reservation', async () => {
+    const fallbackStream = vi.fn().mockResolvedValue(streamResult([]))
+    const canDispatch = vi.fn(async (call: LanguageModelV3CallOptions) => call.maxOutputTokens !== 900)
+    const wrapped = createRetryableWrap({
+      fallbacks: [
+        async () => ({
+          model: makeFakeLanguageModel('small-stream', vi.fn(), fallbackStream),
+          options: { maxOutputTokens: undefined },
+          canDispatch
+        })
+      ],
+      retryPolicy: policy()
+    })!(makeFakeLanguageModel('primary', vi.fn(), vi.fn().mockRejectedValue(makeApiError(401))))
+    await expect(wrapped.doStream({ prompt: [], maxOutputTokens: 900 })).rejects.toThrow()
+    expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ maxOutputTokens: 900 }))
+    expect(fallbackStream).not.toHaveBeenCalled()
+    await wrapped.doStream({ prompt: [], maxOutputTokens: 20 })
+    expect(fallbackStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('prices a later fallback against operation options rather than previous fallback overrides', async () => {
+    const secondGenerate = vi.fn().mockResolvedValue(okResult)
+    const canDispatch = vi.fn(async (call: LanguageModelV3CallOptions) => call.maxOutputTokens !== 900)
+    const wrapped = createRetryableWrap({
+      fallbacks: [
+        async () => ({
+          model: makeFakeLanguageModel('first', vi.fn().mockRejectedValue(makeApiError(401))),
+          options: { maxOutputTokens: 10 }
+        }),
+        async () => ({ model: makeFakeLanguageModel('second', secondGenerate), canDispatch })
+      ],
+      retryPolicy: policy()
+    })!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401))))
+    await expect(wrapped.doGenerate({ prompt: [], maxOutputTokens: 900 })).rejects.toThrow()
+    expect(canDispatch).toHaveBeenCalledWith(expect.objectContaining({ maxOutputTokens: 900 }))
+    expect(secondGenerate).not.toHaveBeenCalled()
+  })
+  it('restores primary helpers when a cached API key resumes after cross-model fallback', async () => {
+    let activeModel = 'primary'
+    const onPrimaryActivated = vi.fn(() => {
+      activeModel = 'primary'
+    })
+    const onFallbackActivated = vi.fn((fallback: RetryFallback) => {
+      if (fallback.streamErrorSerialization?.ollamaNumCtx) activeModel = 'fallback'
+    })
+    const keyGenerate = vi.fn().mockRejectedValue(new Error('primary key operation failed'))
+    const crossGenerate = vi.fn().mockResolvedValue(okResult)
+    let allowed = true
+    const wrapped = createRetryableWrap({
+      apiKeyFallbacks: [async () => ({ model: makeFakeLanguageModel('primary-key2', keyGenerate) })],
+      fallbacks: [
+        async () => ({
+          model: makeFakeLanguageModel('fallback', crossGenerate),
+          streamErrorSerialization: {
+            ollamaNumCtx: { uniqueModelId: 'ollama::fallback', numCtx: 32768, trainedContextWindow: 65536 }
+          },
+          canDispatch: async () => allowed
+        })
+      ],
+      retryPolicy: policy(),
+      onPrimaryActivated,
+      onFallbackActivated
+    })!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401))))
+    await wrapped.doGenerate({ prompt: [] })
+    expect(activeModel).toBe('fallback')
+    allowed = false
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toThrow('primary key operation failed')
+    expect(activeModel).toBe('primary')
+    expect(crossGenerate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('fallback dispatch recovery identity', () => {
+  for (const method of ['doGenerate', 'doStream'] as const) {
+    it(`${method} leaves recovery identity on the last dispatched model when a duplicate runtime is skipped`, async () => {
+      const primaryContext = { uniqueModelId: 'ollama-A::qwen3', numCtx: 32768, trainedContextWindow: 65536 }
+      const skippedContext = { uniqueModelId: 'ollama-B::qwen3', numCtx: 4096, trainedContextWindow: 131072 }
+      let context: SerializeErrorContext = { ollamaNumCtx: primaryContext }
+      const terminal = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://host-A.invalid/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: false
+      })
+      const primaryCall = vi.fn().mockRejectedValue(terminal)
+      const skippedCall = vi.fn().mockResolvedValue(okResult)
+      const activated = vi.fn((fallback: RetryFallback) => {
+        context = fallback.streamErrorSerialization!
+      })
+      const wrapped = createRetryableWrap({
+        fallbacks: [
+          async () => ({
+            model: makeFakeLanguageModel('qwen3', skippedCall, skippedCall),
+            streamErrorSerialization: { ollamaNumCtx: skippedContext }
+          })
+        ],
+        retryPolicy: policy(),
+        onPrimaryActivated: () => {
+          context = { ollamaNumCtx: primaryContext }
+        },
+        onFallbackActivated: activated
+      })!(makeFakeLanguageModel('qwen3', primaryCall, primaryCall))
+      const caught = await Promise.resolve(wrapped[method]({ prompt: [] })).catch((error: unknown) => error)
+      expect(primaryCall).toHaveBeenCalledTimes(1)
+      expect(skippedCall).not.toHaveBeenCalled()
+      expect(activated).not.toHaveBeenCalled()
+      expect(serializeError(caught, context)).toMatchObject({
+        i18nKey: 'ollama_context_memory',
+        ollamaNumCtxModelId: primaryContext.uniqueModelId,
+        ollamaEffectiveNumCtx: primaryContext.numCtx,
+        ollamaTrainedNumCtx: primaryContext.trainedContextWindow
+      })
+    })
+
+    it(`${method} activates an accepted fallback immediately before its actual dispatch`, async () => {
+      const events: string[] = []
+      const fallbackCall = vi.fn(async () => {
+        events.push('dispatch')
+        return okResult
+      })
+      const wrapped = createRetryableWrap({
+        fallbacks: [async () => ({ model: makeFakeLanguageModel('different-model', fallbackCall, fallbackCall) })],
+        retryPolicy: policy(),
+        onFallbackActivated: () => events.push('activate')
+      })!(
+        makeFakeLanguageModel(
+          'primary',
+          vi.fn().mockRejectedValue(makeApiError(401)),
+          vi.fn().mockRejectedValue(makeApiError(401))
+        )
+      )
+      await wrapped[method]({ prompt: [] })
+      expect(events).toEqual(['activate', 'dispatch'])
+    })
+  }
 })

@@ -20,7 +20,10 @@ import {
   isVideoModel,
   isVisionModel
 } from '@shared/utils/model'
+import { isAzureOpenAIProvider } from '@shared/utils/provider'
 
+import { usesAzureAnthropicRuntime } from '../../../provider/azure'
+import { resolveVertexRuntimeProviderId } from '../../../provider/vertex'
 import type { AppProviderId } from '../../../types'
 
 /** What a (provider, model) accepts as a native user-message file part. */
@@ -135,7 +138,12 @@ function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProvid
   return NATIVE_FILE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
-function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
+/**
+ * Whether (provider, model) accepts a native PDF user-message file part.
+ * Callable with the routing ids `buildAgentParams` derives, so budget/eligibility
+ * gates can apply the same resolved check as `resolveNativeFileSupport`.
+ */
+export function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
   if (!isFirstPartyFileProvider(provider, aiSdkProviderId)) return false
   if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)
@@ -161,4 +169,19 @@ export function resolveNativeFileSupport(
     audio: mediaSupport.audio && isAudioModel(model),
     video: mediaSupport.video && isVideoModel(model)
   }
+}
+
+/** Resolve static media routing without credentials or mutable provider setup. */
+export function resolveFallbackNativeFileSupport(
+  provider: Provider,
+  model: Model,
+  routing: Omit<NativeFileRouting, 'runtimeProviderId'>
+): NativeFileSupport {
+  const runtimeProviderId =
+    isAzureOpenAIProvider(provider) && usesAzureAnthropicRuntime(model.apiModelId ?? model.id, routing.endpointType)
+      ? 'azure-anthropic'
+      : routing.aiSdkProviderId === 'google-vertex' || routing.aiSdkProviderId === 'google-vertex-anthropic'
+        ? resolveVertexRuntimeProviderId(routing.aiSdkProviderId, model.apiModelId ?? model.id)
+        : routing.aiSdkProviderId
+  return resolveNativeFileSupport(provider, model, { ...routing, runtimeProviderId })
 }

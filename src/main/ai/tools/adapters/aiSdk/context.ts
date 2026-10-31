@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai'
 
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { AutomationRun } from '@main/services/automation'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
@@ -77,6 +78,9 @@ export interface RequestContext {
    * shared default constant.
    */
   readonly toolOutputCharCap?: number
+
+  /** Resolved `num_ctx` for this Ollama request; used when serializing KV-cache OOM errors. */
+  readonly ollamaNumCtx?: OllamaNumCtxRequestSnapshot
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

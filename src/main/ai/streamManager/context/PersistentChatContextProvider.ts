@@ -9,15 +9,12 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage } from 'ai'
 
 import { application } from '@application'
-import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
@@ -45,9 +42,11 @@ import { resolveRequestContextSettings } from '../../contextBuild/resolveRequest
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
+import { resolveModelRequestContextWindow } from '../../utils/ollamaRequestNumCtx'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
@@ -970,7 +969,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // and an `as number` cast here made every derived budget `NaN`, which
     // silently disabled compaction instead of triggering it. Serve as-is; the
     // persist lane still bounds tool outputs by the character setting.
-    const minContextWindow = resolveMinContextWindow(models.map((m) => m.contextWindow))
+    const minContextWindow = resolveMinContextWindow(
+      models.map((m) => {
+        const provider = providerService.getByProviderId(m.providerId)
+        if (!provider) return m.contextWindow
+        const { endpointType } = resolveEffectiveEndpoint(provider, m)
+        const runtimeProviderId = resolveAiSdkProviderId(provider, endpointType)
+        return resolveModelRequestContextWindow(m, provider, endpointType, runtimeProviderId)
+      })
+    )
     if (minContextWindow === null) {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
@@ -1025,14 +1032,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // model's: an explicitly picked 8k compressor on a 128k chat would
       // otherwise be handed a 128k-derived budget and overflow immediately.
       const compressionWindow = compressionModel.contextWindow ?? minContextWindow
-      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      const { maxOutputTokens, maxInputTokens } = resolveCompressionBudget(compressionWindow)
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
-        maxInputTokens: Math.max(
-          COMPACTION_MIN_INPUT_BUDGET,
-          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-        )
+        maxInputTokens
       })
       // Every exit below clears the spinner — a fold that produced nothing and a
       // fold that threw both continue with un-compacted history, so leaving

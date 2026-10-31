@@ -49,6 +49,7 @@ import {
   routeToEndpoint
 } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
+import { usesAzureAnthropicRuntime } from './azure'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
@@ -60,7 +61,7 @@ import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
-import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
+import { normalizeVertexCredentials, resolveVertexRuntimeProviderId } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
 interface BaseConfig {
@@ -688,7 +689,8 @@ function buildVertexConfig(
     : undefined
 
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
+  const runtimeProviderId = resolveVertexRuntimeProviderId(ctx.aiSdkProviderId, modelId)
+  const isAnthropic = runtimeProviderId === 'google-vertex-anthropic'
 
   // MaaS open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss) are served over
   // Vertex's OpenAI-compatible Chat Completions endpoint, not the Gemini generateContent
@@ -697,7 +699,7 @@ function buildVertexConfig(
   // OpenAI-compatible endpoint expects. Route them to the dedicated MaaS adapter, which mints
   // the GCP bearer token itself from the iam-gcp credentials.
   // Manually-added MaaS models must use the same `publisher/model-maas` form as listed models.
-  if (!isAnthropic && isVertexMaasModelId(modelId)) {
+  if (runtimeProviderId === 'google-vertex-maas') {
     return {
       providerId: 'google-vertex-maas',
       endpoint: ctx.endpoint,
@@ -796,7 +798,7 @@ function buildAzureConfig(
   const endpointType = ctx.endpointType
 
   // Azure + Claude model → azure-anthropic
-  if (modelId.startsWith('claude') || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+  if (usesAzureAnthropicRuntime(modelId, endpointType)) {
     return {
       providerId: 'azure-anthropic',
       endpoint: ctx.endpoint,

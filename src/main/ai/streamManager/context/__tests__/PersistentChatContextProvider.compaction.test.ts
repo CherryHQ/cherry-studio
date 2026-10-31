@@ -14,6 +14,7 @@ import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import type * as EndpointModule from '@main/ai/provider/endpoint'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -62,9 +63,13 @@ vi.mock('@data/services/AssistantService', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
 }))
-vi.mock('@main/ai/provider/endpoint', () => ({
-  resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
-}))
+vi.mock('@main/ai/provider/endpoint', async (importOriginal) => {
+  const actual = await importOriginal<typeof EndpointModule>()
+  return {
+    ...actual,
+    resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
+  }
+})
 
 vi.mock('@data/services/FileEntryService', () => ({
   fileEntryService: { findById: mockFindFileEntryById }
@@ -152,7 +157,16 @@ vi.mock('../modelResolution', () => ({
 
 vi.mock('../../../observability', () => ({
   startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn(), setStatus: vi.fn() } })),
-  applyTurnInputAttributes: vi.fn()
+  applyTurnInputAttributes: vi.fn(),
+  // The public aiSdk barrel pulled in by attachmentBudget evaluates the
+  // web-search barrel (WebSearchService) and agent params at import time, so
+  // these observability exports must exist on the mock for module linking
+  // even though these suites never invoke them.
+  applyTurnOutputAttributes: vi.fn(),
+  applyHttpTrace: vi.fn(),
+  AdapterTracer: vi.fn(),
+  TRACER_NAME: 'test-tracer',
+  TraceMethod: () => (_target: unknown, _propertyKey?: unknown, descriptor?: PropertyDescriptor) => descriptor
 }))
 
 vi.mock('@data/services/TopicService', () => ({
@@ -704,6 +718,42 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
     const opts = mockSummarizeModelMessages.mock.calls[0][2]
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
+  })
+
+  it('2g-bis. a small effective compressor window (4k) bounds input+output below that window', async () => {
+    const BIG = 'token '.repeat(4_000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ])
+    compressionOn({ languageModel: {}, contextWindow: 4_096 })
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 20_000 })
+
+    const opts = mockSummarizeModelMessages.mock.calls[0][2]
+    expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(4_096)
+  })
+
+  it('2g-ter. a compressor that rejects (e.g. window overflow) persists no summary and serves raw history', async () => {
+    const BIG = 'token '.repeat(4_000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ])
+    compressionOn({ languageModel: {}, contextWindow: 4_096 })
+    mockSummarizeModelMessages.mockRejectedValueOnce(new Error('context length exceeded'))
+
+    const { messages } = await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 20_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
   })
 
   const fiveBigTurns = () => {

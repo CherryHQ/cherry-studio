@@ -3,6 +3,7 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -140,4 +141,9 @@ export interface AiStreamRequest extends AiChatRequest {
    * attribution would misclassify a mini app's call as an agent turn.
    */
   source?: SourceSnapshot | null
+  /**
+   * Filled during `streamText` param build so stream error serialization can
+   * read per-request Ollama context sizes (main-internal; not IPC).
+   */
+  streamErrorSerialization?: SerializeErrorContext
 }
