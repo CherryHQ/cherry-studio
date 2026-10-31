@@ -122,6 +122,7 @@ export class PersistenceListener implements StreamListener {
         }
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
+    result.finalMessage = finalMessageForPersistence
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),
       ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})

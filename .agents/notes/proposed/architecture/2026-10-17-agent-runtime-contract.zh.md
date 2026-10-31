@@ -208,7 +208,7 @@ P0 现在已有包级终态和多输入归属证据。Pi 补丁在原生请求�
 
 P3 先用 Pi 验证后续 Durable 和 Claude Code 适配器共用的宿主路径。现有 [ThreadProjection](../../../../src/main/ai/agentSession/ThreadProjection.ts) 是只支持追加的 UI chunk 转换器：它把快照中的所有 Item 标为已结束，忽略删除/替换，并拒绝正文前缀变化。它尚不是这里定义的当前视图 reducer。[Pi child 观察](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts)现已把 child 内容路由到独立投影；现有 root 转换器和小型任务卡片元数据继续使用各自的既有路径。
 
-P3-A 核心现已落在 [ThreadMessageProjection](../../../../src/main/ai/agentSession/ThreadMessageProjection.ts)。每个实例接收一个 Thread 的观察，提供已提交的 `CherryUIMessage` 基线，并发布变化的消息、删除项、顺序和状态。它串行处理更新与 observation 替换，隔离退役回调，复用逐消息 SDK reader，并在订阅者失败时仅移除该订阅者，不停止原生工作。关闭投影会停止其 observation 和 reader，不释放原生句柄或中断执行。消息 ID 仍是该 Thread 内的来源身份；产品归档 ID 与持久映射属于 P3-B。Pi 桌面 child 渲染现已围绕该 reducer 补齐 P3-B/C 的所有权、持久化与路由；root 与 Claude Code flow 的迁移仍单独处理。
+P3-A 核心现已落在 [ThreadMessageProjection](../../../../src/main/ai/agentSession/ThreadMessageProjection.ts)。每个实例接收一个 Thread 的观察，提供已提交的 `CherryUIMessage` 基线，并发布变化的消息、删除项、顺序和状态。它串行处理更新与 observation 替换，隔离退役回调，复用逐消息 SDK reader，并在订阅者失败时仅移除该订阅者，不停止原生工作。关闭投影会停止其 observation 和 reader，不释放原生句柄或中断执行。消息 ID 仍是该 Thread 内的来源身份；产品归档 ID 与持久映射属于 P3-B。Pi 桌面 child 渲染现已围绕该 reducer 补齐 P3-B/C 的所有权、持久化与路由；root 已共享下文的桌面交付契约；Claude Code 原生 flow 的迁移仍单独处理。
 
 旧 flow 已通过 shared cache 推送并节流。Child 内容放在父消息 parts 内；后台累积和发布覆盖整条父消息；持续输出、恢复和收尾依赖父消息生命周期。这些是宿主的所有权组织方式，不是 AI SDK 的要求。完整复制有成本，但这里尚无测量证明它是主要瓶颈。P3 调整所有权与更新粒度，并对照既有 flow 验证性能。
 
@@ -283,6 +283,41 @@ Partial 按批更新同一产品行；内容收束、观察替换和协调关闭
 | 应用退出或执行环境退役 | 封闭接纳、收集进行中的回执，在原生关闭期间保留观察，对账最终持久内容，并在关闭数据库前排空/封闭投影写入。缺失终态回调或 flush 失败不能算作已确认的干净完成。 |
 
 首轮 Pi 接入把 Runtime 作用域限定为一个产品会话的原生 root 及其自有 child 树，全部句柄由该所有者管理。Durable 作用域遵循其独占原生 storage/Harness，其中可以有多个 conversation。不能把旧的逐消息、逐连接 idle TTL 套到任一所有者内部的单个会话上。首版保留已配置所有者及已经打开的 Main observation，直到明确退役或应用退出；内存增长是已知限制。释放空闲观察或逐 Thread 驱逐需要有证据的原生重新发现/恢复路径，以及单独验证。
+
+##### Root 与 child 共用桌面观察协议
+
+Child 所有权独立，并不要求专用的交付协议。Root 与 child 现在共用 `ai.projection.attach/detach/changed` 和 Renderer 投影 store，同时保留独立的投影实例、原生所有者和归档目标。这改变桌面观察路径，不改变公共 Harness 接口或原生 root 转换器。整个 Spec 仍保持 proposed，等待更广泛的验收门槛。
+
+Root 已有可复用的生产端：[pipeStreamLoop](../../../../src/main/ai/streamManager/pipeStreamLoop.ts) 用 `readUIMessageStream` 累积消息，[AiStreamManager](../../../../src/main/ai/streamManager/AiStreamManager.ts) 通过 `onAccumulatedSnapshot` 接收快照。直接从这个边界发布，不再创建 reader。Child 所有者在 `ThreadMessageProjection` 和归档对账之后发布已映射的消息；不把消息转回 chunk 让 Renderer 再解析一次。
+
+```text
+AiStreamManager snapshots -----> root view publisher --+
+ChildThreadProjection messages -> child view publisher -+-> shared projection IPC
+                                                         -> Renderer projection store
+                                                         -> existing message views
+```
+
+| 边界 | 具体改动 |
+| --- | --- |
+| 共享契约 | 快照、补丁、排序与 revision 应用逻辑位于 [messageProjection.ts](../../../../src/shared/ai/messageProjection.ts)。保留 `CherryUIMessage`；所有者各自的活动、可用性和终态事实使用强类型状态传递，不从内容推导。 |
+| Main 发布 | 共享差异计算、批处理和订阅交付。Child 原生映射/对账及归档写入留在 `ChildThreadProjection`；root 执行与终态持久化留在 `AiStreamManager` 及其 listener。每个视图捕获自己的所有者和目标。 |
+| IPC | 使用 `ai.projection.*` 下统一的 attach/detach/changed 操作。按所有者权限解析既有 root/child 地址；`toolCallId` 仅为 child 查找入参。订阅身份是临时交付状态，不新增持久关系。输入、审批和中断仍通过所有者路由命令。 |
+| Renderer | 共享订阅 store 与补丁 reducer。让 `useAgentChildProjection` 和 `useExecutionOverlay` 封装各自的视图；保留引用稳定性、批量通知和终态到 DB 的交接。两个视图不能创建两套原生 reader 或 writer。 |
+
+基线只在其声明的范围内完整：root 实时 overlay 不替换 topic 的已存历史，child 视图不包含父级或兄弟。Root 路由保留捕获的 topic、执行 attempt 和消息 anchor，覆盖多模型并发及续接。仅复用 model/execution ID，不能把迟到更新路由到新 attempt。所有者状态与其内容必须在一致的 revision 边界交付；观察到 idle、不可用或脱离状态，都不能证明输入成功完成。
+
+沿用上方附着与持久化屏障，并遵守以下传输约束：
+
+1. 先监听再附着，有界缓冲提前到达的更新，安装基线后应用尚未覆盖的更新。用订阅身份隔离迟到的附着结果和回调。Main 在同一串行操作中捕获基线并注册后续交付。
+2. 合并更新后，为实际发布批次分配连续 revision。忽略已覆盖 revision，只应用下一个 revision。Gap、无效补丁或溢出时获取新基线。现有订阅期间不替换发布者：root 发布者在被观察时保留；child 关闭时先发布不可用状态，再释放交付。重新打开时以新订阅身份和基线附着到当前所有者，隔离旧 revision 域。已关闭原生所有者的自动重绑定不在本次传输改动范围内。
+3. 发布终态前先 flush 已接纳内容，保留 root 先持久化再通知的屏障。终态附着包含最终基线，不能在缓冲内容尚未得到表达时先关闭。写入失败时保留可读视图，交付保持未解决；detach 不中断原生工作。
+4. 限制待交付工作量，订阅者跟不上时替换基线，绝不静默丢弃已编号批次。当前视图恢复不需要 TCP 式确认/重传日志或新归档表。既有 chunk sequence 不能替代 revision，因为 chunk 合并和拆分不会产生连续的交付批次。
+
+先在 [#22413](https://github.com/CherryHQ/cherry-studio/pull/22413) 修复既有 replay/终态交接，覆盖终态附着响应，以及 replay buffer 已不覆盖排队 live chunk 的场景。共享投影交付不能修复仍使用旧路径的消费者。这项迁移放到 P3 child PR 之上的聚焦后续 PR，覆盖 AC17–AC18；仅给 child API 改名不算完成。
+
+两个真实生产端及其桌面消费者已使用共享路径。[ExecutionStreamOverlayService](../../../../src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts) 消费 Main 快照；[useChatWithHistory](../../../../src/renderer/hooks/useChatWithHistory.ts)、快捷助手和划词窗口通过 [useStreamCommands](../../../../src/renderer/hooks/useStreamCommands.ts) 处理输入、停止和错误。旧 `IpcChatTransport`、`TopicStreamSubscription`、child 专用观察路由及 Renderer 重复 reader 已移除。保留 Main SDK 累积和仍有消费者的原始 listener。Claude Code 原生适配器迁移和 Durable 宿主接入仍是独立工作。
+
+本地实现验证覆盖发布 revision、基线/live 重叠、重复交付、gap 与溢出恢复、旧订阅隔离、共享租约、父子隔离、模型重试隔离、终态内容、宿主审批决定及持久化成功/失败屏障，也覆盖四个桌面消费者组件。新隔离 Electron 实例使用 Claude Sonnet 4.5 验证了普通对话（185 次更新、181 次追加）、Pi root 与父结束后的同一 child 续接（74 次 child 更新、70 次追加）、快捷助手、划词窗口、已保存历史刷新，以及停止后再次发送。这些观察验证交付行为，不构成比较性能结论。两条旧 `subagentWake` 测试在干净的 P3 父分支检出中也失败，单独保留为已知问题。P3 续接顺序、崩溃/恢复和比较性能门槛仍未关闭。
 
 #### 边界四：保存产品关联，恢复原生状态
 
@@ -665,6 +700,7 @@ P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/Ch
 - P1 强制增加独立 input/attempt 表或逐消息 `contextId`：本阶段不采用。逻辑身份无需独立表；复用已提交消息及最少私有提交元数据，评估会话/分支锚点绑定。独立保留输入需要具体消费者证明必要性。
 - 把 child 内容及其流生命周期保留在父消息内，只增加节流或订阅包装：P3 不采用，因为所有权、恢复和完整父消息发布仍然耦合。每条 child 消息复用 SDK reader 仍是所选设计的一部分。
 - 仅因 SDK 输出快照就另建 child 消息结构或替换其 parser：不采用，因为既有产品模型与增量 parser 可以复用；快照输出不决定传输粒度，也没有测量依据支持替换 parser。
+- 长期保留两套桌面观察协议，或仅给 child 路由改名：前者眼下改动最少，但会重复维护附着、gap 和终态处理；后者保留了这种重复。让两个真实生产端共用交付路径，同时保持各自的执行所有者。
 - 把更大的 observation buffer 或不等待的 sink 当持久日志：不采用，因为同步突发和原生压缩仍可能移除中间事实；归档对账需要原生身份及覆盖证据。
 - 把 child 行插入父级普通消息路径，或为每份 child 归档创建新的原生 root：不采用，因为两者都会改变所有权和续接语义。复用独立产品归档，但不授予独立执行所有者身份。
 
@@ -688,8 +724,12 @@ P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/Ch
 - AC14 — 溢出、压缩、重开和关闭后，有映射的原生已提交内容只恢复一次；不可用映射保留可见断点，归档失败绝不变成产品成功终态或重复执行。 (verification: unit — Pi 原生历史、真实 DB 与关闭集成 fixture)
 - AC15 — Observation 替换在交接前排空已接纳写入；迟到回调不能覆盖更新视图，附着的 replay/live 重叠时每个更新仅应用一次，消费者失败保持隔离且诊断有界。 (verification: unit — 宿主 writer、传输与故障注入 fixture)
 - AC16 — 独立 child 渲染在父结束和多窗口下通过一个 Main writer 保留流式内容；普通更新仅触及变化的 child Item/part，不发布完整父消息、不重新获取完整历史，也不重渲染未变化兄弟。可比较的单/十 child 场景记录 IPC、持久化和渲染成本。 (verification: Electron — child 投影与性能场景)
+- AC17 — Root 与 child 共享桌面快照/补丁订阅契约。提前更新、终态附着、重复交付、revision 缺失、有界缓冲溢出及发布者替换，都能收敛到指定范围的 Main 视图，不丢已存历史，也不接纳退役回调。 (verification: unit — 覆盖两个所有者的共享发布/订阅 fixture)
+- AC18 — Chat、Agent root/child、快捷助手和划词窗口消费共享投影，不保留重复的 Renderer chunk reader；多模型并发、续接、审批、命令及终态到 DB 的交接保持行为。关闭视图既不停止后台工作，也不授予 child 控制权。 (verification: Electron — 共享桌面观察后续工作)
 
 ## Risks
+
+AC17–AC18 属于后续桌面观察方案，不属于已完成的 P3-A/B/C 证据。Root 迁移必须覆盖额外的 SDK transport 消费者和复用的 execution ID；仅共享 child 补丁类型不能证明行为一致。这项交付改动不解决原生历史缺口，也不解决下述同一 child 消息排序问题。
 
 Rebase 后的验证发现了一次同一 child 续聊时已有消息顺序的偶发失败。后续定向运行和不同流速探测均通过，但没有生产代码修复，根因仍未确定，P3 验收仍受此阻塞。PR 保持 Draft，并保留失败运行的证据。
 

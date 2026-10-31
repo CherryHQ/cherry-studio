@@ -343,7 +343,7 @@ A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/m
 
 **What counts as state** — values retained **across calls** that change observable behavior. Not state: a transparent perf cache (memoization that changes only latency), and transient in-flight values confined to a single async flow (e.g. a listener registered and removed within one operation).
 
-**Multi-instance helper classes take no suffix.** A class with per-instance state, instantiated by its consumers (a tokenizer, a transport, a subscription — `ShikiStreamTokenizer`, `IpcChatTransport`, `TopicStreamSubscription`), is not a singleton capability: name it a plain `PascalCase` descriptive noun. The suffix marks the singleton-capability **role**, not the presence of fields.
+**Multi-instance helper classes take no suffix.** A class with per-instance state, instantiated by its consumers (a tokenizer, a transport, a subscription — `ShikiStreamTokenizer`, `MessageProjection`, `ProjectionSubscriptions`), is not a singleton capability: name it a plain `PascalCase` descriptive noun. The suffix marks the singleton-capability **role**, not the presence of fields.
 
 **Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state stay plain modules and do not receive a `Service` / `Manager` suffix.
 
@@ -353,7 +353,7 @@ A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/m
 |---|---|---|
 | Stateless helper — computes values (queries, conversions, predicates, formatters); **reads** via downward infra (`data` / `ipc`) are fine | `utils/` (or feature-local `utils/` subdirectory) — the **default** for stateless shared modules | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
 | Stateless module with **outward side effects** (opens windows / popups, writes the clipboard, fires app events, performs `data` / `ipc` **writes**, drives other subsystems; logging does not count) — or **dependency-forced** out of `utils/` (must import `services/`, which `utils/` may not) | `services/` (or feature-local `services/`) — state the reason in the PR | `<topic>.ts` (camelCase; **no** `Service` suffix — it is not a stateful class) |
-| Multi-instance stateful helper class | co-located with its consumer (topic dir / feature), or `services/` | `PascalCase` descriptive noun, **no suffix** (`IpcChatTransport`) |
+| Multi-instance stateful helper class | co-located with its consumer (topic dir / feature), or `services/` | `PascalCase` descriptive noun, **no suffix** (`MessageProjection`) |
 | Depends on React lifecycle / state / context | `hooks/` (or co-located with the consuming feature) | `useXxx.ts` (the `use` prefix is the role marker — see §3.2) |
 | Renders JSX / owns view markup | `components/` (shared) or `pages/` (route-bound) | `Xxx.tsx` (PascalCase — see §3.1) |
 | Single-call pass-through to `window.api.*` | inlined at the call site | (no file) |

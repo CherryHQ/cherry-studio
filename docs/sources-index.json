@@ -67,7 +67,7 @@
     },
     {
       "path": "docs/references/ai/execution-overlay.md",
-      "sources": ["src/renderer/hooks/useExecutionOverlay.ts","src/renderer/services/aiTransport/TopicStreamSubscription.ts"]
+      "sources": ["src/main/ai/agentSession/ChildThreadProjection.ts","src/main/ai/messages/MessageProjection.ts","src/main/ai/messages/ProjectionSubscriptions.ts","src/main/ai/streamManager/TopicMessageProjection.ts","src/renderer/hooks/agent/useAgentChildProjection.ts","src/renderer/hooks/useExecutionOverlay.ts","src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts","src/renderer/services/aiTransport/MessageProjectionService.ts","src/shared/ai/messageProjection.ts"]
     },
     {
       "path": "docs/references/ai/image-generation-parameters.md",
@@ -75,7 +75,7 @@
     },
     {
       "path": "docs/references/ai/ipc-transport.md",
-      "sources": ["src/renderer/services/aiTransport/IpcChatTransport.ts","src/renderer/services/aiTransport/StreamDispatchService.ts","src/renderer/services/aiTransport/TopicStreamSubscription.ts"]
+      "sources": ["src/main/ipc/handlers/ai.ts","src/renderer/hooks/useStreamCommands.ts","src/renderer/services/aiTransport/MessageProjectionService.ts","src/renderer/services/aiTransport/StreamDispatchService.ts","src/shared/ipc/schemas/ai.ts"]
     },
     {
       "path": "docs/references/ai/local-models.md",

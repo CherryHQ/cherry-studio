@@ -636,7 +636,7 @@ describe('useAgentChatRuntimeState', () => {
       await act(async () => {
         mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack)
         emitError()
-        mocks.useExecutionOverlay.mock.lastCall?.[3]?.onFinish(execution.executionId, {
+        mocks.useExecutionOverlay.mock.lastCall?.[2]?.onFinish(execution.executionId, {
           attemptId: execution.attemptId,
           message: { ...message, parts: [{ type: 'data-error', data: error }] },
           isError: true,
@@ -844,7 +844,7 @@ describe('useAgentChatRuntimeState', () => {
       const error = { name: 'Error', message: 'compact execution failed', stack: null }
       const finish = () => {
         if (overlay) {
-          mocks.useExecutionOverlay.mock.lastCall?.[3]?.onFinish(execution.executionId, {
+          mocks.useExecutionOverlay.mock.lastCall?.[2]?.onFinish(execution.executionId, {
             attemptId: execution.attemptId,
             message: { id: 'compact', role: 'assistant', parts: [{ type: 'data-error', data: error }] },
             isError: true,
@@ -974,7 +974,7 @@ describe('useAgentChatRuntimeState', () => {
     renderHook(() =>
       useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
     )
-    const onUpdate = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onUpdate
+    const onUpdate = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onUpdate
     await act(async () => {
       onUpdate?.('provider::model', {
         attemptId: 8,
@@ -1013,7 +1013,7 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
     expect(onFinish).toEqual(expect.any(Function))
     const completed = {
       ...assistantMessage,
@@ -1066,7 +1066,7 @@ describe('useAgentChatRuntimeState', () => {
         reservedMessages: []
       })
     )
-    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
 
     act(() => {
       onFinish?.('provider::model', {
@@ -1102,7 +1102,7 @@ describe('useAgentChatRuntimeState', () => {
           [AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('another-session', assistantMessage.id), { kind: 'background-work' }]
         ]
       })
-      const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+      const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
       act(() => {
         onFinish?.('provider::model', {
           attemptId: 9,

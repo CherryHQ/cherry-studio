@@ -9,7 +9,9 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import { loggerService } from '@logger'
-import type { AgentChildPatch, AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
+import { MessageProjection } from '@main/ai/messages/MessageProjection'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
+import type { ChildProjectionState } from '@shared/ai/messageProjection'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
@@ -26,6 +28,7 @@ type Composition = Record<string, { messageId: string; parts: number[] }[]>
 
 export function savedChildView(context: AgentSessionContextRow): AgentChildView {
   return {
+    kind: 'child',
     contextId: context.id,
     sessionId: context.sessionId,
     revision: 0,
@@ -56,7 +59,7 @@ export class ChildThreadProjection {
   private readonly nativeIds: Record<string, string>
   private readonly saved = new Map<string, CherryUIMessage>()
   private readonly removed: Set<string>
-  private readonly listeners = new Set<(update: AgentChildUpdate) => void>()
+  private readonly delivery: MessageProjection<ChildProjectionState>
   private timer?: ReturnType<typeof setTimeout>
   private pending: Promise<void> = Promise.resolve()
   private stopped = false
@@ -79,6 +82,7 @@ export class ChildThreadProjection {
     this.nativeIds = { ...(context.checkpointMapping?.projection as Record<string, string> | undefined) }
     this.composition = { ...(context.checkpointMapping?.composition as Composition | undefined) }
     this.view = savedChildView(context)
+    this.delivery = new MessageProjection<ChildProjectionState>(this.view)
     this.archiveGap = this.view.diagnostic
     for (const row of readAgentSessionPath(application.get('DbService').getDb(), context.sessionId))
       this.saved.set(row.id, {
@@ -94,10 +98,7 @@ export class ChildThreadProjection {
   }
 
   subscribe(listener: (update: AgentChildUpdate) => void): () => void {
-    this.listeners.add(listener)
-    return () => {
-      this.listeners.delete(listener)
-    }
+    return this.delivery.subscribe(listener)
   }
 
   attach(): Promise<void> {
@@ -409,51 +410,8 @@ export class ChildThreadProjection {
   }
 
   private publish(next: AgentChildView): void {
-    if (isDeepStrictEqual(next, this.view)) return
-    const previous = new Map(this.view.messages.map((message) => [message.id, message]))
-    const patches: AgentChildPatch[] = []
-    for (const message of next.messages) {
-      const before = previous.get(message.id)
-      if (isDeepStrictEqual(before, message)) continue
-      const appended: AgentChildPatch[] = []
-      const appendOnly =
-        before &&
-        before.role === message.role &&
-        before.parts.length === message.parts.length &&
-        isDeepStrictEqual(before.metadata, message.metadata) &&
-        message.parts.every((part, index) => {
-          const old = before.parts[index]
-          if (isDeepStrictEqual(old, part)) return true
-          if (
-            (part.type !== 'text' && part.type !== 'reasoning') ||
-            old.type !== part.type ||
-            !('text' in old) ||
-            !part.text.startsWith(old.text) ||
-            !isDeepStrictEqual({ ...old, text: '' }, { ...part, text: '' })
-          )
-            return false
-          appended.push({ type: 'append', messageId: message.id, part: index, text: part.text.slice(old.text.length) })
-          return true
-        })
-      patches.push(...(appendOnly ? appended : [{ type: 'message' as const, message }]))
-    }
-    this.view = { ...next, revision: this.view.revision + 1 }
-    const update: AgentChildUpdate = {
-      revision: this.view.revision,
-      patches,
-      order: next.messages.map((message) => message.id),
-      active: next.active,
-      available: next.available,
-      diagnostic: next.diagnostic
-    }
-    for (const listener of this.listeners) {
-      try {
-        listener(update)
-      } catch (error) {
-        this.listeners.delete(listener)
-        logger.warn('Child subscriber detached', { error })
-      }
-    }
+    this.delivery.update(next, true)
+    this.view = this.delivery.snapshot()
   }
 
   async stop(): Promise<void> {
@@ -465,7 +423,7 @@ export class ChildThreadProjection {
     await this.flush()
     await this.projection.close()
     this.publish({ ...this.view, available: false, active: false })
-    this.listeners.clear()
+    this.delivery.dispose()
   }
 
   get thread(): Thread {

@@ -196,7 +196,7 @@ export function useChatRuntimeState({
     liveAssistants,
     disposeOverlay,
     reset: resetOverlay
-  } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
+  } = useExecutionOverlay(topic.id, branchActiveExecutions, {
     onUpdate: (_executionId, event) =>
       autoReadService.update({
         ...event,
