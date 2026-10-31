@@ -147,7 +147,7 @@ describe('topicFileExport', () => {
       vi.mocked(dataApiService.get).mockImplementation(async (...args) => {
         const result = await original(...args)
         if (args[0] !== '/topics/topic-1/tree') return result
-        const tree = result as any
+        const tree = result
         if (kind === 'node') tree.nodes.find((node: any) => node.id === 'a1').hasChildren = true
         else tree.siblingsGroups[0].nodes.find((node: any) => node.id === 'a2a').hasChildren = true
         return tree
@@ -162,7 +162,7 @@ describe('topicFileExport', () => {
     vi.mocked(dataApiService.get).mockImplementation(async (...args) => {
       const result = await original(...args)
       if (args[0] === '/topics/topic-1/tree') {
-        const tree = result as any
+        const tree = result
         tree.nodes.find((node: any) => node.id === 'u2').hasChildren = true
       }
       return result
