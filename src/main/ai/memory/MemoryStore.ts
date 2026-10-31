@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir } from 'node:fs/promises'
+import { lstat, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import { Mutex } from 'async-mutex'
@@ -27,7 +27,6 @@ import {
   memoryHash,
   readMemoryBytes,
   readMemoryEntry,
-  statIfPresent,
   writeMemoryBytes
 } from './memoryFiles'
 
@@ -447,7 +446,12 @@ export class MemoryStore {
     const files = new Set<string>()
     for (const change of changes) {
       const name = process.platform === 'win32' ? change.path.toLowerCase() : change.path
-      const stat = await statIfPresent(await assertMemoryPath(this.root, change.path))
+      const stat = await lstat(await assertMemoryPath(this.root, change.path), { bigint: true }).catch(
+        (error: NodeJS.ErrnoException) => {
+          if (error.code !== 'ENOENT') throw error
+          return undefined
+        }
+      )
       const identity = stat ? `${stat.dev}:${stat.ino}` : undefined
       if (names.has(name) || (identity !== undefined && files.has(identity))) {
         throw new MemoryError('conflict', 'A memory batch must name each physical target once')
