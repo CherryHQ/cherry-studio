@@ -13,18 +13,20 @@ export const MEMORY_WARNING_BYTES = 20_000
 export const MEMORY_WARNING_LINES = 160
 const COMPLETE_READ_BYTES = 20 * 1024 * 1024
 
-export async function initializeMemoryFiles(root: string): Promise<void> {
+export async function initializeMemoryFiles(root: string, options: { createEntry?: boolean } = {}): Promise<void> {
   await mkdir(root, { recursive: true, mode: 0o700 })
   await assertMemoryPath(root, '')
   await ensureMemoryDirectory(root, MEMORY_TOPICS)
   if (process.platform === 'win32')
     await promisify(execFile)('attrib.exe', ['+H', path.join(root, MEMORY_TOPICS)], { windowsHide: true })
-  const entry = await assertMemoryPath(root, MEMORY_ENTRY)
-  try {
-    const handle = await open(entry, 'wx', 0o600)
-    await handle.close()
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+  if (options.createEntry !== false) {
+    const entry = await assertMemoryPath(root, MEMORY_ENTRY)
+    try {
+      const handle = await open(entry, 'wx', 0o600)
+      await handle.close()
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    }
   }
   await readMemoryEntry(root)
 }
