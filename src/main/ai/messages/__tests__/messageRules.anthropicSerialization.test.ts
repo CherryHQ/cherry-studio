@@ -9,7 +9,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { toModelMessages } from '../messageRules'
 
-type WirePart = { type: string; id?: string; tool_use_id?: string; input?: unknown }
+type WirePart = {
+  type: string
+  id?: string
+  name?: string
+  tool_use_id?: string
+  input?: unknown
+  text?: string
+  content?: unknown
+}
 type WireBody = { messages: Array<{ role: string; content: WirePart[] }> }
 
 const captures: Array<{ bytes: string; status: number }> = []
@@ -17,12 +25,24 @@ const server = createServer(async (request, response) => {
   let bytes = ''
   for await (const chunk of request) bytes += chunk.toString()
   const body: WireBody = JSON.parse(bytes)
-  const invalid = body.messages
-    .flatMap((message) => message.content)
-    .some(
-      (part) =>
-        part.type === 'tool_use' && (part.input === null || typeof part.input !== 'object' || Array.isArray(part.input))
-    )
+  const parts = body.messages.flatMap((message) => message.content)
+  const invalidToolInput = parts.some(
+    (part) =>
+      part.type === 'tool_use' && (part.input === null || typeof part.input !== 'object' || Array.isArray(part.input))
+  )
+  const invalidEncryptedSearchResult = parts.some(
+    (part) =>
+      part.type === 'web_search_tool_result' &&
+      Array.isArray(part.content) &&
+      part.content.some(
+        (result) =>
+          typeof result === 'object' &&
+          result !== null &&
+          'encrypted_content' in result &&
+          typeof result.encrypted_content === 'string'
+      )
+  )
+  const invalid = invalidToolInput || invalidEncryptedSearchResult
   const status = invalid ? 400 : 200
   captures.push({ bytes, status })
   response.writeHead(status, { 'content-type': 'application/json' })
@@ -31,7 +51,12 @@ const server = createServer(async (request, response) => {
       invalid
         ? {
             type: 'error',
-            error: { type: 'invalid_request_error', message: 'tool_use.input: Input should be an object' }
+            error: {
+              type: 'invalid_request_error',
+              message: invalidToolInput
+                ? 'tool_use.input: Input should be an object'
+                : 'Invalid `encrypted_content` in `search_result` block'
+            }
           }
         : {
             id: 'msg_oracle',
@@ -82,15 +107,18 @@ const good = {
   output: { found: true }
 } as const
 
-async function replay(parts: UIMessage['parts']) {
+async function replay(parts: UIMessage['parts'], includeWebSearch = false) {
   const messages = await toModelMessages([
     { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'before' }] },
     { id: 'a1', role: 'assistant', parts },
     { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'after' }] }
   ])
+  const anthropic = createAnthropic({ apiKey: 'dummy-key', baseURL })
+  const tools = includeWebSearch ? { webSearch: anthropic.tools.webSearch_20260209({ maxUses: 3 }) } : undefined
   const result = await generateText({
-    model: createAnthropic({ apiKey: 'dummy-key', baseURL })('claude-sonnet-4-5'),
+    model: anthropic('claude-sonnet-4-5'),
     messages,
+    tools,
     maxRetries: 0
   })
   const capture = captures.at(-1)!
@@ -142,5 +170,39 @@ describe('Anthropic replay over loopback HTTP', () => {
         ])
       )
     ).toBe(errorBytes)
+  })
+
+  it('completes a follow-up without replaying opaque provider web-search results', async () => {
+    const entries = await replay(
+      [
+        { type: 'text', text: 'Search summary.' },
+        {
+          type: 'tool-webSearch',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'example' },
+          output: [
+            {
+              type: 'web_search_result',
+              url: 'https://example.com',
+              title: 'Example',
+              pageAge: null,
+              encryptedContent: 'provider-issued-opaque-content'
+            }
+          ],
+          providerExecuted: true
+        }
+      ],
+      true
+    )
+    expect(entries).toEqual([])
+    const body: WireBody = JSON.parse(captures.at(-1)!.bytes)
+    const parts = body.messages.flatMap((message) => message.content)
+    expect(parts).not.toContainEqual(expect.objectContaining({ type: 'server_tool_use', name: 'web_search' }))
+    expect(parts).not.toContainEqual(expect.objectContaining({ type: 'web_search_tool_result' }))
+    expect(parts).toContainEqual({
+      type: 'text',
+      text: 'Search summary.'
+    })
   })
 })

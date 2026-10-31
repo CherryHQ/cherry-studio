@@ -167,6 +167,37 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
   })
 }
 
+function hasEncryptedWebSearchResult(output: unknown): boolean {
+  if (!Array.isArray(output)) return false
+  return output.some((result) => {
+    if (typeof result !== 'object' || result === null) return false
+    const block = result as { type?: unknown; encryptedContent?: unknown; encrypted_content?: unknown }
+    return (
+      block.type === 'web_search_result' &&
+      (typeof block.encryptedContent === 'string' || typeof block.encrypted_content === 'string')
+    )
+  })
+}
+
+function isEncryptedProviderWebSearch(part: UIMessage['parts'][number]): boolean {
+  if (!isToolUIPart(part) || part.providerExecuted !== true || part.state !== 'output-available') return false
+  const toolName = part.type === 'dynamic-tool' ? part.toolName : part.type.slice('tool-'.length)
+  return toolName === 'webSearch' && hasEncryptedWebSearchResult(part.output)
+}
+
+/** Drop opaque provider search payloads because history edits can invalidate them. */
+function dropEncryptedProviderWebSearchResults<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    const parts = message.parts.filter((part) => !isEncryptedProviderWebSearch(part))
+    if (parts.length === message.parts.length) return
+    out ??= [...messages]
+    out[messageIndex] = { ...message, parts }
+  })
+  return out ?? messages
+}
+
 /** Replay input that is not a JSON object reaches providers as tool_use.input; Anthropic rejects it: "Input should be an object" (#22503).
  * Drop the whole part (call, result and approval) from replay; the stored/UI part stays untouched.
  */
@@ -286,8 +317,8 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  * render persisted tool-output envelopes back into their <persisted-output> markers →
  * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
  * strip media the model can't accept → drop tool
- * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
- * restore inferable legacy step boundaries →
+ * calls parked on an unanswered approval → drop provider search results with opaque encrypted
+ * payloads → drop tool parts with non-object replay inputs → restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -302,7 +333,11 @@ export async function toModelMessages(
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
     deduplicateLocalToolParts(
-      dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+      dropNonObjectToolInputs(
+        dropEncryptedProviderWebSearchResults(
+          dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
+        )
+      )
     )
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
