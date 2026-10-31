@@ -13,6 +13,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ComposerMessageTokenPayload } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getFileTypeByExt } from '@shared/utils/file'
+import { hasOrderedContent } from '@shared/utils/orderedMessageParts'
 
 import { trimTextBoundaryBlankLines } from '../../composerDraft'
 import { type ComposerSerializedDraft, type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
@@ -261,6 +262,43 @@ function createEditableAttachment(
 }
 
 export function createEditableMessageDraft(parts: CherryMessagePart[], messageId: string): EditableMessageDraft {
+  if (hasOrderedContent(parts)) {
+    let text = ''
+    const draftTokens: ComposerSerializedToken[] = []
+    const files: ComposerAttachment[] = []
+    for (const part of parts) {
+      if (part.type === 'text') {
+        for (const token of readCherryMeta(part)?.composer?.tokens ?? []) {
+          if (token.kind !== 'file' && isComposerDraftTokenKind(token.kind)) {
+            draftTokens.push({
+              ...token,
+              kind: token.kind,
+              index: draftTokens.length,
+              textOffset: text.length + token.textOffset
+            })
+          }
+        }
+        text += part.text
+      } else if (part.type === 'file') {
+        const sourceId =
+          getComposerFileTokenSourceId({ fileTokenSourceId: readCherryMeta(part)?.fileTokenSourceId }) ??
+          createComposerFileTokenSourceId()
+        const file = createEditableAttachment(part, files.length, sourceId, undefined)
+        if (!file) continue
+        file.composerFileKind = readCherryMeta(part)?.composerFileKind
+        files.push(file)
+        draftTokens.push({
+          id: composerFileTokenIdFromSourceId(sourceId),
+          kind: 'file',
+          label: file.origin_name,
+          index: draftTokens.length,
+          textOffset: text.length,
+          payload: file
+        })
+      }
+    }
+    return { text, draftTokens, files }
+  }
   const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
   const { text, anchors } = buildEditableText(parts, messageId)
   // Recover the composer snapshot even when the reply was split across multiple text parts
@@ -307,6 +345,19 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
     return { ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }
   })
 
+  for (const file of files) {
+    const id = composerFileTokenIdFromSourceId(file.fileTokenSourceId)
+    if (!normalizedDraftTokens.some((token) => token.id === id)) {
+      normalizedDraftTokens.push({
+        id,
+        kind: 'file',
+        label: file.origin_name,
+        index: normalizedDraftTokens.length,
+        textOffset: text.length,
+        payload: file
+      })
+    }
+  }
   return { text, draftTokens: [...normalizedDraftTokens, ...anchors], files }
 }
 

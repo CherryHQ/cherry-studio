@@ -666,6 +666,35 @@ describe('MessagePartsRenderer', () => {
       expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
+    it('keeps ordered images between text segments even when legacy attachments are hoisted', () => {
+      const providerMetadata = { cherry: { contentFormat: 'ordered-parts-v1' } }
+      renderParts(
+        [
+          { type: 'text', text: 'Before image', providerMetadata },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata
+          },
+          { type: 'text', text: 'After image', providerMetadata }
+        ],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+      const before = screen.getByText('Before image')
+      const image = screen.getByTestId('mock-image-block')
+      const after = screen.getByText('After image')
+      expect(before.compareDocumentPosition(image) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(image.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.getAllByTestId('mock-image-block')).toHaveLength(1)
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
     it('renders a sent user image instead of its composer file token', () => {
       const persisted = UpdateAgentSessionMessageSchema.parse({
         data: {

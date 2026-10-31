@@ -3097,16 +3097,21 @@ describe('ChatComposer', () => {
     })
     const sentOptions = onSend.mock.calls[0]?.[1]
     expect(sentOptions?.userMessageParts).toEqual([
-      expect.objectContaining({ type: 'text', text: 'quoted text follow up' }),
       {
         type: 'file',
         url: 'file:///p/fe-1.pdf',
         mediaType: 'application/pdf',
         filename: 'doc.pdf',
         providerMetadata: {
-          cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1', originalPath: '/tmp/doc.pdf' }
+          cherry: {
+            contentFormat: 'ordered-parts-v1',
+            fileEntryId: 'fe-1',
+            fileTokenSourceId: 'source-1',
+            originalPath: '/tmp/doc.pdf'
+          }
         }
-      }
+      },
+      expect.objectContaining({ type: 'text', text: 'quoted text follow up' })
     ])
   })
 
@@ -3914,7 +3919,9 @@ describe('ChatComposer', () => {
         kind: 'quote',
         label: 'Quote',
         textOffset: 0
-      })
+      }),
+      expect.objectContaining({ kind: 'file', label: 'default-topic.png', textOffset: 52 }),
+      expect.objectContaining({ kind: 'file', label: 'report.pdf', textOffset: 52 })
     ])
     expect(mocks.surfaceProps?.tokens).toEqual([
       expect.objectContaining({
@@ -4250,6 +4257,7 @@ describe('ChatComposer', () => {
       providerMetadata: {
         cherry: {
           fileEntryId: 'file-entry-1',
+          contentFormat: 'ordered-parts-v1',
           fileTokenSourceId: fileToken?.id.slice('file:'.length)
         }
       }
@@ -4348,22 +4356,14 @@ describe('ChatComposer', () => {
     })
 
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
-    expect(editedParts[0]).toMatchObject({
-      type: 'text',
-      text: 'test.pdf 你好',
-      providerMetadata: {
-        cherry: {
-          composer: {
-            tokens: [expect.objectContaining({ id: rewrittenToken?.id, kind: 'file', textOffset: 0 })]
-          }
-        }
-      }
-    })
+    expect(editedParts.map((part) => part.type)).toEqual(['file', 'text'])
+    expect(editedParts[1]).toMatchObject({ type: 'text', text: 'test.pdf 你好' })
     expect(editedParts.find((part) => part.type === 'file')).toEqual({
       ...filePart,
       providerMetadata: {
         cherry: {
           fileEntryId: 'file-entry-1',
+          contentFormat: 'ordered-parts-v1',
           fileTokenSourceId: rewrittenToken?.id.slice('file:'.length)
         }
       }
@@ -4457,20 +4457,22 @@ describe('ChatComposer', () => {
     // editable draft and resent parts use fresh file token sources.
     expect(fileParts).toEqual([
       {
-        ...pngPart,
-        providerMetadata: {
-          cherry: {
-            fileEntryId: 'entry-png',
-            fileTokenSourceId: rewrittenPngToken?.id.slice('file:'.length)
-          }
-        }
-      },
-      {
         ...pdfPart,
         providerMetadata: {
           cherry: {
             fileEntryId: 'entry-pdf',
+            contentFormat: 'ordered-parts-v1',
             fileTokenSourceId: rewrittenPdfToken?.id.slice('file:'.length)
+          }
+        }
+      },
+      {
+        ...pngPart,
+        providerMetadata: {
+          cherry: {
+            fileEntryId: 'entry-png',
+            contentFormat: 'ordered-parts-v1',
+            fileTokenSourceId: rewrittenPngToken?.id.slice('file:'.length)
           }
         }
       }
@@ -4546,6 +4548,7 @@ describe('ChatComposer', () => {
       providerMetadata: {
         cherry: {
           fileEntryId: 'real-1',
+          contentFormat: 'ordered-parts-v1',
           fileTokenSourceId: rewrittenToken?.id.slice('file:'.length)
         }
       }

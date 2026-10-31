@@ -92,6 +92,7 @@ import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toF
 
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
+import { createOrderedComposerParts } from '../composerOrderedParts'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -1507,7 +1508,8 @@ const AgentComposerInner = ({
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
         const retainedParts = attachments.map((attachment) => {
           const index = initialDraft.files.findIndex((file) => file.fileTokenSourceId === attachment.fileTokenSourceId)
-          return index >= 0 ? originals[index] : undefined
+          const original = index >= 0 ? originals[index] : undefined
+          return original ? withComposerFilePartMeta(original, attachment) : undefined
         })
         const addedParts = await buildAgentFilePartsForAttachments(
           attachments.filter((_, index) => !retainedParts[index]),
@@ -1521,7 +1523,7 @@ const AgentComposerInner = ({
             body: {
               agentId,
               sessionId,
-              userMessageParts: [...payload.userMessageParts, ...fileParts],
+              userMessageParts: createOrderedComposerParts(payload.userMessageParts, fileParts),
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {})

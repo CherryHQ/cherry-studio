@@ -4405,6 +4405,7 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   fileTokenSourceId: 'source-workspace-file-1',
                   originalPath: '/workspace/docs/notes.md'
                 }
@@ -4548,6 +4549,7 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   fileTokenSourceId: 'source-workspace-file-1',
                   originalPath: 'C:/workspace/docs/notes.md'
                 }
@@ -4636,18 +4638,10 @@ describe('AgentComposer', () => {
               text: 'hello',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   composer: {
                     version: 1,
-                    tokens: [
-                      {
-                        id: 'file:source-file-1',
-                        kind: 'file',
-                        label: 'notes.md',
-                        index: 0,
-                        textOffset: 5,
-                        payload: { name: 'notes.md', origin_name: 'notes.md' }
-                      }
-                    ]
+                    tokens: []
                   }
                 }
               }
@@ -4659,6 +4653,7 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   fileEntryId: 'fe-1',
                   fileTokenSourceId: 'source-file-1',
                   originalPath: '/tmp/notes.md'

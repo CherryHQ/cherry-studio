@@ -18,13 +18,13 @@ This proposal covers single user-message content order in Chat and Agent Compose
 
 ### One order in the message contract
 
-New Composer sends persist `MessageData.contentFormat: "ordered-parts-v1"` with `parts` in reading order:
+New Composer sends persist `providerMetadata.cherry.contentFormat: "ordered-parts-v1"` on each visible text/file part, with `parts` in reading order:
 
 ```text
 text("text A") → file(image A) → text("text B") → file(file B) → text("text C")
 ```
 
-The marker is optional for existing messages. Carry it through send/edit schemas, queue payloads, persistence, and `CherryUIMessage.metadata`; schema validation must reject unsupported marker values. This uses existing JSON storage and requires no SQLite migration. `parts` owns attachment membership and order for marked messages; the marker selects that contract, and Composer metadata must not override it.
+The marker is optional for existing messages. The existing parts payload carries it through sends, edits, queues, persistence, and `CherryUIMessage`; the Cherry text/file metadata schemas reject unsupported marker values. Keeping the marker beside the content avoids a second message-level field and parallel propagation paths. This uses existing JSON storage and requires no SQLite migration. `parts` owns attachment membership and order for marked messages; the marker selects that contract, and Composer metadata must not override it.
 
 Persist non-file Composer tokens on their owning text segment with segment-local offsets. Represent a file by its actual file part, retaining `providerMetadata.cherry.fileTokenSourceId` and the existing file metadata; do not also persist it as an inline file token on a text part. A token-only segment may retain an empty text part when required to preserve a non-file token.
 
@@ -37,6 +37,8 @@ Do not trim individual text segments or insert separators between them. Preserve
 Resolve membership from the submitted draft snapshot, not later live Composer state. A deleted token cannot reintroduce an attachment. A new send with a missing or ambiguous token-to-part association fails through the existing send failure path and preserves the draft or queued payload; it must not guess a position or silently omit content. Queue submission and retry reuse the captured payload, and only successful sends clear it. Knowledge scope and other hidden control parts keep their existing semantics outside the ordered visible content.
 
 ### Preserve order through model conversion
+
+Scheme C adds `[Attachment N: "filename"]` immediately before each attachment in model input. Number all attachment kinds together from 1 within each message, in part order. Same-name files remain distinct numbered occurrences. Recompute numbers after edits; do not persist them into user text, show them as extra Composer content, or change tool handles. OCR, native images, file paths, and failure notes retain the preceding number.
 
 The Chat attachment router continues replacing each file at its position with native content, extracted text, or its existing failure note. Preserve request-wide extraction budgets, tool allow-lists, capability gates, cancellation, and errors that currently stop a provider request. Eligibility checks for marked messages use actual file parts, so removing duplicated Composer file tokens does not deactivate attachments.
 
@@ -52,13 +54,13 @@ For marked messages, editing reconstructs the draft by concatenating text segmen
 
 Message display, copy, Markdown export, and text extraction traverse marked messages in part order. Render each file once at its location; do not hoist it or duplicate it as both a file block and a Composer chip. Plain-text projections can use the existing attachment labels/paths but must retain their position. Metadata-only empty text parts must not add visible blank blocks.
 
-Unmarked messages retain their stored order and legacy attachment-eligibility rules. Do not rewrite the historical database or guess old insertion points from filenames. When an old message is explicitly edited, restore reliable existing Composer token identities and offsets; unmatched attachments remain at the end of the editable draft with fresh identities. That new submission receives the ordered format. Unmarked Gateway messages that already supply interleaved parts keep their supplied sequence.
+Unmarked messages retain their stored order and legacy attachment-eligibility rules. Do not rewrite the historical database or guess old insertion points from filenames. When an old message is explicitly edited, restore reliable existing Composer token identities and offsets; unmatched attachments remain at the end of the editable draft with fresh identities. That new submission receives the ordered format. Unmarked Gateway inputs keep their existing conversion behavior; this change does not reinterpret their attachment membership.
 
 ### Ownership and delivery
 
 Shared message types and schemas own the format discriminator. Renderer Composer utilities own draft-to-parts assembly and edit restoration. Main attachment routing and runtime adapters consume ordered parts without learning Composer layout. Shared message presentation and export own their projections.
 
-Deliver through a Spec-first stack: this bilingual contract; a contract/Composer/persistence/editing layer; then a runtime/presentation/verification layer. Intermediate layers retain the proposed note. The final layer moves the triplet to implemented only after every criterion below has actual evidence. Keep changes limited to consumers whose existing grouping or metadata rules would violate this contract.
+The user approved Scheme C and requested implementation in the same PR. Deliver the contract, Composer, persistence, runtime, presentation, and verification changes together. Retain the proposed note until every criterion below has actual evidence. Keep changes limited to consumers whose existing grouping or metadata rules would violate this contract.
 
 ## Alternatives considered
 
@@ -74,9 +76,9 @@ Deliver through a Spec-first stack: this bilingual contract; a contract/Composer
 - AC2 — Chinese, emoji, newlines, Markdown hard breaks, indentation, and non-file tokens survive assembly and edit round-trips without added separators, trimmed segments, or shifted token positions (verification: renderer draft and message-editing tests)
 - AC3 — Same-name files and repeated references retain distinct identities; async materialization finishing out of order cannot reorder parts; missing or ambiguous new-send associations preserve the unsent draft or queue item and do not call the send boundary (verification: renderer Composer and queue tests)
 - AC4 — Save/reload, queued send, retry, edit/resend, and Agent steer preserve the format marker, order, and exact attachment membership; deleted files never reappear (verification: schema, real database persistence, renderer consumer, and runtime input tests)
-- AC5 — Chat provider input and Claude Code SDK input preserve native images, extracted/OCR content, file paths, and permitted failure notes at their source positions; existing budgets, capability failures, path resolution, and attachment allow-lists retain their contracts (verification: main attachment-routing and provider/runtime adapter tests)
+- AC5 — Chat provider input and Claude Code SDK input preserve native images, extracted/OCR content, file paths, and permitted failure notes at their source positions with per-message attachment numbers; existing budgets, capability failures, path resolution, and attachment allow-lists retain their contracts (verification: main attachment-routing and provider/runtime adapter tests)
 - AC6 — Pi prompt, steer, and history reconstruction preserve interleaved text/path references; delivery content stays within its existing trust boundary across runtime adapters (verification: main Agent content, Pi, Claude Code, and delivery tests)
-- AC7 — Display, editing, copy, and export retain marked message order and render each attachment once; legacy messages remain readable, ambiguous legacy attachments are not guessed, and unmarked interleaved Gateway inputs retain their supplied order (verification: renderer presentation/export, main conversion, and legacy fixture tests)
+- AC7 — Display, editing, copy, and export retain marked message order and render each attachment once; legacy messages remain readable, ambiguous legacy attachments are not guessed, and unmarked Gateway inputs retain their existing conversion behavior (verification: renderer presentation/export, main conversion, and legacy fixture tests)
 - AC8 — A tracked Electron instance demonstrates an interleaved Chat send and Agent send, reload, attachment move/delete, edit/resend, and queued submission, with persisted parts and captured adapter/provider inputs agreeing with the Composer (verification: Electron evidence; provider/model comprehension is outside this acceptance claim)
 - AC9 — The final implementation includes only the verified change scope, updates semantically affected reference-document pairs, and records exact focused checks and outstanding platform/provider limits (verification: change scope, docs impact inspection, changed-file formatting/lint, affected type checks, focused tests, and docs gate)
 
@@ -90,4 +92,4 @@ Claude Code currently groups attachments by routing class. Its replacement must 
 
 Older app versions do not understand the marker and may display or resend new messages incorrectly. This proposal guarantees old-message readability in the updated application, not backward editing by an older binary. No historical data rewrite or automatic downgrade is included.
 
-No implementation or runtime validation has been completed by this Spec. Its acceptance criteria remain pending until the implementation layers supply evidence.
+Implementation and focused validation are recorded in the PR verification section. Model comprehension and cross-platform acceptance are separate from local serialization and Electron evidence.

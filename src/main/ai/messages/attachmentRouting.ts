@@ -1,3 +1,5 @@
+import { isAbortError } from '@ai-sdk/provider-utils'
+import type { UIMessage } from 'ai'
 /**
  * Chat-path attachment routing. In one pass over each message's parts, every
  * first-party (`fileEntryId`-backed) file part is either:
@@ -24,9 +26,6 @@
  * model).
  */
 
-import { isAbortError } from '@ai-sdk/provider-utils'
-import type { UIMessage } from 'ai'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
@@ -37,8 +36,10 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
+import { hasOrderedContent } from '@shared/utils/orderedMessageParts'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
+import { attachmentLabel, isImageFilePart } from './attachmentLabels'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
@@ -134,6 +135,8 @@ export interface PrepareChatContext {
    * has the file reference.
    */
   keepUnroutableFileParts?: boolean
+  /** Agent drivers materialize external images and forward other files by path. */
+  agentFileRouting?: boolean
   signal?: AbortSignal
 }
 
@@ -217,6 +220,8 @@ async function prepareChatMessage<T extends UIMessage>(
   if (!message.parts?.length) return message
 
   const kept: UIMessage['parts'] = []
+  const ordered = message.role === 'user' && hasOrderedContent(message.parts)
+  let attachmentNumber = 0
   const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
@@ -232,6 +237,19 @@ async function prepareChatMessage<T extends UIMessage>(
     }
 
     const fileEntryId = readCherryMeta(part)?.fileEntryId
+    if (fileEntryId && !isActiveManagedFilePart(part, composerFileTokenIds)) {
+      logger.warn('Ignoring orphaned managed file part', {
+        messageId: message.id,
+        displayName: part.filename ?? 'file',
+        fileEntryId
+      })
+      continue
+    }
+    if (ordered) kept.push({ type: 'text', text: `\n${attachmentLabel(++attachmentNumber, part.filename)}\n` })
+    if (ctx.agentFileRouting && (!fileEntryId || !isImageFilePart(part))) {
+      kept.push(part)
+      continue
+    }
     if (!fileEntryId) {
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
@@ -251,15 +269,6 @@ async function prepareChatMessage<T extends UIMessage>(
           kept.push(inlined)
         }
       }
-      continue
-    }
-
-    if (!isActiveManagedFilePart(part, composerFileTokenIds)) {
-      logger.warn('Ignoring orphaned managed file part', {
-        messageId: message.id,
-        displayName: part.filename ?? 'file',
-        fileEntryId
-      })
       continue
     }
 

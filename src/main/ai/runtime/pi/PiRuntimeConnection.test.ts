@@ -2,6 +2,7 @@ import type * as NodeFs from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
@@ -1175,6 +1176,31 @@ describe('PiRuntimeConnection', () => {
     mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
 
     expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
+  })
+
+  it('preserves numbered file positions in normal prompts and live steers', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const message = userInput('ordered')
+    const attachmentPath = path.join(tmpdir(), 'ordered.txt')
+    const providerMetadata = { cherry: { contentFormat: 'ordered-parts-v1' } }
+    message.message.data.parts = [
+      { type: 'text', text: 'Before', providerMetadata },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: pathToFileURL(attachmentPath).href,
+        filename: 'ordered.txt',
+        providerMetadata
+      },
+      { type: 'text', text: 'After', providerMetadata }
+    ]
+    const expected = `Before\n[Attachment 1: "ordered.txt"]\nAttached files (read them with your tools using these absolute paths):\n- "ordered.txt": ${attachmentPath}\nAfter`
+    conn.send(message)
+    await Promise.resolve()
+    expect(mocks.prompt.mock.calls[0][0]).toBe(expected)
+    mocks.isStreaming = true
+    expect(conn.redirect(message)).toBe(true)
+    expect(mocks.steer.mock.calls[0][0]).toContain(expected)
   })
 
   it('send routes normal messages to prompt', async () => {
