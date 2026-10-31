@@ -1,10 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import {
-  sessionEntryToContextMessages,
-  type AgentSession,
-  type AgentSessionEvent
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 
 import {
   runtimeId,
@@ -16,6 +12,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 type PiMessage = AgentSession['messages'][number]
+type PiContext = { message: PiMessage; id: string }[]
 
 export class PiProjection {
   readonly feed: ThreadFeed
@@ -24,7 +21,13 @@ export class PiProjection {
   private active = new Map<string, string>()
   private calls = new Map<string, string>()
   private snapshotMessages: RuntimeMessage[] | undefined
-  private readonly readers = new Map<string, RuntimeMessageStream>()
+  private readonly readers = new Map<
+    string,
+    {
+      reader: RuntimeMessageStream
+      texts: Map<number, { index: number; text: string }>
+    }
+  >()
   private pending = Promise.resolve()
   private generation = 0
   private unsubscribe: () => void = () => {}
@@ -53,26 +56,33 @@ export class PiProjection {
   rebind(session: AgentSession): void {
     this.unsubscribe()
     this.generation++
-    for (const reader of this.readers.values()) void reader.close()
+    for (const { reader } of this.readers.values()) void reader.close()
     this.readers.clear()
     this.reset(session)
     this.bind(session)
   }
 
-  private reset(session: AgentSession): void {
+  private reset(session: AgentSession, context?: PiContext): void {
     this.session = session
     this.ids = new WeakMap()
     this.active.clear()
     this.calls.clear()
     this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.snapshotMessages = []
-    for (const message of session.messages) this.write(message, this.id(message), 'complete')
+    for (const { message, id } of context ?? this.captureContext()) this.write(message, id, 'complete')
     this.feed.publish({
       ...this.feed.snapshot,
       messages: this.snapshotMessages,
       activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
     })
     this.snapshotMessages = undefined
+  }
+
+  private captureContext(): PiContext {
+    return this.session.messages.map((message) => ({
+      message: structuredClone(message),
+      id: this.entryId(message) ?? this.id(message)
+    }))
   }
 
   private bind(session: AgentSession): void {
@@ -88,10 +98,17 @@ export class PiProjection {
         if (native.type === 'message_start') this.active.set(slot, id)
         if (native.type === 'message_end') this.active.delete(slot)
       }
+      const context =
+        event.type === 'entry_appended' &&
+        (event.entry.type === 'custom_message' ||
+          event.entry.type === 'context_edit' ||
+          event.entry.type === 'compaction')
+          ? this.captureContext()
+          : undefined
       const generation = this.generation
       this.pending = this.pending
         .then(async () => {
-          if (generation === this.generation) await this.event(event)
+          if (generation === this.generation) await this.event(event, context)
         })
         .catch((error) => {
           this.report(error)
@@ -103,7 +120,7 @@ export class PiProjection {
   async close(): Promise<void> {
     this.unsubscribe()
     await this.pending
-    for (const reader of this.readers.values()) await reader.close()
+    for (const { reader } of this.readers.values()) await reader.close()
     this.readers.clear()
     this.feed.close('shutdown')
   }
@@ -238,8 +255,8 @@ export class PiProjection {
 
   private async delta(event: Extract<AgentSessionEvent, { type: 'message_update' }>, id: string): Promise<void> {
     const native = event.assistantMessageEvent
-    const reader = this.readers.get(id)
-    if (!reader || !('contentIndex' in native)) return
+    const stream = this.readers.get(id)
+    if (!stream || !('contentIndex' in native)) return
     const part = native.partial.content[native.contentIndex]
     const key = String(native.contentIndex)
     type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
@@ -247,11 +264,7 @@ export class PiProjection {
     if (native.type === 'text_start') chunks.push({ type: 'text-start', id: key })
     if (native.type === 'text_delta') chunks.push({ type: 'text-delta', id: key, delta: native.delta })
     if (native.type === 'text_end') chunks.push({ type: 'text-end', id: key })
-    if (native.type === 'thinking_start') {
-      chunks.push({ type: 'reasoning-start', id: key })
-      if (part?.type === 'thinking' && part.thinking)
-        chunks.push({ type: 'reasoning-delta', id: key, delta: part.thinking })
-    }
+    if (native.type === 'thinking_start') chunks.push({ type: 'reasoning-start', id: key })
     if (native.type === 'thinking_delta') chunks.push({ type: 'reasoning-delta', id: key, delta: native.delta })
     if (native.type === 'thinking_end') chunks.push({ type: 'reasoning-end', id: key })
     if (part?.type === 'toolCall') {
@@ -270,29 +283,43 @@ export class PiProjection {
         })
     }
     if (chunks.length) {
-      const message = await reader.append(chunks, 'partial')
-      if (this.readers.get(id) === reader) this.publish(message)
+      const message = await stream.reader.append(chunks, 'partial')
+      if (native.type === 'text_start' || native.type === 'thinking_start')
+        stream.texts.set(native.contentIndex, { index: message.parts.length - 1, text: '' })
+      const text = stream.texts.get(native.contentIndex)
+      if (text) {
+        // Native partials can run ahead of delta delivery; block-end content may also revise them.
+        if (native.type === 'text_end' || native.type === 'thinking_end') text.text = native.content
+        else if (part?.type === 'text') text.text = part.text
+        else if (part?.type === 'thinking') text.text = part.thinking
+      }
+      const parts = message.parts.slice()
+      for (const { index, text } of stream.texts.values()) {
+        const part = parts[index]
+        if (part.type === 'text' || part.type === 'reasoning') parts[index] = { ...part, text }
+      }
+      if (this.readers.get(id) === stream) this.publish({ ...message, parts })
     }
   }
 
-  private async event(event: AgentSessionEvent): Promise<void> {
+  private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
     if (
       (event.type === 'compaction_end' && event.result) ||
-      (event.type === 'entry_appended' && event.entry.type === 'compaction')
+      (event.type === 'entry_appended' && (event.entry.type === 'compaction' || event.entry.type === 'context_edit'))
     )
-      this.reset(this.session)
+      this.reset(this.session, context)
     if (event.type === 'entry_appended' && event.entry.type === 'custom_message') {
-      for (const message of sessionEntryToContextMessages(event.entry)) this.write(message, event.entry.id, 'complete')
+      for (const { message, id } of context ?? []) if (id === event.entry.id) this.write(message, id, 'complete')
     }
     if (event.type === 'message_start' || event.type === 'message_update' || event.type === 'message_end') {
       const message = event.message
       const id = this.id(message)
       if (event.type === 'message_start' && message.role === 'assistant')
-        this.readers.set(id, new RuntimeMessageStream(id))
+        this.readers.set(id, { reader: new RuntimeMessageStream(id), texts: new Map() })
       if (event.type === 'message_update') await this.delta(event, id)
       else this.write(message, id, event.type === 'message_end' ? 'complete' : 'partial')
       if (event.type === 'message_end') {
-        await this.readers.get(id)?.close()
+        await this.readers.get(id)?.reader.close()
         this.readers.delete(id)
       }
     }

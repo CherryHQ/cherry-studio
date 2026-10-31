@@ -87,6 +87,11 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
     }))
     const replacements = events.filter((event) => event.type === 'snapshot')
     expect(replacements.at(-1)?.messages.filter((message) => message.role !== 'system')).toMatchObject(expected)
+    expect(
+      events
+        .flatMap((event) => (event.type === 'message.upsert' ? [event.message] : []))
+        .some((message) => message.parts.some((part) => part.type === 'text' && part.text === 'Removed notice'))
+    ).toBe(false)
     const snapshots: ObservationPayload[] = []
     confirmed(
       await handle.observe((event) => {
