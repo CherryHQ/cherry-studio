@@ -8,7 +8,8 @@ export const AGENTS_SKILLS_GITIGNORE = path.join(AGENTS_SKILLS_DIR, '.gitignore'
 export const CLAUDE_SKILLS_GITIGNORE = path.join(CLAUDE_SKILLS_DIR, '.gitignore')
 export const PUBLIC_SKILLS_FILE = path.join(AGENTS_SKILLS_DIR, 'public-skills.txt')
 
-const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+/** Skill names, and the `name` a SKILL.md declares for itself: lowercase letters, digits and hyphens only. */
+export const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function listSkillNames(): string[] {
   const content = readFileSafe(PUBLIC_SKILLS_FILE)
