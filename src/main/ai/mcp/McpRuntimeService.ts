@@ -52,7 +52,7 @@ import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
 import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
-import { deleteOAuthStorage, oauthServerUrlHash } from './oauth/storage'
+import { deleteOAuthStorage, migrateOAuthStorage, oauthServerKey } from './oauth/storage'
 import { projectServerInstructions } from './serverInstructions'
 import { ServerLogBuffer } from './ServerLogBuffer'
 
@@ -255,6 +255,7 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
+    await migrateOAuthStorage(mcpServerService.list({}).items, application.getPath('feature.mcp.oauth'))
   }
 
   protected async onStop(): Promise<void> {
@@ -1256,10 +1257,7 @@ export class McpRuntimeService extends BaseService {
 
     if (server.baseUrl) {
       try {
-        const { items } = mcpServerService.list({})
-        if (!items.some((item) => item.id !== server.id && item.baseUrl === server.baseUrl)) {
-          await deleteOAuthStorage(oauthServerUrlHash(server.baseUrl), application.getPath('feature.mcp.oauth'))
-        }
+        await deleteOAuthStorage(oauthServerKey(server.id, server.baseUrl), application.getPath('feature.mcp.oauth'))
       } catch (error) {
         getServerLogger(server).error('Failed to clean OAuth storage', error as Error)
       }

@@ -5,7 +5,14 @@ import path from 'path'
 import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { deleteOAuthStorage, JsonFileStorage, type OAuthSecretCipher } from '../storage'
+import {
+  deleteOAuthStorage,
+  JsonFileStorage,
+  migrateOAuthStorage,
+  oauthServerKey,
+  oauthServerUrlHash,
+  type OAuthSecretCipher
+} from '../storage'
 
 const cipher: OAuthSecretCipher = {
   isAvailable: () => true,
@@ -25,6 +32,146 @@ describe('JsonFileStorage round-trip', () => {
     vi.restoreAllMocks()
     await fs.rm(configDir, { recursive: true, force: true })
   })
+
+  it.each([true, false])('migrates a unique legacy owner once (secure storage: %s)', async (secure) => {
+    const secretCipher = { ...cipher, isAvailable: () => secure }
+    const owner = { id: 'mcp01', baseUrl: 'https://example.com/mcp' }
+    const legacy = new JsonFileStorage(oauthServerUrlHash(owner.baseUrl), configDir, secretCipher)
+    await legacy.saveTokens({ access_token: 'account-A', token_type: 'Bearer', refresh_token: 'refresh-A' })
+    await legacy.saveClientInformation({ client_id: 'client-A' })
+
+    await migrateOAuthStorage([owner], configDir)
+    const migrated = new JsonFileStorage(oauthServerKey(owner.id, owner.baseUrl), configDir, secretCipher)
+    expect(await migrated.getTokens()).toMatchObject({ access_token: 'account-A', refresh_token: 'refresh-A' })
+    expect(await migrated.getClientInformation()).toMatchObject({ client_id: 'client-A' })
+    await expect(fs.access(path.join(configDir, `${oauthServerUrlHash(owner.baseUrl)}_oauth.json`))).rejects.toThrow()
+
+    const added = { ...owner, id: 'mcp02' }
+    await migrateOAuthStorage([owner, added], configDir)
+    expect(
+      await new JsonFileStorage(oauthServerKey(added.id, added.baseUrl), configDir, secretCipher).getTokens()
+    ).toBeUndefined()
+    expect(
+      await new JsonFileStorage(oauthServerKey(owner.id, owner.baseUrl), configDir, secretCipher).getTokens()
+    ).toMatchObject({ access_token: 'account-A' })
+    expect(
+      await new JsonFileStorage(
+        oauthServerKey(owner.id, `${owner.baseUrl}/changed`),
+        configDir,
+        secretCipher
+      ).getTokens()
+    ).toBeUndefined()
+  })
+
+  it('discards ambiguous legacy ownership without overwriting an independently authorized account', async () => {
+    const baseUrl = 'https://example.com/mcp'
+    const owners = [
+      { id: 'mcp01', baseUrl },
+      { id: 'mcp02', baseUrl }
+    ]
+    await new JsonFileStorage(oauthServerUrlHash(baseUrl), configDir, cipher).saveTokens({
+      access_token: 'shared',
+      token_type: 'Bearer'
+    })
+    await new JsonFileStorage(oauthServerKey('mcp01', baseUrl), configDir, cipher).saveTokens({
+      access_token: 'account-A',
+      token_type: 'Bearer'
+    })
+
+    await migrateOAuthStorage(owners, configDir)
+    await migrateOAuthStorage([owners[1]], configDir)
+    expect(await new JsonFileStorage(oauthServerKey('mcp02', baseUrl), configDir, cipher).getTokens()).toBeUndefined()
+    expect(await new JsonFileStorage(oauthServerKey('mcp01', baseUrl), configDir, cipher).getTokens()).toMatchObject({
+      access_token: 'account-A'
+    })
+  })
+
+  it.each([true, false])(
+    'never assigns orphaned legacy credentials to a later configuration (secure storage: %s)',
+    async (secure) => {
+      const secretCipher = { ...cipher, isAvailable: () => secure }
+      const oldUrl = 'https://example.com/old-mcp'
+      const legacyKey = oauthServerUrlHash(oldUrl)
+      await new JsonFileStorage(legacyKey, configDir, secretCipher).saveTokens({
+        access_token: 'previous-account',
+        token_type: 'Bearer',
+        refresh_token: 'previous-refresh'
+      })
+      const original = { id: 'original', baseUrl: 'https://example.com/new-mcp' }
+      await migrateOAuthStorage([original], configDir)
+
+      const added = { id: 'added-after-upgrade', baseUrl: oldUrl, isActive: false }
+      await migrateOAuthStorage([original, added], configDir)
+      const current = new JsonFileStorage(oauthServerKey(added.id, oldUrl), configDir, secretCipher)
+      expect(await current.getTokens()).toBeUndefined()
+      await expect(fs.access(path.join(configDir, `${legacyKey}_oauth.json`))).rejects.toThrow()
+    }
+  )
+
+  it('only retires legacy credential files when no configurations are saved', async () => {
+    const legacyKey = oauthServerUrlHash('https://example.com/old-mcp')
+    await new JsonFileStorage(legacyKey, configDir, cipher).saveTokens({ access_token: 'old', token_type: 'Bearer' })
+    const scopedKey = oauthServerKey('existing', 'https://example.com/mcp')
+    await new JsonFileStorage(scopedKey, configDir, cipher).saveTokens({
+      access_token: 'current',
+      token_type: 'Bearer'
+    })
+    const unrelated = path.join(configDir, 'settings.json')
+    await fs.writeFile(unrelated, 'unrelated')
+    const directory = path.join(configDir, `${'a'.repeat(32)}_oauth.json`)
+    await fs.mkdir(directory)
+
+    await migrateOAuthStorage([], configDir)
+    await expect(fs.access(path.join(configDir, `${legacyKey}_oauth.json`))).rejects.toThrow()
+    expect(await new JsonFileStorage(scopedKey, configDir, cipher).getTokens()).toMatchObject({
+      access_token: 'current'
+    })
+    expect(await fs.readFile(unrelated, 'utf8')).toBe('unrelated')
+    expect((await fs.stat(directory)).isDirectory()).toBe(true)
+  })
+
+  it('allows startup before the OAuth directory exists', async () => {
+    await expect(migrateOAuthStorage([], path.join(configDir, 'not-created'))).resolves.toBeUndefined()
+  })
+
+  it('does not overwrite current credentials while retiring a unique legacy login', async () => {
+    const owner = { id: 'mcp01', baseUrl: 'https://example.com/mcp' }
+    await new JsonFileStorage(oauthServerUrlHash(owner.baseUrl), configDir, cipher).saveTokens({
+      access_token: 'old',
+      token_type: 'Bearer'
+    })
+    const current = new JsonFileStorage(oauthServerKey(owner.id, owner.baseUrl), configDir, cipher)
+    await current.saveTokens({ access_token: 'current', token_type: 'Bearer' })
+    await migrateOAuthStorage([owner], configDir)
+    expect(
+      await new JsonFileStorage(oauthServerKey(owner.id, owner.baseUrl), configDir, cipher).getTokens()
+    ).toMatchObject({ access_token: 'current' })
+  })
+
+  it.each([true, false])(
+    'isolates state, PKCE, invalidation and deletion between accounts (secure storage: %s)',
+    async (secure) => {
+      const secretCipher = { ...cipher, isAvailable: () => secure }
+      const keyA = oauthServerKey('mcp01', 'https://example.com/mcp')
+      const keyB = oauthServerKey('mcp02', 'https://example.com/mcp')
+      const first = new JsonFileStorage(keyA, configDir, secretCipher)
+      const second = new JsonFileStorage(keyB, configDir, secretCipher)
+      for (const [store, owner] of [
+        [first, 'A'],
+        [second, 'B']
+      ] as const) {
+        await store.saveTokens({ access_token: owner, token_type: 'Bearer' })
+        await store.saveState(`state-${owner}`)
+        await store.saveCodeVerifier(`pkce-${owner}`)
+      }
+      await first.clear('tokens')
+      expect(await second.getState()).toBe('state-B')
+      expect(await second.getCodeVerifier()).toBe('pkce-B')
+      await deleteOAuthStorage(keyA, configDir)
+      expect(await new JsonFileStorage(keyA, configDir, secretCipher).getTokens()).toBeUndefined()
+      expect(await new JsonFileStorage(keyB, configDir, secretCipher).getTokens()).toMatchObject({ access_token: 'B' })
+    }
+  )
 
   it('writes the file under <serverUrlHash>_oauth.json in the config dir', async () => {
     const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)

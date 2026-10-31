@@ -182,6 +182,16 @@ actions. OAuth can resume a request rejected by an authentication challenge;
 unknown network outcomes are not replayed. Catalog/background reads cannot
 start browser authorization.
 
+Remote MCP OAuth credentials are scoped to the configuration ID and endpoint URL,
+then to the authorization-server issuer. Configurations sharing a URL authorize
+independently; renaming a configuration preserves its login. Interactive flows
+queue for the loopback callback port, while challenges for the same account are
+coalesced. Removing a configuration clears only its own credentials.
+At startup, URL-only credentials migrate when exactly one saved configuration
+owns the URL. Shared or unowned URL-only credentials are retired; configurations
+without their own credentials must authorize again. Browser account selection
+remains controlled by the authorization service.
+
 The built-in sequential-thinking tool creates a `chainId` for thought 1.
 Subsequent thoughts must provide that ID; completed chains and closed server
 instances release their histories. History and branches are isolated per chain.
