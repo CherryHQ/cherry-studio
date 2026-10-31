@@ -1,4 +1,5 @@
-import type { ComponentProps } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { type ComponentProps, useCallback } from 'react'
 
 import type {
   MessageListActions,
@@ -13,6 +14,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
+import type { NavigateToForkSource } from './messages/agentMessageListAdapter'
 
 interface AgentChatMainProps {
   placement: ConversationComposerPlacement
@@ -59,6 +61,13 @@ export default function AgentChatMain({
   editBusy,
   respondToolApproval
 }: AgentChatMainProps) {
+  const navigate = useNavigate()
+  const navigateToForkSource = useCallback<NavigateToForkSource>(
+    ({ sourceSessionId, returnSessionId }) =>
+      navigate({ to: '/app/agents', search: { sessionId: sourceSessionId, forkReturnSessionId: returnSessionId } }),
+    [navigate]
+  )
+
   if (placement !== 'docked' || !sessionMessagesEnabled) {
     return <div className="h-full min-h-0 flex-1" />
   }
@@ -85,6 +94,7 @@ export default function AgentChatMain({
           startEditing={agentId ? startEditing : undefined}
           editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
+          navigateToForkSource={navigateToForkSource}
         />
       </div>
     </div>
