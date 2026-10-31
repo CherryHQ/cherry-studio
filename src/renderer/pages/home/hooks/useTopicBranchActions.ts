@@ -12,6 +12,9 @@ export function useTopicBranchActions(topicId: string) {
   const { trigger: reserveBranchTrigger } = useMutation('POST', '/messages/:id/branches', {
     refresh: branchCachePaths
   })
+  const { trigger: deleteBranchTrigger } = useMutation('DELETE', '/messages/:id/branch', {
+    refresh: branchCachePaths
+  })
   const { trigger: deleteReservedBranchTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })
@@ -31,14 +34,13 @@ export function useTopicBranchActions(topicId: string) {
     [isPending, reserveBranchTrigger, status, topicId]
   )
 
-  const deleteReservedBranch = useCallback(
-    (messageId: string) =>
-      deleteReservedBranchTrigger({
-        params: { id: messageId },
-        query: { awaitingInputOnly: true }
-      }),
-    [deleteReservedBranchTrigger]
+  const deleteBranch = useCallback(
+    (messageId: string, awaitingInputOnly: boolean) =>
+      awaitingInputOnly
+        ? deleteReservedBranchTrigger({ params: { id: messageId }, query: { awaitingInputOnly: true } })
+        : deleteBranchTrigger({ params: { id: messageId }, query: { topicId } }),
+    [deleteBranchTrigger, deleteReservedBranchTrigger, topicId]
   )
 
-  return { reserveBranch, deleteReservedBranch }
+  return { reserveBranch, deleteBranch }
 }

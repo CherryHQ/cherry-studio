@@ -20,6 +20,6 @@ export class OcrInferenceService extends InferenceServiceBase<OcrInferenceContra
    *   (empty when the engine reported none, so callers never branch on null).
    */
   async recognize(source: OcrRecognizeSource, signal?: AbortSignal): Promise<{ text: string; lines: OcrLine[][] }> {
-    return this.run('recognize', { modelPaths: resolveOcrModelPaths(), source }, { signal })
+    return this.run('pp-ocrv6-medium', 'recognize', () => ({ modelPaths: resolveOcrModelPaths(), source }), { signal })
   }
 }

@@ -45,7 +45,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     if (file.ext?.toLowerCase() !== 'pdf') {
       throw new Error(`Local document processing only supports PDF files, got ${file.ext ?? 'no extension'}`)
     }
-    if (!application.get('LocalModelService').isCapabilityReady('ocr')) {
+    if (!application.get('LocalModelService').isDefaultModelReady('ocr')) {
       throw new Error('Local OCR model is not downloaded')
     }
 

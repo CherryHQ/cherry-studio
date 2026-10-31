@@ -1,10 +1,10 @@
-import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import {
   DEFAULT_SPEECH_SPEED,
   TranscriptionLanguageSource,
   VoiceModelSupport,
   VoiceResourceOperation,
   type LocalSpeechModelId,
+  type LocalVoiceModelDescriptor,
   type LocalTranscriptionModelId,
   type LocalVoiceModelId,
   type VoiceModelLookup
@@ -13,6 +13,9 @@ import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import { appleSpeechDefinition, appleTranscriptionDefinition } from './localAdapters/apple'
 import { funAsrTranscriptionDefinition } from './localAdapters/funasr'
+import { kokoroSpeechDefinition } from './localAdapters/kokoroTts'
+import { qwen3AsrTranscriptionDefinition } from './localAdapters/qwen3Asr'
+import { qwen3SpeechDefinition } from './localAdapters/qwen3Tts'
 import { windowsSpeechDefinition, windowsTranscriptionDefinition } from './localAdapters/windows'
 import type { LocalVoiceStatus, SpeechModelDefinition, TranscriptionModelDefinition } from './voiceModelTypes'
 import {
@@ -29,15 +32,32 @@ export type { LocalVoiceStatus } from './voiceModelTypes'
 const transcriptionDefinitions: readonly TranscriptionModelDefinition[] = [
   appleTranscriptionDefinition,
   windowsTranscriptionDefinition,
-  funAsrTranscriptionDefinition
+  funAsrTranscriptionDefinition,
+  qwen3AsrTranscriptionDefinition
 ]
-const speechDefinitions: readonly SpeechModelDefinition[] = [appleSpeechDefinition, windowsSpeechDefinition]
+const speechDefinitions: readonly SpeechModelDefinition[] = [
+  appleSpeechDefinition,
+  windowsSpeechDefinition,
+  qwen3SpeechDefinition,
+  kokoroSpeechDefinition
+]
 const definitions = [...transcriptionDefinitions, ...speechDefinitions]
+
+function describeDefinition(
+  definition: SpeechModelDefinition | TranscriptionModelDefinition,
+  environment: VoiceEnvironment
+): LocalVoiceModelDescriptor {
+  const voiceCapabilities =
+    'speechOperations' in definition
+      ? { speech: definition.speechOperations.map(({ input, output }) => ({ input, output })) }
+      : { transcription: definition.transcriptionOperations.map(({ input, output }) => ({ input, output })) }
+  return { ...definition.describe(environment), voiceCapabilities }
+}
 
 export function describeVoiceModel(modelId: string, environment = getVoiceEnvironment()): VoiceModelLookup {
   const definition = definitions.find((model) => model.id === modelId)
   return definition
-    ? { support: definition.support(environment), model: definition.describe(environment) }
+    ? { support: definition.support(environment), model: describeDefinition(definition, environment) }
     : { support: VoiceModelSupport.UnknownModel, model: null }
 }
 
@@ -45,7 +65,7 @@ export function listVoiceModels(environment = getVoiceEnvironment()) {
   return {
     models: definitions
       .filter((model) => model.support(environment) === VoiceModelSupport.Supported)
-      .map((model) => model.describe(environment)),
+      .map((model) => describeDefinition(model, environment)),
     defaultAsrModelId: resolveDefaultAsrModel(environment),
     defaultSpeechModelId: resolveDefaultSpeechModel(environment)
   }
@@ -110,14 +130,16 @@ export function resolveSpeechRequest(
   }
 }
 
-export function createLocalSpeechModel(modelId: LocalSpeechModelId, options: SpeechOptions) {
+export function getSpeechOperations(modelId: LocalSpeechModelId) {
   const definition = speechDefinition(modelId)
-  return definition.createModel(options)
+  requireSupport(definition)
+  return definition.speechOperations
 }
 
-export function createLocalTranscriptionModel(modelId: LocalTranscriptionModelId, options: TranscriptionOptions) {
+export function getTranscriptionOperations(modelId: LocalTranscriptionModelId) {
   const definition = transcriptionDefinition(modelId)
-  return definition.createModel(options)
+  requireSupport(definition)
+  return definition.transcriptionOperations
 }
 
 export async function getLocalVoiceStatus(
@@ -156,22 +178,25 @@ export function installVoiceLocale(modelId: LocalTranscriptionModelId, language:
   return definition.installLocale(language, signal)
 }
 
-export function downloadVoiceModel(modelId: LocalTranscriptionModelId) {
-  const definition = transcriptionDefinition(modelId)
+export function downloadVoiceModel(modelId: LocalVoiceModelId) {
+  const definition = definitions.find((model) => model.id === modelId)
+  if (!definition) throw new VoiceRuntimeError('unsupported')
   requireSupport(definition)
   if (!definition.download) throw new VoiceRuntimeError('unsupported')
   return definition.download()
 }
 
-export function cancelVoiceModelDownload(modelId: LocalTranscriptionModelId) {
-  const definition = transcriptionDefinition(modelId)
+export function cancelVoiceModelDownload(modelId: LocalVoiceModelId) {
+  const definition = definitions.find((model) => model.id === modelId)
+  if (!definition) throw new VoiceRuntimeError('unsupported')
   requireSupport(definition)
   if (!definition.cancelDownload) throw new VoiceRuntimeError('unsupported')
   return definition.cancelDownload()
 }
 
-export function removeVoiceModel(modelId: LocalTranscriptionModelId) {
-  const definition = transcriptionDefinition(modelId)
+export function removeVoiceModel(modelId: LocalVoiceModelId) {
+  const definition = definitions.find((model) => model.id === modelId)
+  if (!definition) throw new VoiceRuntimeError('unsupported')
   requireSupport(definition)
   if (!definition.remove) throw new VoiceRuntimeError('unsupported')
   return definition.remove()
@@ -195,6 +220,12 @@ export async function resolveTranscriptionConfiguration(
       const plan = resolveTranscriptionRequest({ ...input, modelId }, environment)
       const status = await transcriptionDefinition(modelId).status(plan.options, signal)
       const selection = {
+        capabilities: {
+          transcription: transcriptionDefinition(modelId).transcriptionOperations.map(({ input, output }) => ({
+            input,
+            output
+          }))
+        },
         modelId,
         language: plan.options.language
           ? { source: TranscriptionLanguageSource.Explicit, locale: plan.options.language }
@@ -205,9 +236,10 @@ export async function resolveTranscriptionConfiguration(
       if (status.status === 'ready' || input.modelId) return selection
     } catch (error) {
       if (signal?.aborted) throw error
+      const reason = error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
       const status: LocalVoiceStatus = {
-        status: 'failed',
-        reason: error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
+        status: reason === 'unsupported' ? 'unsupported' : 'failed',
+        reason
       }
       fallback ??= { modelId, language: input.language, status }
       if (input.modelId) return fallback
@@ -230,8 +262,12 @@ export async function resolveSpeechConfiguration(
     ? (await definition.voices(signal)).find((voice) => voice.id === input.voice)
     : await definition.getDefaultVoice(input.language, signal)
   signal?.throwIfAborted()
-  if (!voice || (input.language && voice.locale.toLowerCase() !== input.language.toLowerCase()))
-    return { ...selection, status: { status: 'not_installed', reason: 'voice_unavailable' } }
-  const resolved = { ...selection, voice: voice.id, language: voice.locale }
+  const language = input.language
+    ? (voice?.languages ?? (voice ? [voice.locale] : [])).find(
+        (locale) => locale.toLowerCase() === input.language!.toLowerCase()
+      )
+    : voice?.locale
+  if (!voice || !language) return { ...selection, status: { status: 'not_installed', reason: 'voice_unavailable' } }
+  const resolved = { ...selection, voice: voice.id, language }
   return { ...resolved, status: await definition.status(resolved, signal) }
 }

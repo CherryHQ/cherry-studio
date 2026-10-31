@@ -1,4 +1,6 @@
 import type * as FileSystem from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
 import { afterEach, expect, it, vi } from 'vitest'
@@ -11,6 +13,41 @@ vi.mock('fs', async (importOriginal) => ({ ...(await importOriginal<typeof FileS
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
+})
+
+it.each(['renderer', 'main', 'file-preview'] as const)('preserves UI findings and exclusions in %s', (source) => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'cherry-i18n-scan-'))
+  const file = resolve(directory, 'View.tsx')
+  writeFileSync(
+    file,
+    `
+    const amount = 1;
+    const label = \`你好 \${amount}\`;
+    const title = \`问候\`;
+    const data = { message: '提示' };
+    notification.info('通知');
+    const view = <div title="标题">正文</div>;
+    const english = <Button title="Save Changes" />;
+    t('忽略翻译');
+    logger.info('忽略日志');
+    type Example = { label: '忽略类型' };
+    enum Kind { One = '忽略枚举' }
+    const languageNames = { text: '忽略语言' };
+    const style = \`忽略代码\`;
+  `
+  )
+  try {
+    const expected = ['`你好 ${amount}`', '`问候`', "'提示'", "'通知'", 'title="标题"', '正文']
+    if (source !== 'main') expected.push('title="Save Changes"')
+    expect(
+      new HardcodedStringDetector()
+        .scanFile(file, source)
+        .map((finding) => finding.content)
+        .sort()
+    ).toEqual(expected.sort())
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 it('fails the strict gate for hardcoded UI strings in the portable preview package', () => {

@@ -3,6 +3,8 @@
 This directory owns the CI controller for the [Playwright regression scenarios](../../../tests/e2e/regression/README.md).
 It controls only the application recorded in its isolated run directory; it never discovers or stops a developer's Electron instance.
 
+The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, installation, and lifecycle functions for one temporary test on one selected platform. Its reports and task selection remain independent from regression runs.
+
 ## Responsibilities
 
 | Module | Responsibility |
@@ -23,6 +25,20 @@ The debug bridge may inspect the owned main process; it must never manufacture a
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
 
 ## Execution contract
+
+Manual runs accept any branch in the current repository or a `v*` release tag as
+the `ref` input. The resolver pins it to an exact commit before either platform
+checks out the application; fork references and raw commit SHAs are not inputs.
+Ambiguous branch/tag names require `refs/heads/...` or `refs/tags/...`.
+
+GitHub's **Use workflow from** selector chooses the controller branch, while `ref`
+chooses the application under test. To validate workflow and test changes before
+merging, select the PR branch for both, or use:
+
+```sh
+gh workflow run e2e-regression-test.yml --repo CherryHQ/cherry-studio \
+  --ref feature/e2e-fix -f ref=feature/e2e-fix -f task=all
+```
 
 Branch runs prepare `rebuild:electron` and `build:utility-process` once after installing
 application dependencies. The controller then launches the development server directly,

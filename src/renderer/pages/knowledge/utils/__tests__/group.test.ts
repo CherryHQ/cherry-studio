@@ -6,6 +6,7 @@ import type { Group } from '@shared/data/types/group'
 import { buildKnowledgeBaseGroupSections } from '../group'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   itemCount: 0,

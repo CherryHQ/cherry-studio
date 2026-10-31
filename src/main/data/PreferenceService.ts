@@ -9,6 +9,7 @@ import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
+import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
@@ -365,12 +366,20 @@ export class PreferenceService extends BaseService {
     const route = this.resolveKey(key)
 
     if (route.store === 'bootConfig') {
-      const oldValue = bootConfigService.get(route.key) as UnifiedPreferenceType[K]
+      const oldValue = bootConfigService.get(route.key)
       if (isEqual(oldValue, value)) {
+        bootConfigService.persist()
         return
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
       bootConfigService.set(route.key, value as any)
+      try {
+        bootConfigService.persist()
+      } catch (error) {
+        // Restore rejected changes so a later background save cannot commit them.
+        bootConfigService.set(route.key, oldValue)
+        throw error
+      }
       await this.notifyChange(key, value, oldValue)
       return
     }
@@ -464,10 +473,8 @@ export class PreferenceService extends BaseService {
    */
   public async setMultiple(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     try {
-      // Resolve every key first: this routes each key to its backing store and
-      // rejects inaccessible keys before any write, so a mixed batch with an
-      // internal/unknown key is rejected atomically — the BootConfig writes and
-      // the preference transaction below are not a single atomic unit.
+      // Reject inaccessible keys before any write. BootConfig and SQLite
+      // commits are separate, not a single atomic transaction.
       const items = Object.entries(updates).map(([key, value]) => ({ key, value, route: this.resolveKey(key) }))
 
       // Collect all changes for unified notification at the end
@@ -475,15 +482,25 @@ export class PreferenceService extends BaseService {
 
       // Handle BootConfig updates
       let bootConfigKeyCount = 0
-      for (const { key, value, route } of items) {
-        if (route.store !== 'bootConfig') continue
-        bootConfigKeyCount++
-        const oldValue = bootConfigService.get(route.key)
-        if (!isEqual(oldValue, value)) {
-          // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
-          bootConfigService.set(route.key, value as any)
-          allChanges.push([key, value, oldValue])
+      const previousBootConfigValues = new Map<BootConfigKey, BootConfigSchema[BootConfigKey]>()
+      try {
+        for (const { key, value, route } of items) {
+          if (route.store !== 'bootConfig') continue
+          bootConfigKeyCount++
+          const oldValue = bootConfigService.get(route.key)
+          if (!isEqual(oldValue, value)) {
+            // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
+            bootConfigService.set(route.key, value as any)
+            previousBootConfigValues.set(route.key, oldValue)
+            allChanges.push([key, value, oldValue])
+          }
         }
+        if (bootConfigKeyCount > 0) bootConfigService.persist()
+      } catch (error) {
+        for (const [key, oldValue] of previousBootConfigValues) {
+          bootConfigService.set(key, oldValue)
+        }
+        throw error
       }
 
       // Performance optimization: filter out unchanged preference values

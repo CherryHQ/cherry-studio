@@ -23,4 +23,23 @@ describe('useWebSearchProviderLists', () => {
       expect.arrayContaining([expect.objectContaining({ key: 'fetchUrls:jina' })])
     )
   })
+
+  it('restores Yuanbao as the selected keyword provider without offering it for URL fetching', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'yuanbao')
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      yuanbao: { apiKeys: ['saved-key'] }
+    })
+    const { result } = renderHook(() => useWebSearchProviderLists())
+    expect(result.current.defaultSearchKeywordsProvider).toMatchObject({ id: 'yuanbao', apiKeys: ['saved-key'] })
+    expect(
+      result.current.featureSections
+        .find((section) => section.capability === 'searchKeywords')
+        ?.entries.some((entry) => entry.provider.id === 'yuanbao')
+    ).toBe(true)
+    expect(
+      result.current.featureSections
+        .find((section) => section.capability === 'fetchUrls')
+        ?.entries.some((entry) => entry.provider.id === 'yuanbao')
+    ).toBe(false)
+  })
 })

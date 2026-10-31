@@ -26,6 +26,7 @@ const baseProps = {
   onRedo: vi.fn(),
   onOk: vi.fn(),
   onSave: vi.fn(),
+  onCopy: vi.fn(),
   onCancel: vi.fn()
 }
 
@@ -114,12 +115,23 @@ describe('Toolbar accessible names', () => {
       'Undo',
       'Redo',
       'Save image',
+      'Copy to clipboard',
       'Cancel',
       'Copy and close'
     ]
     for (const name of names) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
+  })
+
+  it('copies the capture without closing the toolbar', async () => {
+    const onCopy = vi.fn()
+    render(<Toolbar {...baseProps} activeTool={null} onCopy={onCopy} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy to clipboard' }))
+
+    expect(onCopy).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Copy to clipboard' })).toBeInTheDocument()
   })
 
   it('keeps the chat entry and message input visible without a destination', async () => {

@@ -17,6 +17,7 @@ import type { ComposerContextValue } from '@renderer/components/composer/Compose
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
 import {
   type ConversationHistoryAdapter,
   type ReservedMessageSeedOptions,
@@ -37,7 +38,7 @@ import { isRenderableConversationMessage } from '@renderer/utils/message/message
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
-import { isBlankUserTurn } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
@@ -124,6 +125,7 @@ export function useChatRuntimeState({
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
+  const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
   const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
     messageListRuntimeRef.current = runtime
@@ -195,7 +197,18 @@ export function useChatRuntimeState({
     disposeOverlay,
     reset: resetOverlay
   } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
-    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
+    onUpdate: (_executionId, event) =>
+      autoReadService.update({
+        ...event,
+        enabled: autoReadEnabled,
+        scope: topic.id,
+        eligible: event.message.id === branchFlowActiveNodeIdRef.current
+      }),
+    onLeave: () => autoReadService.cancelScope(topic.id),
+    onFinish: (executionId, event) => {
+      errorToastsRef.current?.onFinish(executionId, event)
+      finishRef.current?.(executionId, event)
+    }
   })
 
   // Deterministic overlay→DB handoff at terminal (see hook docs); branch
@@ -262,6 +275,7 @@ export function useChatRuntimeState({
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
       const { activeExecutions: openedExecutions, preserveActiveNode } = options
+      errorToastsRef.current?.track(openedExecutions, reservedMessages)
       if (reservedMessages.length > 0) {
         const reservedExecutions = openedExecutions ?? []
         if (reservedExecutions.length > 0) {
@@ -333,7 +347,15 @@ export function useChatRuntimeState({
     historyAdapter,
     ensureConversation,
     buildStreamRequest,
-    refreshMetadata
+    refreshMetadata,
+    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onError: (error, input) =>
+      errorToastsRef.current?.report(
+        error,
+        input.options?.mentionedModels?.length === 1
+          ? input.options.mentionedModels[0]
+          : (composerModelId ?? assistant?.modelId ?? undefined)
+      )
   })
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -455,7 +477,7 @@ export function useChatRuntimeState({
 
   const shouldRenderHomeComposer = false
 
-  const { actions: chatWriteActions } = useChatWriteActions({
+  const { actions: chatWriteActions, retryFailedMessage } = useChatWriteActions({
     topic,
     uiMessages: messages,
     activeNodeId,
@@ -475,6 +497,17 @@ export function useChatRuntimeState({
     assistant,
     composerModelId
   })
+  const errorToasts = useConversationErrorToasts(topic.id, {
+    retry: retryFailedMessage,
+    trimContext: async () => {
+      if (!chatWriteActions.canStartNewContext || isTopicStreamPending) return false
+      const activeMessage = messages.find((message) => message.id === activeNodeId)
+      if (hasClearContextPart(activeMessage?.parts)) return false
+      await chatWriteActions.startNewContext()
+      return true
+    }
+  })
+  errorToastsRef.current = errorToasts
 
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {

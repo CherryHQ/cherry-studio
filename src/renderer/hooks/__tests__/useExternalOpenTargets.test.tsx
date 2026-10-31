@@ -17,7 +17,7 @@ vi.mock('@renderer/services/externalOpenTargetService', () => ({
     pathKind === 'directory' ? 'directory' : 'file:md'
 }))
 
-import { usePreferredExternalOpenTarget } from '../useExternalOpenTargets'
+import { useExternalOpenTargets, usePreferredExternalOpenTarget } from '../useExternalOpenTargets'
 
 const result: ExternalOpenTargetResult = {
   pathKind: 'file',
@@ -37,6 +37,39 @@ describe('usePreferredExternalOpenTarget', () => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
     mocks.list.mockResolvedValue(result)
+  })
+
+  it('queries same-extension files independently and preserves their own target lists', async () => {
+    const firstResult = {
+      ...result,
+      targets: [{ id: 'system_default', kind: 'system_default' as const, name: 'Code' }]
+    }
+    const secondResult = {
+      ...result,
+      targets: [
+        { id: 'system_default', kind: 'system_default' as const, name: 'Other' },
+        { id: 'known:vscode', kind: 'application' as const, name: 'Visual Studio Code' }
+      ]
+    }
+    mocks.list.mockImplementation(async (targetPath: string) =>
+      targetPath === '/tmp/a.md' ? firstResult : secondResult
+    )
+
+    const { result: hook } = renderHook(
+      () => ({
+        first: useExternalOpenTargets('/tmp/a.md', 'file'),
+        second: useExternalOpenTargets('/tmp/b.md', 'file')
+      }),
+      { wrapper: TestSWRConfig }
+    )
+
+    await waitFor(() => {
+      expect(hook.current.first.data).toEqual(firstResult)
+      expect(hook.current.second.data).toEqual(secondResult)
+    })
+    expect(mocks.list).toHaveBeenCalledTimes(2)
+    expect(mocks.list).toHaveBeenCalledWith('/tmp/a.md', 'file')
+    expect(mocks.list).toHaveBeenCalledWith('/tmp/b.md', 'file')
   })
 
   it('falls back to the recommended target when the persisted target is stale', async () => {

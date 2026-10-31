@@ -18,6 +18,8 @@ describe('memory MCP server', () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-memory-mcp-'))
     memory = createMemoryEndpoint(path.join(tempDir, 'memory.json'))
+    // Schema rejection can finish before initialization; settle its file I/O before teardown.
+    await call('read_graph')
   })
 
   afterEach(async () => {

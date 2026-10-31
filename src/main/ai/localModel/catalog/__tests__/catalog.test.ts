@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
 import {
-  LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
+  DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
   LOCAL_MODEL_BUNDLE_IDS,
   LOCAL_MODEL_CAPABILITIES
 } from '@shared/data/presets/localModel'
@@ -11,7 +11,7 @@ import {
   ALL_MODEL_BUNDLE_IDS,
   bundleDtype,
   bundleFile,
-  bundleForCapability,
+  defaultBundleForCapability,
   LOCAL_MODEL_BUNDLES,
   SHARED_ARTIFACTS
 } from '../catalog'
@@ -50,11 +50,10 @@ describe('local model catalog', () => {
     }
   })
 
-  it.each(LOCAL_MODEL_CAPABILITIES)('capability %s resolves to exactly one bundle', (capability) => {
+  it.each(LOCAL_MODEL_CAPABILITIES)('capability %s has a default among its available bundles', (capability) => {
     const matching = bundles.filter((bundle) => bundle.capability === capability)
 
-    expect(matching).toHaveLength(1)
-    expect(bundleForCapability(capability).id).toBe(matching[0].id)
+    expect(matching.map((bundle) => bundle.id)).toContain(defaultBundleForCapability(capability).id)
   })
 
   it('exposes every bundle id', () => {
@@ -66,8 +65,8 @@ describe('local model catalog', () => {
     // capability→bundle mapping separately. A bundle renamed on one side only would
     // leave every card and download entry pointing at a model that does not exist.
     expect([...LOCAL_MODEL_BUNDLE_IDS].sort()).toEqual(bundles.map((bundle) => bundle.id).sort())
-    for (const [capability, id] of Object.entries(LOCAL_MODEL_BUNDLE_BY_CAPABILITY)) {
-      expect(bundleForCapability(capability as (typeof LOCAL_MODEL_CAPABILITIES)[number]).id).toBe(id)
+    for (const [capability, id] of Object.entries(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY)) {
+      expect(defaultBundleForCapability(capability as (typeof LOCAL_MODEL_CAPABILITIES)[number]).id).toBe(id)
     }
   })
 
@@ -121,6 +120,25 @@ describe('local model catalog', () => {
     }
   })
 
+  it('includes the Mandarin eSpeak dictionary and language definition in Kokoro installs', () => {
+    const files = LOCAL_MODEL_BUNDLES['kokoro-multi-lang-v1.1'].files
+
+    expect(files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relPath: 'espeak-ng-data/cmn_dict',
+          sha256: '109aaa7708d3727382acb3ae41d8e2094a7e2bb9f651a81835be22a6f08071fe',
+          minBytes: 1566335
+        }),
+        expect.objectContaining({
+          relPath: 'espeak-ng-data/lang/sit/cmn',
+          sha256: 'a130a38e3b622735c2401cb37f6719f46995e84a133729185cef9a543ec0b072',
+          minBytes: 686
+        })
+      ])
+    )
+  })
+
   it('derives the FunASR platform contract from the sherpa artifact matrix', () => {
     const sherpa = SHARED_ARTIFACTS['sherpa-onnx']
 
@@ -129,7 +147,19 @@ describe('local model catalog', () => {
       upstream: { revision: '1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911' }
     })
     expect(Object.keys(sherpa.platforms).sort()).toEqual([...FUNASR_SUPPORTED_PLATFORM_KEYS].sort())
-    expect(sherpa.platforms['win32-arm64']).toBeUndefined()
+    expect(sherpa.platforms['win32-arm64']).toMatchObject({
+      tarballUrls: [
+        expect.stringMatching(/^https:\/\/github\.com\/CherryHQ\/sherpa-onnx\/releases\/download\/sherpa-runtime-v/)
+      ],
+      tarballPrefix: 'runtime/',
+      entryFile: 'sherpa-onnx.node',
+      supportFiles: expect.arrayContaining([
+        'onnxruntime_providers_shared.dll',
+        'onnxruntime.dll',
+        'sherpa-onnx-c-api.dll',
+        'sherpa-onnx-cxx-api.dll'
+      ])
+    })
     expect(sherpa.platforms['win32-x64']).toMatchObject({
       packageName: 'sherpa-onnx-win-x64',
       entryFile: 'sherpa-onnx.node',
@@ -143,13 +173,13 @@ describe('local model catalog', () => {
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {
-    expect(() => bundleFile(bundleForCapability('ocr'), 'nope')).toThrow(/no file with key/)
+    expect(() => bundleFile(defaultBundleForCapability('ocr'), 'nope')).toThrow(/no file with key/)
   })
 
   it('throws when asked for a dtype the bundle does not declare', () => {
     // OCR runs through ppu-paddle-ocr, which has no transformers.js dtype; asking for one
     // means a caller confused the two runtimes.
-    expect(() => bundleDtype(bundleForCapability('ocr'))).toThrow(/declares no runtime dtype/)
-    expect(bundleDtype(bundleForCapability('embedding'))).toBe('q8')
+    expect(() => bundleDtype(defaultBundleForCapability('ocr'))).toThrow(/declares no runtime dtype/)
+    expect(bundleDtype(defaultBundleForCapability('embedding'))).toBe('q8')
   })
 })

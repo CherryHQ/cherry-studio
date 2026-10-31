@@ -343,8 +343,8 @@ If the CTE computes a derived value (e.g. `tree_depth`), select it alongside
 output: both bypass Drizzle's type-safety and let future schema changes drift
 silently.
 
-Reference implementations: `MessageService.getTree` / `getBranchMessages` /
-`getPathToNode`, `KnowledgeItemService.getCascadeIdsInBase`.
+Reference implementations: `MessageService.getBranchMessages` / `getPathToNode`,
+`KnowledgeItemService.getCascadeIdsInBase`.
 
 ## Custom SQL & FTS5
 

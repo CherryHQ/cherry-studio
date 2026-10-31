@@ -122,4 +122,50 @@ describe('ChatgptImporter', () => {
       ]
     )
   })
+
+  it('survives cyclic parent pointers in malformed exports instead of hanging', async () => {
+    const message = (role: 'user' | 'assistant', text: string) => ({
+      author: { role },
+      content: { content_type: 'text', parts: [text] }
+    })
+    const result = await importer.parse(
+      JSON.stringify([
+        {
+          title: 'Cycle conversation',
+          create_time: 1,
+          update_time: 2,
+          current_node: 'cycle-a',
+          mapping: {
+            'cycle-a': { id: 'cycle-a', parent: 'cycle-b', children: ['q1'], message: message('user', '   ') },
+            'cycle-b': {
+              id: 'cycle-b',
+              parent: 'cycle-a',
+              children: ['cycle-a'],
+              message: message('assistant', '   ')
+            },
+            q1: {
+              id: 'q1',
+              parent: 'cycle-a',
+              children: ['a1'],
+              message: message('user', 'What is the capital of France?')
+            },
+            a1: { id: 'a1', parent: 'q1', children: [], message: message('assistant', 'Paris.') },
+            root: { id: 'root', children: ['cycle-a'] }
+          }
+        }
+      ])
+    )
+
+    const importedConversation = result.conversations[0]
+    // the cycle nodes have no usable content, and q1's parent chain enters the cycle,
+    // so it resolves to a root instead of a dangling id
+    expect(importedConversation.messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))).toEqual(
+      [
+        { sourceId: 'q1', parentSourceId: undefined },
+        { sourceId: 'a1', parentSourceId: 'q1' }
+      ]
+    )
+    // the leaf pointer into the cycle falls back to export order
+    expect(importedConversation.activeSourceId).toBe('a1')
+  })
 })

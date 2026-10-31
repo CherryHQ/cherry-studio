@@ -1,6 +1,6 @@
-import { DragDropContext } from '@hello-pangea/dnd'
 import type { FC } from 'react'
 
+import { ReorderableList } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
@@ -8,9 +8,9 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
-import { useActionItems } from '../hooks/useSettingsActionsList'
-import ActionsList from './ActionsList'
+import { ACTIONS_DIVIDER, type ActionRow, useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsListDivider from './ActionsListDivider'
+import ActionsListItem from './ActionsListItem'
 import SelectionActionModelSettings from './SelectionActionModelSettings'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
@@ -25,10 +25,11 @@ interface SelectionActionsListProps {
   setActionItems: (items: SelectionActionItem[]) => void // Function to update action items
 }
 
+const getActionRowId = (row: ActionRow) => (row === ACTIONS_DIVIDER ? ACTIONS_DIVIDER : row.id)
+
 const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setActionItems }) => {
   const {
     enabledItems,
-    disabledItems,
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
@@ -41,7 +42,8 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
     handleSearchModalOk,
     handleDeleteActionItem,
     handleReset,
-    onDragEnd,
+    actionRows,
+    handleReorderRows,
     getSearchEngineInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS
@@ -77,31 +79,28 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         />
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-4">
-          <div className="w-full">
-            <ActionsList
-              droppableId="enabled"
-              items={enabledItems}
-              isLastEnabledItem={enabledItems.length === 1}
-              onEdit={handleEditActionItem}
-              onDelete={handleDeleteActionItem}
-              getSearchEngineInfo={getSearchEngineInfo}
-            />
-
+      <ReorderableList
+        items={actionRows}
+        getId={getActionRowId}
+        onReorder={handleReorderRows}
+        isItemDragDisabled={(row) => row === ACTIONS_DIVIDER || (row.enabled && enabledItems.length === 1)}
+        gap={8}
+        itemStyle={{ cursor: 'default' }}
+        className="mb-4"
+        renderItem={(row) =>
+          row === ACTIONS_DIVIDER ? (
             <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
-
-            <ActionsList
-              droppableId="disabled"
-              items={disabledItems}
-              isLastEnabledItem={false}
+          ) : (
+            <ActionsListItem
+              item={row}
+              isLastEnabledItem={row.enabled && enabledItems.length === 1}
               onEdit={handleEditActionItem}
               onDelete={handleDeleteActionItem}
               getSearchEngineInfo={getSearchEngineInfo}
             />
-          </div>
-        </div>
-      </DragDropContext>
+          )
+        }
+      />
 
       {isUserModalOpen && (
         <SelectionActionUserModal

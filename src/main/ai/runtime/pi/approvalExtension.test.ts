@@ -60,11 +60,12 @@ function buildGate(
     agentDataPath: string
     additionalReadOnlyRoots: readonly string[]
     getPermissionMode: () => AgentPermissionMode | undefined
-    getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
+    getInteractionState: PiApprovalContext['getInteractionState']
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
     nonBypassableApprovalTools: ReadonlySet<string>
+    delegationTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
@@ -76,11 +77,12 @@ function buildGate(
     additionalReadOnlyRoots: [],
     emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
-    getInteractionState: () => ({ userResponse: 'stream' }),
+    getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
     nonBypassableApprovalTools: new Set(),
+    delegationTools: new Set(),
     ...overrides
   }
   const factory = createPiApprovalExtension(context)
@@ -245,7 +247,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     async (mode) => {
       const { handler, emitted } = buildGate({
         getPermissionMode: () => mode,
-        getInteractionState: () => ({ userResponse: 'unavailable' })
+        getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' })
       })
       const unicodeSpacePath = databaseFile.replace('user data', 'user\u00a0data')
 
@@ -305,7 +307,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
     const { handler, emitted } = buildGate({
       getPermissionMode: () => 'bypassPermissions',
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
       approvalRequiredTools: new Set([toolName])
     })
 
@@ -314,40 +316,62 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
-  it('still requests live approval for a non-bypassable delegation tool under bypassPermissions', async () => {
-    const toolName = 'mcp__cherry-tools__session_send'
-    const { handler, emitted } = buildGate({
-      getPermissionMode: () => 'bypassPermissions',
-      approvalRequiredTools: new Set([toolName]),
-      nonBypassableApprovalTools: new Set([toolName])
+  describe.each(['session_create', 'session_send'])('delegation: %s', (name) => {
+    const toolName = `mcp__cherry-tools__${name}`
+    const delegationTools = new Set([toolName])
+
+    it.each(['auto', 'bypassPermissions'] as const)('allows repeated and nested calls in %s', async (mode) => {
+      const { handler, emitted, authorizeTool } = buildGate({ delegationTools, getPermissionMode: () => mode })
+      for (let call = 0; call < 2; call++) {
+        await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toBeUndefined()
+      }
+      await expect(authorizeTool({ toolName, toolCallId: 'nested-delegation', input: {} })).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+      expect(toolApprovalRegistry.size()).toBe(0)
     })
 
-    const pending = handler(toolEvent(toolName, {}), extCtx)
-    await flush()
-    expect(emitted).toHaveLength(1)
-    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
-    await expect(pending).resolves.toMatchObject({ block: true })
-  })
-
-  it('blocks a non-bypassable delegation tool headlessly under bypassPermissions', async () => {
-    const toolName = 'mcp__cherry-tools__session_create'
-    const { handler, emitted } = buildGate({
-      getPermissionMode: () => 'bypassPermissions',
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
-      approvalRequiredTools: new Set([toolName]),
-      nonBypassableApprovalTools: new Set([toolName])
+    it.each(['default', 'acceptEdits'] as const)('requires a decision in %s', async (mode) => {
+      const { handler, emitted } = buildGate({ delegationTools, getPermissionMode: () => mode })
+      for (const approved of [true, false]) {
+        const pending = handler(toolEvent(toolName, {}), extCtx)
+        await flush()
+        toolApprovalRegistry.dispatch(emitted.at(-1).request.approvalId, { approved })
+        if (approved) await expect(pending).resolves.toBeUndefined()
+        else await expect(pending).resolves.toMatchObject({ block: true })
+      }
+      expect(emitted).toHaveLength(2)
     })
 
-    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
-      block: true,
-      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
-    })
-    expect(emitted).toHaveLength(0)
+    it.each(['default', 'acceptEdits', 'auto', 'bypassPermissions'] as const)(
+      'keeps delegation boundaries in %s',
+      async (mode) => {
+        const { handler, emitted } = buildGate({
+          delegationTools,
+          getPermissionMode: () => mode,
+          isDisabled: () => true
+        })
+        await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toMatchObject({ block: true })
+        expect(emitted).toHaveLength(0)
+        for (const interaction of [
+          { currentTurn: 'headless', userResponse: 'unavailable' },
+          { currentTurn: 'headless', userResponse: 'stream' },
+          { currentTurn: 'interactive', userResponse: 'unavailable' }
+        ] as const) {
+          const gate = buildGate({
+            delegationTools,
+            getPermissionMode: () => mode,
+            getInteractionState: () => interaction
+          })
+          await expect(gate.handler(toolEvent(toolName, {}), extCtx)).resolves.toMatchObject({ block: true })
+          expect(gate.emitted).toHaveLength(0)
+        }
+      }
+    )
   })
 
   it('fails closed immediately when an approval-required tool has no responder', async () => {
     const { handler, emitted } = buildGate({
-      getInteractionState: () => ({ userResponse: 'unavailable' })
+      getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' })
     })
 
     await expect(handler(toolEvent('bash', { command: 'ls' }), extCtx)).resolves.toMatchObject({
@@ -361,7 +385,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   it('does not suggest bypass for an always-prompt tool in an unattended turn', async () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
     const { handler, emitted } = buildGate({
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
       approvalRequiredTools: new Set([toolName])
     })
 
@@ -374,7 +398,9 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   })
 
   it('marks an out-of-stream approval for message presentation', async () => {
-    const { handler, emitted } = buildGate({ getInteractionState: () => ({ userResponse: 'message' }) })
+    const { handler, emitted } = buildGate({
+      getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+    })
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
 

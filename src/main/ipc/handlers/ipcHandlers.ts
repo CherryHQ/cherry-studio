@@ -12,6 +12,7 @@ import { cherryCloudHandlers } from './cherryCloud'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
+import { computerUseHandlers } from './computerUse'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { doctorHandlers } from './doctor'
@@ -34,6 +35,7 @@ import { pdfjsHandlers } from './pdfjs'
 import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
+import { proxyHandlers } from './proxy'
 import { quickAssistantHandlers } from './quickAssistant'
 import { screenshotHandlers } from './screenshot'
 import { screenshotChatHandlers } from './screenshotChat'
@@ -71,6 +73,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...cherryCloudHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...computerUseHandlers,
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
   ...doctorHandlers,
@@ -92,6 +95,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...pdfjsHandlers,
   ...printHandlers,
   ...profileHandlers,
+  ...proxyHandlers,
   ...providerHandlers,
   ...quickAssistantHandlers,
   ...screenshotHandlers,
