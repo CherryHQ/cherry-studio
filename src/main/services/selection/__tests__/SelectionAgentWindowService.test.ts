@@ -337,6 +337,16 @@ describe('SelectionAgentWindowService', () => {
       expect(stack(1)?.map((capsule) => capsule.windowId)).toEqual(['w1'])
     })
 
+    it('keeps open a window that something else hid, as a screenshot from its composer does', () => {
+      openStarted('w1', { ...RUNNING, status: 'done' })
+      // The screenshot hides it, which blurs it, and shows it again when it ends.
+      windows.w1.visible = false
+
+      svc.dismissBlurred('w1', 'close')
+
+      expect(wm.close).not.toHaveBeenCalledWith('w1')
+    })
+
     it('lets only the host showing a capsule restore or close its window', () => {
       openStarted('w1')
       openStarted('w2', RUNNING, 2)
