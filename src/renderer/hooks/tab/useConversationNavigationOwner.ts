@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
+import { cacheService } from '@renderer/data/CacheService'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { findConversationTab, getConversationSidebarApp } from '@renderer/utils/conversationNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -35,6 +36,14 @@ function reportOwnership(requestId: string, ownsTarget: boolean): void {
  */
 export function useConversationNavigationOwner({ tabs, openTab, setActiveTab }: ConversationNavigationOwner): void {
   const pendingNavigationsRef = useRef(new Map<string, PendingNavigation>())
+  const ownedTabIds = useRef(new Set<string>())
+  useEffect(() => {
+    const current = new Set(tabs.map((tab) => tab.id))
+    for (const id of ownedTabIds.current) {
+      if (!current.has(id)) cacheService.deleteCasual(`scheduled-task.conversation.${id}`)
+    }
+    ownedTabIds.current = current
+  }, [tabs])
 
   useIpcOn('navigation.conversation_ownership_requested', ({ requestId, target }) => {
     reportOwnership(requestId, findConversationTab(tabs, target) !== undefined)
@@ -91,6 +100,7 @@ export function useConversationNavigationOwner({ tabs, openTab, setActiveTab }: 
         for (const requestId of pending.requestIds) reportOwnership(requestId, false)
       }
       pendingNavigationsRef.current.clear()
+      for (const id of ownedTabIds.current) cacheService.deleteCasual(`scheduled-task.conversation.${id}`)
     },
     []
   )
