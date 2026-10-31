@@ -10,8 +10,10 @@ export function useMessageListRenderConfig() {
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
+  const [userMessageDefaultExpanded] = usePreference('chat.message.user_content.default_expanded')
   const [codeFancyBlock] = usePreference('chat.code.fancy_block')
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [keepIntermediateAssistantText] = usePreference('chat.message.keep_intermediate_text')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
   const [showEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
@@ -29,9 +31,11 @@ export function useMessageListRenderConfig() {
       messageFont,
       fontSize,
       renderInputMessageAsMarkdown,
+      userMessageDefaultExpanded,
       codeFancyBlock,
       thoughtAutoCollapse,
       collapseCompletedToolHistory: true,
+      keepIntermediateAssistantText,
       mathEnableSingleDollar,
       showMessageOutline,
       showEstimatedTokens,
@@ -42,6 +46,7 @@ export function useMessageListRenderConfig() {
     [
       fontSize,
       codeFancyBlock,
+      keepIntermediateAssistantText,
       mathEnableSingleDollar,
       messageFont,
       messageStyle,
@@ -50,6 +55,7 @@ export function useMessageListRenderConfig() {
       multiModelMessageStyle,
       narrowMode,
       renderInputMessageAsMarkdown,
+      userMessageDefaultExpanded,
       showEstimatedTokens,
       showMessageOutline,
       thoughtAutoCollapse,

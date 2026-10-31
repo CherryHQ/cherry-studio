@@ -3,6 +3,10 @@ import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
 import { resolveFilesystemBaseDir } from '../config'
 import { createFileSystemServer } from '../server'
@@ -22,22 +26,63 @@ const editTool = (args: Record<string, unknown>, root: string) => callFsTool('ed
 const writeTool = (args: Record<string, unknown>, root: string) => callFsTool('write', args, root)
 const deleteTool = (args: Record<string, unknown>, root: string) => callFsTool('delete', args, root)
 
-describe('filesystem MCP security', () => {
-  const tempDirs: string[] = []
+const tempDirs: string[] = []
 
-  async function createTempDir(prefix: string) {
-    const tempRoot = path.join(process.cwd(), '.context', 'vitest-temp')
-    await fs.mkdir(tempRoot, { recursive: true })
-    const tempDir = await fs.mkdtemp(path.join(tempRoot, prefix))
-    tempDirs.push(tempDir)
-    return tempDir
-  }
+async function createTempDir(prefix: string) {
+  const tempRoot = path.join(process.cwd(), '.context', 'vitest-temp')
+  await fs.mkdir(tempRoot, { recursive: true })
+  const tempDir = await fs.mkdtemp(path.join(tempRoot, prefix))
+  tempDirs.push(tempDir)
+  return tempDir
+}
 
-  afterEach(async () => {
-    vi.restoreAllMocks()
-    await Promise.all(tempDirs.splice(0).map((tempDir) => fs.rm(tempDir, { recursive: true, force: true })))
+afterEach(async () => {
+  vi.restoreAllMocks()
+  await Promise.all(tempDirs.splice(0).map((tempDir) => fs.rm(tempDir, { recursive: true, force: true })))
+})
+
+describe('filesystem MCP preset root', () => {
+  it('serves the workspace for an unconfigured built-in filesystem server', async () => {
+    const workspace = await createTempDir('filesystem-preset-workspace-')
+    await fs.writeFile(path.join(workspace, 'workspace-note.txt'), 'workspace note')
+    vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+      key === 'feature.mcp.workspace' ? workspace : `/mock/${key}`
+    )
+
+    const result = await callBuiltinTool(
+      () =>
+        createFileSystemServer(
+          resolveFilesystemBaseDir(
+            [...(PRESET_MCP_SERVERS.find((s) => s.name === BuiltinMcpServerNames.filesystem)?.args ?? [])],
+            {}
+          )
+        ),
+      'read',
+      { file_path: 'workspace-note.txt' }
+    )
+
+    expect(toolText(result)).toContain('workspace note')
   })
 
+  it('uses an explicitly configured absolute path over the workspace', async () => {
+    const configuredDir = await createTempDir('filesystem-configured-root-')
+    const workspace = await createTempDir('filesystem-configured-workspace-')
+    await fs.writeFile(path.join(configuredDir, 'configured-note.txt'), 'configured note')
+    vi.spyOn(application, 'getPath').mockImplementation((key: string) =>
+      key === 'feature.mcp.workspace' ? workspace : `/mock/${key}`
+    )
+
+    const result = await callBuiltinTool(
+      () => createFileSystemServer(resolveFilesystemBaseDir([configuredDir], {})),
+      'read',
+      { file_path: 'configured-note.txt' }
+    )
+
+    expect(toolText(result)).toContain('configured note')
+  })
+})
+
+describe('filesystem MCP security', () => {
   it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
     expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toBe('C:/args-root')
     expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')

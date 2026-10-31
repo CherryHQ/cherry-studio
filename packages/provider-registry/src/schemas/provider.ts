@@ -132,6 +132,7 @@ export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
 
 export const ProviderWebsiteSchema = z.object({
   website: z.object({
+    billing: z.url().optional(),
     official: z.url().optional(),
     docs: z.url().optional(),
     apiKey: z.url().optional(),

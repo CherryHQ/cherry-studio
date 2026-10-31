@@ -2,7 +2,9 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
@@ -19,13 +21,16 @@ import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
   readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
+  readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
+    await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new Error(`pi agent session ${session.id} has no workspace configured`)
@@ -71,7 +76,16 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new PiRuntimeConnection(input).start()
+    const migration = getRetiredAgentSessionMigration(application.get('DbService').getDb(), input.sessionId)
+    await ensureRetiredSessionHistory(input.sessionId)
+    const migratedInput = migration
+      ? {
+          ...input,
+          resumeToken: agentSessionMessageService.getLastRuntimeResumeToken(input.sessionId) ?? undefined,
+          nativeSessionId: undefined
+        }
+      : input
+    return new PiRuntimeConnection(migratedInput).start()
   }
 
   /**

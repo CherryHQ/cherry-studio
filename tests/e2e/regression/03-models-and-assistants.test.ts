@@ -1,8 +1,13 @@
+import type { Page } from '@playwright/test'
+
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { selectChatModel, sendChatMarker } from './chat'
@@ -137,6 +142,72 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
   const partialText = 'Sunlight enters a raindrop and separates into colors.'
   let page = mainWindow
   let assistantId: string | undefined
+  const diagnostics: Record<string, unknown> = { observations: [] }
+  const observations = diagnostics.observations as unknown[]
+  const observe = async (messageId: string, topicId: string) => {
+    const renderer = await page.evaluate(() => ({
+      cache: Object.fromEntries(
+        [
+          'ui.tab.normal_tabs',
+          'ui.tab.pinned_tabs',
+          'ui.tab.active_tab_id',
+          'ui.chat.last_used_topic_id',
+          'ui.chat.last_used_assistant_id'
+        ].map((key) => [key, JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')[key] ?? null])
+      ),
+      options: Array.from(document.querySelectorAll<HTMLElement>('[data-ui~="chat.view"] [role="option"]'))
+        .filter((element) => element.checkVisibility())
+        .map((element) => ({
+          id: element.id,
+          selected: element.getAttribute('aria-selected'),
+          text: element.innerText
+        })),
+      visibleMessageIds: Array.from(
+        document.querySelectorAll<HTMLElement>('[data-ui~="chat.message"][data-message-id]')
+      )
+        .filter((element) => element.checkVisibility())
+        .map((element) => element.dataset.messageId),
+      busyHistory: Array.from(document.querySelectorAll<HTMLElement>('[aria-busy="true"]')).map((element) => ({
+        id: element.id,
+        ui: element.getAttribute('data-ui'),
+        visible: element.checkVisibility()
+      }))
+    }))
+    const row = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
+    const rows = await row.evaluateAll((elements) =>
+      elements.map((element) => ({
+        visible: element.checkVisibility(),
+        innerText: (element as HTMLElement).innerText,
+        textContent: element.textContent
+      }))
+    )
+    const branch = await page.evaluate(
+      (topicId) =>
+        window.api.dataApi.request({
+          id: 'stream-failure-branch-diagnostic',
+          method: 'GET',
+          path: `/topics/${topicId}/messages`,
+          params: { includeSiblings: true }
+        }),
+      topicId
+    )
+    const membership = (branch.data as BranchMessagesResponse | undefined)?.items.map((entry) => ({
+      primaryId: entry.message.id,
+      isPrimary: entry.message.id === messageId,
+      siblingIds: entry.siblingsGroup?.map((message) => message.id) ?? [],
+      isSibling: entry.siblingsGroup?.some((message) => message.id === messageId) ?? false
+    }))
+    return {
+      timestamp: new Date().toISOString(),
+      ...renderer,
+      rows,
+      rowCount: rows.length,
+      rowExactTextCount: await row.getByText(partialText, { exact: true }).count(),
+      exactTextCount: await page.getByText(partialText, { exact: true }).count(),
+      branch,
+      membership
+    }
+  }
   const namingEnabled = await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))
 
   try {
@@ -223,6 +294,7 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     if (!messageId) throw new Error('Streaming response has no message ID')
 
     // Disconnect only after the renderer has consumed the text, without a finish chunk or [DONE].
+    let topicId = ''
     request.disconnect()
     await expect
       .poll(async () => {
@@ -231,7 +303,9 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
           messageId
         )
         expect(stored.status).toBe(200)
-        return MessageSchema.parse(stored.data)
+        const message = MessageSchema.parse(stored.data)
+        topicId = message.topicId
+        return message
       })
       .toMatchObject({
         id: messageId,
@@ -246,15 +320,86 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     await expect(page.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
     await expect(response.getByText(partialText, { exact: true })).toBeVisible()
 
+    await expect
+      .poll(
+        async () => {
+          const cache = (await page.evaluate(() => JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}'))) as {
+            'ui.tab.normal_tabs'?: { url: string; isDormant?: boolean }[]
+            'ui.chat.last_used_topic_id'?: string | null
+          }
+          const tabs = cache['ui.tab.normal_tabs'] ?? []
+          const lastUsedTopicId = cache['ui.chat.last_used_topic_id'] ?? null
+          return lastUsedTopicId === topicId &&
+            tabs.some((tab) => !tab.isDormant && tab.url.includes(`topicId=${topicId}`))
+            ? 'ready'
+            : JSON.stringify({ 'ui.chat.last_used_topic_id': lastUsedTopicId, tabUrls: tabs.map((tab) => tab.url) })
+        },
+        {
+          timeout: 5_000,
+          intervals: [100],
+          message: `C-03 serialized conversation selection did not catch up to topic ${topicId} before restart`
+        }
+      )
+      .toBe('ready')
+
+    const beforeRestart = await page
+      .evaluate(
+        (id) =>
+          window.api.dataApi.request({ id: 'stream-failure-before-restart', method: 'GET', path: `/messages/${id}` }),
+        messageId
+      )
+      .catch((error) => ({ status: 0, data: undefined, error: String(error) }))
+    diagnostics.beforeRestartMessage = beforeRestart
+    diagnostics.identity = { messageId, topicId, assistantId }
+    diagnostics.beforeRestart = await observe(messageId, topicId).catch((error) => ({ error: String(error) }))
+
     page = await app.restart('authenticated')
+    let stored: typeof beforeRestart
+    try {
+      stored = await page.evaluate(
+        (id) => window.api.dataApi.request({ id: 'stream-failure-reloaded', method: 'GET', path: `/messages/${id}` }),
+        messageId
+      )
+      diagnostics.afterRestartMessage = stored
+    } catch (error) {
+      diagnostics.afterRestartMessage = { error: String(error) }
+      throw error
+    }
     await dismissOnboarding(page)
     await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
     const restored = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]:visible`)
-    await expect(restored.getByText(partialText, { exact: true })).toBeVisible()
-    const stored = await page.evaluate(
-      (id) => window.api.dataApi.request({ id: 'stream-failure-reloaded', method: 'GET', path: `/messages/${id}` }),
-      messageId
-    )
+    let stopObserving!: () => void
+    const stopped = new Promise<void>((resolve) => {
+      stopObserving = resolve
+    })
+    const observationDeadline = Date.now() + 30_000
+    const observationLoop = (async () => {
+      while (Date.now() < observationDeadline) {
+        const observation = await Promise.race([
+          observe(messageId, topicId).catch((error) => ({ timestamp: new Date().toISOString(), error: String(error) })),
+          stopped
+        ])
+        if (!observation) break
+        observations.push(observation)
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, 250)
+          }),
+          stopped
+        ])
+        clearTimeout(timer)
+        if (Date.now() >= observationDeadline) break
+      }
+    })()
+    try {
+      await expect(restored.getByText(partialText, { exact: true })).toBeVisible({
+        timeout: Math.max(1, observationDeadline - Date.now())
+      })
+    } finally {
+      stopObserving()
+      await observationLoop
+    }
     expect(stored.status).toBe(200)
     expect(MessageSchema.parse(stored.data)).toMatchObject({
       id: messageId,
@@ -288,6 +433,25 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       body: await page.screenshot(),
       contentType: 'image/png'
     })
+  } catch (error) {
+    diagnostics.failure = String(error)
+    try {
+      await testInfo.attach('C-03 restart diagnostics', {
+        body: JSON.stringify(diagnostics, null, 2),
+        contentType: 'application/json'
+      })
+    } catch {
+      // Evidence failures must preserve the original assertion failure.
+    }
+    try {
+      await testInfo.attach('C-03 before cleanup', {
+        body: await captureMaskedScreenshot(page, getSensitiveConfigValues()),
+        contentType: 'image/png'
+      })
+    } catch {
+      // Evidence failures must preserve the original assertion failure.
+    }
+    throw error
   } finally {
     await server.close()
     page = await app.mainWindow()
@@ -307,4 +471,248 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       { assistantId, providerId, namingEnabled }
     )
   }
+})
+
+test(...caseDefinition('SET-05'), async ({ app, mainWindow: page }) => {
+  await openSettingsSection(page, 'About')
+
+  // The About page must name the product and show a real version number.
+  await expect(page.getByText(/Cherry Studio/i).first()).toBeVisible()
+  const version = page.getByText(/\bv?\d+\.\d+\.\d+\b/).first()
+  await expect(version).toBeVisible()
+  const before = (await version.textContent())?.trim()
+
+  // The value comes from the running build, so it must survive a restart unchanged.
+  const restarted = await app.restart('authenticated')
+  await openSettingsSection(restarted, 'About')
+  await expect(restarted.getByText(/\bv?\d+\.\d+\.\d+\b/).first()).toHaveText(before ?? '')
+})
+
+// The sidebar groups conversations by assistant by default; "Time" is the flat list a reader expects.
+async function showConversationList(page: Page): Promise<void> {
+  const displayMode = page.getByRole('button', { name: 'Display mode', exact: true })
+  if (await displayMode.isVisible().catch(() => false)) {
+    await displayMode.click()
+    const byTime = page.getByText('Time', { exact: true }).first()
+    if (await byTime.isVisible().catch(() => false)) await byTime.click()
+    else await page.keyboard.press('Escape')
+  }
+}
+
+async function startTrackedChat(
+  app: Parameters<typeof ensureCustomChatProvider>[0],
+  page: Parameters<typeof ensureCustomChatProvider>[1]
+): Promise<void> {
+  await ensureCustomChatProvider(app, page)
+  await closeSettings(page)
+  await selectChatModel(page, app.config.customProvider.chatModel)
+  await showConversationList(page)
+}
+
+// Each case starts from an empty conversation; a reused one carries earlier answers into the reply.
+async function startFreshChat(
+  app: Parameters<typeof ensureCustomChatProvider>[0],
+  page: Parameters<typeof ensureCustomChatProvider>[1]
+): Promise<void> {
+  await startTrackedChat(app, page)
+  const create = page.locator('[data-ui~="chat.topic-list.action.create"]:visible').first()
+  await create.click()
+  await expect(page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()).toBeVisible()
+}
+
+test(...caseDefinition('TOPIC-01'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await startFreshChat(app, page)
+
+  const rows = () => page.locator('[data-testid="topic-list-row"]:visible')
+  const firstMarker = 'TOPIC_ONE_PASS_31415'
+  const secondMarker = 'TOPIC_TWO_PASS_27182'
+
+  await sendChatMarker(page, `Reply with exactly ${firstMarker} and nothing else.`, firstMarker, false)
+  await expect.poll(() => rows().count()).toBeGreaterThan(0)
+  const afterFirst = await rows().count()
+
+  await page.locator('[data-ui~="chat.topic-list.action.create"]:visible').first().click()
+  await expect.poll(() => rows().count()).toBeGreaterThan(afterFirst)
+  await sendChatMarker(page, `Reply with exactly ${secondMarker} and nothing else.`, secondMarker, false)
+
+  page = await app.restart('authenticated')
+  await dismissOnboarding(page)
+  await selectSidebarApp(page, 'Chat')
+  await showConversationList(page)
+  await expect.poll(() => rows().count()).toBeGreaterThanOrEqual(afterFirst + 1)
+
+  // Each conversation must still own its own answer, not just "there are two rows".
+  const markers = new Set<string>()
+  for (const row of await rows().all()) {
+    await row.click()
+    const view = await page.locator('[data-ui="chat.view"]:visible').first().innerText()
+    if (view.includes(firstMarker)) markers.add(firstMarker)
+    if (view.includes(secondMarker)) markers.add(secondMarker)
+  }
+  expect([...markers].sort()).toEqual([firstMarker, secondMarker].sort())
+})
+
+test(...caseDefinition('TOPIC-02'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await startFreshChat(app, page)
+
+  const marker = 'TOPIC_RENAME_PASS_16180'
+  await sendChatMarker(page, `Reply with exactly ${marker} and nothing else.`, marker, false)
+
+  const name = app.resourceName('Renamed conversation')
+  const row = page.locator('[data-testid="topic-list-row"]:visible').first()
+  await row.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit conversation name', exact: true }).click()
+  const input = page.getByRole('dialog').getByRole('textbox').first()
+  await input.fill(name)
+  await page.keyboard.press('Enter')
+  await expect(row).toContainText(name)
+
+  page = await app.restart('authenticated')
+  await dismissOnboarding(page)
+  await selectSidebarApp(page, 'Chat')
+  await expect(page.getByText(name, { exact: true }).first()).toBeVisible()
+
+  // The rename must not cost the conversation its messages.
+  await page.getByText(name, { exact: true }).first().click()
+  await expect(page.getByText(marker, { exact: true }).last()).toBeVisible()
+})
+
+test(...caseDefinition('CHAT-01'), async ({ app, mainWindow }) => {
+  const page = mainWindow
+  await startTrackedChat(app, page)
+
+  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+  await composer.fill('')
+  await composer.click()
+  await composer.pressSequentially('first line of the draft')
+  await page.keyboard.press('Shift+Enter')
+  await composer.pressSequentially('second line of the draft')
+
+  const draft = await composer.innerText()
+  expect(draft.split('\n').filter(Boolean)).toEqual(['first line of the draft', 'second line of the draft'])
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  const sent = page
+    .locator('[data-ui~="chat.message"][data-message-id]:visible')
+    .filter({ hasText: 'first line of the draft' })
+    .last()
+  await expect(sent).toContainText('second line of the draft')
+  await expect(composer).toHaveText('')
+})
+
+test(...caseDefinition('CHAT-02'), async ({ app, mainWindow }) => {
+  const page = mainWindow
+  await startFreshChat(app, page)
+
+  const marker = 'MESSAGE_ACTION_PASS_27182'
+  const messageId = await sendChatMarker(page, `Reply with exactly ${marker} and nothing else.`, marker, false)
+
+  const reply = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
+  await reply.hover()
+  const actions = reply.locator('[data-ui~="part:message-actions"]')
+  await expect(actions).toBeVisible()
+
+  await expect(actions.getByRole('button', { name: 'Copy', exact: true })).toBeEnabled()
+  await expect(actions.getByRole('button', { name: 'Regenerate', exact: true })).toBeEnabled()
+
+  await reply.locator('[data-ui~="part:message-actions"]').getByRole('button', { name: 'Delete', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  if (await dialog.isVisible().catch(() => false)) {
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+  }
+  await expect(page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)).toHaveCount(0)
+})
+
+test(...caseDefinition('SET-01'), async ({ mainWindow: page }) => {
+  await openSettingsSection(page, 'General')
+  const navigation = page.locator('[data-ui="settings.navigation"]')
+  await expect(navigation).toBeVisible()
+
+  // Sections are anchors on one page, so navigation means the section's rows scroll into view.
+  const sections: Array<[string, string]> = [
+    ['General', 'setting-general-launch-onboot'],
+    ['Data', 'setting-data-data-backup-restore'],
+    ['Notifications', 'setting-notifications-assistant-notification']
+  ]
+  for (const [section, anchor] of sections) {
+    await navigation.locator('[data-slot="menu-item"]').filter({ hasText: section }).first().click()
+    await expect(page.locator(`#${anchor}`)).toBeInViewport()
+  }
+
+  await page.getByRole('button', { name: 'Search settings', exact: true }).click()
+  const search = page.getByRole('combobox', { name: 'Search settings', exact: true })
+  await search.fill('backup')
+  await expect(
+    page
+      .getByRole('option')
+      .filter({ hasText: /backup/i })
+      .first()
+  ).toBeVisible()
+})
+
+test(...caseDefinition('SET-02'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await openSettingsSection(page, 'Appearance')
+
+  const switchFor = (target: typeof page) =>
+    target.locator('#setting-appearance-code-wrappable').getByRole('switch').first()
+
+  const toggle = switchFor(page)
+  await toggle.scrollIntoViewIfNeeded()
+  await expect(toggle).toBeVisible()
+  const before = await toggle.isChecked()
+
+  await toggle.click()
+  await expect(toggle).toBeChecked({ checked: !before })
+
+  // A saved setting must survive an app restart, not just re-render in the open panel.
+  page = await app.restart('authenticated')
+  await openSettingsSection(page, 'Appearance')
+  const restored = switchFor(page)
+  await restored.scrollIntoViewIfNeeded()
+  await expect(restored).toBeChecked({ checked: !before })
+
+  // Put the value back so later cases start from the shipped default.
+  await restored.click()
+  await expect(restored).toBeChecked({ checked: before })
+})
+
+test(...caseDefinition('SET-03'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await openSettingsSection(page, 'Appearance')
+
+  const row = () => page.locator('#setting-appearance-newline-shortcuts')
+  const trigger = () => row().getByRole('combobox').first()
+  await row().scrollIntoViewIfNeeded()
+  const before = (await trigger().innerText()).trim()
+
+  await trigger().click()
+  const options = page.getByRole('option')
+  const count = await options.count()
+  let picked = ''
+  for (let index = 0; index < count; index++) {
+    const label = (await options.nth(index).innerText()).trim()
+    // Pick any binding other than the current one; the list excludes the send shortcut already.
+    if (label && label !== before) {
+      picked = label
+      await options.nth(index).click()
+      break
+    }
+  }
+  expect(picked).not.toBe('')
+  await expect(trigger()).toHaveText(picked)
+
+  // The shortcut is a persisted preference: it must come back after a restart.
+  page = await app.restart('authenticated')
+  await openSettingsSection(page, 'Appearance')
+  await row().scrollIntoViewIfNeeded()
+  await expect(trigger()).toHaveText(picked)
+
+  // Restore the shipped default so later cases keep the documented Enter/Shift+Enter behavior.
+  await trigger().click()
+  await page.getByRole('option').filter({ hasText: before }).first().click()
+  await expect(trigger()).toHaveText(before)
 })

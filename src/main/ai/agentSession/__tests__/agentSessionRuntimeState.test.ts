@@ -382,7 +382,7 @@ describe('agentSessionRuntimeState', () => {
   })
 
   it('keeps a deferred admitted turn admitted and replays what the runtime answered before its stream reopened', () => {
-    // dsh runs a queued goal round ahead of a prompt it already accepted. Relaunching the deferred
+    // The runtime starts an autonomous turn ahead of a prompt it already accepted. Relaunching the deferred
     // turn as `pending` would re-send that prompt; dropping the reply that lands before the renderer
     // reattaches would lose it (the goal round's content used to be attributed to the prompt instead).
     const admitted = turn('user')
@@ -457,7 +457,7 @@ describe('agentSessionRuntimeState', () => {
 
   it('keeps a deferred admitted turn admitted when the receive-only placeholder is abandoned', () => {
     // startReceiveOnlyTurn abandons the autonomous turn when its placeholder save fails; restoring
-    // the host turn as `pending` would re-send a prompt dsh already accepted.
+    // the host turn as `pending` would re-send a prompt the runtime already accepted.
     const admitted = turn('user')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(admitted)
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: admitted }).state

@@ -3,16 +3,18 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
-
-import TasksSettings, {
+import {
   formStateToTrigger,
   type ScheduleFormState,
-  TaskTimeSelect,
   triggerToFormState
-} from '../TasksSettings'
+} from '@renderer/components/ScheduledTask/scheduleForm'
+import { TaskFormDialog, TaskTimeSelect } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { toast } from '@renderer/services/toast'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
+
+import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
 
@@ -105,6 +107,10 @@ const navigationMocks = vi.hoisted(() => ({
   openConversation: vi.fn(),
   openRoute: vi.fn(),
   taskId: 'task-1' as string | undefined
+}))
+
+const ipcMocks = vi.hoisted(() => ({
+  request: vi.fn()
 }))
 
 const channelDataMock = vi.hoisted(() => ({
@@ -248,6 +254,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: navigationMocks.openRoute
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcMocks.request }
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -1148,8 +1158,37 @@ describe('TasksSettings routing and creation', () => {
     expect(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' })).toBeDisabled()
     const agentCreate = screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' })
     expect(agentCreate).toBeEnabled()
-    fireEvent.click(agentCreate)
-    expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
+  })
+
+  it('opens a prepared Cherry Assistant chat with the scheduled task intent', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockResolvedValue({ sessionId: 'session-task-chat' })
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() =>
+      expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents', {
+        intent: 'task',
+        sessionId: 'session-task-chat'
+      })
+    )
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create')
+  })
+
+  it('stays on the page and reports the failure when the chat session cannot be created', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockRejectedValue(new Error('restore failed'))
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.scheduledTasks.agentCreateFailed'))
+    expect(navigationMocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('uses the header as the only creation entry when the empty state has an Agent', async () => {
@@ -1577,6 +1616,41 @@ describe('TasksSettings detail behavior', () => {
     expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
   })
 
+  it('finds a task run by the date and 24-hour time displayed in the log', async () => {
+    taskLogsMock.logs = [
+      { ...taskLogsMock.defaultTaskLog, startedAt: '2026-06-25T15:45:00.000Z' },
+      { ...taskLogsMock.defaultTaskLog, id: 'log-2', startedAt: '2026-06-26T09:30:00.000Z', result: 'other run' }
+    ]
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByRole('cell', { name: '6/25, 15:45' })).toBeInTheDocument()
+    const search = screen.getByPlaceholderText('agent.tasks.logs.search')
+    await user.type(search, '15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+    expect(screen.queryByText('other run')).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, '6/25, 15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
+  it('updates log dates and date searches when the UI language changes', async () => {
+    taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, startedAt: '2026-06-25T15:45:00.000Z' }]
+    const user = userEvent.setup()
+    const { rerender } = render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByRole('cell', { name: '6/25, 15:45' })).toBeInTheDocument()
+    translationMock.i18n.language = 'de-DE'
+    rerender(<TasksSettings />)
+    expect(screen.getByRole('cell', { name: '25.6., 15:45' })).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('agent.tasks.logs.search'), '25.6., 15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
   it('renders a dash for a run without a duration', async () => {
     taskLogsMock.logs = [
       {
@@ -1845,6 +1919,31 @@ describe('TasksSettings detail behavior', () => {
         trigger: { kind: 'interval', ms: 900_000, anchor: 'createdAt' }
       })
     )
+  })
+
+  // The chat card mounts the editor already open on its first Edit click.
+  it('keeps saved channel recipients when the editor mounts already open', async () => {
+    channelDataMock.channels = [
+      { id: 'channel-agent-1', agentId: 'agent-1', name: 'Agent One Telegram', isActive: true, activeChatIds: ['c-1'] }
+    ]
+    const onUpdate = vi.fn().mockResolvedValue(true)
+
+    render(
+      <TaskFormDialog
+        open
+        task={{ ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }}
+        agents={[{ id: 'agent-1', name: 'Agent One' }]}
+        onOpenChange={vi.fn()}
+        onUpdate={onUpdate}
+      />
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ name: 'Renamed task' }))
   })
 
   it('keeps the owning Agent fixed while editing an existing task', async () => {

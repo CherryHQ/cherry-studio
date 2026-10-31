@@ -18,6 +18,7 @@ interface FileTreeRowProps {
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
+  showFolderIcons?: boolean
 }
 
 const INDENT_STEP_PX = 12
@@ -27,7 +28,16 @@ const CHEVRON_SIZE_PX = 11
 const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
 
 export function FileTreeRow(props: FileTreeRowProps) {
-  const { args, renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon } = props
+  const {
+    args,
+    renameSlot,
+    animationSlot,
+    renderRowExtras,
+    getMenuItems,
+    fileIcon,
+    folderIcon,
+    showFolderIcons = true
+  } = props
   const { node, depth, isExpanded, isSelected, isDragging, dragPosition, toggleExpanded, selectNode, dragHandleProps } =
     args
 
@@ -96,19 +106,20 @@ export function FileTreeRow(props: FileTreeRowProps) {
       title={node.name}
       style={indent}
       className={cn(
-        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
+        'group relative flex items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm select-none',
         'transition-colors',
         isFolder
-          ? 'text-foreground hover:bg-accent/50'
-          : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
-        menuOpen && 'bg-accent/50 text-foreground',
-        isSelected && 'bg-accent/60 text-accent-foreground',
+          ? 'text-foreground hover:bg-resource-list-row-hover'
+          : 'text-muted-foreground hover:bg-resource-list-row-hover hover:text-foreground',
+        menuOpen && 'bg-resource-list-row-hover text-foreground',
+        isSelected &&
+          'bg-resource-list-row-selected text-resource-list-row-selected-foreground hover:bg-resource-list-row-selected',
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
         dragPosition === 'before' &&
-          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
+          "before:absolute before:inset-x-1 before:-top-px before:h-0.5 before:rounded before:bg-primary before:content-['']",
         dragPosition === 'after' &&
-          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
+          "after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded after:bg-primary after:content-['']"
       )}>
       {isFolder ? (
         <Button
@@ -119,7 +130,10 @@ export function FileTreeRow(props: FileTreeRowProps) {
             e.stopPropagation()
             toggleExpanded()
           }}
-          className="size-auto min-h-0 shrink-0 rounded-none p-0 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground"
+          className={cn(
+            'size-auto min-h-0 shrink-0 rounded-none p-0 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground',
+            !showFolderIcons && 'size-4 justify-center'
+          )}
           tabIndex={-1}
           aria-hidden>
           <ChevronRight
@@ -128,11 +142,11 @@ export function FileTreeRow(props: FileTreeRowProps) {
             style={{ transform: isExpanded ? 'rotate(90deg)' : 'none' }}
           />
         </Button>
-      ) : (
+      ) : showFolderIcons ? (
         <span className="inline-block size-3 shrink-0" aria-hidden="true" />
-      )}
+      ) : null}
 
-      {renderIcon()}
+      {(showFolderIcons || !isFolder) && renderIcon()}
 
       {isRenaming && renameSlot ? (
         <input

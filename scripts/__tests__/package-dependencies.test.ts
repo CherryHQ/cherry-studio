@@ -24,9 +24,6 @@ function packageRequire(name: string, from: NodeJS.Require): NodeJS.Require {
 }
 
 const piRequire = packageRequire('@earendil-works/pi-ai', require)
-const bridgeRequire = createRequire(path.join(projectRoot, 'packages/dsh-bridge/package.json'))
-const dshRequire = packageRequire('@deepseek-ai/dsh-llm-pi-ai', bridgeRequire)
-const dshPiRequire = packageRequire('@earendil-works/pi-ai', dshRequire)
 
 describe('packaged Smithy dependencies', () => {
   it('preserves S3 request signing and response decoding for backups', async () => {
@@ -89,46 +86,46 @@ describe('packaged Smithy dependencies', () => {
     }
   }, 60_000)
 
-  it.each([
-    ['Pi', piRequire],
-    ['DSH', dshPiRequire]
-  ] as const)('signs and decodes a Bedrock request through the %s dependency tree', async (_name, runtimeRequire) => {
-    const { BedrockRuntimeClient, ConverseCommand } = runtimeRequire('@aws-sdk/client-bedrock-runtime')
-    const requests: { headers: Record<string, string>; body: string }[] = []
-    const client = new BedrockRuntimeClient({
-      region: 'us-east-1',
-      credentials: { accessKeyId: 'test-access-key', secretAccessKey: 'test-secret-key' },
-      requestHandler: {
-        handle: async (request: { headers: Record<string, string>; body: string }) => {
-          requests.push(request)
-          return {
-            response: {
-              statusCode: 200,
-              headers: { 'content-type': 'application/json' },
-              body: new TextEncoder().encode(
-                JSON.stringify({
-                  output: { message: { role: 'assistant', content: [{ text: 'packaging verified' }] } },
-                  stopReason: 'end_turn',
-                  usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
-                  metrics: { latencyMs: 1 }
-                })
-              )
+  it.each([['Pi', piRequire]] as const)(
+    'signs and decodes a Bedrock request through the %s dependency tree',
+    async (_name, runtimeRequire) => {
+      const { BedrockRuntimeClient, ConverseCommand } = runtimeRequire('@aws-sdk/client-bedrock-runtime')
+      const requests: { headers: Record<string, string>; body: string }[] = []
+      const client = new BedrockRuntimeClient({
+        region: 'us-east-1',
+        credentials: { accessKeyId: 'test-access-key', secretAccessKey: 'test-secret-key' },
+        requestHandler: {
+          handle: async (request: { headers: Record<string, string>; body: string }) => {
+            requests.push(request)
+            return {
+              response: {
+                statusCode: 200,
+                headers: { 'content-type': 'application/json' },
+                body: new TextEncoder().encode(
+                  JSON.stringify({
+                    output: { message: { role: 'assistant', content: [{ text: 'packaging verified' }] } },
+                    stopReason: 'end_turn',
+                    usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+                    metrics: { latencyMs: 1 }
+                  })
+                )
+              }
             }
           }
         }
+      })
+      try {
+        const response = await client.send(
+          new ConverseCommand({ modelId: 'test-model', messages: [{ role: 'user', content: [{ text: 'hello' }] }] })
+        )
+        expect(response.output.message.content).toEqual([{ text: 'packaging verified' }])
+        expect(response.usage.totalTokens).toBe(6)
+        expect(requests).toHaveLength(1)
+        expect(JSON.parse(requests[0].body).messages).toEqual([{ role: 'user', content: [{ text: 'hello' }] }])
+        expect(requests[0].headers.authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=test-access-key\//)
+      } finally {
+        client.destroy()
       }
-    })
-    try {
-      const response = await client.send(
-        new ConverseCommand({ modelId: 'test-model', messages: [{ role: 'user', content: [{ text: 'hello' }] }] })
-      )
-      expect(response.output.message.content).toEqual([{ text: 'packaging verified' }])
-      expect(response.usage.totalTokens).toBe(6)
-      expect(requests).toHaveLength(1)
-      expect(JSON.parse(requests[0].body).messages).toEqual([{ role: 'user', content: [{ text: 'hello' }] }])
-      expect(requests[0].headers.authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=test-access-key\//)
-    } finally {
-      client.destroy()
     }
-  })
+  )
 })

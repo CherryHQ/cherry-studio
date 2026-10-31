@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-branch-paging-ids-first.md
+2026-10-28-branch-paging-ids-first.md: 17f5e54c1aa1ec8be2b9801698da897e3716dc14
+2026-10-28-branch-paging-ids-first.zh.md: 07260aa84e30c354fe20e8ba8a95ec6561a827a4

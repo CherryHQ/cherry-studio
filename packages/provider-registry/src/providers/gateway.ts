@@ -25,5 +25,15 @@ export default defineProvider({
       official: 'https://vercel.com/ai-gateway'
     }
   },
-  modelsDevProvider: 'vercel'
+  modelsDevProvider: 'vercel',
+  overrides: [
+    {
+      modelId: 'minimax-m3-1-flash',
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0 },
+        output: { currency: 'USD', perMillionTokens: 0 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0 }
+      }
+    }
+  ]
 })

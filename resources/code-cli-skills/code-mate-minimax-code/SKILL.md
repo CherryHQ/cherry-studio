@@ -1,6 +1,6 @@
 ---
 name: code-mate-minimax-code
-description: Runs MiniMax Code headlessly for repository analysis and coding tasks. Use when the user asks to delegate work to MiniMax Code or obtain a MiniMax-based coding-agent result.
+description: Run MiniMax Code non-interactively for coding tasks. Use when the user asks to delegate work to MiniMax Code.
 ---
 
 # MiniMax Code

@@ -2,12 +2,7 @@ import { createOpenResponses } from '@ai-sdk/open-responses'
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-/**
- * Guards patches/@ai-sdk__open-responses@1.0.34.patch — the two behaviors subset
- * Responses servers depend on: replaying the chain of thought itself (thinking
- * dialects reject a turn that dropped it, #18150) and closing an unterminated
- * reasoning item with its real id.
- */
+/** Guards the provider compatibility behaviors in patches/@ai-sdk__open-responses@1.0.34.patch. */
 
 function sseModel(events: unknown[]) {
   const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
@@ -31,6 +26,105 @@ async function collect(stream: ReadableStream<LanguageModelV3StreamPart>) {
 }
 
 describe('patched @ai-sdk/open-responses', () => {
+  it('drops gateway keep-alive deltas before they become text parts', async () => {
+    const chunks = await collect(
+      (
+        await sseModel([
+          {
+            type: 'response.output_text.delta',
+            item_id: 'SSE-Keep-Alive',
+            delta: '\u200b',
+            'SSE-Keep-Alive': true
+          }
+        ]).doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })
+      ).stream
+    )
+
+    expect(chunks.some((chunk) => chunk.type === 'text-delta')).toBe(false)
+  })
+
+  it('continues normal text streaming around gateway keep-alive deltas', async () => {
+    const heartbeat = {
+      type: 'response.output_text.delta',
+      item_id: 'SSE-Keep-Alive',
+      delta: '\u200b',
+      'SSE-Keep-Alive': true
+    }
+    const chunks = await collect(
+      (
+        await sseModel([
+          heartbeat,
+          { type: 'response.output_item.added', output_index: 0, item: { type: 'message', id: 'msg_1' } },
+          { type: 'response.output_text.delta', item_id: 'msg_1', output_index: 0, delta: 'color' },
+          heartbeat,
+          { type: 'response.output_text.delta', item_id: 'msg_1', output_index: 0, delta: ' answer' },
+          { type: 'response.output_item.done', output_index: 0, item: { type: 'message', id: 'msg_1' } },
+          { type: 'response.completed', response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 2 } } }
+        ]).doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })
+      ).stream
+    )
+
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === 'text-start' || chunk.type === 'text-delta' || chunk.type === 'text-end')
+        .map((chunk) => ({
+          id: chunk.id,
+          text: chunk.type === 'text-delta' ? chunk.delta : undefined,
+          type: chunk.type
+        }))
+    ).toEqual([
+      { id: 'msg_1', text: undefined, type: 'text-start' },
+      { id: 'msg_1', text: 'color', type: 'text-delta' },
+      { id: 'msg_1', text: ' answer', type: 'text-delta' },
+      { id: 'msg_1', text: undefined, type: 'text-end' }
+    ])
+  })
+
+  it('exposes unknown events as bounded raw diagnostics without creating message parts', async () => {
+    const unknownEvent = { type: 'vendor.progress', sequence_number: 7, status: 'waiting' }
+    const chunks = await collect(
+      (
+        await sseModel([unknownEvent]).doStream({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+          includeRawChunks: true
+        })
+      ).stream
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'raw').map((chunk) => chunk.rawValue)).toEqual([unknownEvent])
+    expect(
+      chunks.some((chunk) =>
+        ['text-start', 'text-delta', 'text-end', 'reasoning-start', 'reasoning-delta', 'reasoning-end'].includes(
+          chunk.type
+        )
+      )
+    ).toBe(false)
+  })
+
+  it('does not drop ordinary text solely because its item id resembles a keep-alive marker', async () => {
+    const chunks = await collect(
+      (
+        await sseModel([
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: { type: 'message', id: 'SSE-Keep-Alive' }
+          },
+          { type: 'response.output_text.delta', item_id: 'SSE-Keep-Alive', output_index: 0, delta: 'legitimate' },
+          {
+            type: 'response.output_item.done',
+            output_index: 0,
+            item: { type: 'message', id: 'SSE-Keep-Alive' }
+          }
+        ]).doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })
+      ).stream
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'text-delta')).toEqual([
+      { type: 'text-delta', id: 'SSE-Keep-Alive', delta: 'legitimate' }
+    ])
+  })
+
   it('replays assistant reasoning as reasoning_text content items', async () => {
     let body: any
     const model = createOpenResponses({

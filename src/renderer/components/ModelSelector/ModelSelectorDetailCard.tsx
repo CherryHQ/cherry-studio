@@ -128,11 +128,13 @@ function DetailRow({ label, value }: { label: ReactNode; value?: ReactNode }) {
 function ModelSelectorDetailCardBody({
   item,
   provider,
-  providerName
+  providerName,
+  description
 }: {
   item: ModelSelectorModelItem
   provider: Provider
   providerName: string
+  description?: ReactNode
 }) {
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
@@ -144,6 +146,7 @@ function ModelSelectorDetailCardBody({
   const imageModes = formatImageGenerationModes(model, t)
   const hasTokenDetails = model.contextWindow != null || model.maxInputTokens != null || model.maxOutputTokens != null
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)
+  const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
 
   return (
     <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
@@ -151,6 +154,7 @@ function ModelSelectorDetailCardBody({
         <div className="truncate text-sm font-medium text-foreground" title={model.name}>
           {model.name}
         </div>
+        {hasDescription ? <div className="text-muted-foreground text-xs">{description}</div> : null}
       </div>
 
       <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
@@ -195,11 +199,13 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   item,
   provider,
   portalContainer,
+  description,
   children
 }: {
   item: ModelSelectorModelItem
   provider: Provider
   portalContainer?: HoverCardPortalContainer | null
+  description?: ReactNode
   children: ReactNode
 }) {
   const providerName = getProviderDisplayName(provider)
@@ -230,7 +236,12 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
         collisionPadding={DETAIL_CARD_COLLISION_PADDING}
         portalContainer={portalContainer ?? undefined}
         className="w-84 max-w-(--radix-hover-card-content-available-width) p-0">
-        <ModelSelectorDetailCardBody item={item} provider={provider} providerName={providerName} />
+        <ModelSelectorDetailCardBody
+          item={item}
+          provider={provider}
+          providerName={providerName}
+          description={description}
+        />
       </HoverCardContent>
     </HoverCard>
   )

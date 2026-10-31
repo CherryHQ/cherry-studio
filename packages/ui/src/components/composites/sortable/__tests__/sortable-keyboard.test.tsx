@@ -2,13 +2,16 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import Sortable from '../sortable'
+import { installDndDomStubs } from './dnd-dom-stubs'
 
 const items = [{ id: 'alpha', label: 'Alpha' }]
 
 describe('Sortable keyboard activation', () => {
+  beforeAll(installDndDomStubs)
+
   it('does not start dragging when IME completion keys originate from a nested input', () => {
     const onDragStart = vi.fn()
 
@@ -44,7 +47,7 @@ describe('Sortable keyboard activation', () => {
       />
     )
 
-    screen.getByRole('button', { name: 'Alpha' }).focus()
+    ;(await screen.findByRole('button', { name: 'Alpha' })).focus()
     await user.keyboard('{Enter}')
 
     await waitFor(() => expect(onDragStart).toHaveBeenCalledTimes(1))

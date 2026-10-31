@@ -78,6 +78,7 @@ describe('KnowledgeBaseService', () => {
 
   async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
     const values: typeof knowledgeBaseTable.$inferInsert = {
+      orderKey: 'a0',
       id: KNOWLEDGE_BASE_ID,
       name: 'Knowledge Base',
       dimensions: 1536,
@@ -98,6 +99,7 @@ describe('KnowledgeBaseService', () => {
   async function seedKnowledgeBases(count: number) {
     await dbh.db.insert(knowledgeBaseTable).values(
       Array.from({ length: count }, (_, index) => ({
+        orderKey: 'a0',
         id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
         name: `Knowledge Base ${index}`,
         dimensions: null,

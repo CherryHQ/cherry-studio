@@ -264,7 +264,7 @@ export function createMcpBridgeServer(
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
         logger.debug('MCP bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
-        // Every agent runtime (dsh / pi / Claude Code) reaches Cherry's tools through this
+        // Every agent runtime (Pi / Claude Code) reaches Cherry's tools through this
         // handler, so this is the one place their tool failures are observable in-process.
         logger.error('MCP bridge: failed to call tool', {
           mcpId,

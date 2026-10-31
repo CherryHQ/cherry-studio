@@ -40,6 +40,7 @@ import {
   utf8
 } from './agentQueries'
 import { toMessageUsage } from './agentUsage'
+import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
@@ -253,24 +254,25 @@ export class SessionJournal {
     text: string,
     expectedAgentId: string,
     onPersist: (tx: DbOrTx, reservation: { executionId: string; messageId: string; userMessageId: string }) => void,
-    beforePersist?: () => void
+    beforePersist?: () => void,
+    attachments: CherryMessagePart[] = []
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
-    const userParts: CherryMessagePart[] = [{ type: 'text', text }]
     this.starting += 1
     try {
       const result = await startAgentSessionRun({
         sessionId: this.sessionId,
-        userParts,
+        userParts: [...(text.trim() ? [{ type: 'text' as const, text }] : []), ...attachments],
         listeners: [listener],
         requireIdle: { expectedAgentId },
         beforePersist,
-        onPersist: (tx, messages) =>
+        onPersist: (tx, messages) => {
           onPersist(tx, {
             executionId: listener.executionId,
             messageId: messages.assistantMessageId,
             userMessageId: messages.userMessageId
           })
+        }
       })
       if (result.mode !== 'started') {
         listener.current = false
@@ -875,6 +877,7 @@ class RemoteAgentListener implements StreamListener {
 
 /** Shared journals: one per session regardless of how many devices subscribe. */
 export class RemoteAgentHub {
+  readonly uploads = new RemoteUploads()
   private readonly journals = new Map<string, SessionJournal>()
 
   publishSession(sessionId: string): void {
@@ -910,6 +913,7 @@ export class RemoteAgentHub {
   }
 
   sweep(): void {
+    this.uploads.sweep()
     for (const journal of this.journals.values()) {
       if (journal.disposable && journal.lastUsedAt <= Date.now() - remoteLimits.replayMs) {
         journal.dispose()

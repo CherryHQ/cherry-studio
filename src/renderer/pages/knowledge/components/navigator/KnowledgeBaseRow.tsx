@@ -12,6 +12,7 @@ import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/uti
 import type { KnowledgeBaseRowProps } from './types'
 
 const KnowledgeBaseRow = ({
+  dragProps,
   base,
   groups,
   selected,
@@ -151,6 +152,7 @@ const KnowledgeBaseRow = ({
           <Button
             type="button"
             variant="ghost"
+            {...dragProps}
             onClick={() => onSelectBase(base.id)}
             className="flex min-h-0 min-w-0 flex-1 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
             <div className="min-w-0 truncate text-sm leading-5 font-normal text-foreground">{base.name}</div>

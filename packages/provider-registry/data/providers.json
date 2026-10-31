@@ -29,6 +29,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://open.cherryin.ai/console/token",
+          "billing": "https://open.cherryin.ai/console/topup",
           "docs": "https://open.cherryin.ai",
           "models": "https://open.cherryin.ai/pricing",
           "official": "https://open.cherryin.ai"
@@ -287,7 +288,53 @@
           "adapterFamily": "openai",
           "baseUrl": "https://api.deepseek.com",
           "reasoningFormat": {
-            "type": "openai-responses"
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "high",
+                  "low": "low",
+                  "medium": "high",
+                  "minimal": "low",
+                  "xhigh": "max"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "effortMap": {
+                  "low": "low",
+                  "medium": "high",
+                  "minimal": "low",
+                  "xhigh": "max"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
           }
         }
       },
@@ -295,6 +342,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
+          "billing": "https://platform.deepseek.com/top_up",
           "docs": "https://api-docs.deepseek.com/",
           "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
@@ -779,6 +827,12 @@
             "type": "openai-chat"
           }
         },
+        "openai-image-edit": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
+        },
         "openai-responses": {
           "adapterFamily": "newapi"
         }
@@ -833,6 +887,30 @@
       "name": "LM Studio"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LiteLLM - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:4000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "litellm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://docs.litellm.ai/docs/proxy/virtual_keys",
+          "docs": "https://docs.litellm.ai/docs/proxy/quick_start",
+          "official": "https://www.litellm.ai/"
+        }
+      },
+      "name": "LiteLLM"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
@@ -846,6 +924,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://console.anthropic.com/settings/keys",
+          "billing": "https://platform.claude.com/settings/billing",
           "docs": "https://docs.anthropic.com/en/docs",
           "models": "https://docs.anthropic.com/en/docs/about-claude/models",
           "official": "https://anthropic.com/"
@@ -1147,6 +1226,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.openai.com/api-keys",
+          "billing": "https://platform.openai.com/settings/organization/billing/overview",
           "docs": "https://platform.openai.com/docs",
           "models": "https://platform.openai.com/docs/models",
           "official": "https://openai.com/"
@@ -1646,22 +1726,22 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Bailian - AI model provider",
+      "description": "Qwen AI Platform - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic"
+          "baseUrl": "https://maas.qianwenaiapi.com/apps/anthropic"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "baseUrl": "https://maas.qianwenaiapi.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-chat"
           }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "baseUrl": "https://maas.qianwenaiapi.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-responses"
           }
@@ -1670,19 +1750,88 @@
       "id": "dashscope",
       "metadata": {
         "website": {
-          "apiKey": "https://bailian.console.aliyun.com/?tab=model#/api-key",
-          "docs": "https://help.aliyun.com/zh/model-studio/getting-started/",
-          "models": "https://bailian.console.aliyun.com/?tab=model#/model-market",
-          "official": "https://www.aliyun.com/product/bailian"
+          "apiKey": "https://platform.qianwenai.com/home/api-keys",
+          "docs": "https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call",
+          "models": "https://www.qianwenai.com/models",
+          "official": "https://www.qianwenai.com/"
         }
       },
-      "name": "Bailian",
+      "name": "Qwen AI Platform",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions", "openai-responses"],
           "id": "web-search",
           "modelScope": "model-dependent"
         },
         {
+          "endpointTypes": ["openai-chat-completions", "openai-responses"],
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "QwenCloud - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/apps/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
+        }
+      },
+      "id": "qwencloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://home.qwencloud.com/api-keys",
+          "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
+          "models": "https://www.qwencloud.com/models",
+          "official": "https://www.qwencloud.com/"
+        }
+      },
+      "name": "QwenCloud",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["anthropic-messages"],
           "id": "url-context",
           "modelScope": "model-dependent"
         }
@@ -2013,6 +2162,9 @@
         "openai-chat-completions": {
           "adapterFamily": "xai",
           "baseUrl": "https://api.x.ai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "xai"
         },
         "openai-responses": {
           "adapterFamily": "xai-responses",
@@ -2483,6 +2635,10 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://router.huggingface.co/v1/"
         },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2688,5 +2844,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a97aae2405a78d18"
+  "version": "e1952ef3858002a8"
 }
