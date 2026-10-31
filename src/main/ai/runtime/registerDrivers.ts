@@ -7,7 +7,7 @@ import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } 
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
+import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
 import { LocalRuntimeDriver } from './localAgent/LocalRuntimeDriver'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
@@ -22,6 +22,7 @@ import type {
 const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
 
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

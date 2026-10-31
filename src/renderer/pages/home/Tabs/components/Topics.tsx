@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
@@ -52,6 +52,7 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
+import { useConversationExportMenuOptions } from '@renderer/hooks/chat/useConversationExportMenuOptions'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -75,6 +76,7 @@ import {
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
+import { showImageActionFeedback } from '@renderer/services/imageActionFeedback'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
@@ -103,8 +105,12 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
-import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import { applyOptimisticOrder, findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import {
+  createSidebarShortcutTarget,
+  getSidebarShortcutResourceIds,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -113,7 +119,6 @@ import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/e
 import {
   rejectPendingTopicImageActions,
   requestTopicImageAction,
-  type TopicImageActionRequest,
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
@@ -139,18 +144,6 @@ const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
 const TOPIC_ASSISTANT_GROUP_SECTION_PREFIX = 'topic:section:assistant-group:'
 const TOPIC_ASSISTANT_UNGROUPED_SECTION_ID = `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}ungrouped`
-const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
-  docx: 'data.export.menus.docx',
-  image: 'data.export.menus.image',
-  joplin: 'data.export.menus.joplin',
-  markdown: 'data.export.menus.markdown',
-  markdown_reason: 'data.export.menus.markdown_reason',
-  notion: 'data.export.menus.notion',
-  obsidian: 'data.export.menus.obsidian',
-  plain_text: 'data.export.menus.plain_text',
-  siyuan: 'data.export.menus.siyuan',
-  yuque: 'data.export.menus.yuque'
-} as const
 
 interface Props {
   activeTopic?: Topic
@@ -325,7 +318,7 @@ export function Topics({
     delayMs: IMAGE_CAPTURE_START_DELAY_MS,
     rejectPendingActions: rejectPendingTopicImageActions
   })
-  const [exportMenuOptions] = useMultiplePreferences(TOPIC_EXPORT_MENU_PREFERENCE_KEYS)
+  const exportMenuOptions = useConversationExportMenuOptions()
   const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
   const defaultGroupVisibleCount = isRightPanel
     ? Number.POSITIVE_INFINITY
@@ -365,25 +358,11 @@ export function Topics({
   } = useAssistantsApi()
   const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
-    () =>
-      new Set(
-        sidebarShortcuts.flatMap((shortcut) =>
-          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
-            ? [shortcut.target.locator.resourceId]
-            : []
-        )
-      ),
+    () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT),
     [sidebarShortcuts]
   )
   const sidebarTopicFavoriteIdSet = useMemo(
-    () =>
-      new Set(
-        sidebarShortcuts.flatMap((shortcut) =>
-          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC
-            ? [shortcut.target.locator.resourceId]
-            : []
-        )
-      ),
+    () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC),
     [sidebarShortcuts]
   )
   const handleToggleAssistantSidebar = useCallback(
@@ -432,38 +411,13 @@ export function Topics({
   const deletingAssistantGroupIdRef = useRef<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
-  const showTopicImageExportToast = useCallback(
-    (request: TopicImageActionRequest) => {
-      const key = `topic-image-export:${request.id}`
-      const loadingPromise = request.promise.finally(() => toast.closeToast(key)).catch(() => undefined)
-
-      toast.loading({
-        key,
-        title: t('chat.topics.export.image_exporting_keep_page'),
-        promise: loadingPromise,
-        onError: () => {}
-      })
-
-      void request.promise.then(
-        () => toast.success(t('chat.topics.export.image_saved')),
-        () => toast.error(t('chat.topics.export.failed'))
-      )
-    },
-    [t]
-  )
-
   const handleTopicImageAction = useCallback(
     (type: TopicImageActionType, topic: Topic) => {
       const request = requestTopicImageAction(type, topic, { emit: false })
-      if (type === 'export') {
-        showTopicImageExportToast(request)
-      } else {
-        void request.promise.catch(() => toast.error(t('common.copy_failed')))
-      }
-
+      showImageActionFeedback(type, request, 'topic-image-export', t)
       queueImageCaptureTarget(request, topic)
     },
-    [queueImageCaptureTarget, showTopicImageExportToast, t]
+    [queueImageCaptureTarget, t]
   )
 
   const topicItemsReconciliationRef = useRef(EMPTY_TOPIC_LIST_ITEM_RECONCILIATION)
@@ -511,26 +465,10 @@ export function Topics({
     setOptimisticAssistantOrderIds(null)
   }, [assistantOrderSignature])
 
-  const orderedAssistants = useMemo(() => {
-    if (!optimisticAssistantOrderIds) {
-      return assistants
-    }
-
-    const assistantById = new Map(assistants.map((assistant) => [assistant.id, assistant]))
-    const ordered = optimisticAssistantOrderIds.flatMap((assistantId) => {
-      const assistant = assistantById.get(assistantId)
-      return assistant ? [assistant] : []
-    })
-    const optimisticIds = new Set(optimisticAssistantOrderIds)
-
-    for (const assistant of assistants) {
-      if (!optimisticIds.has(assistant.id)) {
-        ordered.push(assistant)
-      }
-    }
-
-    return ordered
-  }, [assistants, optimisticAssistantOrderIds])
+  const orderedAssistants = useMemo(
+    () => (optimisticAssistantOrderIds ? applyOptimisticOrder(assistants, optimisticAssistantOrderIds) : assistants),
+    [assistants, optimisticAssistantOrderIds]
+  )
   // Move destinations intentionally include only persisted assistants. The
   // unlinked assistant group is a display fallback for orphaned data,
   // not a user-selectable target that clears topic ownership.

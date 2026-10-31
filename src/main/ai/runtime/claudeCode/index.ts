@@ -6,3 +6,4 @@ export { createClaudeCodeRuntimeDriver, loadClaudeCodeSettingsBuilder } from './
 export { readClaudeTranscriptEvidence } from './transcriptEvidence'
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
 export { ClaudeCodeStreamAdapter } from './streamAdapter'
+export { claudeWorkspaceRelocation } from './workspaceRelocation'

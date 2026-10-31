@@ -166,6 +166,7 @@ interface FilePreviewPluginProps {
   sourceLocation?: FileSourceLocation
   type?: 'artifact' | 'file'
   onSelectionReference?: (reference: SelectionReference | null) => void
+  onLineComment?: (comment: LineComment) => void
 }
 ```
 
@@ -206,7 +207,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 ## Composition Rules
 
 Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
-optional `sourceLocation`, and optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
+optional `sourceLocation`, `onSelectionReference`, and `onLineComment`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -226,6 +227,10 @@ optional `sourceLocation`, and optional `onSelectionReference`. Follow these bou
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
 
 ## Selection References
+
+`onLineComment` enables gutter comments in the text plugin's read-only editor. It reports the
+inclusive line range, the current source lines and the comment to the embedding surface, which owns
+composer insertion. Commenting does not grant edit access or write to the file.
 
 `onSelectionReference` is an optional pass-through channel for reporting the user's selection as a
 `SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural

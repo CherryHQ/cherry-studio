@@ -110,7 +110,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -130,6 +130,7 @@ interface FilePreviewPluginRendererProps {
   metadataRequest?: FilePreviewMetadataRequest
   sourceLocation?: FilePreviewPluginProps['sourceLocation']
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
   plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
   refreshKey: number
   type: FilePreviewType
@@ -154,6 +155,7 @@ function FilePreviewPluginRenderer({
   metadataRequest,
   onSelectionReference,
   sourceLocation,
+  onLineComment,
   plugin,
   refreshKey,
   type
@@ -177,6 +179,7 @@ function FilePreviewPluginRenderer({
           metadataRequest={metadataRequest}
           sourceLocation={sourceLocation}
           onSelectionReference={onSelectionReference}
+          onLineComment={onLineComment}
           refreshKey={refreshKey}
           type={type}
         />
@@ -193,6 +196,7 @@ export interface FilePreviewProps {
   sourceLocation?: FilePreviewPluginProps['sourceLocation']
   /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -220,7 +224,8 @@ export function FilePreview({
   refreshKey = 0,
   type = 'file',
   onSelectionReference,
-  sourceLocation
+  sourceLocation,
+  onLineComment
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -361,6 +366,7 @@ export function FilePreview({
             ? sourceLocation
             : undefined
         }
+        onLineComment={onLineComment}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}

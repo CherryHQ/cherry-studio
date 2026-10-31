@@ -43,7 +43,7 @@
     },
     {
       "path": "docs/references/ai/agent-session-runtime.md",
-      "sources": ["patches/@sting8k__pi-vcc@0.8.1.patch","scripts/piVccBundle.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/heartbeatSchedule.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts","src/shared/ai/agentHeartbeat.ts","src/shared/ai/piBuiltinTools.ts"]
+      "sources": ["patches/@sting8k__pi-vcc@0.8.1.patch","scripts/piVccBundle.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/relocateSystemWorkspaces.ts","src/main/ai/agents/AgentWorkspaceStorageService.ts","src/main/ai/agents/heartbeatSchedule.ts","src/main/ai/agents/runAgentTask.ts","src/main/ai/mcp/servers/cherryAutonomyTools.ts","src/main/ai/messages/readConversation.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/runtime/workspaceRelocation.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts","src/main/data/db/schemas/agentSession.ts","src/main/data/services/AgentSessionService.ts","src/shared/ai/agentHeartbeat.ts","src/shared/ai/piBuiltinTools.ts"]
     },
     {
       "path": "docs/references/ai/ai-usage-records.md",

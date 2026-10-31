@@ -190,6 +190,76 @@ describe('CodeViewer', () => {
     expect(first.parentElement?.style.transform).toBe(`translateY(${Number(first.dataset.index) * 21}px)`)
   })
 
+  it('scrolls visible rows without remeasuring the document origin', async () => {
+    const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+    const { container, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+      </div>
+    )
+    await act(async () => {})
+    const list = container.querySelector<HTMLElement>('.shiki-list')!
+    const measureBounds = vi.mocked(HTMLElement.prototype.getBoundingClientRect)
+    measureBounds.mockClear()
+    const outer = getByTestId('outer')
+    outer.scrollTop = 100 * 21
+    fireEvent.scroll(outer)
+    await waitFor(() => expect(container.querySelector('[data-index="100"]')).toHaveTextContent('line 100'))
+    expect(container.querySelector('[data-index="0"]')).toBeNull()
+    // Ordinary scrolling must not force a layout read of the unchanged document origin.
+    expect(measureBounds.mock.contexts).not.toContain(list)
+  })
+
+  it('updates visible rows when a preceding sibling resizes inside a fixed-height parent', async () => {
+    const { observers, restore } = stubResizeObserver()
+    try {
+      prefixHeight = 600
+      const { container, getByTestId } = render(
+        <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+          <div style={{ height: 1000 }}>
+            <div data-testid="prefix" />
+            <CodeViewer value="first line\nlast line" language="text" expanded wrapped={false} />
+          </div>
+        </div>
+      )
+      expect(container.querySelector('.line-content')).toBeNull()
+      const prefix = getByTestId('prefix')
+      prefixHeight = 0
+      act(() => {
+        for (const { callback, targets } of observers) {
+          if (targets.has(prefix)) callback([], {} as ResizeObserver)
+        }
+      })
+      await waitFor(() => expect(container.querySelector('.line-content')).toHaveTextContent('first line'))
+      expect(getByTestId('outer').scrollTop).toBe(0)
+    } finally {
+      restore()
+    }
+  })
+
+  it('updates visible rows after ancestor repositioning and sibling insertion or removal without scrolling', async () => {
+    prefixHeight = 600
+    const { container, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <div data-testid="item" style={{ position: 'absolute', top: 600 }}>
+          <CodeViewer value="first line\nlast line" language="text" expanded wrapped={false} />
+        </div>
+      </div>
+    )
+    expect(container.querySelector('.line-content')).toBeNull()
+    prefixHeight = 0
+    getByTestId('item').style.top = '0px'
+    await waitFor(() => expect(container.querySelector('.line-content')).toHaveTextContent('first line'))
+    const prefix = document.createElement('div')
+    prefixHeight = 600
+    getByTestId('item').prepend(prefix)
+    await waitFor(() => expect(container.querySelector('.line-content')).toBeNull())
+    prefixHeight = 0
+    prefix.remove()
+    await waitFor(() => expect(container.querySelector('.line-content')).toHaveTextContent('first line'))
+    expect(getByTestId('outer').scrollTop).toBe(0)
+  })
+
   it('preserves trailing whitespace and blank lines with highlighting disabled', () => {
     const { container } = render(
       <CodeViewer
