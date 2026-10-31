@@ -1,6 +1,8 @@
 import { Type } from '@earendil-works/pi-ai'
 import type { AgentToolResult, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
+import { isSubagentSession } from './subagent'
+
 /** Claude Code's name: Cherry's composer, card and remote access match on this raw name. */
 export const ASK_USER_TOOL_NAME = 'AskUserQuestion'
 
@@ -154,8 +156,9 @@ async function waitForAnswer(port: AskUserPort, request: AskUserRequest): Promis
 }
 
 /**
- * The `AskUserQuestion` tool with Claude Code's input schema. It waits on `port`; calls in one
- * model step run one at a time, so the user sees one set of questions at a time.
+ * The `AskUserQuestion` tool with Claude Code's input schema. It waits on `port`, except inside a
+ * subagent's session, where it ends as `unavailable` without asking the port. Calls in one model
+ * step run one at a time, so the user sees one set of questions at a time.
  */
 export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
   return (pi) => {
@@ -167,13 +170,15 @@ export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: true, openWorldHint: false },
-      async execute(toolCallId, params, signal) {
+      async execute(toolCallId, params, signal, _onUpdate, ctx) {
         const questions = params.questions.map((item) => ({ ...item, multiSelect: item.multiSelect ?? false }))
         const texts = new Set(questions.map((item) => item.question))
         // Answers are keyed by question text and name the chosen labels.
         if (texts.size !== questions.length) throw new Error('Each question must have a different question text.')
         if (questions.some(({ options }) => new Set(options.map((option) => option.label)).size !== options.length))
           throw new Error('Each option of a question must have a different label.')
+        // A subagent works for another agent; no person is there to answer.
+        if (isSubagentSession(ctx.sessionManager.getBranch())) return toToolResult(questions, { status: 'unavailable' })
 
         const request = { toolCallId, questions, signal: signal ?? new AbortController().signal }
         return toToolResult(questions, await waitForAnswer(port, request))

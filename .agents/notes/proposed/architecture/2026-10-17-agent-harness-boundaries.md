@@ -63,7 +63,7 @@ A child context, assignment, native run when known, triggering tool, content ite
 
 Stream accumulation follows content identity, not component mounting or parent-turn changes. Persisted display parts do not preserve a stream parser's state. Reconnection needs snapshot reconciliation and explicit gaps. Renaming the existing background flow to Lane would not remove its parent-message dependency. A host projection can outlive a window and be stored by a main-process or independent service; that service is not implemented by the new common package.
 
-Observing output and delivering a result to the parent model are different paths. Where the harness delivers the result, the host must not inject a duplicate on observing completion. For a host-owned cross-harness delegation, an explicit orchestration owner manages the relationship and result handoff while each harness owns its execution. Product-session message delivery alone does not establish this ownership. The [subagent control proposal](https://github.com/CherryHQ/cherry-studio/pull/21578) owns the remaining optional input and delegation controls.
+Observing output and delivering a result to the parent model are different paths. Where the harness delivers the result, the host must not inject a duplicate on observing completion. For a host-owned cross-harness delegation, an explicit orchestration owner manages the relationship and result handoff while each harness owns its execution. Product-session message delivery alone does not establish this ownership. The [subagent control proposal](2026-10-18-agent-runtime-subagent-control.md) owns the remaining optional input and delegation controls.
 
 ### Separate native storage from product storage
 
