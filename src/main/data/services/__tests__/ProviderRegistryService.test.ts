@@ -265,6 +265,35 @@ describe('ProviderRegistryService', () => {
     MockMainDbServiceUtils.setDb(dbh.db)
   })
 
+  it('lists MiMo presets using dotted wire identities and canonical preset links', () => {
+    const readGeneratedRegistry = <T>(filename: string): T =>
+      JSON.parse(
+        readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
+      ) as T
+    mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
+    mockReadProviderModels.mockReturnValue(
+      readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
+    )
+    mockReadProviders.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json'))
+
+    const models = providerRegistryService.listProviderRegistryModels({ providerId: 'mimo' })
+
+    for (const [presetModelId, apiModelId] of [
+      ['mimo-v2-5', 'mimo-v2.5'],
+      ['mimo-v2-5-pro', 'mimo-v2.5-pro'],
+      ['mimo-v2-5-pro-ultraspeed', 'mimo-v2.5-pro-ultraspeed'],
+      ['mimo-v2-6-flash', 'mimo-v2.6-flash'],
+      ['mimo-v2-6-pro', 'mimo-v2.6-pro'],
+      ['mimo-v2-6-pro-ultraspeed', 'mimo-v2.6-pro-ultraspeed']
+    ]) {
+      expect(models.find((model) => model.presetModelId === presetModelId)).toMatchObject({
+        id: `mimo::${apiModelId}`,
+        apiModelId,
+        presetModelId
+      })
+    }
+  })
+
   describe('createCustomModel', () => {
     it('does not infer image capability from an unknown model id', () => {
       const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')

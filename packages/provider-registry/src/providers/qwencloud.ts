@@ -1,5 +1,4 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
-import type { ProviderModelOverride } from '../schemas/provider-models'
 import { fixedSamplingParameterSupport } from './parameterSupports'
 import {
   effortChatWire,
@@ -11,7 +10,7 @@ import {
   qwen38Support,
   qwenChatWire
 } from './qwenFamily'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
 
 /**
@@ -306,23 +305,23 @@ export default defineProvider({
   },
   overrides: [
     ...qwenChatModels.map(
-      (modelId): Partial<ProviderModelOverride> => ({
-        modelId,
+      (apiModelId): ProviderModelOffer => ({
+        apiModelId,
         reasoningContracts: {
           'openai-chat-completions': { wire: qwenChatWire }
         }
       })
     ),
     ...highMaxModels.map(
-      (modelId): Partial<ProviderModelOverride> => ({
-        modelId,
+      (apiModelId): ProviderModelOffer => ({
+        apiModelId,
         reasoningContracts: {
           'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
         }
       })
     ),
     {
-      modelId: 'glm-5.1',
+      apiModelId: 'glm-5.1',
       reasoningContracts: {
         'openai-chat-completions': { support: glm51ChatSupport, wire: effortChatWire }
       }
@@ -361,7 +360,7 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'kimi-k3',
+      apiModelId: 'kimi-k3',
       // Same passthrough as dashscope: the intl endpoint forwards to Moonshot's backend too.
       // Responses stays selectable because Kimi K3's native web search is documented
       // Responses-only ("supported only by the Responses API" in the web-search table).
@@ -375,8 +374,8 @@ export default defineProvider({
     // default endpoint so their search is reachable, Chat remains selectable for plain requests. Both
     // endpoints carry their documented Chat/Responses effort ladders (see the constants above).
     ...(['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash'] as const).map(
-      (modelId): Partial<ProviderModelOverride> => ({
-        modelId,
+      (apiModelId): ProviderModelOffer => ({
+        apiModelId,
         endpointTypes: ['openai-responses', 'openai-chat-completions'],
         reasoningContracts: {
           'openai-chat-completions': { support: deepseekV4ChatSupport, wire: effortChatWire },
@@ -385,14 +384,14 @@ export default defineProvider({
       })
     ),
     {
-      modelId: 'glm-5.2',
+      apiModelId: 'glm-5.2',
       endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { support: glm52ChatSupport, wire: effortChatWire },
         'openai-responses': { support: qwencloudResponsesSupport, wire: hostedResponsesEffortWire }
       }
     },
-    ...listedModels.map((modelId): Partial<ProviderModelOverride> => ({ modelId })),
+    ...listedModels.map((apiModelId): ProviderModelOffer => ({ apiModelId })),
     /**
      * Image SKUs per the QwenCloud image-models catalog (docs.qwencloud.com): sync multimodal
      * qwen-image-2.x/3.x + z-image lines, legacy async wan/qwen-image SKUs shared with the mainland
