@@ -2177,7 +2177,7 @@ describe('agentsFilesystemMigration', () => {
       const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
       expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('')
       expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('')
-      expect((await lstat(path.join(agentDataPath, 'memory'))).isDirectory()).toBe(true)
+      await expect(lstat(path.join(agentDataPath, 'memory'))).rejects.toMatchObject({ code: 'ENOENT' })
       expect((await lstat(path.join(userWorkspace, 'SOUL.md'))).isSymbolicLink()).toBe(true)
       expect((await lstat(path.join(userWorkspace, 'USER.md'))).isSymbolicLink()).toBe(true)
       expect((await lstat(path.join(userWorkspace, 'memory'))).isSymbolicLink()).toBe(true)

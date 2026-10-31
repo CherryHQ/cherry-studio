@@ -31,8 +31,7 @@ const SKILLS_MANAGER_PATH = path.join(
 )
 const SUPPORTING_PROMPT_PATHS = [
   'resources/builtin-agents/cherry-assistant/SOUL.md',
-  'resources/builtin-agents/cherry-assistant/USER.md',
-  'resources/builtin-agents/cherry-assistant/memory/FACT.md'
+  'resources/builtin-agents/cherry-assistant/USER.md'
 ]
 
 describe('Cherry Assistant guide', () => {
@@ -196,12 +195,13 @@ describe('Cherry Assistant guide', () => {
     expect(agent.configuration.permission_mode).toBe('acceptEdits')
   })
 
-  it('keeps supporting prompts on the same dynamic product lookup path', () => {
+  it('keeps product lookup instructions in the guide rather than persona defaults', () => {
     const supportingPrompts = SUPPORTING_PROMPT_PATHS.map((relativePath) =>
       fs.readFileSync(path.join(ROOT_DIR, relativePath), 'utf-8')
     ).join('\n')
 
-    expect(supportingPrompts).toContain('mcp__assistant__product_info')
+    expect(guide).toContain('mcp__assistant__product_info')
+    expect(supportingPrompts).not.toContain('mcp__assistant__product_info')
     expect(supportingPrompts).not.toMatch(/\/(?:app|settings)\//)
     expect(supportingPrompts).not.toContain('open.cherryin.ai')
     expect(supportingPrompts).not.toContain('live official release notes')

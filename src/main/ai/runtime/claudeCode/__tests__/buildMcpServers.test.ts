@@ -146,7 +146,7 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
   } as unknown as AgentSessionEntity
 }
 
-const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 
 describe('resolveMountedMcpServers', () => {
@@ -154,7 +154,7 @@ describe('resolveMountedMcpServers', () => {
     const mounted = resolveMountedMcpServers({ type: 'claude-code', configuration: {} } as never, {
       channelLinked: false
     })
-    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'mcp-manager', 'skills'])
+    expect([...mounted].sort()).toEqual(['cherry-tools', 'mcp-manager', 'skills'])
   })
 
   it('drops the skills and mcp-manager servers for Cherry Support while keeping its host servers', () => {
@@ -178,7 +178,7 @@ describe('resolveMountedMcpServers', () => {
 })
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
+  it('lists auto-approved cherry-tools, excluding legacy memory and the mutating kb_manage', () => {
     const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
@@ -186,13 +186,13 @@ describe('adjustAllowedToolsForMcp', () => {
         'mcp__cherry-tools__kb_list',
         'mcp__cherry-tools__cron',
         'mcp__cherry-tools__notify',
-        'mcp__cherry-tools__config',
-        'mcp__agent-memory__memory'
+        'mcp__cherry-tools__config'
       ])
     )
     // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
     // per-call approval via canUseTool. A bare wildcard would silently re-include it.
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__agent-memory__memory')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
     // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
     expect(allowed).toContain('mcp__skills__search_skills')
@@ -235,17 +235,17 @@ describe('adjustAllowedToolsForMcp', () => {
     const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [rule])
 
     expect(allowed.some((toolName) => toolName.startsWith('mcp__cherry-tools__'))).toBe(false)
-    expect(allowed).toContain('mcp__agent-memory__memory')
+    expect(allowed).toContain('mcp__skills__search_skills')
   })
 
   it('removes every MCP auto-approval for the global disabled rule', () => {
     expect(adjustAllowedToolsForMcp(WITH_HOST_TOOLS, ['mcp__*'])).toEqual([])
   })
 
-  it('does not let the memory auto-approval override an exact disabled tool', () => {
-    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, ['mcp__agent-memory__memory'])
+  it('does not let skill search auto-approval override an exact disabled tool', () => {
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, ['mcp__skills__search_skills'])
 
-    expect(allowed).not.toContain('mcp__agent-memory__memory')
+    expect(allowed).not.toContain('mcp__skills__search_skills')
   })
 })
 
@@ -254,21 +254,19 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReset()
   })
 
-  it('serves memory tools and instructions when mounted', async () => {
-    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
-    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
-    const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
-    const client = await connectMcpTestClient(instance)
-    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
-    expect(client.getInstructions()).toContain(path.join('/data/Agents/agent-1', 'memory', 'FACT.md'))
-    await client.close()
+  it('does not restore the legacy memory server from a stale mounted-server snapshot', () => {
+    const mounted = new Set([...WITHOUT_HOST_TOOLS, 'agent-memory'])
+    const result = buildMcpServers(session, agent, mounted, undefined, undefined, '/data/Agents/agent-1')
+    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'skills']))
+    expect(result).not.toHaveProperty('agent-memory')
   })
 
-  it.each(AGENT_TYPES)('omits memory entirely for an opted-out %s agent', (type) => {
-    const disabledAgent = { ...agent, type, configuration: {}, disabledTools: ['mcp__agent-memory__memory'] }
-    const mounted = resolveMountedMcpServers(disabledAgent, { channelLinked: false })
+  it.each(AGENT_TYPES)('does not mount legacy memory for a shared-memory-enabled %s agent', (type) => {
+    const enabledAgent = { ...agent, type, configuration: { shared_memory_enabled: true } }
+    const mounted = resolveMountedMcpServers(enabledAgent, { channelLinked: false })
 
-    expect(buildMcpServers(session, disabledAgent, mounted)?.['agent-memory']).toBeUndefined()
+    expect(mounted.has('agent-memory')).toBe(false)
+    expect(buildMcpServers(session, enabledAgent, mounted)?.['agent-memory']).toBeUndefined()
   })
 
   it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
