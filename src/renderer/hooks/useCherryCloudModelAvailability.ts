@@ -23,16 +23,16 @@ const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
  */
 export function useCherryCloudModelAvailability(enabled = true) {
   const { t } = useTranslation()
-  const { data: cloudAvailability, mutate } = useSWR(
-    enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
-    () => ipcApi.request('cherry_cloud.models.sync'),
-    {
-      dedupingInterval: 5_000,
-      refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false
-    }
-  )
+  const {
+    data: cloudAvailability,
+    mutate,
+    isLoading
+  } = useSWR(enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null, () => ipcApi.request('cherry_cloud.models.sync'), {
+    dedupingInterval: 5_000,
+    refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false
+  })
 
   useIpcOn('cherry_cloud.status_changed', () => {
     if (!enabled) return
@@ -46,6 +46,7 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
 
     return {
+      isLoading,
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
       isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
@@ -66,5 +67,5 @@ export function useCherryCloudModelAvailability(enabled = true) {
         )
       }
     }
-  }, [cloudAvailability, t])
+  }, [cloudAvailability, isLoading, t])
 }
