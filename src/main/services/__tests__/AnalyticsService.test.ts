@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
 import { BaseService } from '@main/core/lifecycle'
+import { getAppEdition } from '@main/utils/appEdition'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 /**
@@ -30,7 +32,9 @@ const {
     mockTrackAppUpdate: trackAppUpdate,
     mockDestroy: destroy,
     mockGetQueueSize: getQueueSize,
-    MockAnalyticsClient: vi.fn(function AnalyticsClientMock(options: { fetch?: typeof fetch }) {
+    MockAnalyticsClient: vi.fn(function AnalyticsClientMock(
+      options: AnalyticsClientOptions
+    ): Pick<AnalyticsClient, 'trackAppLaunch' | 'trackTokenUsage' | 'trackAppUpdate' | 'destroy' | 'getQueueSize'> {
       clientOptions.fetch = options?.fetch
       return {
         trackAppLaunch,
@@ -50,6 +54,10 @@ const {
 
 vi.mock('@cherrystudio/analytics-client', () => ({
   AnalyticsClient: MockAnalyticsClient
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: vi.fn(() => 'global')
 }))
 
 vi.mock('@main/utils/systemInfo', () => ({
@@ -81,6 +89,7 @@ function changePreference(key: string, value: boolean | string): void {
 
 beforeEach(() => {
   BaseService.resetInstances()
+  vi.mocked(getAppEdition).mockReturnValue('global')
   for (const key of Object.keys(captured.prefHandlers)) {
     delete captured.prefHandlers[key]
   }
@@ -359,4 +368,47 @@ describe('AnalyticsService token usage', () => {
 
     expect(mockTrackTokenUsage).not.toHaveBeenCalled()
   })
+})
+
+describe('AnalyticsService package edition delivery', () => {
+  it.each(['cn', 'global'] as const)(
+    'sends %s on both SDK endpoints and stops after consent revocation',
+    async (edition) => {
+      const { AnalyticsClient } = await vi.importActual<{
+        AnalyticsClient: new (options: AnalyticsClientOptions) => AnalyticsClient
+      }>('@cherrystudio/analytics-client')
+      vi.mocked(getAppEdition).mockReturnValue(edition)
+      const fetch = vi.fn<typeof globalThis.fetch>(
+        async () => new Response(JSON.stringify({ success: true, count: 1 }), { status: 200 })
+      )
+      vi.stubGlobal('fetch', fetch)
+      let sdkClient: InstanceType<typeof AnalyticsClient> | undefined
+      MockAnalyticsClient.mockImplementationOnce(function (options) {
+        sdkClient = new AnalyticsClient({ ...options, baseUrl: 'http://analytics.test', autoBatch: false })
+        return sdkClient
+      })
+      try {
+        const service = new AnalyticsService()
+        await service._doInit()
+        await vi.waitFor(() => expect(service.isActivated).toBe(true))
+        await service.trackAppUpdate()
+        await sdkClient!.flush()
+        expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+          'http://analytics.test/api/track',
+          'http://analytics.test/api/events'
+        ])
+        for (const [, init] of fetch.mock.calls) {
+          expect(new Headers(init?.headers).get('X-App-Edition')).toBe(edition)
+        }
+        changePreference('app.privacy.data_collection.enabled', false)
+        await vi.waitFor(() => expect(service.isActivated).toBe(false))
+        await service.trackAppUpdate()
+        service.trackTokenUsage({ provider: 'openai', model: 'gpt-test', input_tokens: 1, output_tokens: 1 })
+        expect(fetch).toHaveBeenCalledTimes(2)
+      } finally {
+        await sdkClient?.destroy({ flush: false })
+        vi.unstubAllGlobals()
+      }
+    }
+  )
 })
