@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import {
+  sessionEntryToContextMessages,
+  type AgentSession,
+  type AgentSessionEvent
+} from '@earendil-works/pi-coding-agent'
 
 import { ENTRY_KINDS } from '@cherrystudio/agent-behavior'
 import {
