@@ -13,8 +13,11 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { MemoryService } from '@main/ai/memory/MemoryService'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
+import type { AgentRuntimeToolApprovalRequest } from '../types'
 import { createPiMemoryTools } from './memoryTools'
 import { loadPiSdk } from './piSdk'
 
@@ -23,6 +26,8 @@ describe('Pi managed file destinations', () => {
   let root: string
   let memory: MemoryService
   let controlled: ReturnType<typeof createPiMemoryTools>
+  let mode: AgentPermissionMode
+  let requests: AgentRuntimeToolApprovalRequest[]
 
   async function removeFixture(directory: string): Promise<void> {
     if (directory !== root && !directory.startsWith(`${root}${path.sep}`)) throw new Error('Outside test fixture')
@@ -36,6 +41,8 @@ describe('Pi managed file destinations', () => {
 
   beforeEach(async () => {
     BaseService.resetInstances()
+    mode = 'bypassPermissions'
+    requests = []
     root = await mkdtemp(path.join(os.tmpdir(), 'cherry-pi-memory-'))
     vi.spyOn(application, 'getPath').mockImplementation((key, name) => path.join(root, key, name ?? ''))
     await mkdir(application.getPath('app.userdata'))
@@ -57,9 +64,11 @@ describe('Pi managed file destinations', () => {
       workspacePath,
       agentDataPath,
       additionalReadOnlyRoots: [],
-      emit: () => undefined,
+      emit: (event) => {
+        if (event.type === 'tool-approval-request') requests.push(event.request)
+      },
       getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
-      getPermissionMode: () => 'bypassPermissions',
+      getPermissionMode: () => mode,
       isDisabled: () => false,
       autoApprovedTools: new Set(),
       approvalRequiredTools: new Set(),
@@ -87,6 +96,59 @@ describe('Pi managed file destinations', () => {
     const tool = controlled.tools.find((item) => item.name === name)!
     return tool.execute(randomUUID(), args, undefined, undefined, {} as ExtensionToolContext)
   }
+
+  it.each([true, false])(
+    'requires a decision on the complete computed memory proposal (approved=%s)',
+    async (approved) => {
+      const entry = application.getPath('feature.memory.data', 'MEMORY.md')
+      await mkdir(path.dirname(entry), { recursive: true })
+      const original = 'Short answers.\nKeep this exception.\n'
+      await writeFile(entry, original)
+      const result = await execute('read', { path: entry })
+      const read = JSON.parse(result.content.find((part) => part.type === 'text')!.text) as {
+        memoryReceipt: string
+        hash: string
+      }
+      mode = 'default'
+      const pending = execute('edit', {
+        path: entry,
+        edits: [{ oldText: 'Short', newText: 'Detailed' }],
+        memoryReceipt: read.memoryReceipt
+      }).catch((error: unknown) => error)
+      await vi.waitFor(() => expect(requests).toHaveLength(1))
+      expect(requests[0]).toMatchObject({
+        presentation: 'stream',
+        toolName: 'edit',
+        input: {
+          path: entry,
+          memoryPreview: [
+            { path: 'MEMORY.md', expectedHash: read.hash, content: 'Detailed answers.\nKeep this exception.\n' }
+          ]
+        }
+      })
+      expect(await readFile(entry, 'utf8')).toBe(original)
+      toolApprovalRegistry.dispatch(requests[0].approvalId, { approved })
+      const outcome = await pending
+      if (!approved) expect(outcome).toBeInstanceOf(Error)
+      else expect(outcome).not.toBeInstanceOf(Error)
+      expect(await readFile(entry, 'utf8')).toBe(approved ? 'Detailed answers.\nKeep this exception.\n' : original)
+    }
+  )
+
+  it('does not present a model-supplied memory preview for an ordinary file write', async () => {
+    mode = 'default'
+    const target = path.join(root, 'workspace', 'ordinary.txt')
+    const pending = execute('write', {
+      path: target,
+      content: 'Actual ordinary content',
+      memoryPreview: [{ path: 'MEMORY.md', expectedHash: null, content: 'Misleading preview' }]
+    })
+    await vi.waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0].input).toEqual({ path: target, content: 'Actual ordinary content' })
+    toolApprovalRegistry.dispatch(requests[0].approvalId, { approved: true })
+    await pending
+    expect(await readFile(target, 'utf8')).toBe('Actual ordinary content')
+  })
 
   it.for(['native', 'msys', 'wsl', 'cygwin'])(
     'enforces receipts and private authority for %s paths through the real SDK',

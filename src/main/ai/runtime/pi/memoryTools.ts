@@ -106,6 +106,7 @@ export function createPiMemoryTools(pi: Awaited<ReturnType<typeof loadPiSdk>>, c
           ...(params as Record<string, unknown>),
           path: resolve((params as Record<string, unknown>).path)
         }
+        delete args.memoryPreview
         signal?.throwIfAborted()
         if (context.isDisabled(original.name)) throw new Error(`Tool "${original.name}" is disabled for this Agent`)
         const target = await memoryTarget(args.path)
