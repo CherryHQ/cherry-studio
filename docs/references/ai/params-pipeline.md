@@ -146,6 +146,14 @@ buildAgentParams(input)
                                 + headers + stopWhen + repair + telemetry
 ```
 
+Persistent Assistant chat may carry a main-only `memoryContext` from its context
+provider. For an opted-in Assistant, `buildAgentParams` appends a `prepareStep`
+hook after context compaction to reload the authorized shared entry. The hook
+rebuilds the memory reference from the stable system prompt instead of appending
+another copy. Cherry-generated Responses `instructions` are refreshed with it;
+explicit provider instruction overrides remain user-owned. Temporary chat and
+auxiliary callers do not create this context.
+
 ## customParameters split
 
 User-supplied `assistant.customParameters` may contain AI-SDK standard
