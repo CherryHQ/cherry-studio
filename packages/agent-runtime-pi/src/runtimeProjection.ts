@@ -79,10 +79,11 @@ export class PiProjection {
   }
 
   private captureContext(): PiContext {
-    return this.session.messages.map((message) => ({
-      message: structuredClone(message),
-      id: this.entryId(message) ?? this.id(message)
-    }))
+    return this.session.sessionManager
+      .buildSessionProjection()
+      .entries.flatMap(({ sourceEntry, messages }) =>
+        messages.map((message) => ({ message: structuredClone(message), id: sourceEntry.id }))
+      )
   }
 
   private bind(session: AgentSession): void {
