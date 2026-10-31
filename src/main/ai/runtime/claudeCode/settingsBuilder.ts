@@ -71,9 +71,10 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
-  AUTO_COMPACT_TRIGGER_PCT,
   buildEnvironment,
+  hasDeclaredContextWindow,
   resolveAutoCompactWindow,
+  resolveAutoCompactTriggerPct,
   resolveClaudeExecutablePath,
   resolveRequestedOutputTokens
 } from './environment'
@@ -303,23 +304,22 @@ export async function buildClaudeCodeSessionSettings(
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )
   const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens)
-  // Only pin the request when we also budget for it; otherwise the CLI's own default applies.
-  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
+  const hasModelContextWindow = hasDeclaredContextWindow(declaredContextWindow)
+  const isSmallContextWindow = hasModelContextWindow && autoCompactWindow === undefined
+  // Below the SDK's 100K floor, pin the real limits without autoCompactWindow.
+  // Cap oversized output overrides too, so they cannot consume the input reservation.
+  if (hasModelContextWindow && (isSmallContextWindow || env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined)) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(requestedOutputTokens)
   }
-  // Undocumented, and the only way to declare a third-party model's window — without it every
-  // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.
-  if (
-    autoCompactWindow !== undefined &&
-    declaredContextWindow !== undefined &&
-    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined
-  ) {
+  // Keep autoCompactWindow absent below 100K: a below-floor override is rejected by the SDK,
+  // while setting its 100K floor can suppress the CLI's own smaller-window compaction path.
+  if (hasModelContextWindow && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
   }
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
   // declare no usable context window. An explicit agent `env_vars` entry still wins.
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
-    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(resolveAutoCompactTriggerPct(declaredContextWindow))
   }
   // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
   // every other value (including an unreadable preference), so nothing changes unless asked.

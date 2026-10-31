@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-21-claude-code-small-context.md
+2026-10-21-claude-code-small-context.md: d905bab1ba8b6ae66c7acd66bb24f55727656b7e
+2026-10-21-claude-code-small-context.zh.md: be09a71c5c3c5511526eeb7f17b6a4df8169da21
