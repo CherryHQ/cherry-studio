@@ -1,6 +1,6 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, MessageSquareText, Rss } from 'lucide-react'
+import { BadgeQuestionMark, Bug, Building2, Github, Globe, MessageSquareText, Rss, Star } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -339,8 +339,12 @@ const AboutSettings: FC = () => {
         <AboutActionRow
           icon={<Github className="size-4.5" />}
           title={t('settings.about.repository.title')}
-          hint={t('settings.about.repository.hint')}
-          actionLabel={t('settings.about.repository.button')}
+          actionLabel={
+            <>
+              <Star aria-hidden="true" className="lucide-custom size-3.5 text-foreground-tertiary" />
+              {t('settings.about.repository.button')}
+            </>
+          }
           onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
         />
         <Divider className="my-3" />
@@ -359,13 +363,6 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
-          icon={<Briefcase className="size-4.5" />}
-          title={t('settings.about.careers.title')}
-          actionLabel={t('settings.about.careers.button')}
-          onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
           id="setting-about-debug-tools"
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
@@ -379,15 +376,13 @@ const AboutSettings: FC = () => {
 }
 
 function AboutActionRow({
-  hint,
   actionLabel,
   icon,
   id,
   onAction,
   title
 }: {
-  hint?: string
-  actionLabel: string
+  actionLabel: ReactNode
   icon: ReactNode
   id?: string
   onAction: () => void | Promise<void>
@@ -398,7 +393,6 @@ function AboutActionRow({
       <SettingRowTitle className="gap-2.5">
         {icon}
         {title}
-        {hint && <span className="text-foreground-tertiary text-xs">{hint}</span>}
       </SettingRowTitle>
       <Button size="sm" onClick={() => void onAction()} variant="outline">
         {actionLabel}
