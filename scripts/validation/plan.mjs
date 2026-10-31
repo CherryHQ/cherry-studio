@@ -14,6 +14,7 @@ export const testProjects = [
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
+  'sqlite-wasm-compat',
   'system-speech'
 ]
 
@@ -33,6 +34,10 @@ export const checkTasks = {
   'types-system-speech': { group: 'types', args: ['--filter', '@cherrystudio/system-speech', 'typecheck'] },
   'types-web-search': { group: 'types', args: ['--filter', '@cherrystudio/web-search', 'typecheck'] },
   'types-file-preview': { group: 'types', args: ['--filter', '@cherrystudio/file-preview', 'typecheck'] },
+  'types-sqlite-wasm-compat': { group: 'types', args: ['--filter', '@cherrystudio/sqlite-wasm-compat', 'typecheck'] },
+  'types-web-core': { group: 'types', args: ['--filter', '@cherrystudio/web-core', 'typecheck'] },
+  // Bundles the Core Worker, failing when a data service it serves starts importing Node or Electron.
+  'bundle-web-core': { group: 'types', args: ['--filter', '@cherrystudio/web-core', 'build:harness'] },
   'i18n-catalog': { group: 'i18n', args: ['i18n:check'] },
   'i18n-unused': { group: 'i18n', args: ['i18n:unused:check'] },
   'i18n-hardcoded': { group: 'i18n', args: ['i18n:hardcoded:strict'] }
@@ -52,6 +57,9 @@ const consumers = {
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'remote-transport': ['remote-transport', 'main', 'preload', 'renderer'],
   'system-speech': ['system-speech', 'main', 'preload'],
+  'sqlite-wasm-compat': ['sqlite-wasm-compat'],
+  // Browser-only package: no Vitest project; its Worker build and typecheck are selected below.
+  'web-core': [],
   scripts: ['scripts']
 }
 
@@ -139,6 +147,12 @@ export function createPlan(files, fullReason) {
     if (affected.includes('system-speech')) add('types-system-speech', file)
     if (affected.includes('web-search')) add('types-web-search', file)
     if (affected.includes('file-preview')) add('types-file-preview', file)
+    if (affected.includes('sqlite-wasm-compat')) add('types-sqlite-wasm-compat', file)
+    // The Core Worker bundles main-process data services and the wasm driver.
+    if (scope === 'web-core' || affected.includes('main') || affected.includes('sqlite-wasm-compat')) {
+      add('types-web-core', file)
+      add('bundle-web-core', file)
+    }
     if (scope === 'main' || scope === 'shared') add('migrations', file)
     const inTestDirectory = file.split('/').includes('__tests__')
     const testFile = inTestDirectory || /\.(?:test|spec)\.tsx?$/.test(file)

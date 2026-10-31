@@ -41,6 +41,7 @@ describe('validation selection', () => {
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
+    ['packages/sqlite-wasm-compat/src/Database.ts', ['sqlite-wasm-compat']],
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
@@ -55,6 +56,16 @@ describe('validation selection', () => {
     const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
     expect(plan.tasks).toEqual(expect.arrayContaining(['types-web-search', 'types-node', 'types-web']))
     expect(selectedGroups(plan).packages).toBe(true)
+  })
+  it.each([
+    'packages/web-core/src/worker/startCoreWorker.ts',
+    'packages/sqlite-wasm-compat/src/Statement.ts',
+    'src/main/data/services/TopicService.ts'
+  ])('rebuilds the browser Core Worker when its sources or bundled data services change: %s', (file) => {
+    expect(createPlan([file]).tasks).toEqual(expect.arrayContaining(['types-web-core', 'bundle-web-core']))
+  })
+  it('selects no Vitest project for browser-only Core Worker changes', () => {
+    expect(createPlan(['packages/web-core/src/database/openDatabase.ts']).projects).toEqual([])
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
     const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])
