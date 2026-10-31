@@ -15,6 +15,7 @@ export const testProjects = [
   'agent-runtime',
   'agent-runtime-pi',
   'agent-runtime-pi-durable',
+  'agent-runtime-claude-code',
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
@@ -38,6 +39,10 @@ export const checkTasks = {
     args: ['--filter', '@cherrystudio/agent-runtime-pi-durable', 'typecheck']
   },
   'types-agent-runtime': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime', 'typecheck'] },
+  'types-agent-runtime-claude-code': {
+    group: 'types',
+    args: ['--filter', '@cherrystudio/agent-runtime-claude-code', 'typecheck']
+  },
   'types-agent-behavior': { group: 'types', args: ['--filter', '@cherrystudio/agent-behavior', 'typecheck'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
@@ -55,9 +60,17 @@ const consumers = {
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
   'agent-behavior': ['agent-behavior', 'agent-runtime-pi', 'main'],
-  'agent-runtime': ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main'],
+  'agent-runtime': [
+    'agent-runtime',
+    'agent-behavior',
+    'agent-runtime-pi',
+    'agent-runtime-pi-durable',
+    'agent-runtime-claude-code',
+    'main'
+  ],
   'agent-runtime-pi': ['agent-runtime-pi', 'main'],
   'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
+  'agent-runtime-claude-code': ['agent-runtime-claude-code'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
@@ -152,6 +165,7 @@ export function createPlan(files, fullReason) {
     if (affected.includes('agent-behavior')) add('types-agent-behavior', file)
     if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
     if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
+    if (affected.includes('agent-runtime-claude-code')) add('types-agent-runtime-claude-code', file)
     if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
