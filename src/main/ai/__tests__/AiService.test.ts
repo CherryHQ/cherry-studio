@@ -4,10 +4,11 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { modelMessageSchema } from 'ai'
+import { modelMessageSchema, NoImageGeneratedError } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type * as MainI18n from '@main/i18n'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -76,6 +77,11 @@ vi.mock('@application', () => ({
   }
 }))
 
+// Resolve main catalog strings in en-US regardless of the mocked app language.
+vi.mock('@main/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof MainI18n>()
+  return { ...actual, t: (key: string, params?: Record<string, string | number>) => actual.t(key, params, 'en-US') }
+})
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     getById: (...args: unknown[]) => mockAssistantGetById(...args)
@@ -419,7 +425,7 @@ describe('AiService', () => {
       vi.spyOn(trace, 'getTracer').mockReturnValue(tracerProvider.getTracer('test'))
       mockApplicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
-        if (name === 'FileManager') return {}
+        if (name === 'FileManager') return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) }
         throw new Error(`Unexpected service: ${name}`)
       })
       mockProviderGetByProviderId.mockReturnValue(makeProvider())
@@ -428,7 +434,11 @@ describe('AiService', () => {
       const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
         const response = await settings.fetch(`https://provider.test/${modality}`, { method: 'POST' })
         expect(response.status).toBe(204)
-        return { embeddings: [[1]], ranking: [{ originalIndex: 0, score: 1 }], images: [] }
+        return {
+          embeddings: [[1]],
+          ranking: [{ originalIndex: 0, score: 1 }],
+          images: [{ base64: 'abc', mediaType: 'image/png' }]
+        }
       }
       mockEmbedMany.mockImplementation(sdkRequest)
       mockRerank.mockImplementation(sdkRequest)
@@ -859,9 +869,9 @@ describe('AiService', () => {
         modelId: 'test-model'
       }
     })
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({
@@ -875,6 +885,81 @@ describe('AiService', () => {
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
   })
 
+  it.each([
+    ['empty provider result', []],
+    ['all-filtered provider result', [{ nonsense: true }]]
+  ])('throws an actionable error for %s', async (_label, images) => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'google',
+        providerSettings: {},
+        modelId: 'gemini-3-pro-image-preview'
+      }
+    })
+    mockGenerateImage.mockResolvedValue({ images })
+
+    const error: unknown = await service
+      .generateImage({
+        uniqueModelId: 'gemini::gemini-3-pro-image-preview',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toMatch(/returned no images for gemini-3-pro-image-preview/)
+    expect((error as { providerId?: unknown }).providerId).toBe('google')
+    expect((error as { modelId?: unknown }).modelId).toBe('gemini-3-pro-image-preview')
+  })
+
+  it.each([false, true])('maps SDK no-image rejection (wrapped=%s) without retrying', async (wrapped) => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'google', providerSettings: {}, modelId: 'gemini-3-pro-image-preview' }
+    })
+    const sdkError = new NoImageGeneratedError({ responses: [] })
+    const rejection = wrapped ? new Error('Image generation failed', { cause: sdkError }) : sdkError
+    mockGenerateImage.mockRejectedValue(rejection)
+    const error: unknown = await service
+      .generateImage({
+        uniqueModelId: 'gemini::gemini-3-pro-image-preview',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+    expect(error).toMatchObject({
+      message: expect.stringContaining('returned no images for gemini-3-pro-image-preview'),
+      providerId: 'google',
+      modelId: 'gemini-3-pro-image-preview'
+    })
+    expect(mockGenerateImage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['provider', 'abort'])('preserves %s rejection identity', async (kind) => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'google', providerSettings: {}, modelId: 'gemini-3-pro-image-preview' }
+    })
+    const controller = new AbortController()
+    const rejection =
+      kind === 'abort' ? new NoImageGeneratedError({ responses: [] }) : new Error('provider unavailable')
+    if (kind === 'abort') controller.abort()
+    mockGenerateImage.mockRejectedValue(rejection)
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'gemini::gemini-3-pro-image-preview',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {},
+        requestOptions: { signal: controller.signal }
+      })
+    ).rejects.toBe(rejection)
+    expect(mockGenerateImage).toHaveBeenCalledTimes(1)
+  })
+
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
@@ -885,9 +970,9 @@ describe('AiService', () => {
       }
     })
 
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({
@@ -915,9 +1000,9 @@ describe('AiService', () => {
       sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
     })
 
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({

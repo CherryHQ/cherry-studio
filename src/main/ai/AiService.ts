@@ -97,6 +97,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { createEmptyImageError, isEmptyImageGenerationError } from './utils/emptyImageError'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
@@ -1111,19 +1112,32 @@ export class AiService extends BaseService {
           ...imageParams,
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
         }
-      )
+      ).catch((error: unknown) => {
+        if (signal?.aborted || !isEmptyImageGenerationError(error)) throw error
+        throw createEmptyImageError(sdkConfig.providerId, sdkConfig.modelId)
+      })
 
       const dataUrls: Base64String[] = []
       let filteredCount = 0
       for (const image of result.images ?? []) {
-        if (image.base64) {
-          dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+        const payload = image?.base64
+        if (typeof payload === 'string' && payload) {
+          dataUrls.push(`data:${image?.mediaType || 'image/png'};base64,${payload}`)
           continue
         }
 
         filteredCount += 1
       }
 
+      if (dataUrls.length === 0) {
+        logger.warn('Image generation returned no images', {
+          uniqueModelId: request.uniqueModelId,
+          providerId: sdkConfig.providerId,
+          modelId: sdkConfig.modelId,
+          filteredCount
+        })
+        throw createEmptyImageError(sdkConfig.providerId, sdkConfig.modelId)
+      }
       if (filteredCount > 0) {
         logger.warn('Filtered invalid generated images', {
           uniqueModelId: request.uniqueModelId,
