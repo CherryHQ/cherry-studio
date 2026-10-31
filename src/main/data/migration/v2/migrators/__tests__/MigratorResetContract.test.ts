@@ -39,6 +39,7 @@ describe('migrator reset contract', () => {
     state.validModelIds = new Set(['provider::model'])
     state.orphanedAssistantTopics = 4
     state.stagedTopics = [{ topic: { id: 't' }, messages: [], pinned: false }]
+    state.collectedTopicPrompts = new Map([['t', { topicId: 't', prompt: 'p' }]])
 
     migrator.reset()
 
@@ -62,6 +63,7 @@ describe('migrator reset contract', () => {
     expect(state.validModelIds).toBeNull()
     expect(state.orphanedAssistantTopics).toBe(0)
     expect(state.stagedTopics).toStrictEqual([])
+    expect(state.collectedTopicPrompts.size).toBe(0)
   })
 
   it('clears all attempt-local state in AssistantMigrator', () => {
