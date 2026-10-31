@@ -17,7 +17,7 @@ export const chatRules: readonly ScanRule[] = [
     devMessage:
       'The conversation no longer fits the model context window; clearing context, enabling compression, or picking a larger model resolves it.',
     anchors: [
-      /maximum context length|context window.{0,30}(?:exceed|limit)|exceeds?.{0,40}context (?:window|length)|prompt is too long|context_length_exceeded/i
+      /maximum context length|context window.{0,30}(?:exceed|limit)|exceeds?.{0,40}context (?:window|length)|prompt is too long|context_length_exceeded|\binput length \d+ exceeds the maximum length \d+\b/i
     ]
   },
   {
