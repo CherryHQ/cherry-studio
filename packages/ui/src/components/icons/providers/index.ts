@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Total icons: 167
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -71,7 +71,7 @@ export { GpustackIcon as Gpustack } from './gpustack'
 export { GrokIcon as Grok } from './grok'
 export { GroqIcon as Groq } from './groq'
 export { HigressIcon as Higress } from './higress'
-export { HubrisIcon as Hubris } from './hubris'
+export { HubrisIcon as Hubris } from './hubris/hubris'
 export { HuggingfaceIcon as Huggingface } from './huggingface'
 export { HyperbolicIcon as Hyperbolic } from './hyperbolic'
 export { IdeogramIcon as Ideogram } from './ideogram'
