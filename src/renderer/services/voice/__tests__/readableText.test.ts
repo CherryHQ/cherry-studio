@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  MAX_SPEECH_CHUNKS,
   READABLE_TEXT_CHUNK_LIMIT,
   READABLE_TEXT_CONFIRMATION_THRESHOLD,
   SPEECH_ADAPTER_TEXT_LIMIT,
   chunkReadableText,
+  computeSpeechChunkLimit,
+  estimateSpeechSeconds,
   normalizeReadableText,
   planReadableText
 } from '../readableText'
@@ -157,6 +160,43 @@ After.`
     const selection = '`answer()` [cite:source-1][cite: source-2 ] $x^2$'
 
     expect(normalizeReadableText(selection, { mode: 'selection' })).toBe('`answer()` $x^2$')
+  })
+})
+
+describe('adaptive speech chunk sizing', () => {
+  it('gives Chinese and English different budgets at the same text length', () => {
+    const chinese = computeSpeechChunkLimit('汉'.repeat(5_000))
+    const english = computeSpeechChunkLimit('word '.repeat(1_000))
+
+    expect(chinese).toBeGreaterThanOrEqual(120)
+    expect(chinese).toBeLessThan(250)
+    expect(english).toBeGreaterThan(400)
+    expect(english).toBeGreaterThan(chinese)
+  })
+
+  it('leaves a short text in one chunk', () => {
+    const text = '今天天气不错，适合出去走走。'
+    expect(computeSpeechChunkLimit(text)).toBe(text.length)
+    expect(estimateSpeechSeconds(text)).toBeLessThan(35)
+  })
+
+  it('caps the chunk count so the playback IPC array stays within its limit', () => {
+    const text = 'International collaboration enables reliable communication. '.repeat(20_000)
+    const plan = planReadableText(text, { trigger: 'manual', confirmed: true })
+
+    expect(plan.status).toBe('ready')
+    expect(plan.chunks.length).toBeLessThanOrEqual(MAX_SPEECH_CHUNKS)
+    const normalized = normalizeReadableText(text, {})
+    expect(plan.chunks.join(' ').replace(/\s+/g, ' ').trim()).toBe(normalized.replace(/\s+/g, ' ').trim())
+  })
+
+  it('splits a long Chinese message into roughly 35-second chunks', () => {
+    const plan = planReadableText('汉'.repeat(5_000), { trigger: 'manual', confirmed: true })
+
+    expect(plan.status).toBe('ready')
+    expect(plan.chunks.length).toBeGreaterThan(20)
+    expect(Math.max(...plan.chunks.map((chunk) => chunk.length))).toBeLessThanOrEqual(250)
+    expect(plan.chunks.join('')).toBe('汉'.repeat(5_000))
   })
 })
 

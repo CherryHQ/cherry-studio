@@ -12,6 +12,25 @@ export const READABLE_TEXT_CONFIRMATION_THRESHOLD = 5_000
 export const SPEECH_ADAPTER_TEXT_LIMIT = 10_000
 export const READABLE_TEXT_CHUNK_LIMIT = 4_000
 
+/**
+ * Average delivery rates used to size a chunk from the text itself. Mandarin is
+ * counted per character, English per word; punctuation contributes the pause a
+ * listener actually hears, so a comma-heavy paragraph is split sooner.
+ */
+export const SPEECH_RATE = Object.freeze({
+  hanCharsPerSecond: 4.5,
+  latinWordsPerSecond: 2.8,
+  clausePauseSeconds: 0.2,
+  sentencePauseSeconds: 0.45
+})
+
+/** A chunk aims at roughly this much audio, not a fixed character count. */
+export const SPEECH_CHUNK_TARGET_SECONDS = 35
+export const MIN_SPEECH_CHUNK_CHARS = 120
+export const MAX_SPEECH_CHUNK_CHARS = READABLE_TEXT_CHUNK_LIMIT
+/** The playback request carries every remaining chunk in one IPC array (cap 1000). */
+export const MAX_SPEECH_CHUNKS = 900
+
 export type ReadableTextMode = 'document' | 'selection'
 export type ReadableTextTrigger = 'manual' | 'auto_read'
 
@@ -263,6 +282,38 @@ function findChunkBoundary(text: string, start: number, end: number): { end: num
   return { end, next: end }
 }
 
+function countMatches(text: string, pattern: RegExp): number {
+  return text.match(pattern)?.length ?? 0
+}
+
+/** Estimated wall-clock duration of the text at normal reading speed. */
+export function estimateSpeechSeconds(text: string): number {
+  const han = countMatches(text, /\p{Script=Han}/gu)
+  const latinWords = countMatches(text, /[A-Za-z]+(?:['’-][A-Za-z]+)*/g)
+  const clauses = countMatches(text, /[，,、;；:：]/g)
+  const sentences = countMatches(text, /[。！？!?]|\.(?=\s|$)/g)
+  return (
+    han / SPEECH_RATE.hanCharsPerSecond +
+    latinWords / SPEECH_RATE.latinWordsPerSecond +
+    clauses * SPEECH_RATE.clausePauseSeconds +
+    sentences * SPEECH_RATE.sentencePauseSeconds
+  )
+}
+
+/**
+ * Character budget for one chunk, derived from how long this particular text
+ * takes to speak. A 35-second target gives Chinese roughly 160 characters and
+ * English roughly 500, instead of one fixed number for both.
+ */
+export function computeSpeechChunkLimit(text: string, targetSeconds = SPEECH_CHUNK_TARGET_SECONDS): number {
+  const characters = text.trim().length
+  if (characters === 0) return 0
+  const seconds = estimateSpeechSeconds(text)
+  if (seconds <= targetSeconds) return Math.min(MAX_SPEECH_CHUNK_CHARS, characters)
+  const limit = Math.round((characters / seconds) * targetSeconds)
+  return Math.min(MAX_SPEECH_CHUNK_CHARS, Math.max(MIN_SPEECH_CHUNK_CHARS, limit))
+}
+
 export function chunkReadableText(text: string, requestedLimit = READABLE_TEXT_CHUNK_LIMIT): string[] {
   const normalized = normalizeWhitespace(text)
   if (!normalized) return []
@@ -299,7 +350,18 @@ export function planReadableText(
     if (!options.confirmed) return { status: 'confirmation_required', normalizedLength, chunks: [] }
   }
 
-  return { status: 'ready', normalizedLength, chunks: chunkReadableText(normalized) }
+  let limit = computeSpeechChunkLimit(normalized)
+  let chunks = chunkReadableText(normalized, limit)
+  // The first request carries every later chunk in one IPC array, which the
+  // speech schema caps at 1000 entries. Grow the chunk size rather than
+  // producing a plan the transport will reject.
+  while (chunks.length > MAX_SPEECH_CHUNKS && limit < SPEECH_ADAPTER_TEXT_LIMIT) {
+    const next = Math.min(SPEECH_ADAPTER_TEXT_LIMIT, Math.ceil((limit * chunks.length) / MAX_SPEECH_CHUNKS) + 1)
+    if (next <= limit) break
+    limit = next
+    chunks = chunkReadableText(normalized, limit)
+  }
+  return { status: 'ready', normalizedLength, chunks }
 }
 
 /** Retain the last Markdown block; only plain prose can commit at sentence boundaries. */
