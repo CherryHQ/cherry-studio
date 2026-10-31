@@ -920,5 +920,8 @@ export function useHomeMessageListProviderValue({
     [assistant, headerCapabilities.userProfile, topic.name]
   )
 
-  return useMemo(() => ({ state, actions, meta }), [actions, meta, state])
+  return useMemo(
+    () => ({ state, actions, meta, selectionStore: selectionController.selectionStore }),
+    [actions, meta, state, selectionController.selectionStore]
+  )
 }
