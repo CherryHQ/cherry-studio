@@ -13,7 +13,7 @@ describe('scheduled task conversation association', () => {
   beforeEach(() => vi.restoreAllMocks())
 
   it('rejects a run belonging to another task before reading its conversation', async () => {
-    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ type: 'agent.task', scheduleId: 'other' } as never)
+    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue({ type: 'agent.task', scheduleId: 'other' })
     await expect(resolveTaskConversation(task, 'run')).rejects.toThrow()
     expect(get.mock.calls.map(([path]) => path)).toEqual(['/jobs/run'])
   })
@@ -35,6 +35,23 @@ describe('scheduled task conversation association', () => {
     })
     const result = await resolveTaskConversation({ ...task, reuseSession: true, reuseSessionId: 'bound' })
     expect(result.session?.id).toBe('bound')
+  })
+
+  it('skips an unavailable bound session and background/deleted candidates through normal conversation reads', async () => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/agent-sessions/bound') throw DataApiErrorFactory.notFound('Session', 'bound')
+      if (path === '/agent-sessions') return { items: [session] } as never
+      return {
+        items: [
+          { id: 'background-run', sessionId: 'background' },
+          { id: 'valid-run', sessionId: 'session' }
+        ],
+        total: 2
+      } as never
+    })
+    const found = await resolveTaskConversation({ ...task, reuseSession: true, reuseSessionId: 'bound' })
+    expect(found.session?.id).toBe('session')
+    expect(found.runId).toBe('valid-run')
   })
 
   it('finds the 51st execution without opening an unrelated latest Agent session', async () => {

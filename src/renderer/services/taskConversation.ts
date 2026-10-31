@@ -2,6 +2,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { DataApiErrorFactory, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { OffsetPaginationResponse } from '@shared/data/api/types'
 
 export interface TaskConversationResult {
   session: AgentSessionEntity | null
@@ -28,9 +29,9 @@ export async function readTaskRunSession(task: ScheduledTaskEntity, runId: strin
 
 export async function readTaskConversationPage(task: ScheduledTaskEntity, page: number, signal?: AbortSignal) {
   signal?.throwIfAborted()
-  const history = await dataApiService.get(`/agents/${task.agentId}/tasks/${task.id}/logs`, {
+  const history = (await dataApiService.get(`/agents/${task.agentId}/tasks/${task.id}/logs`, {
     query: { page, limit: 50 }
-  })
+  })) as OffsetPaginationResponse<TaskRunLogEntity>
   signal?.throwIfAborted()
   const ids = [...new Set(history.items.map((log) => log.sessionId).filter((id): id is string => !!id?.trim()))]
   const sessions = ids.length ? await dataApiService.get('/agent-sessions', { query: { ids, limit: 50 } }) : null

@@ -69,39 +69,41 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     }
   }, [task, result, visible.loading, key, runId])
 
-  useDataChange(
-    '/agents/:agentId/tasks/:taskId/logs',
-    () => {
-      if (!task) return
-      if (!result?.session) {
-        retry()
-        return
-      }
-      const signal = controller.current?.signal
-      void readTaskConversationPage(task, 1, signal)
-        .then((first) => {
-          if (signal?.aborted) return
-          setState((current) =>
-            current.key !== key || !current.result
-              ? current
-              : {
-                  ...current,
-                  newerRunId:
-                    first.session && first.session.id !== current.result.session?.id ? first.runId : undefined,
-                  result: {
-                    ...current.result,
-                    total: first.total,
-                    logs: [...new Map([...first.logs, ...current.result.logs].map((log) => [log.id, log])).values()]
-                  }
+  const refreshHistory = () => {
+    if (!task) return
+    if (!result?.session) {
+      retry()
+      return
+    }
+    const signal = controller.current?.signal
+    void readTaskConversationPage(task, 1, signal)
+      .then((first) => {
+        if (signal?.aborted) return
+        setState((current) =>
+          current.key !== key || !current.result
+            ? current
+            : {
+                ...current,
+                error: undefined,
+                newerRunId: first.session && first.session.id !== current.result.session?.id ? first.runId : undefined,
+                result: {
+                  ...current.result,
+                  total: first.total,
+                  logs: [
+                    ...first.logs,
+                    ...current.result.logs.filter((log) => !first.logs.some((fresh) => fresh.id === log.id))
+                  ]
                 }
-          )
-        })
-        .catch((error) => {
-          if (!signal?.aborted) setState((current) => ({ ...current, error }))
-        })
-    },
-    { routeParams: task ? { taskId: task.id } : undefined }
-  )
+              }
+        )
+      })
+      .catch((error) => {
+        if (!signal?.aborted) setState((current) => ({ ...current, error }))
+      })
+  }
+  useDataChange('/agents/:agentId/tasks/:taskId/logs', refreshHistory, {
+    routeParams: task ? { taskId: task.id } : undefined
+  })
 
   const sessionId = result?.session?.id
   const {
@@ -116,15 +118,17 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) void refetch()
   })
-  const verifiedSession = !sessionError && session?.id === sessionId ? session : null
+  const verifiedSession = !sessionError && session && session.id === sessionId ? session : null
   const tabId = useCurrentTabId()
   useLayoutEffect(() => {
-    if (!tabId || !task || !verifiedSession) return
+    if (!tabId) return
     const cacheKey = `scheduled-task.conversation.${tabId}`
-    cacheService.setCasual(cacheKey, { taskId: task.id, runId, sessionId: verifiedSession.id })
-    return () => {
+    if (!task || !verifiedSession) {
       cacheService.deleteCasual(cacheKey)
+      return
     }
+    // Tab ownership survives Activity hiding; TabsProvider's navigation owner clears closed tabs.
+    cacheService.setCasual(cacheKey, { taskId: task.id, runId, sessionId: verifiedSession.id })
   }, [tabId, task, runId, verifiedSession])
 
   return {
@@ -133,7 +137,12 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     sessionLoading: !!sessionId && !session && !sessionError,
     error: sessionError ?? visible.error,
     loadMore,
-    retry,
+    retry: () => {
+      if (result?.session) {
+        void refetch()
+        refreshHistory()
+      } else retry()
+    },
     hasMore: !!result && (result.nextPage - 1) * 50 < result.total
   }
 }
