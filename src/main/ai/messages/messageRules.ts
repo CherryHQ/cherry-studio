@@ -120,10 +120,10 @@ function toWireToolName(name: string): string {
 }
 
 /**
- * Make an illegal `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
- * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
- * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and result
- * share one part, so the pair stays consistent.
+ * Make an illegal `dynamic-tool` name wire-legal and drop nameless parts. The v1 migrator joins
+ * `"{server}: {tool}"` into `toolName` for display (`ChatMappings`), and unlike v1 — which never
+ * replayed tool blocks — v2 sends that field as `function_call.name`, which providers reject
+ * (#18199). Call and result share one part, so the pair stays consistent.
  *
  * A name this request declares is never rewritten: the API Gateway shares this path and keys its
  * `ToolSet` by the client's own function name (which Gemini allows to hold `.` / `:`), so
@@ -134,9 +134,20 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
   messages.forEach((message, messageIndex) => {
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
-      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) return
-      parts ??= [...message.parts]
-      parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
+      if (part.type !== 'dynamic-tool') {
+        parts?.push(part)
+        return
+      }
+      if (part.toolName.length === 0) {
+        parts ??= message.parts.slice(0, partIndex)
+        return
+      }
+      if (WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) {
+        parts?.push(part)
+        return
+      }
+      parts ??= message.parts.slice(0, partIndex)
+      parts.push({ ...part, toolName: toWireToolName(part.toolName) })
     })
     if (parts) {
       out ??= [...messages]
