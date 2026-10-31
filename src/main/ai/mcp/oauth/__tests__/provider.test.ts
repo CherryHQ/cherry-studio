@@ -23,6 +23,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({})
 })
 vi.mock('electron', () => ({
+  app: { getLocale: () => 'en-US' },
   safeStorage: {
     isEncryptionAvailable: () => true,
     encryptString: (value: string) => Buffer.from(value),
@@ -400,6 +401,23 @@ describe('upgrade from credentials saved before issuer stamping', () => {
   afterEach(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()))
     await fs.rm(configDir, { recursive: true, force: true })
+  })
+
+  it('explains unsupported automatic registration before opening the browser', async () => {
+    const provider = new McpOAuthClientProvider({ serverUrlHash: 'unregistered', configDir })
+    const redirect = vi.spyOn(provider, 'redirectToAuthorization')
+    const client = new Client({ name: 'test', version: '1' })
+    try {
+      await expect(
+        provider.withAuthorizationFlow(() =>
+          client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { authProvider: provider }))
+        )
+      ).rejects.toThrow(/Authorization=Bearer YOUR_GITHUB_PAT/)
+      expect(redirect).not.toHaveBeenCalled()
+      expect(tokenRequests).toHaveLength(0)
+    } finally {
+      await client.close()
+    }
   })
 
   it('renews an expired pre-upgrade token silently instead of asking the user to sign in again', async () => {

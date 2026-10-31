@@ -52,6 +52,7 @@ import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
 import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
+import { McpOAuthRegistrationRequiredError } from './oauth/provider'
 import { deleteOAuthStorage, oauthServerUrlHash } from './oauth/storage'
 import { projectServerInstructions } from './serverInstructions'
 import { ServerLogBuffer } from './ServerLogBuffer'
@@ -139,7 +140,7 @@ function canAuthorizeInteractively(requestContext?: McpInteractionContext | null
 export function connectRetryDelayMs(error: unknown, attempts: number): number {
   if (attempts >= MCP_CONNECT_MAX_ATTEMPTS) return Infinity
   for (let cause = error, depth = 0; cause && depth < 5; cause = (cause as Error).cause, depth++) {
-    if (UnauthorizedError.isInstance(cause)) return Infinity
+    if (UnauthorizedError.isInstance(cause) || cause instanceof McpOAuthRegistrationRequiredError) return Infinity
     const status = SseError.isInstance(cause) ? cause.code : SdkHttpError.isInstance(cause) ? cause.status : undefined
     if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) return Infinity
   }
