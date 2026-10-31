@@ -18243,6 +18243,12 @@
       "providerId": "longcat"
     },
     {
+      "apiModelId": "LongCat-2.5-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "longcat-2-5-preview",
+      "providerId": "longcat"
+    },
+    {
       "modelId": "mimo-v2-5",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -44582,5 +44588,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d5c315bd1da2fbdb"
+  "version": "e514e3ff1723b812"
 }
