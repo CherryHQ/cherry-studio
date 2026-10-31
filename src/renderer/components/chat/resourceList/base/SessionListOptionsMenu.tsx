@@ -1,4 +1,4 @@
-import { Bot, Clock, Folder, History } from 'lucide-react'
+import { Bot, Clock, Folder, History, Tags } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,14 +6,16 @@ import type { AgentSessionDisplayMode } from '@shared/data/preference/preference
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
 
-const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir', 'agent']
+const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir', 'agent', 'group']
 export const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
+  group: 'agent.session.display.group',
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
 const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
   agent: <Bot size={16} />,
+  group: <Tags size={16} />,
   time: <Clock size={16} />,
   workdir: <Folder size={16} />
 }

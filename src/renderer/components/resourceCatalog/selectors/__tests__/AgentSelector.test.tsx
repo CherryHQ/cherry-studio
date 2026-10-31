@@ -107,7 +107,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     refresh: vi.fn()
   }),
   useMutation: useMutationMock,
-  useQuery: useQueryMock
+  useQuery: useQueryMock,
+  useDataChange: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
@@ -297,7 +298,13 @@ beforeEach(() => {
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
     const enabled = path !== '/agents' || options?.enabled !== false
     if (path === '/agents' && enabled) agentReadMock()
-    const data = enabled ? (path === '/agents/:agentId' ? AGENTS_RESPONSE.items[0] : AGENTS_RESPONSE) : undefined
+    const data = enabled
+      ? path === '/agents/:agentId'
+        ? AGENTS_RESPONSE.items[0]
+        : path === '/groups'
+          ? []
+          : AGENTS_RESPONSE
+      : undefined
     return {
       data,
       isLoading: false,

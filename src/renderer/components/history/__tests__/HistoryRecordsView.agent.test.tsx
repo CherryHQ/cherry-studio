@@ -386,6 +386,7 @@ function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
     name: 'Alpha agent',
     configuration: { avatar: 'A' },
     orderKey: 'k',
+    groupId: null,
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides

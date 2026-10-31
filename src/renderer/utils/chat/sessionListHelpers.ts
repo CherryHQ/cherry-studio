@@ -52,6 +52,12 @@ export type SessionDisplaySortOptions = {
   agentRankById?: ReadonlyMap<string, number>
   mode: AgentSessionDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
+  /**
+   * Rank for sessions whose agent no longer exists. Defaults to the plain agent-mode fallback
+   * (after every known agent); group mode overrides it so the unlinked bucket also sits after the
+   * ungrouped-agent tail instead of interleaving with it.
+   */
+  unknownAgentGroupRank?: number
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
 }
 
@@ -81,6 +87,7 @@ const SESSION_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 export const SESSION_PINNED_GROUP_ID = 'session:pinned'
 export const SESSION_PINNED_SECTION_ID = 'session:section:pinned'
 export const SESSION_AGENT_SECTION_ID = 'session:section:agent'
+export const SESSION_GROUP_SECTION_ID = 'session:section:group'
 export const SESSION_WORKDIR_SECTION_ID = 'session:section:workdir'
 export const SESSION_NO_PROJECT_GROUP_ID = 'session:no-project'
 export const SESSION_NO_PROJECT_SECTION_ID = 'session:section:no-project'
@@ -296,7 +303,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
     )
   }
 
-  if (mode === 'agent') {
+  if (mode === 'agent' || mode === 'group') {
     return withSessionGroupIdPrefix(
       composeResourceListGroupResolvers(pinnedResolver, (session) => {
         const agentId = session.agentId
@@ -341,9 +348,13 @@ function getWorkdirGroupRank(
   return workdirDisplay?.rankByGroupId.get(groupId) ?? UNKNOWN_GROUP_RANK
 }
 
-function getAgentGroupRank(session: Pick<AgentSessionEntity, 'agentId'>, agentRankById?: ReadonlyMap<string, number>) {
-  if (!session.agentId) return UNKNOWN_GROUP_RANK
-  return agentRankById?.get(session.agentId) ?? UNKNOWN_GROUP_RANK
+function getAgentGroupRank(
+  session: Pick<AgentSessionEntity, 'agentId'>,
+  agentRankById?: ReadonlyMap<string, number>,
+  unknownAgentGroupRank?: number
+) {
+  if (!session.agentId) return unknownAgentGroupRank ?? UNKNOWN_GROUP_RANK
+  return agentRankById?.get(session.agentId) ?? unknownAgentGroupRank ?? UNKNOWN_GROUP_RANK
 }
 
 export function sortSessionsForDisplayGroups<T extends SessionListItem>(
@@ -363,12 +374,12 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
     })
   }
 
-  if (options.mode === 'agent') {
+  if (options.mode === 'agent' || options.mode === 'group') {
     return sessions
       .map((session, index) => ({
         session,
         index,
-        rank: isPinned(session) ? -1 : getAgentGroupRank(session, options.agentRankById)
+        rank: isPinned(session) ? -1 : getAgentGroupRank(session, options.agentRankById, options.unknownAgentGroupRank)
       }))
       .sort((a, b) => {
         if (a.rank !== b.rank) return a.rank - b.rank

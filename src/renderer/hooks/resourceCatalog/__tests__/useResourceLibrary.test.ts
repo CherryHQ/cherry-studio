@@ -129,7 +129,8 @@ describe('useResourceLibrary', () => {
 
     expect(result.current.allResources).toMatchObject([{ id: 'assistant-1', type: 'assistant', model: 'GPT-4o' }])
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: true }])
-    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: false, search: undefined })
+    expect(mocks.useAgentList.mock.calls[0]).toEqual([{ enabled: false }])
+    expect(mocks.useAgentList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
     expect(mocks.useSkillList).toHaveBeenCalledWith({ enabled: false, search: undefined })
     expect(mocks.usePromptList).toHaveBeenCalledWith({ enabled: false, search: undefined })
   })
@@ -308,11 +309,48 @@ describe('useResourceLibrary', () => {
     expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, groupId }])
   })
 
-  it('ignores activeGroupId for non-assistant resources', () => {
+  it('filters agent resources by activeGroupId', () => {
     renderResourceLibrary({ resourceType: 'agent', activeGroupId: '11111111-1111-4111-8111-111111111111' })
 
-    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
+    expect(mocks.useAgentList).toHaveBeenCalledWith({
+      enabled: true,
+      search: undefined,
+      groupId: '11111111-1111-4111-8111-111111111111'
+    })
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
     expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
+  })
+
+  it('keeps agent group chips and counts on an unfiltered base read while searching', () => {
+    const groupId = '11111111-1111-4111-8111-111111111111'
+    mocks.useAgentList.mockImplementation((query?: ResourceListQuery) => {
+      if (query?.search || query?.groupId) return listResult([])
+      return listResult([
+        { ...agentListItem, id: 'agent-1', groupId },
+        { ...agentListItem, id: 'agent-2', groupId: null }
+      ])
+    })
+
+    const { result } = renderResourceLibrary({ resourceType: 'agent', search: 'needle' })
+
+    expect(mocks.useAgentList.mock.calls[0]).toEqual([{ enabled: true }])
+    expect(mocks.useAgentList.mock.calls[1]).toEqual([{ enabled: true, search: 'needle', groupId: undefined }])
+    expect(result.current.allResources.map((resource) => resource.id)).toEqual(['agent-1', 'agent-2'])
+    expect(result.current.resources).toEqual([])
+  })
+
+  it('retries the agent-group chips query when the agent library refetches', () => {
+    const agentReads = listResult([agentListItem])
+    const groups = { groups: [], isLoading: false, error: undefined, refetch: vi.fn() }
+    mocks.useAgentList.mockReturnValue(agentReads)
+    mocks.useGroups.mockReturnValue(groups)
+
+    const { result } = renderResourceLibrary({ resourceType: 'agent' })
+    result.current.refetch()
+
+    // A failed chips request must not be stranded: the retry covers both agent
+    // reads and the group query, matching the assistant branch.
+    expect(agentReads.refetch).toHaveBeenCalled()
+    expect(groups.refetch).toHaveBeenCalled()
   })
 })
