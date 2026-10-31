@@ -14,7 +14,8 @@ import {
   MousePointerClick,
   NotepadText,
   Package,
-  Palette
+  Palette,
+  Store
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -34,6 +35,7 @@ export const SIDEBAR_ICON_COMPONENTS = {
   assistants: MessageSquare,
   agents: MousePointerClick,
   paintings: Palette,
+  marketplace: Store,
   translate: Languages,
   mini_app: LayoutGrid,
   knowledge: FileSearch,

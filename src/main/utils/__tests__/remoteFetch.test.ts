@@ -1,9 +1,13 @@
 import { EventEmitter } from 'node:events'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import type { IncomingMessage } from 'node:http'
 import type { RequestOptions } from 'node:https'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable } from 'node:stream'
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 const httpRequestMock = vi.hoisted(() => vi.fn())
 const httpsRequestMock = vi.hoisted(() => vi.fn())
@@ -21,7 +25,13 @@ vi.mock('node:dns/promises', () => ({
   lookup: lookupMock
 }))
 
-import { fetchRemoteBytes, fetchRemoteText } from '../remoteFetch'
+import { fetchRemoteBytes, fetchRemoteBytesWithUrl, fetchRemoteFile, fetchRemoteText } from '../remoteFetch'
+
+async function downloadPath() {
+  const directory = await mkdtemp(join(tmpdir(), 'remote-fetch-'))
+  onTestFinished(() => rm(directory, { recursive: true, force: true }))
+  return join(directory, 'package.zip')
+}
 
 type MockResponseOptions = {
   readonly body?: Buffer | string
@@ -77,6 +87,28 @@ describe('fetchRemoteText', () => {
   it('enforces the binary size limit without trusting Content-Length', async () => {
     mockHttpsResponse({ body: Buffer.alloc(6) })
     await expect(fetchRemoteBytes('https://example.com/file', { maxBytes: 5 })).rejects.toThrow(/too large/)
+  })
+
+  it.each([5, 4])('streams binary downloads to disk within a %i-byte limit', async (maxBytes) => {
+    const destination = await downloadPath()
+    const body = Buffer.from([0, 255, 128, 195, 40])
+    httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+      const response = Object.assign(Readable.from([body.subarray(0, 2), body.subarray(2)]), {
+        statusCode: 200,
+        headers: {}
+      }) as IncomingMessage
+      queueMicrotask(() => callback(response))
+      return Object.assign(new EventEmitter(), { end: vi.fn() })
+    })
+
+    const result = fetchRemoteFile('https://example.com/file', destination, { maxBytes })
+    if (maxBytes < body.length) {
+      await expect(result).rejects.toThrow(/too large/)
+      expect((await readFile(destination)).length).toBeLessThanOrEqual(maxBytes)
+    } else {
+      await result
+      expect(await readFile(destination)).toEqual(body)
+    }
   })
 
   it('shares a byte budget across concurrent responses before buffering their bodies', async () => {
@@ -139,6 +171,10 @@ describe('fetchRemoteText', () => {
     lookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
 
     await expect(fetchRemoteText('https://example.com/article')).rejects.toThrow(/DNS resolved/)
+    await expect(fetchRemoteFile('https://example.com/package.zip', await downloadPath())).rejects.toThrow(
+      /DNS resolved/
+    )
+    await expect(fetchRemoteFile('http://127.0.0.1:3000/export.zip', await downloadPath())).rejects.toThrow()
 
     expect(httpRequestMock).not.toHaveBeenCalled()
     expect(httpsRequestMock).not.toHaveBeenCalled()
@@ -292,7 +328,7 @@ describe('fetchRemoteText', () => {
       .mockResolvedValueOnce([{ address: '1.1.1.1', family: 4 }])
 
     await expect(
-      fetchRemoteText('https://example.com/start', {
+      fetchRemoteBytesWithUrl('https://example.com/start', {
         headers: {
           Authorization: 'Bearer secret',
           Cookie: 'session=secret',
@@ -300,7 +336,7 @@ describe('fetchRemoteText', () => {
         },
         maxRedirects: 1
       })
-    ).resolves.toBe('redirected content')
+    ).resolves.toEqual({ body: Buffer.from('redirected content'), headers: {}, url: 'https://cdn.example.com/article' })
 
     expect(lookupMock).toHaveBeenNthCalledWith(1, 'example.com', { all: true })
     expect(lookupMock).toHaveBeenNthCalledWith(2, 'cdn.example.com', { all: true })
@@ -345,6 +381,14 @@ describe('fetchRemoteText', () => {
 
     expect(httpsRequestMock).toHaveBeenCalledOnce()
     expect(redirectResponse.listenerCount('data')).toBe(0)
+
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }])
+    await expect(
+      fetchRemoteFile('https://example.com/start', await downloadPath(), { maxRedirects: 1 })
+    ).rejects.toThrow(/DNS resolved/)
+    expect(httpsRequestMock).toHaveBeenCalledTimes(2)
   })
 
   it('stops after the configured number of redirects without buffering the excess response', async () => {

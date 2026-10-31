@@ -1,6 +1,8 @@
 import { shell } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { getMarketplaceSkill, listMarketplaceSkills } from '@main/ai/skills/cherrySkillMarketplace'
 import { SkillImportError } from '@main/ai/skills/SkillImportError'
 import { SkillRemoteUpdateError, skillService } from '@main/ai/skills/SkillService'
 import { t } from '@main/i18n'
@@ -75,6 +77,18 @@ async function toSkillResult<T>(
 }
 
 export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
+  'skill.subscription.add': ({ url }) => application.get('SkillSubscriptionService').add(url),
+  'skill.subscription.list': async ({ sourceId }) => application.get('SkillSubscriptionService').list(sourceId),
+  'skill.subscription.refresh': ({ sourceId }) => application.get('SkillSubscriptionService').refresh(sourceId),
+  'skill.subscription.remove': ({ sourceId }) => application.get('SkillSubscriptionService').remove(sourceId),
+  'skill.subscription.detail': ({ sourceId, itemId }) =>
+    application.get('SkillSubscriptionService').detail(sourceId, itemId),
+  'skill.subscription.install': ({ sourceId, itemId }) =>
+    application.get('SkillSubscriptionService').install(sourceId, itemId),
+  'skill.export': ({ skillId }) => skillService.exportArchive(skillId),
+  'skill.marketplace.list': (input) => listMarketplaceSkills(input),
+  'skill.marketplace.detail': ({ id }) => getMarketplaceSkill(id, true),
+  'skill.marketplace.install': ({ id }) => skillService.installMarketplace(id),
   'skill.install': ({ installSource }) =>
     toSkillResult(() => skillService.install({ installSource }), 'Failed to install skill'),
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),
