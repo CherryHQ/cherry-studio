@@ -105,6 +105,8 @@ export interface StreamListener {
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
+  /** Latest accumulated message of a still-streaming execution, at most once per `checkpointIntervalMs`. */
+  onCheckpoint?(message: CherryUIMessage, modelId: UniqueModelId): void
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
 }
@@ -157,6 +159,8 @@ export interface StreamExecution {
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
   loopPromise: Promise<void>
+  /** Pending `onCheckpoint` dispatch; set while a newer snapshot waits for the interval. */
+  checkpointTimer?: ReturnType<typeof setTimeout>
   timings: TransportTimings
   runtimeTiming: MessageRuntimeTimingCollector
   /** OTel root span set as active context around `runExecutionLoop`. */
@@ -223,4 +227,6 @@ export interface AiStreamManagerConfig {
    * stream and its subprocess hanging until app quit.
    */
   readonly approvalIdleTimeoutMs: number
+  /** How often a streaming execution hands its partial reply to `onCheckpoint`, so a crash keeps it. */
+  readonly checkpointIntervalMs: number
 }
