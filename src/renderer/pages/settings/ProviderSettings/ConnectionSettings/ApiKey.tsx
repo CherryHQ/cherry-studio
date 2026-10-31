@@ -1,4 +1,4 @@
-import { Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
+import { Check, Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,11 +10,11 @@ import { cn } from '@renderer/utils/style'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import { ProviderModelCheck } from '../ModelList'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { apiKeyListClasses, fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
-import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -43,6 +43,7 @@ export default function ApiKey({
   const [showApiKey, setShowApiKey] = useState(false)
   const [keyListOpen, setKeyListOpen] = useState(false)
   const [apiKeyEdited, setApiKeyEdited] = useState(false)
+  const [apiKeyCopied, copyApiKey] = useCopyToClipboard()
   const apiKeys = apiKeysData?.keys ?? []
 
   useEffect(() => {
@@ -133,8 +134,8 @@ export default function ApiKey({
                         type="button"
                         className={apiKeyListClasses.keyIconButton}
                         aria-label={t('settings.provider.api_key.copy')}
-                        onClick={() => void copyApiKeyToClipboard(primaryApiKey.key, t)}>
-                        <Copy />
+                        onClick={() => void copyApiKey(primaryApiKey.key)}>
+                        {apiKeyCopied ? <Check className="text-success" /> : <Copy />}
                       </button>
                     </Tooltip>
                     <Tooltip content={t('common.edit')}>

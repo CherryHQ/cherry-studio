@@ -99,5 +99,5 @@ export function supportsCodeLanguage(language: string): boolean {
   return aliases.has(language.trim().toLowerCase())
 }
 export function resolveCodeTheme(name: string, fallback = 'one-light'): string {
-  return Object.hasOwn(themes, name) ? name : fallback
+  return name === 'cherry' || Object.hasOwn(themes, name) ? name : fallback
 }

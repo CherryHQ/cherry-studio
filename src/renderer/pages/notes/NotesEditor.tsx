@@ -11,7 +11,6 @@ import DictationControls from '@renderer/components/DictationControls'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
@@ -23,7 +22,9 @@ const logger = loggerService.withContext('NotesEditor')
 // `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
 const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
-const CodeEditor = lazy(() => import('@cherrystudio/ui/components/composites/code-editor'))
+const CodeEditor = lazy(() =>
+  import('@renderer/components/LazyCodeEditor').then((module) => ({ default: module.LazyCodeEditor }))
+)
 const RichEditor = lazy(() => import('@renderer/components/RichEditor/RichEditor'))
 
 export function NotesEditorLoading({ label }: { label: string }) {
@@ -88,7 +89,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       },
       [binding, readOnly, onMarkdownChange]
     )
-    const activeCmTheme = useCmTheme(tmpViewMode === 'source')
+
     const currentViewModeRef = useRef(currentViewMode)
     const activeViewModeRef = useRef(tmpViewMode)
     activeViewModeRef.current = tmpViewMode
@@ -256,7 +257,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     className="h-full"
                     expanded={false}
                     height="100%"
-                    theme={activeCmTheme}
                     fontSize={settings.fontSize}
                   />
                 </div>
@@ -289,10 +289,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           onFocusCapture={markVoiceTargetCurrent}
           onPointerDownCapture={markVoiceTargetCurrent}>
           <SpaceBetweenRowFlex className="w-full flex-wrap items-center gap-2">
-            <div className="text-muted-foreground text-xs leading-none select-none">
+            <div className="text-xs leading-none text-muted-foreground select-none">
               {t('notes.characters')}: {tokenCount}
             </div>
-            <div className="text-muted-foreground flex flex-wrap items-center justify-end gap-3 text-xs">
+            <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
               {voiceNoteId && (
                 <DictationControls
                   targetId={voiceTargetId}

@@ -42,6 +42,7 @@ import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
@@ -311,6 +312,9 @@ const HomePage: FC = () => {
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
+  // Label this tab with its assistant emoji + topic name so multiple chat tabs are distinguishable.
+  const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
+  const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -721,7 +725,13 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
-      <HomeTabRuntime activeTopicId={activeTopic?.id} activeTopicSource={activeTopicSource} />
+      <HomeTabRuntime
+        title={tabTitle}
+        emoji={visibleAssistant?.emoji}
+        preserveVisuals={preserveTabVisuals}
+        activeTopicId={activeTopic?.id}
+        activeTopicSource={activeTopicSource}
+      />
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <Chat

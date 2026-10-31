@@ -9,11 +9,9 @@ import CodeViewer from '../CodeViewer'
 
 vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
 
-const getCodePreProperties = async () => ({ class: 'shiki' })
 const captureHighlight = vi.hoisted(() => ({ read: vi.fn(), cleanup: vi.fn() }))
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    getCodePreProperties,
     isCodeThemeDark: false,
     highlightRange: captureHighlight.read,
     cleanupTokenizers: captureHighlight.cleanup
@@ -121,7 +119,7 @@ describe('CodeViewer', () => {
       if (highlighted) prefixHeight = 5000
       captureHighlight.read.mockImplementation(async () => {
         await new Promise((resolve) => setTimeout(resolve, 20))
-        return { start: 0, lines: lines.map((content) => [{ content, offset: 0, color: '#ff0000' }]) }
+        return { start: 0, lines: lines.map((content) => [{ content, offset: 0, className: 'code-syntax-keyword' }]) }
       })
       const { container } = render(
         <CodeViewer value={lines.join('\n')} language="text" expanded options={{ highlight: highlighted }} />
@@ -130,7 +128,7 @@ describe('CodeViewer', () => {
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async (root) => {
         expect([...root.querySelectorAll('.line-content')].map((line) => line.textContent)).toEqual(lines)
         if (highlighted)
-          expect(root.querySelector('[data-index="119"] .line-content span')).toHaveStyle({ color: '#ff0000' })
+          expect(root.querySelector('[data-index="119"] .line-content span')).toHaveClass('code-syntax-keyword')
         if (mode === 'failure') throw new Error('rasterization failed')
         return Object.assign(document.createElement('canvas'), { toDataURL: () => 'data:image/png;base64,dGVzdA==' })
       })
@@ -192,6 +190,76 @@ describe('CodeViewer', () => {
     expect(first.parentElement?.style.transform).toBe(`translateY(${Number(first.dataset.index) * 21}px)`)
   })
 
+  it('scrolls visible rows without remeasuring the document origin', async () => {
+    const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+    const { container, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+      </div>
+    )
+    await act(async () => {})
+    const list = container.querySelector<HTMLElement>('.shiki-list')!
+    const measureBounds = vi.mocked(HTMLElement.prototype.getBoundingClientRect)
+    measureBounds.mockClear()
+    const outer = getByTestId('outer')
+    outer.scrollTop = 100 * 21
+    fireEvent.scroll(outer)
+    await waitFor(() => expect(container.querySelector('[data-index="100"]')).toHaveTextContent('line 100'))
+    expect(container.querySelector('[data-index="0"]')).toBeNull()
+    // Ordinary scrolling must not force a layout read of the unchanged document origin.
+    expect(measureBounds.mock.contexts).not.toContain(list)
+  })
+
+  it('updates visible rows when a preceding sibling resizes inside a fixed-height parent', async () => {
+    const { observers, restore } = stubResizeObserver()
+    try {
+      prefixHeight = 600
+      const { container, getByTestId } = render(
+        <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+          <div style={{ height: 1000 }}>
+            <div data-testid="prefix" />
+            <CodeViewer value="first line\nlast line" language="text" expanded wrapped={false} />
+          </div>
+        </div>
+      )
+      expect(container.querySelector('.line-content')).toBeNull()
+      const prefix = getByTestId('prefix')
+      prefixHeight = 0
+      act(() => {
+        for (const { callback, targets } of observers) {
+          if (targets.has(prefix)) callback([], {} as ResizeObserver)
+        }
+      })
+      await waitFor(() => expect(container.querySelector('.line-content')).toHaveTextContent('first line'))
+      expect(getByTestId('outer').scrollTop).toBe(0)
+    } finally {
+      restore()
+    }
+  })
+
+  it('updates visible rows after ancestor repositioning and sibling insertion or removal without scrolling', async () => {
+    prefixHeight = 600
+    const { container, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <div data-testid="item" style={{ position: 'absolute', top: 600 }}>
+          <CodeViewer value="first line\nlast line" language="text" expanded wrapped={false} />
+        </div>
+      </div>
+    )
+    expect(container.querySelector('.line-content')).toBeNull()
+    prefixHeight = 0
+    getByTestId('item').style.top = '0px'
+    await waitFor(() => expect(container.querySelector('.line-content')).toHaveTextContent('first line'))
+    const prefix = document.createElement('div')
+    prefixHeight = 600
+    getByTestId('item').prepend(prefix)
+    await waitFor(() => expect(container.querySelector('.line-content')).toBeNull())
+    prefixHeight = 0
+    prefix.remove()
+    await waitFor(() => expect(container.querySelector('.line-content')).toHaveTextContent('first line'))
+    expect(getByTestId('outer').scrollTop).toBe(0)
+  })
+
   it('preserves trailing whitespace and blank lines with highlighting disabled', () => {
     const { container } = render(
       <CodeViewer
@@ -206,7 +274,7 @@ describe('CodeViewer', () => {
     expect(lines).toHaveLength(3)
     expect(lines[0].textContent).toBe('hello  ')
     expect(lines[1].textContent).toBe('\t🍒')
-    expect(lines[0].querySelector('span')?.style.opacity).toBe('1')
+    expect(lines[0].querySelector('span')).not.toHaveStyle({ opacity: '0.35' })
   })
 
   it('copies complete line contents when selection endpoints are elements', () => {
@@ -476,6 +544,21 @@ describe('CodeViewer', () => {
     scrollHeight = 1600
     rerender(<CodeViewer {...props} value={'first\nsecond\nthird'} />)
     expect(scroller.scrollTop).toBe(100)
+  })
+
+  it('recalculates the document height when line wrapping is toggled', () => {
+    const value = Array.from({ length: 100 }, () => 'x'.repeat(100)).join('\n')
+    const props = { language: 'text', expanded: false, height: 300, value } as const
+    measuredRowHeight = () => 42
+    const { container, rerender } = render(<CodeViewer {...props} wrapped />)
+    const list = container.querySelector<HTMLElement>('.shiki-list')!
+    expect(list.style.height).toBe('4200px')
+    measuredRowHeight = () => 21
+    rerender(<CodeViewer {...props} wrapped={false} />)
+    expect(list.style.height).toBe('2100px')
+    measuredRowHeight = () => 42
+    rerender(<CodeViewer {...props} wrapped />)
+    expect(list.style.height).toBe('4200px')
   })
 
   it('uses measured wrapped heights after streaming changes a row', () => {

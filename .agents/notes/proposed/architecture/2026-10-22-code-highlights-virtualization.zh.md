@@ -27,6 +27,10 @@ Status: proposed
 
 ### 1. 范围与不变量
 
+拟议的 [Pierre 共享源码视图](2026-10-24-pierre-code-surfaces.md) 仅在明确迁移的调用方中部分接替下述 CodeMirror/布局边界。后续方案有独立验收标准；本文其余契约和验证保持不变。
+
+独立的 [代码块语言/样式方案](2026-10-26-message-code-block-surfaces.md) 拟仅将 CodeViewer 范围解析替换为共享 CodeMirror/Lezer 语言与样式定义。其交付门槛不替代本文已有的 Highlights 快照、HTML/Markdown 或 Tiptap 契约/证据。
+
 收敛公共策略和执行机制，保留渲染器专属适配。保留源文本、预览主题标识、独立的 CodeMirror 偏好设置、富文本编辑器持久化节点属性、现有复制操作，以及不支持语言时显示纯文本的行为。继续使用 TanStack Virtual。
 
 本阶段不启用聊天流式期间的高亮：`CodeBlockView` 当前在流式期间传入 `highlight: false`。增量能力与这项产品行为分别测试。本阶段不虚拟化 ProseMirror 或 Streamdown 原生代码块渲染器，不替换 CodeMirror/Diffs 布局，不增加语言服务器语义高亮，不移除所有间接 Shiki 包，也不建立通用引擎插件框架。

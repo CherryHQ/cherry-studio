@@ -44,6 +44,7 @@ import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGatew
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
+import { withGoogleReplayIdentity } from './piGoogleReplay'
 import { projectPiReasoningCompat } from './piReasoningCompat'
 import { withReasoningSummarySuppressed } from './piResponsesReasoning'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple, loadPiOpenAiResponsesApi } from './piSdk'
@@ -132,9 +133,13 @@ export async function materializePiProviderStream(injection: PiProviderInjection
       : injection.suppressReasoningSummary
         ? withReasoningSummarySuppressed(injection.providerConfig, (await loadPiOpenAiResponsesApi()).streamSimple)
         : injection.providerConfig
+  const streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
   return {
     providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    streamSimple:
+      injection.api === 'google-generative-ai'
+        ? withGoogleReplayIdentity(streamSimple, injection.providerName)
+        : streamSimple
   }
 }
 
@@ -185,7 +190,7 @@ export function buildPiProviderInjection(
 
   const baseUrl = isCodexProviderId(provider.id)
     ? formatApiHost(resolvedEndpoint.baseUrl, false)
-    : formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
+    : projectPiGatewayBaseUrl(provider, api, formatPiBaseUrl(resolvedEndpoint.baseUrl, api))
   const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
 
@@ -294,6 +299,14 @@ export function buildPiGatewayInjection(
     modelId,
     usageCapture: { owner: 'provider-calls' }
   }
+}
+
+// Gateway stores its native `/v1/ai` base; Pi's OpenAI drivers need `/v1` (#22785).
+// Mirrors OpenClawService.formatOpenAIUrl, bounded to Gateway presets and OpenAI APIs.
+function projectPiGatewayBaseUrl(provider: Provider, api: PiApi, formattedBaseUrl: string): string {
+  if (!matchesPreset(provider, SystemProviderIds.gateway)) return formattedBaseUrl
+  if (api !== 'openai-completions' && api !== 'openai-responses') return formattedBaseUrl
+  return formattedBaseUrl.replace(/\/v1\/ai$/, '/v1')
 }
 
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {

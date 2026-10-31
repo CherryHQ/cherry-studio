@@ -1302,6 +1302,7 @@ describe('PdfFilePreview', () => {
     const resize = observePdfResize()
     const view = renderPreview()
     await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await act(flushPdfEffects)
     const region = screen.getByRole('region', { name: 'paper.pdf' })
     Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
     Object.defineProperty(region, 'clientWidth', { configurable: true, value: 600 })

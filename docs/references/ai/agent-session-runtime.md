@@ -2,6 +2,9 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/relocateSystemWorkspaces.ts
+  - src/main/ai/runtime/workspaceRelocation.ts
+  - src/main/ai/agents/AgentWorkspaceStorageService.ts
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/db/schemas/agentSession.ts
   - src/main/ai/agents/runAgentTask.ts
@@ -230,6 +233,11 @@ and exposes the session tools below:
 - `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
   using the existing storage query rules. The caller does not supply a conversation type;
   ambiguous IDs fail rather than selecting the first matching store;
+- `session_rename` — rename the current Session by default, or an explicit `session_id`,
+  including another Agent's Session. The trimmed `title` must contain 1–255 characters.
+  Missing and trashed Sessions are rejected. The saved name is marked manually
+  edited so automatic naming cannot overwrite it; existing read-model notifications
+  refresh the Session list and detail views;
 - `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
   availability, and whether a model is configured;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
@@ -284,10 +292,13 @@ speculative ACL subsystem. Upgrade only when the product requires unattended mul
 collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
 ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
 
-List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
+List, search, rename, send, create, and delivery-query visibility share one authorization boundary. Channel,
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
 and delegate under the calling Session's permission mode and interaction boundary. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_rename` is auto-approved within this interactive boundary. It changes only
+Session name metadata and does not create a delivery or start a target turn.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
 cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
@@ -860,6 +871,29 @@ policy and disabled-tool lookups. A stored `tool_exec` disable applies to
 `codemode`. Historical `tool_call`/`tool_exec` results remain readable, while new
 MCP tool results retain their structured payloads and Cherry citation metadata.
 Closing a connection emits `session_shutdown` before disposing the SDK session.
+
+## Managed workspace relocation
+
+At startup, `AgentSessionRuntimeService` registers runtime drivers, repairs relocated
+system workspaces, then performs fork, crash-message, delivery, and native-session
+recovery. BeforeReady database initialization already precedes this WhenReady hook;
+relocation does not add a second lifecycle service or cross-phase dependencies.
+
+`relocateSystemWorkspaces` owns the workspace repair and file publication journal.
+Each driver's `workspaceRelocation` capability owns its artifact allowlist, native
+history validation, and checkpoint remapping. Adapters stage files through the
+coordinator and return opaque checkpoint replacements; `AgentSessionMessageService`
+persists those replacements under the same transaction as the workspace path update,
+without interpreting native fields. Claude's filesystem capability is available
+through its lazy driver without starting a runtime connection.
+
+The versioned journal preserves backups until the database path identifies a committed
+relocation. Interrupted operations roll back or finish cleanup after ownership and
+digest checks. Active and archived workspaces retain their contents and timestamps;
+user-selected workspaces are not rebased. `AgentWorkspaceStorageService` owns failed
+relocation admission blocks. Workspace guards consult that owner, and verified recovery
+removes the block. Pending retired-runtime sessions defer native-history work to the
+existing migration below.
 
 ## Retired Agent runtime migration
 

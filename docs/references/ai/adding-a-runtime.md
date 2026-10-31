@@ -83,6 +83,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      API-key rotation, open connections, or write state.
    - `listAvailableTools(mcpIds)` — the tool catalog for approval UI.
    - `connect(input)` — build an `AgentRuntimeConnection`.
+   - `workspaceRelocation`, when the runtime persists workspace-dependent history:
+     own native validation and opaque checkpoint remapping here, stage artifacts through
+     the host, and declare the artifact paths the runtime owns. See
+     [Managed workspace relocation](./agent-session-runtime.md#managed-workspace-relocation).
    - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
      runtimes that benefit from idle warmup (see the Claude driver).
 

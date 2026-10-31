@@ -672,7 +672,7 @@ describe('ComposerSurface', () => {
   it('uses the card color with a subtle shadow', () => {
     render(<ComposerSurface {...baseProps} />)
 
-    expect(document.getElementById('inputbar')).toHaveClass('bg-card', 'shadow-sm')
+    expect(document.getElementById('inputbar')).toHaveClass('bg-composer-surface', 'shadow-sm')
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 

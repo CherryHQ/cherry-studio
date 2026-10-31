@@ -222,7 +222,7 @@ describe('MessageReportArtifacts', () => {
             tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
             status: 'done',
             arguments: {
-              artifacts: [{ path: 'dist/report.md' }]
+              artifacts: [{ path: 'dist/report（终稿·含批注）.docx' }]
             }
           }
         ]}
@@ -230,18 +230,19 @@ describe('MessageReportArtifacts', () => {
       { openArtifactFile, resolvePath: (path) => `/workspace/${path}` }
     )
 
+    const artifactPath = '/workspace/dist/report（终稿·含批注）.docx'
     expect(screen.getByText('Open preview')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Preview report（终稿·含批注）.docx' }))
     await waitFor(() => {
-      expect(openArtifactFile).toHaveBeenCalledWith('/workspace/dist/report.md')
+      expect(openArtifactFile).toHaveBeenCalledWith(artifactPath)
     })
 
-    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/workspace/dist/report.md', 'file', { enabled: false })
-    await user.click(screen.getByRole('button', { name: 'Open with report.md' }))
-    expect(mockUseExternalOpenTargets).toHaveBeenCalledWith('/workspace/dist/report.md', 'file', { enabled: true })
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith(artifactPath, 'file', { enabled: false })
+    await user.click(screen.getByRole('button', { name: 'Open with report（终稿·含批注）.docx' }))
+    expect(mockUseExternalOpenTargets).toHaveBeenCalledWith(artifactPath, 'file', { enabled: true })
     await user.click(await screen.findByRole('menuitem', { name: 'Open File' }))
     await waitFor(() => {
-      expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[0])
+      expect(mockOpenTarget).toHaveBeenCalledWith(artifactPath, externalOpenTargets[0])
     })
   })
 

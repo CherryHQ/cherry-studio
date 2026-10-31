@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "App-Daten zurücksetzen",
   "dialog.diagnostic_bundle.title": "Diagnosepaket speichern",
   "dialog.diagnostic_bundle.zip_filter": "ZIP-Archiv",
+  "dialog.external_link.message": "Diesen Link in einer externen Anwendung öffnen?",
+  "dialog.external_link.open": "Anwendung öffnen",
   "dialog.html_files": "HTML-Dateien",
   "dialog.migration_database_unavailable.detail": "Prüfen Sie, ob Ihr Datenspeicherort verfügbar und beschreibbar ist und ob genügend freier Speicherplatz vorhanden ist. Versuchen Sie es dann erneut.",
   "dialog.migration_database_unavailable.message": "Cherry Studio konnte nicht auf die lokale Datenbank zugreifen.",

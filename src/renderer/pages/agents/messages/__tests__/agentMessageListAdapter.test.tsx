@@ -193,7 +193,6 @@ describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearPendingAgentSessionImageActionsForTest()
-    window.api.file.openPath = vi.fn()
     ipcApiRequest.mockReset()
     ipcApiRequest.mockResolvedValue({
       kind: 'file',
@@ -573,7 +572,7 @@ describe('useAgentMessageListProviderValue', () => {
       sessionId: 'session-1',
       path: 'dist/report.md'
     })
-    expect(window.api.file.openPath).not.toHaveBeenCalled()
+    expect(ipcApiRequest.mock.calls.map(([route]) => route)).not.toContain('system.shell.open_path')
   })
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {

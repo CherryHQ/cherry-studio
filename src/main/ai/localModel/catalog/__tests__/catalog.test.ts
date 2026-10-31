@@ -120,6 +120,25 @@ describe('local model catalog', () => {
     }
   })
 
+  it('includes the Mandarin eSpeak dictionary and language definition in Kokoro installs', () => {
+    const files = LOCAL_MODEL_BUNDLES['kokoro-multi-lang-v1.1'].files
+
+    expect(files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relPath: 'espeak-ng-data/cmn_dict',
+          sha256: '109aaa7708d3727382acb3ae41d8e2094a7e2bb9f651a81835be22a6f08071fe',
+          minBytes: 1566335
+        }),
+        expect.objectContaining({
+          relPath: 'espeak-ng-data/lang/sit/cmn',
+          sha256: 'a130a38e3b622735c2401cb37f6719f46995e84a133729185cef9a543ec0b072',
+          minBytes: 686
+        })
+      ])
+    )
+  })
+
   it('derives the FunASR platform contract from the sherpa artifact matrix', () => {
     const sherpa = SHARED_ARTIFACTS['sherpa-onnx']
 

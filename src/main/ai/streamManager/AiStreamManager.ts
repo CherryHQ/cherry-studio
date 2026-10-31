@@ -6,7 +6,7 @@ import type { UIMessageChunk } from 'ai'
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
 import {
@@ -897,7 +897,7 @@ export class AiStreamManager extends BaseService {
     contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
-    /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
+    /** Idle-chunk timeout (ms); resets per chunk. Inherits `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min) when omitted. */
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
@@ -1165,7 +1165,7 @@ export class AiStreamManager extends BaseService {
     // execution's buffer (acceptable: the Renderer demuxes by executionId + anchor).
     for (const exec of stream.executions.values()) {
       for (const chunk of exec.buffer) {
-        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId)
+        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId, chunk.sequence)
       }
     }
     return true
@@ -1297,6 +1297,7 @@ export class AiStreamManager extends BaseService {
       executionId: sourceModelId,
       attemptId: exec.attemptId,
       anchorMessageId,
+      sequence: ++exec.sequence,
       chunk
     }
 
@@ -1384,7 +1385,7 @@ export class AiStreamManager extends BaseService {
         continue
       }
       try {
-        listener.onChunk(chunk, sourceModelId, anchorMessageId, exec.attemptId)
+        listener.onChunk(chunk, sourceModelId, anchorMessageId, exec.attemptId, payload.sequence)
       } catch (err) {
         logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }
@@ -1870,6 +1871,9 @@ export class AiStreamManager extends BaseService {
     // Reconnect: compact-replay each execution's buffer in isolation so
     // text-delta / reasoning-delta merging stays per-execution.
     const listener = new WebContentsListener(sender, req.topicId)
+    const previous = stream.listeners.get(listener.id)
+    // A coalesced delta must not straddle the replay cutoff, including for existing consumers.
+    if (previous instanceof WebContentsListener) previous.flushPending()
     stream.listeners.set(listener.id, listener)
 
     const totalDropped = [...stream.executions.values()].reduce((sum, exec) => sum + exec.droppedChunks, 0)
@@ -1881,12 +1885,17 @@ export class AiStreamManager extends BaseService {
     }
 
     const bufferedChunks: StreamChunkPayload[] = []
+    const replayThrough: Record<number, number> = {}
+    const replayFrom: Record<number, number> = {}
     for (const exec of stream.executions.values()) {
+      replayThrough[exec.attemptId] = exec.sequence
+      const first = exec.buffer[0]
+      replayFrom[exec.attemptId] = first?.firstSequence ?? first?.sequence ?? exec.sequence + 1
       bufferedChunks.push(
         ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
       )
     }
-    return { status: 'attached', bufferedChunks }
+    return { status: 'attached', bufferedChunks, replayThrough, replayFrom }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
@@ -1937,6 +1946,7 @@ export class AiStreamManager extends BaseService {
       abortController: abortController ?? new AbortController(),
       status: 'streaming',
       buffer: [],
+      sequence: 0,
       droppedChunks: 0,
       siblingsGroupId,
       timings: { startedAt: performance.now() },
@@ -2004,10 +2014,9 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    // Idle-chunk timer; on timeout aborts `exec.abortController`, which the
-    // upstream AI SDK request is already wired to. Caller override via
-    // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
-    const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
+    // Abort the upstream request on parsed-chunk inactivity, using the dedicated chat bound
+    // unless the caller supplies `requestOptions.timeout`.
+    const timeoutMs = request.requestOptions?.timeout ?? CHAT_STREAM_IDLE_TIMEOUT_MS
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
