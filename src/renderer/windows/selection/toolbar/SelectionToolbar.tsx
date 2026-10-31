@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
-import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import {
@@ -13,8 +13,12 @@ import {
   parseSelectionActions,
   SELECTION_AGENT_ISSUE_LABEL_KEYS
 } from '@renderer/utils/selectionAction'
-import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import { SELECTION_BUILTIN_ACTION_ID, type SearchSelectionAction, type SelectionAction } from '@shared/types/selection'
+import {
+  isAgentSelectionAction,
+  SELECTION_BUILTIN_ACTION_ID,
+  type SearchSelectionAction,
+  type SelectionAction
+} from '@shared/types/selection'
 
 const logger = loggerService.withContext('SelectionToolbar')
 
@@ -63,20 +67,20 @@ const SelectionToolbar: FC = () => {
     return parseSelectionActions(actionItems ?? []).filter((item) => item.enabled)
   }, [actionItems])
 
-  // Not useAgents(): it pulls agent mutations and toasts into this minimal window.
-  const { data: agentPage, refetch: refetchAgents } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
-  useDataChange('/agents', () => void refetchAgents())
+  const agents = useSelectionAgents(
+    realActionItems.filter(isAgentSelectionAction).map((action) => action.agentId ?? null)
+  )
   const { t } = useTranslation()
   const unavailableReasons = useMemo(() => {
     // Until agents load, leave every action usable rather than flash it disabled.
-    if (!agentPage) return undefined
+    if (!agents) return undefined
     const reasons: Record<string, string> = {}
     for (const action of realActionItems) {
-      const issue = getSelectionActionAgent(action, agentPage.items)?.issue
+      const issue = getSelectionActionAgent(action, agents)?.issue
       if (issue) reasons[action.id] = t(SELECTION_AGENT_ISSUE_LABEL_KEYS[issue])
     }
     return reasons
-  }, [agentPage, realActionItems, t])
+  }, [agents, realActionItems, t])
 
   const selectedText = useRef('')
   const programName = useRef('')
