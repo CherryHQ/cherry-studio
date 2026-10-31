@@ -14,8 +14,9 @@ export function createClaudeCodeIdentityHooks(
   const refresh: HookCallback = async (input, _toolUseId, { signal }) => {
     if (input.hook_event_name !== 'SessionStart' && input.hook_event_name !== 'UserPromptSubmit') return {}
     if (input.agent_id || signal.aborted) return {}
+    const migrated = sessionId ? await application.get('MemoryMigrationService').ensureSession(sessionId) : false
     const sections = await Promise.all([
-      builder.buildMemoriesSection(agentDataPath),
+      builder.buildMemoriesSection(agentDataPath, !migrated),
       sessionId
         ? agentMemoryReference(
             sessionId,

@@ -7,7 +7,7 @@ import { BaseService, type Disposable, Emitter, Injectable, Phase, ServicePhase 
 import type { MemoryScope } from '@shared/types/memory'
 
 import type { MemoryAuthority } from './memoryAuthority'
-import type { MemoryMutationSource } from './memoryBackups'
+import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
 import {
   type MemoryAccess,
   type MemoryApproval,
@@ -24,7 +24,8 @@ export interface MemorySession extends Disposable {
   commit(
     mutations: readonly MemoryMutation[],
     approve: MemoryApproval,
-    readReceipts?: readonly string[]
+    readReceipts?: readonly string[],
+    legacy?: MemoryLegacyOriginal
   ): ReturnType<MemoryStore['commit']>
   previewClear(): ReturnType<MemoryStore['previewClear']>
   clear(token: string, approve: MemoryApproval): ReturnType<MemoryStore['clear']>
@@ -78,10 +79,17 @@ export class MemoryService extends BaseService {
         return authority.assertAuthorized()
       }
     }
-    const run = <T>(operation: (store: MemoryStore) => Promise<T>): Promise<T> =>
+    const run = <T>(operation: (store: MemoryStore) => Promise<T>, recovery = false): Promise<T> =>
       this.work.track(
         (async () => {
           access.assertAuthorized()
+          if (
+            !recovery &&
+            scope.kind === 'private' &&
+            source !== 'migration' &&
+            !(await this.prepareAgent(scope.agentId))
+          )
+            throw new Error('Private memory migration is incomplete; original FACT content is retained')
           const store = await this.getStore(scope)
           access.assertAuthorized()
           return operation(store)
@@ -97,21 +105,32 @@ export class MemoryService extends BaseService {
       list: () => run((store) => store.list(access)),
       entry: () => run((store) => store.entry(access)),
       read: (target) => run((store) => store.read(access, target)),
-      commit: (mutations, approve, readReceipts) =>
-        run(async (store) => notify(source, await store.commit(access, mutations, source, approve, { readReceipts }))),
+      commit: (mutations, approve, readReceipts, legacy) =>
+        run(async (store) =>
+          notify(source, await store.commit(access, mutations, source, approve, { readReceipts, legacy }))
+        ),
       previewClear: () => run((store) => store.previewClear(access)),
       clear: (token, approve) =>
         run(async (store) => {
           this.invalidated.fire(scope)
           return notify('clear', await store.clear(access, token, approve))
         }),
-      previewRecovery: () => run((store) => store.previewRecovery(access)),
+      previewRecovery: () => run((store) => store.previewRecovery(access), true),
       recover: (token, approve) =>
         run(async (store) => {
           this.invalidated.fire(scope)
           return notify('recovery', await store.recover(access, token, approve))
-        })
+        }, true)
     }
+  }
+
+  prepareAgent(agentId: string): Promise<boolean> {
+    return this.work.track(
+      (async () => {
+        if (this.stopped || this.pauses.size) throw new Error('Memory operations are paused')
+        return application.get('MemoryMigrationService').ensureAgent(agentId)
+      })()
+    )
   }
 
   pause(reason?: string): Disposable {

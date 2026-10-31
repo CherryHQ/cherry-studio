@@ -5,6 +5,8 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MemoryStore } from '@main/ai/memory/MemoryStore'
+
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
 let agentsDataRoot = ''
 
@@ -32,7 +34,9 @@ describe('agentDataDirectory', () => {
     expect(result).toBe(agentPath)
     expect(lstatSync(path.join(agentPath, 'SOUL.md')).isFile()).toBe(true)
     expect(lstatSync(path.join(agentPath, 'USER.md')).isFile()).toBe(true)
-    expect(lstatSync(path.join(agentPath, 'memory')).isDirectory()).toBe(true)
+    expect(lstatSync(path.join(agentPath, '.memories')).isDirectory()).toBe(true)
+    expect(await readFile(path.join(agentPath, 'MEMORY.md'), 'utf8')).toBe('')
+    expect(existsSync(path.join(agentPath, 'memory'))).toBe(false)
     expect(await readFile(path.join(agentPath, 'SOUL.md'), 'utf-8')).toBe('')
   })
 
@@ -49,6 +53,32 @@ describe('agentDataDirectory', () => {
 
     expect(lstatSync(path.join(agentPath, 'SOUL.md')).isFile()).toBe(true)
     expect(lstatSync(path.join(agentPath, 'USER.md')).isFile()).toBe(true)
+  })
+
+  it('keeps entry deletion recoverable when Agent directories are ensured again', async () => {
+    const agentPath = await createAgentDataDirectory(agentsDataRoot, AGENT_ID)
+    const backups = path.join(agentsDataRoot, 'Backups')
+    let store = new MemoryStore(agentPath, backups)
+    await store.initialize()
+    const caller = { assertAuthorized: (): undefined => undefined }
+    const approve = async () => (): undefined => undefined
+    const empty = await store.read(caller, 'MEMORY.md')
+    await store.commit(
+      caller,
+      [{ kind: 'write', receipt: empty.receipt, content: 'Private original' }],
+      'controlled',
+      approve
+    )
+    const read = await store.read(caller, 'MEMORY.md')
+    await store.commit(caller, [{ kind: 'delete', receipt: read.receipt }], 'controlled', approve)
+
+    await ensureAgentDataDirectory(agentsDataRoot, AGENT_ID)
+    store = new MemoryStore(agentPath, backups)
+    await store.initialize()
+    const preview = await store.previewRecovery(caller)
+    expect(preview?.files).toMatchObject([{ path: 'MEMORY.md', currentHash: null, conflict: false }])
+    await store.recover(caller, preview!.token, approve)
+    expect(await readFile(path.join(agentPath, 'MEMORY.md'), 'utf8')).toBe('Private original')
   })
 
   it('removes only the requested managed storage subtree', async () => {

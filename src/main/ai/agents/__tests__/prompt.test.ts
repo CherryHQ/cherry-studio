@@ -39,6 +39,7 @@ const mockedRealpath = vi.mocked(realpath)
 // joined paths on Windows too (identity on POSIX).
 const posix = (posixPath: string): string => posixPath.split('/').join(path.sep)
 function setupFiles(files: Record<string, string>) {
+  files = Object.fromEntries(Object.entries(files).map(([target, content]) => [path.resolve(target), content]))
   // Build directory listing from file paths
   const dirs = new Map<string, string[]>()
   for (const filePath of Object.keys(files)) {
@@ -58,7 +59,7 @@ function setupFiles(files: Record<string, string>) {
   }
 
   mockedLstat.mockImplementation(async (filePath) => {
-    const p = typeof filePath === 'string' ? filePath : filePath.toString()
+    const p = path.resolve(typeof filePath === 'string' ? filePath : filePath.toString())
     if (files[p] !== undefined) {
       return {
         mtimeMs: 1000,
@@ -78,7 +79,7 @@ function setupFiles(files: Record<string, string>) {
     throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
   })
   mockedOpen.mockImplementation(async (filePath) => {
-    const p = typeof filePath === 'string' ? filePath : filePath.toString()
+    const p = path.resolve(typeof filePath === 'string' ? filePath : filePath.toString())
     if (files[p] !== undefined) {
       return {
         stat: async () => ({
@@ -86,17 +87,21 @@ function setupFiles(files: Record<string, string>) {
           isFile: () => true
         }),
         readFile: async () => files[p],
+        read: async (buffer: Buffer, offset: number, length: number, position: number) => ({
+          bytesRead: Buffer.from(files[p]).copy(buffer, offset, position, position + length),
+          buffer
+        }),
         close: async () => undefined
       } as any
     }
     throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
   })
   mockedReaddir.mockImplementation(async (dirPath) => {
-    const p = typeof dirPath === 'string' ? dirPath : dirPath.toString()
+    const p = path.resolve(typeof dirPath === 'string' ? dirPath : dirPath.toString())
     return (dirs.get(p) ?? []) as any
   })
   mockedRealpath.mockImplementation(async (targetPath) => {
-    const p = typeof targetPath === 'string' ? targetPath : targetPath.toString()
+    const p = path.resolve(typeof targetPath === 'string' ? targetPath : targetPath.toString())
     if (files[p] !== undefined || dirs.has(p)) return p
     throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
   })
@@ -209,7 +214,7 @@ Always cite primary sources.`
     expect(result).toContain('</user>')
   })
 
-  it('includes memory/FACT.md in memories section', async () => {
+  it('includes memory/FACT.md only while legacy fallback is requested', async () => {
     setupFiles({
       [posix('/workspace/memory/FACT.md')]: '# Active Projects\n\n- Cherry Studio'
     })
@@ -220,6 +225,14 @@ Always cite primary sources.`
     expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
     expect(result).toContain('</facts>')
+    expect(await builder.buildMemoriesSection(posix('/workspace'), false)).not.toContain('Cherry Studio')
+  })
+
+  it('bounds legacy fallback and marks omitted facts instead of silently truncating', async () => {
+    setupFiles({ [posix('/workspace/memory/FACT.md')]: 'A complete fact\n'.repeat(201) })
+    const result = await builder.buildMemoriesSection(posix('/workspace'))
+    expect(result.match(/A complete fact/g)).toHaveLength(200)
+    expect(result).toContain('[Legacy facts truncated; original retained.]')
   })
 
   it('builds the memories section without the base agent prompt', async () => {

@@ -35,7 +35,7 @@
     },
     {
       "path": "docs/references/ai/agent-prompt-layers.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/bootstrap.ts","src/main/ai/agents/prompt.ts","src/main/ai/mcp/servers/agentMemory.ts","src/main/ai/runtime","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode/identityHooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/pi/identityExtension.ts"]
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agents/bootstrap.ts","src/main/ai/agents/prompt.ts","src/main/ai/memory/MemoryMigrationService.ts","src/main/ai/runtime","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode/identityHooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/pi/identityExtension.ts"]
     },
     {
       "path": "docs/references/ai/agent-session-fork.md",
@@ -227,7 +227,7 @@
     },
     {
       "path": "docs/references/data/app-state-overview.md",
-      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
+      "sources": ["src/main/ai/memory/MemoryMigrationService.ts","src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
     },
     {
       "path": "docs/references/data/best-practice-default-values-and-nullability.md",
@@ -443,11 +443,11 @@
     },
     {
       "path": "docs/references/memory/overview.md",
-      "sources": ["src/main/ai/agents/prompt.ts","src/main/ai/mcp/servers/agentMemory.ts","src/main/ai/mcp/servers/memory.ts","src/main/features/knowledge"]
+      "sources": ["src/main/ai/agents/prompt.ts","src/main/ai/mcp/servers/memory.ts","src/main/ai/memory","src/main/features/knowledge"]
     },
     {
       "path": "docs/references/memory/README.md",
-      "sources": ["src/main/ai/agents/prompt.ts","src/main/ai/mcp/servers/agentMemory.ts","src/main/ai/mcp/servers/memory.ts","src/main/features/knowledge"]
+      "sources": ["src/main/ai/agents/prompt.ts","src/main/ai/mcp/servers/memory.ts","src/main/ai/memory","src/main/features/knowledge"]
     },
     {
       "path": "docs/references/mini-app/activity-log.md",

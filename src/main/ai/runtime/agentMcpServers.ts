@@ -10,7 +10,6 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
-import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
 import { createAssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import { createAutomationReplServer } from '@main/ai/mcp/servers/automationRepl'
@@ -130,12 +129,6 @@ export function buildAgentMcpServers(
         }
       })
     )
-  }
-  if (mountedServers.has(CHERRY_MCP_SERVER.AGENT_MEMORY)) {
-    servers['agent-memory'] = {
-      name: CHERRY_MCP_SERVER.AGENT_MEMORY,
-      connect: serveAgentMcpServer(() => createAgentMemoryServer({ agentId: agent.id, agentDataPath }))
-    }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {

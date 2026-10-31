@@ -37,12 +37,7 @@ let actualReadFileSync: typeof NodeFs.readFileSync
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const MANAGED_BASH_TOOL = { name: 'bash' }
-const AUTONOMY_TOOL_NAMES = [
-  'mcp__cherry_tools__cron',
-  'mcp__cherry_tools__notify',
-  'mcp__cherry_tools__config',
-  'mcp__agent_memory__memory'
-]
+const AUTONOMY_TOOL_NAMES = ['mcp__cherry_tools__cron', 'mcp__cherry_tools__notify', 'mcp__cherry_tools__config']
 
 interface FakeSpan {
   name: string
@@ -2216,7 +2211,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'automation', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'automation', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -2254,7 +2249,12 @@ describe('PiRuntimeConnection', () => {
       const handler = gateHandler()
       await expect(
         handler(
-          { type: 'tool_call', toolName: 'mcp__agent_memory__memory', toolCallId: 't-autonomy', input: {} },
+          {
+            type: 'tool_call',
+            toolName: 'mcp__cherry_tools__cron',
+            toolCallId: 't-autonomy',
+            input: { action: 'list' }
+          },
           { signal: undefined }
         )
       ).resolves.toBeUndefined()
@@ -2307,7 +2307,6 @@ describe('PiRuntimeConnection', () => {
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, {}, false, AGENT_DATA_PATH)
       expect(
         (mocks.loaderOpts as { systemPromptOverride: () => string | undefined }).systemPromptOverride()
       ).toBeUndefined()
@@ -2316,7 +2315,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'automation', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'automation', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -2329,7 +2328,6 @@ describe('PiRuntimeConnection', () => {
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, {}, true, AGENT_DATA_PATH)
       const prompt = appendedSystemPrompt()
       expect(prompt).toContain('## Instruction Precedence')
       expect(prompt).toContain('<agent_instructions>\nBe terse.\n</agent_instructions>')
@@ -2381,7 +2379,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'skills', 'mcp-manager']),
         expect.any(Map),
         { id: 'chan-1', type: 'telegram' },
         AGENT_DATA_PATH,
@@ -2421,7 +2419,6 @@ describe('PiRuntimeConnection', () => {
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
-      expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
       expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
       expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)

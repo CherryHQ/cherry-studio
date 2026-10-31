@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
@@ -68,6 +69,7 @@ export async function buildAgentRuntimePrompt({
     }
   }
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
+  const migrated = await application.get('MemoryService').prepareAgent(agent.id)
 
   const resolvedInstructions = instructions?.trim()
     ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
@@ -77,7 +79,8 @@ export async function buildAgentRuntimePrompt({
     workspacePath,
     agent.configuration,
     hasAgentInstructions,
-    agentDataPath
+    agentDataPath,
+    !migrated
   )
 
   // Stable prefix first for prompt-cache sharing; deferential language stays last so persona/workspace win.
