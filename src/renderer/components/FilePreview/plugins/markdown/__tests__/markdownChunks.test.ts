@@ -389,6 +389,19 @@ describe('splitMarkdownChunks', () => {
     expect(performance.now() - started).toBeLessThan(500)
   })
 
+  it('keeps a heading of unmatched dollar runs inside the budget', () => {
+    // Every `$` in a failed run rescanned the rest of the heading for a run of its own length, so
+    // 250 growing runs took about 5.4 s in one synchronous pass — before the fallback guards run.
+    const content = Array.from({ length: 250 }, (_, index) => 'a' + '$'.repeat(100 + index)).join('\n') + '\n===\n'
+
+    const started = performance.now()
+    const chunks = chunksOf(content)
+    expect(performance.now() - started).toBeLessThan(500)
+
+    expect(chunks).not.toHaveLength(0)
+    expect(joined(chunks)).toBe(content)
+  })
+
   it('keeps windowing when a comment inside an HTML block holds a tag', () => {
     // The tags a comment carries are its own — a `<span>` mentioned inside one must not hold an
     // element open, or every later boundary stays off and the document falls to the plain-text
@@ -2782,6 +2795,23 @@ describe('a definition shape that is paragraph text', () => {
     expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['/right'])
   })
 
+  it('carries a footnote definition in a later paragraph of a non-empty list item', () => {
+    // The note's absolute four columns are the item's own content, the way the link definition
+    // above is read. Matching the top-level indent instead left the carried prefix empty and the
+    // referencing chunk printed `[^n]` as literal text the unsplit document never renders.
+    const content = '1. item\n\n    [^n]: CORRECT NOTE\n\n' + 'filler\n\n'.repeat(4000) + 'use[^n]'
+
+    expect(renderedFootnoteText(content, 'n')).toBe('CORRECT NOTE')
+    expect(renderedFootnoteReferences(content)).toEqual(['n'])
+
+    const chunks = chunksOf(content)
+    expect(chunks.length).toBeGreaterThan(1)
+    const referencing = chunks.filter((chunk) => chunk.text.includes('use[^n]'))
+    expect(referencing).toHaveLength(1)
+    expect(renderedFootnoteText(referencing[0].text, 'n')).toBe('CORRECT NOTE')
+    expect(renderedFootnoteReferences(referencing[0].text)).toEqual(['n'])
+  })
+
   it('carries the definition below a heading that follows a long stretch of paragraphs', () => {
     const content = [
       ...Array<string>(30).fill('x'.repeat(1000)).join('\n\n').split('\n'),
@@ -3137,6 +3167,17 @@ describe('heading ids assigned from the text the renderer reads', () => {
       'foobarbaz',
       'foobarbaz-1'
     ])
+  })
+
+  it('pairs emphasis across the highlight markers it crosses the way the renderer does', () => {
+    // The two `**` runs form a strong around the first `==`, so the equals runs stay literal and
+    // the heading reads `==B==a` — `b-a` twice, the second taking `-1`. Pairing the equals on
+    // their own consumed them, keyed `ba`, and the duplicate fell back to a local id the adjacent
+    // `[jump](#b-a-1)` never reached even with its destination mounted.
+    const content = '# **==**B==a\n\n' + 'filler\n\n'.repeat(4000) + '# **==**B==a\n\n[jump](#b-a-1)\n'
+
+    expect(renderedHeadingIds(content)).toEqual(['chunk--b-a', 'chunk--b-a-1'])
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
   })
 
   it('pairs a highlight against the emphasis run around it the way the renderer does', () => {
@@ -4027,6 +4068,25 @@ describe('a definition below a marker-only quote', () => {
 })
 
 describe('definition shapes inside list items', () => {
+  it('keeps definition-shaped prose inside a quote the item continues', () => {
+    // `   > [x]: wrong` continues the quote `- > paragraph` opened, so it is the paragraph's
+    // prose. The missing list marker read as a block opener, hoisted the prose as a definition
+    // that shadowed the real one below, and sent every `[x]` reference to wrong.example.
+    const content =
+      '- > paragraph\n   > [x]: https://wrong.example\n\n' +
+      'filler\n\n'.repeat(4000) +
+      '[use][x]\n\n[x]: https://right.example\n'
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example', 'https://right.example'])
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual([
+      'https://right.example',
+      'https://right.example'
+    ])
+  })
+
   it('keeps a definition in a sibling ordered item instead of rejecting it as an interruption', () => {
     // `2.` cannot interrupt a plain paragraph, but it continues the list an item above opened —
     // rejecting it dropped the intended definition and hoisted the later duplicate in its place.

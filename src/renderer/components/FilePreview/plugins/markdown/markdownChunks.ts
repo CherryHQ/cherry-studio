@@ -838,9 +838,12 @@ function containerMarkers(container: string): string[] {
  * Every marker in the chain counts, not only the last: `- > [label]: /url` opens an item ahead of
  * the quote, and that item ends the quoted paragraph above the definition.
  */
-function containerOpensBlock(container: string, previous: string): boolean {
+function containerOpensBlock(container: string, previous: string, listContinued = false): boolean {
   const markers = containerMarkers(container)
   const previousMarkers = containerMarkers(previous)
+  // A line indented into the open item does not repeat the item's marker; the item still holds
+  // it, so the marker the paragraph above sits behind is not a marker this line left.
+  if (listContinued && previousMarkers.length > 0 && previousMarkers[0] !== '>') previousMarkers.shift()
   for (let index = 0; index < markers.length; index += 1) {
     const marker = markers[index]
     const held = previousMarkers[index]
@@ -1052,9 +1055,9 @@ function emphasisFlanks(before: number, run: string, after: number): { opens: bo
   const right = micromarkClass(after)
   // A run also opens against a marker beside it and closes behind one (`*` at `x*_y` opens and
   // closes): the two flags take the attention markers themselves, not only the class they fall in.
-  // GFM registers `~` as an attention marker too (code point 126), so a `*` against a tilde opens
-  // the way it does against another asterisk.
-  const isMarker = (code: number): boolean => code === 42 || code === 95 || code === 126
+  // GFM registers `~` (126) and the highlight extension `=` (61) as attention markers too, so a
+  // `*` against one opens the way it does against another asterisk.
+  const isMarker = (code: number): boolean => code === 42 || code === 61 || code === 95 || code === 126
   const open = right === undefined || (right === 'punctuation' && left !== undefined) || isMarker(after)
   const close = left === undefined || (left === 'punctuation' && right !== undefined) || isMarker(before)
   // The `!before`/`!after` tests above already cover whitespace, which classifies as its own group
@@ -1131,9 +1134,14 @@ function emphasisRuns(
  * every opener above the one it matched — those sit inside the new span and can no longer pair with
  * a later closer outside it.
  */
-function emphasisSpans(source: string): Map<number, number> {
+function emphasisSpans(source: string): {
+  spans: Map<number, number>
+  ranges: Array<{ start: number; end: number }>
+} {
   const runs = emphasisRuns(source)
   const spans = new Map<number, number>()
+  // The content each pairing encloses, which is the level the highlight pass pairs inside.
+  const ranges: Array<{ start: number; end: number }> = []
   const open: Array<{ at: number; marker: string; remaining: number; closes: boolean }> = []
   // A closer pairs only with its own marker, so walking the other marker's openers is work with no
   // possible answer. `openers` indexes `open` per marker, and `bottoms` remembers, per class of
@@ -1184,6 +1192,7 @@ function emphasisSpans(source: string): Map<number, number> {
         const use = opener.remaining > 1 && remaining > 1 ? 2 : 1
         spans.set(opener.at, (spans.get(opener.at) ?? 0) + use)
         spans.set(current.open, (spans.get(current.open) ?? 0) + use)
+        ranges.push({ start: opener.at + use, end: current.open })
         opener.remaining -= use
         remaining -= use
         // Everything above the opener is inside the span just formed, so it stops opening.
@@ -1200,7 +1209,7 @@ function emphasisSpans(source: string): Map<number, number> {
       openers.set(current.run[0], stack)
     }
   }
-  return spans
+  return { spans, ranges }
 }
 
 /** A run of tildes — the `~~` of `# foo~~bar~~baz`, whose pairing decides the text it renders. */
@@ -1263,9 +1272,19 @@ function strikethroughSpans(source: string): Set<number> {
  * flank — stays the text it was written as. Runs longer than two never pair, as the tokenizer
  * abandons them.
  */
-function highlightSpans(source: string): Set<number> {
+function highlightSpans(source: string, emphasisRanges: ReadonlyArray<{ start: number; end: number }>): Set<number> {
   const spans = new Set<number>()
-  const open: number[] = []
+  // Emphasis resolves first, so a highlight pairs only inside the level it sits in: the strong
+  // `**` runs form in `**==**B==a` leave the first `==` inside it, where the second cannot meet it.
+  const ranges = [...emphasisRanges].sort((a, b) => a.start - b.start || b.end - a.end)
+  const active: number[] = []
+  let nextRange = 0
+  const regionAt = (position: number): number => {
+    while (nextRange < ranges.length && ranges[nextRange].start <= position) active.push(nextRange++)
+    while (active.length > 0 && ranges[active[active.length - 1]].end <= position) active.pop()
+    return active.length === 0 ? -1 : active[active.length - 1]
+  }
+  const open = new Map<number, number[]>()
   for (let index = 0; index < source.length;) {
     const character = source[index]
     if (character === '\\') {
@@ -1287,14 +1306,17 @@ function highlightSpans(source: string): Set<number> {
       const right = micromarkClass(source.charCodeAt(end))
       const opens = right === undefined || (right === 'punctuation' && left !== undefined)
       const closes = left === undefined || (left === 'punctuation' && right !== undefined)
-      const partner = open.length - 1
+      const region = regionAt(index)
+      const stack = open.get(region) ?? []
+      const partner = stack.length - 1
       if (closes && partner >= 0) {
-        spans.add(open[partner])
+        spans.add(stack[partner])
         spans.add(index)
-        open.pop()
+        stack.pop()
       } else if (opens) {
-        open.push(index)
+        stack.push(index)
       }
+      open.set(region, stack)
     }
     index = end
   }
@@ -1524,20 +1546,62 @@ const MAX_INLINE_MATH_CHARS = 4_096
  * there. `remark-math` closes a `$` run on a run of its own length; `remarkLatexMath` reads
  * `\(…\)`, `\[…\]` and an environment the same way. A formula's source is not markdown.
  */
-function inlineMathSpan(text: string, index: number): { text: string; end: number } | null {
-  if (text[index] === '$') {
-    let opening = 1
-    while (text[index + opening] === '$') opening += 1
-    for (let next = index + opening; next < text.length;) {
-      const at = text.indexOf('$', next)
-      if (at < 0) return null
-      let end = at
-      while (text[end] === '$') end += 1
-      if (end - at === opening) return { text: text.slice(index + opening, at), end }
-      next = end
-    }
-    return null
+/** The maximal `$` runs of a text, indexed once so a failed opener costs no rescan of the tail. */
+interface DollarRuns {
+  starts: number[]
+  ends: number[]
+  byLength: Map<number, number[]>
+}
+
+function indexDollarRuns(text: string): DollarRuns {
+  const starts: number[] = []
+  const ends: number[] = []
+  const byLength = new Map<number, number[]>()
+  for (let index = 0; index < text.length;) {
+    const at = text.indexOf('$', index)
+    if (at < 0) break
+    let end = at
+    while (text[end] === '$') end += 1
+    starts.push(at)
+    ends.push(end)
+    const group = byLength.get(end - at)
+    if (group) group.push(at)
+    else byLength.set(end - at, [at])
+    index = end
   }
+  return { starts, ends, byLength }
+}
+
+/** The formula the `$` run at `index` closes on, answered from the run index in logarithmic time. */
+function dollarMathSpan(text: string, index: number, runs: DollarRuns): { text: string; end: number } | null {
+  // The run holding `index`; inside a longer run, what is left of it is the opener.
+  let low = 0
+  let high = runs.starts.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (runs.starts[mid] <= index) low = mid + 1
+    else high = mid
+  }
+  const holding = low - 1
+  if (holding < 0) return null
+  const opening = runs.ends[holding] - index
+  const group = runs.byLength.get(opening)
+  if (!group) return null
+  // A run of the opener's own length behind it closes the formula.
+  let from = 0
+  let to = group.length
+  while (from < to) {
+    const mid = (from + to) >> 1
+    if (group[mid] <= index) from = mid + 1
+    else to = mid
+  }
+  if (from >= group.length) return null
+  const at = group[from]
+  return { text: text.slice(index + opening, at), end: at + opening }
+}
+
+function inlineMathSpan(text: string, index: number, runs?: DollarRuns): { text: string; end: number } | null {
+  if (text[index] === '$') return dollarMathSpan(text, index, runs ?? indexDollarRuns(text))
   if (text[index] !== '\\') return null
   const marker = text[index + 1]
   const limit = Math.min(text.length, index + MAX_INLINE_MATH_CHARS)
@@ -1627,11 +1691,13 @@ function headingRenderedText(
     }
     // A label is inline content of its own, so its emphasis pairs within it rather than across the
     // link that holds it. Matched on first use, so a segment with no emphasis never pays the scan.
-    let spans: Map<number, number> | null = null
+    let spans: ReturnType<typeof emphasisSpans> | null = null
     // The strikethrough markers, matched the same way on their own first use.
     let strikes: Set<number> | null = null
     // The highlight markers, matched the same way on their own first use.
     let highlights: Set<number> | null = null
+    // The `$` runs, indexed once on the first formula opener so unmatched ones stay linear.
+    let dollarRuns: DollarRuns | null = null
     // Where the bracket each `[` opens closes, matched in one forward walk: a backslash escapes the
     // character after it and a `]` closes the nearest bracket still open. Built on first use, so a
     // segment without brackets never pays, and a run no bracket closes is answered in constant time
@@ -1655,7 +1721,12 @@ function headingRenderedText(
     while (index < segment.length) {
       const character = segment[index]
       // The renderer prints a formula's own source as text and drops its delimiters.
-      const formula = character === '$' || character === '\\' ? inlineMathSpan(segment, index) : null
+      const formula =
+        character === '$'
+          ? inlineMathSpan(segment, index, (dollarRuns ??= indexDollarRuns(segment)))
+          : character === '\\'
+            ? inlineMathSpan(segment, index)
+            : null
       if (formula) {
         text += formula.text
         index = formula.end
@@ -1757,7 +1828,7 @@ function headingRenderedText(
       } else if (character === '*' || character === '_') {
         const run = EMPHASIS_RUN.exec(segment.slice(index))?.[0] ?? character
         // Only the markers a partner consumed render nothing; any leftover stays the text it was.
-        const consumed = (spans ??= emphasisSpans(segment)).get(index) ?? 0
+        const consumed = (spans ??= emphasisSpans(segment)).spans.get(index) ?? 0
         if (consumed < run.length) text += run.slice(consumed)
         index += run.length
       } else if (character === '~') {
@@ -1770,7 +1841,7 @@ function headingRenderedText(
         // The same for a highlight: `==bar==` renders `bar`, so the markers are no part of the text
         // the slug is numbered from — without this the heading keys on `foo-bar-baz` while the
         // renderer keys `foobarbaz`, and a later duplicate takes the id a link resolves to.
-        if (!(highlights ??= highlightSpans(segment)).has(index)) text += run
+        if (!(highlights ??= highlightSpans(segment, (spans ??= emphasisSpans(segment)).ranges)).has(index)) text += run
         index += run.length
       } else if (character === '[' && segment[index + 1] === '^') {
         const reference = /^\[\^([^[\]\s]+)\]/.exec(segment.slice(index))
@@ -1884,11 +1955,17 @@ const FOOTNOTE_REFERENCE = /\[\^([^[\]\s]+)\]/y
  */
 function footnoteReferences(text: string): string[] {
   const labels: string[] = []
+  let dollarRuns: DollarRuns | null = null
   let index = 0
   while (index < text.length) {
     const character = text[index]
     // A formula's source is no markdown, so a reference written inside one is not a note.
-    const formula = character === '$' || character === '\\' ? inlineMathSpan(text, index) : null
+    const formula =
+      character === '$'
+        ? inlineMathSpan(text, index, (dollarRuns ??= indexDollarRuns(text)))
+        : character === '\\'
+          ? inlineMathSpan(text, index)
+          : null
     if (formula) {
       index = formula.end
       continue
@@ -2844,11 +2921,39 @@ export function splitMarkdownChunks(
         footnoteParagraphOpen = inNestedDefinition ? false : continuesFootnoteParagraph(carried)
       continue
     }
+    // An empty item's content sits on the line below it, at the item's own column: `-` then
+    // `    [label]: /url` is a definition inside the item, not the top-level indented code it looks like.
+    // A loose item's later paragraphs read the same way: the blank the item spans holds the
+    // boundary, so a definition-shaped line indented into the open item is the item's content —
+    // four columns past the item whose content starts at three — and not the top-level indented
+    // code its indent alone would suggest. Past four columns the parser reads indented code again,
+    // and one to three columns short of the item leave the line outside it.
+    const inOpenItem =
+      run !== null && !blank && leadingColumns(line) >= run.content && leadingColumns(line) < run.content + 4
+    const itemSource =
+      emptyItemColumn !== null &&
+      !blank &&
+      leadingColumns(line) >= emptyItemColumn &&
+      leadingColumns(line) < emptyItemColumn + 4
+        ? afterColumns(emptyItemColumn, line)
+        : inOpenItem && run !== null
+          ? afterColumns(run.content, line)
+          : undefined
+    // A line indented into the open item does not repeat its marker, so the paragraph above it
+    // still sits in that item — a definition shape here is that paragraph's prose, not a block.
+    const listContinued =
+      itemSource !== undefined &&
+      paragraphContainer !== null &&
+      containerMarkers(paragraphContainer)[0] !== undefined &&
+      containerMarkers(paragraphContainer)[0] !== '>'
     // A footnote definition interrupts a paragraph, so a container that merely repeats the quote
     // the paragraph sits behind leaves it standing — `> para` then `> [^n]: note` is a quoted
     // paragraph and a note. A list marker that cannot interrupt the paragraph is different: it is
     // not consumed, so `2) [^r]: right` below a bare paragraph is that paragraph's text.
-    const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '')
+    const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '', listContinued)
+    // A note indented into the open item is measured from the item's content column, the way the
+    // parser reads it — its absolute four columns are the item's content, not indented code.
+    const footnoteSource = itemSource ?? uncontained
     const footnoteStart =
       containerHoldsCode ||
       (container !== null &&
@@ -2856,12 +2961,12 @@ export function splitMarkdownChunks(
         !opensBlock &&
         containerMarkers(container[0]).some((marker) => marker !== '>'))
         ? null
-        : FOOTNOTE_DEFINITION_START.exec(uncontained)
+        : FOOTNOTE_DEFINITION_START.exec(footnoteSource)
     if (footnoteStart) {
       endListOutsideItem(line)
       definedFootnotes.add(footnoteStart[1].toLowerCase())
       definitionBlocks.push(definitions.length)
-      definitions.push(uncontained)
+      definitions.push(footnoteSource)
       definitionLines += 1
       inDefinition = true
       footnoteDefinition = true
@@ -2869,7 +2974,11 @@ export function splitMarkdownChunks(
       // The definition keeps the container it was written behind: its continuation lines must
       // lose that container the same way the opening line did, or the carried prefix holds only
       // the first line and a truncated copy shadows the complete definition.
-      activeDefinitionContainer = container ? containerParams(container[0]) : null
+      activeDefinitionContainer = container
+        ? containerParams(container[0])
+        : itemSource !== undefined
+          ? { quotes: 0, quoteColumns: [], labelColumn: leadingColumns(line) - leadingColumns(itemSource) }
+          : null
       // The note's own first line holds content too, read the way its carried text parses: a
       // definition written behind the label defines its label for the whole document the same way.
       const opening = nestedDefinitionAt(footnoteStart[2].replace(/^[ \t]+/, ''), i)
@@ -2892,24 +3001,6 @@ export function splitMarkdownChunks(
     // paragraph is paragraph text, and hoisting it would shadow the real definition. A container
     // opener that breaks that paragraph — a deeper quote, or a list marker, which opens a fresh
     // item — leaves the definition standing behind it.
-    // An empty item's content sits on the line below it, at the item's own column: `-` then
-    // `    [label]: /url` is a definition inside the item, not the top-level indented code it looks like.
-    // A loose item's later paragraphs read the same way: the blank the item spans holds the
-    // boundary, so a definition-shaped line indented into the open item is the item's content —
-    // four columns past the item whose content starts at three — and not the top-level indented
-    // code its indent alone would suggest. Past four columns the parser reads indented code again,
-    // and one to three columns short of the item leave the line outside it.
-    const inOpenItem =
-      run !== null && !blank && leadingColumns(line) >= run.content && leadingColumns(line) < run.content + 4
-    const itemSource =
-      emptyItemColumn !== null &&
-      !blank &&
-      leadingColumns(line) >= emptyItemColumn &&
-      leadingColumns(line) < emptyItemColumn + 4
-        ? afterColumns(emptyItemColumn, line)
-        : inOpenItem && run !== null
-          ? afterColumns(run.content, line)
-          : undefined
     const definition =
       (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode
         ? null
