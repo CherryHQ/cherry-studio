@@ -21880,15 +21880,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.0025
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.119
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.238
         }
       },
       "reasoning": {
@@ -21901,29 +21901,29 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1050000,
       "family": "mimo",
       "id": "mimo-v2-5-pro",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "MiMo-V2.5-Pro",
+      "name": "MiMo V2.5 Pro",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.3045
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0.609
         }
       },
       "reasoning": {
@@ -21987,6 +21987,7 @@
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.6-Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
@@ -22029,6 +22030,7 @@
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.6-Pro",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
@@ -22071,6 +22073,7 @@
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.6-Pro-UltraSpeed",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
@@ -23267,5 +23270,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "38986c5ef01254eb"
+  "version": "14baeedb14bc2134"
 }

@@ -88,6 +88,13 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
    * `message_start` first (idempotent).
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[] {
+    // Non-object errors cannot be encoded as client tool arguments without changing their meaning.
+    if (
+      chunk.type === 'tool-input-error' &&
+      (chunk.input === null || typeof chunk.input !== 'object' || Array.isArray(chunk.input))
+    ) {
+      throw new Error(chunk.errorText)
+    }
     this.emitMessageStart()
     this.processChunk(chunk)
     return this.drainPending()

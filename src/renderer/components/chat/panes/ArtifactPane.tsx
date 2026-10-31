@@ -6,10 +6,10 @@ import {
   Eye,
   Folder,
   List,
+  MessageSquareText,
   Sparkles,
   SquareDashedMousePointer,
   SquarePen,
-  TextQuote,
   X
 } from 'lucide-react'
 import {
@@ -40,6 +40,8 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import FileCommentBox from '@renderer/components/FileCommentBox'
+import type { LineComment } from '@renderer/components/FileEditor'
 import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { buildOpenTargetMenuItems, loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
@@ -51,7 +53,11 @@ import {
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
-import type { SelectionReference } from '@renderer/types/selectionReference'
+import {
+  type ComposerFileReference,
+  SELECTION_EXCERPT_MAX_LENGTH,
+  type SelectionReference
+} from '@renderer/types/selectionReference'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
@@ -268,7 +274,7 @@ interface ArtifactPaneViewBaseProps {
    * turns selection capture on: without it the preview never reports one and no
    * quote affordance is offered.
    */
-  onInsertSelectionReference?: (reference: SelectionReference) => void
+  onInsertSelectionReference?: (reference: ComposerFileReference) => void
   /** Open file tabs; `previewFileSelection` is the active one. Defaults to the open file alone. */
   fileTabs?: ArtifactPaneFileSelection[]
   onActivateFileTab?: (tab: ArtifactPaneFileSelection) => void
@@ -844,12 +850,29 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
     ) : null
 
-  // Not cleared on click: the composer receives the reference over a window event and can still refuse it
+  const lineCommentPath = overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : null
+  const handleLineComment = useCallback(
+    ({ startLine, endLine, lines, comment }: LineComment) => {
+      if (!lineCommentPath) return
+      // Code points, like every other reference excerpt, so a surrogate pair is never split.
+      const excerpt = [...lines].slice(0, SELECTION_EXCERPT_MAX_LENGTH).join('')
+      onInsertSelectionReference?.({ path: lineCommentPath, startLine, endLine, excerpt, comment })
+    },
+    [lineCommentPath, onInsertSelectionReference]
+  )
+
+  // The box belongs to the selection it opened on, so picking another region closes it.
+  const [commentTarget, setCommentTarget] = useState<SelectionReference | null>(null)
+  // Not cleared on submit: the composer receives the reference over a window event and can still refuse it
   // (no room in the input) without reporting back, so clearing here would drop the selection on a failure.
-  const handleInsertSelectionReference = useCallback(() => {
-    if (!selectionReference) return
-    onInsertSelectionReference?.(selectionReference)
-  }, [onInsertSelectionReference, selectionReference])
+  const handleSelectionComment = useCallback(
+    (comment: string) => {
+      if (!selectionReference) return
+      onInsertSelectionReference?.(comment ? { ...selectionReference, comment } : selectionReference)
+      setCommentTarget(null)
+    },
+    [onInsertSelectionReference, selectionReference]
+  )
 
   const previewContent = overlaySelection ? (
     <FilePreview
@@ -857,20 +880,30 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       refreshKey={contentRefreshToken}
       type={overlaySelection.previewType ?? 'artifact'}
       onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
+      onLineComment={onInsertSelectionReference ? handleLineComment : undefined}
     />
   ) : null
 
   const selectionReferenceChip =
     onInsertSelectionReference && selectionReference ? (
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        className="absolute right-4 bottom-4 z-10 gap-1.5 rounded-full shadow-md"
-        onClick={handleInsertSelectionReference}>
-        <TextQuote size={14} />
-        {t('agent.preview_pane.quote_selection')}
-      </Button>
+      commentTarget === selectionReference ? (
+        <FileCommentBox
+          allowEmpty
+          className="absolute right-4 bottom-4 z-10 w-80 bg-background shadow-md"
+          onSubmit={handleSelectionComment}
+          onCancel={() => setCommentTarget(null)}
+        />
+      ) : (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="absolute right-4 bottom-4 z-10 gap-1.5 rounded-full shadow-md"
+          onClick={() => setCommentTarget(selectionReference)}>
+          <MessageSquareText size={14} />
+          {t('agent.preview_pane.comment.submit')}
+        </Button>
+      )
     ) : null
 
   const renderOverlay = () => {
@@ -1018,6 +1051,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   indentGuides={paneSettings.indentGuides}
                   showWhitespace={paneSettings.showWhitespace}
                   scrollPastEnd={paneSettings.scrollPastEnd}
+                  onLineComment={onInsertSelectionReference ? handleLineComment : undefined}
                   className="h-full"
                 />
               </Suspense>

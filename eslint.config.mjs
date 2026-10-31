@@ -183,8 +183,10 @@ const collectIndexTs = (dir, out = []) => {
   }
   return out
 }
+const RUNTIME_PACKAGES = ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable']
+const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
 const BARREL_DIRS = new Set()
-for (const idx of collectIndexTs(SRC_DIR)) {
+for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {
   try {
     if (isPureReexportIndex(fs.readFileSync(idx, 'utf8'))) BARREL_DIRS.add(path.dirname(idx))
   } catch {}
@@ -207,7 +209,7 @@ const BARREL_RESOLVE_CACHE = new Map()
 // Unresolved specs are skipped — misses only, never false positives. Deliberately unresolved:
 // `@logger` (single-file target, cannot hide a deep import), `@application` (bare-only usage,
 // zero `@application/` deep paths in src), `@test-helpers`/`@test-mocks` (tests are exempt),
-// `@cherrystudio/*` (packages/*, outside src).
+// `@cherrystudio/*` except the explicitly sealed runtime packages.
 const resolveBarrelSpec = (spec, fromFile) => {
   const key = `${fromFile}\0${spec}`
   if (BARREL_RESOLVE_CACHE.has(key)) return BARREL_RESOLVE_CACHE.get(key)
@@ -219,6 +221,14 @@ const resolveBarrelSpec = (spec, fromFile) => {
   else if (spec.startsWith('@shared/')) base = path.join(SRC_DIR, 'shared', spec.slice(8))
   else if (spec.startsWith('@data/'))
     base = path.join(SRC_DIR, proc === 'main' ? 'main' : 'renderer', 'data', spec.slice(6))
+  else {
+    for (const name of RUNTIME_PACKAGES) {
+      const prefix = `@cherrystudio/${name}`
+      if (spec === prefix) base = path.join(RENDERER_DIRNAME, 'packages', name, 'src')
+      else if (spec.startsWith(`${prefix}/`))
+        base = path.join(RENDERER_DIRNAME, 'packages', name, 'src', spec.slice(prefix.length + 1))
+    }
+  }
   let resolved = null
   if (base) {
     for (const c of [`${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts'), path.join(base, 'index.tsx'), base]) {
@@ -1250,7 +1260,7 @@ export default defineConfig([
   },
   // Barrel / module-boundary rules (naming-conventions.md §6.4) — inline custom plugin, all error.
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', ...RUNTIME_PACKAGES.map((name) => `packages/${name}/src/**/*.ts`)],
     // tests are exempt by design: white-box tests may deep-import a barrel's internals
     ignores: ['src/**/*.test.*', 'src/**/__tests__/**', 'src/**/__mocks__/**'],
     plugins: { barrel: barrelPlugin },
@@ -1263,6 +1273,12 @@ export default defineConfig([
       'barrel/no-nesting': 'error',
       'barrel/no-bucket-root': 'error'
     }
+  },
+  {
+    files: ['packages/*/src/**/*.{ts,tsx}'],
+    ignores: [...RUNTIME_PACKAGES.map((name) => `packages/${name}/**`), '**/*.test.*', '**/__tests__/**'],
+    plugins: { barrel: barrelPlugin },
+    rules: { 'barrel/closed': 'error' }
   },
   // Directory & file naming rules (naming-conventions.md §3–§4, §6.6) — inline custom plugin.
   // Not tests-exempt (test file names follow the convention too); the __tests__/__mocks__/__snapshots__

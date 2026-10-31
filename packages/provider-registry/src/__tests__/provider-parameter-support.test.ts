@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { splitOverrideWireId } from '../../scripts/canonicalize'
+import { providerModelEntries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 
 // Generated artifact = runtime source of truth; covers rows that only exist after
@@ -23,9 +23,7 @@ const provider = (providerId: string) => {
 }
 
 const overrideOf = (providerId: string, modelId: string) => {
-  const override = provider(providerId)
-    .overrides?.map((entry) => splitOverrideWireId(entry))
-    .find((entry) => entry.modelId === modelId)
+  const override = providerModelEntries(provider(providerId)).find((entry) => entry.modelId === modelId)
   if (!override) throw new Error(`Missing override: ${providerId}/${modelId}`)
   return override
 }
