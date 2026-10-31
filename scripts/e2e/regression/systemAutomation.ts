@@ -835,6 +835,7 @@ async function saveNativeFileWindows(
 ): Promise<NativeSaveOutcome> {
   const script = [
     '$ErrorActionPreference = "Stop"',
+    'try {',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
     `Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class NativeSaveDialog { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
@@ -899,22 +900,44 @@ async function saveNativeFileWindows(
     '  try { $files = @(Get-ChildItem -LiteralPath $directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) } catch { $files = @("unavailable") }',
     `  throw ("Native save dialog did not write {0}. Windows: {1}. Prompts: {2}. Directory: {3}" -f $target, ($open -join " ; "), ($notes -join " ; "), ($files -join ", "))`,
     '}',
-    'Write-Output $written'
+    'Write-Output $written',
+    '} catch {',
+    '  Write-Output ("ERROR: " + $_.Exception.Message)',
+    '}'
   ].join('\n')
   const output = await runAsyncCapture(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
     125_000
   )
+  // PowerShell writes thrown messages to the CLIXML error stream, which is unreadable in CI logs.
+  // The script reports them on stdout instead so a failing run names the step that failed.
+  const reported = output
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('ERROR: '))
+  if (reported) throw new Error(`Native save dialog failed: ${reported.slice('ERROR: '.length)}`)
   const savedPath = output.trim()
-  const reported = savedPath.length > 0 ? savedPath : filePath
-  return { filePath: reported, suggestedName: basename(reported) }
+  const resolved = savedPath.length > 0 ? savedPath : filePath
+  return { filePath: resolved, suggestedName: basename(resolved) }
 }
 
 function runAsyncCapture(file: string, args: string[], timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { timeout, windowsHide: true, encoding: 'utf8' }, (error, stdout) =>
-      error ? reject(error) : resolve(stdout ?? '')
+    execFile(file, args, { timeout, windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) =>
+      error
+        ? reject(new Error(`${file} exited with ${error.code ?? 'error'}: ${decodePowerShellError(stderr)}`))
+        : resolve(stdout ?? '')
     )
   })
+}
+
+function decodePowerShellError(stderr: string): string {
+  const text = (stderr ?? '')
+    .replace(/^#<\s*CLIXML\s*/m, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/_x([0-9A-Fa-f]{4})_/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > 0 ? text : '(no stderr)'
 }
