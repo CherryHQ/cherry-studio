@@ -52,6 +52,11 @@ export function agentMemoryAuthority(sessionId: string, kind: MemoryScope['kind'
       const deletionSubscription = agentService.onMemoryAccessRevoked((id) => {
         if (id === agentId) listener()
       })
+      const channelSubscription = channelId
+        ? agentChannelService.onMemoryAccessRevoked((id) => {
+            if (id === channelId) listener()
+          })
+        : undefined
       const agentSubscription = agentService.onAgentUpdated((event) => {
         if (
           kind === 'shared' &&
@@ -72,6 +77,7 @@ export function agentMemoryAuthority(sessionId: string, kind: MemoryScope['kind'
         dispose: () => {
           agentSubscription.dispose()
           deletionSubscription.dispose()
+          channelSubscription?.dispose()
           sessionSubscription.dispose()
         }
       }
@@ -112,5 +118,15 @@ export function editorMemoryAuthority(senderId: string | null, target: MemorySco
     return undefined
   }
   assertAuthorized()
-  return { scope, assertAuthorized }
+  return {
+    scope,
+    assertAuthorized,
+    onRevoked:
+      scope.kind === 'private'
+        ? (listener) =>
+            agentService.onMemoryAccessRevoked((id) => {
+              if (id === scope.agentId) listener()
+            })
+        : undefined
+  }
 }
