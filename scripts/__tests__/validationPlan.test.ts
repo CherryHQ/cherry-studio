@@ -17,6 +17,10 @@ describe('validation selection', () => {
     'docs/contrib/development.md',
     'src/main/core/README.md',
     'packages/ui/README.md',
+    'website-docs/content/pre-basic/settings/README.md',
+    'website-docs/content/assets/screenshot.webp',
+    'website-docs/locales.json',
+    '.github/website-docs-sync-plan.json',
     '.agents/notes/proposed/process/plan.zh.md'
   ])('keeps ordinary documentation out of code tests: %s', (file) => {
     const plan = createPlan([file])
