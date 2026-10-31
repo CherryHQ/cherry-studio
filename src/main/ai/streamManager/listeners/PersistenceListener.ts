@@ -98,15 +98,34 @@ export class PersistenceListener implements StreamListener {
     runtimeTiming: MessageRuntimeTiming | undefined,
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult
   ): Promise<void> {
+    const sanitizedParts = finalMessage
+      ? finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
+      : undefined
+    const emptySuccessError =
+      status === 'success' && !sanitizedParts?.length ? this.opts.backend.emptySuccessError : undefined
+    const effectiveStatus = emptySuccessError ? 'error' : status
+    const effectiveMessage = emptySuccessError
+      ? mergeErrorIntoMessage(
+          finalMessage
+            ? { ...finalMessage, parts: sanitizedParts ?? [] }
+            : this.opts.backend.emptySuccessMessageId
+              ? { id: this.opts.backend.emptySuccessMessageId, role: 'assistant', parts: [] }
+              : undefined,
+          emptySuccessError,
+          toExecutionFailure(emptySuccessError, this.opts.modelId, 'runtime')
+        )
+      : finalMessage
+        ? { ...finalMessage, parts: sanitizedParts ?? [] }
+        : undefined
     const canPersistEmpty =
-      status === 'success'
+      effectiveStatus === 'success'
         ? this.opts.backend.canPersistEmptySuccessTerminal
         : this.opts.backend.canPersistEmptyTerminal
-    if (!finalMessage && !canPersistEmpty) {
+    if (!effectiveMessage && !canPersistEmpty) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status
+        status: effectiveStatus
       })
       return
     }
@@ -115,12 +134,7 @@ export class PersistenceListener implements StreamListener {
     // text/reasoning parts so neither can reach storage. Applied for all
     // statuses. The `finalMessage`
     // guard is for the typed-undefined error path (no finalMessage).
-    const finalMessageForPersistence = finalMessage
-      ? {
-          ...finalMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
-        }
-      : finalMessage
+    const finalMessageForPersistence = effectiveMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),
@@ -130,15 +144,16 @@ export class PersistenceListener implements StreamListener {
     try {
       const saved = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
-        status,
+        status: effectiveStatus,
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
       if (saved) result.persistence = { status: 'saved', message: saved }
+      result.persistedAssistantStatus = effectiveStatus
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status
+        status: effectiveStatus
       })
     } catch (err) {
       result.persistence = {
@@ -148,7 +163,7 @@ export class PersistenceListener implements StreamListener {
       logger.error('Failed to persist assistant message', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status,
+        status: effectiveStatus,
         err
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
@@ -159,7 +174,7 @@ export class PersistenceListener implements StreamListener {
         logger.error('Failed to mark assistant message as terminal error after persist failure', {
           backend: this.opts.backend.kind,
           topicId: this.opts.topicId,
-          status,
+          status: effectiveStatus,
           err: markErr
         })
       }
@@ -170,14 +185,14 @@ export class PersistenceListener implements StreamListener {
         logger.error('Failed to surface terminal persistence error', {
           backend: this.opts.backend.kind,
           topicId: this.opts.topicId,
-          status,
+          status: effectiveStatus,
           err: notifyErr
         })
       }
       throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
     }
 
-    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+    if (effectiveStatus === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
       void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,
