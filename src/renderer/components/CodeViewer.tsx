@@ -1,4 +1,4 @@
-import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
+import { elementScroll, observeElementOffset, useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { EditorState } from '@uiw/react-codemirror'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -9,6 +9,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useIsScrollViewportOwned } from '@renderer/hooks/useScrollViewportOwnership'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
 import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
@@ -465,6 +466,8 @@ const CodeViewer = ({
     [estimateWrappedVisualRows, getWrapContentWidth, lineHeight, rawLines]
   )
 
+  const isViewportOwned = useIsScrollViewportOwned()
+
   // 创建 virtualizer 实例
   const elementVirtualizer = useVirtualizer({
     count: rawLines.length,
@@ -473,7 +476,17 @@ const CodeViewer = ({
     estimateSize,
     overscan: 20,
     scrollMargin,
-    enabled: !expanded || scrollParent !== null
+    enabled: !expanded || scrollParent !== null,
+    observeElementOffset: (instance, callback) => {
+      const element = instance.scrollElement
+      instance.shouldAdjustScrollPositionOnItemSizeChange = isViewportOwned(element) ? () => false : undefined
+      // Attachment restores the cached offset after subscribing, so seed it from the actual viewport first.
+      if (element) callback(element.scrollTop, false)
+      return observeElementOffset(instance, callback)
+    },
+    scrollToFn: (offset, options, instance) => {
+      if (!isViewportOwned(instance.scrollElement)) elementScroll(offset, options, instance)
+    }
   })
   const windowVirtualizer = useWindowVirtualizer({
     count: rawLines.length,
