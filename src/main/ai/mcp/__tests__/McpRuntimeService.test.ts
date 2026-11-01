@@ -1,11 +1,17 @@
 import { EventEmitter } from 'node:events'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { SdkError, SdkErrorCode, SseError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
+
+import { JsonFileStorage, oauthServerKey, oauthServerUrlHash, type OAuthSecretCipher } from '../oauth/storage'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -35,9 +41,11 @@ vi.mock('../connections/ExternalMcpConnection', () => ({
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
 const deleteServerMock = vi.fn()
+const listServersMock = vi.fn()
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
     getById: (id: string) => getByIdMock(id),
+    list: () => listServersMock(),
     delete: (id: string) => deleteServerMock(id)
   }
 }))
@@ -67,6 +75,63 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   })
   return { promise, resolve, reject }
 }
+
+describe('McpRuntimeService OAuth ownership', () => {
+  const cipher: OAuthSecretCipher = {
+    isAvailable: () => true,
+    encrypt: (value) => Buffer.from(value).toString('base64'),
+    decrypt: (value) => Buffer.from(value, 'base64').toString()
+  }
+  const baseUrl = 'https://example.com/mcp'
+  let configDir: string
+  const originalPath = vi.mocked(application.getPath).getMockImplementation()!
+
+  beforeEach(async () => {
+    BaseService.resetInstances()
+    configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-runtime-oauth-'))
+    vi.mocked(application.getPath).mockReturnValue(configDir)
+    getByIdMock.mockImplementation((id) => ({ id, name: id, baseUrl }) as McpServer)
+    listServersMock.mockReturnValue({ items: [{ id: 'A', baseUrl }] })
+    deleteServerMock.mockReset()
+  })
+
+  afterEach(async () => {
+    vi.mocked(application.getPath).mockImplementation(originalPath)
+    await fs.rm(configDir, { recursive: true, force: true })
+  })
+
+  it('migrates saved credentials before the runtime is ready', async () => {
+    await new JsonFileStorage(oauthServerUrlHash(baseUrl), configDir, cipher).saveTokens({
+      access_token: 'A',
+      token_type: 'Bearer'
+    })
+    await new McpRuntimeService()._doInit()
+    expect(await new JsonFileStorage(oauthServerKey('A', baseUrl), configDir, cipher).getTokens()).toMatchObject({
+      access_token: 'A'
+    })
+  })
+
+  it('removes only the selected configuration credentials even when the URL is shared', async () => {
+    listServersMock.mockReturnValue({
+      items: [
+        { id: 'A', baseUrl },
+        { id: 'B', baseUrl }
+      ]
+    })
+    for (const id of ['A', 'B']) {
+      await new JsonFileStorage(oauthServerKey(id, baseUrl), configDir, cipher).saveTokens({
+        access_token: id,
+        token_type: 'Bearer'
+      })
+    }
+    await new McpRuntimeService().removeServer('A')
+    expect(deleteServerMock).toHaveBeenCalledWith('A')
+    expect(await new JsonFileStorage(oauthServerKey('A', baseUrl), configDir, cipher).getTokens()).toBeUndefined()
+    expect(await new JsonFileStorage(oauthServerKey('B', baseUrl), configDir, cipher).getTokens()).toMatchObject({
+      access_token: 'B'
+    })
+  })
+})
 
 describe('McpRuntimeService.setServerStatus', () => {
   beforeEach(() => {
