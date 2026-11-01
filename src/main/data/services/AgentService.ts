@@ -261,6 +261,9 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
 }
 
 export class AgentService {
+  private readonly memoryAccessRevoked = new Emitter<string>()
+  readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
+
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
 
@@ -933,6 +936,7 @@ export class AgentService {
 
   notifyDeleted(id: string, impact: ReturnType<AgentService['deleteAgentStateTx']>): void {
     if (!impact.deleted) return
+    this.memoryAccessRevoked.fire(id)
     agentTaskService.notifyReadModelChange(impact.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(impact.deliveryResults)
     agentSessionService.notifyReadModelChange(impact.affectedSessionIds, impact.changeKind)
