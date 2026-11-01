@@ -6335,6 +6335,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "チャットでの Web 検索ではモデル内蔵の Web 検索と URL 取得を優先し、利用できない場合は上記のサービスへ自動的に切り替えます。エージェントとの会話では常に上記のサービスを使用します。",
   "settings.tool.websearch.model_tools_preferred.label": "モデル内蔵の Web ツールを優先",
   "settings.tool.websearch.provider_description.bocha": "リアルタイムのウェブと構造化された結果を持つ中国のAI検索API",
+  "settings.tool.websearch.provider_description.bowmark": "Bowmark 検索 API。AI エージェントが呼び出せる、ライブの Web データ用の型付き関数です。",
   "settings.tool.websearch.provider_description.crawl4ai": "APIキーを使用してCrawl4AI Cloudを利用するか、セルフホストのCrawl4AIのアドレスを入力してください。セルフホストの場合、トークンは任意です。",
   "settings.tool.websearch.provider_description.deepseek": "DeepSeek の Search / Fetch API。ランク付けされたウェブ検索結果と Markdown 形式のページ本文を返します。",
   "settings.tool.websearch.provider_description.desearch": "Desearch ウェブ検索 API。タイトル、リンク、スニペットを返し、AI アプリに適しています。",

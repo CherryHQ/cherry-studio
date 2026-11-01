@@ -6415,6 +6415,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Preferuj natywne dla modelu wyszukiwanie w sieci i pobieranie stron URL, z automatycznym przełączeniem na powyższe usługi, gdy są niedostępne.",
   "settings.tool.websearch.model_tools_preferred.label": "Preferuj natywne narzędzia sieciowe modelu",
   "settings.tool.websearch.provider_description.bocha": "Chińskie API wyszukiwania AI z wynikami sieciowymi w czasie rzeczywistym i wynikami strukturalnymi.",
+  "settings.tool.websearch.provider_description.bowmark": "Interfejs API wyszukiwania Bowmark: typowane funkcje do danych z sieci na żywo, które może wywoływać agent AI.",
   "settings.tool.websearch.provider_description.crawl4ai": "Użyj Crawl4AI Cloud z kluczem API lub wprowadź adres samodzielnie hostowanego Crawl4AI z opcjonalnym tokenem.",
   "settings.tool.websearch.provider_description.deepseek": "Oficjalne interfejsy API Search i Fetch firmy DeepSeek, zwracające ranking wyników wyszukiwania oraz zawartość stron w formacie Markdown.",
   "settings.tool.websearch.provider_description.desearch": "Interfejs API wyszukiwania w sieci Desearch dla aplikacji AI, zwracający tytuły, linki i fragmenty tekstu.",

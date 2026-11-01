@@ -6339,6 +6339,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "V chatu dávat přednost vestavěnému webovému vyhledávání a načítání URL modelu; pokud není dostupné, použije se výše uvedená služba. Konverzace agentů vždy používají výše uvedené služby.",
   "settings.tool.websearch.model_tools_preferred.label": "Dávat přednost nativním webovým nástrojům modelu",
   "settings.tool.websearch.provider_description.bocha": "Čínské API pro AI vyhledávání s výsledky z webu v reálném čase a strukturovanými daty.",
+  "settings.tool.websearch.provider_description.bowmark": "Vyhledávací API Bowmark: typované funkce pro živá webová data, které může volat AI agent.",
   "settings.tool.websearch.provider_description.crawl4ai": "Použijte Crawl4AI Cloud s API klíčem, nebo zadejte adresu vlastního Crawl4AI serveru s volitelným tokenem.",
   "settings.tool.websearch.provider_description.deepseek": "Oficiální vyhledávací a načítací API DeepSeek, které vrací seřazené webové výsledky a obsah stránek ve formátu Markdown.",
   "settings.tool.websearch.provider_description.desearch": "Webové vyhledávací API Desearch pro AI aplikace, které vrací názvy, odkazy a úryvky.",

@@ -6343,6 +6343,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Предпочитать встроенные в модель веб-поиск и получение данных по URL для веб-поиска в чате, автоматически переключаясь на указанные выше сервисы, если эти функции недоступны. В диалогах с агентами всегда используются указанные выше сервисы.",
   "settings.tool.websearch.model_tools_preferred.label": "Предпочитать встроенные веб-инструменты модели",
   "settings.tool.websearch.provider_description.bocha": "Китайский API поиска с ИИ, обеспечивающий веб-результаты в реальном времени и структурированные данные.",
+  "settings.tool.websearch.provider_description.bowmark": "API поиска Bowmark: типизированные функции для живых веб-данных, которые может вызывать ИИ-агент.",
   "settings.tool.websearch.provider_description.crawl4ai": "Используйте Crawl4AI Cloud с ключом API или укажите адрес Crawl4AI на собственном сервере с необязательным токеном.",
   "settings.tool.websearch.provider_description.deepseek": "Официальные API поиска и загрузки страниц DeepSeek: ранжированные результаты и содержимое страниц в Markdown.",
   "settings.tool.websearch.provider_description.desearch": "API веб-поиска Desearch для ИИ-приложений, возвращающий заголовки, ссылки и фрагменты.",

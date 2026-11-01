@@ -6335,6 +6335,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "在對話中優先使用模型內建的網頁搜尋和 URL 抓取功能，無法使用時回退到上方服務。Agent 對話始終使用上方服務。",
   "settings.tool.websearch.model_tools_preferred.label": "優先使用模型內建 Web 工具",
   "settings.tool.websearch.provider_description.bocha": "面向 AI 場景的中文搜尋 API，提供即時網頁與結構化結果。",
+  "settings.tool.websearch.provider_description.bowmark": "Bowmark 搜尋 API：針對即時網頁資料的型別化函式，可供 AI 智慧代理呼叫。",
   "settings.tool.websearch.provider_description.crawl4ai": "使用 API 金鑰連線至 Crawl4AI Cloud，或輸入自架的 Crawl4AI 位址，權杖為選填。",
   "settings.tool.websearch.provider_description.deepseek": "DeepSeek 官方搜尋與網頁擷取 API，回傳排序後的網頁結果和 Markdown 頁面內容。",
   "settings.tool.websearch.provider_description.desearch": "Desearch 網頁搜尋 API，回傳標題、連結與摘要，適用於 AI 應用。",
