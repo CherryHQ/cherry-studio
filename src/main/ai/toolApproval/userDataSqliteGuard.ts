@@ -66,8 +66,13 @@ type PathClassification = 'protected' | 'safe' | 'invalid'
 
 /** Match Pi's file-tool preprocessing before policy or containment checks. */
 export function normalizePiNativePathInput(value: string): string {
-  const normalized = value.replace(PI_UNICODE_SPACES, ' ')
-  return normalized.startsWith('@') ? normalized.slice(1) : normalized
+  let normalized = value.replace(PI_UNICODE_SPACES, ' ')
+  if (normalized.startsWith('@')) normalized = normalized.slice(1)
+  if (process.platform === 'win32' && !normalized.includes('\\')) {
+    const drive = /^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/i.exec(normalized)
+    if (drive) return `${drive[1].toUpperCase()}:\\${drive[2]?.replaceAll('/', '\\') ?? ''}`
+  }
+  return normalized
 }
 
 export async function evaluateUserDataSqliteGuard(

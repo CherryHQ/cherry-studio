@@ -30,6 +30,7 @@ import path from 'node:path'
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 
 import { loggerService } from '@logger'
+import { memorySearchTarget } from '@main/ai/memory/memoryTarget'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { resolveDelegationApproval } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
@@ -95,11 +96,14 @@ export interface PiApprovalContext {
   nonBypassableApprovalTools: ReadonlySet<string>
   /** Cross-Session tools that cannot initiate an unattended delegation hop. */
   delegationTools: ReadonlySet<string>
+  /** Native replacements that perform the same authorization inside their execution owner. */
+  executionOwnedTools?: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
   return (pi: ExtensionAPI) => {
     pi.on('tool_call', async (event: ToolCallEvent, extCtx: ExtensionContext) => {
+      if (ctx.executionOwnedTools?.has(event.toolName)) return
       return createPiToolAuthorizer(ctx)({
         toolName: event.toolName,
         toolCallId: event.toolCallId,
@@ -126,6 +130,22 @@ export type PiToolAuthorizer = (
 /** Reusable policy boundary for native Pi calls and nested code-mode calls. */
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
   return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
+    const memorySearchDecision = async (): Promise<{ block: true; reason: string } | undefined> => {
+      if (!['grep', 'find', 'ls'].includes(toolName)) return
+      const target =
+        typeof input.path === 'string' || input.path === undefined
+          ? resolveToolPath(input.path || '.', ctx.workspacePath)
+          : undefined
+      if (!target || (await memorySearchTarget(target)))
+        return {
+          block: true,
+          reason:
+            'This search cannot expose managed memory. Use scoped memory settings or a supported controlled file read.'
+        }
+      return undefined
+    }
+    const memoryDecision = await memorySearchDecision()
+    if (memoryDecision) return memoryDecision
     // (1) disabledTools — block regardless of permission mode.
     const browserPermission = resolveBrowserToolPermission(toolName)
     if (ctx.isDisabled(toolName) || browserPermission === 'deny') {
@@ -255,7 +275,10 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
             : (decision.reason ?? 'User denied permission for this tool.')
       }
     }
-    if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
+    if (decision.updatedInput) {
+      applyInputEdit(input, decision.updatedInput)
+      return memorySearchDecision()
+    }
     return
   }
 }
