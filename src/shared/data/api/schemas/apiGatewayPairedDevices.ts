@@ -1,4 +1,4 @@
-import type { ApiGatewayPairedDevice } from '../../types/apiGatewayPairedDevice'
+import type { ApiGatewayPairedDevice, ApiGatewayPairedDeviceRename } from '../../types/apiGatewayPairedDevice'
 
 export type ApiGatewayPairedDeviceSchemas = {
   '/api-gateway/paired-devices': {
@@ -7,6 +7,11 @@ export type ApiGatewayPairedDeviceSchemas = {
     }
   }
   '/api-gateway/paired-devices/:id': {
+    PATCH: {
+      params: { id: string }
+      body: ApiGatewayPairedDeviceRename
+      response: ApiGatewayPairedDevice
+    }
     DELETE: {
       params: { id: string }
       response: void
