@@ -9,13 +9,15 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-
 import {
   buildResourceListGroupDropAnchor,
   compareResourceOrderKey,
+  type ResourceListOrderAnchor
+} from '@renderer/utils/chat/resourceListBase'
+
+import {
   ResourceList,
   type ResourceListGroup,
-  type ResourceListOrderAnchor,
   type ResourceListReorderPayload,
   type ResourceListSection,
   type ResourceListStatus

@@ -185,6 +185,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Steers accepted by pi but not yet observed as delivered. pi emits the delivery boundary as a
    *  user `message_start`; default steering mode is one-at-a-time, so the delivery drain is mode-aware. */
   private readonly pendingSteers: PendingSteer[] = []
+  /** A run send() started has not sent its own prompt yet; pi 1.2 already streams then (e.g. startup compaction). */
+  private awaitingPromptStart = false
 
   readonly events = this.eventQueue
 
@@ -521,6 +523,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
+    if (!options) this.awaitingPromptStart = true
     this.promptRunActive = true
     void session.prompt(content, options).then(
       () => this.finishPromptRun(),
@@ -530,7 +533,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   redirect(input: AgentRuntimeUserInput): boolean {
     const session = this.session
-    if (!session?.isStreaming) return false
+    // Until the run's own prompt is out, a steer's delivery could not be told from it: the host queues it.
+    if (!session?.isStreaming || this.awaitingPromptStart) return false
 
     // buildAgentUserContent intentionally flattens attachments to filenames and absolute paths for
     // filesystem agents; pi's native image channel stays unused until Cherry models multimodal agent
@@ -658,9 +662,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     if (event.type === 'tool_execution_start') this.startToolSpan(event)
 
-    if (isUserMessageStart(event) && this.pendingSteers.length > 0) {
-      const delivered = this.takeDeliveredSteers()
-      if (delivered.length > 0) this.eventQueue.push({ type: 'steer-boundary', inputs: delivered })
+    // The run's first user message is its own prompt; every later one delivers steers, in order.
+    if (isUserMessageStart(event)) {
+      if (this.awaitingPromptStart) this.awaitingPromptStart = false
+      else if (this.pendingSteers.length > 0) {
+        const delivered = this.takeDeliveredSteers()
+        if (delivered.length > 0) this.eventQueue.push({ type: 'steer-boundary', inputs: delivered })
+      }
     }
 
     this.adapter.handleEvent(event)
@@ -703,6 +711,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private finishPromptRun(error?: unknown): void {
     if (this.closed) return
     this.promptRunActive = false
+    this.awaitingPromptStart = false
     this.maybeEmitResumeToken()
     const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
     if (undelivered.length > 0) {

@@ -81,9 +81,14 @@ vi.mock('../useResourceLibrary', () => ({
   }
 }))
 
-vi.mock('../assistantAdapter', () => ({
+vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({
-    createAssistant: controllerMocks.createAssistant,
+    createAssistant: controllerMocks.createAssistant
+  })
+}))
+
+vi.mock('../assistantAdapter', () => ({
+  useDuplicateAssistantMutation: () => ({
     duplicateAssistant: controllerMocks.duplicateAssistant
   })
 }))

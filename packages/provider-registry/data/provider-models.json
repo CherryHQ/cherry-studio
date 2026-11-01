@@ -14954,15 +14954,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.0025
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.119
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.238
         }
       },
       "providerId": "gateway"
@@ -14973,15 +14973,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.3045
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0.609
         }
       },
       "providerId": "gateway"
@@ -18243,6 +18243,7 @@
       "providerId": "longcat"
     },
     {
+      "apiModelId": "mimo-v2.5",
       "modelId": "mimo-v2-5",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18342,6 +18343,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro",
       "modelId": "mimo-v2-5-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18441,6 +18443,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro-ultraspeed",
       "modelId": "mimo-v2-5-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18471,6 +18474,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-flash",
       "modelId": "mimo-v2-6-flash",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18570,6 +18574,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro",
       "modelId": "mimo-v2-6-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18669,6 +18674,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro-ultraspeed",
       "modelId": "mimo-v2-6-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -31460,15 +31466,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.08
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter",
@@ -31491,15 +31497,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.096
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.48
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 1.8
         }
       },
       "providerId": "openrouter",
@@ -44582,5 +44588,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d5c315bd1da2fbdb"
+  "version": "b6d0f1b363eef4ba"
 }
