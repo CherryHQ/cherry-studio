@@ -84,6 +84,7 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
+import { installPiRoundBudget, type PiRoundBudget } from './piRoundBudget'
 import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
@@ -184,6 +185,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private promptRunActive = false
   private toolCallsThisTurn = 0
   private toolCallLimitReached = false
+  /** Per-run assistant-round budget installed on the session's agent at startup (issue #23189). */
+  private roundBudget?: PiRoundBudget
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -453,6 +456,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       this.session = piSession
       await piSession.bindExtensions({})
+      // After bindExtensions so the budget composes the session's fully-installed boundary wrapper:
+      // its turn_end dispatch and decision are preserved unless the budget is exhausted.
+      this.roundBudget = installPiRoundBudget(piSession.agent, PI_TOOL_CALL_LIMIT, () => {
+        this.toolCallLimitReached = true
+      })
       this.unsubscribe = piSession.subscribe((event) => this.handlePiEvent(event))
       this.maybeEmitResumeToken()
       return this
@@ -537,6 +545,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.awaitingPromptStart = true
       this.toolCallsThisTurn = 0
       this.toolCallLimitReached = false
+      this.roundBudget?.reset()
     }
     this.promptRunActive = true
     void session.prompt(content, options).then(

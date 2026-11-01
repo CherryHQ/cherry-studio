@@ -224,6 +224,7 @@ function appendedSystemPrompt(): string {
 }
 
 const fakeSession = {
+  agent: { finishTurn: undefined as undefined | ((...args: unknown[]) => unknown) },
   get isStreaming() {
     return mocks.isStreaming
   },
@@ -486,6 +487,7 @@ beforeEach(() => {
   mocks.getContextUsage.mockReturnValue(undefined)
   mocks.createAgentSession.mockImplementation(async (opts: Record<string, unknown>) => {
     mocks.createOpts = opts
+    fakeSession.agent = { finishTurn: undefined }
     return { session: fakeSession }
   })
   mocks.createBashToolDefinition.mockImplementation((_cwd: string, options: Record<string, unknown>) => {
@@ -1206,6 +1208,90 @@ describe('PiRuntimeConnection', () => {
     }
 
     expect(mocks.abort).not.toHaveBeenCalled()
+  })
+
+  const toolTurn = () => ({ message: {}, toolResults: [{}], context: {}, newMessages: [] }) as never
+  const textTurn = () => ({ message: {}, toolResults: [], context: {}, newMessages: [] }) as never
+  const finishTurn = () =>
+    fakeSession.agent.finishTurn as unknown as (
+      turn: never,
+      signal?: AbortSignal
+    ) => Promise<{ action: 'end' | 'continue' } | undefined>
+
+  it('ends the run at 20 tool-calling rounds and reports the limit without aborting', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('looping tools'))
+
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('tool-call limit') }
+    })
+  })
+
+  it('never counts a text-only answer turn toward the round budget', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('chatty then tools'))
+
+    for (let round = 0; round < 25; round += 1) {
+      await expect(finishTurn()(textTurn())).resolves.toBeUndefined()
+    }
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+
+    prompt.resolve()
+    await collectUntilTerminal(conn.events)
+  })
+
+  it('resets the round budget for each new prompt', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('first run'))
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+
+    conn.send(userInput('second run'))
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+  })
+
+  it('does not count or relabel aborted turns', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('aborted loop'))
+    const controller = new AbortController()
+    controller.abort()
+    const aborted = controller.signal
+
+    for (let round = 0; round < 25; round += 1) {
+      await expect(finishTurn()(toolTurn(), aborted)).resolves.toBeUndefined()
+    }
+    // The aborted rounds above did not count: 19 real rounds stay under the budget.
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)?.type).toBe('turn-complete')
   })
 
   it('captures a successful provider invocation without relying on turn_end (including compaction)', async () => {
