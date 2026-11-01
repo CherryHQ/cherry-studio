@@ -64,7 +64,10 @@ export function insertComposerTokenAtCursor(
 }
 
 export function insertKnowledgeBaseTokenAtStart(editor: Editor, token: ComposerDraftToken) {
-  if (editor.isDestroyed || token.kind !== 'knowledge') return
+  if (editor.isDestroyed || token.kind !== 'knowledge') return false
+
+  const currentTextLength = serializeComposerDocument(editor).text.length
+  if (currentTextLength + (token.promptText?.length ?? 0) + 1 > COMPOSER_INPUT_MAX_LENGTH) return false
 
   const paragraph = editor.state.doc.firstChild
   let position = 1
@@ -90,6 +93,7 @@ export function insertKnowledgeBaseTokenAtStart(editor: Editor, token: ComposerD
     editor.schema.text(' ')
   ])
   editor.view.dispatch(editor.state.tr.insert(position, content))
+  return true
 }
 
 export function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {

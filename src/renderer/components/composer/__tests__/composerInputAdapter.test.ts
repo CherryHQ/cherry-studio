@@ -124,6 +124,26 @@ describe('createComposerInputAdapter', () => {
     expect(currentEditor.state.selection.from).toBe(selectionBeforeInsert + 4)
   })
 
+  it('keeps an over-limit draft unchanged when adding a retrieval token', () => {
+    const currentEditor = createEditor()
+    const adapter = createComposerInputAdapter(currentEditor)
+    adapter.insertText('x'.repeat(COMPOSER_INPUT_MAX_LENGTH - 10), { tokenizeVariables: false })
+    const draft = serializeComposerDocument(currentEditor)
+    const selection = currentEditor.state.selection.toJSON()
+
+    expect(
+      insertKnowledgeBaseTokenAtStart(currentEditor, {
+        id: 'knowledge:kb-1',
+        kind: 'knowledge',
+        label: 'Retrieval · Knowledge One',
+        promptText: 'Search Knowledge One.'
+      })
+    ).toBe(false)
+
+    expect(serializeComposerDocument(currentEditor)).toEqual(draft)
+    expect(currentEditor.state.selection.toJSON()).toEqual(selection)
+  })
+
   it('turns ${name} into an editable field by default (quick phrases rely on it)', () => {
     const adapter = createComposerInputAdapter(createEditor())
 
