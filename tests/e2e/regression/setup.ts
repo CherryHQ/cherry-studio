@@ -17,7 +17,10 @@ export async function prepareScenario(page: Page): Promise<void> {
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
   await selectSidebarApp(page, 'Chat')
   const chat = page.locator('[data-ui~="chat.view"]:visible').first()
-  const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
-  if (await showSidebar.isVisible()) await showSidebar.click()
-  await expect(chat.getByRole('button', { name: 'Hide Sidebar', exact: true })).toBeVisible()
+  // `isVisible()` does not retry: the navbar toggle may not be painted yet right after the view appears,
+  // and a missed click leaves the resource list auto-collapsed for the whole case.
+  const toggle = chat.getByRole('button', { name: /^(Show|Hide) Sidebar$/ }).first()
+  await expect(toggle).toBeVisible({ timeout: 20_000 })
+  if ((await toggle.getAttribute('aria-label')) !== 'Hide Sidebar') await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-label', 'Hide Sidebar', { timeout: 20_000 })
 }
