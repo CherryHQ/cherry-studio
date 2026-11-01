@@ -2941,10 +2941,8 @@ export function splitMarkdownChunks(
     const indentedCode =
       !blank &&
       !afterDefinition &&
-      (containerHoldsCode ||
-        ((previousStatus === 'block' || opensContainerBlock) &&
-          innerIndent >= itemCodeFloor &&
-          !startsBlock(uncontained)))
+      (previousStatus === 'block' || opensContainerBlock) &&
+      (containerHoldsCode || (innerIndent >= itemCodeFloor && !startsBlock(uncontained)))
     previousWasIndentedCode = indentedCode
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
@@ -3186,8 +3184,10 @@ export function splitMarkdownChunks(
       if (!paragraphOpen || opensBlock) paragraphStart = i
       // Indented code is a block of its own, so the line under it starts from no open paragraph —
       // which is what lets the definition there stand instead of reading as paragraph text.
+      const emptyMarkerParagraph = EMPTY_LIST_ITEM.test(line) && (afterIndentedCode || afterDefinition)
       const status =
-        indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen, run?.content ?? null)
+        !emptyMarkerParagraph &&
+        (indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen, run?.content ?? null))
           ? 'block'
           : 'paragraph'
       // A line that falls short of the container holding the open paragraph continues it lazily,
@@ -3207,7 +3207,7 @@ export function splitMarkdownChunks(
     const marker = THEMATIC_BREAK.test(line) || setextHeading ? null : LIST_ITEM.exec(line)
     const emptyItemOpens =
       !EMPTY_LIST_ITEM.test(line) ||
-      (!paragraphOpenAtLine && !afterIndentedCode) ||
+      (!paragraphOpenAtLine && !afterIndentedCode && !afterDefinition) ||
       (run !== null && leadingColumns(line) < run.content)
     // An ordered marker interrupts an open paragraph only at `1.`; `2.` is paragraph text.
     const orderedInterrupts = marker === null || !paragraphOpenAtLine || marker[2] !== undefined || marker[3] === '1'

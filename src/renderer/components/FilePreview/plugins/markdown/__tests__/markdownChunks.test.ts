@@ -1016,6 +1016,25 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('treats an empty marker after code as paragraph text for definitions', () => {
+    // The marker opens no list, so the definition-shaped line under it is prose and the real
+    // definition wins.
+    const content = [
+      '    code',
+      '-',
+      '[r]: https://wrong.example',
+      '',
+      '[r]: https://right.example',
+      '',
+      'Use [r].'
+    ].join('\n')
+
+    expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['https://right.example']))
+    expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
+      new Set(['https://right.example'])
+    )
+  })
+
   it('does not open a list on a dash that follows indented code', () => {
     // The empty marker cannot interrupt the paragraph it starts, so the dash is text and the
     // indented definition-shaped line is part of that paragraph, not a definition.
@@ -1024,6 +1043,25 @@ describe('splitMarkdownChunks', () => {
     expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['/right']))
     expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
       new Set(['/right'])
+    )
+  })
+
+  it('keeps a quoted code-shaped line as paragraph text', () => {
+    // Five columns behind the quote are indented code only when no quoted paragraph is open; here
+    // the line continues the paragraph, so the definition below it is prose.
+    const content = [
+      '> text',
+      '>     code',
+      '[r]: https://wrong.example',
+      '',
+      '[r]: https://right.example',
+      '',
+      'Use [r].'
+    ].join('\n')
+
+    expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['https://right.example']))
+    expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
+      new Set(['https://right.example'])
     )
   })
 
