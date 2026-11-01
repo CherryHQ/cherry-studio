@@ -103,7 +103,7 @@ interface ContainerFence {
  * all. A list marker indented four columns is indented code, and five columns of whitespace behind a
  * marker leave what follows in code the item never sees, so no fence opens behind either.
  */
-function openContainerFence(line: string): ContainerFence | null {
+function openContainerFence(line: string, emptyItemColumn: number | null = null): ContainerFence | null {
   if (leadingColumns(line) >= 4) return null
   let content = line
   let quotes = 0
@@ -128,7 +128,11 @@ function openContainerFence(line: string): ContainerFence | null {
     content = content.slice(item[0].length + separator.length)
   }
   const fence = parseFence(content)
-  return fence ? { fence, quotes, contentColumn } : null
+  if (!fence) return null
+  const implied =
+    quotes === 0 && contentColumn < 0 && emptyItemColumn !== null && leadingColumns(line) >= emptyItemColumn
+  if (quotes === 0 && contentColumn < 0 && !implied) return null
+  return { fence, quotes, contentColumn: contentColumn >= 0 ? contentColumn : implied ? emptyItemColumn : -1 }
 }
 
 /**
@@ -2412,9 +2416,13 @@ function dollarFenceAtStart(line: string): number {
   return /^ {0,3}(\${2,})/.exec(line)?.[1].length ?? 0
 }
 
-/** The length of the `$$` fence at the end of `line`, or 0. */
+/** The length of the `$$` fence at the end of `line`, or 0. Scanned from the end, not matched. */
 function dollarFenceAtEnd(line: string): number {
-  return /(\${2,})[ \t]*$/.exec(line)?.[1].length ?? 0
+  let end = line.length
+  while (end > 0 && (line[end - 1] === ' ' || line[end - 1] === '\t')) end -= 1
+  let start = end
+  while (start > 0 && line[start - 1] === '$') start -= 1
+  return end - start >= 2 ? end - start : 0
 }
 
 /**
@@ -2757,6 +2765,19 @@ export function splitMarkdownChunks(
         continue
       }
     }
+    // A fence indented into an empty item belongs to that item; `parseFence` would otherwise take
+    // it as a document fence and swallow the definition an unindented line below it opens.
+    const emptyItemFence =
+      emptyItemColumn !== null && leadingColumns(line) >= emptyItemColumn
+        ? openContainerFence(line, emptyItemColumn)
+        : null
+    if (emptyItemFence) {
+      containerFence = emptyItemFence
+      inDefinition = false
+      previousStatus = 'block'
+      paragraphContainer = null
+      continue
+    }
     const opened = parseFence(line)
     if (opened) {
       fence = opened
@@ -2811,7 +2832,7 @@ export function splitMarkdownChunks(
     // A fence the line opens behind quote or list markers: that block holds it, so `parseFence` sees
     // it only past those markers — `- ``` ` is three backticks behind a marker, and every line the
     // item indents to its content column is code the parser never reads for definitions.
-    const openedFence = openContainerFence(line)
+    const openedFence = openContainerFence(line, emptyItemColumn)
     if (openedFence) {
       containerFence = openedFence
       endListOutsideItem(line)
@@ -2831,8 +2852,6 @@ export function splitMarkdownChunks(
     // opens an HTML block and the definition below it stands.
     const opensHtml = opensHtmlBlock(uncontained)
     const leavesParagraphContainer = previousStatus === 'paragraph' && paragraphContainer !== null && container === null
-    const paragraphHeldByItem =
-      paragraphContainer !== null && containerMarkers(paragraphContainer).some((marker) => marker !== '>')
     if (
       !containerHoldsCode &&
       (opensHtml ||
@@ -2845,8 +2864,7 @@ export function splitMarkdownChunks(
       // container: the marker chain the opening line carried, and an item's content column.
       // A type-7 tag can stay inside the list item whose paragraph it ended; a block-level tag
       // and a quote-only prefix end their containers, so the block is read at the top level.
-      htmlBlockContainer =
-        container?.[0] ?? (leavesParagraphContainer && !opensHtml && paragraphHeldByItem ? paragraphContainer : null)
+      htmlBlockContainer = container?.[0] ?? (leavesParagraphContainer && !opensHtml ? paragraphContainer : null)
       htmlBlockStart = i
       htmlComment.open = false
       const opening = withoutHtmlComments(uncontained, htmlComment)

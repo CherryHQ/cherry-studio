@@ -968,6 +968,14 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/first'])
   })
 
+  it("keeps an empty item's fence open until an unindented line leaves the item", () => {
+    // The fence is indented into the empty item, so the unindented definition ends it and is
+    // carried; treating the fence as document-level swallowed the definition.
+    const content = '[jump][x]\n\n' + 'filler\n\n'.repeat(3_200) + '-\n  ```ts\n  code\n[x]: https://first.example\n'
+
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toContain('https://first.example')
+  })
+
   it('does not open a list item on a setext underline', () => {
     // The dash is the heading's underline, not an empty item; tracking it made the indented
     // definition its content and hoisted a code-only first definition over the real destination.
@@ -1011,6 +1019,24 @@ describe('splitMarkdownChunks', () => {
 
     expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
+  it('keeps a type-7 tag inside the quote it follows', () => {
+    // `<span>` stays in the blockquote, so the unquoted definition below it leaves the quote and
+    // stands; dropping the quote made the block top-level and swallowed the first definition.
+    const content = [
+      '[jump][x]',
+      '',
+      '> foo',
+      '<span>',
+      '[x]: https://first.example',
+      '',
+      '[x]: https://second.example',
+      ''
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://first.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://first.example'])
   })
 
   it('does not inherit a departed quote into the top-level HTML block', () => {
@@ -3537,6 +3563,19 @@ describe('a malformed tag that never closes', () => {
     // `<div>` plus 50,000 `<li>` keep the stack deep; an unindexed `lastIndexOf('p')` on each of
     // 300,000 blank lines took ~17 s. The indexed close is constant-time when no `p` is open.
     const content = '<div>\n' + '<li>x\n'.repeat(50_000) + '\n'.repeat(300_000) + 'end\n</div>'
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('reads a long dollar run at the line end once', () => {
+    // The unanchored trailing-run regex retried progressively shorter suffixes on the `x`, taking
+    // ~9.47 s; the end scan is linear.
+    const content = '$$\n' + '$'.repeat(100_000) + 'x\n$$\n'
 
     const started = Date.now()
     const window = splitMarkdownChunks(content)
