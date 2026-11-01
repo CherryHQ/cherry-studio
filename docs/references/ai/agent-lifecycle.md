@@ -150,7 +150,9 @@ the existing FK cascade. File reclamation happens after DB commit and can retry.
 
 `agentOrphanSweep` belongs to the AI domain. Archived rows still claim their
 Agent directories, system workspace archives, and native resume artifacts. Runtime-owned
-live tokens also protect native artifacts. The sweep preserves its freshness
+live tokens also protect native artifacts. A Claude Code project directory belonging to a
+surviving Session (including an archived one whose workspace directory is already compressed)
+is protected as a whole, even when no message row still carries its resume token. The sweep preserves its freshness
 gate and pending-backup-restore exclusion. User-selected workspace directories
 are never recursively deleted by this workflow.
 

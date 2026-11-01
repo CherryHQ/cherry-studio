@@ -1,8 +1,19 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -12,8 +23,10 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { PiRuntimeDriver } from '@main/ai/runtime/pi/PiRuntimeDriver'
+import { registerRuntimeDrivers } from '@main/ai/runtime/registerDrivers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
-import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
+import type { AgentSessionRuntimeDriver, OrphanSessionKeepSet } from '@main/ai/runtime/types'
+import { claudeProjectDirectoryName } from '@main/ai/utils/claudeProject'
 
 const { restoreJournalMock, closeSessionForArchive } = vi.hoisted(() => ({
   restoreJournalMock: { hasPendingRestore: vi.fn(() => false) },
@@ -66,7 +79,7 @@ describe('sweepAgentOrphans', () => {
     ;(application.getPath as Mock).mockImplementation((key: string) => {
       if (key === 'feature.agents.data') return root
       if (key === 'feature.agents.system_workspaces') return workspacesRoot
-      return `/mock/${key}`
+      return path.join(root, key)
     })
   })
 
@@ -249,16 +262,122 @@ describe('sweepAgentOrphans', () => {
 
     it('hands each driver the resume tokens of surviving sessions', async () => {
       await seedSessionWithToken('session-live', 'token-live')
-      let seen: ReadonlySet<string> | undefined
-      registerDriver('pi', async (tokens) => {
-        seen = tokens
+      let seen: OrphanSessionKeepSet | undefined
+      registerDriver('pi', async (keep) => {
+        seen = keep
         return { removed: ['/tmp/reclaimed.jsonl'] }
       })
 
       const { removed } = await sweepAgentOrphans()
 
-      expect([...(seen ?? [])]).toEqual(['token-live'])
+      expect(seen?.resumeTokens).toEqual(new Set(['token-live']))
+      expect(seen?.liveWorkspacePaths).toEqual(new Set(['/tmp/session-live']))
       expect(removed).toContain('/tmp/reclaimed.jsonl')
+    })
+
+    function seedClaudeProject(workspacePath: string, token = AGENT_GONE) {
+      const project = path.join(root, 'feature.agents.claude.projects', claudeProjectDirectoryName(workspacePath))
+      const transcript = path.join(project, `${token}.jsonl`)
+      const directory = path.join(project, token)
+      mkdirSync(path.join(directory, 'subagents'), { recursive: true })
+      writeFileSync(transcript, 'owned transcript')
+      writeFileSync(path.join(directory, 'subagents', 'agent-1.jsonl'), 'owned subagent')
+      makeStale(project)
+      return { project, transcript, directory }
+    }
+
+    it.each(['active', 'trashed', 'archived'] as const)(
+      'protects a %s session project without any message token',
+      async (state) => {
+        registerRuntimeDrivers()
+        const workspace = path.join(workspacesRoot, '2026-08-19', 'cherry-session')
+        mkdirSync(path.dirname(workspace), { recursive: true })
+        if (state === 'archived') writeFileSync(`${workspace}.tar.gz`, 'archive fixture')
+        else mkdirSync(workspace)
+        await seedWorkspace('ws-owned', workspace)
+        await dbh.db.insert(agentSessionTable).values({
+          id: 'cherry-session',
+          agentId: null,
+          workspaceId: 'ws-owned',
+          name: 'surviving session',
+          orderKey: 'a0',
+          deletedAt: state === 'active' ? null : Date.now()
+        })
+        expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual([])
+        const { project, transcript, directory } = seedClaudeProject(workspace)
+
+        const report = await sweepAgentOrphans()
+
+        expect(readFileSync(transcript, 'utf8')).toBe('owned transcript')
+        expect(readFileSync(path.join(directory, 'subagents', 'agent-1.jsonl'), 'utf8')).toBe('owned subagent')
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionTable)
+            .all()
+            .map((row) => row.id)
+        ).toEqual(['cherry-session'])
+        for (const target of [project, transcript, directory, path.join(directory, 'subagents', 'agent-1.jsonl')]) {
+          expect(existsSync(target), target).toBe(true)
+          expect(report.removed).not.toContain(target)
+        }
+      }
+    )
+
+    it('reclaims a user project after its last session is deleted while its workspace row remains', async () => {
+      registerRuntimeDrivers()
+      const workspace = path.join(root, 'user-workspace')
+      await seedWorkspace('ws-user', workspace)
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'user-session',
+        agentId: null,
+        workspaceId: 'ws-user',
+        name: 'user session',
+        orderKey: 'a0'
+      })
+      const { project, transcript, directory } = seedClaudeProject(workspace)
+      await dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, 'user-session'))
+
+      const report = await sweepAgentOrphans()
+
+      expect(report.removed).toEqual([transcript, directory])
+      expect(existsSync(transcript)).toBe(false)
+      expect(existsSync(directory)).toBe(false)
+      expect(existsSync(project)).toBe(true)
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-user'])
+    })
+
+    it('logs exactly the paths removed by the real Claude driver', async () => {
+      registerRuntimeDrivers()
+      const { transcript, directory } = seedClaudeProject(path.join(root, 'unowned'))
+      const retained = seedClaudeProject(path.join(root, 'claimed'), AGENT_LIVE)
+      runtimeClaimedResumeTokens.add(AGENT_LIVE)
+      mockMainLoggerService.info.mockClear()
+
+      const report = await sweepAgentOrphans()
+
+      expect(report.removed).toEqual([transcript, directory])
+      const records = mockMainLoggerService.info.mock.calls.filter(
+        ([message]) => message === 'agent-orphan-sweep-runtime-removed'
+      )
+      expect(records).toEqual([
+        [
+          'agent-orphan-sweep-runtime-removed',
+          {
+            event: 'agent-orphan-sweep-runtime-removed',
+            runtime: 'claude-code',
+            removedPaths: [transcript, directory]
+          }
+        ]
+      ])
+      expect(existsSync(retained.transcript)).toBe(true)
+      expect(existsSync(retained.directory)).toBe(true)
     })
 
     it('keeps a trashed session’s runtime state and reclaims it once the session row is purged', async () => {

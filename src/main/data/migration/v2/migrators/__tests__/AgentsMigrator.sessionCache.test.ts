@@ -11,9 +11,10 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { claudeProjectDirectoryName } from '@main/ai/utils/claudeProject'
 
 import type { MigrationContext } from '../../core/MigrationContext'
-import { claudeProjectDirectoryName, legacyAgentWorkspacePath } from '../agentsFilesystemMigration'
+import { legacyAgentWorkspacePath } from '../agentsFilesystemMigration'
 import { AgentsMigrator } from '../AgentsMigrator'
 
 const LEGACY_AGENT_ID = 'agent_1234567890_cachee2e1'
