@@ -1,4 +1,4 @@
-import { useEffect, type FC, use } from 'react'
+import { useEffect, useRef, type FC, use } from 'react'
 
 import { loggerService } from '@logger'
 import { NOTES_FILE_EDIT_OWNER_ID } from '@renderer/components/notes/NotesFileEditSessionProvider'
@@ -25,6 +25,7 @@ const logger = loggerService.withContext('NotesRelocationFlushListener')
  */
 export const NotesRelocationFlushListener: FC = () => {
   const manager = use(FileEditSessionContext)
+  const completionGeneration = useRef(0)
   useEffect(() => {
     void ipcApi
       .request('app.notes_relocation.flush_edits_register')
@@ -48,11 +49,14 @@ export const NotesRelocationFlushListener: FC = () => {
   })
 
   useIpcOn('app.notes_relocation.migrate_complete', () => {
+    completionGeneration.current += 1
     manager?.releaseOwner(NOTES_FILE_EDIT_OWNER_ID)
     unlockNotesEditsForRelocation()
   })
 
   useIpcOn('app.notes_relocation.flush_edits', async ({ requestId }) => {
+    const generation = completionGeneration.current
+    const isCurrent = () => generation === completionGeneration.current
     let ok = true
     let lockedForThisFlush = false
     let barrierEpochAtFlushLock = 0
@@ -62,7 +66,7 @@ export const NotesRelocationFlushListener: FC = () => {
         return
       }
       lockedForThisFlush = false
-      if (barrierEpochAtFlushLock !== getNotesRelocationBarrierEpoch()) {
+      if (!isCurrent() || barrierEpochAtFlushLock !== getNotesRelocationBarrierEpoch()) {
         return
       }
       if (!afterAck) {
@@ -80,7 +84,7 @@ export const NotesRelocationFlushListener: FC = () => {
           })
           return
         }
-        if (!pending) {
+        if (!pending || !isCurrent()) {
           return
         }
       }
@@ -90,21 +94,23 @@ export const NotesRelocationFlushListener: FC = () => {
     try {
       await waitForStructuralNotesWritesToSettle()
       const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
-      if (!pending) {
+      if (!pending || !isCurrent()) {
         return
       }
       lockNotesEditsForRelocation()
       lockedForThisFlush = true
       barrierEpochAtFlushLock = getNotesRelocationBarrierEpoch()
-      await flushAllNotesEdits()
+      await flushAllNotesEdits(isCurrent)
     } catch (error) {
       ok = false
       logger.error('Failed to flush notes edits before relocation', error as Error)
     }
 
+    if (!isCurrent()) return
+
     try {
       const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
-      if (!pending) {
+      if (!pending || !isCurrent()) {
         await releaseFlushLock(false)
         return
       }

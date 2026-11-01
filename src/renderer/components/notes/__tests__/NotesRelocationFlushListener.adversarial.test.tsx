@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   areNotesEditsLockedForRelocation,
   registerNotesEditFlush,
+  registerNotesEditPreFlush,
+  trackPendingNotesImagePaste,
   resetNotesEditFlushTrackingForTests,
   unlockNotesEditsForRelocation
 } from '@renderer/hooks/notesFileEditFlush'
@@ -207,6 +209,75 @@ describe('NotesRelocationFlushListener choreography (adversarial)', () => {
     expect(areNotesEditsLockedForRelocation()).toBe(false)
     expect(lease.getSnapshot().sealed).toBe(false)
     expect(writes).toEqual(['x'])
+    lease.release()
+  })
+
+  it.each(['image paste', 'pre-flush capture'])(
+    'abort before drain: a stale %s cannot seal Notes after cleanup',
+    async (stage) => {
+      const lease = await manager.acquire('notes', handle)
+      lease.acceptEdit('draft')
+      const gate = Promise.withResolvers<void>()
+      const entered = Promise.withResolvers<void>()
+      if (stage === 'image paste') {
+        void trackPendingNotesImagePaste(gate.promise)
+      } else {
+        registerNotesEditPreFlush(async () => {
+          entered.resolve()
+          await gate.promise
+        })
+      }
+      renderListener()
+      await act(async () => {})
+      barrierEngaged()
+      const handler = flushEdits('obsolete')
+      if (stage === 'pre-flush capture') await entered.promise
+      else await act(async () => {})
+      pendingFlag = false
+      migrateComplete()
+      gate.resolve()
+      await act(async () => {
+        await handler
+      })
+      expect(ackCalls).toEqual([])
+      expect(lease.getSnapshot().sealed).toBe(false)
+      expect(writes).toEqual([])
+      expect(lease.acceptEdit('after abort')).toBe(true)
+      const acquired = await manager.acquire('notes', handle)
+      acquired.release()
+      lease.release()
+    }
+  )
+
+  it('an obsolete capture cannot release or acknowledge a newer barrier seal', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('draft')
+    const gate = Promise.withResolvers<void>()
+    const entered = Promise.withResolvers<void>()
+    let captures = 0
+    registerNotesEditPreFlush(async () => {
+      if (++captures === 1) {
+        entered.resolve()
+        await gate.promise
+      }
+    })
+    renderListener()
+    await act(async () => {})
+    barrierEngaged()
+    const obsolete = flushEdits('obsolete')
+    await entered.promise
+    migrateComplete()
+    barrierEngaged()
+    await flushEdits('new')
+    expect(lease.getSnapshot().sealed).toBe(true)
+    gate.resolve()
+    await obsolete
+    expect(ackCalls).toEqual([{ requestId: 'new', ok: true }])
+    expect(writes).toEqual(['draft'])
+    expect(areNotesEditsLockedForRelocation()).toBe(true)
+    expect(lease.getSnapshot().sealed).toBe(true)
+    migrateComplete()
+    expect(lease.acceptEdit('after complete')).toBe(true)
     lease.release()
   })
 

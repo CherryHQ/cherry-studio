@@ -148,10 +148,13 @@ export async function waitForPendingNotesImagePastes(): Promise<void> {
  * drains seal the session manager and flush every notes draft. Any failure
  * rejects so the relocation aborts instead of proceeding past unsaved content.
  */
-export async function flushAllNotesEdits(): Promise<void> {
+export async function flushAllNotesEdits(isCurrent: () => boolean = () => true): Promise<void> {
   await waitForPendingNotesImagePastes()
   for (const preFlush of preFlushCallbacks) {
+    if (!isCurrent()) return
     await preFlush()
   }
-  await Promise.all([...flushCallbacks].map((flush) => flush()))
+  // A completion can arrive while capture awaits a paste or pre-flush pull.
+  // Do not let an obsolete continuation acquire a new manager seal afterward.
+  await Promise.all([...flushCallbacks].map((flush) => (isCurrent() ? flush() : Promise.resolve())))
 }
