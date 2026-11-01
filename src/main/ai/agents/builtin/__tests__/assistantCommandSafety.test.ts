@@ -60,6 +60,19 @@ describe('detectDestructiveAssistantCommand', () => {
     ['cmd /c "2> nul rd /s /q victimdir"', 'permanent Windows file deletion'],
     ['cmd /c ">a>b 2>&1 del victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c "2> "log file.txt" del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "del>nul victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "rd>>log victimdir"', 'permanent Windows file deletion'],
+    ['cmd /c start /b del /q victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c start "t" /min del victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c start /d C:\\ del victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c start start del victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c start /b start del victim.txt', 'permanent Windows file deletion'],
+    ['start the job and del the files', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$null = del victim.txt'", 'permanent Windows file deletion'],
+    ['$out = erase victim.txt', 'permanent Windows file deletion'],
+    ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
+    ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
+    ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
     ['powershell.exe -NoProfile del foo', 'permanent Windows file deletion'],
     ['DEL /Q file.txt', 'permanent Windows file deletion'],
     ['echo hi && del file.txt', 'permanent Windows file deletion'],
@@ -110,6 +123,7 @@ describe('detectDestructiveAssistantCommand', () => {
     'git status 2>&1 | head -5',
     'npm test > output.log 2>&1',
     'echo "use 2>nul to hide errors when you delete files"',
+    'echo "$x == 5 compares, not assigns"',
     'ls modelo'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
@@ -197,6 +211,47 @@ describe('detectDestructiveAssistantCommand', () => {
     const twentyMixed = 'cmd /c "' + '2>nul '.repeat(20) + 'del victim.txt"'
     expect(detectDestructiveAssistantCommand(nineQuoted)).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand(twentyMixed)).toBe('permanent Windows file deletion')
+  })
+
+  it('stays linear on repeated start anchors (argument rescan regression)', () => {
+    // Every `start` word is a command-position anchor; if argument tokens may swallow later
+    // `start` words, each anchor rescans the whole remainder: quadratic (436ms at 5000, 1.7s at
+    // 10000). Bare values therefore stop at the next `start`, and nested `start start del x`
+    // still denies via the innermost anchor.
+    const bare = 'start '.repeat(10000) + 'x'
+    const withSwitch = 'start /b '.repeat(5000) + 'x'
+    const withTitle = 'start "t" '.repeat(5000) + 'x'
+    const proseShaped = 'start the job and '.repeat(5000) + 'x'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(bare)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(withSwitch)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(withTitle)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(proseShaped)).toBeUndefined()
+    // Unfixed took 0.4-1.8s each here; linear is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // Nested start still denies through the innermost anchor.
+    expect(detectDestructiveAssistantCommand('cmd /c start start del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('stays linear on large newline runs and mixed gap runs (separator restart regression)', () => {
+    // Newlines are command separators, so every newline in a run used to restart a maximal gap
+    // rescan: quadratic on the main thread (631ms at 20k, 2.5s at 40k). Only the first newline of
+    // a gap run may start a match.
+    const homogeneous = 'echo ok &&' + '\n'.repeat(20000) + 'echo hello'
+    const alternating = 'echo ok &&' + '\n '.repeat(20000) + 'echo hello'
+    const crlf = 'echo ok &&' + '\r\n'.repeat(20000) + 'echo hello'
+    const mixed = 'echo ok &&' + '" \n@'.repeat(10000) + 'echo hello'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(homogeneous)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(alternating)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(crlf)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(mixed)).toBeUndefined()
+    // Unfixed runs took 0.6-2.6s each here; linear is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // Newline-separated deletions still detect.
+    expect(detectDestructiveAssistantCommand('echo ok\ndel victim.txt')).toBe('permanent Windows file deletion')
   })
 
   it('stays linear on long failing redirect chains with separators (unanchored rescan regression)', () => {

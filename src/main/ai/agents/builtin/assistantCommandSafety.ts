@@ -46,15 +46,33 @@ const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\
 // is unaffected: a match may start at any of the last <=8 redirects before the deletion token.
 const CMD_REDIRECT_TARGET = String.raw`(?:&[0-9]|"[^"]*"|'[^']*'|[^\s;&|<>"']+)`
 const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGET}(?:\s+(?=[0-9]?(?:>>?|<)))?){1,8}`
+// `start` accepts any mix of quoted titles, switches and switch values before the program word:
+// `start /b del x`, `start "t" /min del x`, `start /d C:\ del x`. Tokens are disjoint by first
+// character, so each position has one parse, and the unbounded count mirrors the unbounded
+// argument list instead of drawing a line a valid command can cross. A bare value may be neither
+// the deletion word nor `start` itself: without that, every `start` word in the string would
+// restart an argument scan over the whole remainder (quadratic), and nested `start start del x`
+// still denies because the unanchored retry anchors at the innermost `start`.
+const CMD_START_ARGS = String.raw`(?:\s+"[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|start\b)[^\s;&|/"(){}]+)+`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
 // The gap before the deletion token is one atomic scan: the lookahead captures the maximal run of
 // whitespace/quotes/`@` and the backreference re-matches it, so a failed token check cannot split the
 // run across adjacent quantifiers (split ambiguity was the quadratic here). The pattern has no other
 // capture groups, so the backreference stays group 1 - keep it that way.
+// A newline acts as a command separator only when no newline precedes it inside the same gap
+// run: the expression is unanchored, so every later newline (including alternating space/CR/
+// quote mixes) would restart a maximal gap rescan - quadratic. The lookbehind checks backwards
+// only as far as the nearest preceding newline (lazy run), so a whole run stays linear, and a
+// newline after other gap characters still fires at the run's first newline.
+// `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
+// assignment target may precede it (`$null = del x`), and the token itself may be followed by
+// adjacent redirections (`del>nul x`) - all ordinary executable deletion forms that keep the
+// enforced deny. A `$var =` mention inside prose still denies, matching the pre-narrowing
+// guard: the mention is indistinguishable from a real assignment without full quoting state.
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
-  String.raw`(?:^|[;&|(){\r\n` +
+  String.raw`(?:^|[;&|(){` +
     '`' +
-    String.raw`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'])`,
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bstart${CMD_START_ARGS}(?=\s)|\$[a-zA-Z_][a-zA-Z0-9_]*\s*=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
   'i'
 )
 
