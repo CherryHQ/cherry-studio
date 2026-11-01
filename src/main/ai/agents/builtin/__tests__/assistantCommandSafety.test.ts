@@ -53,6 +53,16 @@ describe('detectDestructiveAssistantCommand', () => {
     // Batch echo suppression applies to any command, including `start` and its arguments.
     ['cmd /c "@start /b del victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c "@@start /min /b del victim.txt"', 'permanent Windows file deletion'],
+    // PowerShell invocation positions: dot invocation executes the command, compound and
+    // null-coalescing assignments evaluate the right-hand side, and iex/Invoke-Expression
+    // execute their argument string.
+    ["pwsh -NoProfile -Command '. del victim.txt'", 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$a += del victim.txt'", 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$a ??= del victim.txt'", 'permanent Windows file deletion'],
+    ['pwsh -NoProfile -Command "iex \'del victim.txt\'"', 'permanent Windows file deletion'],
+    ['pwsh -NoProfile -Command "Invoke-Expression \'del victim.txt\'"', 'permanent Windows file deletion'],
+    // Dot invocation still denies at a separator command position, not only after a quote.
+    ['pwsh -NoProfile -Command "$x = 1; . del victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c "2>nul del /q victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c >nul del /q victim.txt', 'permanent Windows file deletion'],
     ['cmd /c "1>out.txt 2>&1 del victim.txt"', 'permanent Windows file deletion'],
@@ -220,6 +230,14 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(twentyMixed)).toBe('permanent Windows file deletion')
   })
 
+  it.each([
+    `pwsh -NoProfile -Command 'Write-Host "cleanup. erase old files"'`,
+    `bash -c 'echo "step 3. del temp"'`,
+    'remove it. del / cleanup. erase;'
+  ])('does not anchor on a prose sentence period: %s', (input) => {
+    expect(detectDestructiveAssistantCommand(input)).toBeUndefined()
+  })
+
   it('stays linear on repeated start anchors (argument rescan regression)', () => {
     // Every `start` word is a command-position anchor; if argument tokens may swallow later
     // `start` words, each anchor rescans the whole remainder: quadratic (436ms at 5000, 1.7s at
@@ -245,6 +263,10 @@ describe('detectDestructiveAssistantCommand', () => {
       'permanent Windows file deletion'
     )
     expect(detectDestructiveAssistantCommand('cmd /c start @start /b del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // A quote-prefixed start keeps its own anchor (it is not swallowed as an argument).
+    expect(detectDestructiveAssistantCommand(`cmd /c "'start /b del victim.txt'"`)).toBe(
       'permanent Windows file deletion'
     )
   })
@@ -334,6 +356,7 @@ describe('detectDestructiveAssistantCommand', () => {
     // before it), so argument-glued `start` tokens no longer anchor it.
     const slash = 'echo "' + '/start '.repeat(16000) + 'x"'
     const atStart = 'echo "' + '@start '.repeat(20000) + 'x"'
+    const quoteStart = 'echo "' + "'start ".repeat(16000) + 'x"'
     const nestedAt = 'start ' + '@start '.repeat(20000) + 'x'
     const backslash = 'start ' + '\\start '.repeat(10000) + 'x'
     const dashed = 'start ' + 'foo-start '.repeat(10000) + 'x'
@@ -341,6 +364,7 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(slash)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(atStart)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(nestedAt)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(quoteStart)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(backslash)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(dashed)).toBeUndefined()
     // Unfixed took 2.5-7.8s per shape here; linear is low ms. 2s is generous CI headroom.
