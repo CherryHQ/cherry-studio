@@ -92,7 +92,7 @@ jobs:
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts resolve
       - name: Upload input failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qa-ondemand-input-errors-${{ github.run_id }}
           path: ${{ env.QA_OUT }}
@@ -195,7 +195,7 @@ jobs:
           JS
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qa-ondemand-${{ needs.resolve.outputs.spec }}-${{ needs.resolve.outputs.platform }}-${{ needs.resolve.outputs.short_sha }}
           path: ${{ env.QA_OUT }}
