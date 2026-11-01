@@ -455,6 +455,391 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('resolveToolExecution', () => {
+    const createManagedService = () => {
+      const service = new BinaryManager()
+      Object.assign(service, {
+        miseBin: '/mock/mise',
+        isolatedEnv: { env: { HOME: '/isolated' }, usesDefaultChinaPipIndex: false }
+      })
+      return service
+    }
+    const options = () => ({ signal: new AbortController().signal, deadline: performance.now() + 10_000 })
+    const missing = () => Object.assign(new Error('missing'), { code: 'ENOENT' })
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    })
+
+    it('queries only which rtk despite unrelated installs, definitions and operations, preserving both target paths', async () => {
+      const service = createManagedService()
+      manifestRef.value = [{ name: 'custom', tool: 'npm:custom' }]
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        later: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockImplementation(async (_bin, args) => ({
+        stdout:
+          args[0] === 'ls'
+            ? JSON.stringify({ rtk: [{ active: true }], node: [{ active: true }], python: [{ active: true }] })
+            : '\n/managed/latest/rtk\n',
+        stderr: ''
+      }))
+      mockFsp.realpath.mockResolvedValue('/managed/0.30.1/rtk')
+      await expect(service.resolveToolExecution('rtk', options())).resolves.toEqual({
+        status: 'available',
+        source: 'mise',
+        path: '/managed/0.30.1/rtk',
+        resolvedPath: '/managed/latest/rtk',
+        env: { ...process.env, ...getBinaryExecutionEnv() }
+      })
+      expect(mockExecFileAsync.mock.calls.map(([, args]) => args)).toEqual([['which', 'rtk']])
+      expect(getRawShellEnv).not.toHaveBeenCalled()
+      expect(mockPreferenceService.get).not.toHaveBeenCalled()
+      expect(mockFsp.readdir).not.toHaveBeenCalled()
+    })
+
+    it.each(['throw', 'empty', 'relative'])(
+      'preserves query failure for %s mise output without a fallback',
+      async (mode) => {
+        const service = createManagedService()
+        if (mode === 'throw') mockExecFileAsync.mockRejectedValue(new Error('private stderr'))
+        else mockExecFileAsync.mockResolvedValue({ stdout: mode === 'empty' ? '' : 'relative/rtk', stderr: '' })
+        await expect(service.resolveToolExecution('rtk', options())).resolves.toMatchObject({
+          status: 'failed',
+          reason: 'query_failed',
+          phase: mode === 'throw' ? 'mise_which' : 'target_check'
+        })
+      }
+    )
+
+    it.each(['throw', 'empty', 'relative'])(
+      'uses system fallback after %s mise query failure with the same raw env',
+      async (mode) => {
+        const service = createManagedService()
+        if (mode === 'throw') mockExecFileAsync.mockRejectedValue(new Error('offline'))
+        else mockExecFileAsync.mockResolvedValue({ stdout: mode === 'empty' ? '' : './rtk', stderr: '' })
+        const env = { PATH: '/user/bin', HOME: '/user', MISE_DATA_DIR: '/user/mise' }
+        vi.mocked(getRawShellEnv).mockResolvedValue(env)
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/user/bin/rtk')
+        const result = await service.resolveToolExecution('rtk', options())
+        expect(result).toEqual({
+          status: 'available',
+          source: 'system',
+          path: '/user/bin/rtk',
+          resolvedPath: '/user/bin/rtk',
+          env
+        })
+        if (result.status === 'available') expect(result.env).not.toBe(env)
+        expect(getRawShellEnv).toHaveBeenCalledOnce()
+        expect(findCommandInShellEnv).toHaveBeenCalledWith('rtk', env, expect.any(AbortSignal))
+      }
+    )
+
+    it('uses an executable bundled fallback without reading markers or raw shell env', async () => {
+      const service = createManagedService()
+      mockExecFileAsync.mockRejectedValue(new Error('offline'))
+      await expect(service.resolveToolExecution('bun', options())).resolves.toMatchObject({
+        status: 'available',
+        source: 'bundled',
+        path: '/mock/cherry.bin/bun',
+        resolvedPath: '/mock/cherry.bin/bun',
+        env: { ...process.env, ...getBinaryExecutionEnv() }
+      })
+      expect(mockFs.readFileSync).not.toHaveBeenCalled()
+      expect(getRawShellEnv).not.toHaveBeenCalled()
+    })
+
+    it.each(['ENOENT', 'ENOTDIR', 'EACCES'])(
+      'reports unavailable for a non-runnable target (%s) after completed fallbacks',
+      async (code) => {
+        const service = createManagedService()
+        mockExecFileAsync.mockResolvedValue({ stdout: '/managed/rtk', stderr: '' })
+        mockFsp.realpath.mockRejectedValue(Object.assign(new Error(code), { code }))
+        await expect(service.resolveToolExecution('rtk', options())).resolves.toEqual({ status: 'unavailable' })
+      }
+    )
+
+    it('does not swallow filesystem IO errors as unavailable', async () => {
+      const service = createManagedService()
+      mockFsp.access.mockRejectedValue(Object.assign(new Error('IO error'), { code: 'EIO' }))
+      await expect(service.resolveToolExecution('rtk', options())).resolves.toMatchObject({
+        status: 'failed',
+        reason: 'query_failed',
+        phase: 'shim_check'
+      })
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('excludes Cherry paths from the system source', async () => {
+      const service = new BinaryManager()
+      mockFsp.access.mockRejectedValue(missing())
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/mock/feature.binary.data/shims/rtk')
+      await expect(service.resolveToolExecution('rtk', options())).resolves.toEqual({ status: 'unavailable' })
+    })
+
+    it.each(['aborted', 'expired'])('does no work for an already %s caller', async (mode) => {
+      const service = createManagedService()
+      const controller = new AbortController()
+      if (mode === 'aborted') controller.abort()
+      await expect(
+        service.resolveToolExecution('rtk', {
+          signal: controller.signal,
+          deadline: performance.now() + (mode === 'expired' ? -1 : 10_000)
+        })
+      ).resolves.toMatchObject({
+        status: 'failed',
+        phase: 'shim_check',
+        reason: mode === 'aborted' ? 'aborted' : 'timeout'
+      })
+      expect(mockFsp.access).not.toHaveBeenCalled()
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('charges preceding stages to the same deadline and aborts which without starting fallbacks', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let clock = 0
+      vi.spyOn(performance, 'now').mockImplementation(() => clock)
+      vi.spyOn(Date, 'now').mockImplementation(() => clock)
+      const service = createManagedService()
+      let releaseShim!: () => void
+      mockFsp.access.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseShim = () => resolve(undefined)
+        })
+      )
+      let releaseWhich!: (value: { stdout: string; stderr: string }) => void
+      mockExecFileAsync.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseWhich = resolve
+        })
+      )
+      const controller = new AbortController()
+      const pending = service.resolveToolExecution('rtk', { signal: controller.signal, deadline: 10_000 })
+      await vi.advanceTimersByTimeAsync(0)
+      clock = 100
+      await vi.advanceTimersByTimeAsync(100)
+      releaseShim()
+      await vi.advanceTimersByTimeAsync(0)
+      const spawnOptions = mockExecFileAsync.mock.calls[0][2]
+      expect(spawnOptions.timeout).toBe(8_000)
+      expect(spawnOptions.signal.aborted).toBe(false)
+      clock = 8_100
+      await vi.advanceTimersByTimeAsync(8_000)
+      await expect(pending).resolves.toMatchObject({
+        status: 'failed',
+        phase: 'mise_which',
+        reason: 'timeout',
+        elapsedMs: 8_100
+      })
+      expect(spawnOptions.signal.aborted).toBe(true)
+      expect(controller.signal.aborted).toBe(false)
+      releaseWhich({ stdout: '/late/rtk', stderr: '' })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockFsp.realpath).not.toHaveBeenCalled()
+      expect(getRawShellEnv).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('gives which only the budget left after isolated env and rejects late env work', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let clock = 0
+      vi.spyOn(performance, 'now').mockImplementation(() => clock)
+      vi.spyOn(Date, 'now').mockImplementation(() => clock)
+      const service = createManagedService()
+      let releaseEnv!: (value: { env: Record<string, string>; usesDefaultChinaPipIndex: boolean }) => void
+      vi.spyOn(service as any, 'getIsolatedEnv').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            releaseEnv = resolve
+          })
+      )
+      mockExecFileAsync.mockReturnValueOnce(new Promise(() => {}))
+      const pending = service.resolveToolExecution('rtk', { signal: new AbortController().signal, deadline: 10_000 })
+      await vi.advanceTimersByTimeAsync(0)
+      clock = 5_900
+      await vi.advanceTimersByTimeAsync(5_900)
+      releaseEnv({ env: {}, usesDefaultChinaPipIndex: false })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockExecFileAsync.mock.calls[0][2].timeout).toBe(4_100)
+      clock = 10_000
+      await vi.advanceTimersByTimeAsync(4_100)
+      await expect(pending).resolves.toMatchObject({
+        status: 'failed',
+        phase: 'mise_which',
+        reason: 'timeout',
+        stepBudgetMs: 4_100
+      })
+    })
+
+    it.each([false, true])(
+      'bounds a cold system env independently and never looks up a late env (Windows: %s)',
+      async (windows) => {
+        platformMock.isWin = windows
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        let clock = 0
+        vi.spyOn(performance, 'now').mockImplementation(() => clock)
+        vi.spyOn(Date, 'now').mockImplementation(() => clock)
+        const service = new BinaryManager()
+        mockFsp.access.mockRejectedValue(missing())
+        let releaseEnv!: (env: Record<string, string>) => void
+        vi.mocked(getRawShellEnv).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseEnv = resolve
+            })
+        )
+        const pending = service.resolveToolExecution('rtk', { signal: new AbortController().signal, deadline: 10_000 })
+        await vi.advanceTimersByTimeAsync(0)
+        clock = 8_000
+        await vi.advanceTimersByTimeAsync(8_000)
+        await expect(pending).resolves.toMatchObject({
+          status: 'failed',
+          phase: 'system_env',
+          reason: 'timeout',
+          stepBudgetMs: 8_000
+        })
+        releaseEnv({ PATH: '/late/bin' })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(findCommandInShellEnv).not.toHaveBeenCalled()
+        expect(getRawShellEnv).toHaveBeenCalledOnce()
+        expect(vi.getTimerCount()).toBe(0)
+      }
+    )
+
+    it.each([
+      ['shim_check', 1_000],
+      ['isolated_env', 6_000],
+      ['target_check', 1_000],
+      ['bundled_check', 1_000],
+      ['system_lookup', 1_000]
+    ] as const)('bounds signal-ignoring %s work and rejects its late continuation', async (phase, limit) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let clock = 0
+      vi.spyOn(performance, 'now').mockImplementation(() => clock)
+      vi.spyOn(Date, 'now').mockImplementation(() => clock)
+      const service = createManagedService()
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '/managed/rtk', stderr: '' })
+      if (phase === 'shim_check') mockFsp.access.mockImplementationOnce(() => gate)
+      if (phase === 'isolated_env')
+        vi.spyOn(service as any, 'getIsolatedEnv').mockImplementation(async () => {
+          await gate
+          return { env: {}, usesDefaultChinaPipIndex: false }
+        })
+      if (phase === 'target_check')
+        mockFsp.realpath.mockImplementationOnce(async () => {
+          await gate
+          return '/managed/rtk'
+        })
+      if (phase === 'bundled_check') {
+        mockFsp.access.mockRejectedValueOnce(missing()).mockImplementationOnce(() => gate)
+      }
+      if (phase === 'system_lookup') {
+        mockFsp.access.mockRejectedValueOnce(missing())
+        vi.mocked(findCommandInShellEnv).mockImplementationOnce(async () => {
+          await gate
+          return '/late/rtk'
+        })
+      }
+      const pending = service.resolveToolExecution(phase === 'bundled_check' ? 'bun' : 'rtk', {
+        signal: new AbortController().signal,
+        deadline: 10_000
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      clock = limit
+      await vi.advanceTimersByTimeAsync(limit)
+      await expect(pending).resolves.toMatchObject({ status: 'failed', phase, reason: 'timeout', stepBudgetMs: limit })
+      const accessCount = mockFsp.access.mock.calls.length
+      release()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockFsp.access).toHaveBeenCalledTimes(accessCount)
+      if (phase !== 'target_check') expect(mockExecFileAsync).not.toHaveBeenCalled()
+      if (phase !== 'system_lookup') expect(getRawShellEnv).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('keeps a timed-out system env from promoting the rtk cache or overwriting a newer probe', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let clock = 0
+      vi.spyOn(performance, 'now').mockImplementation(() => clock)
+      vi.spyOn(Date, 'now').mockImplementation(() => clock)
+      const service = new BinaryManager()
+      vi.mocked(application.get).mockReturnValueOnce(service).mockReturnValueOnce(service)
+      const processRunner = await import('@main/utils/processRunner')
+      const execute = vi
+        .spyOn(processRunner, 'executeCommand')
+        .mockImplementation(async (_file, args) => (args?.[0] === '--version' ? 'rtk 0.30.1' : 'rtk ls'))
+      const { rtkRewrite } = await import('@main/utils/rtk')
+      mockFsp.access.mockRejectedValue(missing())
+      let releaseEnv!: (env: Record<string, string>) => void
+      vi.mocked(getRawShellEnv).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseEnv = resolve
+          })
+      )
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/user/bin/rtk')
+      const first = rtkRewrite('ls')
+      await vi.advanceTimersByTimeAsync(0)
+      clock = 8_000
+      await vi.advanceTimersByTimeAsync(8_000)
+      await expect(first).resolves.toBeNull()
+      expect(execute).not.toHaveBeenCalled()
+      clock = 22_999
+      await vi.advanceTimersByTimeAsync(14_999)
+      await expect(rtkRewrite('ls')).resolves.toBeNull()
+      clock = 23_000
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(rtkRewrite('ls')).resolves.toBe('rtk ls')
+      releaseEnv({ PATH: '/obsolete/bin' })
+      clock = 24_000
+      await vi.advanceTimersByTimeAsync(1_000)
+      await expect(rtkRewrite('ls')).resolves.toBe('rtk ls')
+      expect(execute.mock.calls.map(([file, args]) => [file, args])).toEqual([
+        ['/user/bin/rtk', ['--version']],
+        ['/user/bin/rtk', ['rewrite', 'ls']],
+        ['/user/bin/rtk', ['rewrite', 'ls']]
+      ])
+      expect(getRawShellEnv).toHaveBeenCalledTimes(2)
+      expect(findCommandInShellEnv).toHaveBeenCalledTimes(1)
+    })
+
+    it('converts fractional remaining time into a positive execFile timeout', async () => {
+      const service = createManagedService()
+      vi.spyOn(performance, 'now').mockReturnValue(0)
+      mockExecFileAsync.mockResolvedValue({ stdout: '/managed/rtk', stderr: '' })
+      await expect(
+        service.resolveToolExecution('rtk', { signal: new AbortController().signal, deadline: 4_000.5 })
+      ).resolves.toMatchObject({ status: 'available' })
+      expect(mockExecFileAsync.mock.calls[0][2].timeout).toBe(4_001)
+    })
+
+    it('stops an in-flight which on caller abort without aborting the caller itself', async () => {
+      const service = createManagedService()
+      let notifySpawn!: () => void
+      const spawned = new Promise<void>((resolve) => {
+        notifySpawn = resolve
+      })
+      mockExecFileAsync.mockImplementationOnce(() => {
+        notifySpawn()
+        return new Promise(() => {})
+      })
+      const controller = new AbortController()
+      const pending = service.resolveToolExecution('rtk', {
+        signal: controller.signal,
+        deadline: performance.now() + 10_000
+      })
+      await spawned
+      controller.abort()
+      await expect(pending).resolves.toMatchObject({ status: 'failed', reason: 'aborted', phase: 'mise_which' })
+      expect(mockExecFileAsync.mock.calls[0][2].signal.aborted).toBe(true)
+      expect(getRawShellEnv).not.toHaveBeenCalled()
+    })
+  })
+
   describe('getToolSnapshots', () => {
     it('returns the requested, custom-defined, auto-runtime, and operation names from the custom registry and one mise refresh', async () => {
       const service = new BinaryManager()
