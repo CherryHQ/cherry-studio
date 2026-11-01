@@ -753,7 +753,8 @@ function selectTab(name: string) {
     if (back) fireEvent.click(back)
     return
   }
-  const rowName = new RegExp(`^${name}`)
+  // The assistant 'Prompts' tab is the agent's 'Bind prompt' row.
+  const rowName = new RegExp(`^${name === 'Prompts' ? 'Bind prompt' : name}`)
   if (!screen.queryByRole('button', { name: rowName }) && back) fireEvent.click(back)
   fireEvent.click(screen.getByRole('button', { name: rowName }))
 }

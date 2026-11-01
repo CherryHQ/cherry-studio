@@ -356,7 +356,7 @@ function AgentEditDialogContent({
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
-      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
+      { id: 'prompts', label: t('settings.prompts.binding.bind') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -630,7 +630,7 @@ function AgentEditDialogContent({
             }}
           />
         </SettingsGroup>
-        <SettingsGroup title={t('library.config.dialogs.edit.tools_tab')}>
+        <SettingsGroup title={t('settings.prompts.title')}>
           <SettingsNavRow
             label={t('library.config.dialogs.edit.prompt_tab')}
             value={
@@ -640,6 +640,9 @@ function AgentEditDialogContent({
             }
             onClick={() => setActiveTab('prompt')}
           />
+          <SettingsNavRow label={t('settings.prompts.binding.bind')} onClick={() => setActiveTab('prompts')} />
+        </SettingsGroup>
+        <SettingsGroup title={t('library.config.dialogs.edit.tools_tab')}>
           {toolPages.map((page) => (
             <SettingsNavRow
               key={page.id}
@@ -650,7 +653,6 @@ function AgentEditDialogContent({
           ))}
         </SettingsGroup>
         <SettingsGroup title={t('library.config.dialogs.edit.advanced_tab')}>
-          <SettingsNavRow label={t('settings.prompts.binding.tabTitle')} onClick={() => setActiveTab('prompts')} />
           <SettingsNavRow
             label={t('library.config.agent.field.env_vars.label')}
             value={countLabel(envVarCount)}
@@ -726,7 +728,7 @@ function AgentBasicFields({
   const [heartbeatOpen, setHeartbeatOpen] = useState(false)
 
   return (
-    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0">
       <AgentAvatarNameField
         form={form}
         emojiPickerOpen={emojiPickerOpen}
