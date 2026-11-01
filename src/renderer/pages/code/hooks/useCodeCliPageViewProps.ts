@@ -288,6 +288,7 @@ export function useCodeCliPageViewProps(
   })
   const openClawGateway = useOpenClawGatewayController({
     selectedCliTool,
+    openClawVersion: versionStatus.current,
     enabledProvider,
     currentProviderConfig: enabledProviderConfig,
     upsertProviderConfig,
@@ -348,6 +349,7 @@ export function useCodeCliPageViewProps(
           selectedCliTool,
           activeMeta,
           versionStatus,
+          startupError: openClawGateway.startupError ?? undefined,
           versionCard: {
             visible: true,
             canLaunch,
@@ -413,6 +415,8 @@ export function useCodeCliPageViewProps(
               : isHermesDashboardTool
                 ? void hermesDashboard.onOpenDashboard()
                 : void openClawGateway.onOpenDashboard(),
+          onCopyStartupError: openClawGateway.onCopyStartupError,
+          onDismissStartupError: openClawGateway.onDismissStartupError,
           onConfigure: configPanel.openConfigurePanel,
           onToggleCurrent: configPanel.onToggleCurrent,
           onReorder: handleReorder
