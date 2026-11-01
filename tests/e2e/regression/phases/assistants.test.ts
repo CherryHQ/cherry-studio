@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { rm, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -765,17 +764,9 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
         await page.evaluate(() => navigator.clipboard.writeText('MP23_BEFORE_COPY'))
         openExternalText(app.record.platform, app.paths, exportedPath)
         sendSystemHotkey(app.record.platform, ['Meta', 'c'])
-        // The external viewer keeps focus while the copy lands, so the renderer clipboard API
-        // refuses to read it back; pbpaste reads the same system clipboard without focus.
-        await expect
-          .poll(
-            () => execFileSync('/usr/bin/pbpaste', { encoding: 'utf8' }).replace(/\r\n/g, '\n').trimEnd(),
-            { timeout: 15_000 }
-          )
-          .toBe(content.trimEnd())
+        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(content)
       } finally {
         closeExternalText(app.record.platform)
-        await page.bringToFront()
       }
     }
     await screenshot('MP-23 original assistant after JSON export')
@@ -816,7 +807,6 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       { timeout: 3000 }
     )
   } finally {
-    await rm(exportedPath, { force: true })
     await page.keyboard.press('Escape').catch(() => undefined)
     const assistants = await readAssistants()
     await page.evaluate(
