@@ -657,13 +657,14 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$h.("a""b") = del victim.txt')).toBe('permanent Windows file deletion')
     // Arbitrary computed expressions stay a documented best-effort gap.
     expect(detectDestructiveAssistantCommand('$h.($x) = del victim.txt')).toBeUndefined()
-    // Identifiers may contain ? in the tail; the first character still cannot be ?.
+    // Identifiers may contain ? in any position; execution ordering with a read-only target is
+    // unverified, so deny conservatively (the same assumption behind covering $null = ...).
     expect(detectDestructiveAssistantCommand('$a? = del victim.txt')).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '$a? = del victim.txt'")).toBe(
       'permanent Windows file deletion'
     )
     expect(detectDestructiveAssistantCommand('$x?y = del victim.txt')).toBe('permanent Windows file deletion')
-    expect(detectDestructiveAssistantCommand('$? = del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('$? = del victim.txt')).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand('what? = del victim.txt')).toBeUndefined()
   })
 
@@ -677,8 +678,9 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$script:a? = del victim.txt')).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand('$private:x? = del victim.txt')).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand('$global:a?b = del victim.txt')).toBe('permanent Windows file deletion')
-    // The scoped first character still excludes ?, and existing scoped coverage is unchanged.
-    expect(detectDestructiveAssistantCommand('$global:? = del victim.txt')).toBeUndefined()
+    // The scoped first character also accepts ? under the same conservative assumption.
+    // Existing scoped coverage is unchanged.
+    expect(detectDestructiveAssistantCommand('$global:? = del victim.txt')).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand('$global:a = del victim.txt')).toBe('permanent Windows file deletion')
   })
 })
