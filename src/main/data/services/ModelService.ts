@@ -529,7 +529,7 @@ class ModelService {
         (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
           ? projectRuntimeReasoning(
               {
-                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+                controls: [{ kind: 'toggle' }]
               },
               registryData.reasoningProfile.wire
             )

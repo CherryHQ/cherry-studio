@@ -1868,7 +1868,7 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
   })
 
-  it('uses Ollama toggle and effort controls for an unknown model that declares the thinking capability', async () => {
+  it('uses only Ollama toggle controls when an unknown model declares thinking capability', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
     const registryData = {
       presetModel: null,
@@ -1889,8 +1889,8 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     ])
 
     expect(created.reasoning).toMatchObject({
-      controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }],
-      selectableEfforts: ['low', 'medium', 'high', 'none']
+      controls: [{ kind: 'toggle' }],
+      selectableEfforts: ['none', 'auto']
     })
 
     const [row] = await dbh.db
@@ -1898,7 +1898,7 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'ollama'), eq(userModelTable.modelId, 'acme-thinker:latest')))
     expect(row.reasoning).toMatchObject({
-      controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+      controls: [{ kind: 'toggle' }]
     })
   })
 })

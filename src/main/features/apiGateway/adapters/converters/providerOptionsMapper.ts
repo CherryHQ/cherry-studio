@@ -90,6 +90,23 @@ function resolveNativeAnthropicEffort(
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
 }
 
+function buildOllamaThinkingOptions(
+  context: ProviderReasoningContext,
+  effort: GatewayReasoningEffort,
+  maxTokens?: number
+): ProviderOptions | undefined {
+  const controls = context.invocationModel.reasoning?.controls
+  const hasEffortControl = controls?.some((control) => control.kind === 'effort') ?? false
+  const hasToggleControl = controls?.some((control) => control.kind === 'toggle') ?? false
+
+  if (effort === 'default') return undefined
+  if (effort === 'none') {
+    return hasEffortControl || hasToggleControl ? buildProviderOptions(context, effort, maxTokens) : undefined
+  }
+  if (hasEffortControl) return buildProviderOptions(context, effort, maxTokens)
+  return hasToggleControl ? buildProviderOptions(context, 'auto', maxTokens) : undefined
+}
+
 /** Keep Anthropic-native thinking envelopes byte-for-byte equivalent; effort arrives pre-projected. */
 function passThroughAnthropicReasoning(
   config: AnthropicThinkingConfig | undefined,
@@ -145,12 +162,16 @@ export function mapAnthropicThinkingToProviderOptions(
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
     if (config?.type !== 'disabled' && effort == null && config?.type !== 'enabled') return undefined
     const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
-    if (config?.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
-    if (effort != null) return buildProviderOptions(context, effort, maxTokens)
+    if (config?.type === 'disabled') return buildOllamaThinkingOptions(context, 'none', maxTokens)
+    if (effort != null) return buildOllamaThinkingOptions(context, effort, maxTokens)
     if (config?.type === 'enabled') {
-      const budgetEffort =
-        nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
-      return buildProviderOptions(context, budgetEffort, maxTokens)
+      const controls = context.invocationModel.reasoning?.controls
+      if (controls?.some((control) => control.kind === 'effort')) {
+        const budgetEffort =
+          nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
+        return buildOllamaThinkingOptions(context, budgetEffort, maxTokens)
+      }
+      return buildOllamaThinkingOptions(context, 'auto', maxTokens)
     }
     return undefined
   }
