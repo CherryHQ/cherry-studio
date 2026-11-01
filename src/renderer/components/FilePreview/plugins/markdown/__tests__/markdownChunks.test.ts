@@ -959,6 +959,17 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('does not open a list item on a setext underline', () => {
+    // The dash is the heading's underline, not an empty item; tracking it made the indented
+    // definition its content and hoisted a code-only first definition over the real destination.
+    const content = ['Title', '-', '    [x]: https://wrong.example', '', '[x]: https://right.example', '', '[x]'].join(
+      '\n'
+    )
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it('recognizes HTML inside a list item opened after a paragraph', () => {
     // The new item opens a block, so its `<br>` is HTML even though the paragraph above is open;
     // reading it as prose hoisted the definition-shaped HTML text and changed the link target.
@@ -1704,6 +1715,17 @@ describe('splitMarkdownChunks', () => {
       expect(chunk.text).toContain('[^n]: first\nsecond')
     }
     expect(chunks.filter((chunk) => chunk.text.includes('> [^n]'))).toHaveLength(1)
+  })
+
+  it('keeps a lazy fence line inside a quoted footnote paragraph', () => {
+    // The unmarked continuation is lazy, so the fence cannot interrupt the note's paragraph; the
+    // carried copy must keep the same text instead of truncating at an empty fence.
+    const content = '> [^x]: note\n    ```\n    important\n\n[^x]'
+
+    for (const chunk of chunksOf(content)) {
+      const definitions = parsed(chunk.text).children.filter((node) => node.type === 'footnoteDefinition')
+      expect(JSON.stringify(definitions[0])).toContain('important')
+    }
   })
 
   it('does not carry a lazy line a blank line takes out of the footnote definition', () => {

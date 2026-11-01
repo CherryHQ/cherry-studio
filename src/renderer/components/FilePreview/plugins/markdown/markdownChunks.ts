@@ -2939,7 +2939,14 @@ export function splitMarkdownChunks(
         activeDefinitionContainer && !blank ? stripDefinitionContainer(line, activeDefinitionContainer) : line
       // A line short of the container is a lazy paragraph continuation: it carries the content
       // read past the markers, never the markers themselves.
-      const carried = stripped ?? footnoteLazyContent ?? line
+      // A lazy line that would open a block in the carried copy gets an extra indent: as indented
+      // code it cannot interrupt the note's paragraph, so it reads as the original text.
+      const lazyView =
+        stripped === null && footnoteLazyContent !== undefined
+          ? afterColumns(4, pastQuoteMarkers(footnoteLazyContent).content)
+          : undefined
+      const lazyCarry = footnoteDefinition && lazyView !== undefined && startsBlock(lazyView)
+      const carried = lazyCarry ? `    ${footnoteLazyContent}` : (stripped ?? footnoteLazyContent ?? line)
       // A quoted definition's blank marker line carries as a plain blank line: the parser reads
       // the definition's paragraphs across it, and `>` alone would start a quote block of its own.
       definitions.push(isBlankLine(carried) ? '' : carried)
@@ -2961,7 +2968,7 @@ export function splitMarkdownChunks(
         }
       }
       if (!isBlankLine(carried))
-        footnoteParagraphOpen = inNestedDefinition ? false : continuesFootnoteParagraph(carried)
+        footnoteParagraphOpen = inNestedDefinition ? false : lazyCarry || continuesFootnoteParagraph(carried)
       continue
     }
     // An empty item's content sits on the line below it, at the item's own column: `-` then
@@ -3075,6 +3082,7 @@ export function splitMarkdownChunks(
     // Heading ids are numbered over the whole document, so a heading is recorded where it renders:
     // an ATX heading where it stands, a setext one on the paragraph its underline turns into one —
     // which the parser reads whole, line after line.
+    let setextHeading = false
     if (!blank && !containerHoldsCode) {
       const atx = atxHeadingText(uncontained)
       if (atx !== null) {
@@ -3093,6 +3101,7 @@ export function splitMarkdownChunks(
             .map((part) => part.slice((DEFINITION_CONTAINER.exec(part)?.[0] ?? '').length))
             .join('\n')
           recordHeading(paragraphStart, text)
+          setextHeading = true
         }
       }
     }
@@ -3128,7 +3137,7 @@ export function splitMarkdownChunks(
     }
 
     // A thematic break carries an item marker at its head but is a block of its own.
-    const item = THEMATIC_BREAK.test(line) ? null : LIST_ITEM.exec(line)
+    const item = THEMATIC_BREAK.test(line) || setextHeading ? null : LIST_ITEM.exec(line)
     if (item) {
       run = trackListItem(run, item, line)
       pendingEmptyItem = item[1] === '' && EMPTY_LIST_ITEM.test(line) ? itemContentColumn(line, item) : null
