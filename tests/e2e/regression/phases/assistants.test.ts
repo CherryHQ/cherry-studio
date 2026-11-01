@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { rm, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -98,7 +99,7 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
       createUniqueModelId(providerId, server.modelId)
     )
     await page.reload()
-    await screenshot('MP-20 application before Home navigation')
+    await screenshot('MP-20 application before Chat navigation')
     const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]:visible').first()
 
     const errors: string[] = []
@@ -115,9 +116,12 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
         })
         state.mp20Observer.observe(document.body, { childList: true, subtree: true, characterData: true })
       })
-      await selectSidebarApp(page, 'Home')
+      await selectSidebarApp(page, 'Chat')
+      // The app restores the last used topic on reload, and that topic keeps its own model;
+      // start a new conversation so the request reaches the mock provider.
+      await page.getByRole('button', { name: 'New Chat', exact: true }).last().click()
       await expect(composer).toBeEditable()
-      await screenshot('MP-20 Home composer')
+      await screenshot('MP-20 new conversation composer')
       await composer.fill('hello')
       const started = performance.now()
       const requestPromise = server.nextRequest(5_000)
@@ -163,12 +167,11 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
       expect(name).not.toBe('')
       await screenshot('MP-20 automatically created conversation')
 
-      await selectSidebarApp(page, 'Home')
+      await selectSidebarApp(page, 'Chat')
       await expect(composer).toBeEditable()
-      await expect(page.getByText('Recent', { exact: true })).toBeVisible()
       const recentTopic = page.getByText(name, { exact: true }).filter({ visible: true })
       await expect(recentTopic).toHaveCount(1)
-      await screenshot('MP-20 Home recent conversation')
+      await screenshot('MP-20 conversation list')
       await recentTopic.click()
       await expect(chat).toBeVisible()
       await expect(messages).toHaveCount(2)
@@ -764,9 +767,17 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
         await page.evaluate(() => navigator.clipboard.writeText('MP23_BEFORE_COPY'))
         openExternalText(app.record.platform, app.paths, exportedPath)
         sendSystemHotkey(app.record.platform, ['Meta', 'c'])
-        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(content)
+        // The external viewer keeps focus while the copy lands, so the renderer clipboard API
+        // refuses to read it back; pbpaste reads the same system clipboard without focus.
+        await expect
+          .poll(
+            () => execFileSync('/usr/bin/pbpaste', { encoding: 'utf8' }).replace(/\r\n/g, '\n').trimEnd(),
+            { timeout: 15_000 }
+          )
+          .toBe(content.trimEnd())
       } finally {
         closeExternalText(app.record.platform)
+        await page.bringToFront()
       }
     }
     await screenshot('MP-23 original assistant after JSON export')
@@ -807,6 +818,7 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       { timeout: 3000 }
     )
   } finally {
+    await rm(exportedPath, { force: true })
     await page.keyboard.press('Escape').catch(() => undefined)
     const assistants = await readAssistants()
     await page.evaluate(
