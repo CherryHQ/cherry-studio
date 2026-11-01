@@ -58,7 +58,8 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // restart an argument scan over the whole remainder (quadratic), and nested `start start del x`
 // still denies because the unanchored retry anchors at the innermost `start`. The anchor itself
 // is suppressed after argument-token characters (`/start`, `\start`, `foo-start`): a `start`
-// glued to an argument token is not the start command, and every such token would otherwise
+// glued to an argument token is not the start command (an echo-suppression `@` only counts at a
+// command position, so `/x@start` stays an argument), and every such token would otherwise
 // restart an argument scan (quadratic, e.g. `/start ` repeated). Command-position starts - after
 // whitespace, separators, quotes or a batch `@` echo-suppression prefix - still anchor, so
 // `@start /b del x` and nested starts keep denying. Bare values stop at `@start` too: an
@@ -81,7 +82,7 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // newline after other gap characters still fires at the run's first newline.
 // `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
 // assignment target may precede it (`$null = del x`, including scoped targets like
-// `$script:output = del x`, indexed or property targets like `$a[0] =` / `$h.result =`
+// `$script:output = del x`, indexed, property, braced or quoted targets like `$a[0] =` / `$h.result =` / `${output} =` / `$h."result" =`
 // (an index segment is any non-bracket run, so `$a[$i]` denies; nested brackets like
 // `$a[$b[0]]` stay a documented best-effort gap), and compound operators
 // like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
@@ -94,11 +95,17 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){` +
     '`' +
-    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else|return|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|then|do|else|return|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
     String.raw`@])\.(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
-    String.raw`@])\bstart${CMD_START_ARGS}(?=\s)|\$[a-zA-Z_][a-zA-Z0-9_]*(?::[a-zA-Z_][a-zA-Z0-9_]*)?(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
+    String.raw`@])(?<![^\s;&|(){}"'` +
+    '`' +
+    String.raw`@]@)\bstart(?=\s)|(?<![^\s;&|(){}"'` +
+    '`' +
+    String.raw`@])(?<![^\s;&|(){}"'` +
+    '`' +
+    String.raw`@]@)\bstart${CMD_START_ARGS}(?=\s)|(?:\$[a-zA-Z_][a-zA-Z0-9_]*(?::[a-zA-Z_][a-zA-Z0-9_]*)?|\$\{[^{}\r\n]*\})(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
   'i'
 )
 

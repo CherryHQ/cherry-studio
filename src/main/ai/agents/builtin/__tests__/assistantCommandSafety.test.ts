@@ -68,6 +68,14 @@ describe('detectDestructiveAssistantCommand', () => {
     ["pwsh -NoProfile -Command '$h = @{}; $h.result = del victim.txt'", 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command '$a[0] += del victim.txt'", 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command '$a[$i] = del victim.txt'", 'permanent Windows file deletion'],
+    // Braced variables and quoted property targets also evaluate their right-hand side.
+    ["pwsh -NoProfile -Command '${output} = del victim.txt'", 'permanent Windows file deletion'],
+    ['pwsh -NoProfile -Command \'$h = @{}; $h."result" = del victim.txt\'', 'permanent Windows file deletion'],
+    ['pwsh -NoProfile -Command "$h = @{}; $h.\'result\' = del victim.txt"', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '${a}[0] = del victim.txt'", 'permanent Windows file deletion'],
+    // Doubled quotes are escaped quote characters inside a quoted property name.
+    ['pwsh -NoProfile -Command \'$h = @{}; $h."re""sult" = del victim.txt\'', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command \"$h = @{}; $h.'re''sult' = del victim.txt\"", 'permanent Windows file deletion'],
     ['cmd /c "2>nul del /q victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c >nul del /q victim.txt', 'permanent Windows file deletion'],
     ['cmd /c "1>out.txt 2>&1 del victim.txt"', 'permanent Windows file deletion'],
@@ -295,6 +303,19 @@ describe('detectDestructiveAssistantCommand', () => {
     )
   })
 
+  it('stays linear on repeated unclosed braced-variable heads (braced-head rescan regression)', () => {
+    // `${` opens a braced variable head; when the closing `}` never comes, an unbounded content
+    // class rescans the whole remaining suffix from every opener (measured 11/41/135/440ms at
+    // 1k/2k/4k/8k openers, quadratic). The content class excludes `{`, so each scan stops at the
+    // next opener: literal `{` inside a braced name is the documented tradeoff (same shape as the
+    // nested-bracket exclusion in the index chain).
+    const input = 'echo "' + '${aaaa'.repeat(32768) + 'x"'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(input)).toBeUndefined()
+    // Unfixed is ~7s here; linear is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+  })
+
   it('stays linear on large newline runs and mixed gap runs (separator restart regression)', () => {
     // Newlines are command separators, so every newline in a run used to restart a maximal gap
     // rescan: quadratic on the main thread (631ms at 20k, 2.5s at 40k). Only the first newline of
@@ -382,6 +403,10 @@ describe('detectDestructiveAssistantCommand', () => {
     const atStart = 'echo "' + '@start '.repeat(20000) + 'x"'
     const quoteStart = 'echo "' + "'start ".repeat(16000) + 'x"'
     const backtickStart = 'echo "' + '`start '.repeat(16000) + 'x"'
+    // A switch token with a glued @start (`/x@start`) is one argument, not a command: the @ only
+    // counts as echo suppression at a command position. Unfixed, each token anchored the start
+    // branch (measured 572/2226/8984ms at 4k/8k/16k).
+    const gluedSwitchAt = 'echo "' + '/x@start '.repeat(16000) + 'x"'
     const nestedAt = 'start ' + '@start '.repeat(20000) + 'x'
     const backslash = 'start ' + '\\start '.repeat(10000) + 'x'
     const dashed = 'start ' + 'foo-start '.repeat(10000) + 'x'
@@ -391,6 +416,7 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(nestedAt)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(quoteStart)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(backtickStart)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(gluedSwitchAt)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(backslash)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(dashed)).toBeUndefined()
     // Unfixed took 2.5-7.8s per shape here; linear is low ms. 2s is generous CI headroom.
