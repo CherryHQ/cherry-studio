@@ -45,6 +45,21 @@ describe('detectDestructiveAssistantCommand', () => {
     ['powershell.exe del foo', 'permanent Windows file deletion'],
     ['pwsh.exe del victim.txt', 'permanent Windows file deletion'],
     ['powershell -nop -ep bypass del foo', 'permanent Windows file deletion'],
+    ['powershell -NoProfile -NonInteractive del victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c "2>nul del /q victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c >nul del /q victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c "1>out.txt 2>&1 del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "<nul del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "2>nul rd /s /q victimdir"', 'permanent Windows file deletion'],
+    ['cmd /c ">>log.txt erase victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "2>&1 >out.txt del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "2> nul del /q victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "> nul del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "1> out.txt 2> &1 del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "< nul del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "2> nul rd /s /q victimdir"', 'permanent Windows file deletion'],
+    ['cmd /c ">a>b 2>&1 del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "2> "log file.txt" del victim.txt"', 'permanent Windows file deletion'],
     ['powershell.exe -NoProfile del foo', 'permanent Windows file deletion'],
     ['DEL /Q file.txt', 'permanent Windows file deletion'],
     ['echo hi && del file.txt', 'permanent Windows file deletion'],
@@ -92,6 +107,9 @@ describe('detectDestructiveAssistantCommand', () => {
     'echo "DEL del Rd erase"',
     'echo @ del is only prose here',
     'git commit -m "docs: mention @ del command form"',
+    'git status 2>&1 | head -5',
+    'npm test > output.log 2>&1',
+    'echo "use 2>nul to hide errors when you delete files"',
     'ls modelo'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
@@ -133,6 +151,83 @@ describe('detectDestructiveAssistantCommand', () => {
     }
     // The spaced-@ tail still detects after a long whitespace run.
     expect(detectDestructiveAssistantCommand('cmd /c ' + ' '.repeat(2000) + '@ del /q v.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('blocks redirection targets of any length (no fixed cap)', () => {
+    const longName = 'a'.repeat(129)
+    const longerName = 'b'.repeat(256)
+    expect(detectDestructiveAssistantCommand(`cmd /c "2>${longName} del victim.txt"`)).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand(`cmd /c "2>${longerName} del victim.txt"`)).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand(`cmd /c '2>"${longName}" del victim.txt'`)).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('stays linear on redirect chains and trailing whitespace (prefix backtracking regressions)', () => {
+    // Unquoted targets must not swallow `>`/`<`/quotes and trailing whitespace must be owned by the
+    // atomic gap alone, or redirect chains repartition across the prefix loop exponentially.
+    const chain = 'cmd /c "echo ' + '>a'.repeat(100) + ' x"'
+    const fdChain = 'cmd /c "' + '2>'.repeat(25) + ' x"'
+    const quotedChain = 'cmd /c "echo ' + '>"ab"'.repeat(20) + ' x"'
+    const trailing = 'cmd /c "2>nul' + ' '.repeat(20000) + 'x"'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(chain)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(fdChain)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(quotedChain)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(trailing)).toBeUndefined()
+    // Ambiguous v1 shapes took 45ms-18s at k=20 and 1.3s on 40k trailing spaces; unambiguous is sub-ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // The claim rows still detect alongside the probes.
+    expect(detectDestructiveAssistantCommand('cmd /c "2>nul del /q victim.txt"')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cmd /c "2> nul del victim.txt"')).toBe('permanent Windows file deletion')
+  })
+
+  it('blocks deletions behind more than 8 leading redirects (late-start matching)', () => {
+    // The redirect loop is bounded ({1,8}) for linearity; detection must still fire because the
+    // unanchored match may begin at any of the last <=8 redirects before the deletion token.
+    const nineQuoted = 'cmd /c "' + '>"f" '.repeat(9) + 'del victim.txt"'
+    const twentyMixed = 'cmd /c "' + '2>nul '.repeat(20) + 'del victim.txt"'
+    expect(detectDestructiveAssistantCommand(nineQuoted)).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand(twentyMixed)).toBe('permanent Windows file deletion')
+  })
+
+  it('stays linear on long failing redirect chains with separators (unanchored rescan regression)', () => {
+    // Each redirect start used to rescan the whole remaining chain on overall mismatch: quadratic.
+    const quotedChain = 'cmd /c "' + '>"a" '.repeat(5000) + ' x"'
+    const unquotedChain = 'cmd /c "' + '>a '.repeat(5000) + ' x"'
+    const fdChain = 'cmd /c "' + '2>a '.repeat(5000) + ' x"'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(quotedChain)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(unquotedChain)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(fdChain)).toBeUndefined()
+    // Unbounded loop took 330ms at 5000 and 5.3s at 20000 here; bounded is ~1-5ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+  })
+
+  it('stays linear on launcher flags separated by long whitespace runs (empty-value ambiguity regression)', () => {
+    // The optional launcher flag value could match empty, letting a whitespace run split across the
+    // inner value gap and the next flag gap: quadratic-to-worse backtracking on the main thread.
+    const probe =
+      'powershell ' +
+      ['-NoLogo', '-NoExit', '-Sta', '-NoProfile', '-NonInteractive'].join(' '.repeat(80)) +
+      ' echo hello'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(probe)).toBeUndefined()
+    // Ambiguous partitioning took ~10-15s on this input; unambiguous is a fraction of a ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // The launcher forms still detect, with and without flag values.
+    expect(detectDestructiveAssistantCommand('powershell -nop -ep bypass del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('powershell -NoProfile del victim.txt')).toBe(
       'permanent Windows file deletion'
     )
   })

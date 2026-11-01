@@ -36,7 +36,17 @@ const CMD_QUOTED_OR_SHORT = String.raw`(?:"[^"]*"|'[^']*'|\S{1,256})`
 const CMD_EXIST_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|\S+)`
 const CMD_COMPARISON_OPERANDS = String.raw`${CMD_QUOTED_OR_SHORT}\s+(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\s+${CMD_QUOTED_OR_SHORT}`
 const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_QUOTED_OR_SHORT}\s*==\s*${CMD_QUOTED_OR_SHORT}|${CMD_COMPARISON_OPERANDS})(?=\s)`
-const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'])[^\s]{0,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
+// CMD and sh both allow redirections before the command word (`2>nul del x`, `>log 2>&1 rd x`,
+// `<nul erase x`), with optional whitespace between operator and target (`2> nul del x`). Targets
+// stay unbounded: the unquoted form excludes whitespace, redirection and quote characters, inner
+// whitespace is consumed only between redirects via lookahead, and trailing whitespace belongs to
+// the atomic gap below, so each position has exactly one parse and matching stays linear on the
+// main thread. The fragment loop is bounded ({1,8}): the expression is unanchored, so a failing
+// run of redirects would otherwise be rescanned from every redirect start (quadratic). Detection
+// is unaffected: a match may start at any of the last <=8 redirects before the deletion token.
+const CMD_REDIRECT_TARGET = String.raw`(?:&[0-9]|"[^"]*"|'[^']*'|[^\s;&|<>"']+)`
+const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGET}(?:\s+(?=[0-9]?(?:>>?|<)))?){1,8}`
+const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
 // The gap before the deletion token is one atomic scan: the lookahead captures the maximal run of
 // whitespace/quotes/`@` and the backreference re-matches it, so a failed token check cannot split the
 // run across adjacent quantifiers (split ambiguity was the quadratic here). The pattern has no other
@@ -44,7 +54,7 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){\r\n` +
     '`' +
-    String.raw`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'])`,
+    String.raw`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'])`,
   'i'
 )
 
