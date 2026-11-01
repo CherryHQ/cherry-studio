@@ -6,7 +6,6 @@ import { GB, MB } from '@shared/utils/constants'
 import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
 import {
   FileProcessingArtifactSchema,
-  FileProcessingJobOutputSchema,
   FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '../../types/fileProcessing'
@@ -260,37 +259,6 @@ describe('FileProcessingArtifactSchema', () => {
       format: 'markdown',
       path: '/tmp/out.md'
     })
-  })
-})
-
-describe('FileProcessingJobOutputSchema', () => {
-  it('accepts a job output artifact', () => {
-    expect(
-      FileProcessingJobOutputSchema.parse({
-        artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-      })
-    ).toEqual({
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-    })
-  })
-
-  it('rejects legacy artifact arrays', () => {
-    const result = FileProcessingJobOutputSchema.safeParse({
-      artifacts: []
-    })
-
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects legacy task result fields', () => {
-    const result = FileProcessingJobOutputSchema.safeParse({
-      taskId: 'task-1',
-      status: 'completed',
-      progress: 100,
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-    })
-
-    expect(result.success).toBe(false)
   })
 })
 

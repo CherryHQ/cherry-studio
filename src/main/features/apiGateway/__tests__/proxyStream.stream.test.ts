@@ -1,7 +1,10 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { UIMessageChunk } from 'ai'
+import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -86,7 +89,10 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
-      transformChunk: (chunk: unknown) => [chunk],
+      transformChunk: (chunk: UIMessageChunk) => {
+        if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
+        return [chunk]
+      },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
     }),
@@ -97,6 +103,8 @@ vi.mock('../adapters', () => ({
   }
 }))
 
+import type { OutputFormat } from '../adapters'
+import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
 
@@ -750,6 +758,44 @@ describe('processMessage (streaming)', () => {
 })
 
 describe('processMessage (error & pause)', () => {
+  it.each(['before-commit', 'after-commit', 'non-streaming'])(
+    'terminates adapter failures without returning a callable tool or success: %s',
+    async (mode) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream: mode !== 'non-streaming', messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      const settled = response.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      if (mode === 'after-commit') commit(listener)
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad',
+        toolName: 'read',
+        input: null,
+        errorText: 'Invalid tool arguments'
+      })
+      listener.onChunk({ type: 'tool-input-available', toolCallId: 'late', toolName: 'read', input: {} })
+      await listener.onDone({} as any)
+      const result = await settled
+      if (mode === 'after-commit') {
+        if (!('value' in result)) throw new Error('Committed response rejected')
+        const body = await readAll(result.value.body)
+        expect(body).toContain('"error"')
+        expect(body).not.toContain('[DONE]')
+        expect(body).not.toContain('tool-input-available')
+      } else {
+        expect(result).toEqual({ error: new Error('Invalid tool arguments') })
+      }
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  )
+
   it('rejects the original provider error before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
     const error = { name: 'AI_APICallError', message: 'Provider rejected the request', stack: null, statusCode: 400 }
@@ -853,4 +899,98 @@ describe('processMessage (error & pause)', () => {
     expect(res.headers.get('Content-Type')).toBe('application/json')
     expect(mockAbort).toHaveBeenCalled()
   })
+})
+
+// These payloads are the serialized boundary projections also driven by real upstreams in errors.http.test.ts.
+describe('processMessage (statusless interruption delivery)', () => {
+  const payloads = [
+    {
+      id: 'typed-timeout',
+      error: serializeError(new DOMException('Private upstream detail', 'TimeoutError')),
+      message: 'Upstream request timed out'
+    },
+    {
+      id: 'typed-abort',
+      error: serializeError(new DOMException('Private upstream detail', 'AbortError')),
+      message: 'Upstream stream aborted'
+    },
+    {
+      id: 'sdk-text-only',
+      error: serializeError({ message: 'Upstream idle timeout exceeded' }),
+      message: 'Upstream request timed out'
+    },
+    {
+      id: 'ResponseAborted',
+      error: serializeError(Object.assign(new Error('Private upstream detail'), { name: 'ResponseAborted' })),
+      message: 'Upstream stream aborted'
+    }
+  ]
+  const formats: { format: OutputFormat; path: string }[] = [
+    { format: 'anthropic', path: '/v1/messages' },
+    { format: 'openai', path: '/v1/chat/completions' },
+    { format: 'openai-responses', path: '/v1/responses' },
+    { format: 'gemini', path: '/v1beta/models/fixture:generateContent' }
+  ]
+  for (const { format, path } of formats) {
+    for (const payload of payloads) {
+      for (const mode of ['before-commit', 'after-commit', 'non-streaming']) {
+        it(`${format} / ${mode} / ${payload.id}`, async () => {
+          const response = processMessage({
+            params: { model: 'openai:gpt-4', stream: mode !== 'non-streaming', messages: [] },
+            inputFormat: 'openai',
+            outputFormat: format
+          })
+          // Attach rejection handling before invoking the terminal listener.
+          const settled = response.then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error })
+          )
+          await vi.waitFor(() => expect(captured.listener).toBeDefined())
+          const listener = captured.listener!
+          listener.onChunk({ type: 'start', messageId: 'fixture' })
+          if (mode === 'after-commit') commit(listener)
+          await listener.onError({ status: 'error', error: payload.error })
+          const result = await settled
+          if (mode === 'after-commit') {
+            if (!('value' in result)) throw new Error('Committed response rejected')
+            expect(result.value.status).toBe(200)
+            const body = await readAll(result.value.body)
+            expect(body).toContain('hello')
+            expect(body.split(payload.message)).toHaveLength(2)
+            expect(body).not.toContain('Private upstream detail')
+            expect(body).not.toContain('[DONE]')
+            expect(body).not.toContain('Internal server error')
+            expect(body.endsWith('\n\n')).toBe(true)
+            const frames = body.trim().split('\n\n')
+            const terminal = JSON.parse(frames.at(-1)!.split('data: ')[1])
+            if (format === 'gemini')
+              expect(terminal).toEqual({ error: { code: 504, message: payload.message, status: 'DEADLINE_EXCEEDED' } })
+            else if (format === 'anthropic')
+              expect(terminal).toEqual({ type: 'error', error: { type: 'api_error', message: payload.message } })
+            else if (format === 'openai-responses')
+              expect(terminal).toEqual({ type: 'error', code: 'internal_error', message: payload.message })
+            else
+              expect(terminal).toEqual({
+                error: { message: payload.message, type: 'server_error', code: 'internal_error' }
+              })
+          } else {
+            if (!('error' in result)) throw new Error('Pending failure returned a successful response')
+            expect(result.error).toBe(payload.error)
+            const mapped = gatewayErrorHandler({
+              request: new Request(`http://fixture${path}`),
+              code: 'UNKNOWN',
+              error: result.error,
+              status
+            } as Parameters<typeof gatewayErrorHandler>[0])
+            expect(mapped.code).toBe(504)
+            expect(mapped.response).toMatchObject(
+              format === 'gemini'
+                ? { error: { code: 504, message: payload.message } }
+                : { error: { message: payload.message } }
+            )
+          }
+        })
+      }
+    }
+  }
 })

@@ -119,6 +119,7 @@
  * design. The asymmetry above is the actual contract.
  */
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
@@ -134,7 +135,10 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
+import type { FileEditRead } from '@shared/ipc/schemas/fileEdit'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AbsoluteFilePath,
@@ -168,6 +172,7 @@ import {
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
   deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
+  deleteUnreferencedInternalEntry as internalDeleteUnreferencedInternalEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -189,9 +194,11 @@ import {
 } from './internal/orphanSweep'
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { runPathMutationExclusive } from './pathMutationLock'
 import { safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
+import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -552,7 +559,8 @@ export interface IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: ContentHash
+    expectedContentHash?: ContentHash,
+    expectedPath?: AbsoluteFilePath
   ): Promise<FileVersion>
 
   /** Stream write with atomic commit (tmp + rename during `.end()`). Works for both origins. */
@@ -608,6 +616,9 @@ export interface IFileManager {
    * "both gone".
    */
   permanentDelete(id: FileEntryId): Promise<void>
+
+  /** Delete an internal entry only when no persistent refs hold it, checked atomically with row deletion. */
+  deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean>
 
   /** Batch internal-only — external ids in the batch will fail with the same error as `trash`. */
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
@@ -1096,6 +1107,16 @@ export class FileManager extends BaseService implements IFileManager {
     return internalRead(this.deps, id, options as { encoding?: 'text' })
   }
 
+  async readEditSnapshot(id: FileEntryId, expectedPath: AbsoluteFilePath): Promise<FileEditRead> {
+    return this.deps.contentWriteLock.runExclusive(id, () =>
+      runPathMutationExclusive(async () => {
+        const path = AbsoluteFilePathSchema.parse(await realpath(this.getPhysicalPath(id)))
+        if (path !== expectedPath) throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
+        return readEditingSnapshot(path)
+      })
+    )
+  }
+
   async readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>> {
     return internalReadChunk(this.deps, id, offset, length)
   }
@@ -1218,9 +1239,10 @@ export class FileManager extends BaseService implements IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: ContentHash
+    expectedContentHash?: ContentHash,
+    expectedPath?: AbsoluteFilePath
   ): Promise<FileVersion> {
-    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash, expectedPath)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
@@ -1251,6 +1273,12 @@ export class FileManager extends BaseService implements IFileManager {
   async permanentDelete(id: FileEntryId): Promise<void> {
     await internalPermanentDelete(this.deps, id)
     this.notifyReadModelChange([id])
+  }
+
+  async deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean> {
+    const removed = await internalDeleteUnreferencedInternalEntry(this.deps, id)
+    if (removed) this.notifyReadModelChange([id])
+    return removed
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {

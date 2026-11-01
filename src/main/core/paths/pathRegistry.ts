@@ -101,6 +101,13 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.external_app.native_file': path.join(
+      appRootResources,
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      'external-app.node'
+    ),
+
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
@@ -144,7 +151,8 @@ export function buildPathRegistry() {
     // sherpa-onnx native binding and its private onnxruntime, downloaded on demand.
     'feature.sherpa_onnx.binary': path.join(appUserDataToolchain, 'sherpa-onnx'),
 
-    // FunASR Nano and Silero VAD model files, downloaded on demand.
+    // ASR model files, downloaded on demand.
+    'feature.asr.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-asr-1.7b-8bit'),
     'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
     'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
     'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
@@ -417,6 +425,7 @@ const NO_ENSURE = [
   'app.exe_file',
   'app.extra_resources',
   'feature.voice.helper_file',
+  'feature.external_app.native_file',
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',

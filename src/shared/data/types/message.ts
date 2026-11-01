@@ -300,7 +300,6 @@ export interface WebCitationReference extends BaseCitationReference {
 
 /**
  * Knowledge base citation reference
- * Data structure compatible with KnowledgeReference[] from renderer
  */
 export interface KnowledgeCitationReference extends BaseCitationReference {
   citationType: CitationType.KNOWLEDGE
@@ -318,7 +317,6 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
 
 /**
  * Memory citation reference
- * Data structure compatible with MemoryItem[] from renderer
  */
 export interface MemoryCitationReference extends BaseCitationReference {
   citationType: CitationType.MEMORY
@@ -611,6 +609,13 @@ export interface SiblingsGroup {
   /** Nodes in this group (parentId omitted to avoid redundancy) */
   nodes: Omit<TreeNode, 'parentId'>[]
 }
+
+/**
+ * Off-path branches in a {@link TreeResponse} stop this many levels below their first-turn
+ * message, keeping the flow canvas within what its recursive Dagre layout can handle. The
+ * active path and its direct children are always returned in full.
+ */
+export const TREE_OFF_PATH_DEPTH_LIMIT = 1000
 
 /**
  * Tree query response structure

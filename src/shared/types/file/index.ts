@@ -30,3 +30,5 @@ export {
   type ReadResult
 } from './ipc'
 export { type EntryCleanupSummary, type OrphanReport, type OrphanReportCounts } from './sweep'
+
+export { FILE_EDIT_MAX_SIZE_BYTES } from './edit'

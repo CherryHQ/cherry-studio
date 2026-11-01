@@ -1,5 +1,5 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,15 +8,11 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import TextFilePreview from '../TextFilePreview'
 
 const mocks = vi.hoisted(() => ({
-  codeViewer: vi.fn(),
   readText: vi.fn()
 }))
 
-vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
-    mocks.codeViewer(props)
-    return <div data-testid="code-viewer">{props.value}</div>
-  }
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: { value: string }) => <div data-testid="code-viewer">{props.value}</div>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -58,15 +54,11 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders highlighted source with line wrapping', async () => {
+  it('renders loaded source text', async () => {
     renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      // CodeViewer defaults to wrapped=true; TextFilePreview must not override it with false.
-      expect.not.objectContaining({ wrapped: false })
-    )
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
@@ -77,19 +69,18 @@ describe('TextFilePreview', () => {
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('rejects files over 2 MiB before reading their contents', async () => {
-    renderPreview(0, 2 * 1024 * 1024 + 1)
+  it('rejects files over 8 MiB before reading their contents', async () => {
+    renderPreview(0, 8 * 1024 * 1024 + 1)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.text.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('reads files at exactly the 2 MiB limit', async () => {
-    renderPreview(0, 2 * 1024 * 1024)
+  it('reads files at exactly the 8 MiB limit', async () => {
+    renderPreview(0, 8 * 1024 * 1024)
 
-    expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
-    expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
   })
 
   it('renders non-empty whitespace as source content', async () => {
@@ -98,7 +89,7 @@ describe('TextFilePreview', () => {
     renderPreview(0, 3)
 
     expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ value: ' \n' }))
+    expect(screen.getByTestId('code-viewer').textContent).toBe(' \n')
     expect(screen.queryByText('file_preview.text.empty.title')).not.toBeInTheDocument()
   })
 
@@ -148,5 +139,41 @@ describe('TextFilePreview', () => {
     )
 
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
+  })
+
+  it('ignores an obsolete read failure while replacement metadata is pending', async () => {
+    const obsoleteRead = Promise.withResolvers<string>()
+    const metadata = {
+      kind: 'file' as const,
+      type: 'text' as const,
+      size: 24,
+      modifiedAt: 1,
+      createdAt: 1,
+      mime: 'text/plain'
+    }
+    const latestMetadata = Promise.withResolvers<typeof metadata>()
+    const currentMetadata = () => Promise.resolve(metadata)
+    const replacementMetadata = () => latestMetadata.promise
+    const props = { filePath, fileName: 'example.ts', metadata }
+    const view = render(<TextFilePreview {...props} refreshKey={0} metadataRequest={currentMetadata} />)
+    const viewer = await screen.findByTestId('code-viewer')
+    mocks.readText.mockReturnValueOnce(obsoleteRead.promise).mockResolvedValueOnce('const answer = 43')
+
+    view.rerender(<TextFilePreview {...props} refreshKey={1} metadataRequest={currentMetadata} />)
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
+    view.rerender(<TextFilePreview {...props} refreshKey={1} metadataRequest={replacementMetadata} />)
+    await act(async () => obsoleteRead.reject(new Error('Obsolete read failed')))
+    expect(screen.getByTestId('code-viewer')).toBe(viewer)
+    expect(viewer).toHaveTextContent('const answer = 42')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.readText).toHaveBeenCalledTimes(2)
+
+    const refreshedMetadata = { ...metadata, size: 32, modifiedAt: 3 }
+    await act(async () => latestMetadata.resolve(refreshedMetadata))
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('const answer = 43'))
+    view.rerender(
+      <TextFilePreview {...props} metadata={refreshedMetadata} refreshKey={1} metadataRequest={replacementMetadata} />
+    )
+    expect(mocks.readText).toHaveBeenCalledTimes(3)
   })
 })

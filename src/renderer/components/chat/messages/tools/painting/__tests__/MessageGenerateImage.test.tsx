@@ -15,9 +15,6 @@ vi.mock('@shared/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof SharedFileUtils>()),
   toSafeFileUrl: (path: string) => `file://${path}`
 }))
-vi.mock('@renderer/components/Spinner', () => ({
-  default: ({ text }: { text: React.ReactNode }) => <div data-testid="spinner">{text}</div>
-}))
 vi.mock('../../../blocks/ImageBlock', () => ({
   default: ({ images, isPending }: { images: string[]; isPending?: boolean }) => (
     <div data-testid="image-block" data-pending={String(isPending)}>

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-25-import-ghost-assistant-rollback.md
+2026-10-25-import-ghost-assistant-rollback.md: 6e56966e1c0aa04c3fbaf438ce3d7e0429df160b
+2026-10-25-import-ghost-assistant-rollback.zh.md: e179be8672fe0defdbeebc05a0342d9007e3ab55

@@ -92,6 +92,32 @@ describe('api gateway model listing', () => {
     })
   })
 
+  it.each([
+    'openai:gpt-4o [1M]',
+    'openai:gpt-4o [1m]',
+    'openai:gpt-4o[1M]',
+    'openai:gpt-4o ' // Claude Code strips the bracket token from a spaced marker but keeps the space
+  ])('resolves %j to the bare model id (Coding Partner 1M marker)', async (address) => {
+    const resolvedModel = { id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', capabilities: [] }
+    mocks.listModels.mockReturnValue([resolvedModel])
+
+    await expect(resolveGatewayModelAddress(address)).resolves.toMatchObject({
+      apiModelId: 'gpt-4o',
+      uniqueModelId: 'openai::gpt-4o'
+    })
+  })
+
+  it('prefers a model whose id itself carries the [1m] suffix', async () => {
+    mocks.listModels.mockReturnValue([
+      { id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', capabilities: [] },
+      { id: 'openai::gpt-4o[1m]', providerId: 'openai', apiModelId: 'gpt-4o[1m]', capabilities: [] }
+    ])
+
+    await expect(resolveGatewayModelAddress('openai:gpt-4o[1m]')).resolves.toMatchObject({
+      uniqueModelId: 'openai::gpt-4o[1m]'
+    })
+  })
+
   // The listing shares isPublicGatewayRoutableModel with the renderer's gateway picker: it must never
   // advertise a model the proxy cannot route (non-chat classes, un-addressable provider ids).
   it('does not expose non-chat (audio/video/transcription) models', async () => {

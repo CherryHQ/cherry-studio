@@ -5,7 +5,7 @@
   </a>
 </h1>
 
-<p align="center">English | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/docs/en-us">Documents</a> | <a href="./docs/contrib/development.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
+<p align="center">English | <a href="https://cherryai.com">Official Site</a> | <a href="https://cherryai.com/docs/en/">Documentation</a> | <a href="./docs/contrib/development.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
 
 <div align="center">
 
@@ -34,96 +34,81 @@
 
 # 🍒 Cherry Studio
 
-Cherry Studio is a desktop client that supports multiple LLM providers, available on Windows, Mac and Linux.
+Cherry Studio is an AI workstation for Windows, macOS, and Linux. Chat with multiple models, work with agents, build knowledge bases, create images, and automate everyday tasks in one place.
 
-📱 Looking for the mobile app? Check out [Cherry Studio Mobile](https://github.com/CherryHQ/cherry-studio-app) for iOS and Android.
+**[Download Desktop](https://cherryai.com/download)** · **[Getting Started](https://cherryai.com/docs/en/getting-started/quick-start/)**
+
+📱 **Cherry Studio Mobile is now available for iOS and Android!** [Download](https://cherryai.com/mobile) · [GitHub repository](https://github.com/CherryHQ/cherry-studio-app).
 
 👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
 ❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/sponsor.md) to support the development!
 
-# 🌠 Screenshot
+# 🌠 Screenshots
 
-![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+**Agents — work with files, tools, and multi-step tasks.**
 
-![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+![Cherry Studio agent workspace creating a presentation](.github/images/readme/agent-light-en.webp)
 
-![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
+**Conversations — explore ideas with your models and assistants.**
+
+![Cherry Studio conversation displaying a Mermaid chart](.github/images/readme/chat-light-en.webp)
+
+**Model providers — configure services, API keys, and models in one place.**
+
+![Cherry Studio model provider settings in light mode](.github/images/readme/provider-light-en.webp)
+
+**Knowledge bases — organize sources for retrieval and agent workflows.**
+
+![Cherry Studio knowledge base with folders and documents](.github/images/readme/knowledge-light-en.webp)
+
+**Image creation — turn prompts into images and refine your work.**
+
+![Cherry Studio image creation workspace](.github/images/readme/drawing-light-en.webp)
 
 # 🌟 Key Features
 
-1. **Diverse LLM Provider Support**:
+## Agents & Automation
 
-- ☁️ Major LLM Cloud Services: OpenAI, Gemini, Anthropic, and more
-- 🔗 AI Web Service Integration: Claude, Perplexity, [Poe](https://poe.com/), and others
-- 💻 Local Model Support with Ollama, LM Studio
+- 🤖 Create agents with their own instructions, workspaces, models, and tool permissions.
+- 🛠️ Work with files, run commands, and use browser and computer automation tools.
+- 🔌 Extend capabilities with Skills and MCP (Model Context Protocol) servers.
+- ⏰ Run scheduled tasks and connect agents to messaging platforms through Channels.
 
-2. **AI Assistants & Conversations**:
+## Models & Conversations
 
-- 📚 300+ Pre-configured AI Assistants
-- 🤖 Custom Assistant Creation
-- 💬 Multi-model Simultaneous Conversations
+- ☁️ Connect OpenAI, Anthropic, Gemini, and other cloud providers, or add custom compatible services.
+- 💻 Use local models through Ollama and LM Studio.
+- 💬 Customize assistants and compare responses from multiple models in one conversation.
+- 📝 Read and share rich responses with Markdown, code highlighting, formulas, Mermaid charts, and conversation exports.
 
-3. **Document & Data Processing**:
+## Knowledge & Documents
 
-- 📄 Supports Text, Images, Office, PDF, and more
-- ☁️ WebDAV File Management and Backup
-- 📊 Mermaid Chart Visualization
-- 💻 Code Syntax Highlighting
+- 📚 Build local knowledge bases from files, folders, and web pages, then use them in conversations and agents.
+- 📄 Process PDF, Office documents, images, and text, with OCR and document processing options.
+- ✍️ Organize ideas in Markdown notes and manage attachments and generated files in the file library.
 
-4. **Practical Tools Integration**:
+## Creative & Everyday Tools
 
-- 🔍 Global Search Functionality
-- 📝 Topic Management System
-- 🔤 AI-powered Translation
-- 🎯 Drag-and-drop Sorting
-- 🔌 Mini Program Support
-- ⚙️ MCP(Model Context Protocol) Server
+- 🎨 Generate and edit images with supported image models.
+- 🔤 Translate text and documents, and use quick translation from other apps.
+- 🔍 Search the web, read pages, and find content across your conversations and knowledge bases.
+- 🧩 Open web-based tools through Mini Apps, or use the API Gateway to connect other applications to your configured models.
 
-5. **Enhanced User Experience**:
+## Voice & Workspace
 
-- 🖥️ Cross-platform Support for Windows, Mac, and Linux
-- 📦 Ready to Use - No Environment Setup Required
-- 🎨 Light/Dark Themes and Transparent Window
-- 📝 Complete Markdown Rendering
-- 🤲 Easy Content Sharing
+- 🎙️ Dictate messages and listen to responses with speech recognition and text-to-speech options, including local models.
+- 🪟 Work across tabs and detached windows, with window pinning, Quick Assistant, and text selection tools.
+- 🌈 Customize your workspace with light and dark themes, layouts, and custom CSS.
+- 💾 Keep conversation history and knowledge bases on your device, with local and WebDAV backup options.
+
+Model and tool availability depends on your provider, operating system, and configuration. Some features require API credentials, downloaded models, additional dependencies, or system permissions. See the [user documentation](https://cherryai.com/docs/en/) for setup.
 
 # 📝 Roadmap
 
-We're actively working on the following features and improvements:
+Follow upcoming work on our [project board](https://github.com/orgs/CherryHQ/projects/7) and [GitHub Issues](https://github.com/CherryHQ/cherry-studio/issues). See [Releases](https://github.com/CherryHQ/cherry-studio/releases) for features and fixes already shipped.
 
-1. 🎯 **Core Features**
-
-- Selection Assistant with smart content selection enhancement
-- Deep Research with advanced research capabilities
-- Document Preprocessing with improved document handling
-- MCP Marketplace for Model Context Protocol ecosystem
-
-2. 🗂 **Knowledge Management**
-
-- Notes and Collections
-- Dynamic Canvas visualization
-- OCR capabilities
-- TTS (Text-to-Speech) support
-
-3. 📱 **Platform Support**
-
-- HarmonyOS Edition (PC)
-- Android App (Phase 1)
-- iOS App (Phase 1)
-- Multi-Window support
-- Window Pinning functionality
-- Intel AI PC (Core Ultra) Support
-
-4. 🔌 **Advanced Features**
-
-- Plugin System
-- ASR (Automatic Speech Recognition)
-- Assistant and Topic Interaction Refactoring
-
-Track our progress and contribute on our [project board](https://github.com/orgs/CherryHQ/projects/7).
-
-Want to influence our roadmap? Join our [GitHub Discussions](https://github.com/CherryHQ/cherry-studio/discussions) to share your ideas and feedback!
+Share ideas and discuss priorities in [GitHub Discussions](https://github.com/CherryHQ/cherry-studio/discussions).
 
 # 🌈 Theme
 
@@ -131,110 +116,41 @@ Want to influence our roadmap? Join our [GitHub Discussions](https://github.com/
 - Aero Theme: <https://github.com/hakadao/CherryStudio-Aero>
 - PaperMaterial Theme: <https://github.com/rainoffallingstar/CherryStudio-PaperMaterial>
 - Claude dynamic-style: <https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic>
-- Maple Neon Theme: <https://github.com/BoningtonChen/CherryStudio_themes>
+- Maple Neon Theme: <https://github.com/Cle2ment/maple_neon>
 
-Welcome PR for more themes
+Check each community theme's supported Cherry Studio version before installing. Themes written for v1 need adaptation for the v2 interface.
+
+Contributions of compatible themes are welcome.
 
 # 🤝 Contributing
 
-We welcome contributions to Cherry Studio! Here are some ways you can contribute:
-
-1. **Contribute Code**: Develop new features or optimize existing code.
-2. **Fix Bugs**: Submit fixes for any bugs you find.
-3. **Maintain Issues**: Help manage GitHub issues.
-4. **Product Design**: Participate in design discussions.
-5. **Write Documentation**: Improve user manuals and guides.
-6. **Community Engagement**: Join discussions and help users.
-7. **Promote Usage**: Spread the word about Cherry Studio.
-
-Refer to the [Branching Strategy](docs/contrib/branching-strategy.md) for contribution guidelines
+Contributions of code, bug reports, documentation, translations, product ideas, and community support are welcome. Browse [good first issues](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue) to find a place to start.
 
 ## Getting Started
 
-1. **Fork the Repository**: Fork and clone it to your local machine.
-2. **Create a Branch**: For your changes.
-3. **Submit Changes**: Commit and push your changes.
-4. **Open a Pull Request**: Describe your changes and reasons.
+1. Read the [Contributing Guide](CONTRIBUTING.md) and [Development Guide](docs/contrib/development.md).
+2. Fork the repository and create a focused branch from `main`.
+3. Validate your changes, sign and sign off your commits, and open a pull request targeting `main` using the repository template.
 
-For more detailed guidelines, please refer to our [Contributing Guide](CONTRIBUTING.md).
-
-Thank you for your support and contributions!
-
-# 🔧 Developer Co-creation Program
-
-We are launching the Cherry Studio Developer Co-creation Program to foster a healthy and positive-feedback loop within the open-source ecosystem. We believe that great software is built collaboratively, and every merged pull request breathes new life into the project.
-
-We sincerely invite you to join our ranks of contributors and shape the future of Cherry Studio with us.
-
-## Contributor Rewards Program
-
-To give back to our core contributors and create a virtuous cycle, we have established the following long-term incentive plan.
-
-**The inaugural tracking period for this program will be Q3 2025 (July, August, September). Rewards for this cycle will be distributed on October 1st.**
-
-Within any tracking period (e.g., July 1st to September 30th for the first cycle), any developer who contributes more than **30 meaningful commits** to any of Cherry Studio's open-source projects on GitHub will be eligible for the following benefits:
-
-- **Cursor Subscription Sponsorship**: Receive a **$70 USD** credit or reimbursement for your [Cursor](https://cursor.sh/) subscription, making AI your most efficient coding partner.
-- **Unlimited Model Access**: Get **unlimited** API calls for the **DeepSeek** and **Qwen** models.
-- **Cutting-Edge Tech Access**: Enjoy occasional perks, including API access to models like **Claude**, **Gemini**, and **OpenAI**, keeping you at the forefront of technology.
-
-## Growing Together & Future Plans
-
-A vibrant community is the driving force behind any sustainable open-source project. As Cherry Studio grows, so will our rewards program. We are committed to continuously aligning our benefits with the best-in-class tools and resources in the industry. This ensures our core contributors receive meaningful support, creating a positive cycle where developers, the community, and the project grow together.
-
-**Moving forward, the project will also embrace an increasingly open stance to give back to the entire open-source community.**
-
-## How to Get Started?
-
-We look forward to your first Pull Request!
-
-You can start by exploring our repositories, picking up a `good first issue`, or proposing your own enhancements. Every commit is a testament to the spirit of open source.
-
-Thank you for your interest and contributions.
-
-Let's build together.
+See the [Branching Strategy](docs/contrib/branching-strategy.md) for branch and release conventions.
 
 # 🏢 Enterprise Edition
 
-Building on the Community Edition, we are proud to introduce **Cherry Studio Enterprise Edition**—a privately-deployable AI productivity and management platform designed for modern teams and enterprises.
+Cherry Studio Enterprise Edition brings centralized model management, shared knowledge bases, employee access controls, and private deployment options to teams and organizations.
 
-The Enterprise Edition addresses core challenges in team collaboration by centralizing the management of AI resources, knowledge, and data. It empowers organizations to enhance efficiency, foster innovation, and ensure compliance, all while maintaining 100% control over their data in a secure environment.
-
-## Core Advantages
-
-- **Unified Model Management**: Centrally integrate and manage various cloud-based LLMs (e.g., OpenAI, Anthropic, Google Gemini) and locally deployed private models. Employees can use them out-of-the-box without individual configuration.
-- **Enterprise-Grade Knowledge Base**: Build, manage, and share team-wide knowledge bases. Ensures knowledge retention and consistency, enabling team members to interact with AI based on unified and accurate information.
-- **Fine-Grained Access Control**: Easily manage employee accounts and assign role-based permissions for different models, knowledge bases, and features through a unified admin backend.
-- **Fully Private Deployment**: Deploy the entire backend service on your on-premises servers or private cloud, ensuring your data remains 100% private and under your control to meet the strictest security and compliance standards.
-- **Reliable Backend Services**: Provides stable API services and enterprise-grade data backup and recovery mechanisms to ensure business continuity.
-
-## ✨ Online Demo
-
-**🔗 [Cherry Studio Enterprise](https://enterprise.cherry-ai.com)**
-
-## Version Comparison
-
-| Feature           | Community Edition                                                                    | Enterprise Edition                                                                                                                      |
-| :---------------- | :----------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open Source**   | ✅ Yes                                                                               | ⭕️ Partially released to customers                                                                                                      |
-| **Cost**          | [AGPL-3.0 License](https://github.com/CherryHQ/cherry-studio?tab=AGPL-3.0-1-ov-file) | Buyout / Subscription Fee                                                                                                               |
-| **Admin Backend** | —                                                                                    | ● Centralized **Model** Access<br>● **Employee** Management<br>● Shared **Knowledge Base**<br>● **Access** Control<br>● **Data** Backup |
-| **Server**        | —                                                                                    | ✅ Dedicated Private Deployment                                                                                                         |
-
-## Get the Enterprise Edition
-
-We believe the Enterprise Edition will become your team's AI productivity engine. If you are interested in Cherry Studio Enterprise Edition and would like to learn more, request a quote, or schedule a demo, please feel free to contact us.
-
-- **For Business Inquiries & Purchasing**:
-  **📧 [bd@cherry-ai.com](mailto:bd@cherry-ai.com)**
+Visit the [Enterprise website](https://enterprise.cherryai.com) for current capabilities and deployment information. For purchasing, pricing, or a demo, contact [bd@cherry-ai.com](mailto:bd@cherry-ai.com).
 
 # 🔗 Related Projects
+
+- [Cherry Studio Mobile](https://github.com/CherryHQ/cherry-studio-app): The mobile version of Cherry Studio for iOS and Android.
+
+- [Cherry Studio Website](https://github.com/CherryHQ/cherry-studio-website): The official website and user documentation.
 
 - [new-api](https://github.com/QuantumNous/new-api): The next-generation LLM gateway and AI asset management system supports multiple languages.
 
 - [one-api](https://github.com/songquanpeng/one-api): LLM API management and distribution system supporting mainstream models like OpenAI, Azure, and Anthropic. Features a unified API interface, suitable for key management and secondary distribution.
 
-- [Poe](https://poe.com/): Poe gives you access to the best AI, all in one place. Explore GPT-5, Claude Opus 4.1, DeepSeek-R1, Veo 3, ElevenLabs, and millions of others.
+- [Poe](https://poe.com/): A platform for exploring AI models and community-created bots.
 
 - [ublacklist](https://github.com/iorate/ublacklist): Blocks specific sites from appearing in Google search results
 

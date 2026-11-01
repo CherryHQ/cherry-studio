@@ -28,6 +28,14 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
           ? 'flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-popover py-0.5 pr-0.5 pl-3'
           : 'flex shrink-0 items-center gap-1.5'
       }>
+      {snapshot.transcript && (
+        <span role="status" className="max-w-64 truncate text-sm" title={snapshot.transcript.text}>
+          {snapshot.transcript.text.slice(0, snapshot.transcript.provisionalStart)}
+          <span className="text-muted-foreground">
+            {snapshot.transcript.text.slice(snapshot.transcript.provisionalStart)}
+          </span>
+        </span>
+      )}
       {capturing && (
         <BarVisualizer
           aria-hidden

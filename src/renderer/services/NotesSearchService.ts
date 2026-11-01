@@ -114,6 +114,13 @@ export async function searchFileContent(
 
       let match: RegExpExecArray | null
       while ((match = pattern.exec(line)) !== null) {
+        // `exec` does not advance lastIndex on a zero-width match, so a pattern
+        // such as `.*` or `^` would fill the result list with the same empty hit
+        // and stop the file from being searched further.
+        if (match[0].length === 0) {
+          pattern.lastIndex = match.index + 1
+          continue
+        }
         const matchStart = match.index
         const matchEnd = matchStart + match[0].length
 

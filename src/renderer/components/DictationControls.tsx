@@ -57,6 +57,14 @@ export function DictationControls({
           ? 'flex max-w-full items-center gap-2 rounded-full border border-border bg-popover py-1 pr-1 pl-3'
           : 'flex flex-wrap items-center gap-1'
       }>
+      {snapshot.transcript && (
+        <span role="status" className="max-w-64 truncate text-sm" title={snapshot.transcript.text}>
+          {snapshot.transcript.text.slice(0, snapshot.transcript.provisionalStart)}
+          <span className="text-muted-foreground">
+            {snapshot.transcript.text.slice(snapshot.transcript.provisionalStart)}
+          </span>
+        </span>
+      )}
       {capturing && (
         <BarVisualizer
           aria-hidden
