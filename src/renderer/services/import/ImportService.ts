@@ -1,8 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import { isTrashTargetNotFoundError } from '@shared/ipc/errors/trash'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
@@ -106,11 +109,16 @@ class ImportService {
           topicsCount: 0,
           messagesCount: 0,
           error: i18n.t('import.error.invalid_format', {
+            name: importer.name,
             defaultValue: `Invalid ${importer.name} format`
           })
         }
       }
       onProgress?.(5)
+
+      // Parse before creating anything: a failed import must be side-effect free.
+      const result = await importer.parse(fileContent)
+      onProgress?.(10)
 
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
       const dto: CreateAssistantDto = {
@@ -120,20 +128,30 @@ class ImportService {
         emoji: importer.emoji
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
-      onProgress?.(10)
-
-      const result = await importer.parse(fileContent)
       onProgress?.(20)
-      const messagesCount = await this.persistImport(result, assistant, onProgress)
-      onProgress?.(100)
 
-      logger.info(`Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`)
+      // Tracks exactly what this import created, so the failure path can roll
+      // back its own data without touching anything else that may have been
+      // moved under the assistant while it was running.
+      const createdTopicIds: string[] = []
 
-      return {
-        success: true,
-        assistant,
-        topicsCount: result.conversations.length,
-        messagesCount
+      try {
+        const messagesCount = await this.persistImport(result, assistant, onProgress, createdTopicIds)
+        onProgress?.(100)
+
+        logger.info(
+          `Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`
+        )
+
+        return {
+          success: true,
+          assistant,
+          topicsCount: result.conversations.length,
+          messagesCount
+        }
+      } catch (persistError) {
+        await this.rollbackCreatedAssistant(assistant.id, createdTopicIds, persistError)
+        throw persistError
       }
     } catch (error) {
       logger.error('Import failed:', error as Error)
@@ -143,6 +161,80 @@ class ImportService {
         messagesCount: 0,
         error:
           error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+      }
+    }
+  }
+
+  /**
+   * A failure after the assistant row exists must not leave it behind. Only
+   * data this import created is removed: the created topics are hard-deleted by
+   * id first, then the assistant itself — a bulk `deleteTopics: true` would
+   * also destroy topics a user moved under the assistant while the import was
+   * still running.
+   *
+   * Cleanup is best-effort, one object at a time, across both lifecycle states:
+   * another window can delete (archive) an imported object mid-import, which
+   * makes the active-state hard-delete report the target as not found — the
+   * recycle-bin row is then purged through the permanent DataApi delete before
+   * the object counts as gone. A skipped object is logged and never masks the
+   * original import failure.
+   */
+  private async rollbackCreatedAssistant(
+    assistantId: string,
+    createdTopicIds: readonly string[],
+    cause: unknown
+  ): Promise<void> {
+    for (const topicId of createdTopicIds) {
+      try {
+        await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
+      } catch (activeError) {
+        if (!isTrashTargetNotFoundError(activeError)) {
+          logger.warn('Failed to roll back an imported topic', activeError as Error, {
+            cause: String(cause),
+            topicId
+          })
+          continue
+        }
+        await this.purgeTrashedTopic(topicId, cause)
+      }
+    }
+    try {
+      await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: false })
+    } catch (activeError) {
+      if (!isTrashTargetNotFoundError(activeError)) {
+        logger.error('Failed to roll back the assistant after a failed import', activeError as Error, {
+          assistantId,
+          cause: String(cause)
+        })
+        return
+      }
+      try {
+        await dataApiService.delete(`/assistants/${assistantId}`, { query: { permanent: true } })
+      } catch (trashedError) {
+        if (!isDataApiNotFoundError(trashedError)) {
+          logger.error('Failed to purge the archived assistant after a failed import', trashedError as Error, {
+            assistantId,
+            cause: String(cause)
+          })
+        }
+      }
+    }
+    logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
+  }
+
+  /**
+   * The topic is not active anymore — it was archived by another window (or is
+   * already gone). Purge the archived row when it still exists.
+   */
+  private async purgeTrashedTopic(topicId: string, cause: unknown): Promise<void> {
+    try {
+      await dataApiService.delete(`/topics/${topicId}`, { query: { permanent: true } })
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) {
+        logger.warn('Failed to purge an archived imported topic', error as Error, {
+          cause: String(cause),
+          topicId
+        })
       }
     }
   }
@@ -199,7 +291,8 @@ class ImportService {
   private async persistImport(
     result: ImportResult,
     assistant: { id: string; name: string; emoji: string },
-    onProgress?: ImportProgressCallback
+    onProgress?: ImportProgressCallback,
+    createdTopicIds?: string[]
   ): Promise<number> {
     const { conversations } = result
     const totalSteps = conversations.reduce((count, conversation) => {
@@ -216,6 +309,7 @@ class ImportService {
       const createdTopic = await dataApiService.post('/topics', {
         body: { name: conversation.name, assistantId: assistant.id }
       })
+      createdTopicIds?.push(createdTopic.id)
       completeStep()
 
       const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()

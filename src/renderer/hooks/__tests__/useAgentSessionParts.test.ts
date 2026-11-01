@@ -5,7 +5,7 @@ import { createElement, type ReactNode, startTransition, Suspense } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 const dataApiMocks = MockUseDataApi
 
@@ -140,31 +140,68 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi()
   })
 
-  it('refreshes mounted history when main persists a background approval interaction', () => {
-    const mutate = vi.fn()
-    dataApiMocks.useInfiniteQuery.mockReturnValue({
-      pages: [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate
-    })
-
-    renderHook(() => useAgentSessionParts('session-1'))
-    expect(dataApiMocks.useDataChange).toHaveBeenCalledWith(
+  it('replaces an edited tail across pages while preserving earlier history and its older cursor', async () => {
+    const options = agentSessionHistoryQueryOptions('session-1')
+    MockUseDataApiUtils.seedInfiniteQuery(
       '/agent-sessions/:sessionId/messages',
-      expect.any(Function),
-      { routeParams: { sessionId: 'session-1' } }
+      [
+        { items: [sessionMessageRow('later-answer'), sessionMessageRow('later-user')], nextCursor: 'target-page' },
+        {
+          items: [
+            sessionMessageRow('old-answer'),
+            sessionMessageRow('edited-user'),
+            sessionMessageRow('earlier-answer')
+          ],
+          nextCursor: 'older-page'
+        },
+        { items: [sessionMessageRow('earlier-user')], nextCursor: 'unloaded-history' }
+      ],
+      options
     )
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+    const replacements: CherryUIMessage[] = [
+      {
+        id: 'new-user',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Replacement' }],
+        metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
+      },
+      { id: 'new-answer', role: 'assistant', parts: [], metadata: { createdAt: '2026-01-02T00:00:01.000Z' } }
+    ]
+    await act(() => result.current.replaceMessageTail('edited-user', replacements))
+    expect(result.current.messages.map((message) => message.id)).toEqual([
+      'earlier-user',
+      'earlier-answer',
+      'new-user',
+      'new-answer'
+    ])
+    expect(result.current.messages[2].parts).toEqual([{ type: 'text', text: 'Replacement' }])
+    expect(
+      MockUseDataApiUtils.getInfiniteQueryPages('/agent-sessions/:sessionId/messages', options)?.map(
+        (page) => page.nextCursor
+      )
+    ).toEqual(['older-page', 'unloaded-history'])
+  })
 
-    const listener = dataApiMocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
-    listener?.()
-
-    expect(mutate).toHaveBeenCalledOnce()
+  it('keeps a newer reply when revalidation has already replaced the edited tail', async () => {
+    mockLiveAgentSessionParts([
+      sessionMessageRow('earlier-user'),
+      sessionMessageRow('new-user'),
+      {
+        ...sessionMessageRow('new-answer'),
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'Already streaming' }] }
+      }
+    ])
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+    await act(() =>
+      result.current.replaceMessageTail('edited-user', [
+        { id: 'new-user', role: 'user', parts: [{ type: 'text', text: 'Replacement' }] },
+        { id: 'new-answer', role: 'assistant', parts: [] }
+      ])
+    )
+    expect(result.current.messages.map((message) => message.id)).toEqual(['earlier-user', 'new-user', 'new-answer'])
+    expect(result.current.messages[2].parts).toEqual([{ type: 'text', text: 'Already streaming' }])
   })
 
   it('preserves unchanged message identities across revalidation and replaces updated rows', () => {

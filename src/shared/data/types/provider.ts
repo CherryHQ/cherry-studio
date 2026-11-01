@@ -23,6 +23,8 @@ import {
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 
+import { ProviderBillingSchema } from './providerBilling'
+
 export type { ServerTool, ServerToolConfig }
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -50,6 +52,7 @@ export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
 /** Provider website schema (type used for catalog ProviderWebsite type) */
 const ProviderWebsiteSchema = z.object({
   website: z.object({
+    billing: z.url().optional(),
     official: z.url().optional(),
     docs: z.url().optional(),
     apiKey: z.url().optional(),
@@ -144,6 +147,7 @@ export type ProviderWebsite = z.infer<typeof ProviderWebsiteSchema>
 
 /** Flat website links schema for runtime Provider (without the catalog wrapper) */
 export const ProviderWebsitesSchema = z.object({
+  billing: z.string().optional(),
   official: z.string().optional(),
   apiKey: z.string().optional(),
   docs: z.string().optional(),
@@ -157,6 +161,7 @@ const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
 export const ProviderSettingsSchema = z.object({
+  billing: ProviderBillingSchema.optional(),
   streamOptions: z
     .object({
       includeUsage: z.boolean().optional()

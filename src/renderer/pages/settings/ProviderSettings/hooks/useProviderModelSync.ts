@@ -57,7 +57,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       logger.info('Fetching remote provider models for sync', {
         providerId
       })
-      const resolvedModels = await fetchResolvedProviderModels(providerId)
+      const { models: resolvedModels } = await fetchResolvedProviderModels(providerId)
       if (resolvedModels.length === 0) {
         logger.info('No remote provider models were resolved for sync', {
           providerId

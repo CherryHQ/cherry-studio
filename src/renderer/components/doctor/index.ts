@@ -1,3 +1,5 @@
+export { DoctorAgentAccordionItem } from './DoctorAgentAccordionItem'
+export { DoctorAgentDialog } from './DoctorAgentDialog'
 export { DoctorCheckNotices } from './DoctorCheckNotices'
 export { DoctorCheckAccordionItems, DoctorCheckActions } from './DoctorCheckAccordionItems'
 export { default as DoctorPopup } from './DoctorPopup'

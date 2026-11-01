@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-22-notes-session-isolation.md
+2026-10-22-notes-session-isolation.md: 2db809fb0d4ad1aa7c02d7214872c44c8094a4da
+2026-10-22-notes-session-isolation.zh.md: effa6bcd32b746476eae27d49277cbabf102eb32

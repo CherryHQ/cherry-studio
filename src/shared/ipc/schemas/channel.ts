@@ -25,6 +25,18 @@ const channelLogEntry = z.object({
   channelId: z.string()
 })
 export const channelRequestSchemas = {
+  'channel.registration.begin': defineRoute({
+    input: z.strictObject({ channelId: z.string().min(1), requestId: z.uuid() }),
+    output: z.object({ requestId: z.uuid(), url: z.string(), expiresAt: z.number() })
+  }),
+  'channel.registration.poll': defineRoute({
+    input: z.strictObject({ requestId: z.uuid() }),
+    output: z.object({ status: z.enum(['pending', 'confirmed', 'expired', 'cancelled', 'error']) })
+  }),
+  'channel.registration.cancel': defineRoute({
+    input: z.strictObject({ requestId: z.uuid() }),
+    output: z.void()
+  }),
   'channel.create': defineRoute({ input: CreateAgentChannelSchema, output: AgentChannelEntitySchema }),
   'channel.update': defineRoute({
     input: z.strictObject({ channelId: z.string().min(1), updates: UpdateAgentChannelSchema }),

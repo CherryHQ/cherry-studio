@@ -22,6 +22,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -154,6 +155,9 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
+  readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
@@ -826,6 +830,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -872,6 +877,7 @@ export class AgentSessionService {
       ...agentSessionReadModelEffects([id], 'projection'),
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -1090,18 +1096,40 @@ export class AgentSessionService {
   trashByAgentIdTx(
     tx: DbOrTx,
     agentId: string,
-    options: { validateAgent?: boolean; deletedAt?: number } = {}
+    options: { validateAgent?: boolean; deletedAt?: number; sessionTypes?: readonly AgentSessionType[] } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
     const ids = tx
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
+      .where(
+        and(
+          eq(sessionsTable.agentId, agentId),
+          isNull(sessionsTable.deletedAt),
+          options.sessionTypes?.length ? inArray(sessionsTable.type, [...options.sessionTypes]) : undefined
+        )
+      )
       .all()
       .map((row) => row.id)
     return this.trashByIdsTx(tx, ids, {
       deletedAt: options.deletedAt
     })
+  }
+
+  /**
+   * Restore the sessions trashed together with their agent inside the caller's
+   * transaction: `trashByAgentIdTx` stamps them with the agent's own `deletedAt`,
+   * so that timestamp scopes the operation. Individually archived sessions carry
+   * a different one and stay in the Recycle Bin.
+   */
+  restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
+    return tx
+      .update(sessionsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
+      .returning({ id: sessionsTable.id })
+      .all()
+      .map((row) => row.id)
   }
 
   restore(id: string): AgentSessionEntity {
@@ -1230,11 +1258,15 @@ export class AgentSessionService {
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByAgentIdWithImpact(agentId: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
+  /** Session type filtering applies only to trash moves; permanent deletion always includes all types. */
+  deleteByAgentIdWithImpact(
+    agentId: string,
+    options: { permanent?: boolean; sessionTypes?: readonly AgentSessionType[] } = {}
+  ): AgentSessionDeletionOutcome {
     const deliveryResults: AgentSessionMessageEntity[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
-        const trashed = this.trashByAgentIdTx(tx, agentId)
+        const trashed = this.trashByAgentIdTx(tx, agentId, { sessionTypes: options.sessionTypes })
         deliveryResults.push(...trashed.deliveryResults)
         return { deletedIds: trashed.trashedIds, taskScheduleIds: trashed.taskScheduleIds, deliveryResults }
       }
@@ -1298,6 +1330,29 @@ export class AgentSessionService {
     return this.listIdsByAgentTx(application.get('DbService').getDb(), agentId)
   }
 
+  listSystemWorkspaceSessions(ids?: readonly string[]) {
+    if (ids?.length === 0) return []
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        id: sessionsTable.id,
+        path: agentWorkspaceTable.path,
+        deletedAt: sessionsTable.deletedAt,
+        agentDeletedAt: agentsTable.deletedAt
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+      .where(
+        and(
+          eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+          ids ? inArray(sessionsTable.id, [...ids]) : undefined
+        )
+      )
+      .all()
+  }
+
   listIdsByWorkspace(workspaceId: string): string[] {
     return application
       .get('DbService')
@@ -1310,13 +1365,19 @@ export class AgentSessionService {
       .map((row) => row.id)
   }
 
-  listActiveIdsByAgent(agentId: string): string[] {
+  listActiveIdsByAgent(agentId: string, options: { sessionTypes?: readonly AgentSessionType[] } = {}): string[] {
     return application
       .get('DbService')
       .getDb()
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
+      .where(
+        and(
+          eq(sessionsTable.agentId, agentId),
+          isNull(sessionsTable.deletedAt),
+          options.sessionTypes?.length ? inArray(sessionsTable.type, [...options.sessionTypes]) : undefined
+        )
+      )
       .orderBy(asc(sessionsTable.id))
       .all()
       .map((row) => row.id)
@@ -1402,6 +1463,7 @@ export class AgentSessionService {
 
   reorder(id: string, anchor: OrderRequest): void {
     application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
@@ -1422,6 +1484,7 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    for (const id of new Set(moves.map((move) => move.id))) this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {

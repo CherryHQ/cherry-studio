@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-20-package-release-stale-runs.md
+2026-10-20-package-release-stale-runs.md: e8fcdeaf38524e714a79f2b9d585e9f242680ca1
+2026-10-20-package-release-stale-runs.zh.md: f6d8c742b8f609f0df42cd46728642970e7b6e50

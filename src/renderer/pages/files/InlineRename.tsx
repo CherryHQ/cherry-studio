@@ -38,6 +38,9 @@ export function InlineRename({
       value={text}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
+        // Browsers that do not set isComposing report an IME keydown as keyCode 229.
+        // oxlint-disable-next-line no-deprecated
+        if (e.nativeEvent.isComposing || e.keyCode === 229) return
         if (e.key === 'Enter' && text.trim()) onConfirm(text.trim())
         if (e.key === 'Escape') onCancel()
       }}

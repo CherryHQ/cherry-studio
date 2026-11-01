@@ -20,7 +20,7 @@ The design rationale, ownership boundaries, and historical experiment evidence l
 
 ## What V1 is not
 
-No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. Two processes are registered today — `inference.embedding` and `inference.ocr` (local embedding and OCR).
+No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. Three processes are registered today — `inference.embedding`, `inference.ocr`, and `inference.asr` (local embedding, OCR, and speech recognition).
 
 ## Declaring a process
 
@@ -100,6 +100,45 @@ Consumers must expose an unavailable/error state and an explicit retry or remedi
 `withStopped(operation)` is the file-replacement gate: it stops the live process, runs `operation` only after a confirmed exit, and fails concurrent requests with `PROCESS_BLOCKED` meanwhile. Use it to delete or overwrite files the child holds open (a model directory on Windows, for instance). `stop()` alone is the short barrier — the next request lazily respawns.
 
 Maintenance operations are serialized per definition, including calls made while the manager is stopped and across a service restart. The gate remains closed until every queued operation settles, even after the child exits. A callback failure propagates unchanged and does not prevent later queued operations from running.
+
+## Bounded request streams
+
+Declare streaming methods in the contract's optional `streams` map using `UtilityProcessStreamMethod<Request, InputFrame, OutputFrame, Result>`, and implement them in the entry's `streams` map. Ordinary `methods`, `request`, and synchronous `emit` keep their existing behavior. An output-only method uses `never` for its input frame.
+
+```typescript
+type ByteFrame = { metadata: { sequence: number }; payload: Uint8Array }
+type StreamContract = {
+  methods: {}
+  streams: {
+    echo: UtilityProcessStreamMethod<void, ByteFrame, ByteFrame, number>
+  }
+}
+
+const limits = { maxFrameBytes: 4096, maxBufferedBytes: 8192, maxBufferedFrames: 3, maxPendingWrites: 2 }
+const stream = await client.openStream('echo', undefined, { input: limits, output: limits, signal })
+try {
+  await Promise.all([
+    (async () => {
+      for await (const frame of stream.output) await consume(frame)
+    })(),
+    (async () => {
+      for await (const frame of source) await stream.write(frame)
+      await stream.finishInput()
+    })(),
+    stream.completed
+  ])
+} finally {
+  await stream.cancel()
+}
+```
+
+Read and write concurrently for bidirectional streams. Await every write: it resolves when the frame enters the reserved receiving window, not when downstream work finishes. `finishInput()` rejects later writes, sends EOF after already submitted writes, and waits for the peer to acknowledge receiving EOF. It does not await the result. Handlers receive `{ signal, input, write, logger }`; they must await writes and finish their own cleanup before returning.
+
+Frames contain flat scalar `metadata` and an optional `Uint8Array` payload. Core snapshots them and counts UTF-8 JSON bytes plus the byte view's `byteLength`; it never copies an entire backing buffer for a small view. Each direction limits frame bytes, outstanding bytes, outstanding frame count, and waiting writers. Waiting writers retain at most `maxPendingWrites × maxFrameBytes` additional payload bytes. Excess writes reject with `RangeError`; producers must await capacity instead of building their own unbounded queue. Audio layout and text validation remain consumer responsibilities.
+
+Output has one iterator. Advancing it returns credit for the previous frame; retained frames beyond that point belong to the next layer's budget. Concurrent pending reads and a second iterator are rejected. Breaking iteration cancels the request, including a `return()` before the first `next()`. Natural EOF preserves the final result.
+
+`completed` reports the result or failure. `closed` resolves only after the handler's close acknowledgement or confirmed process exit; cancellation and stop failures do not prove closure. `cancel()` is idempotent and waits for `closed`, even if output iteration never started. An uncooperative handler can leave it pending until `stop()` terminates the process. Streams awaiting input, output capacity, or cleanup prevent idle reaping. See the [stream protocol](utility-process-protocol.md#bounded-streams) for sequencing and terminal rules.
 
 ## Environment and network
 

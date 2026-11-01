@@ -54,6 +54,7 @@ type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELE
  * Create mock data based on API path
  */
 function createMockDataForPath(path: string): any {
+  if (path === '/skills' || path === '/api-gateway/paired-devices') return []
   if (path === '/providers/:providerId/api-keys') {
     return { keys: [] }
   }
@@ -491,8 +492,13 @@ export const mockUseReadCache = vi.fn(() => {
   return vi.fn(
     <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
-      query?: Record<string, unknown>
+      query?: Record<string, unknown>,
+      infinite?: { limit: number }
     ): TResponse | undefined => {
+      if (infinite) {
+        const key = buildMockInfiniteQueryKey(path, { query, limit: infinite.limit } as never)
+        return mockInfiniteQueryStore.get(key) as TResponse | undefined
+      }
       return mockCacheStore.get(buildMockCacheKey(path as string, query)) as TResponse | undefined
     }
   )
