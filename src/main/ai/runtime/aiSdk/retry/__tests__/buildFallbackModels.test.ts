@@ -34,7 +34,13 @@ const VISION = MODEL_CAPABILITY.IMAGE_RECOGNITION
 const AUDIO = MODEL_CAPABILITY.AUDIO_RECOGNITION
 const VIDEO = MODEL_CAPABILITY.VIDEO_RECOGNITION
 const NO_NATIVE_SUPPORT = { image: false, pdf: false, audio: false, video: false } as const
-const ALL_NATIVE_SUPPORT = { image: true, pdf: true, audio: true, video: true } as const
+const ALL_NATIVE_SUPPORT = {
+  image: true,
+  pdf: true,
+  audio: true,
+  video: true,
+  imageFormatPolicy: 'reject-bmp'
+} as const
 
 function policy(fallbackModelIds: readonly string[], enabled = true): RetryPolicy {
   return {
@@ -254,7 +260,7 @@ describe('buildFallbackModels', () => {
       sdkConfig: { providerId: 'anthropic', providerSettings: {}, modelId: 'pdf-model' },
       plugins: [],
       options: {},
-      nativeFileSupport: NO_NATIVE_SUPPORT
+      nativeFileSupport: { ...NO_NATIVE_SUPPORT, imageFormatPolicy: 'reject-bmp' }
     })
     const [resolve] = buildFallbackModels({
       ...baseArgs,

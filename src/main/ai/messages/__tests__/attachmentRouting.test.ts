@@ -2,7 +2,8 @@ import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { serializeError } from '@main/ai/utils/serializeError'
+import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -29,8 +30,16 @@ vi.mock('../attachmentTextExtraction', () => ({
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 
-const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
-const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
+const NONE: NativeFileSupport = {
+  image: false,
+  pdf: false,
+  audio: false,
+  video: false,
+  imageFormatPolicy: 'reject-bmp'
+}
+const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true, imageFormatPolicy: 'reject-bmp' }
+
+const PASSTHROUGH: NativeFileSupport = { ...ALL, imageFormatPolicy: 'passthrough' }
 
 function userMessage(parts: CherryMessagePart[]): CherryUIMessage {
   return { id: 'm1', role: 'user', parts }
@@ -461,5 +470,188 @@ describe('collectFileAttachments', () => {
       { fileEntryId: 'live', handle: 'live.png', displayName: 'live.png' },
       { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
     ])
+  })
+})
+
+// These cases catch BMP escaping into the wire or accidentally stealing the OCR/CLI paths.
+describe('prepareChatMessages — BMP format policy', () => {
+  const unsupported = { name: 'UnsupportedImageFormatError', i18nKey: 'unsupported_bmp_image' }
+
+  it('rejects a declared managed BMP before materializing or looking up its entry', async () => {
+    await expect(run([fileWithEntry('e1', 'a.bmp', 'image/bmp')], ALL)).rejects.toMatchObject(unsupported)
+    expect(resolveMock).not.toHaveBeenCalled()
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('serializes the real routing error with its recovery text and app key', async () => {
+    const error = await run([fileWithEntry('e1', 'a.bmp', 'image/bmp')], ALL).catch(serializeError)
+    expect(error).toMatchObject({
+      ...unsupported,
+      message:
+        "BMP image attachments aren't supported in this chat. Save each BMP image as PNG, JPEG, WebP, or GIF, then edit the message containing it to remove or replace the BMP attachment and send again. You can also start a new chat with the converted images."
+    })
+    expect(error).not.toHaveProperty('detailI18nKey')
+    expect(error).not.toHaveProperty('detailI18nValues')
+    expect(error).not.toHaveProperty('providerErrorCategory')
+  })
+
+  it('preserves an existing cancellation instead of reporting the BMP format', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Cancelled', 'AbortError')
+    controller.abort(reason)
+    await expect(
+      prepareChatMessages([userMessage([fileWithEntry('e1', 'a.bmp', 'image/bmp')])], {
+        attachments: [],
+        nativeSupport: ALL,
+        isToolCapable: true,
+        signal: controller.signal
+      })
+    ).rejects.toBe(reason)
+  })
+
+  it('preserves OCR cancellation for non-vision BMP', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'bmp' })
+    const reason = new DOMException('Cancelled', 'AbortError')
+    ocrMock.mockRejectedValueOnce(reason)
+    await expect(run([fileWithEntry('e1', 'a.bmp', 'image/bmp')], NONE)).rejects.toBe(reason)
+  })
+
+  it('preserves the format error even when the entry lookup would throw', async () => {
+    getByIdMock.mockImplementationOnce(async () => {
+      throw new Error('missing entry')
+    })
+    await expect(run([fileWithEntry('e1', 'a.bmp', 'image/*')], ALL)).rejects.toMatchObject(unsupported)
+    expect(getByIdMock).not.toHaveBeenCalled()
+    getByIdMock.mockReset()
+  })
+
+  it.each(['bmp', '.BMP'])('rejects when only the stored extension declares %s', async (ext) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], ALL)).rejects.toMatchObject(unsupported)
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { mediaType: 'IMAGE/BMP' },
+    { mediaType: ' image/x-ms-bmp ; charset=binary ' },
+    { filename: 'a.BMP' },
+    { url: 'file:///x/a.bmp?x=1#preview' },
+    { url: 'data:IMAGE/BMP;base64,Qk00' },
+    { url: 'DATA:image/x-ms-bmp;base64,Qk00' }
+  ])('rejects the explicit BMP declaration %j', async (declaration) => {
+    const part = { ...fileWithEntry('e1', 'a.png', 'image/png'), ...declaration }
+    await expect(run([part], ALL)).rejects.toMatchObject(unsupported)
+  })
+
+  it('rejects BMP revealed only by materialization', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    resolveMock.mockResolvedValueOnce({ type: 'file', mediaType: 'image/bmp', url: 'data:image/bmp;base64,Qk00' })
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], ALL)).rejects.toMatchObject(unsupported)
+  })
+
+  it('rejects a whole mixed BMP/PNG request', async () => {
+    await expect(
+      run([fileWithEntry('e1', 'a.bmp', 'image/bmp'), fileWithEntry('e2', 'b.png', 'image/png')], ALL)
+    ).rejects.toMatchObject(unsupported)
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an active BMP in effective history even when the latest message is text-only', async () => {
+    const messages = [
+      userMessage([composerText('image', 's1'), fileWithEntry('e1', 'a.bmp', 'image/bmp', 's1')]),
+      { ...userMessage([{ type: 'text', text: 'continue' }]), id: 'm2' }
+    ]
+    await expect(
+      prepareChatMessages(messages, {
+        attachments: collectFileAttachments(messages),
+        nativeSupport: ALL,
+        isToolCapable: true
+      })
+    ).rejects.toMatchObject(unsupported)
+  })
+
+  it('ignores an orphaned BMP before checking its declaration', async () => {
+    const text = composerText('text only', 'other')
+    const [out] = await run([text, fileWithEntry('e1', 'a.bmp', 'image/bmp', 'stale')], ALL)
+    expect(out.parts).toEqual([text])
+    expect(getByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('does not inspect retained BMP references absent from effective messages', async () => {
+    const messages = [userMessage([{ type: 'text', text: 'continue' }])]
+    expect(
+      await prepareChatMessages(messages, {
+        attachments: [{ fileEntryId: 'e1', handle: 'a.bmp', displayName: 'a.bmp' }],
+        nativeSupport: ALL,
+        isToolCapable: true
+      })
+    ).toEqual(messages)
+  })
+
+  it('still OCRs BMP for a non-vision model', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'bmp' })
+    ocrMock.mockResolvedValueOnce('readable text')
+    const [out] = await run([fileWithEntry('e1', 'a.bmp', 'image/bmp')], NONE)
+    expect(textOf(out.parts)).toEqual(['Attached file "a.bmp":\nreadable text'])
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['empty', 'failed'] as const)('keeps the %s OCR error for a non-vision BMP', async (kind) => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'bmp' })
+    if (kind === 'empty') ocrMock.mockResolvedValueOnce(' ')
+    else ocrMock.mockRejectedValueOnce(new Error('OCR unavailable'))
+    await expect(run([fileWithEntry('e1', 'a.bmp', 'image/bmp')], NONE)).rejects.toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: `ocr_detail_${kind}`
+    })
+  })
+
+  it('passes BMP through for a path-forwarding caller', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'bmp' })
+    const part = fileWithEntry('e1', 'a.bmp', 'image/bmp')
+    resolveMock.mockResolvedValueOnce(part)
+    const [out] = await run([part], PASSTHROUGH)
+    expect(out.parts).toEqual([part])
+  })
+
+  it.each(['png', 'jpeg', 'webp', 'gif'])('preserves native %s images', async (ext) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    const part: FileUIPart = { type: 'file', mediaType: `image/${ext}`, url: `data:image/${ext};base64,AAAA` }
+    resolveMock.mockResolvedValueOnce(part)
+    const [out] = await run([fileWithEntry('e1', `a.${ext}`, `image/${ext}`)], ALL)
+    expect(out.parts).toEqual([part])
+  })
+
+  const legacyBmpParts: FileUIPart[] = [
+    { type: 'file', mediaType: 'image/*', url: 'data:image/bmp;base64,Qk00' },
+    { type: 'file', mediaType: 'image/*', url: 'file:///x/a.bmp' },
+    { type: 'file', mediaType: 'image/*', url: 'https://example.com/image', filename: 'a.bmp' }
+  ]
+  it.each(legacyBmpParts)('rejects declared legacy BMP %j before materialization', async (part) => {
+    await expect(run([part], ALL)).rejects.toMatchObject(unsupported)
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it.each(legacyBmpParts)('keeps the omitted note for non-vision legacy BMP %j', async (part) => {
+    resolveMock.mockResolvedValueOnce(part)
+    const [out] = await run([part], NONE)
+    expect(out.parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: this model does not accept image input]' }
+    ])
+  })
+
+  it('checks legacy materialized MIME only after the capability gate', async () => {
+    const part: FileUIPart = { type: 'file', mediaType: 'image/png', url: 'https://example.com/image' }
+    resolveMock.mockResolvedValueOnce({ ...part, mediaType: 'image/bmp' })
+    await expect(run([part], ALL)).rejects.toMatchObject(unsupported)
+  })
+
+  it.each(['https://example.com/a.png?name=a.bmp#x.bmp', 'invalid URL'])('does not infer BMP from %s', async (url) => {
+    const part: FileUIPart = { type: 'file', mediaType: 'image/png', url }
+    resolveMock.mockResolvedValueOnce(part)
+    const [out] = await run([part], ALL)
+    expect(out.parts).toEqual([part])
   })
 })
