@@ -518,7 +518,6 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
-  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
@@ -545,6 +544,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
+  const thinkingOptions = resolveClaudeCodeThinkingOptions(provider, model, reasoningEffort, route.branch)
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
@@ -619,19 +619,23 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 }
 
 /**
- * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
- * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
+ * Direct routes use the serving provider's Messages contract. Gateway and subscription routes use
+ * the Anthropic-native dialect; the gateway translates it again for the target endpoint.
  */
 function resolveClaudeCodeThinkingOptions(
+  provider: Provider,
   model: Model,
-  reasoningEffort: ReasoningEffortOption
+  reasoningEffort: ReasoningEffortOption,
+  branch: ClaudeCodeRuntimeRoute['branch']
 ): { effort?: Options['effort']; thinking?: Options['thinking'] } {
   const profile = providerRegistryService.resolveReasoningProfile(
-    {
-      id: 'anthropic',
-      presetProviderId: 'anthropic',
-      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-    },
+    branch === 'direct'
+      ? provider
+      : {
+          id: 'anthropic',
+          presetProviderId: 'anthropic',
+          defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        },
     model,
     ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   )
@@ -645,10 +649,14 @@ function resolveClaudeCodeThinkingOptions(
     maxTokens: model.maxOutputTokens
   })
   const encoded = encodeReasoningInvocation(invocation)
+  const thinking = encoded.thinking as Options['thinking'] | undefined
 
   return {
     effort: encoded.effort as Options['effort'] | undefined,
-    thinking: encoded.thinking as Options['thinking'] | undefined
+    // SDK sdk.mjs turns enabled without budgetTokens into --thinking adaptive, changing the contract.
+    // Omit that unrepresentable toggle on direct routes.
+    thinking:
+      branch === 'direct' && thinking?.type === 'enabled' && thinking.budgetTokens === undefined ? undefined : thinking
   }
 }
 

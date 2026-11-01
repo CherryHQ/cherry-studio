@@ -1,7 +1,12 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import {
+  REASONING_FORMAT_PROFILES,
+  type ReasoningWireMode,
+  type ReasoningWireProfile
+} from '@cherrystudio/provider-registry'
+import type * as ProviderRegistryModule from '@data/services/ProviderRegistryService'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -58,12 +63,16 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
 }))
 
-vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: {
-    resolveReasoningProfile: mocks.resolveReasoningProfile,
-    isRegistryProvider: mocks.isRegistryProvider
+vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
+  const { projectRuntimeReasoning } = await importOriginal<typeof ProviderRegistryModule>()
+  return {
+    projectRuntimeReasoning,
+    providerRegistryService: {
+      resolveReasoningProfile: mocks.resolveReasoningProfile,
+      isRegistryProvider: mocks.isRegistryProvider
+    }
   }
-}))
+})
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { findByIdOrName: mocks.findMcpServerByIdOrName }
@@ -654,6 +663,143 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ]
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { branch: 'direct', selection: 'low', thinking: undefined, effort: undefined },
+    { branch: 'direct', selection: 'none', thinking: { type: 'disabled' }, effort: undefined },
+    { branch: 'direct', selection: 'auto', thinking: undefined, effort: undefined },
+    { branch: 'gateway', selection: 'low', thinking: { type: 'adaptive', display: 'summarized' }, effort: 'low' }
+  ] as const)(
+    'faithfully emits the $branch thinking contract for a binary-wire preset with $selection reasoning',
+    async ({ branch, selection, thinking, effort }) => {
+      const enabled: ReasoningWireMode = {
+        operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }]
+      }
+      const binaryWire: ReasoningWireProfile = {
+        auto: enabled,
+        effort: enabled,
+        off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] }
+      }
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'token-plan-1::qwen3-8-max',
+        ...(branch === 'gateway' ? { planModel: 'openai::gpt-plan' } : {})
+      })
+      mocks.getProviderByProviderId.mockImplementation((id: string) =>
+        id === 'token-plan-1'
+          ? {
+              id,
+              presetProviderId: 'qwen-token-plan',
+              defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+              endpointConfigs: {
+                [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://token-plan.example.com/anthropic' },
+                [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://token-plan.example.com/v1' }
+              }
+            }
+          : {
+              id,
+              endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.example.com' } }
+            }
+      )
+      mocks.getModelByKey.mockImplementation((_providerId: string, id: string) => ({
+        id,
+        apiModelId: id === 'qwen3-8-max' ? 'qwen3.8-max' : id,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+        reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }], selectableEfforts: ['low', 'high'] }
+      }))
+      mocks.resolveReasoningProfile.mockImplementation((provider, _model, endpointType) =>
+        provider.presetProviderId === 'qwen-token-plan' && endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          ? { format: 'anthropic', support: { controls: [{ kind: 'toggle', default: true }] }, wire: binaryWire }
+          : { format: 'anthropic', wire: REASONING_FORMAT_PROFILES.anthropic.wire }
+      )
+      mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+        env: {},
+        ...options.thinkingOptions
+      }))
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, selection)
+
+      if (branch === 'gateway') {
+        expect(mocks.resolveReasoningProfile.mock.calls).toEqual([
+          [
+            {
+              id: 'anthropic',
+              presetProviderId: 'anthropic',
+              defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+            },
+            mocks.getModelByKey.mock.results[0].value,
+            ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          ]
+        ])
+      }
+      expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe(
+        branch === 'direct' ? 'https://token-plan.example.com/anthropic' : mocks.internalGateway.baseUrl
+      )
+      for (const settings of [request?.settings, request?.options]) {
+        expect(settings?.thinking).toEqual(thinking)
+        expect(settings?.effort).toBe(effort)
+      }
+    }
+  )
+
+  it('preserves native adaptive thinking for a direct anthropic provider', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'anthropic::claude-sonnet-4-6' })
+    const provider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
+    }
+    const model = {
+      id: 'claude-sonnet-4-6',
+      apiModelId: 'claude-sonnet-4-6',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }], selectableEfforts: ['low', 'high'] }
+    }
+    mocks.getProviderByProviderId.mockReturnValue(provider)
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      env: {},
+      ...options.thinkingOptions
+    }))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'low')
+
+    expect(mocks.resolveReasoningProfile.mock.calls).toHaveLength(1)
+    const [resolvedProvider, resolvedModel, endpointType] = mocks.resolveReasoningProfile.mock.calls[0]
+    expect(resolvedProvider).toBe(provider)
+    expect(resolvedProvider.presetProviderId).toBe('anthropic')
+    expect(resolvedModel).toBe(model)
+    expect(endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com')
+    for (const settings of [request?.settings, request?.options]) {
+      expect(settings?.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+      expect(settings?.effort).toBe('low')
+    }
+  })
+
+  it('preserves enabled thinking with a token budget on a direct route', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet-4-5',
+      maxOutputTokens: 32_768,
+      reasoning: { controls: [{ kind: 'budget' }], selectableEfforts: ['low', 'medium', 'high'] }
+    })
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.budgetWire
+    })
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      env: {},
+      ...options.thinkingOptions
+    }))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('https://anthropic.example.com')
+    for (const settings of [request?.settings, request?.options]) {
+      expect(settings?.thinking).toEqual({ type: 'enabled', budgetTokens: 13_312 })
+    }
   })
 
   it.each(['', 'sonnet', 'provider:model'])('preserves the direct-route sub-agent pin %j', async (pin) => {
