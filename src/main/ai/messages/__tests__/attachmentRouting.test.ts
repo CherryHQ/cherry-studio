@@ -463,3 +463,35 @@ describe('collectFileAttachments', () => {
     ])
   })
 })
+
+it('keeps numbered OCR and document replacements in place and active without legacy file tokens', async () => {
+  getByIdMock.mockImplementation(async (id) => ({ ext: id === 'image' ? 'png' : 'txt' }))
+  ocrMock.mockResolvedValue('IMAGE_CONTENT')
+  extractMock.mockResolvedValue('FILE_CONTENT')
+  const ordered = (id: string, media: string): CherryMessagePart => ({
+    type: 'file',
+    url: `file:///x/${id}`,
+    filename: 'same',
+    mediaType: media,
+    providerMetadata: { cherry: { fileEntryId: id, fileTokenSourceId: id, contentFormat: 'ordered-parts-v1' } }
+  })
+  const [output] = await run(
+    [
+      { type: 'text', text: 'Before' },
+      ordered('image', 'image/png'),
+      { type: 'text', text: 'Between' },
+      ordered('file', 'text/plain'),
+      { type: 'text', text: 'After' }
+    ],
+    NONE
+  )
+  expect(textOf(output.parts)).toEqual([
+    'Before',
+    '\n[Attachment 1: "same"]\n',
+    'Attached file "same":\nIMAGE_CONTENT',
+    'Between',
+    '\n[Attachment 2: "same"]\n',
+    'Attached file "same (2)":\nFILE_CONTENT',
+    'After'
+  ])
+})

@@ -8,7 +8,10 @@ import type {
   SDKResultMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages'
+
+import { defangSystemReminderTags } from '@main/ai/untrustedContent'
+import { hasOrderedContent } from '@shared/utils/orderedMessageParts'
 
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
@@ -16,9 +19,14 @@ import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
+import { isImageFilePart } from '@main/ai/messages/attachmentLabels'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  getAgentSessionDeliveryEnvelope,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -40,7 +48,6 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -1113,6 +1120,7 @@ async function materializeUserContent(
   supportsAttachmentReads: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
+  if (hasOrderedContent(parts)) return materializeOrderedUserContent(message, supportsImages, supportsAttachmentReads)
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
@@ -1226,6 +1234,67 @@ async function materializeUserContent(
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }
 
+async function materializeOrderedUserContent(
+  message: AgentSessionMessageEntity,
+  supportsImages: boolean,
+  supportsAttachmentReads: boolean
+): Promise<SDKUserMessage['message']['content']> {
+  const userMessage: CherryUIMessage = { id: message.id, role: 'user', parts: message.data?.parts ?? [] }
+  const attachments = supportsAttachmentReads
+    ? collectAssistantFileAttachments([userMessage])
+    : collectFileAttachments([userMessage])
+  const [prepared] = await prepareChatMessages([userMessage], {
+    attachments,
+    nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
+    isToolCapable: supportsAttachmentReads,
+    keepUnroutableFileParts: true,
+    agentFileRouting: true
+  })
+  const blocks: Array<TextBlockParam | ImageBlockParam> = []
+  for (const part of prepared.parts) {
+    if (part.type === 'text') {
+      if (part.text) blocks.push({ type: 'text', text: part.text })
+      continue
+    }
+    if (part.type !== 'file') continue
+    if (supportsImages && isImageFilePart(part) && canBeClaudeImage(part)) {
+      const dataUrl = parseDataUrl(part.url)
+      const materialized = dataUrl?.isBase64 ? part : await materializeNativeFilePart(part)
+      const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
+      const mediaType = parsed && toClaudeImageMediaType(parsed.mediaType)
+      if (parsed?.isBase64 && parsed.data.length > 0 && mediaType) {
+        blocks.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: parsed.data } })
+        continue
+      }
+    }
+    const paths = await extractAttachmentPaths([part])
+    blocks.push({
+      type: 'text',
+      text: paths.files.length
+        ? `${appendAgentAttachmentPaths('', paths.files)}\n`
+        : `Unavailable attachment: ${JSON.stringify(part.filename ?? 'attachment')}\n`
+    })
+  }
+  if (supportsAttachmentReads && attachments.length) {
+    blocks.push({ type: 'text', text: `\n${appendAttachmentManifest('', attachments)}` })
+  }
+  if (!blocks.some((block) => block.type === 'image')) {
+    return wrapAgentSessionDeliveryContent(
+      message,
+      blocks.map((block) => (block.type === 'text' ? block.text : '')).join('')
+    )
+  }
+  const envelope = getAgentSessionDeliveryEnvelope(message)
+  if (!envelope) return blocks
+  return [
+    { type: 'text', text: `${envelope.header}\n` },
+    ...blocks.map((block) =>
+      block.type === 'text' ? { ...block, text: defangSystemReminderTags(block.text) } : block
+    ),
+    { type: 'text', text: `\n${envelope.footer}` }
+  ]
+}
+
 function appendAttachmentManifest(
   text: string,
   attachments: ReadonlyArray<{ displayName: string; handle: string }>
@@ -1280,13 +1349,6 @@ async function extractAttachmentPaths(
     }
   }
   return { files, unavailable }
-}
-
-function isImageFilePart(part: FileUIPart): boolean {
-  if (part.mediaType?.toLowerCase().startsWith('image/')) return true
-  const filename = part.filename?.toLowerCase()
-  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
-  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
 /**

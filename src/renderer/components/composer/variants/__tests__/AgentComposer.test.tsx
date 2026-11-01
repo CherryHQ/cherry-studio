@@ -3669,6 +3669,53 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.tokens).not.toContainEqual(expect.objectContaining({ id: 'skill:stale' }))
   })
 
+  it('resends an edited ordered attachment with its restored identity at the original position', async () => {
+    const providerMetadata = { cherry: { contentFormat: 'ordered-parts-v1' } }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="edit-ordered"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          initialDraft: { text: '', tokens: [] },
+          initialParts: [
+            { type: 'text', text: 'Before', providerMetadata },
+            {
+              type: 'file',
+              filename: 'same.png',
+              mediaType: 'image/png',
+              url: 'file:///tmp/retained.png',
+              providerMetadata
+            },
+            { type: 'text', text: 'After', providerMetadata }
+          ],
+          editing: { messageId: 'edited-message', onCancel: vi.fn() }
+        }}
+      />
+    )
+    expect(mocks.surfaceProps?.text).toBe('BeforeAfter')
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'BeforeAfter',
+        tokens: [...(mocks.surfaceProps?.draftTokens ?? [])]
+      })
+    })
+    const parts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
+    expect(
+      parts?.map((part) => (part.type === 'text' ? part.text : part.type === 'file' ? part.url : part.type))
+    ).toEqual(['Before', 'file:///tmp/retained.png', 'After'])
+    expect(parts?.[1]).toMatchObject({
+      providerMetadata: {
+        cherry: {
+          contentFormat: 'ordered-parts-v1',
+          fileTokenSourceId: expect.any(String)
+        }
+      }
+    })
+  })
+
   it('uses an ephemeral launch draft, selects its skill, and focuses without caching', async () => {
     const issueReporter = { name: 'issue-reporter', filename: 'issue-reporter' }
     const issueReporterToken = {
@@ -4518,6 +4565,7 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   fileTokenSourceId: 'source-workspace-file-1',
                   originalPath: '/workspace/docs/notes.md'
                 }
@@ -4661,6 +4709,7 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   fileTokenSourceId: 'source-workspace-file-1',
                   originalPath: 'C:/workspace/docs/notes.md'
                 }
@@ -4749,18 +4798,10 @@ describe('AgentComposer', () => {
               text: 'hello',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   composer: {
                     version: 1,
-                    tokens: [
-                      {
-                        id: 'file:source-file-1',
-                        kind: 'file',
-                        label: 'notes.md',
-                        index: 0,
-                        textOffset: 5,
-                        payload: { name: 'notes.md', origin_name: 'notes.md' }
-                      }
-                    ]
+                    tokens: []
                   }
                 }
               }
@@ -4772,6 +4813,7 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
+                  contentFormat: 'ordered-parts-v1',
                   fileEntryId: 'fe-1',
                   fileTokenSourceId: 'source-file-1',
                   originalPath: '/tmp/notes.md'

@@ -88,6 +88,32 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('persists ordered content and file identity through session-message projection', () => {
+    const providerMetadata = { cherry: { contentFormat: 'ordered-parts-v1', fileTokenSourceId: 'image-source' } }
+    const parts = [
+      { type: 'text' as const, text: '中文😀  ', providerMetadata },
+      {
+        type: 'file' as const,
+        filename: 'image.png',
+        mediaType: 'image/png',
+        url: 'file:///tmp/image.png',
+        providerMetadata
+      },
+      { type: 'text' as const, text: '\nAfter', providerMetadata }
+    ]
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        status: 'success',
+        data: { parts }
+      }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual(parts)
+    expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items[0].data.parts).toEqual(parts)
+  })
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)

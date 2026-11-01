@@ -158,6 +158,7 @@ export type CherryDataPartTypes = {
 
 /** Cherry metadata on a TextUIPart. */
 export interface CherryTextMeta {
+  contentFormat?: 'ordered-parts-v1'
   /** Content references (citations, mentions). */
   references?: unknown[]
   /** Composer inline token display snapshot — on user TextUIPart by convention. */
@@ -209,6 +210,7 @@ export interface CherryErrorMeta {
 
 /** Cherry metadata on a FileUIPart. */
 export interface CherryFileMeta {
+  contentFormat?: 'ordered-parts-v1'
   /**
    * FileEntryId for internal files (v1→v2 migrator preserves this from
    * `OldFileBlock.file.id` / `OldImageBlock.file.id`). External (user-path)
@@ -293,6 +295,7 @@ const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.obje
 })
 
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
+  contentFormat: z.literal('ordered-parts-v1').optional(),
   references: z.array(z.unknown()).optional(),
   composer: ComposerMessageSnapshotSchema.optional()
 })
@@ -315,6 +318,7 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 })
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
+  contentFormat: z.literal('ordered-parts-v1').optional(),
   workingFileEntryId: z.string().optional(),
   fileEntryId: z.string().optional(),
   remoteAttachment: z

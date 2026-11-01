@@ -3,6 +3,10 @@ description: Per-attachment routing to native file parts or capped extracted tex
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
+  - src/main/ai/runtime/agentUserContent.ts
+  - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
+  - src/renderer/components/composer/composerOrderedParts.ts
+  - src/shared/data/types/uiParts.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
   - src/shared/utils/file/fileExtensions.ts
   - src/renderer/utils/file.ts
@@ -21,6 +25,35 @@ This is deliberate: visibility must not depend on the model choosing to call a
 tool. A weak (or non-tool-calling) model still sees every attachment, and a
 provider that handles a modality natively keeps doing so — no capability
 regression.
+
+## Composer content order
+
+New Chat and Agent Composer messages split text around file tokens and persist
+text/file parts in reading order. Each part carries
+`providerMetadata.cherry.contentFormat: "ordered-parts-v1"`; file identity stays
+in `fileTokenSourceId`. File tokens are not duplicated in text snapshots.
+Non-file tokens use offsets local to their text segment. Existing JSON storage
+carries the metadata without a database migration.
+
+For marked messages, actual file parts own attachment membership. The router
+adds `[Attachment N: "filename"]` before each attachment, numbering all kinds
+from 1 in each message. It replaces files in place without resetting the
+request-wide extraction budget. Numbers are model-input text, not stored user
+text or `read_file` handles. Editing or retrying rebuilds the same ordering;
+moving or deleting a file changes its number and position on the next send.
+
+Claude Code keeps native image blocks, OCR text, file paths, and unavailable
+notes at their source position. It prepares managed images together so budgets
+remain shared. Pi retains text/path input, including prompt, steer, and history
+reconstruction. Both preserve delivery trust boundaries. This ordering does
+not add media support to a runtime or prove how a model interprets references.
+
+Message bubbles retain their existing attachment layout; visual order need not
+match Composer order. Editing restores file tokens from part positions; copy and
+Markdown export traverse that order without adding numbers.
+Unmarked messages keep legacy conversion rules. Explicitly editing an old
+message upgrades the new submission, preserving known identities and appending
+unmatched legacy attachments at the end of the draft.
 
 ## Routing matrix
 

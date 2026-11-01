@@ -40,3 +40,22 @@ describe('buildAgentUserContent', () => {
     expect(content).not.toContain(`- ${JSON.stringify(fileURLToPath(url))}:`)
   })
 })
+
+it('retains attachment positions and message-local numbers instead of collapsing different drafts', () => {
+  const a = {
+    ...filePart('file:///C:/managed/a.png', 'same.png'),
+    providerMetadata: { cherry: { contentFormat: 'ordered-parts-v1' } }
+  }
+  const b = {
+    ...filePart('file:///C:/managed/b.txt', 'same.png'),
+    providerMetadata: { cherry: { contentFormat: 'ordered-parts-v1' } }
+  }
+  const before: CherryMessagePart = { type: 'text', text: 'Before😀  ' }
+  const after: CherryMessagePart = { type: 'text', text: 'After\n    ' }
+  const content = buildAgentUserContent(message([before, a, after, b]))
+  expect(content).toBe(
+    `Before😀  \n[Attachment 1: "same.png"]\nAttached files (read them with your tools using these absolute paths):\n- "same.png": ${fileURLToPath('file:///C:/managed/a.png')}\nAfter\n    \n[Attachment 2: "same.png"]\nAttached files (read them with your tools using these absolute paths):\n- "same.png": ${fileURLToPath('file:///C:/managed/b.txt')}\n`
+  )
+  expect(buildAgentUserContent(message([a, before, after, b]))).not.toBe(content)
+  expect(buildAgentUserContent(message([b]))).toContain('[Attachment 1: "same.png"]')
+})

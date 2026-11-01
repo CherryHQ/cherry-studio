@@ -9,6 +9,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import type * as AttachmentRoutingModule from '@main/ai/messages/attachmentRouting'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
@@ -908,6 +909,87 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
     void connection.close()
+  })
+
+  it.each([false, true])('sends numbered attachments through the real router (delivery: %s)', async (delivery) => {
+    const routing = await vi.importActual<typeof AttachmentRoutingModule>('@main/ai/messages/attachmentRouting')
+    mocks.prepareChatMessages.mockImplementationOnce(routing.prepareChatMessages)
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    await connection.send({
+      message: {
+        ...userMessage(),
+        delivery: delivery
+          ? {
+              status: 'accepted',
+              turnRef: null,
+              inReplyTo: null,
+              replyPolicy: 'completion',
+              sender: { agentId: 'agent-a', sessionId: 'session-a' },
+              receiver: { agentId: 'agent-1', sessionId: 'session-1' },
+              outcome: null
+            }
+          : undefined,
+        data: {
+          parts: [
+            { type: 'text', text: 'Before' },
+            {
+              type: 'file',
+              url: 'file:///tmp/a.png',
+              mediaType: 'image/png',
+              filename: 'same',
+              providerMetadata: { cherry: { contentFormat: 'ordered-parts-v1' } }
+            },
+            { type: 'text', text: 'Between' },
+            {
+              type: 'file',
+              url: externalFileUrl('spec.pdf'),
+              mediaType: 'application/pdf',
+              filename: 'same',
+              providerMetadata: { cherry: { contentFormat: 'ordered-parts-v1' } }
+            },
+            { type: 'text', text: 'After' }
+          ]
+        }
+      }
+    })
+    const input = await nextInput
+    if (delivery) {
+      const blocks = input.value.message.content
+      expect(blocks[0].text).toContain('UNTRUSTED model-authored content')
+      expect(blocks.at(-1).text).toContain('END_CHERRY_SESSION_CONTENT')
+      input.value.message.content = blocks.slice(1, -1)
+    }
+    expect(input).toMatchObject({
+      value: {
+        message: {
+          content: [
+            { type: 'text', text: 'Before' },
+            { type: 'text', text: '\n[Attachment 1: "same"]\n' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+            { type: 'text', text: 'Between' },
+            { type: 'text', text: '\n[Attachment 2: "same"]\n' },
+            {
+              type: 'text',
+              text: `Attached files (read them with your tools using these absolute paths):\n- "same": ${fileURLToPath(externalFileUrl('spec.pdf'))}\n`
+            },
+            { type: 'text', text: 'After' }
+          ]
+        }
+      }
+    })
+    await connection.close()
   })
 
   it('passes first-party archive attachments to ordinary Agents as tool-readable paths', async () => {

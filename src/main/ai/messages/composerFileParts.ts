@@ -15,6 +15,7 @@ export function collectComposerFileTokenIds(message: UIMessage): Set<string> {
 }
 
 export function isActiveManagedFilePart(part: FileUIPart, composerFileTokenIds: ReadonlySet<string>): boolean {
+  if (readCherryMeta(part)?.contentFormat === 'ordered-parts-v1') return true
   const sourceId = readCherryMeta(part)?.fileTokenSourceId
   return !sourceId || composerFileTokenIds.has(`file:${sourceId}`)
 }

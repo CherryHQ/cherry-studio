@@ -28,6 +28,7 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { createFilePathHandle, fileUrlToPath, toFileUrl } from '@shared/utils/file'
+import { hasOrderedContent } from '@shared/utils/orderedMessageParts'
 
 const logger = loggerService.withContext('MarkdownImageExport')
 
@@ -357,6 +358,8 @@ export async function serializeMessagesWithImages(
     mode === 'embed' ? renderEmbed(ref) : Promise.resolve(renderFolder(ref))
 
   for (const message of messages) {
+    const parts = message.parts ?? []
+    const ordered = hasOrderedContent(parts)
     const segments: string[] = []
     let hasImage = false
     for (const part of message.parts ?? []) {
@@ -369,6 +372,8 @@ export async function serializeMessagesWithImages(
           segments.push(segment)
           hasImage = true
         }
+      } else if (part.type === 'file' && ordered) {
+        segments.push(part.filename ?? part.url)
       } else if (isGenerateImageToolPart(part)) {
         for (const item of parseGenerateImageItems(part)) {
           const ref = refByKey.get(item.key)
@@ -381,7 +386,7 @@ export async function serializeMessagesWithImages(
         }
       } else {
         const text = getRenderableTextContent(part)
-        if (text.trim().length > 0) {
+        if (text.length > 0 && (ordered || text.trim().length > 0)) {
           // Mirror `getComposerTextFromParts`: user text parts may carry composer tokens
           // that must render as pasteable markers in the export.
           const composer = part.type === 'text' ? readCherryMeta(part)?.composer : undefined
@@ -389,7 +394,7 @@ export async function serializeMessagesWithImages(
         }
       }
     }
-    if (hasImage) overrides.set(message.id, segments.join('\n\n'))
+    if (hasImage) overrides.set(message.id, segments.join(ordered ? '' : '\n\n'))
   }
 
   return { overrides, pendingWrites, skippedCount: skipped.count }
