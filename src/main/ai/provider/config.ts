@@ -364,7 +364,10 @@ export async function resolveProviderAiSdkConfig(
           ...(imageExtensionPreset === SystemProviderIds.qwencloud && {
             imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
           }),
-          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+          headers: {
+            ...getProviderAppHeaders(ctx.actualProvider),
+            ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+          }
         }
       }))
     },
@@ -377,7 +380,10 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
-          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+          headers: {
+            ...getProviderAppHeaders(ctx.actualProvider),
+            ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+          }
         }
       }))
     },
@@ -434,7 +440,7 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
     providerSettings: {
       ...ctx.baseConfig,
       apiKey: token,
-      headers: mergeHeaders(headers, getExtraHeaders(ctx.actualProvider)),
+      headers: mergeHeaders(headers, getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)),
       name: ctx.actualProvider.id
     }
   }
@@ -477,7 +483,7 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // The SDK rejects an empty key; the real bearer token is injected per
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'codex-oauth',
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, baseURL) },
       fetch: buildCodexFetch()
     }
   }
@@ -530,7 +536,7 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // The SDK rejects an empty key; the real bearer token is injected per
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'grok-cli-oauth',
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, baseURL) },
       fetch: buildGrokCliFetch()
     }
   }
@@ -576,7 +582,10 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const signature = generateSignature({
           method: 'POST',
@@ -594,7 +603,7 @@ function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
     headers: {
       ...getProviderAppHeaders(ctx.actualProvider),
-      ...getExtraHeaders(ctx.actualProvider)
+      ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
     }
   }
   if (ctx.aiSdkProviderId === 'openai') {
@@ -606,7 +615,7 @@ function buildCommonOptions(ctx: BuilderContext) {
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   const headers: Record<string, string> = {
     ...getProviderAppHeaders(ctx.actualProvider),
-    ...getExtraHeaders(ctx.actualProvider)
+    ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
   }
   if (!isEmpty(ctx.baseConfig.apiKey)) {
     headers.Authorization = `Bearer ${ctx.baseConfig.apiKey}`
@@ -708,7 +717,10 @@ function buildVertexConfig(
         // from project+location; a custom host (proxy) passes through untouched.
         ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
         ...(creds && { googleCredentials: creds }),
-        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+        headers: {
+          ...getProviderAppHeaders(ctx.actualProvider),
+          ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+        }
       }
     } as ProviderConfig<'google-vertex-maas'>
   }
@@ -770,7 +782,10 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
       endpointType: cherryinEndpointType,
       anthropicBaseURL,
       geminiBaseURL,
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
@@ -803,7 +818,10 @@ function buildAzureConfig(
       providerSettings: {
         ...ctx.baseConfig,
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
-        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+        headers: {
+          ...getProviderAppHeaders(ctx.actualProvider),
+          ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+        }
       }
     }
   }
@@ -819,7 +837,10 @@ function buildAzureConfig(
   } = {
     ...ctx.baseConfig,
     baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false, useCustomGatewayV1),
-    headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+    headers: {
+      ...getProviderAppHeaders(ctx.actualProvider),
+      ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+    }
   }
 
   if (apiVersion) {
@@ -894,7 +915,7 @@ function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-res
       apiKey: ctx.baseConfig.apiKey,
       headers: {
         ...getProviderAppHeaders(ctx.actualProvider),
-        ...getExtraHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL),
         // Parity with buildCommonOptions' 'openai' branch — these providers received it before.
         'X-Api-Key': ctx.baseConfig.apiKey
       }
@@ -918,7 +939,10 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
@@ -930,7 +954,10 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
@@ -941,7 +968,10 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
@@ -983,7 +1013,10 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
       ...ctx.baseConfig,
       baseURL,
       endpointType: mapCherryinEndpointType(endpointType),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }

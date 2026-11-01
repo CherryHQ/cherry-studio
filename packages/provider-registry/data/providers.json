@@ -767,6 +767,31 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AI/ML API - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.aimlapi.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.aimlapi.com/v1"
+        }
+      },
+      "id": "aimlapi",
+      "metadata": {
+        "website": {
+          "apiKey": "https://aimlapi.com/app/keys",
+          "docs": "https://docs.aimlapi.com",
+          "models": "https://aimlapi.com/models",
+          "official": "https://aimlapi.com"
+        }
+      },
+      "name": "AI/ML API"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -2844,5 +2869,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e1952ef3858002a8"
+  "version": "46a82482173023b6"
 }

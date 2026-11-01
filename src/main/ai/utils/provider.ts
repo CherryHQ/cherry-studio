@@ -46,16 +46,44 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
   return ''
 }
 
-export function getExtraHeaders(provider: Provider): Record<string, string> {
+const AIMLAPI_HOST = 'api.aimlapi.com'
+
+/**
+ * True only when this request actually leaves for AI/ML API. A provider copied
+ * from the preset keeps `presetProviderId` after the user points it at another
+ * host, and a provider can route one endpoint type elsewhere while its default
+ * still targets AI/ML API — so the check is made against the base URL the
+ * caller resolved for the current request, never the provider default.
+ */
+function isAimlapiDestination(provider: Provider, destinationBaseUrl: string | undefined): boolean {
+  if (!destinationBaseUrl || !matchesPreset(provider, SystemProviderIds.aimlapi)) return false
+  try {
+    return new URL(destinationBaseUrl).hostname === AIMLAPI_HOST
+  } catch {
+    return false
+  }
+}
+
+/**
+ * @param destinationBaseUrl The base URL the current request will be sent to.
+ * Destination-gated headers (AI/ML API attribution) are only added when it is
+ * given and resolves to that provider's host.
+ */
+export function getExtraHeaders(provider: Provider, destinationBaseUrl?: string): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
   const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
   const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
+  const isAimlapi = isAimlapiDestination(provider, destinationBaseUrl)
   const isPerplexity = matchesPreset(provider, SystemProviderIds.perplexity)
   const hasPerplexityIntegration = Object.keys(headers).some((name) => name.toLowerCase() === 'x-pplx-integration')
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
-    if ((isTokenDance && normalizedName === 'x-app-url') || (isRadeonCloud && normalizedName === 'x-source')) {
+    if (
+      (isTokenDance && normalizedName === 'x-app-url') ||
+      (isRadeonCloud && normalizedName === 'x-source') ||
+      (isAimlapi && (normalizedName === 'x-aimlapi-source' || normalizedName === 'x-aimlapi-partner-id'))
+    ) {
       delete headers[name]
     }
   }
@@ -63,7 +91,10 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
     ...(isPerplexity && !hasPerplexityIntegration ? { 'X-Pplx-Integration': 'cherry-studio' } : {}),
     ...headers,
     ...(isTokenDance ? { 'X-App-URL': TOKEN_DANCE_APP_URL } : {}),
-    ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {})
+    ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {}),
+    ...(isAimlapi
+      ? { 'X-AIMLAPI-Source': 'agent/cherry-studio', 'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8' }
+      : {})
   }
 }
 
@@ -82,12 +113,13 @@ export function getProviderAppHeaders(provider: Provider): Record<string, string
   return isCanonicalProvider ? defaultAppHeaders() : {}
 }
 
+/** Headers for calls made to the provider's default base URL (model listing). */
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
   return mergeHeaders(
     getProviderAppHeaders(provider),
     apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
-    getExtraHeaders(provider)
+    getExtraHeaders(provider, getBaseUrl(provider))
   )
 }
 
