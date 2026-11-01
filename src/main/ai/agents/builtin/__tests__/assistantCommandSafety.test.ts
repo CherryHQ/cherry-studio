@@ -14,6 +14,10 @@ describe('detectDestructiveAssistantCommand', () => {
     ['powershell rmdir C:\\temp', 'permanent Windows file deletion'],
     ['cmd /c del /s /q C:\\temp\\*', 'permanent Windows file deletion'],
     ['cmd /c if 1==1 del /q victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c if 1 EQU 1 del /q victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c if /i not "a" NEQ "b" erase victim.txt', 'permanent Windows file deletion'],
+    ['cmd.exe /c "@del /q victim.txt"', 'permanent Windows file deletion'],
+    ['if exist victim.txt @rd /s /q victim.txt', 'permanent Windows file deletion'],
     ['if defined SHOULD_DELETE del victim.txt', 'permanent Windows file deletion'],
     ['if exist "my file.txt" del /q "my file.txt"', 'permanent Windows file deletion'],
     ['if ERRORLEVEL 1 del victim.txt', 'permanent Windows file deletion'],
@@ -87,7 +91,18 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(longQuoted)).toBe('permanent Windows file deletion')
   })
 
-  it('keeps the pre-existing unbounded bare exist operand (257+ chars still blocked)', () => {
+  it('stays linear on long whitespace runs before an unquoted deletion tail (suffix ambiguity regression)', () => {
+    // The `\s*["']?\s*` suffix let whitespace split across the optional quote: quadratic without a quote.
+    const probe = 'echo ok &&' + ' '.repeat(160_000) + 'echo hello'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(probe)).toBeUndefined()
+    // Quadratic took ~11-30s on this input; linear is a few ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // The quote-separated tail form still detects.
+    expect(detectDestructiveAssistantCommand('cmd /c   "del /q victim.txt')).toBe('permanent Windows file deletion')
+  })
+
+  it('keeps the pre-existing unbounded bare operand (257+ chars still blocked)', () => {
     const longToken = 'x'.repeat(300)
     expect(detectDestructiveAssistantCommand(`if exist ${longToken} del victim.txt`)).toBe(
       'permanent Windows file deletion'

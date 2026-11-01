@@ -16,7 +16,9 @@ const GITHUB_ISSUE_CREATION_PATTERN =
 
 // `del`/`erase`/`rd` are ordinary words in prose (e.g. Spanish "del"), so only match them in command position.
 // Command position includes cmd.exe conditional prefixes (`if [/i] [not] exist|defined|errorlevel|
-// cmdextversion|<operand>==<operand>`, operands may be quoted) and a bare powershell/pwsh prefix
+// cmdextversion|<operand>==<operand>|<operand> EQU|NEQ|LSS|LEQ|GTR|GEQ <operand>`, operands may be
+// quoted), an optional batch `@` echo-suppression prefix on the deletion token, and a bare
+// powershell/pwsh prefix
 // (with optional .exe suffix and bounded launcher flags with at most one value each, such as -nop or -ep bypass), since those still
 // execute the deletion.
 // Two deliberate limits, both acceptable for a deny-side guard:
@@ -31,12 +33,13 @@ const GITHUB_ISSUE_CREATION_PATTERN =
 // would only narrow coverage (a 257+ char token would stop matching and the deletion would sail through).
 const CMD_QUOTED_OR_SHORT = String.raw`(?:"[^"]*"|'[^']*'|\S{1,256})`
 const CMD_EXIST_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|\S+)`
-const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_QUOTED_OR_SHORT}\s*==\s*${CMD_QUOTED_OR_SHORT})(?=\s)`
+const CMD_COMPARISON_OPERANDS = String.raw`${CMD_QUOTED_OR_SHORT}\s+(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\s+${CMD_QUOTED_OR_SHORT}`
+const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_QUOTED_OR_SHORT}\s*==\s*${CMD_QUOTED_OR_SHORT}|${CMD_COMPARISON_OPERANDS})(?=\s)`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'])[^\s]{0,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){\r\n` +
     '`' +
-    String.raw`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${POWERSHELL_LAUNCHER})\s*["']?\s*(?:del|erase|rd)(?=\s|$|["'])`,
+    String.raw`]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${POWERSHELL_LAUNCHER})\s*(?:["']\s*)?@?(?:del|erase|rd)(?=\s|$|["'])`,
   'i'
 )
 
