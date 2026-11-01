@@ -171,9 +171,27 @@ const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^([^\][\s]+)]:(.*)$/
 
 /**
  * An ATX heading: up to three columns of indent, one to six `#`, then the heading's text — which
- * may be empty, the bare `#` the parser still reads as a heading.
+ * may be empty, the bare `#` the parser still reads as a heading. Scanned linearly: overlapping
+ * whitespace quantifiers in a regex backtracked for seconds on a long run of spaces.
  */
-const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]+(.*?)[ \t]*#*)?[ \t]*$/
+function atxHeadingText(line: string): string | null {
+  let index = 0
+  while (index < 3 && line[index] === ' ') index += 1
+  let hashes = 0
+  while (hashes < 6 && line[index] === '#') {
+    index += 1
+    hashes += 1
+  }
+  if (hashes === 0) return null
+  if (line[index] === '#') return null
+  if (index < line.length && line[index] !== ' ' && line[index] !== '\t') return null
+  while (index < line.length && (line[index] === ' ' || line[index] === '\t')) index += 1
+  let end = line.length
+  while (end > index && (line[end - 1] === ' ' || line[end - 1] === '\t')) end -= 1
+  while (end > index && line[end - 1] === '#') end -= 1
+  while (end > index && (line[end - 1] === ' ' || line[end - 1] === '\t')) end -= 1
+  return line.slice(index, end)
+}
 
 /**
  * The container markers a definition may sit behind — block quotes, list items, and any nesting of
@@ -660,6 +678,12 @@ class HtmlElementStack {
     this.names.length = depth
   }
 
+  /** A markdown block below a blank renders a block-level tag, which implicitly closes `p`. */
+  closeParagraph(): void {
+    const paragraph = this.names.lastIndexOf('p')
+    if (paragraph >= 0) this.truncateTo(paragraph)
+  }
+
   get depth(): number {
     return this.names.length
   }
@@ -882,7 +906,7 @@ function isCompletedBlock(
     if (!paragraphOpen) return true
     if (itemContent !== null && leadingColumns(line) < itemContent) return true
   }
-  return ATX_HEADING.test(content) || (paragraphOpen && isSetextUnderline(line)) || THEMATIC_BREAK.test(line)
+  return atxHeadingText(content) !== null || (paragraphOpen && isSetextUnderline(line)) || THEMATIC_BREAK.test(line)
 }
 
 /**
@@ -3038,9 +3062,9 @@ export function splitMarkdownChunks(
     // an ATX heading where it stands, a setext one on the paragraph its underline turns into one —
     // which the parser reads whole, line after line.
     if (!blank && !containerHoldsCode) {
-      const atx = ATX_HEADING.exec(uncontained)
-      if (atx) {
-        recordHeading(i, atx[1] ?? '')
+      const atx = atxHeadingText(uncontained)
+      if (atx !== null) {
+        recordHeading(i, atx)
       } else if (previousStatus === 'paragraph' && SETEXT_UNDERLINE.test(uncontained)) {
         // The underline completes the open paragraph, but only in the container that paragraph sits
         // in: a marker that opens a block of its own leaves it a line of prose instead.
@@ -3127,6 +3151,8 @@ export function splitMarkdownChunks(
     const listContinues = run !== null && nextItem !== null && (nextItem[2] ?? nextItem[4]) === run.marker
     if (listContinues) continue
     run = null
+    // The next markdown block renders block-level markup, which implicitly closes an open `<p>`.
+    if (followedBy >= 0) htmlOpenElements.closeParagraph()
     // An element a blank line only spans holds the blocks below it: one that never closes keeps
     // every later boundary off, and the oversized fallback a chunk that size trips is the exit.
     if (bufferChars >= budgetChars && htmlOpenElements.depth === 0) {

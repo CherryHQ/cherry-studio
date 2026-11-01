@@ -320,6 +320,17 @@ describe('splitMarkdownChunks', () => {
     )
   })
 
+  it('windows after a raw paragraph when a markdown heading implicitly closes it', () => {
+    // A `<p>` cannot contain a block-level tag, so the heading below the blank closes it. Keeping
+    // `p` on the open stack made the whole windowable document one oversized source-only chunk.
+    const content = '<p>intro\n\n# Heading\n\n' + ('a'.repeat(1000) + '\n\n').repeat(600)
+
+    const window = splitMarkdownChunks(content)
+
+    expect(window.chunks.length).toBeGreaterThan(1)
+    expect(hasOversizedMarkdownChunk(window.chunks)).toBe(false)
+  })
+
   it('keeps the construct a self-closing non-void tag opens in one chunk', () => {
     // The renderer ignores a self-closing slash on an HTML element, so `<details/>` opens the
     // disclosure the same `<details>` does — the content below the summary renders inside it, and
@@ -3390,6 +3401,19 @@ describe('a malformed tag that never closes', () => {
 
     // The `<div>` element never closes, so no boundary may fall and the document stays whole.
     expect(window.chunks).toHaveLength(1)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('reads a heading with a long run of spaces once', () => {
+    // The ATX regex's overlapping whitespace quantifiers backtracked for ~19 s on this 4,004
+    // character line; the linear heading scan must stay inside the budget.
+    const content = '# x' + ' '.repeat(4000) + 'z'
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
     expect(elapsed).toBeLessThan(1_000)
   })
 
