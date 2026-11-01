@@ -76,6 +76,10 @@ describe('detectDestructiveAssistantCommand', () => {
     // Doubled quotes are escaped quote characters inside a quoted property name.
     ['pwsh -NoProfile -Command \'$h = @{}; $h."re""sult" = del victim.txt\'', 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command \"$h = @{}; $h.'re''sult' = del victim.txt\"", 'permanent Windows file deletion'],
+    // Digit-starting and non-ASCII identifiers are valid PowerShell assignment targets too;
+    // deny-side coverage is conservative regardless of bare `$1` assignability per shell version.
+    ["pwsh -NoProfile -Command '$1 = del victim.txt'", 'permanent Windows file deletion'],
+    ['pwsh -NoProfile -Command "$r\u00e9sultat = del victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c "2>nul del /q victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c >nul del /q victim.txt', 'permanent Windows file deletion'],
     ['cmd /c "1>out.txt 2>&1 del victim.txt"', 'permanent Windows file deletion'],
@@ -316,6 +320,36 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(performance.now() - start).toBeLessThan(2000)
   })
 
+  it('stays linear on repeated quote-glued start tokens (quote-glue anchor rescan regression)', () => {
+    // A quote only separates `start` from a preceding token when the quote itself sits at a
+    // command position. In `/x\"start` the quote is glued mid-token, so `start` must not anchor -
+    // unfixed, every token both anchored the start branch and was consumed as switch arguments by
+    // earlier anchors (measured 536/2248/9460ms at 4k/8k/16k, quadratic). The start anchors now
+    // reject a glue run (quotes/@/backtick) that is itself preceded by a non-separator.
+    const input = "echo '" + '/x"start '.repeat(16000) + "x'"
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(input)).toBeUndefined()
+    // Unfixed is ~9.5s here; linear is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // Quote-glued start at a real command position still denies.
+    expect(detectDestructiveAssistantCommand('cmd /c "start /b del victim.txt"')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('stays linear on long beyond-window glue tokens (all-glue anchor regression)', () => {
+    // A `start` buried under 65+ glue characters is never the start command (only one `@` is echo
+    // suppression), so it must not anchor: unfixed, each such token anchored and its argument scan
+    // re-consumed every later token (measured 387/1312/5357ms at 1k/2k/4k tokens on node 22,
+    // quadratic). The fixed-width all-glue lookbehind blocks these anchors at fixed per-position
+    // cost on any engine.
+    const input = 'echo "' + ('/x' + '@'.repeat(100) + 'start ').repeat(4000) + 'x"'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(input)).toBeUndefined()
+    // Unfixed is ~5s here; linear is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+  })
+
   it('stays linear on large newline runs and mixed gap runs (separator restart regression)', () => {
     // Newlines are command separators, so every newline in a run used to restart a maximal gap
     // rescan: quadratic on the main thread (631ms at 20k, 2.5s at 40k). Only the first newline of
@@ -429,6 +463,62 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('cmd /c start start del victim.txt')).toBe(
       'permanent Windows file deletion'
     )
+  })
+
+  it('denies deletion after start anchored by 65+ glue runs (scanner-restored anchors)', () => {
+    // The {65} lookbehind ban caps the regex window at 64 glue chars; a linear scanner restores
+    // the pre-ban anchoring for longer runs, so these command-position forms still deny.
+    const runs = ['"'.repeat(65), '"'.repeat(66), '@'.repeat(100), "'".repeat(66), '`'.repeat(66), '@`"'.repeat(22)]
+    for (const g of runs) {
+      expect(detectDestructiveAssistantCommand(`cmd /c ${g}start /b del victim.txt`)).toBe(
+        'permanent Windows file deletion'
+      )
+    }
+    // Wrapped in an echo pair and at string start.
+    expect(detectDestructiveAssistantCommand('cmd /c "' + '"'.repeat(66) + 'start /b del victim.txt"')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('"'.repeat(66) + 'start /b del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // A quoted title carrying 65+ glue (with or without an inner `start`) stays a consumable arg.
+    expect(detectDestructiveAssistantCommand('cmd /c start "a' + '@'.repeat(70) + '" del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cmd /c start "a' + '@'.repeat(70) + 'start /b" del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Glue run immediately before a terminal `start` inside the title: argument-tempering the
+    // quoted branch would reject the title as an arg and lose this deny.
+    expect(detectDestructiveAssistantCommand('cmd /c start "a' + '@'.repeat(70) + 'start" del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // An args chain after a long-glue anchor still reaches the deletion token.
+    expect(detectDestructiveAssistantCommand('cmd /c ' + '"'.repeat(66) + 'start /b /min "title" del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // No deletion token: allow.
+    expect(detectDestructiveAssistantCommand('cmd /c ' + '"'.repeat(66) + 'start notepad.exe')).toBeUndefined()
+  })
+
+  it('stays linear on composed long-glue anchor and argument families', () => {
+    // Quoted args with inner long-glue starts (word char before the run: not command position),
+    // a long-glue command-position anchor followed by both adversarial families, and many
+    // command-position long-glue anchors in one input. Unfixed, each family was quadratic.
+    const quotedTokens = 'cmd /c start ' + ('"a' + '@'.repeat(100) + 'start /b" ').repeat(4000)
+    const composed =
+      'cmd /c ' +
+      '"'.repeat(66) +
+      'start /b del v.txt ' +
+      ('"a' + '@'.repeat(100) + 'start /b" ').repeat(2000) +
+      "'start ".repeat(2000)
+    const manyAnchors = 'cmd /c ' + ('"'.repeat(66) + 'start /b "t" ').repeat(4000) + 'x'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(quotedTokens)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(composed)).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand(manyAnchors)).toBeUndefined()
+    // Measured 20-46ms (node 24) / 66-182ms (node 22) per shape; 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
   })
 
   it('keeps the pre-existing unbounded bare operand (257+ chars still blocked)', () => {
