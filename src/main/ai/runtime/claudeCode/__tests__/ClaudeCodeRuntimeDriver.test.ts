@@ -156,6 +156,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
+  applicationGetExisting: vi.fn(),
   getPhysicalPath: vi.fn(),
   probeReadable: vi.fn(),
   consumeWarmQuery: vi.fn(),
@@ -171,7 +172,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
+  application: {
+    get: mocks.applicationGet,
+    getExisting: mocks.applicationGetExisting,
+    getPath: vi.fn(() => '/mock-claude-config')
+  }
 }))
 
 vi.mock('../forkWorker?nodeWorker', () => ({
@@ -487,6 +492,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     vi.clearAllMocks()
 
     mocks.adapterInstances.length = 0
+    mocks.applicationGetExisting.mockReturnValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
         return {
@@ -496,7 +502,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
-      if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
+      if (name === 'ClaudeCodeProcessManager') {
+        return { spawn: mocks.processManagerSpawn, releaseLiveSpawnPreflight: vi.fn() }
+      }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
@@ -528,6 +536,52 @@ describe('ClaudeCodeRuntimeDriver', () => {
         live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
       }
     })
+  })
+
+  it.each([false, true])('cleans up a failed post-query setup (already spawned: %s)', async (alreadySpawned) => {
+    let reservations = 0
+    const manager = {
+      getActiveProcessCount: () => reservations,
+      getCapSlotProcessCount: () => reservations,
+      tryReserveLiveSpawnPreflight: vi.fn(() => {
+        reservations++
+        return true
+      }),
+      releaseLiveSpawnPreflight: vi.fn(() => {
+        reservations--
+      }),
+      spawn: vi.fn((_options, _diagnostics, _priority, ownsPreflight) => {
+        if (ownsPreflight) reservations--
+      })
+    }
+    const previousGet = mocks.applicationGet.getMockImplementation()!
+    mocks.applicationGetExisting.mockImplementation((name: string) =>
+      name === 'ClaudeCodeProcessManager' ? manager : undefined
+    )
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'ClaudeCodeProcessManager' ? manager : previousGet(name)
+    )
+    const query = { close: vi.fn(), return: vi.fn().mockResolvedValue({ done: true }) }
+    mocks.createClaudeQuery.mockImplementationOnce(({ options }) => {
+      if (alreadySpawned) options.spawnClaudeCodeProcess({ command: '/fixture/claude', args: [], env: {} })
+      return query
+    })
+    const setupError = new Error('catalog setup failed')
+    mocks.registerMcpSessionCatalogSync.mockImplementationOnce(() => {
+      throw setupError
+    })
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+    ).rejects.toBe(setupError)
+    expect(manager.tryReserveLiveSpawnPreflight).toHaveBeenCalledOnce()
+    expect(reservations).toBe(0)
+    expect(manager.releaseLiveSpawnPreflight).toHaveBeenCalledTimes(alreadySpawned ? 0 : 1)
+    expect(query.close).toHaveBeenCalledOnce()
+    expect(query.return).toHaveBeenCalledOnce()
   })
 
   it('uses the serving receipt retained by a consumed warm process', async () => {
@@ -741,6 +795,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toEqual(expect.any(Function))
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
+    const spawnCold = mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    const spawnOptions = { command: '/fixture/claude', args: [], env: {}, signal: new AbortController().signal }
+    spawnCold(spawnOptions)
+    spawnCold(spawnOptions)
+    expect(mocks.processManagerSpawn).toHaveBeenNthCalledWith(1, spawnOptions, expect.any(Object), 'live', true)
+    expect(mocks.processManagerSpawn).toHaveBeenNthCalledWith(2, spawnOptions, expect.any(Object), 'live', false)
     void connection.close()
   })
 
