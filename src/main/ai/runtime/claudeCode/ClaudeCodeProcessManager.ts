@@ -258,6 +258,18 @@ export class ClaudeCodeProcessManager extends BaseService {
     this.forgetProcess(child, diagnosticsReference)
     if (this.hasExited(child)) return
     this.trackEvictingProcess(child)
+    // Sending SIGTERM sets child.killed even if the process ignores it. That flag makes
+    // SDK disposal skip its own escalation, so retain an exit-aware fallback here.
+    const escalation = setTimeout(() => {
+      if (this.hasExited(child)) return
+      try {
+        child.kill('SIGKILL')
+      } catch (error) {
+        logger.warn('Failed to force-stop Claude Code subprocess during warm eviction', { error })
+      }
+    }, 7_000)
+    escalation.unref?.()
+    child.once('exit', () => clearTimeout(escalation))
     try {
       child.kill('SIGTERM')
     } catch (error) {

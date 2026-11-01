@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
@@ -90,6 +91,71 @@ const spawnOptions: SpawnOptions = {
 }
 
 describe('ClaudeCodeProcessManager', () => {
+  it.skipIf(process.platform === 'win32')(
+    'reaps a real warm child that ignores SIGTERM and stdin EOF',
+    async () => {
+      const child = spawn(
+        process.execPath,
+        [
+          '-e',
+          "process.on('SIGTERM', () => {}); process.stdin.resume(); process.stdin.on('end', () => {}); console.log('ready'); setInterval(() => {}, 1000)"
+        ],
+        { stdio: 'pipe' }
+      )
+      try {
+        await new Promise<void>((resolve, reject) => {
+          child.stdout.once('data', () => resolve())
+          child.once('error', reject)
+        })
+        const manager = new TestProcessManager(() => child)
+        const diagnostics = createClaudeCodeProcessDiagnostics()
+        manager.spawn(spawnOptions, diagnostics)
+        manager.releaseWarmQueryProcess(diagnostics.reference)
+        child.stdin.end()
+        expect(manager.getActiveProcessCount()).toBe(1)
+        await Promise.race([
+          diagnostics.exited,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('resistant child survived escalation')), 9_000))
+        ])
+        expect(child.signalCode).toBe('SIGKILL')
+        expect(manager.getActiveProcessCount()).toBe(0)
+      } finally {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+      }
+    },
+    12_000
+  )
+
+  it.each([false, true])('escalates an evicted child only if still alive (exited: %s)', async (exited) => {
+    vi.useFakeTimers()
+    try {
+      const child = createFakeChild()
+      const manager = new TestProcessManager(() => child.process)
+      const diagnostics = createClaudeCodeProcessDiagnostics()
+      manager.spawn(spawnOptions, diagnostics)
+      manager.releaseWarmQueryProcess(diagnostics.reference)
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+      expect(child.process.killed).toBe(true)
+      expect(manager.getActiveProcessCount()).toBe(1)
+      if (exited) {
+        child.stderr.end()
+        child.emitExit()
+      }
+      await vi.advanceTimersByTimeAsync(7_000)
+      expect(child.kill).toHaveBeenCalledTimes(exited ? 1 : 2)
+      if (!exited) {
+        expect(child.kill).toHaveBeenLastCalledWith('SIGKILL')
+        expect(manager.getActiveProcessCount()).toBe(1)
+        child.stderr.end()
+        child.emitExit(null, 'SIGKILL')
+        await vi.advanceTimersByTimeAsync(0)
+      }
+      expect(manager.getActiveProcessCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('confirms native exit only after the OS exit event, not after a kill request', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(() => child.process)
