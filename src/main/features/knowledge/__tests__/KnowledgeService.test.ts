@@ -1,11 +1,18 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
+import type {
+  FileProcessingTask,
+  FileProcessingTaskId,
+  SettledFileProcessingTask,
+  StartedFileProcessingTask
+} from '@main/features/fileProcessing'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -25,7 +32,9 @@ const {
   deleteStoreMock,
   enqueueMock,
   enqueueTxMock,
-  fileProcessingStartJobMock,
+  fileProcessingCancelTaskMock,
+  fileProcessingOnDidChangeTaskMock,
+  fileProcessingStartTaskMock,
   getJobMock,
   aiEmbedManyMock,
   knowledgeBaseCreateMock,
@@ -68,7 +77,9 @@ const {
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   enqueueTxMock: vi.fn(),
-  fileProcessingStartJobMock: vi.fn(),
+  fileProcessingCancelTaskMock: vi.fn(),
+  fileProcessingOnDidChangeTaskMock: vi.fn(),
+  fileProcessingStartTaskMock: vi.fn(),
   getJobMock: vi.fn(),
   aiEmbedManyMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
@@ -111,7 +122,9 @@ vi.mock('@application', async () => {
   const { default: nodePath } = await import('node:path')
   const mocked = mockApplicationFactory({
     FileProcessingService: {
-      startJob: fileProcessingStartJobMock
+      cancelTask: fileProcessingCancelTaskMock,
+      onDidChangeTask: fileProcessingOnDidChangeTaskMock,
+      startTask: fileProcessingStartTaskMock
     },
     JobManager: {
       cancel: cancelMock,
@@ -371,6 +384,27 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+function queuedTask(): Extract<FileProcessingTask, { status: 'queued' }> {
+  return {
+    id: 'fp-task-1' as FileProcessingTaskId,
+    feature: 'document_to_markdown',
+    processorId: 'doc2x',
+    status: 'queued'
+  }
+}
+
+function completedTask(): SettledFileProcessingTask {
+  return {
+    ...queuedTask(),
+    status: 'completed',
+    artifact: { kind: 'file', format: 'markdown', path: '/kb/raw/source.md' as AbsoluteFilePath }
+  }
+}
+
+function startedTask(done: Promise<SettledFileProcessingTask>): StartedFileProcessingTask {
+  return { task: queuedTask(), done }
+}
+
 const createdItemBaseIds = new Map<string, string>()
 
 describe('KnowledgeService', () => {
@@ -436,7 +470,9 @@ describe('KnowledgeService', () => {
     })
     enqueueMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
-    fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
+    fileProcessingStartTaskMock.mockResolvedValue(startedTask(Promise.resolve(completedTask())))
+    fileProcessingCancelTaskMock.mockResolvedValue('cancelled')
+    fileProcessingOnDidChangeTaskMock.mockReturnValue({ dispose: vi.fn() })
     getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
     getIndexStoreMock.mockReturnValue({
@@ -693,29 +729,19 @@ describe('KnowledgeService', () => {
     )
   })
 
-  it('cancels file-processing jobs linked by active knowledge checks before deleting a base', async () => {
+  it('cancels the file processing items are waiting on before deleting a base', async () => {
     const service = new KnowledgeService()
-    listMock.mockResolvedValueOnce([
-      {
-        id: 'check-job',
-        type: 'knowledge.check-file-processing-result',
-        input: {
-          baseId: 'kb-1',
-          itemId: 'file-1',
-          fileProcessingJobId: 'fp-job-1',
-          pollRound: 0,
-          firstScheduledAt: 1779811200000,
-          processedRelativePath: 'source.md' as PosixRelativeFilePath
-        }
-      }
-    ])
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing'))
+    fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(new Promise(() => {})))
+    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
 
     await service.deleteBase('kb-1')
 
-    expect(cancelMock).toHaveBeenCalledWith('check-job', 'delete-base')
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'delete-base')
-    expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
-    expect(cancelMock.mock.invocationCallOrder[1]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
+    expect(fileProcessingCancelTaskMock).toHaveBeenCalledWith('fp-task-1', 'delete-base')
+    expect(fileProcessingCancelTaskMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteStoreMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('serializes concurrent deleteBase cleanup for the same base', async () => {
@@ -1059,7 +1085,7 @@ describe('KnowledgeService', () => {
       { awaitingCopy: false }
     )
     // The file processor is skipped and indexing runs straight from the artifact (re-embedding still happens).
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
       expect.objectContaining({ baseId: 'restored-kb', itemId: 'restored-file' }),
@@ -1159,47 +1185,66 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(expect.anything(), 'kb-1', ['note-1'], 'deleting')
   })
 
-  it('starts file processing and schedules a check job for a copied document when the base has a processor', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
+  it("checks a copied document's file-processing result once its task settles, without polling", async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
+    const done = createDeferred<SettledFileProcessingTask>()
+    fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(done.promise))
 
     // The copy job hands a file to this step once its bytes are in raw/.
     await ingestionOf(service).scheduleItem('kb-1', 'file-1')
 
-    expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
-      {
-        feature: 'document_to_markdown',
-        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
-        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
-        context: { dataId: 'file-1' },
-        processorId: 'doc2x'
-      },
-      {
-        parentId: undefined
-      }
-    )
+    expect(fileProcessingStartTaskMock).toHaveBeenCalledWith({
+      feature: 'document_to_markdown',
+      file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+      output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
+      context: { dataId: 'file-1' },
+      processorId: 'doc2x'
+    })
+    await flushMicrotasks()
+    expect(enqueueMock).not.toHaveBeenCalled()
+
+    done.resolve(completedTask())
+    await flushMicrotasks()
+
+    // A direct add has no parent, so the check job itself scopes the indexing that follows.
+    expect(enqueueMock).toHaveBeenCalledTimes(1)
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.check-file-processing-result',
       {
         baseId: 'kb-1',
         itemId: 'file-1',
-        fileProcessingJobId: 'fp-job-1',
-        pollRound: 0,
-        firstScheduledAt: expect.any(Number),
+        fileProcessingTaskId: 'fp-task-1',
         processedRelativePath: 'source.md' as PosixRelativeFilePath
       },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
+      {
+        idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-task-1',
         queue: 'base.kb-1',
-        parentId: 'fp-job-1',
-        scheduledAt: Date.parse('2026-04-08T00:00:05.000Z')
-      })
+        parentId: undefined
+      }
     )
-    expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.index-documents', expect.anything(), expect.anything())
+  })
+
+  it("shows a waiting file's processing progress on its item until its task settles", async () => {
+    const service = new KnowledgeService()
+    ;(service as unknown as { onInit: () => void }).onInit()
+    const onDidChangeTask = fileProcessingOnDidChangeTaskMock.mock.calls[0][0] as (task: FileProcessingTask) => void
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing'))
+    const done = createDeferred<SettledFileProcessingTask>()
+    fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(done.promise))
+    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+
+    onDidChangeTask({ ...queuedTask(), status: 'processing', progress: 42 })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_progress.file-1')).toBe(42)
+
+    done.resolve(completedTask())
+    await flushMicrotasks()
+    expect(
+      MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_progress.file-1')
+    ).toBeUndefined()
   })
 
   it('auto-renames a duplicate uploaded file name instead of rejecting the import', async () => {
@@ -1403,7 +1448,7 @@ describe('KnowledgeService', () => {
     await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
       'Knowledge file already exists: source.md'
     )
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
   })
 
   it('refuses a processed-markdown name still owned by an item whose delete cleanup is pending', async () => {
@@ -1420,7 +1465,7 @@ describe('KnowledgeService', () => {
     await expect(ingestionOf(service).scheduleItem('kb-1', 'file-1')).rejects.toThrow(
       'Knowledge file already exists: source.md'
     )
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
   })
 
   it('auto-renames against a file imported in an earlier addItems call, not just within one call', async () => {
@@ -1481,7 +1526,7 @@ describe('KnowledgeService', () => {
 
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
   })
 
   it('accepts an interactive file add before copying any bytes, then enqueues one copy job per file', async () => {
@@ -1521,7 +1566,7 @@ describe('KnowledgeService', () => {
       { idempotencyKey: 'knowledge:kb-1:file-2:copy', queue: 'base.kb-1' }
     )
     // Nothing that reads the bytes may start before the copy job lands them.
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.index-documents', expect.anything(), expect.anything())
   })
 
@@ -1556,7 +1601,7 @@ describe('KnowledgeService', () => {
       [{ type: 'file', data: { relativePath: 'source.md' } }],
       expect.objectContaining({ itemId: 'file-1', staleRelativePath: 'source.md' })
     )
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
   })
 
   it('keeps the processed-artifact pin when the reindexed file is reprocessed onto the same path', async () => {
@@ -1583,15 +1628,14 @@ describe('KnowledgeService', () => {
     // The processor rewrites source.md in place, so the pin still describes the refreshed file;
     // clearing it here would strand the check handler's availability guard on a live artifact.
     expect(knowledgeItemClearIndexedRelativePathMock).not.toHaveBeenCalled()
-    expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
+    expect(fileProcessingStartTaskMock).toHaveBeenCalledWith(
       expect.objectContaining({
         output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') }
-      }),
-      expect.anything()
+      })
     )
   })
 
-  it('passes the parent job when starting file processing during reindex', async () => {
+  it('checks a reindexed file under the reindex job once its task settles', async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
@@ -1605,81 +1649,22 @@ describe('KnowledgeService', () => {
       }
     ).ingestionService
     await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    await flushMicrotasks()
 
-    expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
-      {
-        feature: 'document_to_markdown',
-        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
-        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
-        context: { dataId: 'file-1' },
-        processorId: 'doc2x'
-      },
-      {
-        parentId: 'reindex-job'
-      }
-    )
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.check-file-processing-result',
       {
         baseId: 'kb-1',
         itemId: 'file-1',
-        fileProcessingJobId: 'fp-job-1',
-        pollRound: 0,
-        firstScheduledAt: expect.any(Number),
+        fileProcessingTaskId: 'fp-task-1',
         processedRelativePath: 'source.md' as PosixRelativeFilePath
       },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
+      {
+        idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-task-1',
         queue: 'base.kb-1',
-        parentId: 'reindex-job',
-        scheduledAt: expect.any(Number)
-      })
+        parentId: 'reindex-job'
+      }
     )
-  })
-
-  it('cancels the started file-processing job when check scheduling fails', async () => {
-    const service = new KnowledgeService()
-    const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
-    knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
-    enqueueMock.mockImplementationOnce(() => {
-      throw new Error('check enqueue failed')
-    })
-
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-        }
-      }
-    ).ingestionService
-
-    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
-
-    expect(fileProcessingStartJobMock).toHaveBeenCalled()
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
-  })
-
-  it('preserves check scheduling errors when rollback cancellation fails', async () => {
-    const service = new KnowledgeService()
-    const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
-    knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
-    enqueueMock.mockImplementationOnce(() => {
-      throw new Error('check enqueue failed')
-    })
-    cancelMock.mockRejectedValueOnce(new Error('cancel failed'))
-
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-        }
-      }
-    ).ingestionService
-
-    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
   })
 
   it('uses the parent job as the direct indexing idempotency scope during reindex', async () => {
@@ -1708,54 +1693,6 @@ describe('KnowledgeService', () => {
     )
   })
 
-  it('schedules follow-up file-processing checks with a five-second delay', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
-    const service = new KnowledgeService()
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleFileProcessingCheck(
-            baseId: string,
-            itemId: string,
-            fileProcessingJobId: string,
-            options: {
-              pollRound: number
-              firstScheduledAt: number
-              parentJobId: string | null
-              processedRelativePath: string
-            }
-          ): Promise<void>
-        }
-      }
-    ).ingestionService
-
-    await ingestionService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
-      pollRound: 1,
-      firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
-      parentJobId: 'check-job-0',
-      processedRelativePath: 'source.md'
-    })
-
-    expect(enqueueMock).toHaveBeenCalledWith(
-      'knowledge.check-file-processing-result',
-      {
-        baseId: 'kb-1',
-        itemId: 'file-1',
-        fileProcessingJobId: 'fp-job-1',
-        pollRound: 1,
-        firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
-        processedRelativePath: 'source.md' as PosixRelativeFilePath
-      },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:1',
-        queue: 'base.kb-1',
-        parentId: 'check-job-0',
-        scheduledAt: Date.parse('2026-04-08T00:00:05.000Z')
-      })
-    )
-  })
-
   it('schedules direct indexing for a copied file when the extension does not need file processing', async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.md', 'processing')
@@ -1764,7 +1701,7 @@ describe('KnowledgeService', () => {
 
     await ingestionOf(service).scheduleItem('kb-1', 'file-1')
 
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
       { baseId: 'kb-1', itemId: 'file-1' },
@@ -1784,7 +1721,7 @@ describe('KnowledgeService', () => {
 
     await ingestionOf(service).scheduleItem('kb-1', 'file-1')
 
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
       { baseId: 'kb-1', itemId: 'file-1' },

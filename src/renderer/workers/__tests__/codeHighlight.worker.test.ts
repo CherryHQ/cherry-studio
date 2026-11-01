@@ -29,6 +29,30 @@ const read = (sessionId: string, revision = 0) =>
   request({ type: 'read', sessionId, revision, configurationRevision: 0, range: { start: 0, end: 5 } })
 
 describe('highlight worker document protocol', () => {
+  it('exports escaped HTML and fenced or indented Markdown through the shared syntax parser', async () => {
+    const code = 'const value = "<script>中文 🥟</script>";\r\n'
+    const html = await request({ type: 'html', code, language: 'ts', theme: 'one-light' })
+    if (!('result' in html) || typeof html.result !== 'string') throw new Error('Expected HTML')
+    const container = document.createElement('div')
+    container.innerHTML = html.result
+    expect(container.querySelector('code')?.textContent).toBe(code)
+    expect(container.querySelector('script')).toBeNull()
+    expect(container.querySelector('span')?.style.color).toBeTruthy()
+    const markdown = await request({
+      type: 'markdown',
+      code: '> ```ts\n> const nested = 1\n> ```\n\n    plain <tag>\n',
+      theme: 'one-light'
+    })
+    if (!('result' in markdown) || typeof markdown.result !== 'string') throw new Error('Expected Markdown HTML')
+    container.innerHTML = markdown.result
+    expect(container.querySelector('blockquote code')?.textContent).toBe('const nested = 1\n')
+    expect(Array.from(container.querySelectorAll('code'), (node) => node.textContent)).toEqual([
+      'const nested = 1\n',
+      'plain <tag>\n'
+    ])
+    expect(container.querySelector('tag')).toBeNull()
+  })
+
   it('orders open, delta and read and rejects stale edits without corrupting the current source', async () => {
     const first = open('ordered')
     const update = request({

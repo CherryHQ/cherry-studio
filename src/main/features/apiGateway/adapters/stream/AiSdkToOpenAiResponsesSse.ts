@@ -274,6 +274,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         this.closeReasoningItem()
         break
 
+      case 'tool-input-error':
       case 'tool-input-available':
         this.handleToolCall({
           toolCallId: chunk.toolCallId,

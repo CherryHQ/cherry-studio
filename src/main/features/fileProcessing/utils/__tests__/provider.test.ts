@@ -55,4 +55,34 @@ describe('file processing provider utils', () => {
     expect(getApiKey(config, 'doc2x')).toBe('key-b')
     expect(getApiKey(config, 'mineru')).toBe('key-b')
   })
+
+  it('rotates over distinct keys when a key is configured twice', () => {
+    const config = {
+      apiKeys: ['KEY-A', 'KEY-A', 'KEY-B']
+    } as never
+
+    expect(getApiKey(config, 'mistral')).toBe('KEY-A')
+    expect(getApiKey(config, 'mistral')).toBe('KEY-B')
+    expect(getApiKey(config, 'mistral')).toBe('KEY-A')
+  })
+
+  it('treats whitespace variants of the same key as one entry', () => {
+    const config = {
+      apiKeys: ['KEY-A', ' KEY-A ', 'KEY-B']
+    } as never
+
+    expect(getApiKey(config, 'open-mineru')).toBe('KEY-A')
+    expect(getApiKey(config, 'open-mineru')).toBe('KEY-B')
+    expect(getApiKey(config, 'open-mineru')).toBe('KEY-A')
+  })
+
+  it('collapses all-identical keys to a single key', () => {
+    const config = {
+      apiKeys: ['KEY-A', 'KEY-A', 'KEY-A']
+    } as never
+
+    expect(getApiKey(config, 'paddleocr')).toBe('KEY-A')
+    expect(getApiKey(config, 'paddleocr')).toBe('KEY-A')
+    expect(getApiKey(config, 'paddleocr')).toBe('KEY-A')
+  })
 })

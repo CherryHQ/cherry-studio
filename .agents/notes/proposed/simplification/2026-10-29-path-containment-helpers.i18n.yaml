@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-10-29-path-containment-helpers.md
+2026-10-29-path-containment-helpers.md: 177672fc5dd507b6a05d9c1122a520c72c181fa6
+2026-10-29-path-containment-helpers.zh.md: 385a57ff3913a1ddeaa0bf7ca0de9029b27de591

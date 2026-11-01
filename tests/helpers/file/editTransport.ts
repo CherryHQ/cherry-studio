@@ -1,10 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 
 import { ContentHashSchema } from '@shared/data/types/file'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { fileEditRequestSchemas } from '@shared/ipc/schemas/fileEdit'
-import type { FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
 import { FileVersionSchema } from '@shared/types/file'
 
 interface ReadFixture {
@@ -15,7 +12,6 @@ export function createEditTransport(
   read: (route: string, input: unknown) => Promise<ReadFixture | { mtime: number; size: number }>
 ) {
   const paths = new Map<string, string>()
-  const receipts = new Map<string, FileWriteOutcome>()
   const baseline = (data: Uint8Array, version: { mtime: number; size: number }) => ({
     version,
     contentHash: ContentHashSchema.parse(`sha256:${createHash('sha256').update(data).digest('hex')}`)
@@ -44,28 +40,8 @@ export function createEditTransport(
           ? { ...input, data: new Uint8Array(input.data.buffer, input.data.byteOffset, input.data.byteLength) }
           : input
       const request = fileEditRequestSchemas[route].input.parse(wire)
-      let result: FileWriteOutcome
-      try {
-        const version = FileVersionSchema.parse(await read(route, request))
-        result = {
-          kind: 'committed',
-          sequence: request.sequence,
-          baseline: baseline(request.data, version),
-          metadataRecoveryPending: false
-        }
-      } catch (error) {
-        result = {
-          kind: 'not-committed',
-          sequence: request.sequence,
-          code: error instanceof IpcError ? error.code : fileErrorCodes.EDIT_IO
-        }
-      }
-      receipts.set(request.editId, result)
-      return result
-    }
-    if (route === 'file.edit.settle_write') {
-      const { editId, sequence } = fileEditRequestSchemas[route].input.parse(input)
-      return receipts.get(editId) ?? { kind: 'not-started', sequence }
+      const version = FileVersionSchema.parse(await read(route, request))
+      return { baseline: baseline(request.data, version), metadataRecoveryPending: false }
     }
     return read(route, input)
   }

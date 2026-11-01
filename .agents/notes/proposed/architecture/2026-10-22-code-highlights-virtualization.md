@@ -27,6 +27,10 @@ Production code and constraints were checked in `CodeViewer.tsx`, `CodeHighlight
 
 ### 1. Scope and invariants
 
+The proposed [shared Pierre source surfaces](2026-10-24-pierre-code-surfaces.md) partially supersede the CodeMirror/layout boundary below for specifically migrated consumers. That successor has separate acceptance criteria; this note's other contracts and verification remain intact.
+
+The separate [code-block language/style proposal](2026-10-26-message-code-block-surfaces.md) proposes replacing only CodeViewer range parsing with shared CodeMirror/Lezer language and style definitions. Its delivery gates do not replace this note's existing Highlights snapshot, HTML/Markdown or Tiptap contracts/evidence.
+
 Converge shared policy and execution mechanics while retaining renderer-specific adapters. Preserve source text, preview theme identifiers, separate CodeMirror preferences, rich-editor persisted node attributes, existing copy actions and unsupported-language plain-text behavior. Retain TanStack Virtual.
 
 This phase does not enable highlighting during chat streaming: `CodeBlockView` currently passes `highlight: false` while streaming. Test incremental capability separately from this product behavior. It does not virtualize ProseMirror or Streamdown's native block renderer, replace CodeMirror/Diffs layout, add semantic language-server highlighting, remove all transitive Shiki packages, or create a general engine-plugin framework.

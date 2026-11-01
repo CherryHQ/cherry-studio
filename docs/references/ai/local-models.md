@@ -171,6 +171,12 @@ where the bytes arrive instead. The floor still catches the case that matters: a
 stub left by a killed download from before checksums existed, which would otherwise read
 as a complete model and fail at load time.
 
+FunASR Nano installs the compatibility decoder as `llm.int8.compat.onnx`. An older
+`llm.int8.onnx` does not satisfy readiness: the existing incomplete-install retry downloads
+only the new decoder and reuses the other bundle files. The old decoder remains unused
+until the bundle is removed. The compatibility decoder uses a pinned ModelScope source;
+the older Hugging Face decoder is not a fallback for it.
+
 Bundle files and shared artifacts are scanned separately, and callers compose them. A
 bundle whose weights are complete but whose runtime is missing is an offer to download
 ~40MB, not a broken install — so it reports as not-installed rather than as an error.
@@ -294,9 +300,11 @@ hardware-acceleration preference.
 
 The `kokoro-multi-lang-v1.1` bundle pins the full-precision ONNX weights, all 103 voices,
 Chinese normalization rules, both Chinese and English lexicons, and the English eSpeak
-data needed for words absent from the lexicon. Every file is checksummed and fetched from
-an immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
-shared with FunASR; removing either model retains it while the other is installed.
+data needed for words absent from the lexicons, including Mandarin language and dictionary
+data. Every file is checksummed and fetched from an immutable Hugging Face revision, with
+hf-mirror as a fallback. The worker sets `ESPEAK_DATA_PATH` to the bundle's eSpeak data
+directory before initializing the native runtime. The runtime is shared with FunASR;
+removing either model retains it while the other is installed.
 
 Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows arm64/x64.
 Windows ARM64 shares the verified Sherpa runtime with FunASR. The worker loads both
