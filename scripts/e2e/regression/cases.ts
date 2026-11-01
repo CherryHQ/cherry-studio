@@ -494,7 +494,7 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: []
   },
-  { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: [] },
+  { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: ['desktopAutomation'] },
   {
     id: 'MP-74',
     title: 'Markdown editing, autosave, and conflicts',
@@ -713,7 +713,7 @@ export const REGRESSION_CASES = [
     title: 'Preview files and open their location',
     tasks: ['files'],
     phase: 'files',
-    capabilities: []
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-71',
@@ -798,7 +798,7 @@ export const REGRESSION_CASES = [
   },
   {
     id: 'MP-127',
-    capabilities: ['externalSelection', 'globalShortcut'],
+    capabilities: ['desktopAutomation', 'externalSelection', 'globalShortcut'],
     phase: 'system',
     title: 'Selection Assistant (capture, explain, translate, copy)',
     tasks: ['system-integration'],

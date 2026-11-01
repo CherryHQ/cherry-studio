@@ -807,6 +807,7 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       { timeout: 3000 }
     )
   } finally {
+    await rm(exportedPath, { force: true })
     await page.keyboard.press('Escape').catch(() => undefined)
     const assistants = await readAssistants()
     await page.evaluate(
