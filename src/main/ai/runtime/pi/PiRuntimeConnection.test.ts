@@ -224,6 +224,7 @@ function appendedSystemPrompt(): string {
 }
 
 const fakeSession = {
+  agent: { finishTurn: undefined as undefined | ((...args: unknown[]) => unknown) },
   get isStreaming() {
     return mocks.isStreaming
   },
@@ -486,6 +487,7 @@ beforeEach(() => {
   mocks.getContextUsage.mockReturnValue(undefined)
   mocks.createAgentSession.mockImplementation(async (opts: Record<string, unknown>) => {
     mocks.createOpts = opts
+    fakeSession.agent = { finishTurn: undefined }
     return { session: fakeSession }
   })
   mocks.createBashToolDefinition.mockImplementation((_cwd: string, options: Record<string, unknown>) => {
@@ -1065,6 +1067,231 @@ describe('PiRuntimeConnection', () => {
     expect(terminal).toHaveLength(1)
     expect(events.at(-1)?.type).toBe('turn-complete')
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_ID)).toBe(true)
+  })
+
+  it('blocks the 21st sequential tool call and reports the limit to the user without aborting admitted work', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('repeat tools'))
+    const authorize = approvalGateHandler()
+
+    for (let index = 0; index < 20; index += 1) {
+      const toolCallId = `tool-${index}`
+      const event = { type: 'tool_call', toolName: 'codemode', toolCallId, input: { code: 'return 1' } }
+      await expect(authorize(event, {})).resolves.toBeUndefined()
+      mocks.subscribeCb!({
+        type: 'tool_execution_start',
+        toolCallId,
+        toolName: 'codemode',
+        args: { code: 'return 1' }
+      } as unknown as AgentSessionEvent)
+      mocks.subscribeCb!({
+        type: 'tool_execution_end',
+        toolCallId,
+        toolName: 'codemode',
+        result: 'ok',
+        isError: false
+      } as unknown as AgentSessionEvent)
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    await expect(
+      authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: 'tool-20', input: { code: 'return 1' } }, {})
+    ).resolves.toMatchObject({ block: true, terminate: true })
+
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('tool-call limit') }
+    })
+  })
+
+  it('settles an exactly-at-limit parallel batch without aborting or erroring', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('parallel batch'))
+    const authorize = approvalGateHandler()
+
+    // The SDK prepares every approval before executing: all 20 admissions happen up front.
+    for (let index = 0; index < 20; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `p-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+    // Then the batch executes and every admitted call runs to completion.
+    for (let index = 0; index < 20; index += 1) {
+      mocks.subscribeCb!({
+        type: 'tool_execution_start',
+        toolCallId: `p-${index}`,
+        toolName: 'codemode',
+        args: {}
+      } as unknown as AgentSessionEvent)
+      mocks.subscribeCb!({
+        type: 'tool_execution_end',
+        toolCallId: `p-${index}`,
+        toolName: 'codemode',
+        result: 'ok',
+        isError: false
+      } as unknown as AgentSessionEvent)
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)?.type).toBe('turn-complete')
+  })
+
+  it('blocks over-limit admissions but lets the admitted parallel batch settle before reporting the limit', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('oversized parallel batch'))
+    const authorize = approvalGateHandler()
+
+    // 21 admissions prepared up front: the first 20 are admitted, the 21st is refused.
+    for (let index = 0; index < 20; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `q-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+    await expect(
+      authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: 'q-20', input: {} }, {})
+    ).resolves.toMatchObject({ block: true, terminate: true })
+
+    // The 20 admitted calls all run to completion - no abort, no synthesized errors.
+    for (let index = 0; index < 20; index += 1) {
+      mocks.subscribeCb!({
+        type: 'tool_execution_start',
+        toolCallId: `q-${index}`,
+        toolName: 'codemode',
+        args: {}
+      } as unknown as AgentSessionEvent)
+      mocks.subscribeCb!({
+        type: 'tool_execution_end',
+        toolCallId: `q-${index}`,
+        toolName: 'codemode',
+        result: 'ok',
+        isError: false
+      } as unknown as AgentSessionEvent)
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('tool-call limit') }
+    })
+  })
+
+  it('resets the Pi tool-call count for each new prompt', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const authorize = approvalGateHandler()
+
+    conn.send(userInput('first turn'))
+    for (let index = 0; index < 10; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `first-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+
+    conn.send(userInput('second turn'))
+    for (let index = 0; index < 11; index += 1) {
+      await expect(
+        authorize({ type: 'tool_call', toolName: 'codemode', toolCallId: `second-${index}`, input: {} }, {})
+      ).resolves.toBeUndefined()
+    }
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+  })
+
+  const toolTurn = () => ({ message: {}, toolResults: [{}], context: {}, newMessages: [] }) as never
+  const textTurn = () => ({ message: {}, toolResults: [], context: {}, newMessages: [] }) as never
+  const finishTurn = () =>
+    fakeSession.agent.finishTurn as unknown as (
+      turn: never,
+      signal?: AbortSignal
+    ) => Promise<{ action: 'end' | 'continue' } | undefined>
+
+  it('ends the run at 20 tool-calling rounds and reports the limit without aborting', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('looping tools'))
+
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+
+    expect(mocks.abort).not.toHaveBeenCalled()
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('tool-call limit') }
+    })
+  })
+
+  it('never counts a text-only answer turn toward the round budget', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('chatty then tools'))
+
+    for (let round = 0; round < 25; round += 1) {
+      await expect(finishTurn()(textTurn())).resolves.toBeUndefined()
+    }
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+
+    prompt.resolve()
+    await collectUntilTerminal(conn.events)
+  })
+
+  it('resets the round budget for each new prompt', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('first run'))
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+
+    conn.send(userInput('second run'))
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+    await expect(finishTurn()(toolTurn())).resolves.toEqual({ action: 'end' })
+  })
+
+  it('does not count or relabel aborted turns', async () => {
+    const prompt = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(prompt.promise)
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('aborted loop'))
+    const controller = new AbortController()
+    controller.abort()
+    const aborted = controller.signal
+
+    for (let round = 0; round < 25; round += 1) {
+      await expect(finishTurn()(toolTurn(), aborted)).resolves.toBeUndefined()
+    }
+    // The aborted rounds above did not count: 19 real rounds stay under the budget.
+    for (let round = 0; round < 19; round += 1) {
+      await expect(finishTurn()(toolTurn())).resolves.toBeUndefined()
+    }
+
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    prompt.resolve()
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.at(-1)?.type).toBe('turn-complete')
   })
 
   it('captures a successful provider invocation without relying on turn_end (including compaction)', async () => {

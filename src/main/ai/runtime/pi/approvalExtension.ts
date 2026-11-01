@@ -95,17 +95,43 @@ export interface PiApprovalContext {
   nonBypassableApprovalTools: ReadonlySet<string>
   /** Cross-Session tools that cannot initiate an unattended delegation hop. */
   delegationTools: ReadonlySet<string>
+  /** Admit an approved tool call only while this turn is below its call limit. */
+  admitToolCall: () => boolean
+  /** Read-only limit peek: true once this turn can admit no further calls. Never touches admission accounting. */
+  isToolCallLimitReached: () => boolean
+  /** Record that a post-limit refusal happened, so the turn-end path reports the limit. Idempotent; no admission accounting. */
+  markToolCallLimitReached: () => void
 }
+
+/** Shared refusal shape for every limit rejection, pre- or post-authorization. */
+const TOOL_CALL_LIMIT_REFUSAL = {
+  block: true,
+  reason: 'The Pi agent reached its tool-call limit for this turn.',
+  // The SDK's terminate hint ends a batch only when EVERY finalized result in it carries
+  // terminate: true, so a mixed batch (admitted results plus this refusal) still allows one
+  // more assistant round-trip; every call in that round hits this same refusal and that batch
+  // does terminate. The hard per-turn admission cap is enforced by admitToolCall either way.
+  terminate: true
+} as const
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
   return (pi: ExtensionAPI) => {
     pi.on('tool_call', async (event: ToolCallEvent, extCtx: ExtensionContext) => {
-      return createPiToolAuthorizer(ctx)({
+      // Refuse post-limit calls before any policy evaluation or interactive prompt: the turn
+      // is already ending, so prompting would be noise. This peek never increments admission
+      // accounting - that stays in admitToolCall after the authorizer approves.
+      if (ctx.isToolCallLimitReached()) {
+        ctx.markToolCallLimitReached()
+        return { ...TOOL_CALL_LIMIT_REFUSAL }
+      }
+      const decision = await createPiToolAuthorizer(ctx)({
         toolName: event.toolName,
         toolCallId: event.toolCallId,
         input: event.input,
         signal: extCtx.signal
       })
+      if (decision) return decision
+      return ctx.admitToolCall() ? undefined : { ...TOOL_CALL_LIMIT_REFUSAL }
     })
   }
 }

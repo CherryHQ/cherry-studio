@@ -121,6 +121,7 @@ beforeEach(async () => {
   mocks.buildPrompt.mockResolvedValue({ base: { kind: 'native' } })
   mocks.createAgentSession.mockResolvedValue({
     session: {
+      agent: { finishTurn: undefined as undefined | ((...args: unknown[]) => unknown) },
       bindExtensions: async () => undefined,
       subscribe: () => () => undefined,
       abort: async () => undefined,

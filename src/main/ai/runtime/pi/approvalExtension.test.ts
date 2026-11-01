@@ -66,6 +66,9 @@ function buildGate(
     approvalRequiredTools: ReadonlySet<string>
     nonBypassableApprovalTools: ReadonlySet<string>
     delegationTools: ReadonlySet<string>
+    admitToolCall: PiApprovalContext['admitToolCall']
+    isToolCallLimitReached: PiApprovalContext['isToolCallLimitReached']
+    markToolCallLimitReached: PiApprovalContext['markToolCallLimitReached']
   }> = {}
 ) {
   const emitted: any[] = []
@@ -83,6 +86,9 @@ function buildGate(
     approvalRequiredTools: new Set(),
     nonBypassableApprovalTools: new Set(),
     delegationTools: new Set(),
+    admitToolCall: () => true,
+    isToolCallLimitReached: () => false,
+    markToolCallLimitReached: () => {},
     ...overrides
   }
   const factory = createPiApprovalExtension(context)
@@ -130,6 +136,31 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toBeUndefined()
+    expect(emitted).toHaveLength(0)
+  })
+
+  it('blocks an approved tool call when the per-turn limit is exhausted', async () => {
+    const { handler } = buildGate({ admitToolCall: () => false })
+
+    await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'The Pi agent reached its tool-call limit for this turn.',
+      terminate: true
+    })
+  })
+
+  it('refuses post-limit calls before any policy check or approval prompt', async () => {
+    const { handler, emitted } = buildGate({
+      approvalRequiredTools: new Set(['codemode']),
+      isToolCallLimitReached: () => true
+    })
+
+    await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'The Pi agent reached its tool-call limit for this turn.',
+      terminate: true
+    })
+    // No approval request was emitted for a call the turn could never admit.
     expect(emitted).toHaveLength(0)
   })
 

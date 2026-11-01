@@ -37,8 +37,16 @@ describe('PiRuntimeDriver.listAvailableTools', () => {
   it('returns the pi builtin set when no MCP servers are selected', async () => {
     const tools = await new PiRuntimeDriver().listAvailableTools([])
 
-    expect(tools.length).toBeGreaterThan(0)
-    expect(tools.every((tool) => tool.origin === 'builtin')).toBe(true)
+    expect(tools.filter((tool) => tool.origin === 'builtin').length).toBeGreaterThan(0)
+    expect(tools).toContainEqual(
+      expect.objectContaining({
+        id: 'mcp__cherry_tools__session_send',
+        name: 'session_send',
+        description: expect.any(String),
+        origin: 'internal',
+        approval: 'prompt'
+      })
+    )
     expect(mocks.findByIdOrName).not.toHaveBeenCalled()
   })
 
@@ -66,7 +74,7 @@ describe('PiRuntimeDriver.listAvailableTools', () => {
 
     const tools = await new PiRuntimeDriver().listAvailableTools(['gone'])
 
-    expect(tools.every((tool) => tool.origin === 'builtin')).toBe(true)
+    expect(tools.every((tool) => tool.origin !== 'mcp')).toBe(true)
     expect(mocks.listTools).not.toHaveBeenCalled()
   })
 })
