@@ -959,6 +959,40 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('recognizes HTML inside a list item opened after a paragraph', () => {
+    // The new item opens a block, so its `<br>` is HTML even though the paragraph above is open;
+    // reading it as prose hoisted the definition-shaped HTML text and changed the link target.
+    const content = [
+      'p',
+      '- <br>',
+      '  > [r]: https://wrong.example',
+      '',
+      '[r]: https://right.example',
+      '',
+      '[click][r]'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
+  it('measures quoted code after a departed list from the top level', () => {
+    // The quote ends the list, so the item's content column must not raise the four-column code
+    // threshold; treating the line as paragraph text hid the first definition and the later one won.
+    const content = [
+      '- text',
+      '>     code',
+      '> [r]: https://right.example',
+      '',
+      '[r]: https://wrong.example',
+      '',
+      '[click][r]'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it('does not inherit a departed quote into the top-level HTML block', () => {
     // `<div>` after a quoted paragraph is a top-level block, so the definition-shaped line inside
     // it is HTML text; inheriting the quote made the scanner hoist it as the winning definition.

@@ -2787,6 +2787,9 @@ export function splitMarkdownChunks(
       paragraphContainer = null
       continue
     }
+    // A container that opens a block ends the paragraph (and list) above it before any
+    // paragraph-interruption rule is applied to what it carries.
+    const opensContainerBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '', false)
     const dollarOpen = dollarFenceAtStart(line)
     if (dollarOpen > 0 && !dollarFenceClosesOnOwnLine(line, dollarOpen)) {
       dollarFence = dollarOpen
@@ -2832,7 +2835,9 @@ export function splitMarkdownChunks(
       paragraphContainer !== null && containerMarkers(paragraphContainer).some((marker) => marker !== '>')
     if (
       !containerHoldsCode &&
-      (opensHtml || ((previousStatus === 'block' || leavesParagraphContainer) && COMPLETE_TAG_LINE.test(uncontained)))
+      (opensHtml ||
+        ((previousStatus === 'block' || leavesParagraphContainer || opensContainerBlock) &&
+          COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
       endListOutsideItem(line)
@@ -2869,9 +2874,10 @@ export function splitMarkdownChunks(
     // an open paragraph may open it. Inside a list item the parser measures from the item's content
     // column, so `    x` under `1. a` is that item's paragraph and only four columns past its
     // content column are code.
+    // The line left the open item's content column, so its indentation is measured from the top.
+    if (opensContainerBlock) endListOutsideItem(line)
     const innerIndent = leadingColumns(pastQuoteMarkers(line).content)
     const itemCodeFloor = run !== null && innerIndent >= run.content ? run.content + 4 : 4
-    const opensContainerBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '', false)
     const indentedCode =
       !blank &&
       (previousStatus === 'block' || opensContainerBlock) &&
