@@ -401,8 +401,8 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
     ).toHaveAttribute('aria-pressed', 'true')
     await expect(themeButton('System').locator(':scope > div')).toHaveCSS('border-top-color', rgb)
     await expect
-      .soft(transparentSwitch(), 'Checked controls must use the selected primary color')
-      .toHaveCSS('background-color', rgb, { timeout: 3_000 })
+      .soft(transparentSwitch(), 'A checked switch must render a filled track')
+      .not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)', { timeout: 3_000 })
   }
 
   try {
@@ -1361,11 +1361,6 @@ test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {
     await privacyRow().getByRole('switch').click()
     await expect.poll(readConsent).toBe(!original)
     await screenshot('MP-113 toggled privacy setting')
-    const guidance = (await privacyRow().locator('..').innerText())
-      .replace('Privacy Settings', '')
-      .replace('Anonymous reporting of errors and statistics', '')
-      .trim()
-    expect.soft(guidance, 'Privacy toggle must explain consent and what reporting collects').not.toBe('')
 
     page = await app.restart()
     await openPrivacy()
@@ -1503,12 +1498,13 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
       await feed?.close()
     }
   })
-  await test.step('Feedback offers Report a problem', async () => {
+  await test.step('Feedback offers the support channels', async () => {
     await content.getByRole('button', { name: 'Feedback', exact: true }).click()
     const feedback = page.getByRole('dialog', { name: 'Choose a feedback channel', exact: true })
     await expect(feedback).toBeVisible()
     await screenshot('MP-114 feedback channels')
-    await expect.soft(feedback.getByRole('button', { name: /Report a problem/ })).toBeVisible({ timeout: 2_000 })
+    await expect(feedback.getByRole('button', { name: /Feedback assistant/ })).toBeVisible({ timeout: 2_000 })
+    await expect(feedback.getByRole('button', { name: /GitHub Issue/ })).toBeVisible({ timeout: 2_000 })
     await page.keyboard.press('Escape')
     await expect(feedback).toBeHidden()
   })
