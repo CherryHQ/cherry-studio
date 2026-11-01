@@ -580,6 +580,53 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('"start " arg del victim.txt')).toBeUndefined()
     expect(detectDestructiveAssistantCommand('"start " "start " arg del victim.txt')).toBeUndefined()
   })
+
+  it('denies parenthesized and throw-prefixed deletion forms (round-10 review findings)', () => {
+    // The deletion boundary now includes `(` and the executable-prefix list now includes
+    // `throw`, matching the other invocation keywords.
+    expect(detectDestructiveAssistantCommand('del("victim.txt")')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('pwsh -NoProfile -Command \'del("victim.txt")\'')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cmd /c del("victim.txt")')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('rd("dir")')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('erase("f")')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('throw del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command 'throw del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    // Word-boundary and spaced-form controls.
+    expect(detectDestructiveAssistantCommand('delete victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('delimit (x)')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('del victim.txt')).toBe('permanent Windows file deletion')
+  })
+
+  it('stays linear on quoted args with embedded word-prefixed start tokens (round-10 review finding)', () => {
+    // `a start /b` content is not glue-start-anchored at its first character, so the earlier
+    // temper missed it; the generalized temper refuses any quoted argument whose content holds
+    // a command-position `start` token followed by whitespace. Was ~2.4s at 8k tokens.
+    const repeated = 'echo ' + '"a start /b" '.repeat(16000) + 'x'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(repeated)).toBeUndefined()
+    expect(performance.now() - start).toBeLessThan(2000)
+  })
+
+  it('keeps deny coverage on quoted titles containing start tokens (generalized temper locks)', () => {
+    // The generalized temper refuses these as arguments; the scanner's untempered walk must
+    // still deny every one. All denied on v13/v15/v18/v19 too: coverage locks, not red checks.
+    for (const command of [
+      'start "my start menu" del victim.txt',
+      'cmd /c start "a start /b" del victim.txt',
+      'start "start menu" del victim.txt',
+      'start "a start " del victim.txt',
+      'call "a start /b" del victim.txt',
+      'cmd /c "a start /b" del victim.txt'
+    ]) {
+      expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+    }
+    // xargs-prefix with a quoted title never reached the token on any version: allow lock.
+    expect(detectDestructiveAssistantCommand('xargs "my start menu" del victim.txt')).toBeUndefined()
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {

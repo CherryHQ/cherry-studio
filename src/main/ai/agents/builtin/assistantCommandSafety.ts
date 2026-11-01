@@ -77,14 +77,17 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // echo-suppressed start token is a command, not an argument - and neither is a quote-prefixed
 // one (`'start`) or a backtick-prefixed one (` + '`' + `start` + '`' + `): decorated start tokens still anchor their own scan,
 // so swallowing them as arguments would only restart overlapping suffix scans.
-// A quoted argument whose content is a (glue-decorated) `start` token followed by
-// whitespace is refused here on purpose: that token anchors its own start scan, and consuming
-// it as an argument would restart an overlapping suffix scan once per quoted `start` anchor
-// (quadratic on `echo "start /b" "start /b" ...`). Titles that are exactly `start` (no
+// A quoted argument whose content CONTAINS a command-position (glue-decorated) `start`
+// token followed by whitespace is refused here on purpose: that token anchors its own start
+// scan, and consuming it as an argument would restart an overlapping suffix scan once per
+// embedded `start` anchor (quadratic on `echo "start /b" "start /b" ...` and on
+// `echo "a start /b" "a start /b" ...`). The check covers content starting with the token
+// and content where it follows any non-word character; titles that are exactly `start` (no
 // trailing whitespace) still consume: their inner anchor cannot fire, so refusing them would
-// lose the deny on `start "start" del x`.
+// lose the deny on `start "start" del x`. Denies dropped here are restored by the linear
+// scanner below, which walks every command-position start anchor with untempered arguments.
 const CMD_START_ARGS =
-  String.raw`(?:\s+"(?![@` +
+  String.raw`(?:\s+"(?!(?:[^"\r\n]*[^\w\u0080-\uffff])?[@` +
   '`' +
   String.raw`"']*start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
   '`' +
@@ -114,7 +117,7 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){` +
     '`' +
-    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|then|do|else|return|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|then|do|else|return|throw|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
     String.raw`@])\.(?=\s)|(?<![@` +
     '`' +
@@ -128,7 +131,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:::[\w\u0080-\uffff]+)+|\$[\w\u0080-\uffff][\w\u0080-\uffff]*(?::[\w\u0080-\uffff][\w\u0080-\uffff]*)?|\$\{[^{}\r\n]*\})(?:\.[\w\u0080-\uffff]+|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:::[\w\u0080-\uffff]+)+|\$[\w\u0080-\uffff][\w\u0080-\uffff]*(?::[\w\u0080-\uffff][\w\u0080-\uffff]*)?|\$\{[^{}\r\n]*\})(?:\.[\w\u0080-\uffff]+|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
   'i'
 )
 
