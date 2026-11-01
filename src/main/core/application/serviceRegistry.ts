@@ -16,6 +16,7 @@ import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
+import { MemoryEditorService } from '@main/ai/memory/MemoryEditorService'
 import { MemoryService } from '@main/ai/memory/MemoryService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
@@ -172,6 +173,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   MemoryService,
+  MemoryEditorService,
   McpCatalogService,
   BinaryManager,
   OpenClawService,

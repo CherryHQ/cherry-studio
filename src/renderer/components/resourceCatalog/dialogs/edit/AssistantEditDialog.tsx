@@ -101,6 +101,7 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   enableBrowser: boolean
+  enableSharedMemory: boolean
   mcpMode: AssistantFormState['mcpMode']
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
@@ -143,6 +144,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     enableBrowser: form.enableBrowser,
+    enableSharedMemory: form.enableSharedMemory,
     mcpMode: form.mcpMode,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
@@ -184,6 +186,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     enableBrowser: values.enableBrowser,
+    enableSharedMemory: values.enableSharedMemory,
     mcpMode: values.mcpMode,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
@@ -588,6 +591,25 @@ function AssistantBasicFields({
               triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
             />
             <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="enableSharedMemory"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.use')}</FormLabel>
+            <div className="flex h-9 items-center">
+              <FormControl>
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  aria-label={t('settings.memory.use')}
+                />
+              </FormControl>
+            </div>
           </FormItem>
         )}
       />

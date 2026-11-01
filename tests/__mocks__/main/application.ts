@@ -6,6 +6,7 @@ import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
 import { mockFileIntakeService } from './FileIntakeService'
 import { MockMainFileManagerExport } from './FileManager'
+import { mockMemoryService } from './MemoryService'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /**
@@ -106,6 +107,7 @@ export const defaultServiceInstances = {
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
   JobManager: mockJobManager,
+  MemoryService: mockMemoryService,
   PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
