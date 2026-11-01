@@ -233,7 +233,7 @@ export default defineProvider({
       modelId: 'glm-5-3',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
+        'anthropic-messages': { support: anthropicFixedSupport, wire: anthropicFixedWire },
         'openai-chat-completions': { support: glm53Support, wire: glm53ChatWire }
       }
     },

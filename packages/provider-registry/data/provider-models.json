@@ -38509,15 +38509,21 @@
       "reasoningContracts": {
         "anthropic-messages": {
           "support": {
-            "controls": [
-              {
-                "default": true,
-                "kind": "toggle"
-              }
-            ]
+            "controls": []
           },
           "wire": {
             "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "default": {
               "operations": [
                 {
                   "target": "thinking.type",
@@ -38535,17 +38541,6 @@
                   "value": {
                     "source": "literal",
                     "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
                   }
                 }
               ]
@@ -46545,5 +46540,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "8f30cf38a5cc8184"
+  "version": "08891ff5fde70aa0"
 }

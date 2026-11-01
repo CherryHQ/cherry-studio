@@ -315,7 +315,7 @@ describe('qwen-token-plan endpoint matrix', () => {
     expect(contract?.wire).not.toHaveProperty('off')
   })
 
-  it('keeps the Anthropic Messages toggle enabled by default on the sixteen switchable rows', () => {
+  it('keeps the Anthropic Messages toggle enabled by default on the fifteen switchable rows', () => {
     const format = provider('qwen-token-plan').endpointConfigs?.['anthropic-messages']?.reasoningFormat
 
     expect(format).toEqual({
@@ -329,9 +329,9 @@ describe('qwen-token-plan endpoint matrix', () => {
     const entries = providerModelEntries(provider('qwen-token-plan')).filter(
       (o) =>
         o.endpointTypes?.includes('anthropic-messages') &&
-        !['kimi-k2.7-code', 'MiniMax-M2.5'].includes(o.apiModelId ?? '')
+        !['kimi-k2.7-code', 'MiniMax-M2.5', 'glm-5.3'].includes(o.apiModelId ?? '')
     )
-    expect(entries).toHaveLength(16)
+    expect(entries).toHaveLength(15)
     for (const entry of entries) {
       expect(entry.reasoningContracts?.['anthropic-messages'], entry.apiModelId).toEqual({
         support: { controls: [{ kind: 'toggle', default: true }] },
@@ -357,6 +357,25 @@ describe('qwen-token-plan endpoint matrix', () => {
       expect(entry?.reasoningContracts).not.toHaveProperty('openai-chat-completions')
     }
   )
+
+  it('keeps GLM-5.3 Messages thinking always on while preserving the Chat effort ladder', () => {
+    const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.apiModelId === 'glm-5.3')
+    const contract = entry?.reasoningContracts?.['anthropic-messages']
+
+    expect(contract?.support).toEqual({ controls: [] })
+    expect(contract?.wire).not.toHaveProperty('off')
+    expect(Object.keys(contract?.wire ?? {}).sort()).toEqual(['auto', 'default', 'effort'])
+    for (const mode of ['default', 'auto', 'effort'] as const) {
+      expect(contract?.wire?.[mode]).toEqual({
+        operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }]
+      })
+    }
+    expect(entry?.reasoningContracts?.['openai-chat-completions']?.support).toEqual({
+      controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }],
+      defaultEffort: 'high',
+      supportedEfforts: ['high', 'max']
+    })
+  })
 
   it('gives every row declaring Anthropic Messages an explicit reasoning contract', () => {
     const offenders = providerModelEntries(provider('qwen-token-plan'))
