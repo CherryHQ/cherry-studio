@@ -56,11 +56,7 @@ export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
 export function refreshComposerTokenLabel(editor: Editor, token: ComposerDraftToken) {
   const transaction = editor.state.tr
   editor.state.doc.descendants((node, position) => {
-    if (
-      node.type.name === COMPOSER_TOKEN_NODE_NAME &&
-      node.attrs.id === token.id &&
-      node.attrs.label !== token.label
-    ) {
+    if (node.type.name === COMPOSER_TOKEN_NODE_NAME && node.attrs.id === token.id && node.attrs.label !== token.label) {
       transaction.setNodeMarkup(position, undefined, { ...node.attrs, label: token.label })
     }
   })
