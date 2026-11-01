@@ -126,11 +126,13 @@ export class GuestSession implements Disposable {
     this.electronSession.removeListener('will-download', this.onDownload)
   }
 
-  private stopObserving(): void {
+  private stopObserving(preserveDownloads = false): void {
     this.stopDownloadObservation()
-    for (const cleanup of this.downloadItems.values()) cleanup()
-    this.downloadItems.clear()
-    this.downloadUpdates.clear()
+    if (!preserveDownloads) {
+      for (const cleanup of this.downloadItems.values()) cleanup()
+      this.downloadItems.clear()
+      this.downloadUpdates.clear()
+    }
     this.inspection.clear()
   }
 
@@ -240,7 +242,7 @@ export class GuestSession implements Disposable {
     this.invalidateDocument()
     this.clearDialog()
     this.dismissedDialog = undefined
-    this.stopObserving()
+    this.stopObserving(true)
     this.attachingAbort?.abort(error)
     this.rejectPending(error)
     this.actionMutex.cancel()

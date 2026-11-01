@@ -159,6 +159,125 @@ describe('GuestSession command lifetime', () => {
     expect(session.busy).toBe(false)
   })
 
+  it.each(['completed', 'cancelled', 'interrupted'])(
+    'keeps an in-flight managed download busy across a crash until it is %s',
+    async (state) => {
+      const fixture = createGuest()
+      const session = new GuestSession(fixture.guest, 'managed')
+      sessions.push(session)
+      const item = Object.assign(new EventEmitter(), { getFilename: () => 'in-flight.txt' })
+      fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+      expect(session.busy).toBe(true)
+      fixture.mock.crash()
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      fixture.mock.recover()
+      await session.send('Runtime.enable')
+      expect(session.busy).toBe(true)
+      item.emit('done', {}, state)
+      expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'in-flight.txt', state }] })
+      expect(item.listenerCount('updated')).toBe(0)
+      expect(item.listenerCount('done')).toBe(0)
+      expect(session.busy).toBe(false)
+    }
+  )
+
+  it('keeps the same in-flight download through two crash/recovery cycles and reports completion once', async () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'two-cycles.txt' })
+    fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+    expect(session.busy).toBe(true)
+    expect(item.listenerCount('updated')).toBe(1)
+    expect(item.listenerCount('done')).toBe(1)
+    for (let cycle = 0; cycle < 2; cycle++) {
+      fixture.mock.crash()
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      fixture.mock.recover()
+      await session.send('Runtime.enable')
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+    }
+    item.emit('done', {}, 'completed')
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'two-cycles.txt', state: 'completed' }] })
+    expect(session.takeEvents()).toEqual({})
+    expect(item.listenerCount('updated')).toBe(0)
+    expect(item.listenerCount('done')).toBe(0)
+    expect(session.busy).toBe(false)
+  })
+
+  it('preserves recorded download progress and keeps receiving updates while crashed', () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'progress.txt' })
+    fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+    item.emit('updated', {}, 'interrupted')
+    fixture.mock.crash()
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'progress.txt', state: 'interrupted' }] })
+    item.emit('updated', {}, 'progressing')
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'progress.txt', state: 'progressing' }] })
+    item.emit('done', {}, 'completed')
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'progress.txt', state: 'completed' }] })
+    expect(session.busy).toBe(false)
+  })
+
+  it.each(['active', 'crashed', 'recovered'])(
+    'disposes an in-flight download in a %s managed session',
+    async (phase) => {
+      const fixture = createGuest()
+      const session = new GuestSession(fixture.guest, 'managed')
+      sessions.push(session)
+      const item = Object.assign(new EventEmitter(), { getFilename: () => 'disposed.txt' })
+      fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+      if (phase !== 'active') fixture.mock.crash()
+      if (phase === 'recovered') {
+        fixture.mock.recover()
+        await session.send('Runtime.enable')
+      }
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      session.dispose()
+      expect(fixture.mock.session.listenerCount('will-download')).toBe(0)
+      expect(item.listenerCount('updated')).toBe(0)
+      expect(item.listenerCount('done')).toBe(0)
+      expect(session.busy).toBe(false)
+      expect(session.takeEvents()).toEqual({})
+      item.emit('updated', {}, 'progressing')
+      item.emit('done', {}, 'completed')
+      expect(session.takeEvents()).toEqual({})
+    }
+  )
+
+  it.each([false, true])(
+    'drops borrowed download tracking on the last observer release (crashed: %s)',
+    async (crash) => {
+      const { guest, session, mock } = setup()
+      const handle = await session.observe()
+      const item = Object.assign(new EventEmitter(), { getFilename: () => 'borrowed.txt' })
+      mock.session.emit('will-download', {}, item, guest)
+      expect(session.busy).toBe(true)
+      if (crash) mock.crash()
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      handle.dispose()
+      expect(mock.session.listenerCount('will-download')).toBe(0)
+      expect(item.listenerCount('updated')).toBe(0)
+      expect(item.listenerCount('done')).toBe(0)
+      expect(session.busy).toBe(false)
+      expect(session.takeEvents()).toEqual({})
+      item.emit('done', {}, 'completed')
+      expect(session.takeEvents()).toEqual({})
+    }
+  )
+
   it('immediately restores network observation after a managed guest recovers', async () => {
     const { guest, mock } = createGuest()
     const session = new GuestSession(guest, 'managed')
