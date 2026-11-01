@@ -315,7 +315,7 @@ describe('qwen-token-plan endpoint matrix', () => {
     expect(contract?.wire).not.toHaveProperty('off')
   })
 
-  it('uses only the binary thinking switch for Anthropic Messages on every model', () => {
+  it('keeps the Anthropic Messages toggle enabled by default on the sixteen switchable rows', () => {
     const format = provider('qwen-token-plan').endpointConfigs?.['anthropic-messages']?.reasoningFormat
 
     expect(format).toEqual({
@@ -326,15 +326,37 @@ describe('qwen-token-plan endpoint matrix', () => {
         effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
       }
     })
-    for (const entry of providerModelEntries(provider('qwen-token-plan')).filter((o) =>
-      o.endpointTypes?.includes('anthropic-messages')
-    )) {
+    const entries = providerModelEntries(provider('qwen-token-plan')).filter(
+      (o) =>
+        o.endpointTypes?.includes('anthropic-messages') &&
+        !['kimi-k2.7-code', 'MiniMax-M2.5'].includes(o.apiModelId ?? '')
+    )
+    expect(entries).toHaveLength(16)
+    for (const entry of entries) {
       expect(entry.reasoningContracts?.['anthropic-messages'], entry.apiModelId).toEqual({
         support: { controls: [{ kind: 'toggle', default: true }] },
         wire: format?.wire
       })
     }
   })
+
+  it.each(['kimi-k2.7-code', 'MiniMax-M2.5'])(
+    'keeps Anthropic Messages thinking always on without user controls for %s',
+    (apiModelId) => {
+      const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.apiModelId === apiModelId)
+      const contract = entry?.reasoningContracts?.['anthropic-messages']
+
+      expect(contract?.support).toEqual({ controls: [] })
+      expect(contract?.wire).not.toHaveProperty('off')
+      expect(Object.keys(contract?.wire ?? {}).sort()).toEqual(['auto', 'default', 'effort'])
+      for (const mode of ['default', 'auto', 'effort'] as const) {
+        expect(contract?.wire?.[mode]).toEqual({
+          operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }]
+        })
+      }
+      expect(entry?.reasoningContracts).not.toHaveProperty('openai-chat-completions')
+    }
+  )
 
   it('gives every row declaring Anthropic Messages an explicit reasoning contract', () => {
     const offenders = providerModelEntries(provider('qwen-token-plan'))

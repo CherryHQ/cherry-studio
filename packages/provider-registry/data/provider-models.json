@@ -38768,15 +38768,21 @@
       "reasoningContracts": {
         "anthropic-messages": {
           "support": {
-            "controls": [
-              {
-                "default": true,
-                "kind": "toggle"
-              }
-            ]
+            "controls": []
           },
           "wire": {
             "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "default": {
               "operations": [
                 {
                   "target": "thinking.type",
@@ -38794,17 +38800,6 @@
                   "value": {
                     "source": "literal",
                     "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
                   }
                 }
               ]
@@ -38821,15 +38816,21 @@
       "reasoningContracts": {
         "anthropic-messages": {
           "support": {
-            "controls": [
-              {
-                "default": true,
-                "kind": "toggle"
-              }
-            ]
+            "controls": []
           },
           "wire": {
             "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "default": {
               "operations": [
                 {
                   "target": "thinking.type",
@@ -38847,17 +38848,6 @@
                   "value": {
                     "source": "literal",
                     "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
                   }
                 }
               ]
@@ -46555,5 +46545,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a242c4e0f9b63f2f"
+  "version": "8f30cf38a5cc8184"
 }

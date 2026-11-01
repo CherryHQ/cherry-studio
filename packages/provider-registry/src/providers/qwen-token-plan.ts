@@ -18,6 +18,14 @@ const anthropicWire: ReasoningWireProfile = modeWire('thinking.type', {
   effort: 'enabled'
 })
 
+const anthropicFixedSupport: ReasoningSupport = { controls: [] }
+
+const anthropicFixedWire: ReasoningWireProfile = modeWire('thinking.type', {
+  default: 'enabled',
+  auto: 'enabled',
+  effort: 'enabled'
+})
+
 const kimiSupport: ReasoningSupport = {
   controls: [{ kind: 'toggle', default: false }]
 }
@@ -199,7 +207,7 @@ export default defineProvider({
       modelId: 'kimi-k2-7-code',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire }
+        'anthropic-messages': { support: anthropicFixedSupport, wire: anthropicFixedWire }
       }
     },
     {
@@ -261,7 +269,7 @@ export default defineProvider({
       modelId: 'minimax-m2-5',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire }
+        'anthropic-messages': { support: anthropicFixedSupport, wire: anthropicFixedWire }
       }
     }
   ]
