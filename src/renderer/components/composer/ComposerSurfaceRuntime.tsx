@@ -56,6 +56,7 @@ import {
   createComposerInputAdapter,
   insertKnowledgeBaseTokenAtStart,
   insertComposerTokenAtCursor,
+  refreshComposerTokenLabel,
   updateComposerToken
 } from './composerInputAdapter'
 import {
@@ -354,13 +355,19 @@ function addMissingToken(
   editor: Editor,
   token: ComposerDraftToken,
   existingTokens: readonly ComposerSerializedToken[]
-) {
-  if (existingTokens.some((existing) => existing.id === token.id)) return
+): boolean {
+  const existing = existingTokens.find((existingToken) => existingToken.id === token.id)
+  if (existing) {
+    // A restored draft can carry an older serialized label for the same token: refresh the display
+    // label in place so the chip picks up wording changes, preserving its stored prompt and position.
+    if (existing.label !== token.label) refreshComposerTokenLabel(editor, token)
+    return true
+  }
   if (token.kind === 'knowledge') {
-    insertKnowledgeBaseTokenAtStart(editor, token)
-    return
+    return insertKnowledgeBaseTokenAtStart(editor, token)
   }
   insertComposerTokenAtCursor(editor, token)
+  return true
 }
 
 /** Sole write path for `emitUpdate: false` content: keeps the last-serialized-draft ref in step
@@ -1974,9 +1981,11 @@ export default function ComposerSurfaceRuntime({
     const desiredTokenIds = getTokenIds(tokens)
     isSyncingTokensRef.current = true
 
+    let rejectedManagedToken = false
+
     try {
       for (const token of tokens) {
-        addMissingToken(editor, token, draft.tokens)
+        if (!addMissingToken(editor, token, draft.tokens)) rejectedManagedToken = true
       }
 
       removeComposerTokens(editor, (token) => managedTokenKindSet.has(token.kind) && !desiredTokenIds.has(token.id))
@@ -1985,7 +1994,15 @@ export default function ComposerSurfaceRuntime({
     }
 
     trackedTokenSignatureRef.current = getTrackedTokenSignature(serializeComposerDocument(editor).tokens)
-  }, [editor, managedTokenKindSet, tokens])
+
+    // A rejected insertion (a knowledge token that would exceed the input limit) leaves no document
+    // change, so no update event ever reconciles the desynced selection. Feed the actual tokens
+    // through the editor-to-state path so the tools unapply it (the picker unchecks) instead of the
+    // send paths silently dropping that base's retrieval instruction and scope.
+    if (rejectedManagedToken) {
+      onTokensChange(serializeComposerDocument(editor).tokens)
+    }
+  }, [editor, managedTokenKindSet, onTokensChange, tokens])
 
   const inputAdapter = useMemo<QuickPanelInputAdapter | undefined>(() => {
     if (!editor) return undefined

@@ -8,6 +8,7 @@ import {
   appendComposerText,
   createComposerInputAdapter,
   insertKnowledgeBaseTokenAtStart,
+  refreshComposerTokenLabel,
   updateComposerToken
 } from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
@@ -122,6 +123,29 @@ describe('createComposerInputAdapter', () => {
     expect(draft.tokens.map((token) => token.id)).toEqual(['knowledge:kb-1', 'knowledge:kb-2'])
     expect(draft.text).toBe('Search Knowledge One. Search Knowledge Two. Where is the project plan?')
     expect(currentEditor.state.selection.from).toBe(selectionBeforeInsert + 4)
+  })
+
+  it('refreshes only the label of an existing token, preserving its prompt text and position', () => {
+    const currentEditor = createEditor()
+    insertKnowledgeBaseTokenAtStart(currentEditor, {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge',
+      label: 'KB One',
+      promptText: 'Search Knowledge One.'
+    })
+
+    refreshComposerTokenLabel(currentEditor, {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge',
+      label: 'Retrieval · KB One',
+      promptText: 'REPLACED'
+    })
+
+    const draft = serializeComposerDocument(currentEditor)
+    expect(draft.tokens).toHaveLength(1)
+    expect(draft.tokens).toMatchObject([
+      { id: 'knowledge:kb-1', label: 'Retrieval · KB One', promptText: 'Search Knowledge One.' }
+    ])
   })
 
   it('keeps an over-limit draft unchanged when adding a retrieval token', () => {
