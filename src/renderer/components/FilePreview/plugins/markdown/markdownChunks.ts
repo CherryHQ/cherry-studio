@@ -1069,24 +1069,46 @@ function emphasisFlanks(before: number, run: string, after: number): { opens: bo
   }
 }
 
+/** Every backtick run's start, by run length, so an unmatched lookup never rescans the source. */
+interface BacktickRuns {
+  byLength: Map<number, number[]>
+}
+
+function indexBacktickRuns(source: string): BacktickRuns {
+  const byLength = new Map<number, number[]>()
+  for (let index = 0; index < source.length;) {
+    if (source[index] !== '`') {
+      index += 1
+      continue
+    }
+    let end = index + 1
+    while (source[end] === '`') end += 1
+    const held = byLength.get(end - index)
+    if (held) held.push(index)
+    else byLength.set(end - index, [index])
+    index = end
+  }
+  return { byLength }
+}
+
 /**
  * Where a scan resumes after the backtick run at `index`: past the span that a run of the same
- * length closes, or past the run itself when nothing closes it — an unmatched run is literal text
- * and the content behind it is parsed as such. Code span content is opaque, so a marker inside one
- * is not a marker at all.
+ * length closes, or past the run itself when nothing closes it. The length index makes a match a
+ * binary search rather than a rescan, so unique runs do not cost the source squared.
  */
-function afterBacktickRun(source: string, index: number): number {
+function afterBacktickRun(source: string, index: number, runs: BacktickRuns): number {
   let opening = 1
   while (source[index + opening] === '`') opening += 1
-  for (let next = index + opening; next < source.length;) {
-    const at = source.indexOf('`', next)
-    if (at < 0) break
-    let end = at
-    while (source[end] === '`') end += 1
-    if (end - at === opening) return end
-    next = end
+  const positions = runs.byLength.get(opening)
+  if (!positions) return index + opening
+  let low = 0
+  let high = positions.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (positions[middle] < index + opening) low = middle + 1
+    else high = middle
   }
-  return index + opening
+  return low < positions.length ? positions[low] + opening : index + opening
 }
 
 /**
@@ -1098,6 +1120,7 @@ function emphasisRuns(
   source: string
 ): Array<{ open: number; end: number; run: string; opens: boolean; closes: boolean }> {
   const runs: Array<{ open: number; end: number; run: string; opens: boolean; closes: boolean }> = []
+  const backticks = indexBacktickRuns(source)
   for (let index = 0; index < source.length;) {
     const character = source[index]
     if (character === '\\') {
@@ -1105,7 +1128,7 @@ function emphasisRuns(
       continue
     }
     if (character === '`') {
-      index = afterBacktickRun(source, index)
+      index = afterBacktickRun(source, index, backticks)
       continue
     }
     if (character !== '*' && character !== '_') {
@@ -1248,6 +1271,7 @@ function strikethroughSpans(
   // keeps both runs literal, and a heading keys `a-b` rather than `ab`.
   const regionAt = emphasisRegionAt(emphasisRanges)
   const open = new Map<number, number[]>()
+  const backticks = indexBacktickRuns(source)
   for (let index = 0; index < source.length;) {
     const character = source[index]
     if (character === '\\') {
@@ -1255,7 +1279,7 @@ function strikethroughSpans(
       continue
     }
     if (character === '`') {
-      index = afterBacktickRun(source, index)
+      index = afterBacktickRun(source, index, backticks)
       continue
     }
     if (character !== '~') {
@@ -1301,6 +1325,7 @@ function highlightSpans(source: string, emphasisRanges: ReadonlyArray<{ start: n
   // `**` runs form in `**==**B==a` leave the first `==` inside it, where the second cannot meet it.
   const regionAt = emphasisRegionAt(emphasisRanges)
   const open = new Map<number, number[]>()
+  const backticks = indexBacktickRuns(source)
   for (let index = 0; index < source.length;) {
     const character = source[index]
     if (character === '\\') {
@@ -1308,7 +1333,7 @@ function highlightSpans(source: string, emphasisRanges: ReadonlyArray<{ start: n
       continue
     }
     if (character === '`') {
-      index = afterBacktickRun(source, index)
+      index = afterBacktickRun(source, index, backticks)
       continue
     }
     if (character !== '=') {
@@ -1674,6 +1699,7 @@ function headingRenderedText(
     // made a line of unterminated `<style ` quadratic.
     const lastCloseAngle = segment.lastIndexOf('>')
     const lowerSegment = lastCloseAngle === -1 ? '' : segment.toLowerCase()
+    let backticks: BacktickRuns | null = null
     // Positions the tag branch reads, built on first use so a segment without tags never pays.
     let tagPositions: { closeAngles: number[]; rawTextCloses: Map<string, number[]> } | null = null
     // `index` only moves forward, so a cursor per name stops repeated openers rescanning the
@@ -1758,32 +1784,20 @@ function headingRenderedText(
           index += 1
         }
       } else if (character === '`') {
-        // A code span's content is literal, and only a run of the opener's own length closes it —
-        // a longer run inside the span is content, so the scan continues past it.
+        // A code span's content is literal, and only a run of the opener's own length closes it.
+        // The shared run index keeps unique runs from rescanning the heading.
         let opening = 1
         while (segment[index + opening] === '`') opening += 1
         const run = '`'.repeat(opening)
-        let close = -1
-        for (let next = index + opening; next < segment.length;) {
-          const at = segment.indexOf('`', next)
-          if (at < 0) break
-          let end = at
-          while (segment[end] === '`') end += 1
-          if (end - at === opening) {
-            close = at
-            break
-          }
-          next = end
-        }
-        const closed = close >= 0
-        // The renderer drops one space or line ending from each end of a closed code span that
-        // carries both, so `` ` bar ` `` renders `bar` — the slug has to read the same text.
-        let content = segment.slice(index + run.length, closed ? close : index + run.length)
+        const end = afterBacktickRun(segment, index, (backticks ??= indexBacktickRuns(segment)))
+        const closed = end > index + opening
+        const close = end - opening
+        let content = segment.slice(index + opening, closed ? close : index + opening)
         if (closed && content.length > 2 && /^[ \n]/.test(content) && /[ \n]$/.test(content) && content.trim() !== '')
           content = content.slice(1, -1)
         text += content
         if (!closed) text += run
-        index = closed ? close + run.length : index + run.length
+        index = end
       } else if (character === '&') {
         const entity = ENTITY_REFERENCE.exec(segment.slice(index))
         // A reference the renderer refuses stays the literal text it was written as.
@@ -1976,6 +1990,7 @@ const FOOTNOTE_REFERENCE = /\[\^([^[\]\s]+)\]/y
 function footnoteReferences(text: string): string[] {
   const labels: string[] = []
   let dollarRuns: DollarRuns | null = null
+  let backticks: BacktickRuns | null = null
   let index = 0
   while (index < text.length) {
     const character = text[index]
@@ -1995,23 +2010,8 @@ function footnoteReferences(text: string): string[] {
       continue
     }
     if (character === '`') {
-      let run = 1
-      while (text[index + run] === '`') run += 1
-      // Only a run of the opener's own length closes the span; a longer one is content, and the
-      // walk resumes past it.
-      let closed = -1
-      for (let next = index + run; next < text.length;) {
-        const open = text.indexOf('`', next)
-        if (open < 0) break
-        let at = open
-        while (text[at] === '`') at += 1
-        if (at - open === run) {
-          closed = at
-          break
-        }
-        next = at
-      }
-      index = closed < 0 ? index + run : closed
+      // A code span's content is literal, so a reference inside one is not a note.
+      index = afterBacktickRun(text, index, (backticks ??= indexBacktickRuns(text)))
       continue
     }
     if (character === '[' && text[index + 1] === '^') {
@@ -2880,9 +2880,10 @@ export function splitMarkdownChunks(
     const itemCodeFloor = run !== null && innerIndent >= run.content ? run.content + 4 : 4
     const indentedCode =
       !blank &&
-      (previousStatus === 'block' || opensContainerBlock) &&
-      innerIndent >= itemCodeFloor &&
-      !startsBlock(uncontained)
+      (containerHoldsCode ||
+        ((previousStatus === 'block' || opensContainerBlock) &&
+          innerIndent >= itemCodeFloor &&
+          !startsBlock(uncontained)))
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
         // A marker-only line behind the definition's container (`>` on its own) is blank the way

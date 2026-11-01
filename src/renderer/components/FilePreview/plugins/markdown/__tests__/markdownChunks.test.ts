@@ -959,6 +959,15 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('measures code indentation behind a list marker', () => {
+    // Five spaces after `- ` are indented code inside the item, so the paragraph is closed and the
+    // first definition below it stands; reading the marker column skipped it and the later one won.
+    const content = ['-     code', '[x]: /first', '', '[x]: /second', '', 'see [x]'].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['/first'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/first'])
+  })
+
   it('does not open a list item on a setext underline', () => {
     // The dash is the heading's underline, not an empty item; tracking it made the indented
     // definition its content and hoisted a code-only first definition over the real destination.
@@ -3528,6 +3537,31 @@ describe('a malformed tag that never closes', () => {
     // `<div>` plus 50,000 `<li>` keep the stack deep; an unindexed `lastIndexOf('p')` on each of
     // 300,000 blank lines took ~17 s. The indexed close is constant-time when no `p` is open.
     const content = '<div>\n' + '<li>x\n'.repeat(50_000) + '\n'.repeat(300_000) + 'end\n</div>'
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('indexes unique backtick runs instead of rescanning the source', () => {
+    // Each run length appears once, so a forward search per opener is quadratic; the length index
+    // keeps this 1.8 MB single line linear even though it already falls back to the long-line view.
+    const content = Array.from({ length: 1_900 }, (_, index) => '`'.repeat(index + 1)).join(' ')
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('indexes backtick runs in a setext heading', () => {
+    // The heading scan reads the whole paragraph; without the index every unique run rescanned it.
+    const content = Array.from({ length: 1_900 }, (_, index) => 'a ' + '`'.repeat(index + 1)).join('\n') + '\n---\n'
 
     const started = Date.now()
     const window = splitMarkdownChunks(content)
