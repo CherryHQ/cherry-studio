@@ -11,6 +11,14 @@ const virtualListMocks = vi.hoisted(() => ({
   onDragEnd: undefined as ((payload: unknown) => void) | undefined
 }))
 
+const confirmActionPopupMocks = vi.hoisted(() => ({
+  show: vi.fn()
+}))
+
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({
+  default: confirmActionPopupMocks
+}))
+
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
@@ -152,7 +160,56 @@ const EDIT_ACTION: ResolvedAction<unknown> = {
   children: []
 }
 
+const DELETE_ACTION: ResolvedAction<unknown> = {
+  id: 'delete',
+  label: 'Delete',
+  danger: true,
+  availability: { visible: true, enabled: true },
+  confirm: {
+    title: 'Delete Assistant',
+    description: 'The assistant and its conversations will be removed.',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    destructive: true
+  },
+  children: []
+}
+
 describe('ResourceEntityRail', () => {
+  it('requires confirmation before dispatching a destructive context-menu action', async () => {
+    const onContextMenuAction = vi.fn()
+    confirmActionPopupMocks.show.mockReset()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        getContextMenuActions={() => [DELETE_ACTION]}
+        items={[ITEMS[0]]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onContextMenuAction={onContextMenuAction}
+        onSelect={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(confirmActionPopupMocks.show).toHaveBeenCalledWith({
+      title: 'Delete Assistant',
+      content: 'The assistant and its conversations will be removed.',
+      okText: 'Delete',
+      cancelText: 'Cancel',
+      danger: true,
+      action: expect.any(Function)
+    })
+    expect(onContextMenuAction).not.toHaveBeenCalled()
+
+    await confirmActionPopupMocks.show.mock.calls[0][0].action()
+
+    expect(onContextMenuAction).toHaveBeenCalledWith(ITEMS[0], DELETE_ACTION)
+  })
+
   it('marks the selected entity and wires context-menu actions', () => {
     const onContextMenuAction = vi.fn()
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {

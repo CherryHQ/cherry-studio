@@ -1,4 +1,4 @@
-import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -58,6 +58,7 @@ const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'assistant-entity.toggle-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_ARCHIVE_ACTION_ID = 'assistant-entity.archive'
+const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
 const ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'assistant-entity.toggle-sidebar'
 const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
@@ -419,11 +420,11 @@ export function AssistantResourceList({
     ]
   )
 
-  const refreshAfterRestore = useCallback(async () => {
+  const refreshAssistantResources = useCallback(async () => {
     const outcomes = await Promise.allSettled([refreshAssistants(), refreshTopics()])
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
-        logger.warn('Failed to refresh Assistant resources after restore from classic-layout rail', {
+        logger.warn('Failed to refresh Assistant resources from classic-layout rail', {
           err: outcome.reason
         })
       }
@@ -492,7 +493,7 @@ export function AssistantResourceList({
                   restore: restoreTopic,
                   getActive: (id) => dataApiService.get(`/topics/${id}`)
                 },
-                refresh: refreshAfterRestore
+                refresh: refreshAssistantResources
               })
           })
         } catch (err) {
@@ -516,11 +517,67 @@ export function AssistantResourceList({
       deleteAssistant,
       deletingAssistantId,
       onActiveAssistantDeleted,
-      refreshAfterRestore,
+      refreshAssistantResources,
       refreshAssistants,
       refreshTopics,
       restoreAssistant,
       restoreTopic,
+      t
+    ]
+  )
+
+  const handlePermanentlyDeleteAssistant = useCallback(
+    async (assistantId: string) => {
+      if (deletingAssistantId) return
+
+      setDeletingAssistantId(assistantId)
+      try {
+        let result
+        try {
+          result = await deleteAssistant(assistantId, { deleteTopics: true, permanent: true })
+        } catch (err) {
+          if (!isTrashTargetNotFoundError(err)) throw err
+          await refreshAssistantResources()
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+        if (!result.deleted) {
+          await refreshAssistantResources()
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
+        const deletedTopicIds = result.deletedTopicIds ?? []
+        if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
+        if (activeTopicId && deletedTopicIds.includes(activeTopicId)) {
+          try {
+            await onActiveAssistantDeleted?.(assistantId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Assistant after permanent deletion from classic-layout rail', {
+              assistantId,
+              err
+            })
+          }
+        }
+        await refreshAssistantResources()
+      } catch (err) {
+        logger.error('Failed to permanently delete assistant from classic-layout rail', { assistantId, err })
+        if (isTrashTopicBusyError(err)) {
+          toast.info(t('recycle_bin.move.blocked_generation'))
+          return
+        }
+        throw err
+      } finally {
+        setDeletingAssistantId(null)
+      }
+    },
+    [
+      activeTopicId,
+      closeConversationTabs,
+      deleteAssistant,
+      deletingAssistantId,
+      onActiveAssistantDeleted,
+      refreshAssistantResources,
       t
     ]
   )
@@ -580,6 +637,22 @@ export function AssistantResourceList({
           group: 'danger',
           order: 30,
           availability: { visible: true, enabled: deletingAssistantId === null }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: ASSISTANT_ENTITY_DELETE_ACTION_ID,
+          label: t('common.delete'),
+          icon: <Trash2 size={14} />,
+          danger: true,
+          group: 'danger',
+          order: 40,
+          availability: { visible: true, enabled: deletingAssistantId === null },
+          confirm: {
+            title: t('assistants.delete.title'),
+            description: t('assistants.delete.content'),
+            confirmText: t('common.delete'),
+            cancelText: t('common.cancel'),
+            destructive: true
+          }
         })
       ]
     },
@@ -625,9 +698,15 @@ export function AssistantResourceList({
       }
       if (action.id === ASSISTANT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAssistant(item.id)
+        return
       }
+      if (action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID) {
+        return handlePermanentlyDeleteAssistant(item.id)
+      }
+      return
     },
     [
+      handlePermanentlyDeleteAssistant,
       handleDeleteAssistant,
       handleClearAssistantTopics,
       handleToggleAssistantPin,
