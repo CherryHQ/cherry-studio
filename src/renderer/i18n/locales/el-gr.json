@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
   "message.websearch.fetch_empty": "Δεν βρέθηκαν αποτελέσματα αναζήτησης",
   "message.websearch.fetch_opaque": "Αναζητήθηκε από το μοντέλο",
+  "message.websearch.provider_fallback": "Αναζήτηση ιστού: Ο πάροχος {{provider}} δεν ολοκλήρωσε το αίτημα. Γίνεται προσπάθεια με τον {{fallbackProvider}}.",
   "miniApp.activity.clear": "Εκκαθάριση αρχείου",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Μόνο απορρίψεις",

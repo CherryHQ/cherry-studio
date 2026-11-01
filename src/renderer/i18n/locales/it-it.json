@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} risultati di ricerca",
   "message.websearch.fetch_empty": "Nessun risultato trovato",
   "message.websearch.fetch_opaque": "Ricerca eseguita dal modello",
+  "message.websearch.provider_fallback": "Ricerca web: {{provider}} non ha potuto completare una richiesta. Si tenta con {{fallbackProvider}}.",
   "miniApp.activity.clear": "Svuota registro",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Solo rifiuti",

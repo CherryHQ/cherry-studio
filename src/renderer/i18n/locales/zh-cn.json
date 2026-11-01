@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} 个搜索结果",
   "message.websearch.fetch_empty": "未找到搜索结果",
   "message.websearch.fetch_opaque": "已由模型完成搜索",
+  "message.websearch.provider_fallback": "网页搜索：{{provider}} 无法完成请求。正在尝试使用 {{fallbackProvider}}。",
   "miniApp.activity.clear": "清除日志",
   "miniApp.activity.count": "{{name}} × {{calls}}（{{bytes}}）",
   "miniApp.activity.denied_only": "只看拒绝",

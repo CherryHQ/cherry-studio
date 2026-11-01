@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} resultados da pesquisa",
   "message.websearch.fetch_empty": "Nenhum resultado de pesquisa encontrado",
   "message.websearch.fetch_opaque": "Pesquisado pelo modelo",
+  "message.websearch.provider_fallback": "Pesquisa na web: {{provider}} não conseguiu concluir um pedido. A tentar com {{fallbackProvider}}.",
   "miniApp.activity.clear": "Limpar registo",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Apenas recusas",

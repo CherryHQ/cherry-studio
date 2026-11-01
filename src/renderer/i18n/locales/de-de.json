@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} Suchergebnisse",
   "message.websearch.fetch_empty": "Keine Suchergebnisse gefunden",
   "message.websearch.fetch_opaque": "Vom Modell durchsucht",
+  "message.websearch.provider_fallback": "Websuche: {{provider}} konnte eine Anfrage nicht abschließen. Stattdessen wird {{fallbackProvider}} versucht.",
   "miniApp.activity.clear": "Protokoll löschen",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Nur Ablehnungen",

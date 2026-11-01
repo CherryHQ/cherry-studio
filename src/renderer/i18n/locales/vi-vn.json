@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} kết quả tìm kiếm",
   "message.websearch.fetch_empty": "Không tìm thấy kết quả tìm kiếm",
   "message.websearch.fetch_opaque": "Được tìm kiếm bởi mô hình",
+  "message.websearch.provider_fallback": "Tra cứu web: {{provider}} không thể hoàn tất yêu cầu. Đang thử dùng {{fallbackProvider}}.",
   "miniApp.activity.clear": "Xóa nhật ký",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Chỉ từ chối",

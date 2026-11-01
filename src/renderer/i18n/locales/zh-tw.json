@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} 個搜尋結果",
   "message.websearch.fetch_empty": "找不到搜尋結果",
   "message.websearch.fetch_opaque": "由模型搜尋",
+  "message.websearch.provider_fallback": "網頁搜尋：{{provider}} 無法完成請求。正在嘗試使用 {{fallbackProvider}}。",
   "miniApp.activity.clear": "清除日誌",
   "miniApp.activity.count": "{{name}} × {{calls}}（{{bytes}}）",
   "miniApp.activity.denied_only": "只看拒絕",

@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} search result(s)",
   "message.websearch.fetch_empty": "No search results found",
   "message.websearch.fetch_opaque": "Searched by the model",
+  "message.websearch.provider_fallback": "Web lookup: {{provider}} could not complete a request. Trying {{fallbackProvider}} instead.",
   "miniApp.activity.clear": "Clear log",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Refusals only",
