@@ -300,6 +300,26 @@ describe('splitMarkdownChunks', () => {
     expect(windowed[1].text).toContain('<details>\n<summary>Summary</summary>\n\nHidden content\n\n</details>')
   })
 
+  it('keeps a disclosure whose opening tag spans lines in one chunk', () => {
+    // Attributes may continue on the next line, so `<details` still opens the disclosure. Tracking
+    // only complete tags let the summary's blank split the body outside it.
+    const content =
+      'filler\n\n'.repeat(3071) + '<details\nclass="fold">\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+
+    expect(chunksOf(content).find((chunk) => chunk.text.includes('<details'))?.text).toContain(
+      '<details\nclass="fold">\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+    )
+
+    const windowed = chunksOf(
+      'para one\n\n' + '<details\nclass="fold">\n<summary>Summary</summary>\n\nHidden content\n\n</details>',
+      10
+    )
+    expect(windowed).toHaveLength(2)
+    expect(windowed[1].text).toContain(
+      '<details\nclass="fold">\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+    )
+  })
+
   it('keeps the construct a self-closing non-void tag opens in one chunk', () => {
     // The renderer ignores a self-closing slash on an HTML element, so `<details/>` opens the
     // disclosure the same `<details>` does — the content below the summary renders inside it, and
@@ -3525,6 +3545,16 @@ describe('a heading an inline construct only partly renders', () => {
     const content = `# [Alpha](not valid)\n\n${filler}# Alpha\n\n[jump](#alpha)\n`
 
     expect(headingIds(content)).toEqual(['doc--alphanot-valid', 'doc--alpha'])
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
+
+  it('keeps image alt text with link syntax out of the heading id', () => {
+    // An image's alt may hold a link and renders no text at all. Nested-link rejection kept the
+    // alt in the heading and numbered both chunks `a-b`, so the fragment had no target.
+    const filler = 'filler\n\n'.repeat(3073)
+    const content = `# A ![a [b](c)](https://example.com/d.png) B\n\n${filler}# A B\n\n[jump](#a-b-1)\n`
+
+    expect(headingIds(content)).toEqual(['doc--a-b', 'doc--a-b-1'])
     expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
   })
 })

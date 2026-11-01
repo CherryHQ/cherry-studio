@@ -43,6 +43,9 @@ export const MARKDOWN_CHUNK_BUDGET_CHARS = 24 * 1024
 /** The widest tag the heading text reads; bounding the slice keeps malformed runs linear. */
 const MAX_TAG_WINDOW = 4_096
 
+/** The longest unfinished HTML tag carried across block lines; a longer run is malformed, not a tag. */
+const MAX_PENDING_HTML_TAG_CHARS = 64 * 1024
+
 /**
  * A single indivisible block cannot be windowed, so one this large would still reach the renderer
  * whole. That is pathological input rather than a merely long document, and it falls back to the
@@ -599,16 +602,10 @@ interface HtmlTag {
 /**
  * Walk the tags a line carries, one character run at a time. A tag opens at `<` plus a name, ends
  * at the first `>` that is not inside matched quotes, and an unterminated one is dropped — which is
- * what keeps a line of stray quotes linear instead of exponential.
+ * what keeps a line of stray quotes linear instead of exponential. `incomplete` receives a tag that
+ * reached the line end without closing, so the HTML block's next line can complete it.
  */
-function* eachHtmlTag(line: string): Generator<HtmlTag> {
-  /**
-   * The quoted runs the most recent unterminated scan walked over, as `[open, close]` pairs, or
-   * null while no scan has failed yet. A tag opening inside one of them sees a different quote
-   * structure than the scan that read past it, so only such a tag has to be walked again; every
-   * other one starts where the failed scan was already in plain text and reaches the same dead end.
-   */
-  let deadRuns: Array<[number, number]> | null = null
+function* eachHtmlTag(line: string, incomplete?: { index: number }): Generator<HtmlTag> {
   let index = 0
   while (index < line.length) {
     const at = line.indexOf('<', index)
@@ -619,13 +616,9 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
       continue
     }
     const attrsStart = at + named[0].length
-    // The failed scan behind us read this far in plain text without finding a `>`, so a tag whose
-    // own scan starts there walks the same dead suffix. Only a tag opening inside one of that
-    // scan's quoted runs can reach a `>` the scan itself could not.
-    if (deadRuns !== null && !deadRuns.some(([open, close]) => open < attrsStart && attrsStart <= close)) return
     let cursor = attrsStart
     let terminated = false
-    const runs: Array<[number, number]> = []
+    let restarted = false
     while (cursor < line.length) {
       const char = line[cursor]
       if (char === '>') {
@@ -641,19 +634,28 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
           // ends at the next `>` — or the tag is dropped, which is what keeps a line of stray
           // quotes linear instead of exponential.
           const close = line.indexOf('>', cursor + 1)
-          if (close < 0) return
+          if (close < 0) {
+            if (incomplete) incomplete.index = at
+            return
+          }
           cursor = close
           terminated = true
           break
         }
-        runs.push([cursor, end])
         cursor = end + 1
         continue
       }
+      // A new tag opens before this one closes, so this one is malformed and is dropped; the
+      // next tag is read where it stands (an unfinished `<a` must not swallow a later `</div>`).
+      if (char === '<' && /^<(\/?)[A-Za-z]/.test(line.slice(cursor))) {
+        index = cursor
+        restarted = true
+        break
+      }
       cursor += 1
     }
+    if (restarted) continue
     if (terminated) {
-      deadRuns = null
       yield {
         name: named[2].toLowerCase(),
         closing: named[1] === '/',
@@ -662,8 +664,10 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
       index = cursor + 1
       continue
     }
-    deadRuns = runs
-    index = at + 1
+    // The scan ran out of line before reaching `>`, so no later tag on this line can terminate
+    // either; keep this one for the block's next line.
+    if (incomplete) incomplete.index = at
+    return
   }
 }
 
@@ -730,13 +734,21 @@ class HtmlElementStack {
   }
 }
 
-function trackHtmlElements(line: string, stack: HtmlElementStack): void {
+/** A tag the open HTML block left incomplete at a line end; the next line of the block completes it. */
+interface HtmlTagScan {
+  pending: string
+}
+
+function trackHtmlElements(line: string, stack: HtmlElementStack, scan: HtmlTagScan): void {
   // Scanned by hand, not by a regex: the tag's attributes alternate between quoted runs and
   // `[^>]`, and a tag that never closes makes those alternatives overlap — the backtracking an
   // engine spends on it grows exponentially in the number of quotes, which stalls the splitter
   // before the fallback has a chance to guard it. Each step here advances over one quote run or
   // one plain character, so a whole line costs one pass over it.
-  for (const tag of eachHtmlTag(line)) {
+  const text = scan.pending.length > 0 ? `${scan.pending}\n${line}` : line
+  scan.pending = ''
+  const incomplete = { index: -1 }
+  for (const tag of eachHtmlTag(text, incomplete)) {
     if (tag.closing) {
       stack.closeTag(tag.name)
       continue
@@ -747,6 +759,11 @@ function trackHtmlElements(line: string, stack: HtmlElementStack): void {
       ? !stack.isForeign(tag.name) && !HTML_RAW_TAGS.has(tag.name)
       : !VOID_HTML_ELEMENTS.has(tag.name)
     if (opens) stack.openTag(tag.name)
+  }
+  // A tag may continue on the block's next line; keep the unfinished tail so the opening element
+  // is seen before a boundary can split the block away from the content it holds.
+  if (incomplete.index >= 0 && text.length - incomplete.index <= MAX_PENDING_HTML_TAG_CHARS) {
+    scan.pending = text.slice(incomplete.index)
   }
 }
 
@@ -1902,7 +1919,9 @@ function headingRenderedText(
               : -1
           : -1
         labelChars += (follow >= label.end ? follow : segment.length) - label.end
-        const nested = label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
+        // An image is not a link: its label may hold link syntax, and the renderer omits that text
+        // from the document, so nested-link rejection must not apply to `!` constructs.
+        const nested = character !== '!' && label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
         // An inline link's destination has to be one the parser reads: `[Alpha](not valid)` is no
         // link at all, so the run stays the literal text the heading renders — reading it as a link
         // would strip text the renderer keeps and take the id a later heading should get.
@@ -2537,6 +2556,8 @@ export function splitMarkdownChunks(
   // but not the element its opening tag began — the renderer holds everything below it inside that
   // element until the closing tag turns up — so a boundary may not fall while one is open.
   const htmlOpenElements = new HtmlElementStack()
+  /** A tag the open HTML block left unfinished at a line end, carried to the block's next line. */
+  const htmlTagScan: HtmlTagScan = { pending: '' }
   // The stack's height when the open block began, so the elements it opened can be given back when
   // the container it was written behind ends with it.
   let htmlBlockElementBase = 0
@@ -2648,6 +2669,7 @@ export function splitMarkdownChunks(
     recordHtmlHeadings(htmlBlockStart, htmlBlockContent.join('\n'))
     htmlBlockContent = []
     htmlComment.open = false
+    htmlTagScan.pending = ''
   }
 
   /**
@@ -2722,7 +2744,7 @@ export function splitMarkdownChunks(
       if (stripped !== null && !blank) {
         const uncommented = withoutHtmlComments(stripped, htmlComment)
         htmlBlockContent.push(uncommented)
-        trackHtmlElements(uncommented, htmlOpenElements)
+        trackHtmlElements(uncommented, htmlOpenElements, htmlTagScan)
         continue
       }
       closeHtmlBlock()
@@ -2835,7 +2857,7 @@ export function splitMarkdownChunks(
       const opening = withoutHtmlComments(uncontained, htmlComment)
       htmlBlockContent = [opening]
       htmlBlockElementBase = htmlOpenElements.depth
-      trackHtmlElements(opening, htmlOpenElements)
+      trackHtmlElements(opening, htmlOpenElements, htmlTagScan)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
