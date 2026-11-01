@@ -1,7 +1,10 @@
+import { GatewayInternalServerError } from '@ai-sdk/gateway'
+import { RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import { serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -78,6 +81,14 @@ describe('runPainting error surfacing', () => {
       code: 'REMOTE_ERROR',
       message: i18n.t('error.http.504')
     })
+  })
+
+  it('maps a real serialized Gateway retry failure to the friendly timeout', async () => {
+    const terminal = new GatewayInternalServerError({ message: '', statusCode: 504 })
+    const retry = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [terminal] })
+    const detail = serializeNestedProviderError(retry)
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+    await expect(fail(err)).rejects.toMatchObject({ code: 'REMOTE_ERROR', message: i18n.t('error.http.504') })
   })
 
   it('maps an exhausted-retry 504 nested in errors to the friendly timeout string', async () => {
