@@ -162,6 +162,16 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly chatReactions = new Map<string, ChatReaction>()
   private readonly lastDropNotificationAt = new Map<string, number>()
   private static readonly DROP_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
+  // Initial-connect retry (offline-at-startup). Mirrors TelegramAdapter's backoff convention
+  // (Slack/Discord/QQ use the same shape). Unlike Telegram, Feishu's handshake *rejects* on
+  // failure before markConnected, so resetting the budget on a successful connect is safe:
+  // a persistent failure never reaches the reset and drains to the cap.
+  private shouldStop = false
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connectSignal: AbortSignal | null = null
+  private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
+  private readonly maxReconnectAttempts = 50
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
@@ -182,11 +192,19 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
+    this.shouldStop = false
+    this.reconnectAttempts = 0
+    this.connectSignal = signal
+
     if (!this.appId || !this.appSecret) {
       this.startRegistrationInBackground(signal)
       return
     }
 
+    await this.startChannel(signal)
+  }
+
+  private async startChannel(signal: AbortSignal): Promise<void> {
     const sdkLogger: Lark.Logger = {
       error: (...args) => this.log.error('Feishu SDK error', { detail: args.map(String).join(' ') }),
       warn: (...args) => this.log.warn('Feishu SDK warning', { detail: args.map(String).join(' ') }),
@@ -251,18 +269,57 @@ class FeishuAdapter extends ChannelAdapter {
       await channel.connect()
     } catch (error) {
       await this.disconnectChannel(channel)
-      if (signal.aborted || this.channel !== channel) return
+      if (signal.aborted || this.shouldStop || this.channel !== channel) return
       this.channel = null
-      throw new Error(`Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`)
+      const message = `Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`
+      this.log.error(message)
+      this.markDisconnected(message)
+      this.scheduleReconnect()
+      return
     }
 
-    if (signal.aborted || this.channel !== channel) {
+    if (signal.aborted || this.shouldStop || this.channel !== channel) {
       await this.disconnectChannel(channel)
       return
     }
 
+    this.reconnectAttempts = 0
     this.markConnected()
     this.log.info('Feishu bot connected (WebSocket)')
+  }
+
+  private scheduleReconnect(): void {
+    const signal = this.connectSignal
+    if (this.shouldStop || this.reconnectTimer || !signal || signal.aborted) return
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.log.error('Feishu max reconnect attempts reached, giving up')
+      return
+    }
+
+    const delay = this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)]
+    this.reconnectAttempts++
+    this.log.info(`Feishu reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      const retrySignal = this.connectSignal
+      if (this.shouldStop || !retrySignal || retrySignal.aborted) return
+      void this.startChannel(retrySignal).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error)
+        this.markDisconnected(msg)
+        this.log.error(`Feishu reconnect failed: ${msg}`)
+        this.scheduleReconnect()
+      })
+    }, delay)
+    this.reconnectTimer.unref?.()
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
   }
 
   private startRegistrationInBackground(signal: AbortSignal): void {
@@ -308,6 +365,9 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performDisconnect(): Promise<void> {
+    this.shouldStop = true
+    this.clearReconnectTimer()
+
     for (const stream of this.streams.values()) stream.dispose()
     this.streams.clear()
     this.chatReactions.clear()
