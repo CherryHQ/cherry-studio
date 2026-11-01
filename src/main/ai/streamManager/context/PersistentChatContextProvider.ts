@@ -1099,6 +1099,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): AiStreamRequest {
     return {
       conversation: { id: topicId, topicId },
+      ...(assistantId ? { memoryContext: { topicId, assistantId } } : {}),
       trigger: 'submit-message',
       assistantId,
       uniqueModelId,

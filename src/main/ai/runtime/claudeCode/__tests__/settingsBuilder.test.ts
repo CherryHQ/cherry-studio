@@ -2830,12 +2830,18 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
     mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
     expect(await submit()).toMatchObject({
-      hookSpecificOutput: { additionalContext: '<agent_identity>Persona A</agent_identity>' }
+      hookSpecificOutput: { additionalContext: expect.stringContaining('<agent_identity>Persona A</agent_identity>') }
     })
     mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
-    expect(await submit()).toMatchObject({
-      hookSpecificOutput: { additionalContext: '<agent_identity>Persona B</agent_identity>' }
+    const refreshed = await submit()
+    expect(refreshed).toMatchObject({
+      hookSpecificOutput: { additionalContext: expect.stringContaining('<agent_identity>Persona B</agent_identity>') }
     })
+    const context = 'hookSpecificOutput' in refreshed && refreshed.hookSpecificOutput
+    expect(context && 'additionalContext' in context && context.additionalContext).toMatch(
+      /<cherry_memory>[\s\S]*\n\[\]\n<\/cherry_memory>/
+    )
+    expect(context && 'additionalContext' in context && context.additionalContext).not.toContain('Persona A')
     expect(await submit()).toEqual({})
   })
 

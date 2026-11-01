@@ -78,6 +78,8 @@ export interface AiRequest {
 /** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
+  /** Minted only by the persistent chat owner; absent for temporary, auxiliary, and headless requests. */
+  memoryContext?: { topicId: string; assistantId: string }
   mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption

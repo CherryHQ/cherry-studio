@@ -145,7 +145,7 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 
 ### Code Organization
 
-- `src/main/ai/memory/` owns memory-file storage, caller authority, lifecycle admission, editor sessions, backups, and recovery. Runtime integration is still pending.
+- `src/main/ai/memory/` owns memory-file storage, caller authority, request-time entry loading, lifecycle admission, editor sessions, backups, and recovery. Controlled runtime tools are still pending.
 - `src/renderer/components/memory/` owns shared-memory controls; `src/renderer/pages/settings/MemorySettings.tsx` exposes shared-scope settings without a file preview or Agent-private entry point.
 - `src/main/core/paths/` registers the shared memory and backup roots.
 
