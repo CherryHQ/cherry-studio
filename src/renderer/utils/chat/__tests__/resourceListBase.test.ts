@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  compareResourceOrderKey,
   compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
@@ -9,8 +10,7 @@ import {
   getResourceTimeBucket,
   sortByResourceGroupRank,
   sortRankedResourceItems
-} from '../resourceListGrouping'
-import { compareResourceOrderKey } from '../resourceListReorder'
+} from '../resourceListBase'
 
 type TestItem = {
   id: string
@@ -22,7 +22,7 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-describe('resourceListGrouping', () => {
+describe('resourceListBase', () => {
   it('classifies timestamps into today, yesterday, this-week, and earlier buckets', () => {
     const now = new Date(2026, 4, 15, 12)
 
