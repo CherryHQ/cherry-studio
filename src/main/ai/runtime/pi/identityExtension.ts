@@ -8,27 +8,39 @@ export function createPiIdentityExtension(agentDataPath: string, sessionId?: str
   const builder = new PromptBuilder()
   return (pi) => {
     pi.on('before_agent_start', async (event) => {
-      event.systemPromptOptions.sections.agent_identity = await builder.buildMemoriesSection(agentDataPath)
+      const migrated = sessionId ? await application.get('MemoryMigrationService').ensureSession(sessionId) : false
+      event.systemPromptOptions.sections.agent_identity = await builder.buildMemoriesSection(agentDataPath, !migrated)
     })
     pi.on('context_with_system', async (event, ctx) => {
       if (!sessionId) return
+      const migrated = await application.get('MemoryMigrationService').ensureSession(sessionId)
+      const identity = await builder.buildMemoriesSection(agentDataPath, !migrated)
       const memory = await agentMemoryReference(
         sessionId,
         () => application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
         ctx.signal
       )
       const messages = event.messages.map((message) => {
-        if (message.role !== 'system' || !message.sections?.cherry_memory) return message
+        if (message.role !== 'system' || !message.sections) return message
         const sections = { ...message.sections }
         delete sections.cherry_memory
+        delete sections.agent_identity
         return { ...message, sections }
       })
       const index = messages.findIndex((message) => message.role === 'system')
       const system = messages[index]
       if (system?.role === 'system') {
-        messages[index] = { ...system, sections: { ...system.sections, cherry_memory: memory } }
+        messages[index] = {
+          ...system,
+          sections: { ...system.sections, agent_identity: identity, cherry_memory: memory }
+        }
       } else {
-        messages.unshift({ role: 'system', content: '', sections: { cherry_memory: memory }, timestamp: Date.now() })
+        messages.unshift({
+          role: 'system',
+          content: '',
+          sections: { agent_identity: identity, cherry_memory: memory },
+          timestamp: Date.now()
+        })
       }
       return { messages }
     })

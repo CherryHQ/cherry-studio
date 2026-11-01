@@ -327,6 +327,7 @@ export async function deriveConnectionConfig(
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return unroutable
   try {
+    await application.get('MemoryService').prepareAgent(agent.id)
     return {
       ok: true,
       config: await deriveConnectionConfigFromSnapshot(
@@ -425,6 +426,7 @@ async function deriveConnectionConfigFromSnapshot(
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
+    memoryMigrated: application.get('MemoryMigrationService').isMigrated(agent.id),
     skills: [...skills].sort(),
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
@@ -504,6 +506,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
+  await application.get('MemoryService').prepareAgent(agent.id)
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)

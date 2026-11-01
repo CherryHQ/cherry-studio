@@ -1,8 +1,8 @@
 ---
-description: Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature
+description: Shared and private managed file memory, legacy migration, Knowledge Base, and independent graph memory
 sources:
   - src/main/ai/agents/prompt.ts
-  - src/main/ai/mcp/servers/agentMemory.ts
+  - src/main/ai/memory
   - src/main/ai/mcp/servers/memory.ts
   - src/main/features/knowledge
 ---
@@ -15,30 +15,33 @@ Cherry Studio provides three distinct memory mechanisms. They differ in who they
 
 | Memory Type | Applies To | Persistence | Storage Location | Cross-Session | Cross-Agent |
 |---|---|---|---|---|---|
-| Agent File Memory | Agent | File read/write (`SOUL.md` / `USER.md` / `FACT.md` / `JOURNAL.jsonl`) | Agent data directory (`{agentData}/memory/`) | Yes | No (per-agent) |
+| Managed File Memory | Agent + opted-in persistent Assistant | Controlled Markdown read/write (`MEMORY.md` / `.memories/*.md`) | Shared `{userData}/Data/Memory/`; private `{agentData}/` | Yes | Shared preferences only; private knowledge stays with its Agent |
 | Knowledge Base | Assistant + Agent | Indexed retrieval (ingestion + vector/query) | Knowledge base directory | Yes | Yes |
 | MCP Memory | Agent | MCP protocol (`@cherry/memory` built-in server) | MCP server (`memory.json` knowledge graph) | Yes | Depends on server impl |
 
 ## About "Global Memory"
 
-Cherry Studio v1.x had a fourth mechanism, **Global Memory**: a Settings toggle (`feature.memory.enabled`) that made the model auto-extract durable facts from assistant chats and recall them in later assistant sessions. It was **removed in v2** ([#14250](https://github.com/CherryHQ/cherry-studio/issues/14250)) because its setup was complex and its quality did not justify the overhead. There is deliberately no Global Memory toggle in v2 settings and no replacement yet.
+Cherry Studio v1.x had **Global Memory**: a Settings toggle (`feature.memory.enabled`) that extracted durable facts from assistant chats. It was removed in v2 ([#14250](https://github.com/CherryHQ/cherry-studio/issues/14250)). Managed shared memory is a separate feature. Enabling access does not authorize reading or extracting all chat history.
 
 If you relied on Global Memory in v1:
 
-- For Agents, use **Agent File Memory** — it serves the same remember-about-the-user role via `USER.md`, scoped per agent.
-- For Assistants, put durable facts into the assistant's prompt, or curate them in a **Knowledge Base** until a successor feature lands.
+- Agents can use shared preferences and their own private knowledge. Shared access defaults on for desktop Agents; external channels cannot access shared memory.
+- Persistent Assistants can opt in to shared entry references. Temporary and auxiliary requests remain ineligible. Assistant and Claude Code memory editing requires a supported execution adapter; currently use the memory editor.
 
 ## Details
 
-### Agent File Memory (Agent only)
+### Managed File Memory
 
-- Four files under the agent's data directory carry identity and memory across workspaces and sessions:
-  - `SOUL.md` — how the agent presents itself (persona / tone)
-  - `USER.md` — who the user is (preferences, context)
-  - `memory/FACT.md` — durable knowledge and decisions (6+ months)
-  - `memory/JOURNAL.jsonl` — append-only event log
-- Loaded into the system prompt at session start; updated by the agent autonomously via `mcp__agent-memory__memory` (FACT/JOURNAL) and Read/Edit tools (SOUL/USER).
-- Scoped to a single agent. See `src/main/ai/agents/prompt.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
+- `MEMORY.md` contains complete common facts and selected topic links. `.memories/*.md` contains related details. Each request reloads only eligible entries; topics require a full controlled read before editing.
+- Settings → Shared Memory provides content editing, topic selection, and a compact maintenance menu. Agent settings open the Agent's private scope. Conflicts preserve unsaved drafts. Clear and recovery require preview and confirmation; recoverable backups remain after clearing.
+- Entries allow 200 lines and 25,000 UTF-8 bytes; topics allow 25,000 bytes. Oversized external originals are preserved. These limits are save protections, not additional configuration fields.
+- Pi native reads, writes, and edits bind caller-specific read receipts to exact approved proposals. Backups precede writes, and actual results are checked. Unsupported Claude native operations and identity-free filesystem MCP access to managed memory are rejected. Shell and external tools remain outside this cooperative protection.
+- Each scope retains up to five recovery batches within 20 MiB. Protected batches are retained; insufficient backup capacity rejects a write. Recovery protects later changes and reports conflicts or partial results.
+- `SOUL.md` and `USER.md` remain separate identity files. Their contents are not copied into shared memory.
+
+Legacy FACT migration preserves complete Markdown sections and original bytes, then checks every new private file before activation. Oversized indivisible sections or conflicts leave migration incomplete and retain readonly legacy facts. JOURNAL is unchanged and stops receiving events. Neither the old Agent Memory MCP nor ordinary file tools write these historical files. No dual-writing or alternating old/new app version compatibility is promised.
+
+The current implementation is a Draft stack. Dreaming organization is a subsequent layer; platform, runtime, and migration acceptance remains unverified. See [the module contract](../../../src/main/ai/memory/README.md) for the implementation boundary.
 
 ### Knowledge Base (Assistant + Agent)
 
@@ -53,6 +56,7 @@ If you relied on Global Memory in v1:
 
 ## Choosing
 
-- Agent persona and long-running project knowledge for a single agent → **Agent File Memory**.
+- Common preferences across eligible callers → **Shared File Memory**.
+- Long-running project knowledge for a single Agent → **Private File Memory**; persona remains in SOUL.md/USER.md.
 - Searchable reference material you curate → **Knowledge Base**.
 - Structured entity/relation memory driven by MCP → **MCP Memory**.

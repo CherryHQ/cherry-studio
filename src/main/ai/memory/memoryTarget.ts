@@ -28,7 +28,7 @@ export async function memoryTarget(absolutePath: string): Promise<MemoryTarget |
         if (index === 2) throw new Error('Memory recovery backups are not available to conversation tools')
         const parts = path.relative(root, candidate).split(path.sep)
         const agentId = index === 1 ? parts.shift() : undefined
-        if (index === 1 && !/^(?:MEMORY\.md|\.memories)$/i.test(parts[0] ?? '')) continue
+        if (index === 1 && !/^(?:MEMORY\.md|\.memories|memory)$/i.test(parts[0] ?? '')) continue
         const target = parts.join('/')
         assertMemoryTarget(target)
         const scope: MemoryScope = agentId ? { kind: 'private', agentId } : { kind: 'shared' }
@@ -57,7 +57,7 @@ export async function memorySearchTarget(directory: string): Promise<boolean> {
         if (!isPathInside(candidate, root)) continue
         if (index !== 1) return true
         const parts = path.relative(root, candidate).split(path.sep)
-        if (parts.length === 1 || /^(?:MEMORY\.md|\.memories)$/i.test(parts[1] ?? '')) return true
+        if (parts.length === 1 || /^(?:MEMORY\.md|\.memories|memory)$/i.test(parts[1] ?? '')) return true
       }
     }
   }

@@ -5,6 +5,8 @@ import path from 'node:path'
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { Server } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { mockMemoryMigrationService } from '@test-mocks/main/MemoryMigrationService'
+import { mockMemoryService } from '@test-mocks/main/MemoryService'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,7 +28,7 @@ const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   bypassApproval: 'lift'
 }).map(toMcpRuntimeName)
 const DELEGATION_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'delegation' }).map(toMcpRuntimeName)
-const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'skills', 'mcp-manager'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   mountedServers: NON_HOST_MCP_SERVERS
 })
@@ -163,6 +165,8 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
+      if (name === 'MemoryService') return mockMemoryService
+      if (name === 'MemoryMigrationService') return mockMemoryMigrationService
       if (name === 'AgentSessionRuntimeService') {
         try {
           return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
@@ -469,12 +473,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.additionalDirectories).toEqual([path.join('/app/feature.agents.data', 'agent-1')])
-    expect(mocks.buildPrompt).toHaveBeenCalledWith(
-      '/workspace/project',
-      expect.anything(),
-      true,
-      path.join('/app/feature.agents.data', 'agent-1')
-    )
     expect(settings.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
     expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Workspace')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
@@ -1725,10 +1723,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
-    // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
-    expect(settings.allowedTools).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__memory'])
-    )
+    expect(settings.allowedTools).toContain('mcp__cherry-tools__cron')
+    expect(settings.allowedTools).not.toContain('mcp__agent-memory__memory')
   })
 
   it('does not auto-approve disabled MCP tools', async () => {

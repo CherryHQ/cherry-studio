@@ -8,7 +8,7 @@ sources:
   - src/main/ai/runtime/pi/identityExtension.ts
   - src/main/ai/agents/prompt.ts
   - src/main/ai/agents/bootstrap.ts
-  - src/main/ai/mcp/servers/agentMemory.ts
+  - src/main/ai/memory/MemoryMigrationService.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
 ---
 
@@ -25,7 +25,7 @@ Agent conversations combine several independently stored prompt sources. They ar
 | 3 | Workspace Instructions | `<workspace>/system.md` plus runtime-native `CLAUDE.md` / scoped `AGENTS.md` context | Workspace-local guidance; an explicit `system.md` replaces the runtime's native base, including when the file is empty |
 | 4 | Agent Persona | `<agent-data>/SOUL.md` | Persistent name, personality, tone, and communication style across workspaces |
 
-Lower-priority guidance still applies when it does not conflict with a higher-priority source. `USER.md`, `memory/FACT.md`, journal entries, and retrieved knowledge are context rather than behavioral authority. This hierarchy is injected only when `agent.instructions` resolves to non-blank content. Agents without a configured System Prompt retain the legacy role-discovery and role-bearing `SOUL.md` fallback instead of receiving a hierarchy that points to a missing authority source.
+Lower-priority guidance still applies when it does not conflict with a higher-priority source. `USER.md`, managed memory, and retrieved knowledge are context rather than behavioral authority. This hierarchy is injected only when `agent.instructions` resolves to non-blank content. Agents without a configured System Prompt retain the legacy role-discovery and role-bearing `SOUL.md` fallback instead of receiving a hierarchy that points to a missing authority source.
 
 The hierarchy is an explicit instruction contract provided to the model, not a deterministic enforcement or security boundary; application and runtime hooks independently enforce hard runtime and tool-safety constraints. Prompt composition still preserves existing workspace and `SOUL.md` content verbatim. This change does not structurally remove legacy role text, so resolving conflicts remains model-mediated rather than guaranteed.
 
@@ -66,16 +66,13 @@ introductions, personalize responses with the user profile, and consult durable
 facts when recalling decisions. The stable system prompt supplies the identity
 application rules and absolute storage paths; mutable file contents are loaded by runtime hooks.
 
-The `agent-memory` MCP server owns memory tool instructions: updating durable
-facts, appending events, and searching journal history. Each runtime connection
-gets an in-process protocol instance bound to its Agent's storage. Disabling
-Memory unmounts this server and its instructions; it does not disable the
-SOUL.md, USER.md, or existing FACT.md snapshots. Pi exposes full MCP instructions
-through native namespace discovery, so basic identity application rules remain
-in the stable prompt independently of MCP discovery.
+The legacy `agent-memory` MCP server is no longer mounted. FACT and JOURNAL
+remain history, with no new writes or journal searches. Shared access controls
+do not disable SOUL.md or USER.md. Independent graph-memory MCP remains available.
 
-Before each new turn, the harness checks `SOUL.md`, `USER.md`, and `memory/FACT.md`
-in Agent storage and delivers a complete `<agent_identity>` snapshot. This does
+Before each new turn, the harness checks `SOUL.md` and `USER.md` in Agent storage
+and delivers a complete `<agent_identity>` snapshot. Until private FACT migration
+completes, the snapshot also supplies readonly legacy facts. This does
 not depend on the model choosing a Read tool or a skill. Creation, edits,
 clearing, and deletion take effect on the next turn of a reused connection.
 Empty sections explicitly withdraw previous contents, including those preserved
@@ -85,8 +82,8 @@ System Prompt and current user instructions.
 Claude Code supplies identity through `UserPromptSubmit.additionalContext`,
 deduplicated per connection, and reloads it through `SessionStart` after native
 compaction or session restoration. Pi updates the `agent_identity` system section
-in `before_agent_start`; its native section diffing preserves unchanged context
-and replaces changed content. Neither path rebuilds a connection solely because
+in `before_agent_start` and refreshes it in `context_with_system`, including
+after migration and compaction. Neither path rebuilds a connection solely because
 an identity file changed. Changes made during an active turn are picked up at the
 next turn boundary; workspace prompt files retain their existing lifecycle.
 
@@ -107,8 +104,8 @@ The reference does not grant controlled file tools or confirm a save. Pi's
 separate native adapter provides full memory reads and receipt-bound writes and
 edits. Claude Code remains entry-only for managed memory: its native file guard
 rejects those targets because a pre-tool hook cannot own the complete commit.
-Legacy
-FACT/JOURNAL loading and tools remain until the coordinated migration layer.
+Private memory is activated only after FACT migration checks preservation and
+records completion. Warm connections withdraw the old facts snapshot after cutover.
 
 ## Update and variable lifecycle
 

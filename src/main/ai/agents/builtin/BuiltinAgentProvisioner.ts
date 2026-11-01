@@ -60,22 +60,6 @@ export function getBuiltinAgentPluginDirectory(builtinRole: string): string | un
   return pluginDirectory
 }
 
-/**
- * Recursively copy files that do not already exist, creating target dirs as needed.
- */
-function copyMissingDirSync(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true })
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    const srcPath = path.join(src, entry.name)
-    const destPath = path.join(dest, entry.name)
-    if (entry.isDirectory()) {
-      copyMissingDirSync(srcPath, destPath)
-    } else if (!fs.existsSync(destPath)) {
-      fs.copyFileSync(srcPath, destPath)
-    }
-  }
-}
-
 export { loadBuiltinAgentDefinition } from './builtinAgentDefinition'
 
 /**
@@ -133,12 +117,6 @@ export async function provisionBuiltinAgent(
           logger.info('Migrated stale bundled SOUL.md to the current stock persona', { agentDataPath, destHash })
         }
       }
-    }
-
-    const srcMemoryDir = path.join(templateDir, 'memory')
-    const destMemoryDir = path.join(agentDataPath, 'memory')
-    if (fs.existsSync(srcMemoryDir)) {
-      copyMissingDirSync(srcMemoryDir, destMemoryDir)
     }
 
     return definition
