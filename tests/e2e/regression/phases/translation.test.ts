@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -631,7 +632,7 @@ test(...caseDefinition('MP-86'), async ({ app, mainWindow }, testInfo) => {
     type: 'data-source',
     description: `aiMock ${packageJson.devDependencies['@copilotkit/aimock']}; mock model responses and usage, real Electron translation UI, clipboard, database and restart. Not model-quality acceptance.`
   })
-  const providerId = `regression-mp86-${Date.now()}`
+  const providerId = `regression-mp86-${randomUUID()}`
   const modelIds = [`${providerId}-model-a`, `${providerId}-model-b`]
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)

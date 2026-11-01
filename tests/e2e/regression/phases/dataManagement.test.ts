@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, readdir, stat, writeFile, rename, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, stat, writeFile, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import JSZip from 'jszip'
@@ -40,8 +40,7 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
   }
   // Backup archives embed Data/cherrystudio.sqlite, whose provider rows hold the real API keys, so
   // they are written outside every uploaded artifact root.
-  const directory = join(app.paths.private, `MP-115-local-backups-${Date.now()}`)
-  await mkdir(directory, { recursive: true })
+  const directory = await mkdtemp(join(app.paths.private, 'MP-115-local-backups-'))
   const keys = [
     'data.backup.local.dir',
     'data.backup.local.max_backups',
@@ -241,6 +240,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
   }
   // Restored archives carry the live database; keep them out of the uploaded evidence roots.
   const backupDir = join(app.paths.private, 'MP-116-local-backups')
+  await rm(backupDir, { recursive: true, force: true })
   await mkdir(backupDir, { recursive: true })
   const assistantName = app.resourceName('Restore assistant')
   const topicName = app.resourceName('Restore topic')

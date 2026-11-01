@@ -209,12 +209,17 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
       await session.detach()
     }
   }
+  let singleImportedPath: string | undefined
   const verifyImported = async (expected: { path: string; content: string }[]) => {
     await expect.poll(async () => (await readMarkdown(notesDirectory)).length).toBe(expected.length)
     const imported = await readMarkdown(notesDirectory)
     for (const file of expected) {
       const heading = file.content.match(/^#\s+(.+)$/m)?.[1]
-      const matching = imported.filter((note) => note.content === file.content)
+      const matching = imported.filter(
+        (note) =>
+          note.content === file.content &&
+          (!singleImportedPath || (file.path === single.path) === (note.path === singleImportedPath))
+      )
       expect(matching, `Imported content must equal ${file.path}`).toHaveLength(1)
       const title = basename(matching[0].path, '.md')
       expect([basename(file.path, '.md'), heading]).toContain(title)
@@ -250,6 +255,7 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
     await expect(navigation).toBeVisible()
     await drop(source)
     await verifyImported([single])
+    singleImportedPath = (await readMarkdown(notesDirectory))[0].path
     await attachScreenshot('MP-75 single Markdown imported')
     await drop(vault)
     await verifyImported([single, ...vaultFiles])
