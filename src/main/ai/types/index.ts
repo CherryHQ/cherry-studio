@@ -10,7 +10,9 @@ export type {
   CallOverrides,
   ContextOwner,
   ConversationRef,
+  InProcessModelAttemptController,
   InProcessUsageContext,
-  ListModelsRequest
+  ListModelsRequest,
+  ModelAttemptOverrides
 } from './requests'
 export type { SamplingSettings } from './sampling'

@@ -1,4 +1,4 @@
-import { t } from 'i18next'
+import { exists, t } from 'i18next'
 import { v4 as uuid } from 'uuid'
 
 import { ipcApi } from '@renderer/ipc'
@@ -7,6 +7,13 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 /** Must stay in sync with main-side prefix (validated in `translateService.open`). */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
+
+function toTranslateError(error: unknown): Error {
+  const source = error instanceof Error ? error : new Error(String(error))
+  const translated = new Error(exists(source.message) ? t(source.message) : source.message)
+  translated.name = source.name
+  return translated
+}
 
 /**
  * Translate `text` to `targetLanguage` via main's `translate.open` IPC.
@@ -95,7 +102,7 @@ export const translateText = async (
         cleanup()
         // Preserve error.name (e.g. 'AbortError') so downstream
         // `isAbortError(...)` classifies user stops correctly.
-        const err = new Error(error?.message ?? 'Translation stream error')
+        const err = toTranslateError(new Error(error?.message ?? 'Translation stream error'))
         if (error?.name) err.name = error.name
         reject(err)
       })
@@ -103,7 +110,7 @@ export const translateText = async (
 
     ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
       cleanup()
-      reject(openError instanceof Error ? openError : new Error(String(openError)))
+      reject(toTranslateError(openError))
     })
   })
 }
