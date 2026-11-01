@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getClaudeContextModelId,
   hasClaudeDetailedModels,
+  setClaudeOneMMarker,
   stripClaudeDetailedModels,
   stripClaudeOneMMarker
 } from '../claudeModels'
@@ -16,6 +17,17 @@ describe('stripClaudeOneMMarker', () => {
   it('leaves values without the marker untouched', () => {
     expect(stripClaudeOneMMarker('claude-fable-5')).toBe('claude-fable-5')
     expect(stripClaudeOneMMarker('[1M] claude')).toBe('[1M] claude')
+  })
+})
+
+describe('setClaudeOneMMarker', () => {
+  it('appends the marker without a separating space', () => {
+    expect(setClaudeOneMMarker('provider:deepseek-v4.1-flash', true)).toBe('provider:deepseek-v4.1-flash[1M]')
+  })
+
+  it('rewrites a legacy spaced marker and removes it when disabled', () => {
+    expect(setClaudeOneMMarker('provider:deepseek-v4.1-flash [1M]', true)).toBe('provider:deepseek-v4.1-flash[1M]')
+    expect(setClaudeOneMMarker('provider:deepseek-v4.1-flash [1M]', false)).toBe('provider:deepseek-v4.1-flash')
   })
 })
 

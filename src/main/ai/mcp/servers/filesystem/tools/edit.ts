@@ -16,17 +16,7 @@ export const EditToolSchema = z.object({
 
 // Tool definition with detailed description
 export const editToolDefinition = {
-  description: `Performs exact string replacements in files.
-
-- You must use the 'read' tool at least once before editing
-- The file_path must resolve within the configured workspace root
-- Preserve exact indentation from read output (after the line number prefix)
-- Never include line number prefixes in old_string or new_string
-- ALWAYS prefer editing existing files over creating new ones
-- The edit will FAIL if old_string is not found in the file
-- The edit will FAIL if old_string appears multiple times (provide more context or use replace_all)
-- The edit will FAIL if old_string equals new_string
-- Use replace_all to rename variables or replace all occurrences`,
+  description: `Replace an exact string in a workspace file. Read it first; old_string must be unique unless replace_all.`,
   inputSchema: EditToolSchema
 }
 

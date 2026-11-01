@@ -9,8 +9,8 @@ import { valid as semverValid } from 'semver'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { regionService } from '@main/services/RegionService'
-import { isPathWithin } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
+import { isOutsidePath } from '@main/utils/file'
 
 import { sanitizedCommandError } from './commandError'
 
@@ -39,7 +39,7 @@ function installDir(): string {
   return application.getPath('feature.binary.data.uv_python')
 }
 
-async function runUv(args: string[], env: Record<string, string>, timeoutMs: number): Promise<string> {
+export async function runUv(args: string[], env: Record<string, string>, timeoutMs: number): Promise<string> {
   const uvBin = application.getPath('cherry.bin', getBinaryName('uv'))
   if (!fs.existsSync(uvBin)) throw new Error('Bundled uv is not available')
   const cwd = application.getPath('app.temp')
@@ -75,7 +75,7 @@ async function findInstalled(
   }
   if (!pythonPath) throw new Error(`uv python find returned no path for Python ${version}`)
   // Never adopt a system interpreter: only Cherry's own install dir counts.
-  if (!path.isAbsolute(pythonPath) || !isPathWithin(env.UV_PYTHON_INSTALL_DIR, pythonPath)) return null
+  if (!path.isAbsolute(pythonPath) || isOutsidePath(path.relative(env.UV_PYTHON_INSTALL_DIR, pythonPath))) return null
   try {
     await execFileAsync(pythonPath, ['--version'], {
       cwd: application.getPath('app.temp'),

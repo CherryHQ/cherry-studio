@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-20-last-tab-close-launchpad.md
+2026-10-20-last-tab-close-launchpad.md: 987d0975545f273aa0aac17785637a0bee7c2162
+2026-10-20-last-tab-close-launchpad.zh.md: a578180be81eef7fc061c9324a09efd1e47723fd

@@ -136,6 +136,7 @@ vi.mock('electron', async () => {
     }
   }
   class View {
+    constructor(public options: Electron.BrowserViewConstructorOptions) {}
     webContents = contents()
     setBounds = vi.fn()
     setAutoResize = vi.fn()
@@ -326,6 +327,63 @@ describe('MCP browser on shared sessions', () => {
     expect(data, JSON.stringify(data)).toMatchObject({ ok: true })
     if (kind === 'console') expect(data.messages).toContainEqual(expect.objectContaining({ text: 'Fresh page output' }))
     else expect(data.requests).toContainEqual(expect.objectContaining({ url: 'https://example.com/data' }))
+  })
+
+  it.each([false, true])(
+    'requires a user gesture before content tabs can autoplay media (private: %s)',
+    async (privateMode) => {
+      const c = controller()
+      const { view } = await c.createTab(privateMode)
+      const { options } = view as unknown as { options: Electron.BrowserViewConstructorOptions }
+
+      expect(options.webPreferences?.autoplayPolicy).toBe('user-gesture-required')
+    }
+  )
+
+  it('mutes hidden opens before navigation and restores audio for explicitly visible opens', async () => {
+    const c = controller()
+    const { view } = await c.createTab()
+    const audioStates: boolean[] = []
+    const command = vi.mocked(view.webContents.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Page.navigate') audioStates.push(view.webContents.isAudioMuted())
+      return fallback(method, params)
+    })
+
+    await c.open('https://example.com/', 5000, false, false, false)
+    expect(audioStates).toEqual([true])
+    expect(view.webContents.isAudioMuted()).toBe(true)
+
+    await c.open('https://example.com/', 5000, false, false, true)
+    expect(audioStates).toEqual([true, false])
+    expect(view.webContents.isAudioMuted()).toBe(false)
+
+    await c.open('https://example.com/', 5000, false, false, false)
+    expect(audioStates).toEqual([true, false, false])
+    expect(view.webContents.isAudioMuted()).toBe(false)
+  })
+
+  it('keeps a new inactive tab muted when opening in a visible window', async () => {
+    const c = controller()
+    const first = await c.createTab(false, true)
+
+    const result = await c.open('https://example.com/', 5000, false, true, true)
+    const { session } = await c.getSession(false, result.tabId)
+
+    expect(first.view.webContents.isAudioMuted()).toBe(false)
+    expect(session.guest.isAudioMuted()).toBe(true)
+  })
+
+  it('keeps the active tab muted when navigating a minimized window', async () => {
+    const c = controller()
+    const { view } = await c.createTab(false, true)
+    const window = [...windows.values()][0]
+
+    window.minimize()
+    await c.open('https://example.com/', 5000, false, false, false)
+
+    expect(view.webContents.isAudioMuted()).toBe(true)
   })
 
   it('mutes browser audio while the window is hidden or minimized', async () => {

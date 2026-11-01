@@ -1,6 +1,7 @@
 ---
 description: Maintainer runbook for preparing, validating, hotfixing, publishing, and synchronizing release branches
 sources:
+  - .github/workflows/nightly-build.yml
   - .github/workflows/auto-release-build.yml
   - .github/workflows/prepare-release.yml
   - .github/workflows/preview-release.yml
@@ -46,6 +47,14 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. Each successful platform and edition build uploads one installer per architecture as a separate, unarchived Actions artifact: Windows `setup.exe`, macOS `.dmg`, or Linux `.AppImage`. Download only the edition and architecture you need; artifact names are the original installer filenames and retention is 3 days. Portable executables, ZIP archives, DEB/RPM packages, and update metadata are not uploaded for previews. The download table includes available installers even if another build fails; if no installers were uploaded, it points to the build jobs instead. The workflow does not create GitHub Releases or tags.
 
 Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. Preview jobs use repository-level secrets and do not reference a GitHub Environment, so they start without deployment approval. Only dispatch previews for trusted same-repository source branches. Formal publishing still requires approval through the `release` Environment. Preview builds explicitly disable package publishing and do not acquire the `release-state` lock or participate in formal release preparation, hotfix backports, or Post Release.
+
+## Nightly Builds
+
+**Nightly Build** builds the Global edition from `main` daily at 01:00 Beijing time and can also be dispatched manually. Open the run's **Nightly downloads** summary to choose a platform and architecture; the table includes each installer's build date, size, and download link. Files are also listed under **Artifacts**.
+
+Windows `setup.exe`, macOS `.dmg`, and Linux `.AppImage` installers for x64 and arm64 are uploaded individually without an extra ZIP archive. Names retain the `cherry-studio-nightly-<YYYYMMDD>-<platform>-<architecture>` prefix. Sign in to GitHub to download; retention is 3 days. Portable executables, ZIP archives, DEB/RPM packages, checksum files, and update metadata are not uploaded.
+
+The table lists available installers even if another build fails. Dates come from the individual filenames, so retries on a later day can show different dates in the same run. If no installers are available, check the build jobs for details. Nightly builds are unstable and intended for testing; back up your data and prepare for data migration before installing.
 
 ## Before Starting
 

@@ -22,11 +22,14 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
@@ -141,15 +144,22 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const isInternalAgentRequest =
-    config.requestHeaders !== undefined &&
-    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
-  let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
-  try {
-    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest)
-  } catch (error) {
-    throw asClientError(error)
+  const isInternalRequest = config.requestHeaders
+    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
+    : false
+  const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
+  const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
+  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
+  const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
+  if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
+    throw asClientError(new Error('Invalid internal Agent request options'))
+  const turnOptions = {
+    ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
+    ...(tier.success ? { serviceTier: tier.data } : {}),
+    fastMode:
+      config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
   }
+  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
@@ -169,7 +179,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -218,13 +228,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const extractedProviderOptions =
-    converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
+  const extractedProviderOptions = reasoning.success
+    ? {}
+    : (converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {})
   const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     extractedProviderOptions,
-    config.fastMode === true
+    turnOptions.fastMode
   )
 
   const providerOptions = agentSessionId
@@ -350,7 +361,21 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         })
         const listener: StreamListener = {
           id: sseListener.id,
-          onChunk: (chunk) => sseListener.onChunk(chunk),
+          onChunk: (chunk) => {
+            if (closed) return
+            try {
+              sseListener.onChunk(chunk)
+            } catch (error) {
+              if (startupState === 'pending') fail(error)
+              else write(buildStreamErrorFrame(outputFormat, error))
+              try {
+                onError?.(error)
+              } finally {
+                safeClose()
+                aiStreamManager.abort(streamId, 'gateway adapter rejected upstream output')
+              }
+            }
+          },
           onDone: (result) => sseListener.onDone(result),
           onPaused: (result) => {
             if (startupState === 'pending') {
@@ -377,6 +402,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         if (closed) return
         try {
           aiStreamManager.streamPrompt({
+            ...turnOptions,
             streamId,
             uniqueModelId,
             messages,
@@ -384,8 +410,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
+            maxRetries: 0
           })
         } catch (error) {
           fail(error)
@@ -423,6 +451,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   let aborted = false
+  let adapterFailed = false
   const onAbort = () => {
     aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
@@ -436,7 +465,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const listener: StreamListener = {
     id: `gateway:${streamId}`,
     onChunk: (chunk) => {
-      adapter.transformChunk(chunk)
+      if (adapterFailed) return
+      try {
+        adapter.transformChunk(chunk)
+      } catch (error) {
+        adapterFailed = true
+        rejectDone(error)
+        aiStreamManager.abort(streamId, 'gateway adapter rejected upstream output')
+      }
     },
     onDone: () => resolveDone(),
     onPaused: () => {
@@ -455,21 +491,25 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       rejectDone(streamInterruptedError())
     },
     onError: (result) => rejectDone(result.error),
-    isAlive: () => !aborted
+    isAlive: () => !aborted && !adapterFailed
   }
 
   try {
-    aiStreamManager.streamPrompt({
-      streamId,
-      uniqueModelId,
-      messages,
-      listener,
-      callOverrides,
-      contextOwner: 'caller',
-      ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
-    })
+    if (!aborted) {
+      aiStreamManager.streamPrompt({
+        ...turnOptions,
+        streamId,
+        uniqueModelId,
+        messages,
+        listener,
+        callOverrides,
+        contextOwner: 'caller',
+        ...(usageContext ? { usageContext } : {}),
+        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+        maxRetries: 0
+      })
+    }
 
     await done
 

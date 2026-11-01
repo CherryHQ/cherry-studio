@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
@@ -119,6 +120,15 @@ export interface MessageMenuConfig {
   exportMenuOptions: MessageMenuExportOptions
 }
 
+/**
+ * Backdrop the conversation image exports paint behind the captured messages.
+ * The solid variant, not `--chat-message-well` itself: an export has no window behind
+ * it, so it needs the tone the message well resolves to rather than the translucent
+ * value, which would leave the PNG semi-transparent. The generic `--background`
+ * default would make the export lighter than the conversation on screen.
+ */
+export const CHAT_CAPTURE_BACKDROP_VARIABLE = '--chat-message-well-solid'
+
 export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
   image: false,
   markdown: false,
@@ -197,6 +207,8 @@ export interface OpenAgentToolFlowInput {
   title?: string
 }
 
+export type MessageInputFilePreview = InputFilePreview
+
 export interface RemoveMessageErrorPartInput {
   messageId: string
   partId: string
@@ -256,9 +268,11 @@ export interface MessageRenderConfig {
   messageFont: string
   fontSize: number
   renderInputMessageAsMarkdown: boolean
+  userMessageDefaultExpanded: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
@@ -274,9 +288,11 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageFont: 'system',
   fontSize: 14,
   renderInputMessageAsMarkdown: false,
+  userMessageDefaultExpanded: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,
@@ -379,6 +395,7 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
+  previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   isDirectory?: (path: string) => Promise<boolean>
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>

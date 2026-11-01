@@ -157,6 +157,7 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
+  private readonly mentionOnly: boolean
   private readonly streams = new Map<string, FeishuStreamSession>()
   private readonly chatReactions = new Map<string, ChatReaction>()
   private readonly lastDropNotificationAt = new Map<string, number>()
@@ -164,13 +165,15 @@ class FeishuAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
-    const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain } = config.channelConfig
+    const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain, mention_only } =
+      config.channelConfig
     this.appId = app_id
     this.appSecret = app_secret
     this.encryptKey = encrypt_key
     this.verificationToken = verification_token
     this.allowedChatIds = allowed_chat_ids ?? []
     this.domain = domain
+    this.mentionOnly = mention_only ?? true
     this.notifyChatIds = [...this.allowedChatIds]
   }
 
@@ -209,7 +212,7 @@ class FeishuAdapter extends ChannelAdapter {
       httpInstance: createFeishuHttpInstance(),
       policy: {
         dmMode: 'open',
-        requireMention: true,
+        requireMention: this.mentionOnly,
         respondToMentionAll: false
       },
       safety: { batch: { text: { delayMs: 0 } } },

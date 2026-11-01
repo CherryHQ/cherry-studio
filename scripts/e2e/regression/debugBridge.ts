@@ -34,6 +34,21 @@ async function ownedMainInspectorUrl(record: AppRecord): Promise<string> {
   return debuggerUrl.toString()
 }
 
+export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
+  version: string
+  locale: string
+  timezone: string
+}> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+    const { app } = process.mainModule.require('electron')
+    return { version: app.getVersion(), locale: app.getLocale(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+  })()`
+  )
+}
+
 export async function prepareWindowsCdpConnection(record: AppRecord): Promise<void> {
   if (record.platform !== 'windows') return
   if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')

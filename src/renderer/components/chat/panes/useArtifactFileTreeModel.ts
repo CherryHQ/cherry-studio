@@ -209,7 +209,6 @@ interface WorkspaceFileTreeResult {
   isLoading: boolean
   hasLoaded: boolean
   error?: Error
-  refresh: () => void
 }
 
 const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolean): WorkspaceFileTreeResult => {
@@ -223,16 +222,11 @@ const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolea
     return projectArtifactTree(root, path)
   }, [root, version, path])
 
-  const refresh = useCallback(() => {
-    /* no-op — watcher-driven */
-  }, [])
-
   return {
     tree,
     isLoading,
     hasLoaded: !isLoading && root !== null,
-    error: error ?? undefined,
-    refresh
+    error: error ?? undefined
   }
 }
 
@@ -358,19 +352,6 @@ function useLazyArtifactFileTree({
     resetLazyChildren()
   }, [resetLazyChildren, workspacePath])
 
-  const restartLazyLoads = useCallback(
-    (options?: { clearChildren?: boolean }) => {
-      lazyLoadGenerationRef.current += 1
-      lazyLoadingDirIdsRef.current.clear()
-      lazyRequestIdsByDirIdRef.current.clear()
-      if (options?.clearChildren) {
-        lazyChildrenByDirIdRef.current.clear()
-      }
-      bumpLazyVersion()
-    },
-    [bumpLazyVersion]
-  )
-
   const loadDirectoryChildren = useCallback(
     (dirId: string, options?: { force?: boolean }) => {
       if (!workspacePath || dirId === WORKSPACE_ROOT_ID) return
@@ -436,14 +417,6 @@ function useLazyArtifactFileTree({
     },
     [bumpLazyVersion, workspacePath]
   )
-
-  const reloadExpandedDirectories = useCallback(() => {
-    const expandedToReload = Array.from(expandedIds).filter((id) => id !== WORKSPACE_ROOT_ID)
-    restartLazyLoads()
-    for (const id of expandedToReload) {
-      loadDirectoryChildren(id, { force: true })
-    }
-  }, [expandedIds, loadDirectoryChildren, restartLazyLoads])
 
   const createLazyDirectoryWatcher = useCallback(
     (dirId: string) => {
@@ -588,8 +561,7 @@ function useLazyArtifactFileTree({
     isLoading:
       lazyLoadingDirIdsRef.current.size > 0 ||
       Array.from(expandedIds).some((id) => id !== WORKSPACE_ROOT_ID && !lazyChildrenByDirIdRef.current.has(id)),
-    loadDirectoryChildren,
-    reloadExpandedDirectories
+    loadDirectoryChildren
   }
 }
 
@@ -625,8 +597,8 @@ export interface ArtifactFileTreeModel {
   hasLoaded: boolean
   errorKind?: ArtifactFileTreeErrorKind
   setExpandedIds: (ids: ReadonlySet<string>) => void
-  reloadExpandedDirectories: () => void
-  refresh: () => void
+  /** Loads a folder's entries into `nodeById` without expanding it. */
+  loadFolder: (id: string) => void
 }
 
 export type ArtifactFileTreeErrorKind = 'invalid_path' | 'load_error'
@@ -659,15 +631,14 @@ export function useArtifactFileTreeModel({
     }
   }, [invalidWorkspacePath, workspacePath])
 
-  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(
+  const { tree, isLoading, hasLoaded, error } = useWorkspaceFileTree(
     treeOpen ? validWorkspacePath : undefined,
     watchMissingRoot
   )
   const {
     displayTree,
     isLoading: isLazyLoading,
-    loadDirectoryChildren,
-    reloadExpandedDirectories
+    loadDirectoryChildren
   } = useLazyArtifactFileTree({
     workspacePath: validWorkspacePath,
     treeOpen,
@@ -684,6 +655,15 @@ export function useArtifactFileTreeModel({
       onExpandedIdsChange(nextIds)
     },
     [expandedIds, loadDirectoryChildren, onExpandedIdsChange]
+  )
+
+  // Loaded entries attach under their folder's node, which exists only once its ancestors are loaded.
+  const loadFolder = useCallback(
+    (id: string) => {
+      const segments = id.split('/')
+      segments.forEach((_, index) => loadDirectoryChildren(segments.slice(0, index + 1).join('/')))
+    },
+    [loadDirectoryChildren]
   )
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
@@ -776,15 +756,23 @@ export function useArtifactFileTreeModel({
     return expanded
   }, [expandedIdsWithWorkspaceRoot, trimmedFileSearch, filteredTree])
 
+  // The workspace is the pane's subject, so its synthetic root row is not shown.
+  const visibleTree = useMemo<FileTreeNode[]>(
+    () =>
+      filteredTree.length === 1 && filteredTree[0].id === WORKSPACE_ROOT_ID
+        ? (filteredTree[0].children ?? [])
+        : filteredTree,
+    [filteredTree]
+  )
+
   return {
-    filteredTree,
+    filteredTree: visibleTree,
     effectiveExpandedIds,
     nodeById,
     isLoading,
     hasLoaded: hasLoaded && !isLazyLoading,
     errorKind: invalidWorkspacePath ? 'invalid_path' : error ? 'load_error' : undefined,
     setExpandedIds,
-    reloadExpandedDirectories,
-    refresh
+    loadFolder
   }
 }

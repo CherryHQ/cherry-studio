@@ -1,6 +1,6 @@
 ---
 name: code-mate-antigravity
-description: Runs Antigravity CLI headlessly for repository analysis and coding tasks. Use when the user asks to delegate work to Antigravity CLI or compare its result with another coding agent.
+description: Run Antigravity CLI non-interactively for coding tasks. Use when the user asks to delegate work to Antigravity.
 ---
 
 # Antigravity CLI
