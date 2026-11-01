@@ -63,6 +63,11 @@ describe('detectDestructiveAssistantCommand', () => {
     ['pwsh -NoProfile -Command "Invoke-Expression \'del victim.txt\'"', 'permanent Windows file deletion'],
     // Dot invocation still denies at a separator command position, not only after a quote.
     ['pwsh -NoProfile -Command "$x = 1; . del victim.txt"', 'permanent Windows file deletion'],
+    // Indexed and property assignment targets also evaluate their right-hand side.
+    ["pwsh -NoProfile -Command '$a = @(1); $a[0] = del victim.txt'", 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$h = @{}; $h.result = del victim.txt'", 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$a[0] += del victim.txt'", 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$a[$i] = del victim.txt'", 'permanent Windows file deletion'],
     ['cmd /c "2>nul del /q victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c >nul del /q victim.txt', 'permanent Windows file deletion'],
     ['cmd /c "1>out.txt 2>&1 del victim.txt"', 'permanent Windows file deletion'],
@@ -254,6 +259,25 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(proseShaped)).toBeUndefined()
     // Unfixed took 0.4-1.8s each here; linear is low ms. 2s is generous CI headroom.
     expect(performance.now() - start).toBeLessThan(2000)
+  })
+
+  it('stays linear on ambiguous index-assignment scans (alternation overlap regression)', () => {
+    // The index segment is one greedy non-bracket run: an alternation between single chars and
+    // `$ident` tokens lets `$i`/`$i0` runs partition exponentially (measured 1.9s at 25, >10s at 28).
+    const ambiguousOpen = '$a[' + '$i'.repeat(28) + 'foo'
+    const ambiguousDigits = '$a[' + '$i0'.repeat(28) + 'foo'
+    const closedFailingTail = '$a[' + '$i'.repeat(28) + '] = x'
+    const longIdentifier = '$a[$' + 'i'.repeat(4000) + '] = x'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(ambiguousOpen)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(ambiguousDigits)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(closedFailingTail)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(longIdentifier)).toBeUndefined()
+    // Broken ran into exponential backtracking; single-star content is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+  })
+
+  it('keeps denying start through switches and nested anchors (switch-anchor deny coverage)', () => {
     // Nested start still denies through the innermost anchor.
     expect(detectDestructiveAssistantCommand('cmd /c start start del victim.txt')).toBe(
       'permanent Windows file deletion'
@@ -357,6 +381,7 @@ describe('detectDestructiveAssistantCommand', () => {
     const slash = 'echo "' + '/start '.repeat(16000) + 'x"'
     const atStart = 'echo "' + '@start '.repeat(20000) + 'x"'
     const quoteStart = 'echo "' + "'start ".repeat(16000) + 'x"'
+    const backtickStart = 'echo "' + '`start '.repeat(16000) + 'x"'
     const nestedAt = 'start ' + '@start '.repeat(20000) + 'x'
     const backslash = 'start ' + '\\start '.repeat(10000) + 'x'
     const dashed = 'start ' + 'foo-start '.repeat(10000) + 'x'
@@ -365,6 +390,7 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(atStart)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(nestedAt)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(quoteStart)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(backtickStart)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(backslash)).toBeUndefined()
     expect(detectDestructiveAssistantCommand(dashed)).toBeUndefined()
     // Unfixed took 2.5-7.8s per shape here; linear is low ms. 2s is generous CI headroom.

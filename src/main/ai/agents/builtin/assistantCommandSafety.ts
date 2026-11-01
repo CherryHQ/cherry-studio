@@ -63,9 +63,12 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // whitespace, separators, quotes or a batch `@` echo-suppression prefix - still anchor, so
 // `@start /b del x` and nested starts keep denying. Bare values stop at `@start` too: an
 // echo-suppressed start token is a command, not an argument - and neither is a quote-prefixed
-// one (`'start`): decorated start tokens still anchor their own scan, so swallowing them as
-// arguments would only restart overlapping suffix scans.
-const CMD_START_ARGS = String.raw`(?:\s+"[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|[@']*start\b)[^\s;&|/"(){}]+)+`
+// one (`'start`) or a backtick-prefixed one (` + '`' + `start` + '`' + `): decorated start tokens still anchor their own scan,
+// so swallowing them as arguments would only restart overlapping suffix scans.
+const CMD_START_ARGS =
+  String.raw`(?:\s+"[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
+  '`' +
+  String.raw`]*start\b)[^\s;&|/"(){}]+)+`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
 // The gap before the deletion token is one atomic scan: the lookahead captures the maximal run of
 // whitespace/quotes/`@` and the backreference re-matches it, so a failed token check cannot split the
@@ -78,8 +81,10 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // newline after other gap characters still fires at the run's first newline.
 // `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
 // assignment target may precede it (`$null = del x`, including scoped targets like
-// `$script:output = del x` and compound operators like `+=` - every assignment form evaluates
-// its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
+// `$script:output = del x`, indexed or property targets like `$a[0] =` / `$h.result =`
+// (an index segment is any non-bracket run, so `$a[$i]` denies; nested brackets like
+// `$a[$b[0]]` stay a documented best-effort gap), and compound operators
+// like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
 // `iex`/`Invoke-Expression`, and dot invocation `. del x` - the dot anchor requires a
 // command-position predecessor (start, whitespace, quote, `@` or a separator), so a sentence
 // period in prose like `cleanup. erase` does not anchor), and the token itself may be followed by
@@ -93,7 +98,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@])\.(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
-    String.raw`@])\bstart${CMD_START_ARGS}(?=\s)|\$[a-zA-Z_][a-zA-Z0-9_]*(?::[a-zA-Z_][a-zA-Z0-9_]*)?\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
+    String.raw`@])\bstart${CMD_START_ARGS}(?=\s)|\$[a-zA-Z_][a-zA-Z0-9_]*(?::[a-zA-Z_][a-zA-Z0-9_]*)?(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
   'i'
 )
 
