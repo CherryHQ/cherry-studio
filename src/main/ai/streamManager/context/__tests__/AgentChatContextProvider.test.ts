@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
+  runtimeEnsureReset: vi.fn(),
   runtimeValidateSession: vi.fn()
 }))
 
@@ -141,6 +142,7 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
+          ensureRuntimeResetComplete: mocks.runtimeEnsureReset,
           assertSessionWritable: mocks.runtimeAssertWritable
         }
       }
@@ -151,6 +153,7 @@ describe('AgentChatContextProvider', () => {
       listeners: [makeSubscriber('runtime:persistence'), makeSubscriber('runtime:terminal')],
       turnId: 'turn-1'
     })
+    mocks.runtimeEnsureReset.mockResolvedValue(undefined)
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
   })
@@ -162,6 +165,34 @@ describe('AgentChatContextProvider', () => {
         throw new AgentSessionEditError(reason)
       })
       await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({ reason })
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+    }
+  )
+
+  it('holds sends before row creation until runtime reset completes', async () => {
+    const barrier = Promise.withResolvers<void>()
+    mocks.runtimeEnsureReset.mockReturnValueOnce(barrier.promise)
+    const sending = provider.prepareDispatch(makeSubscriber(), openReq())
+    await vi.waitFor(() => expect(mocks.runtimeEnsureReset).toHaveBeenCalledWith('session-1'))
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+    barrier.resolve()
+    const prepared = await sending
+    expect(prepared.models[0].request.runtime).toEqual({
+      kind: 'agent-session',
+      sessionId: 'session-1',
+      turnId: 'turn-1'
+    })
+  })
+
+  it.each(['submit-message', 'edit-agent-message'] as const)(
+    'rejects %s without writing rows when required reset fails',
+    async (trigger) => {
+      mocks.runtimeEnsureReset.mockRejectedValueOnce(new AgentSessionEditError('close_failed'))
+      await expect(provider.prepareDispatch(makeSubscriber(), openReq({ trigger }))).rejects.toMatchObject({
+        reason: 'close_failed'
+      })
       expect(mocks.saveMessage).not.toHaveBeenCalled()
       expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
     }

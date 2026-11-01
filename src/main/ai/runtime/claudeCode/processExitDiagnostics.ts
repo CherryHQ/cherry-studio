@@ -2,7 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
 
+export interface ClaudeCodeDiagnosticContext {
+  readonly sessionId: string | null
+}
+
+export interface ClaudeCodeSpawnFacts {
+  readonly resumeToken: string | null
+  readonly spawnArgsFingerprint: string
+}
+
 export interface ClaudeCodeProcessDiagnostics {
+  readonly sessionId: string | null
+  spawn?: Readonly<ClaudeCodeSpawnFacts>
   readonly reference: string
   exited?: Promise<void>
   terminalReason?: string
@@ -12,8 +23,11 @@ export interface ClaudeCodeProcessDiagnostics {
   spawnFailed?: true
 }
 
-export function createClaudeCodeProcessDiagnostics(reference: string = randomUUID()): ClaudeCodeProcessDiagnostics {
-  return { reference }
+export function createClaudeCodeProcessDiagnostics(
+  context?: ClaudeCodeDiagnosticContext,
+  reference: string = randomUUID()
+): ClaudeCodeProcessDiagnostics {
+  return { reference, sessionId: context?.sessionId ?? null }
 }
 
 export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcessDiagnostics): void {
