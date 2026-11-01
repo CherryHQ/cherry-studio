@@ -211,6 +211,7 @@ export function buildPathRegistry() {
 
     // Cherry Cloud account credentials (device identity is retained when the session is cleared)
     'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
+    'feature.credentials': path.join(appUserData, 'Credentials', 'connectors'),
 
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
@@ -415,6 +416,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.credentials',
   // Namespace prefixes
   'sys.',
   'external.',

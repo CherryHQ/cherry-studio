@@ -38,6 +38,13 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it('keeps shared credentials outside backup data and lets the store create them privately', () => {
+    const paths = buildPathRegistry()
+    const relative = path.relative(paths['app.userdata.data'], paths['feature.credentials'])
+    expect(relative.startsWith(`..${path.sep}`)).toBe(true)
+    expect(paths['feature.credentials']).not.toBe(path.dirname(paths['feature.cherry_account.credentials_file']))
+    expect(shouldAutoEnsure('feature.credentials')).toBe(false)
+  })
   it.each(['darwin', 'win32', 'linux'] as const)(
     'locates the %s addon in target-specific unpackable resources',
     (platform) => {
