@@ -2940,6 +2940,7 @@ export function splitMarkdownChunks(
     const itemCodeFloor = run !== null && innerIndent >= run.content ? run.content + 4 : 4
     const indentedCode =
       !blank &&
+      !afterDefinition &&
       (containerHoldsCode ||
         ((previousStatus === 'block' || opensContainerBlock) &&
           innerIndent >= itemCodeFloor &&
@@ -3080,7 +3081,6 @@ export function splitMarkdownChunks(
       definitionBlocks.push(definitions.length)
       definitions.push(footnoteSource)
       definitionLines += 1
-      previousWasDefinition = true
       inDefinition = true
       footnoteDefinition = true
       sawBlankInDefinition = false

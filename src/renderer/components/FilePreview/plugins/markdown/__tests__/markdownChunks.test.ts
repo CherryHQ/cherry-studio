@@ -1044,6 +1044,21 @@ describe('splitMarkdownChunks', () => {
     )
   })
 
+  it('treats an indented line after a definition as paragraph text', () => {
+    // The parser reads `    c` as a lazy paragraph continuation, so `</span>` is inline and the
+    // fence below stays a live code block instead of being hidden by an HTML block.
+    const content = '[r]: /url\n    c\n</span>\n```\n\n' + '**literal code**\n\n'.repeat(2_000) + '```\n'
+
+    const chunks = chunksOf(content)
+    const paragraphs = chunks.flatMap((chunk) =>
+      (parsed(chunk.text).children as Array<{ type: string }>).filter(
+        (node) => node.type === 'paragraph' && JSON.stringify(node).includes('literal code')
+      )
+    )
+
+    expect(paragraphs).toHaveLength(0)
+  })
+
   it('keeps a fence after a definition and an HTML tag intact', () => {
     // `<br>` after a definition starts a paragraph, not an HTML block, so the following fence is
     // a code block and no boundary may fall inside it.
