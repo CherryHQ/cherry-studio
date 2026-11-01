@@ -14,7 +14,7 @@
  * Key Features:
  * - Type-safe requests with full TypeScript inference
  * - Automatic retry with exponential backoff (network, timeout, 500/503 errors)
- * - Request timeout management (3s default)
+ * - Bounded request timeouts (reads share the retry budget without overlapping IPC)
  * - Data change notification fan-out (cross-window convergence)
  *
  * Architecture:
@@ -39,6 +39,7 @@ import type { DataRequest, DataResponse, HttpMethod } from '@shared/data/api/typ
 import { DataApiDevtools } from './utils/dataApiDevtools'
 
 const logger = loggerService.withContext('DataApiService')
+const REQUEST_TIMEOUT_MS = 3000
 
 /**
  * Retry options interface.
@@ -114,11 +115,12 @@ export class DataApiService implements ApiClient {
    * Send request via IPC with direct return and retry logic.
    * Uses DataApiError.isRetryable to determine if retry is appropriate.
    */
-  private async sendRequest<T>(request: DataRequest, retryCount = 0): Promise<T> {
+  private async sendRequest<T>(request: DataRequest, retryCount = 0, readDeadline?: number): Promise<T> {
     if (!window.api.dataApi.request) {
       throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'Data API not available')
     }
     let errorMetadata: DataResponse['metadata'] | undefined
+    let didTimeout = false
     DataApiDevtools.recordStart({
       requestId: request.id,
       method: request.method,
@@ -139,13 +141,24 @@ export class DataApiService implements ApiClient {
     try {
       logger.debug(`Making ${request.method} request to ${request.path}`, { request })
 
-      // Direct IPC call with timeout
+      const timeoutMs = readDeadline === undefined ? REQUEST_TIMEOUT_MS : Math.max(0, readDeadline - Date.now())
+      if (timeoutMs === 0) {
+        didTimeout = true
+        throw DataApiErrorFactory.timeout(request.path, timeoutMs, requestContext)
+      }
+
+      // IPC invoke cannot be cancelled. Reads spend their recovery budget on the
+      // original response instead of sending overlapping retries after three seconds.
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
       const response = await Promise.race([
         window.api.dataApi.request(request),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(DataApiErrorFactory.timeout(request.path, 3000, requestContext)), 3000)
-        )
-      ])
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            didTimeout = true
+            reject(DataApiErrorFactory.timeout(request.path, timeoutMs, requestContext))
+          }, timeoutMs)
+        })
+      ]).finally(() => clearTimeout(timeoutId))
 
       if (response.error) {
         // Reconstruct DataApiError from serialized response
@@ -183,7 +196,11 @@ export class DataApiService implements ApiClient {
       logger.debug(`Request failed: ${request.method} ${request.path}`, apiError)
 
       // Check if should retry using the error's built-in isRetryable getter
-      if (retryCount < this.defaultRetryOptions.maxRetries && apiError.isRetryable) {
+      if (
+        retryCount < this.defaultRetryOptions.maxRetries &&
+        apiError.isRetryable &&
+        !(readDeadline !== undefined && didTimeout)
+      ) {
         DataApiDevtools.recordRetry({
           requestId: request.id,
           method: request.method,
@@ -201,11 +218,13 @@ export class DataApiService implements ApiClient {
         const delay =
           this.defaultRetryOptions.retryDelay * Math.pow(this.defaultRetryOptions.backoffMultiplier, retryCount)
 
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        const remainingDelay =
+          readDeadline === undefined ? delay : Math.min(delay, Math.max(0, readDeadline - Date.now()))
+        await new Promise((resolve) => setTimeout(resolve, remainingDelay))
 
         // Create new request with new ID for retry
         const retryRequest = { ...request, id: this.generateRequestId() }
-        return this.sendRequest<T>(retryRequest, retryCount + 1)
+        return this.sendRequest<T>(retryRequest, retryCount + 1, readDeadline)
       }
 
       throw apiError
@@ -243,7 +262,17 @@ export class DataApiService implements ApiClient {
 
     logger.debug(`Making ${method} request to ${path}`, { request })
 
-    return this.sendRequest<T>(request).catch((error) => {
+    let readDeadline: number | undefined
+    if (method === 'GET') {
+      const { maxRetries, retryDelay, backoffMultiplier } = this.defaultRetryOptions
+      let budget = REQUEST_TIMEOUT_MS * (maxRetries + 1)
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        budget += retryDelay * Math.pow(backoffMultiplier, attempt)
+      }
+      readDeadline = Date.now() + budget
+    }
+
+    return this.sendRequest<T>(request, 0, readDeadline).catch((error) => {
       logger.error(`Request failed: ${method} ${path}`, error)
       throw toDataApiError(error, `${method} ${path}`)
     })

@@ -45,8 +45,6 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     application.get('FileEditService').read(requireManagedSender(senderId).windowId, editId),
   'file.edit.write': async (input, { senderId }) =>
     application.get('FileEditService').write(requireManagedSender(senderId).windowId, input),
-  'file.edit.settle_write': async ({ editId, sequence }, { senderId }) =>
-    application.get('FileEditService').settleWrite(requireManagedSender(senderId).windowId, editId, sequence),
   'file.edit.close': async ({ editId }, { senderId }) =>
     application.get('FileEditService').close(requireManagedSender(senderId).windowId, editId),
   'file.read': async ({ handle, options }) => {

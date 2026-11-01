@@ -19,6 +19,7 @@ interface AgentChatMainProps {
   sessionMessagesEnabled: boolean
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -41,6 +42,7 @@ export default function AgentChatMain({
   sessionMessagesEnabled,
   agentId,
   sessionId,
+  workspacePath,
   messages,
   activeAgent,
   partsByMessageId,
@@ -67,6 +69,7 @@ export default function AgentChatMain({
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
           sessionId={sessionId}
+          workspacePath={workspacePath}
           messages={messages}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}

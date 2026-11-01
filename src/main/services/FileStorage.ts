@@ -5,7 +5,7 @@ import { readFile } from 'fs/promises'
 import * as path from 'path'
 
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { dialog, net, shell } from 'electron'
+import { BrowserWindow, dialog, net, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -22,13 +22,12 @@ import { v4 as uuidv4 } from 'uuid'
  * Electron dialog, with no validation layer of its own. Introducing
  * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
  * already `@deprecated` and slated for deletion, changing v1 behavior instead of
- * migrating it. The casts only feed `getFileType` (extension reads) and the
- * `safeOpen` handoff in `openPath`. */
+ * migrating it. The casts only feed `getFileType` (extension reads). */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
+import { assertOutsideManagedStorageMutation } from '@main/services/file'
 import { getFileType } from '@main/utils/file'
 import { extractLegacyDocText } from '@main/utils/legacyDoc'
 import {
@@ -46,13 +45,14 @@ import { documentExts, imageExts } from '@shared/utils/file'
 
 const logger = loggerService.withContext('FileStorage')
 
-function resolveHomeRelativeFilePath(filePath: string): string {
-  if (!filePath.startsWith('~/') && !filePath.startsWith('~\\')) return filePath
-  return path.join(application.getPath('sys.home'), filePath.slice(2))
-}
-
 function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
+// Missing or destroyed sender window falls back to the unparented overload.
+function resolveSaveDialogParent(event: Electron.IpcMainInvokeEvent): Electron.BrowserWindow | undefined {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  return window && !window.isDestroyed() ? window : undefined
 }
 
 class FileStorage {
@@ -296,6 +296,16 @@ class FileStorage {
     await fs.promises.rm(this.resolveStoredPath(id), { recursive: true })
   }
 
+  // Trash is unavailable in some environments (e.g. Flatpak); fall back to permanent removal.
+  private trashOrRemove = async (nativePath: string): Promise<void> => {
+    try {
+      await shell.trashItem(nativePath)
+    } catch (error) {
+      logger.warn(`Failed to move item to trash, deleting permanently: ${nativePath}`, error as Error)
+      await fs.promises.rm(nativePath, { recursive: true, force: true })
+    }
+  }
+
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
       if (!filePath) return
@@ -306,7 +316,7 @@ class FileStorage {
         return
       }
 
-      await shell.trashItem(nativePath)
+      await this.trashOrRemove(nativePath)
       logger.debug(`External file moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
@@ -324,7 +334,7 @@ class FileStorage {
         return
       }
 
-      await shell.trashItem(nativePath)
+      await this.trashOrRemove(nativePath)
       logger.debug(`External directory moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
@@ -709,12 +719,6 @@ class FileStorage {
     }
   }
 
-  public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    // Same unsafe-extension policy as the gated `file.open` route (safeOpen). Narrowing
-    // to OS-execute-only extensions is a pending product call — see PRD D2.
-    return safeOpen(resolveHomeRelativeFilePath(path) as AbsoluteFilePath)
-  }
-
   /**
    * 通过相对路径打开文件，跨设备时使用
    * @param _
@@ -793,17 +797,21 @@ class FileStorage {
   }
 
   public save = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     fileName: string,
     content: string,
     options?: SaveDialogOptions
   ): Promise<string | null> => {
     try {
-      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+      const dialogOptions: SaveDialogOptions = {
         title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
-      })
+      }
+      const parent = resolveSaveDialogParent(event)
+      const result: SaveDialogReturnValue = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
       if (result.canceled || !result.filePath) {
         return null
@@ -819,12 +827,16 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
+  public saveImage = async (event: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
-      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+      const dialogOptions: SaveDialogOptions = {
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
-      })
+      }
+      const parent = resolveSaveDialogParent(event)
+      const result: SaveDialogReturnValue = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
       if (!result.canceled && result.filePath) {
         await assertOutsideManagedStorageMutation(result.filePath)
@@ -982,20 +994,6 @@ class FileStorage {
 
   public getFilePathById(file: FileMetadata): string {
     return path.join(this.storageDir, file.id + file.ext)
-  }
-
-  public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    const resolvedPath = resolveHomeRelativeFilePath(path)
-    if (!fs.existsSync(resolvedPath)) {
-      const msg = `File or folder does not exist: ${resolvedPath}`
-      logger.error(msg)
-      throw new Error(msg)
-    }
-    try {
-      shell.showItemInFolder(resolvedPath)
-    } catch (error) {
-      logger.error('Failed to show item in folder:', error as Error)
-    }
   }
 
   /**

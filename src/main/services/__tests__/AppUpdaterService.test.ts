@@ -149,6 +149,52 @@ describe('AppUpdaterService', () => {
     appUpdater = new AppUpdaterService()
   })
 
+  describe('upgrade release notes', () => {
+    const notes = '<!--LANG:en-->Notes<!--LANG:zh-CN-->说明<!--LANG:END-->'
+
+    it('returns only the requested upgrade range without checking or downloading another update', async () => {
+      vi.mocked(app.getVersion).mockReturnValue('2.1.8')
+      netFetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify(['2.1.8', '2.1.10', '2.1.11', '2.1.9'].map((version) => ({ version, releaseNotes: notes })))
+        )
+      )
+      await expect(appUpdater.getUpgradeReleaseNotes('2.1.10')).resolves.toEqual({
+        fromVersion: '2.1.8',
+        toVersion: '2.1.10',
+        historyStatus: 'available',
+        releases: [
+          { version: '2.1.10', releaseNotes: notes },
+          { version: '2.1.9', releaseNotes: notes }
+        ]
+      })
+      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+      expect(releaseNotesCheckMock).not.toHaveBeenCalled()
+    })
+
+    it('distinguishes a failed fetch from a valid history with no matching records', async () => {
+      netFetchMock.mockRejectedValueOnce(new Error('offline'))
+      await expect(appUpdater.getUpgradeReleaseNotes('2.0.0')).resolves.toMatchObject({
+        historyStatus: 'unavailable',
+        releases: []
+      })
+      netFetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{ version: '1.0.0', releaseNotes: notes }])))
+      await expect(appUpdater.getUpgradeReleaseNotes('2.0.0')).resolves.toMatchObject({
+        historyStatus: 'available',
+        releases: []
+      })
+    })
+
+    it.each(['1.0.0', '0.9.0', 'invalid', '2.0.0-rc.1'])(
+      'rejects unsupported target %s before fetching history',
+      async (target) => {
+        await expect(appUpdater.getUpgradeReleaseNotes(target)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+        expect(netFetchMock).not.toHaveBeenCalled()
+      }
+    )
+  })
+
   describe('read-only update query', () => {
     it('reports an available release without using the application updater or analytics', async () => {
       releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } })

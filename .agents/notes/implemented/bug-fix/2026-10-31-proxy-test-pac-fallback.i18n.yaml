@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-31-proxy-test-pac-fallback.md
+2026-10-31-proxy-test-pac-fallback.md: b12151d22c5d8bba96bb3efe6bed97eb22268cc9
+2026-10-31-proxy-test-pac-fallback.zh.md: c856a6a35dfda1b04d67e0ce021b9e983b2af762

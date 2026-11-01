@@ -254,6 +254,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^sonar-reasoning|^sonar-deep-research', effort: ['low', 'medium', 'high'] },
   { pattern: 'sonar-deep-research' },
   // stepfun
+  { pattern: '^step-5-preview$', effort: ['low', 'medium', 'high'] },
   { pattern: 'step-3' },
   { pattern: 'step-r1-v-mini' },
   // tencent

@@ -8,7 +8,7 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
-import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NotesSortType, NotesTreeNode, RenameNote } from '@renderer/types/note'
 
 import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesEditing } from './hooks/useNotesEditing'
@@ -20,7 +20,7 @@ interface NotesSidebarProps {
   onCreateNote: (name: string, targetFolderId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
   onDeleteNode: (nodeId: string) => void
-  onRenameNode: (nodeId: string, newName: string) => void
+  onRenameNode: RenameNote
   onToggleExpanded: (nodeId: string) => void
   onToggleStar: (nodeId: string) => void
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void

@@ -65,6 +65,33 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it.each([
+      [
+        `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`,
+        false
+      ],
+      ['insufficient_quota', true]
+    ] as const)('gives the correct Context for %s', async (message, quota) => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
+      )
+      await diagnoseError(makeError({ message, statusCode: 400 }), 'en', { providerId: 'groq' })
+      const prompt = mockFetchGenerate.mock.calls[0][0].prompt
+      const context = prompt.split('## Context\n')[1]?.split('\n')[0]
+      if (quota) {
+        expect(context).toBe(
+          "The user's quota or account balance is exhausted on groq. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue."
+        )
+      } else {
+        expect(context).toBe(
+          "Groq rejected the selected service tier because it is not available for this organization. Suggest opening Response settings > Service tier in the chat composer and selecting Standard (on_demand), or checking the organization's plan and service-tier access in Groq Billing > Plans. This message does not establish quota or balance exhaustion or an invalid API key. Do not recommend topping up or regenerating the key based on this message. Do not promise that changing tiers will make the request succeed."
+        )
+        expect(context).not.toContain('quota or account balance is exhausted')
+      }
+    })
+
     it('returns parsed diagnosis result from AI', async () => {
       const mockResult = {
         summary: 'Auth error',
