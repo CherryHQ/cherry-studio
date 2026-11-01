@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
-import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import {
   ASSISTANT_CATALOG_MY_TAB,
   type AssistantCatalogPreset,
@@ -17,6 +17,7 @@ import {
 } from '@renderer/hooks/useAssistantCatalogPresets'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import { cn } from '@renderer/utils/style'
 
 // Local "browse everything" tab that sits before the preset categories. It is dialog-only —
@@ -40,9 +41,11 @@ function getPresetSummary(preset: AssistantCatalogPreset) {
 
 function matchesSearch(preset: AssistantCatalogPreset, keyword: string) {
   if (!keyword) return true
-  return [preset.name, preset.description, preset.prompt]
-    .filter(Boolean)
-    .some((text) => text?.toLowerCase().includes(keyword))
+  return (
+    [preset.name, preset.description, preset.prompt]
+      .filter(Boolean)
+      .some((text) => text?.toLowerCase().includes(keyword)) || matchesPinyinInitials(preset.name, keyword)
+  )
 }
 
 /**

@@ -1,13 +1,17 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import type * as ExternalOpenTargetServiceModule from '@renderer/services/externalOpenTargetService'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { ArtifactPaneView } from '../ArtifactPane'
+import type { ArtifactPaneFileSelection } from '../artifactPanePath'
 import type { ArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 const mocks = vi.hoisted(() => ({
@@ -18,7 +22,10 @@ const mocks = vi.hoisted(() => ({
   listOpenTargets: vi.fn(),
   openTarget: vi.fn(),
   loggerWarn: vi.fn(),
-  loggerError: vi.fn()
+  loggerError: vi.fn(),
+  clipboardWrite: vi.fn(),
+  readText: vi.fn(),
+  readExternal: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -53,18 +60,21 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>
+  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>,
+  hasRenderedFilePreview: (filePath: string) => /\.(md|html?|svg)$/.test(filePath),
+  FilePreviewModeToolbarPortalHost: () => null,
+  FilePreviewModeToolbarPortalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
   FileTree: () => <div data-testid="file-tree" />
 }))
 
-vi.mock('@renderer/components/chat/panes/useIsTextFile', () => ({
+vi.mock('@renderer/hooks/useIsTextFile', () => ({
   useIsTextFile: () => 'text'
 }))
 
-vi.mock('@renderer/components/chat/panes/useFileSize', () => ({
+vi.mock('@renderer/hooks/useFileSize', () => ({
   useFileSize: () => ({ status: 'ok', size: 100 })
 }))
 
@@ -128,6 +138,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </div>
     ),
     ContextMenuSeparator: () => <hr />,
+    // Submenus render inline so their items are reachable without hover.
+    ContextMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    ContextMenuSubTrigger: ({ children }: { children: React.ReactNode }) => (
+      <button type="button" role="menuitem">
+        {children}
+      </button>
+    ),
+    ContextMenuSubContent: ({ children }: { children: React.ReactNode }) => <div role="menu">{children}</div>,
     ContextMenuItem: ({
       children,
       disabled,
@@ -163,8 +181,6 @@ function createMockModel(): ArtifactFileTreeModel {
     expandedIds: new Set(),
     errorKind: undefined,
     onExpandedChange: vi.fn(),
-    refresh: vi.fn(),
-    reloadExpandedDirectories: vi.fn(),
     expandDirectory: vi.fn(),
     collapseDirectory: vi.fn()
   } as unknown as ArtifactFileTreeModel
@@ -173,31 +189,35 @@ function createMockModel(): ArtifactFileTreeModel {
 function renderHarness(props: {
   workspacePath?: string
   selectedFile?: string | null
-  previewFileSelection?: { workspacePath: string; filePath: string } | null
+  previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
   onSelectedFileChange?: (file: string | null) => void
   onEditModeChange?: (mode: 'preview' | 'edit') => void
+  fileSession?: React.ComponentProps<typeof ArtifactPaneView>['fileSession']
   model?: ArtifactFileTreeModel
   editMode?: 'preview' | 'edit'
 }) {
   const model = props.model ?? createMockModel()
   return render(
-    <CommandContextKeyProvider>
-      <CommandProvider>
-        <ArtifactPaneView
-          workspacePath={props.workspacePath ?? '/tmp/workspace'}
-          selectedFile={props.selectedFile ?? null}
-          onSelectedFileChange={props.onSelectedFileChange ?? vi.fn()}
-          previewFileSelection={props.previewFileSelection}
-          onPreviewClose={props.onPreviewClose}
-          model={model}
-          searchKeyword=""
-          onSearchKeywordChange={vi.fn()}
-          editMode={props.editMode ?? 'preview'}
-          onEditModeChange={props.onEditModeChange}
-        />
-      </CommandProvider>
-    </CommandContextKeyProvider>
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <ArtifactPaneView
+            workspacePath={props.workspacePath ?? '/tmp/workspace'}
+            selectedFile={props.selectedFile ?? null}
+            onSelectedFileChange={props.onSelectedFileChange ?? vi.fn()}
+            previewFileSelection={props.previewFileSelection}
+            onPreviewClose={props.onPreviewClose}
+            model={model}
+            searchKeyword=""
+            onSearchKeywordChange={vi.fn()}
+            fileSession={props.fileSession}
+            editMode={props.editMode ?? 'preview'}
+            onEditModeChange={props.onEditModeChange}
+          />
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    </SWRConfig>
   )
 }
 
@@ -211,7 +231,14 @@ describe('ArtifactPane Context Menu Integration', () => {
       targets: defaultExternalTargets
     })
     mocks.openTarget.mockResolvedValue(undefined)
+    mocks.clipboardWrite.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: mocks.clipboardWrite }
+    })
     window.api = {
+      fs: { readText: mocks.readText },
+      file: { readExternal: mocks.readExternal },
       command: {
         showNativePopupMenu: mocks.showNativePopupMenu
       }
@@ -237,29 +264,77 @@ describe('ArtifactPane Context Menu Integration', () => {
     const titleElement = screen.getByText('README.md')
     fireEvent.contextMenu(titleElement)
 
-    // Verify open targets and tab actions appear in the context menu
-    expect(await screen.findByRole('menuitem', { name: /agent\.preview_pane\.default_app/ })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /Finder/ })).toBeInTheDocument()
+    // Default app and reveal sit at the top level; other apps and copy actions are grouped.
+    expect(
+      await screen.findByRole('menuitem', { name: /Open in agent\.preview_pane\.default_app/ })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /chat\.input\.tools\.reveal_in_finder/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /chat\.input\.tools\.open_with/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /VS Code/ })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /agent\.preview_pane\.refresh/ })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /agent\.preview_pane\.close/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /common\.copy/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /agent\.preview_pane\.copy_menu\.absolute_path/ })).toBeInTheDocument()
+    // Tabs and the Escape key close the file; the menu does not repeat it.
+    expect(screen.queryByRole('menuitem', { name: /agent\.preview_pane\.close/ })).toBeNull()
 
     // Test external open
-    fireEvent.click(screen.getByRole('menuitem', { name: /Finder/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /chat\.input\.tools\.reveal_in_finder/ }))
     await waitFor(() => {
       expect(mocks.openTarget).toHaveBeenCalledWith('/tmp/workspace/README.md', 'file', 'file_manager')
     })
+  })
 
-    // Test refresh
-    fireEvent.click(screen.getByRole('menuitem', { name: /agent\.preview_pane\.refresh/ }))
-    await waitFor(() => {
-      expect(model.refresh).toHaveBeenCalled()
+  it.each(['md', 'docx'])('copies the selected %s contents using its absolute storage path', async (extension) => {
+    const user = userEvent.setup()
+    const clipboardWrite = vi.spyOn(navigator.clipboard, 'writeText')
+    const path = `/managed/message-files/entry-1.${extension}`
+    mocks.readText.mockImplementation(async (target) => (target === path ? 'Selected file contents' : 'Wrong file'))
+    mocks.readExternal.mockImplementation(async (target) => (target === path ? 'Selected file contents' : 'Wrong file'))
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed/message-files',
+        filePath: `entry-1.${extension}`,
+        displayPath: `/original/report.${extension}` as AbsoluteFilePath,
+        previewType: 'file',
+        readOnly: true
+      }
+    })
+    fireEvent.contextMenu(screen.getByText(`entry-1.${extension}`))
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.content' }))
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith('Selected file contents'))
+  })
+
+  it('withholds all edit actions for a read-only attachment even when an idle edit session exists', async () => {
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed',
+        filePath: 'report.md',
+        previewType: 'file',
+        readOnly: true
+      },
+      fileSession: { status: 'idle', isDirty: false } as React.ComponentProps<typeof ArtifactPaneView>['fileSession']
+    })
+    fireEvent.contextMenu(screen.getByText('report.md'))
+    expect(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.content' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'common.edit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.edit' })).toBeNull()
+  })
+
+  it('copies an input preview display path instead of its managed file path', async () => {
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed/message-files',
+        filePath: 'entry-1.md',
+        displayPath: '/Users/alice/Documents/report.md' as AbsoluteFilePath,
+        previewType: 'file',
+        readOnly: true
+      }
     })
 
-    // Test close
-    fireEvent.click(screen.getByRole('menuitem', { name: /agent\.preview_pane\.close/ }))
+    fireEvent.contextMenu(screen.getByText('entry-1.md'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.absolute_path' }))
+
     await waitFor(() => {
-      expect(onPreviewClose).toHaveBeenCalled()
+      expect(mocks.clipboardWrite).toHaveBeenCalledWith('/Users/alice/Documents/report.md')
     })
   })
 
@@ -274,22 +349,13 @@ describe('ArtifactPane Context Menu Integration', () => {
       previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'README.md' }
     })
 
+    // Targets resolve while the file opens, before anyone right-clicks it.
+    await waitFor(() => expect(mocks.listOpenTargets).toHaveBeenCalled())
+    await act(async () => {})
     const titleElement = screen.getByText('README.md')
     fireEvent.contextMenu(titleElement)
 
-    await waitFor(() => {
-      expect(mocks.showNativePopupMenu).toHaveBeenCalledWith(
-        expect.objectContaining({
-          location: 'webcontents.context',
-          items: expect.arrayContaining([
-            expect.objectContaining({ type: 'custom', id: 'external-open-target.vscode' }),
-            expect.objectContaining({ type: 'custom', id: 'artifact-pane.overlay.refresh' }),
-            expect.objectContaining({ type: 'custom', id: 'artifact-pane.overlay.close' })
-          ])
-        }),
-        expect.any(Object)
-      )
-    })
+    await waitFor(() => expect(mocks.showNativePopupMenu).toHaveBeenCalled())
 
     await waitFor(() => {
       expect(mocks.openTarget).toHaveBeenCalledWith('/tmp/workspace/README.md', 'file', 'vscode')
@@ -306,45 +372,49 @@ describe('ArtifactPane Context Menu Integration', () => {
     )
 
     const { rerender } = render(
-      <CommandContextKeyProvider>
-        <CommandProvider>
-          <ArtifactPaneView
-            workspacePath="/tmp/workspace"
-            selectedFile={null}
-            onSelectedFileChange={vi.fn()}
-            previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'a.md' }}
-            model={createMockModel()}
-            searchKeyword=""
-            onSearchKeywordChange={vi.fn()}
-          />
-        </CommandProvider>
-      </CommandContextKeyProvider>
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <ArtifactPaneView
+              workspacePath="/tmp/workspace"
+              selectedFile={null}
+              onSelectedFileChange={vi.fn()}
+              previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'a.md' }}
+              model={createMockModel()}
+              searchKeyword=""
+              onSearchKeywordChange={vi.fn()}
+            />
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </SWRConfig>
     )
 
     // Open context menu for file A
     fireEvent.contextMenu(screen.getByText('a.md'))
-    expect(await screen.findByRole('menuitem', { name: /Finder/ })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: /reveal_in_finder/ })).toBeInTheDocument()
 
     // Switch selection to file B
     rerender(
-      <CommandContextKeyProvider>
-        <CommandProvider>
-          <ArtifactPaneView
-            workspacePath="/tmp/workspace"
-            selectedFile={null}
-            onSelectedFileChange={vi.fn()}
-            previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'b.md' }}
-            model={createMockModel()}
-            searchKeyword=""
-            onSearchKeywordChange={vi.fn()}
-          />
-        </CommandProvider>
-      </CommandContextKeyProvider>
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <ArtifactPaneView
+              workspacePath="/tmp/workspace"
+              selectedFile={null}
+              onSelectedFileChange={vi.fn()}
+              previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'b.md' }}
+              model={createMockModel()}
+              searchKeyword=""
+              onSearchKeywordChange={vi.fn()}
+            />
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </SWRConfig>
     )
 
     // Open context menu for file B
     fireEvent.contextMenu(screen.getByText('b.md'))
-    const finderItem = await screen.findByRole('menuitem', { name: /Finder/ })
+    const finderItem = await screen.findByRole('menuitem', { name: /reveal_in_finder/ })
     fireEvent.click(finderItem)
 
     // Must open file B, not file A
@@ -354,40 +424,24 @@ describe('ArtifactPane Context Menu Integration', () => {
     expect(mocks.openTarget).not.toHaveBeenCalledWith('/tmp/workspace/a.md', expect.anything(), expect.anything())
   })
 
-  it('falls back to tab actions within bounded timeout when open target lookup hangs (Issue 2)', async () => {
-    vi.useFakeTimers()
+  it('opens with the copy actions right away while the open-target lookup hangs', async () => {
     mocks.preferenceValues['menu.presentation_mode'] = 'native'
-    // Hanging open-target promise
     mocks.listOpenTargets.mockReturnValue(new Promise(() => {}))
     mocks.showNativePopupMenu.mockResolvedValue(null)
 
     renderHarness({
       previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'slow.md' }
     })
+    fireEvent.contextMenu(screen.getByText('slow.md'))
 
-    const titleElement = screen.getByText('slow.md')
-    fireEvent.contextMenu(titleElement)
-
-    // Initially showNativePopupMenu is waiting for open target lookup
-    expect(mocks.showNativePopupMenu).not.toHaveBeenCalled()
-
-    // Advance timers past the 1,000ms bounded timeout
-    await act(async () => {
-      vi.advanceTimersByTime(1100)
-    })
-
-    // Native menu opens with tab actions without hanging indefinitely
-    expect(mocks.showNativePopupMenu).toHaveBeenCalledWith(
-      expect.objectContaining({
-        location: 'webcontents.context',
-        items: expect.arrayContaining([
-          expect.objectContaining({ type: 'custom', id: 'artifact-pane.overlay.refresh' }),
-          expect.objectContaining({ type: 'custom', id: 'artifact-pane.overlay.close' })
-        ])
-      }),
-      expect.any(Object)
+    await waitFor(() =>
+      expect(mocks.showNativePopupMenu).toHaveBeenCalledWith(
+        expect.objectContaining({
+          location: 'webcontents.context',
+          items: expect.arrayContaining([expect.objectContaining({ type: 'submenu', label: 'common.copy' })])
+        }),
+        expect.any(Object)
+      )
     )
-
-    vi.useRealTimers()
   })
 })

@@ -6,12 +6,19 @@ on:
       - main
     paths:
       - ".changeset/**"
+      - "packages/provider-registry/**"
+      - "packages/web-search/**"
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
+      - "packages/file-preview/**"
+      - "packages/remote-protocol/**"
+      - "packages/remote-transport/**"
   workflow_dispatch:
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -27,10 +34,12 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v7
         with:
+          # Changesets action resets its version branch to the triggering event SHA.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
@@ -54,17 +63,49 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check changeset release policy
+        run: pnpm changeset:check
+
       - name: Build Packages
         run: pnpm packages:build
 
+      - name: Check Web Search Package
+        run: |
+          pnpm --filter @cherrystudio/web-search test
+          pnpm --filter @cherrystudio/web-search test:package
+
+      - name: Check Provider Registry Package
+        run: pnpm --filter @cherrystudio/provider-registry test:package
+
+      - name: Check Remote Packages
+        run: |
+          pnpm --filter '@cherrystudio/remote-*' typecheck
+          pnpm --filter '@cherrystudio/remote-*' test
+
+      - name: Check release commit is still current
+        id: release-head
+        shell: bash
+        run: |
+          release_head=$(git ls-remote --exit-code origin refs/heads/main)
+          if [[ "${release_head%%[[:space:]]*}" == "$(git rev-parse HEAD)" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping obsolete release commit; run Release Packages on main to process the latest changes."
+          fi
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
-        uses: changesets/action@v1
+        if: steps.release-head.outputs.current == 'true'
+        uses: changesets/action@v2
         with:
-          publish: pnpm changeset:publish
-          version: pnpm changeset:version
-          commit: "chore: version packages"
-          title: "chore: version packages"
+          create-github-releases: false
+          # Keep CLI tag events for publish outputs, but reserve remote tags for desktop releases.
+          push-git-tags: false
+          publish-script: pnpm changeset:publish
+          version-script: pnpm changeset:version
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -78,4 +119,4 @@ jobs:
           echo "The following packages were published:" >> $GITHUB_STEP_SUMMARY
           echo "$PUBLISHED_PACKAGES" >> $GITHUB_STEP_SUMMARY
         env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}

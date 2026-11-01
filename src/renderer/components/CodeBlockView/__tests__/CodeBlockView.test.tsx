@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import { CodeBlockView } from '../CodeBlockView'
+import { CodeBlockWrapLinesContext } from '../wrapLinesContext'
 
 const mocks = vi.hoisted(() => ({
   CodeEditor: vi.fn(({ value }: { value: string }) => (
@@ -13,7 +14,11 @@ const mocks = vi.hoisted(() => ({
       {value}
     </div>
   )),
-  CodeViewer: vi.fn(({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>),
+  CodeViewer: vi.fn(({ value, wrapped }: { value: string; wrapped?: boolean }) => (
+    <pre aria-label="Code viewer" data-wrapped={wrapped ? 'true' : 'false'}>
+      {value}
+    </pre>
+  )),
   runScript: vi.fn(),
   t: (key: string) => key,
   writeText: vi.fn()
@@ -24,12 +29,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   CodeEditor: mocks.CodeEditor
 }))
 
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: mocks.CodeEditor
+}))
+
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCodeStyle: () => ({ isCodeThemeDark: false }),
   useCmTheme: () => 'light'
 }))
 
@@ -83,16 +92,21 @@ describe('CodeBlockView', () => {
     })
   })
 
-  it('uses the editor for editable code that is already settled', () => {
+  it('opens the editor only after requesting editing and can return to reading', async () => {
+    const user = userEvent.setup()
     render(
       <CodeBlockView language="javascript" editable onSave={vi.fn()}>
         const value = 1
       </CodeBlockView>
     )
 
+    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
     expect(screen.getByRole('textbox', { name: 'Code editor' })).toHaveTextContent('const value = 1')
     expect(screen.getByRole('textbox', { name: 'Code editor' }).closest('[data-ui~="part:code-block"]')).not.toBeNull()
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'preview.label' }))
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
   })
 
   it('uses the viewer for read-only code', () => {
@@ -106,7 +120,7 @@ describe('CodeBlockView', () => {
     expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
   })
 
-  it('caps display-only code and suppresses its toolbar', () => {
+  it('renders display-only code without a toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
         {'<h1>Hello</h1>'}
@@ -115,46 +129,21 @@ describe('CodeBlockView', () => {
 
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('<h1>Hello</h1>')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        autoScrollToBottom: true,
-        expanded: false,
-        maxHeight: '350px'
-      }),
-      undefined
-    )
   })
 
-  it.each([
-    { collapsible: true, expectedAutoScroll: true, expectedExpanded: false, name: 'collapsed' },
-    { collapsible: false, expectedAutoScroll: false, expectedExpanded: true, name: 'expanded' }
-  ])(
-    'disables highlighting and sets auto-scroll correctly for $name streaming code',
-    ({ collapsible, expectedAutoScroll, expectedExpanded }) => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.code.collapsible', collapsible)
+  it.each([true, false])('keeps streaming code readable with collapsible=%s', (collapsible) => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.collapsible', collapsible)
+    render(
+      <CodeBlockView language="javascript" editable isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
+    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code_block.edit.label' })).not.toBeInTheDocument()
+  })
 
-      render(
-        <CodeBlockView language="javascript" editable isStreaming>
-          const value = 1
-        </CodeBlockView>
-      )
-
-      expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
-      expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
-      expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          autoScrollToBottom: expectedAutoScroll,
-          expanded: expectedExpanded,
-          options: {
-            highlight: false
-          }
-        }),
-        undefined
-      )
-    }
-  )
-
-  it('keeps the same viewer while streaming settles and enables highlighting in place', () => {
+  it('keeps the same viewer while streaming settles and makes editing available', () => {
     const { rerender } = render(
       <CodeBlockView language="javascript" editable isStreaming>
         const value =
@@ -162,10 +151,6 @@ describe('CodeBlockView', () => {
     )
     const viewer = screen.getByLabelText('Code viewer')
 
-    expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ options: { highlight: false } }),
-      undefined
-    )
     expect(screen.queryByRole('button', { name: 'code_block.edit.label' })).not.toBeInTheDocument()
 
     rerender(
@@ -177,10 +162,6 @@ describe('CodeBlockView', () => {
     expect(screen.getByLabelText('Code viewer')).toBe(viewer)
     expect(screen.getByRole('button', { name: 'code_block.edit.label' })).toBeInTheDocument()
     expect(viewer).toHaveTextContent('const value = 1')
-    expect(mocks.CodeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ options: { highlight: true } }),
-      undefined
-    )
   })
 
   it('keeps toolbar actions mounted and copies the latest streamed source', async () => {
@@ -220,6 +201,36 @@ describe('CodeBlockView', () => {
 
     expect(mocks.runScript).toHaveBeenCalledWith('print(42)', {}, 60_000)
     expect(await screen.findByText('completed')).toBeInTheDocument()
+  })
+
+  it('hides the wrap toggle when wrap is forced even if chat wrap is on', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.wrappable': true,
+      'chat.code.editor.enabled': false
+    })
+
+    render(
+      <CodeBlockWrapLinesContext value={true}>
+        <CodeBlockView language="javascript" editable={false}>
+          const token = 'short'
+        </CodeBlockView>
+      </CodeBlockWrapLinesContext>
+    )
+
+    expect(screen.queryByRole('button', { name: 'code_block.wrap.off' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code_block.wrap.on' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the wrap toggle in ordinary chat when wrap is not forced', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
+
+    render(
+      <CodeBlockView language="javascript" editable={false}>
+        const token = 'short'
+      </CodeBlockView>
+    )
+
+    expect(screen.getByRole('button', { name: 'code_block.wrap.off' })).toBeInTheDocument()
   })
 
   it('keeps passive tools while suppressing Python execution when execution is not allowed', () => {

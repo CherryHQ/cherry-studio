@@ -70,14 +70,18 @@ Startup recovery is JobManager's deferred sweep that reconciles the DB-driven st
 1. `JobManager.onAllReady()` schedules a `setTimeout` with a 60-second "quiet window" and returns synchronously. `LifecycleManager.allReady()` is fire-and-forget; bootstrap is not blocked.
 2. After 60 s, the timer callback assigns the recovery flow promise to `this._recoveryDone` (only if shutdown has not been requested) and the flow starts running.
 3. The flow runs four IO steps in order:
-   1. `runStartupRecovery(handlers, isJobInFlight)` — resets non-terminal rows per handler recovery strategy (`abandon` / `retry` / `singleton`); `cancelRequested=true` overrides every strategy. Rows the current process is **already executing** (reported via `isJobInFlight`, backed by `JobManager.inFlightExecuted`) are excluded before any strategy, so a job enqueued during the quiet window and still running when the sweep fires is never reset or re-dispatched (#16291).
+   1. `runStartupRecovery(handlers, isOwnedByCurrentLaunch)` — resets non-terminal rows per handler recovery strategy (`retry` / `singleton`), or per the job's own `recovery` when it was enqueued with one; `cancelRequested=true` overrides every strategy. It acts only on the previous launch's leftovers: `JobManager.onInit` records the non-terminal rows before any service can enqueue, and of those, rows the current process is **already executing** (`JobManager.inFlightExecuted`) are excluded too. A job enqueued during the quiet window is therefore never reset, re-dispatched, or cancelled, whether it is running, queued, or waiting out a retry backoff when the sweep fires (#16291). `abandon` leftovers never reach it (see below).
    2. **Resurrect queues** — walks distinct `(queue, type)` pairs over non-terminal rows and ensures a `DispatchQueue` exists for each. Without this step `dispatchAll` would iterate an empty `queues` map and pending rows would wait until the next `enqueue`.
    3. **Catch-up THEN arm** — calls `detectAndDispatchOverdue(schedules)` *before* `armSchedule(schedule)` for every enabled schedule. The order is load-bearing: if we armed first, a cron with `protect: true` could fire its natural calendar concurrently with a catch-up enqueue (`protect` only blocks overlapping callbacks, not external callers). Sequencing catch-up first guarantees the make-up enqueue lands before croner's first natural fire.
    4. `dispatchAll()` kicks every per-queue pump so pending rows reset by step 1 start running immediately rather than waiting on the next enqueue.
 
+**Abandoned leftovers are cancelled at registration**
+
+`abandon` leftovers do not wait for the sweep. When a handler registers, JobManager cancels that type's leftovers whose strategy is `abandon` on the spot (`abandonLeftovers`); a handler registered before `onInit` is covered when `onInit` takes the snapshot. A type can be neither enqueued nor executed before its handler registers, so during the quiet window no enqueue can deduplicate against such a row through its `idempotencyKey`, and no dispatch can claim it. No code of the current launch is waiting on such a row either, so cancelling it without `onSettled` leaves nothing hanging.
+
 **The 60 s quiet window**
 
-The delay (`JOB_MANAGER_STARTUP_DELAY_MS = 60_000`, hardcoded) gives cold-start IO — DB warm-up, window paints, client bootstrap — time to settle before scheduled work piles on. Tests bypass it via `vi.useFakeTimers + advanceTimersByTimeAsync(60_000)`, then await `_recoveryDone`.
+The delay (`JOB_MANAGER_STARTUP_DELAY_MS = 60_000`, hardcoded) gives cold-start IO — DB warm-up, window paints, client bootstrap — time to settle before scheduled work piles on. Only resuming work waits for it; cancelling `abandon` leftovers is a single write and happens at registration. Tests bypass it via `vi.useFakeTimers + advanceTimersByTimeAsync(60_000)`, then await `_recoveryDone`.
 
 **Shutdown safety — three layers**
 

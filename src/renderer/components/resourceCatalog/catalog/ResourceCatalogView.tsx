@@ -1,11 +1,13 @@
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
+import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgentSessionsPopup'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import type { InstalledSkill } from '@shared/data/types/agent'
 
 import { ResourceGrid } from './ResourceGrid'
 
@@ -18,14 +20,14 @@ type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'sk
 export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenSkill?: (skill: InstalledSkill) => void
+  onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
   resourceType: ResourceCatalogViewType
   toolbarLeading?: ReactNode
   /** `settings` swaps the full-bleed toolbar for a settings page header (title + add button + search row). */
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
-  selectedSkillId?: string
-  onSelectedSkillIdChange?: (skillId: string | undefined) => void
   toolbarFooter?: ReactNode
   allowColumnToggle?: boolean
   filterResource?: (resource: ResourceItem) => boolean
@@ -34,24 +36,24 @@ export type ResourceCatalogViewProps = {
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
+  onOpenSkill,
+  onLaunchSkill,
   resourceType,
   toolbarLeading,
   variant = 'library',
   title,
   description,
-  selectedSkillId,
-  onSelectedSkillIdChange,
   toolbarFooter,
   allowColumnToggle,
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(
-    resourceType,
-    onSelectedSkillIdChange ? { id: selectedSkillId, onChange: onSelectedSkillIdChange } : undefined
-  )
+  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType, {
+    onOpenSkill,
+    onLaunchSkill,
+    onConfirmArchiveAgentSessions: (agentName, action) => archiveAgentSessionsPopup.show({ agentName, t, action })
+  })
   const hasActiveDialog = Boolean(
-    dialogs.selectedSkill ||
     dialogs.assistantImportOpen ||
     (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
     dialogs.skillImportOpen ||
@@ -62,6 +64,11 @@ export function ResourceCatalogView({
     dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
+  const visibleResources = useMemo(
+    () => (filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources),
+    [filterResource, gridProps.resources]
+  )
+  const hasHiddenResources = Boolean(filterResource && gridProps.resources.length > 0 && visibleResources.length === 0)
 
   useEffect(() => {
     if (hasActiveDialog) setDialogsActivated(true)
@@ -100,7 +107,8 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
-            resources={filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources}
+            resources={visibleResources}
+            hasHiddenResources={hasHiddenResources}
             toolbarFooter={toolbarFooter}
             allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}

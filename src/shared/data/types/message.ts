@@ -156,6 +156,8 @@ export interface AssistantTurnOptions {
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
+  modelSelection?: 'default' | 'explicit'
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
 }
@@ -189,6 +191,8 @@ export interface CherryUIMessageMetadata {
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
   modelId?: string
+  /** Persisted model selection source used when regenerating this reply. */
+  modelSelection?: MessageData['modelSelection']
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
@@ -296,7 +300,6 @@ export interface WebCitationReference extends BaseCitationReference {
 
 /**
  * Knowledge base citation reference
- * Data structure compatible with KnowledgeReference[] from renderer
  */
 export interface KnowledgeCitationReference extends BaseCitationReference {
   citationType: CitationType.KNOWLEDGE
@@ -314,7 +317,6 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
 
 /**
  * Memory citation reference
- * Data structure compatible with MemoryItem[] from renderer
  */
 export interface MemoryCitationReference extends BaseCitationReference {
   citationType: CitationType.MEMORY
@@ -408,6 +410,7 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
     if (
@@ -608,6 +611,13 @@ export interface SiblingsGroup {
   /** Nodes in this group (parentId omitted to avoid redundancy) */
   nodes: Omit<TreeNode, 'parentId'>[]
 }
+
+/**
+ * Off-path branches in a {@link TreeResponse} stop this many levels below their first-turn
+ * message, keeping the flow canvas within what its recursive Dagre layout can handle. The
+ * active path and its direct children are always returned in full.
+ */
+export const TREE_OFF_PATH_DEPTH_LIMIT = 1000
 
 /**
  * Tree query response structure

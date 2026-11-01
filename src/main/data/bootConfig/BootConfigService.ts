@@ -46,7 +46,7 @@ export class BootConfigService {
   private loadError: BootConfigLoadError | null = null
 
   constructor() {
-    // Stored under ~/.cherrystudio/ rather than userData so that:
+    // Stored under CHERRY_HOME rather than userData so that:
     // 1. It survives a custom appDataPath setting (boot config decides where userData is, not the other way around).
     // 2. It can be read before initAppDataDir() rewrites the userData path.
     // BOOT_CONFIG_PATH is sourced from @main/core/paths/constants — a zero-dependency

@@ -310,7 +310,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
     subscriber: StreamListener,
     req: MainDispatchRequest,
     authority: AgentSessionTurnAuthority,
-    ctx?: DispatchContext
+    ctx?: DispatchContext,
+    onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
   ): Promise<PreparedDispatch> {
     const validated = await this.validateDispatch(req, authority)
     const runtime = application.get('AgentSessionRuntimeService')
@@ -373,9 +374,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const persisted = application
-      .get('DbService')
-      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
+    const persisted = application.get('DbService').withWriteTx((tx) => {
+      ctx?.beforePersist?.()
+      const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
+      onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
+      return reserved
+    })
     return this.activateDispatch(persisted, subscriber)
   }
 }

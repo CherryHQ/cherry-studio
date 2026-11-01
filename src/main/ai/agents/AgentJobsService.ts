@@ -11,7 +11,6 @@ import {
   readTaskSessionReuse,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
@@ -35,7 +34,7 @@ import { readHeartbeatDocument, writeHeartbeatDocument } from './heartbeatDocume
 import {
   type HeartbeatSyncOutcome,
   isReservedHeartbeatScheduleName,
-  pauseHeartbeatSchedule,
+  reclaimHeartbeatWorkspacesTx,
   repairHeartbeatSchedules,
   syncHeartbeatSchedule
 } from './heartbeatSchedule'
@@ -213,7 +212,12 @@ export class AgentJobsService extends BaseService {
         if (this.isShuttingDown) return
         const configPatch = updates.configuration
         if (!configPatch) return
-        if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
+        if (
+          !('heartbeat_enabled' in configPatch) &&
+          !('heartbeat_interval' in configPatch) &&
+          !('heartbeat_timeout_minutes' in configPatch)
+        )
+          return
         this.requestHeartbeat(agent.id)
       })
     )
@@ -314,7 +318,6 @@ export class AgentJobsService extends BaseService {
     const reuseConfigChanged = reuseChanged || workspaceChanged
 
     const jobManager = application.get('JobManager')
-    let bindingCleared = false
     application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, taskId)
       const currentReuse = readTaskSessionReuse(snapshot?.metadata)
@@ -326,7 +329,7 @@ export class AgentJobsService extends BaseService {
           enabled: nextReuseEnabled,
           revision: reuseRevision
         })
-        bindingCleared = agentSessionService.clearTaskScheduleTx(tx, taskId)
+        agentSessionService.clearTaskScheduleTx(tx, taskId)
       }
       if (
         snapshot &&
@@ -353,8 +356,9 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
-    if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
-      agentTaskService.notifyReadModelChange([taskId])
+    // Unconditional: the projection carries name/prompt/trigger too, and
+    // updateTx always bumps updatedAt — a silent rename strands IM/MCP windows.
+    agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
@@ -371,6 +375,7 @@ export class AgentJobsService extends BaseService {
     // read-decide-write sequence is fully synchronous — no await gap.
     if (!existing.enabled) return existing
     await application.get('JobManager').pauseJobScheduleById(taskId)
+    agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task paused', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
   }
@@ -382,7 +387,19 @@ export class AgentJobsService extends BaseService {
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
     if (existing.enabled) return existing
-    application.get('JobManager').resumeJobScheduleById(taskId)
+    try {
+      application.get('JobManager').resumeJobScheduleById(taskId)
+    } catch (error) {
+      // `resumeJobScheduleById` commits the enable before arming, so an
+      // enabled row classifies the failure as arm-only — broadcast, rethrow.
+      try {
+        if (jobScheduleService.getById(taskId)?.enabled) agentTaskService.notifyReadModelChange([taskId])
+      } catch (classificationError) {
+        logger.warn('Failed to classify resume failure for read-model notification', classificationError as Error)
+      }
+      throw error
+    }
+    agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task resumed', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
   }
@@ -409,67 +426,15 @@ export class AgentJobsService extends BaseService {
    * @returns How many schedule rows were removed.
    */
   async deleteSchedulesForAgent(agentId: string): Promise<number> {
-    // Use raw agentId ownership so malformed templates cannot strand armed schedules.
-    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((s) => {
-      const template = s.jobInputTemplate as { agentId?: unknown } | null
-      return typeof template?.agentId === 'string' && template.agentId === agentId
+    this.heartbeatAbort.signal.throwIfAborted()
+    const ids = application.get('DbService').withWriteTx((tx) => {
+      const { scheduleIds, deletedSchedules } = agentTaskService.setOwnerStateTx(tx, agentId, 'missing', Date.now())
+      reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
+      return scheduleIds
     })
-
-    // The heartbeat's user workspace row (pointing at the agent data directory)
-    // outlives the agent unless removed here — it renders in the workspace picker.
-    const heartbeatWorkspaceIds = new Set<string>()
-    for (const schedule of schedules) {
-      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      // Exact sentinels identify migrated heartbeats regardless of name.
-      // Trim tolerance applies only to reserved names, preserving ordinary user workspaces.
-      const exactSentinel = template?.prompt === HEARTBEAT_PROMPT_SENTINEL
-      const reservedNameShape =
-        schedule.name === `heartbeat_${agentId}` || schedule.name?.startsWith(`heartbeat_${agentId}__`)
-      if (
-        template &&
-        template.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
-        (exactSentinel || (template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL && reservedNameShape))
-      ) {
-        heartbeatWorkspaceIds.add(template.workspace.workspaceId)
-      }
-    }
-
-    let deleted = 0
-    let failed = 0
-    for (const schedule of schedules) {
-      this.heartbeatAbort.signal.throwIfAborted()
-      // Keep sweeping independent rows after a failure; pause survivors until startup repair.
-      try {
-        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-          deleted += 1
-        }
-      } catch (error) {
-        failed += 1
-        logger.warn('Failed to unregister schedule for removed agent', { agentId, scheduleId: schedule.id, error })
-        pauseHeartbeatSchedule(agentId, schedule.id, 'Failed to pause a schedule that survived the deletion sweep')
-      }
-    }
-    if (failed > 0) {
-      logger.warn('Some schedules survived the deletion sweep after transient failures', { agentId, failed })
-    }
-    for (const workspaceId of heartbeatWorkspaceIds) {
-      try {
-        // A reused workspace may serve other sessions, channels or tasks; preserve referenced rows.
-        const removed = application
-          .get('DbService')
-          .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
-        if (!removed) {
-          logger.info('Kept heartbeat workspace still referenced after agent removal', { agentId, workspaceId })
-        }
-      } catch (error) {
-        logger.warn('Failed to delete heartbeat workspace for removed agent', { agentId, workspaceId, error })
-      }
-    }
-    if (deleted > 0) {
-      logger.info('Deleted task schedules for removed agent', { agentId, deleted })
-      agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
-    }
-    return deleted
+    for (const id of ids) application.get('JobManager').syncJobScheduleTimerById(id)
+    agentTaskService.notifyReadModelChange(ids, 'membership')
+    return ids.length
   }
 
   readHeartbeatDocument(agentId: string): Promise<HeartbeatDocument> {

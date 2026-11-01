@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { PageSidePanel, Scrollbar } from '@cherrystudio/ui'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
+import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
 
 import type { CitationPanelActions } from './common'
@@ -49,10 +50,7 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
 
 const CitationsPanel = ({ open, onClose, citations, openBrowserUrl }: Props) => {
   const { t } = useTranslation()
-  const openPath = useCallback((path: string) => window.api.file.openPath(path), [])
-  const openExternalUrl = useCallback((url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }, [])
+  const openPath = useCallback((path: string) => ipcApi.request('system.shell.open_path', path), [])
   const { copyText, notifyError } = useMessagePlatformActions()
 
   return (
@@ -62,10 +60,7 @@ const CitationsPanel = ({ open, onClose, citations, openBrowserUrl }: Props) => 
       header={<span className="text-sm font-medium">{t('message.citations')}</span>}
       closeLabel={t('common.close')}
       bodyClassName="flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2">
-      <CitationsPanelContent
-        citations={citations}
-        actions={{ openPath, openExternalUrl, openBrowserUrl, copyText, notifyError }}
-      />
+      <CitationsPanelContent citations={citations} actions={{ openPath, openBrowserUrl, copyText, notifyError }} />
     </PageSidePanel>
   )
 }

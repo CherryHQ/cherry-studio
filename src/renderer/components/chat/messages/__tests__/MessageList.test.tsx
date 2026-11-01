@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
@@ -409,6 +409,23 @@ const readBlobText = (blob: Blob) =>
   })
 
 describe('MessageList', () => {
+  it('keeps transient content in the same scroller, including an empty conversation', () => {
+    const { rerender } = render(
+      <MessageListProvider value={createValue([], { afterMessages: <div role="status">Uploading report.pdf</div> })}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+    expect(within(screen.getByTestId('virtual-list')).getByRole('status')).toHaveTextContent('Uploading report.pdf')
+    expect(messageListSearchMock.props?.messages).toEqual([])
+    rerender(
+      <MessageListProvider value={createValue([createMessage('sent', 'user')])}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+    expect(screen.queryByText('Uploading report.pdf')).not.toBeInTheDocument()
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual(['sent'])
+  })
+
   beforeEach(() => {
     scrollToBottom.mockClear()
     scrollToTop.mockClear()

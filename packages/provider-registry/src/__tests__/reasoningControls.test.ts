@@ -72,6 +72,29 @@ describe('deriveLegacyReasoningFields', () => {
 })
 
 describe('inferReasoningControls (ingest-time heuristics)', () => {
+  it.each(['step-5-preview', 'stepfun/step-5-preview', 'STEP-5-PREVIEW', 'StepFun/StEp-5-PrEvIeW'])(
+    'infers only the documented effort control for %s',
+    (id) => {
+      expect(inferReasoningControls(id)).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
+    }
+  )
+
+  // Membership alone does not imply an inferred effort vocabulary.
+  it.each([
+    'step-router-v1',
+    'step-5',
+    'step-5-pro',
+    'step-50',
+    'other-step-5-preview',
+    'step-5-preview-free',
+    'step-5-preview-2603',
+    'step-5-preview-non-reasoning',
+    'step-3-5-flash',
+    'step-3-7-flash'
+  ])('does not infer effort for %s', (id) => {
+    expect(inferReasoningControls(id)).toBeUndefined()
+  })
+
   it.each([
     // [id, expected controls]
     ['gpt-5.1', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
@@ -87,6 +110,10 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['grok-4.3', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
+    ['grok-4.6', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
+    ['grok-4.7', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
+    ['grok-4-7', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
+    ['grok-4.7-build-fast', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
     ['deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     ['deepseek-v3.1', [{ kind: 'toggle' }]],
     ['kimi-k3', [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }]],
@@ -109,6 +136,9 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['glm-4.6', [{ kind: 'toggle' }]],
+    // MiMo V2.6 UltraSpeed documents the thinking switch; the V2.5 UltraSpeed SKU does not.
+    ['mimo-v2.6-pro-ultraspeed', [{ kind: 'toggle' }]],
+    ['mimo-v2-6-pro-ultraspeed', [{ kind: 'toggle' }]],
     // Xunfei MaaS (iflytek creator) ids — mirror the canonical family knobs.
     ['xopdeepseekv32', [{ kind: 'toggle' }]],
     ['xopdeepseekv4pro', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
@@ -146,6 +176,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     'grok-4-fast', // the on/off knob is OpenRouter-only, not a model property
     'ling-3.0-flash', // the on/off wire is serving-provider specific
     'minimax-m2.1', // no documented knob
+    'mimo-v2.5-pro-ultraspeed', // 2.5 UltraSpeed ships without the thinking switch
     'kimi-k3.1', // no audited provider wire for future K3 variants
     'kimi-k4', // no audited provider wire for future Kimi generations
     'xopdeepseekv2pro', // Xunfei MaaS pre-v3 deepseek — no knob
@@ -185,6 +216,15 @@ describe('catalog invariant: controls ↔ derived legacy fields', () => {
   const { models } = JSON.parse(readFileSync(modelsPath, 'utf-8')) as {
     models: Array<{ id: string; reasoning?: { controls?: ReasoningControl[] } & Record<string, unknown> }>
   }
+
+  it.each([
+    ['step-3-5-flash', ['low', 'high']],
+    ['step-3-7-flash', ['low', 'medium', 'high']]
+  ])('preserves the bundled effort vocabulary for %s', (id, values) => {
+    expect(
+      models.find((model) => model.id === id)?.reasoning?.controls?.find((control) => control.kind === 'effort')
+    ).toEqual({ kind: 'effort', values })
+  })
 
   // Key-order-insensitive: generated catalog ordering is an implementation detail.
   const canonical = (v: unknown): string =>

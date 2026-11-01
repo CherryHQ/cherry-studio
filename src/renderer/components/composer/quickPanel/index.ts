@@ -25,5 +25,6 @@ export {
   type ComposerUnifiedPanelSection,
   type ComposerUnifiedPanelSelectHandler,
   createUnifiedQuickPanelOpenOptions,
-  hasUnifiedQuickPanelRootContent
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
 } from './unifiedPanel'

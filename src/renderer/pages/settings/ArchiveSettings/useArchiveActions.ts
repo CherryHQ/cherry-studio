@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ToastAction } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation, useWriteCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -44,7 +46,11 @@ async function reconcileNotFound(
 function useArchiveActionRunner() {
   const { t } = useTranslation()
 
-  return async (action: 'restore' | 'permanent_delete', run: () => Promise<unknown>): Promise<void> => {
+  return async (
+    action: 'restore' | 'permanent_delete',
+    run: () => Promise<unknown>,
+    successAction?: ToastAction
+  ): Promise<void> => {
     const messages =
       action === 'restore'
         ? { success: t('settings.data.trash.restore.success'), error: t('settings.data.trash.restore.error') }
@@ -57,7 +63,9 @@ function useArchiveActionRunner() {
       if (result === NO_LONGER_IN_RECYCLE_BIN) {
         toast.info(t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin'))
       } else {
-        toast[action === 'restore' && result === ALREADY_ACTIVE ? 'info' : 'success'](messages.success)
+        toast[action === 'restore' && result === ALREADY_ACTIVE ? 'info' : 'success'](
+          successAction ? { title: messages.success, action: successAction } : messages.success
+        )
       }
     } catch (error) {
       logger.error(`trash ${action} failed`, error as Error)
@@ -140,7 +148,11 @@ async function inspectFailedFileIds(
   return { activeIds, missingIds }
 }
 
-function useDataArchiveActions(domain: 'topics' | 'assistants' | 'paintings', refresh: () => Promise<unknown>) {
+function useDataArchiveActions(
+  domain: 'topics' | 'assistants' | 'paintings',
+  refresh: () => Promise<unknown>,
+  buildRestoreSuccessAction?: (item: ArchiveItem) => ToastAction
+) {
   const { t } = useTranslation()
   const runAction = useArchiveActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
@@ -157,7 +169,7 @@ function useDataArchiveActions(domain: 'topics' | 'assistants' | 'paintings', re
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
-      await runAction('restore', () => restoreItem(item))
+      await runAction('restore', () => restoreItem(item), buildRestoreSuccessAction?.(item))
     } finally {
       setPendingRestoreId(null)
     }
@@ -183,7 +195,16 @@ function useDataArchiveActions(domain: 'topics' | 'assistants' | 'paintings', re
 }
 
 export function useTopicArchiveActions(refresh: () => Promise<unknown>) {
-  return useDataArchiveActions('topics', refresh)
+  const { t } = useTranslation()
+
+  // Restoring a conversation is only half the job — the user usually wants it back open,
+  // so the toast carries the way into the chat route it was restored to.
+  const goToConversation = (item: ArchiveItem): ToastAction => ({
+    label: t('settings.data.trash.restore.go_to_conversation'),
+    onClick: () => openRoute('/app/chat', { topicId: item.id })
+  })
+
+  return useDataArchiveActions('topics', refresh, goToConversation)
 }
 
 export function useAgentArchiveActions(refresh: () => Promise<unknown>) {
@@ -278,7 +299,11 @@ export function useSessionArchiveActions(refresh: () => Promise<unknown>) {
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
-      await runAction('restore', () => restoreItem(item))
+      // A session is a conversation too, so it gets the same way back as a restored topic.
+      await runAction('restore', () => restoreItem(item), {
+        label: t('settings.data.trash.restore.go_to_conversation'),
+        onClick: () => openRoute('/app/agents', { sessionId: item.id })
+      })
     } finally {
       setPendingRestoreId(null)
     }

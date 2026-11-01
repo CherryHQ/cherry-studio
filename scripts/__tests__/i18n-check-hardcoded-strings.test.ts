@@ -9,6 +9,7 @@ import {
   hasEnglishUIText,
   isInCodeContext,
   isNonUIString,
+  shouldSkipFile,
   shouldSkipNode
 } from '../i18n-check-hardcoded-strings'
 
@@ -181,6 +182,32 @@ describe('i18n-check-hardcoded-strings', () => {
 
     it('should NOT skip regular TypeScript files', () => {
       expect(mockShouldSkipFile(`${mockSrcDir}/utils/helper.ts`)).toBe(false)
+    })
+  })
+
+  describe('shouldSkipFile', () => {
+    // `IGNORED_FILES` holds globs, but they used to be converted with
+    // `pattern.replace('*', '.*')` — dots left unescaped and the result
+    // unanchored — so `*.d.ts` also matched plain source files whose name
+    // happens to contain `d<any>ts` and those files silently left the gate.
+    it('skips the file kinds it is meant to skip', () => {
+      expect(shouldSkipFile(`${mockSrcDir}/components/Button.test.tsx`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/utils/helper.test.ts`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/types/index.d.ts`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/ai/prompts/coding-prompts.ts`, mockSrcDir)).toBe(true)
+    })
+
+    it('keeps skipping everything inside ignored directories', () => {
+      expect(shouldSkipFile(`${mockSrcDir}/components/__tests__/Button.tsx`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/i18n/resolver.ts`, mockSrcDir)).toBe(true)
+    })
+
+    it('does NOT skip source files whose names merely contain glob fragments', () => {
+      expect(shouldSkipFile(`${mockSrcDir}/components/AskUserQuestionCard.tsx`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/components/layout/shared.tsx`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/services/read.ts`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/utils/useLatest.ts`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/utils/prompt.ts`, mockSrcDir)).toBe(false)
     })
   })
 

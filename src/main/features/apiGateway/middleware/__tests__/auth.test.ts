@@ -1,23 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { hashPairedDeviceToken } from '../../pairedDeviceToken'
-import { authorizeApiRequest, authorizePairedDeviceRequest } from '../auth'
+import { authorizeApiRequest } from '../auth'
 
 // Mock preferenceService via application.get()
-const { mockHasTokenHash, mockPreferenceGet } = vi.hoisted(() => ({
-  mockHasTokenHash: vi.fn(),
+const { mockPreferenceGet } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn()
-}))
-
-vi.mock('@data/services/ApiGatewayPairedDeviceService', () => ({
-  apiGatewayPairedDeviceService: { hasTokenHash: mockHasTokenHash }
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+    PreferenceService: { get: mockPreferenceGet },
+    ApiGatewayService: {
+      isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-key'
+    }
+  } as never)
 })
 
 /**
@@ -25,10 +22,11 @@ vi.mock('@application', async () => {
  * extraction of `bearer` from `Authorization: Bearer …` / `?access_token` is the
  * `@elysia/bearer` plugin's job and is covered by the routes integration test.
  */
+const FORBIDDEN = { status: 403, error: 'Forbidden' }
+
 describe('authorizeApiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockHasTokenHash.mockReturnValue(false)
   })
 
   describe('Missing credentials', () => {
@@ -57,6 +55,22 @@ describe('authorizeApiRequest', () => {
     it('returns 403 when API key is null', () => {
       mockPreferenceGet.mockReturnValue(null)
       expect(authorizeApiRequest('some-key', undefined)).toEqual({ status: 403, error: 'Forbidden' })
+    })
+  })
+
+  describe('Internal consumer key', () => {
+    it('accepts only a header internal key on the internal surface, never the user key', () => {
+      mockPreferenceGet.mockReturnValue('user-key')
+      const headers = new Headers({ authorization: 'Bearer internal-key' })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers, 'internal')).toBeUndefined()
+      expect(authorizeApiRequest(undefined, 'user-key', undefined, new Headers(), 'internal')).toEqual(FORBIDDEN)
+      expect(authorizeApiRequest(undefined, undefined, 'internal-key', new Headers(), 'internal')).toEqual(FORBIDDEN)
+    })
+
+    it('rejects an internal key on the public surface', () => {
+      mockPreferenceGet.mockReturnValue('user-key')
+      const headers = new Headers({ authorization: 'Bearer internal-key' })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers)).toEqual(FORBIDDEN)
     })
   })
 
@@ -164,30 +178,5 @@ describe('authorizeApiRequest', () => {
       expect(Buffer.byteLength(multibyte)).not.toBe(Buffer.byteLength(validApiKey))
       expect(authorizeApiRequest(multibyte, undefined)).toEqual({ status: 403, error: 'Forbidden' })
     })
-  })
-})
-
-describe('authorizePairedDeviceRequest', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockPreferenceGet.mockReturnValue('desktop-api-key')
-    mockHasTokenHash.mockImplementation(
-      (tokenHash: string) => tokenHash === hashPairedDeviceToken('paired-device-token')
-    )
-  })
-
-  it('authenticates a paired device token', () => {
-    expect(authorizePairedDeviceRequest('paired-device-token')).toBeUndefined()
-  })
-
-  it('rejects missing credentials with 401', () => {
-    expect(authorizePairedDeviceRequest(undefined)).toEqual({
-      status: 401,
-      error: 'Unauthorized: missing credentials'
-    })
-  })
-
-  it('does not grant the desktop API key access to a device-only route', () => {
-    expect(authorizePairedDeviceRequest('desktop-api-key')).toEqual({ status: 403, error: 'Forbidden' })
   })
 })

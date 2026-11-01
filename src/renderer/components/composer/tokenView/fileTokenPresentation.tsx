@@ -1,8 +1,10 @@
-import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
+import { Icon } from '@iconify/react'
+import { FileText } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
 import { FILE_TYPE } from '@renderer/types/file'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
@@ -13,79 +15,63 @@ const logger = loggerService.withContext('fileTokenPresentation')
 // path/URL so a bad attachment can't flood the log across rerenders.
 const warnedPreviewKeys = new Set<string>()
 
-const fileTokenIconClassName = 'size-3 shrink-0 text-current'
-const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
+const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
+
+/**
+ * The glyph comes from the app-wide file-icon convention — `getFileIconName` + material-icon-theme,
+ * the same mapping the file tree, clickable file paths and agent file mentions use — so every file
+ * surface names a `.ts` a TypeScript icon instead of a token-local "code" bucket. The chip owns the
+ * slot size (`composerChipIconBoxClassName` is em-based), so the icon just fills it.
+ */
+const fileTokenIconClassName = 'size-full shrink-0'
+const fileTokenPreviewIconClassName = 'size-7'
 
 interface FileTokenVisualPreset {
-  icon: ComponentType<{ className?: string; 'aria-hidden'?: true }>
-  iconClassName: string
   defaultTypeLabel: string
   displayExtensions?: readonly string[]
 }
 
 const fileTokenVisualPresetByVariant = {
   image: {
-    icon: FileImage,
-    iconClassName: 'bg-cyan-100 text-cyan-700',
     defaultTypeLabel: 'IMAGE',
     displayExtensions: ['avif', 'bmp', 'gif', 'heic', 'heif', 'jpeg', 'jpg', 'png', 'svg', 'webp']
   },
   word: {
-    icon: FileType2,
-    iconClassName: 'bg-blue-100 text-blue-700',
     defaultTypeLabel: 'WORD',
     displayExtensions: ['doc', 'docx']
   },
   excel: {
-    icon: FileSpreadsheet,
-    iconClassName: 'bg-green-100 text-green-700',
     defaultTypeLabel: 'EXCEL',
     displayExtensions: ['csv', 'xls', 'xlsx']
   },
   powerpoint: {
-    icon: Presentation,
-    iconClassName: 'bg-orange-100 text-orange-700',
     defaultTypeLabel: 'PPT',
     displayExtensions: ['ppt', 'pptx']
   },
   pdf: {
-    icon: FileText,
-    iconClassName: 'bg-red-100 text-red-700',
     defaultTypeLabel: 'PDF',
     displayExtensions: ['pdf']
   },
   markdown: {
-    icon: FileText,
-    iconClassName: 'bg-gray-100 text-gray-700',
     defaultTypeLabel: 'MD',
     displayExtensions: ['markdown', 'md', 'mdx']
   },
   json: {
-    icon: FileJson,
-    iconClassName: 'bg-violet-100 text-violet-700',
     defaultTypeLabel: 'JSON',
     displayExtensions: ['json', 'jsonl']
   },
   code: {
-    icon: FileCode2,
-    iconClassName: 'bg-indigo-100 text-indigo-700',
     defaultTypeLabel: 'CODE',
     displayExtensions: ['css', 'go', 'html', 'java', 'js', 'jsx', 'py', 'rs', 'ts', 'tsx', 'xml', 'yaml', 'yml']
   },
   document: {
-    icon: FileText,
-    iconClassName: 'bg-slate-100 text-slate-700',
     defaultTypeLabel: 'DOCUMENT'
   },
   text: {
-    icon: FileText,
-    iconClassName: 'bg-info-subtle text-info',
     defaultTypeLabel: 'TEXT',
     displayExtensions: ['log', 'text', 'txt']
   },
   fallback: {
-    icon: File,
-    iconClassName: 'bg-accent text-muted-foreground',
     defaultTypeLabel: 'FILE'
   }
 } satisfies Record<string, FileTokenVisualPreset>
@@ -96,8 +82,6 @@ export interface FileTokenPresentation {
   variant: FileTokenVariant
   icon: ReactNode
   previewIcon: ReactNode
-  containerClassName: string
-  iconClassName: string
   typeLabel: string
   previewUrl?: string
 }
@@ -169,6 +153,22 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
   return 'fallback'
 }
 
+/**
+ * Tokens restored from a message have no attachment, so the label stands in for the file name — it
+ * carries the extension (and the path, when the attachment was unknown) either way.
+ */
+function getFileTokenIcon(file: ComposerAttachment | undefined, fallbackLabel: string, className: string) {
+  const iconName = getFileIconName(file?.origin_name || file?.name || fallbackLabel || file?.path || '')
+  return (
+    <Icon
+      icon={`${MATERIAL_ICON_PREFIX}${iconName}`}
+      className={className}
+      aria-hidden
+      fallback={<FileText className={className} aria-hidden />}
+    />
+  )
+}
+
 export function getFileTokenPresentation(
   file: ComposerAttachment | undefined,
   fallbackLabel: string,
@@ -177,14 +177,11 @@ export function getFileTokenPresentation(
   const extensionLabel = getFileExtensionLabel(file, fallbackLabel)
   const variant = getFileTokenVariant(file, fallbackLabel)
   const preset = fileTokenVisualPresetByVariant[variant]
-  const Icon = preset.icon
 
   return {
     variant,
-    icon: <Icon className={fileTokenIconClassName} aria-hidden />,
-    previewIcon: <Icon className="size-7" aria-hidden />,
-    containerClassName: fileTokenContainerClassName,
-    iconClassName: preset.iconClassName,
+    icon: getFileTokenIcon(file, fallbackLabel, fileTokenIconClassName),
+    previewIcon: getFileTokenIcon(file, fallbackLabel, fileTokenPreviewIconClassName),
     typeLabel: extensionLabel || preset.defaultTypeLabel,
     previewUrl: variant === 'image' ? getFilePreviewUrl(file, fallbackLabel, previewUrl) : undefined
   }

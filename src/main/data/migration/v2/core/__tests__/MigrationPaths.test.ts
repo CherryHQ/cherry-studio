@@ -27,7 +27,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *     write, legacyDataConfirmed) against a path-aware node:fs mock.
  */
 
-const CONFIG_FILE = '/mock/home/.cherrystudio/config/config.json'
+// Build with the same path.join the production reader uses, so the mock-fs
+// key matches on win32 too (a hand-written /-joined string never matches there).
+const CONFIG_FILE = path.join('/mock/home/.cherrystudio', 'config', 'config.json')
 const DEFAULT_USER_DATA = '/mock/userData'
 
 const h = vi.hoisted(() => ({
@@ -37,7 +39,8 @@ const h = vi.hoisted(() => ({
   normalizedExe: vi.fn((): string => '/current/exe'),
   bootGet: vi.fn((): unknown => undefined),
   bootSet: vi.fn(),
-  bootPersist: vi.fn()
+  bootPersist: vi.fn(),
+  devProfileRoot: undefined as string | undefined
 }))
 
 vi.mock('node:fs', async () => {
@@ -70,6 +73,9 @@ vi.mock('@main/core/paths/constants', () => ({
   CHERRY_HOME: '/mock/home/.cherrystudio',
   CHERRY_HOME_DIRNAME: '.cherrystudio',
   BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
+  get DEV_PROFILE_ROOT() {
+    return h.devProfileRoot
+  },
   LOGS_DIR: '/mock/logs',
   resolveDevUserDataPath: () => '/mock/userDataDev'
 }))
@@ -357,9 +363,35 @@ beforeEach(() => {
   h.getVersion.mockReturnValue('2.0.0')
   h.normalizedExe.mockReturnValue('/current/exe')
   h.bootGet.mockReturnValue(undefined)
+  h.devProfileRoot = undefined
 })
 
 describe('resolveMigrationPaths — legacy custom userData recovery', () => {
+  it('keeps a dev profile migration isolated from legacy paths outside the profile root', () => {
+    const profileUserData = '/mock/profile/userData'
+    const externalUserData = '/external/legacy-data'
+    h.devProfileRoot = '/mock/profile'
+    h.getPath.mockImplementation((key: string) => (key === 'userData' ? profileUserData : '/mock/unknown'))
+    applyFs({
+      dirs: [profileUserData, externalUserData],
+      contents: {
+        [CONFIG_FILE]: JSON.stringify({ appDataPath: externalUserData }),
+        [marker(profileUserData, 'version.log')]: GOOD_VERSION_LOG,
+        [marker(externalUserData, 'version.log')]: GOOD_VERSION_LOG
+      }
+    })
+
+    const result = resolveMigrationPaths()
+
+    expect(result.paths.userData).toBe(profileUserData)
+    expect(result.userDataChanged).toBe(false)
+    expect(result.legacyDataConfirmed).toBe(true)
+    expect(h.bootGet).not.toHaveBeenCalled()
+    expect(h.setPath).not.toHaveBeenCalled()
+    expect(h.bootSet).not.toHaveBeenCalled()
+    expect(h.bootPersist).not.toHaveBeenCalled()
+  })
+
   it('places v2-managed data under Data while retaining explicit v1 source paths', () => {
     applyFs({ dirs: [DEFAULT_USER_DATA] })
 
@@ -425,7 +457,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
             { executablePath: '/old/install/exe', dataPath: '/Volumes/Data/CherryStudio' }
           ]
         }),
-        '/Volumes/Data/CherryStudio/version.log': GOOD_VERSION_LOG
+        [marker('/Volumes/Data/CherryStudio', 'version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -443,7 +475,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
       dirs: ['/legacy/string/data'],
       contents: {
         [CONFIG_FILE]: JSON.stringify({ appDataPath: '/legacy/string/data' }),
-        '/legacy/string/data/version.log': GOOD_VERSION_LOG
+        [marker('/legacy/string/data', 'version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -478,7 +510,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/current/exe', dataPath: DEFAULT_USER_DATA }]
         }),
-        [`${DEFAULT_USER_DATA}/version.log`]: GOOD_VERSION_LOG
+        [marker(DEFAULT_USER_DATA, 'version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -536,7 +568,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/old/exe', dataPath: '/stale/custom' }]
         }),
-        '/stale/custom/version.log': GOOD_VERSION_LOG
+        [marker('/stale/custom', 'version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -555,7 +587,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/old/exe', dataPath: '/custom/real' }]
         }),
-        '/custom/real/version.log': GOOD_VERSION_LOG
+        [marker('/custom/real', 'version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -573,7 +605,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     h.getPath.mockImplementation((key: string) => (key === 'userData' ? '/custom/target' : '/mock/unknown'))
     applyFs({
       dirs: ['/custom/target'],
-      contents: { '/custom/target/version.log': GOOD_VERSION_LOG }
+      contents: { [marker('/custom/target', 'version.log')]: GOOD_VERSION_LOG }
     })
 
     const result = resolveMigrationPaths()
@@ -608,7 +640,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     h.getPath.mockImplementation((key: string) => (key === 'userData' ? '/custom/valid' : '/mock/unknown'))
     applyFs({
       dirs: ['/custom/valid'],
-      contents: { '/custom/valid/version.log': GOOD_VERSION_LOG }
+      contents: { [marker('/custom/valid', 'version.log')]: GOOD_VERSION_LOG }
     })
 
     const result = resolveMigrationPaths()
