@@ -508,6 +508,7 @@ describe('AppShell', () => {
   })
 
   it('closes the active tab from the tab-close shortcut', () => {
+    mocks.platformState.isMac = true
     mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
     mocks.activeTabId = 'tab2'
 
@@ -515,19 +516,30 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('tab.close')?.handler()
 
     expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
-  it('closes the last tab from the shortcut instead of the window, landing on the Launchpad fallback', () => {
+  it('closes the main window from the shortcut when the last tab is open on macOS', () => {
+    mocks.platformState.isMac = true
+
     render(<AppShell />)
     mocks.commandHandlers.get('tab.close')?.handler()
 
-    // TabsProvider turns a zero-tab close into the Launchpad fallback tab, so the
-    // shortcut must share the tab bar's close path instead of closing the window.
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.close')
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Launchpad fallback when the last tab is closed by the shortcut off macOS', () => {
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
     expect(mocks.closeTab).toHaveBeenCalledWith('home')
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
-  it('keeps the last-tab close via the tab bar on the empty-state fallback', () => {
+  it('keeps the last-tab close via the tab bar on the empty-state fallback on macOS', () => {
+    mocks.platformState.isMac = true
+
     render(<AppShell />)
     const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
     closeTab?.('home')

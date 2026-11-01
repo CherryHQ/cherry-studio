@@ -100,8 +100,12 @@ export const AppShell = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
+    if (isMac && tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab])
+  }, [activeTabId, handleCloseTab, tabs.length])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
