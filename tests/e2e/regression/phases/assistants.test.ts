@@ -764,6 +764,9 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
         await page.evaluate(() => navigator.clipboard.writeText('MP23_BEFORE_COPY'))
         openExternalText(app.record.platform, app.paths, exportedPath)
         sendSystemHotkey(app.record.platform, ['Meta', 'c'])
+        // The copy happens in the external viewer, so the app window is no longer focused and the
+        // renderer clipboard API rejects the read; refocus it before reading the copied text.
+        await page.bringToFront()
         await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(content)
       } finally {
         closeExternalText(app.record.platform)
