@@ -1,3 +1,5 @@
+import '@data/services/AgentSessionMessageService'
+import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -5,15 +7,31 @@ import path from 'node:path'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable, agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { assistantDataService } from '@data/services/AssistantService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import type { AgentSessionTurnTerminalEvent } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import type { AiService } from '@main/ai/AiService'
+import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
-import { BaseService } from '@main/core/lifecycle'
+import { BaseService, Emitter } from '@main/core/lifecycle'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { MemoryDreamingService } from '../MemoryDreamingService'
 import { needsDreaming, observeMemory, readDreamingState, writeDreamingState } from '../memoryDreamingState'
@@ -24,12 +42,19 @@ describe('memory organization lifecycle and commit fences', () => {
   const dbh = setupTestDatabase()
   const scope = { kind: 'shared' } as const
   const approve = async () => () => undefined
-  const generate = vi.fn(async () => ({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }))
+  const generate = vi.fn<
+    (input: Parameters<AiService['generateText']>[0]) => Promise<{ text: string; finishReason: string }>
+  >(async () => ({
+    text: '{"writes":[],"deletes":[]}',
+    finishReason: 'stop'
+  }))
   const busy = vi.fn(() => false)
   let fixture: string
   let memory: MemoryService
   let dreaming: MemoryDreamingService
   let session: MemorySession
+  let chats: Emitter<ConversationCompletedEvent>
+  let agentTurns: Emitter<AgentSessionTurnTerminalEvent>
 
   async function removeFixture(directory: string): Promise<void> {
     if (directory !== fixture && !directory.startsWith(`${fixture}${path.sep}`)) throw new Error('Outside fixture')
@@ -59,6 +84,8 @@ describe('memory organization lifecycle and commit fences', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'fixture::gpt-4o')
     generate.mockReset().mockResolvedValue({ text: '{"writes":[],"deletes":[]}', finishReason: 'stop' })
     busy.mockReset().mockReturnValue(false)
+    chats = new Emitter()
+    agentTurns = new Emitter()
     fixture = await mkdtemp(path.join(os.tmpdir(), 'cherry-memory-dreaming-'))
     vi.spyOn(application, 'getPath').mockImplementation((key, name) => path.join(fixture, key, name ?? ''))
     dbh.db
@@ -84,8 +111,14 @@ describe('memory organization lifecycle and commit fences', () => {
     dreaming = new MemoryDreamingService()
     MockApplicationUtils.setService('MemoryService', memory)
     MockApplicationUtils.setService('AiService', { generateText: generate })
-    MockApplicationUtils.setService('AgentSessionRuntimeService', { hasBusySessions: busy })
-    MockApplicationUtils.setService('AiStreamManager', { listActiveWork: () => [] })
+    MockApplicationUtils.setService('AgentSessionRuntimeService', {
+      hasBusySessions: busy,
+      onTurnTerminal: agentTurns.event
+    })
+    MockApplicationUtils.setService('AiStreamManager', {
+      listActiveWork: () => [],
+      onConversationCompleted: chats.event
+    })
     await memory._doInit()
     await dreaming._doInit()
     session = memory.open({ scope, assertAuthorized: () => undefined })
@@ -95,6 +128,8 @@ describe('memory organization lifecycle and commit fences', () => {
     await dreaming._doStop()
     session.dispose()
     await memory._doStop()
+    chats.dispose()
+    agentTurns.dispose()
     MockApplicationUtils.resetServices()
     vi.restoreAllMocks()
     await removeFixture(fixture)
@@ -159,6 +194,394 @@ describe('memory organization lifecycle and commit fences', () => {
     await expect(dreaming.execute(job())).resolves.toMatchObject({ deferred: true })
     expect(generate).not.toHaveBeenCalled()
     expect((await session.read('MEMORY.md')).content).toBe(original)
+  })
+
+  function conversation(enabled = true, text = 'Please remember: I prefer concise answers.') {
+    const assistantId = randomUUID()
+    const topicId = randomUUID()
+    dbh.db
+      .insert(assistantTable)
+      .values({
+        id: assistantId,
+        name: 'Memory assistant',
+        emoji: '',
+        orderKey: 'a0',
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableSharedMemory: enabled }
+      })
+      .run()
+    dbh.db.insert(topicTable).values({ id: topicId, assistantId, orderKey: 'a0' }).run()
+    const [root] = dbh.db
+      .insert(messageTable)
+      .values({ topicId, role: 'root', data: { parts: [] }, status: 'success', parentId: null })
+      .returning()
+      .all()
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+    const [user] = dbh.db
+      .insert(messageTable)
+      .values({
+        topicId,
+        parentId: root.id,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text }] }
+      })
+      .returning()
+      .all()
+    const [response] = dbh.db
+      .insert(messageTable)
+      .values({
+        topicId,
+        parentId: user.id,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Assistant-only unsupported claim' }] },
+        messageSnapshot: {
+          id: assistantId,
+          name: 'Memory assistant',
+          model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' }
+        }
+      })
+      .returning()
+      .all()
+    const emit = () =>
+      chats.fire({ topicId, turnId: response.id, completedAt: Date.now(), memoryResponseIds: [response.id] })
+    return { assistantId, topicId, user, response, emit }
+  }
+
+  it('extracts authorized new user evidence with organization off, preserves facts, and recovers the actual append', async () => {
+    await save('Existing fact with an exception.\n')
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+    const chat = conversation()
+    generate.mockResolvedValueOnce({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
+    chat.emit()
+    expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    expect((await session.read('MEMORY.md')).content).toBe(
+      'Existing fact with an exception.\n- "I prefer concise answers."\n'
+    )
+    expect(generate.mock.calls[0][0]).toMatchObject({
+      disableTools: true,
+      contextOwner: 'caller',
+      requestOptions: { maxRetries: 0 }
+    })
+    expect(JSON.parse(generate.mock.calls[0][0].prompt!)).toEqual({
+      userText: 'Please remember: I prefer concise answers.',
+      existingMemory: 'Existing fact with an exception.\n'
+    })
+    expect(JSON.stringify(dbh.db.select().from(appStateTable).all())).not.toContain('concise answers')
+    chat.emit()
+    expect(await dreaming.execute(job())).toEqual({ idle: true })
+    const recovery = await session.previewRecovery()
+    await session.recover(recovery!.token, approve)
+    expect((await session.read('MEMORY.md')).content).toBe('Existing fact with an exception.\n')
+  })
+
+  it.each(['queued', 'running'] as const)(
+    'keeps extraction after a title-only topic update while %s',
+    async (stage) => {
+      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      const chat = conversation()
+      const rename = () => {
+        vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+        topicService.update(chat.topicId, { name: 'Generated title', isNameManuallyEdited: false })
+      }
+      generate.mockImplementationOnce(async () => {
+        if (stage === 'running') rename()
+        return {
+          text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+          finishReason: 'stop'
+        }
+      })
+      chat.emit()
+      if (stage === 'queued') rename()
+      expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+      expect((await session.read('MEMORY.md')).content).toBe('- "I prefer concise answers."\n')
+      chat.emit()
+      expect(await dreaming.execute(job())).toEqual({ idle: true })
+    }
+  )
+
+  it.each(['owner', 'move', 'delete'] as const)(
+    'discards queued extraction after topic %s and restoration',
+    async (action) => {
+      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+      const chat = conversation()
+      const other = conversation()
+      chat.emit()
+      if (action === 'owner') {
+        topicService.update(chat.topicId, { assistantId: null })
+        topicService.update(chat.topicId, { assistantId: chat.assistantId })
+      } else if (action === 'move') {
+        topicService.move(chat.topicId, { assistantId: other.assistantId, order: { position: 'first' } })
+        topicService.move(chat.topicId, { assistantId: chat.assistantId, order: { position: 'first' } })
+      } else {
+        topicService.delete(chat.topicId)
+        topicService.restore(chat.topicId)
+      }
+      chat.emit()
+      expect(await dreaming.execute(job())).toEqual({ idle: true })
+      expect(generate).not.toHaveBeenCalled()
+      other.emit()
+      generate.mockResolvedValueOnce({
+        text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+        finishReason: 'stop'
+      })
+      expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    }
+  )
+
+  it.each([
+    'edit',
+    'delete-user',
+    'delete-response',
+    'delete-topic',
+    'owner',
+    'owner-roundtrip',
+    'topic-restore',
+    'access-off-on',
+    'parent-off-on',
+    'clear',
+    'recovery',
+    'cancel',
+    'foreground'
+  ] as const)('rejects delayed extraction after %s', async (action) => {
+    await save('Original fact')
+    const chat = conversation()
+    const response = Promise.withResolvers<{ text: string; finishReason: string }>()
+    generate.mockImplementationOnce(() => response.promise)
+    chat.emit()
+    const outcome = dreaming.execute(job()).catch((error: unknown) => error)
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    if (action === 'edit')
+      dbh.db
+        .update(messageTable)
+        .set({ data: { parts: [{ type: 'text', text: 'Changed source' }] } })
+        .where(eq(messageTable.id, chat.user.id))
+        .run()
+    if (action === 'delete-user') dbh.db.delete(messageTable).where(eq(messageTable.id, chat.user.id)).run()
+    if (action === 'delete-response') dbh.db.delete(messageTable).where(eq(messageTable.id, chat.response.id)).run()
+    if (action === 'delete-topic') dbh.db.delete(topicTable).where(eq(topicTable.id, chat.topicId)).run()
+    if (action === 'owner')
+      dbh.db.update(topicTable).set({ assistantId: null }).where(eq(topicTable.id, chat.topicId)).run()
+    if (action === 'owner-roundtrip') {
+      topicService.update(chat.topicId, { assistantId: null })
+      topicService.update(chat.topicId, { assistantId: chat.assistantId })
+    }
+    if (action === 'topic-restore') {
+      topicService.delete(chat.topicId)
+      topicService.restore(chat.topicId)
+    }
+    if (action === 'access-off-on') {
+      assistantDataService.update(chat.assistantId, { settings: { enableSharedMemory: false } })
+      assistantDataService.update(chat.assistantId, { settings: { enableSharedMemory: true } })
+    }
+    if (action === 'parent-off-on') {
+      await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
+      await application.get('PreferenceService').set('feature.memory.generation.enabled', true)
+    }
+    if (action === 'clear') await session.clear((await session.previewClear()).token, approve)
+    if (action === 'recovery') await session.recover((await session.previewRecovery())!.token, approve)
+    if (action === 'cancel') dreaming.cancel(scope)
+    if (action === 'foreground') busy.mockReturnValue(true)
+    response.resolve({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
+    expect(await outcome).toBeInstanceOf(Error)
+    expect((await session.read('MEMORY.md')).content).not.toContain('concise answers')
+  })
+
+  it.each(['unsupported', 'oversized', 'invalid-json', 'truncated', 'missing-kind', 'unknown-kind'] as const)(
+    'retains memory when extraction output is %s',
+    async (kind) => {
+      await save('Original fact')
+      conversation().emit()
+      generate.mockResolvedValueOnce({
+        text:
+          kind === 'unsupported'
+            ? '{"candidates":[{"kind":"preference","quote":"Assistant-only unsupported claim"}]}'
+            : kind === 'oversized'
+              ? JSON.stringify({ candidates: [{ kind: 'preference', quote: 'x'.repeat(501) }] })
+              : kind === 'invalid-json'
+                ? 'no'
+                : kind === 'missing-kind'
+                  ? '{"candidates":[{"quote":"I prefer concise answers."}]}'
+                  : kind === 'unknown-kind'
+                    ? '{"candidates":[{"kind":"global","quote":"I prefer concise answers."}]}'
+                    : '{"candidates":[]}',
+        finishReason: kind === 'truncated' ? 'length' : 'stop'
+      })
+      await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
+      expect((await session.read('MEMORY.md')).content).toBe('Original fact')
+      expect(dreaming.status(scope).lastResult).toMatchObject({ outcome: 'failed', reason: 'output' })
+    }
+  )
+
+  it('appends personal candidates without promoting project, customer, or uncertain facts', async () => {
+    await save('Existing preference.\n')
+    const candidates = [
+      { kind: 'preference', quote: 'I prefer concise answers, except when debugging.' },
+      { kind: 'personal_fact', quote: 'I use PowerShell 7.' },
+      { kind: 'project', quote: 'Project Blue uses Java 21.' },
+      { kind: 'customer', quote: 'Customer A requires a December release.' },
+      { kind: 'uncertain', quote: 'This might describe me or the customer.' }
+    ]
+    conversation(true, `Please remember: ${candidates.map(({ quote }) => quote).join(' ')}`).emit()
+    generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates }), finishReason: 'stop' })
+    expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    expect((await session.read('MEMORY.md')).content).toBe(
+      'Existing preference.\n- "I prefer concise answers, except when debugging."\n- "I use PowerShell 7."\n'
+    )
+  })
+
+  it.each(['project', 'customer', 'uncertain'] as const)(
+    'does not save a %s-only extraction or create a recovery batch',
+    async (kind) => {
+      await save('Existing preference.\n')
+      const before = await session.previewRecovery()
+      const quote = 'Project Blue uses Java 21.'
+      conversation(true, `Please remember: ${quote}`).emit()
+      generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [{ kind, quote }] }), finishReason: 'stop' })
+      expect(await dreaming.execute(job())).toEqual({ extracted: 0 })
+      expect((await session.read('MEMORY.md')).content).toBe('Existing preference.\n')
+      expect((await session.previewRecovery())?.batchId).toBe(before?.batchId)
+    }
+  )
+
+  it('does not backfill historical, disabled, cancelled, cleared, or restarted conversation work', async () => {
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+    const old = conversation()
+    dbh.db.update(messageTable).set({ createdAt: 1 }).where(eq(messageTable.id, old.user.id)).run()
+    old.emit()
+    conversation(false).emit()
+    const pending = conversation()
+    pending.emit()
+    await session.clear((await session.previewClear()).token, approve)
+    pending.emit()
+    expect(await dreaming.execute(job())).toEqual({ idle: true })
+    const afterClear = conversation()
+    afterClear.emit()
+    await dreaming._doStop()
+    BaseService.resetInstances()
+    dreaming = new MemoryDreamingService()
+    await dreaming._doInit()
+    afterClear.emit()
+    expect(await dreaming.execute(job())).toEqual({ idle: true })
+    expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('does not cancel extraction when only the organization child is switched off', async () => {
+    conversation().emit()
+    const response = Promise.withResolvers<{ text: string; finishReason: string }>()
+    generate.mockImplementationOnce(() => response.promise)
+    const outcome = dreaming.execute(job())
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+    response.resolve({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
+    expect(await outcome).toEqual({ extracted: 1 })
+  })
+
+  it.each([
+    'desktop',
+    'renamed-queued',
+    'renamed-running',
+    'restored-queued',
+    'restored-running',
+    'channel',
+    'background',
+    'headless',
+    'failed',
+    'disabled'
+  ] as const)('enforces %s agent source eligibility', async (kind) => {
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
+    const agentId = randomUUID(),
+      sessionId = randomUUID(),
+      workspaceId = randomUUID()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: agentId,
+        type: 'pi',
+        name: 'Agent',
+        instructions: '',
+        orderKey: 'a0',
+        configuration: { shared_memory_enabled: kind !== 'disabled' }
+      })
+      .run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: workspaceId, name: 'W', path: '/workspace', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: sessionId,
+        agentId,
+        workspaceId,
+        name: 'S',
+        orderKey: 'a0',
+        type: kind === 'background' ? 'background' : 'conversation'
+      })
+      .run()
+    if (kind === 'channel') {
+      const channelId = randomUUID()
+      dbh.db
+        .insert(agentChannelTable)
+        .values({ id: channelId, name: 'C', type: 'telegram', agentId, workspace: { type: 'system' }, config: {} })
+        .run()
+      dbh.db.insert(agentChannelSessionTable).values({ sessionId, channelId }).run()
+    }
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+    const [user] = dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        sessionId,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'I prefer concise answers.' }] }
+      })
+      .returning()
+      .all()
+    const [response] = dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        sessionId,
+        role: 'assistant',
+        status: kind === 'failed' ? 'error' : 'success',
+        data: { parts: [] },
+        messageSnapshot: { id: agentId, name: 'Agent', model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' } }
+      })
+      .returning()
+      .all()
+    const changeSession = () => {
+      vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+      if (kind.startsWith('renamed')) agentSessionService.update(sessionId, { name: 'Generated title' })
+      if (kind.startsWith('restored')) {
+        agentSessionService.delete(sessionId)
+        agentSessionService.restore(sessionId)
+      }
+    }
+    generate.mockImplementationOnce(async () => {
+      if (kind.endsWith('running')) changeSession()
+      return {
+        text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+        finishReason: 'stop'
+      }
+    })
+    agentTurns.fire({
+      sessionId,
+      assistantMessageId: response.id,
+      status: 'success',
+      boundary: 'turn',
+      ...(kind === 'headless' ? {} : { memoryUserMessageId: user.id })
+    })
+    if (kind.endsWith('queued')) changeSession()
+    const eligible = kind === 'desktop' || kind.startsWith('renamed')
+    if (kind === 'restored-running') await expect(dreaming.execute(job())).rejects.toBeInstanceOf(Error)
+    else expect(await dreaming.execute(job())).toEqual(eligible ? { extracted: 1 } : { idle: true })
+    expect((await session.read('MEMORY.md')).content ?? '').toBe(eligible ? '- "I prefer concise answers."\n' : '')
   })
 
   it('counts only changed controlled writes and keeps the earliest pending time across recovery', async () => {
@@ -335,6 +758,29 @@ describe('memory organization lifecycle and commit fences', () => {
     expect((await session.read('MEMORY.md')).content).toBe('[Details](.memories/old.md)')
     expect((await session.read('.memories/old.md')).content).toBe('Fact with its exception')
     expect((await session.read('.memories/new.md')).content).toBeNull()
+  })
+
+  it('serializes extraction and organization even when a cancelled model ignores its signal', async () => {
+    await save('Original fact')
+    conversation().emit()
+    const response = Promise.withResolvers<{ text: string; finishReason: string }>()
+    generate.mockImplementationOnce(() => response.promise)
+    const controller = new AbortController()
+    const first = dreaming.execute({ ...job(), signal: controller.signal }).catch((error: unknown) => error)
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    controller.abort()
+    dreaming.cancel(scope)
+    dreaming.request(scope)
+    const second = dreaming.execute(job())
+    await Promise.resolve()
+    expect(generate).toHaveBeenCalledTimes(1)
+    response.resolve({
+      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      finishReason: 'stop'
+    })
+    expect(await first).toBeInstanceOf(Error)
+    expect(await second).toMatchObject({ checked: 1, changed: 0 })
+    expect((await session.read('MEMORY.md')).content).toBe('Original fact')
   })
 
   it('preserves the seven-day deadline when external content changes without inventing edits', () => {

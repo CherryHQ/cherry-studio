@@ -7,6 +7,7 @@ sources:
   - src/main/services/file/tasks/contentMetadataGeneration.ts
   - src/main/ai/memory/MemoryMigrationService.ts
   - src/main/ai/memory/memoryDreamingState.ts
+  - src/main/ai/memory/memoryExtraction.ts
 ---
 
 # App State System Overview
@@ -84,7 +85,8 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
 | `memory:migration:<agentId>` | `MemoryMigrationService` | `{ version, status, sourceHash, files, backupId?, error? }` | Private FACT cutover marker. Files contain paths and before/after hashes, never bodies. Complete only after preservation checks; partial results remain inactive and are not replayed. |
-| `memory:dreaming:<scope>` | `MemoryDreamingService` via `memoryDreamingState` | `{ version, scope, generation, files, cursor, manual, manualAttempts, cancelled, lastScanAt, lastRunAt?, status, reason? }` | Per-file observed/processed hashes, first pending time, controlled-change count, revision, bounded attempts, and retry time. No bodies, model outputs, or chat history. Job history is not the progress owner. |
+| `memory:dreaming:<scope>` | `MemoryDreamingService` via `memoryDreamingState` | `{ version, scope, generation, files, cursor, manual, manualAttempts, cancelled, lastScanAt, lastRunAt?, lastResult?, status, reason? }` | Per-file observed/processed hashes, first pending time, controlled-change count, revision, bounded attempts, retry time, and last completed/failed/cancelled result. No bodies, model outputs, or chat history. Job history is not the progress owner. |
+| `memory:extraction:<kind>/<conversationId>` | `MemoryDreamingService` via `memoryExtraction` | `{ createdAt, messageId, hash, outcome }` | Last admitted source cursor; no message bodies. Admission advances the cursor, including overflow/failure, to prevent replay. Pending references are ephemeral and discarded on restart; no historical scan resumes them. |
 
 ## Related Source Code
 
