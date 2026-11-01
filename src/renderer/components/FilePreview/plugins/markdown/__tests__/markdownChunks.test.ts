@@ -979,6 +979,25 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://first.example'])
   })
 
+  it('tracks a fence indented into an established list item', () => {
+    // The fence is item content, so the definition-shaped line inside it is code and the real
+    // definition after it wins.
+    const content = [
+      '- item',
+      '    ```',
+      '',
+      '    [r]: https://wrong.example',
+      '    ```',
+      '',
+      '[r]: https://right.example',
+      '',
+      'Use [r].'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it('keeps a non-interrupting ordered marker as paragraph text', () => {
     // `2.` cannot interrupt the paragraph, so it opens no list and the indented definition-shaped
     // line is code; tracking the item hoisted the wrong definition.
@@ -1005,6 +1024,23 @@ describe('splitMarkdownChunks', () => {
     expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['/right']))
     expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
       new Set(['/right'])
+    )
+  })
+
+  it('does not read a definition from a non-interrupting marker after code', () => {
+    // `2.` after indented code starts a paragraph, so the definition shape inside it is prose.
+    const content = [
+      '    code',
+      '2. [r]: https://wrong.example',
+      '',
+      '[r]: https://right.example',
+      '',
+      'Use [r].'
+    ].join('\n')
+
+    expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['https://right.example']))
+    expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
+      new Set(['https://right.example'])
     )
   })
 

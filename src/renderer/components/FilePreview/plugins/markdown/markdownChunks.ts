@@ -101,8 +101,12 @@ interface ContainerFence {
  * all. A list marker indented four columns is indented code, and five columns of whitespace behind a
  * marker leave what follows in code the item never sees, so no fence opens behind either.
  */
-function openContainerFence(line: string, emptyItemColumn: number | null = null): ContainerFence | null {
-  if (leadingColumns(line) >= 4) return null
+function openContainerFence(
+  line: string,
+  emptyItemColumn: number | null = null,
+  itemContentColumn: number | null = null
+): ContainerFence | null {
+  if (leadingColumns(line) >= 4 && itemContentColumn === null) return null
   const quoteAt = / {0,3}>[ \t]?/y
   const itemAt = / {0,3}(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)/y
   let index = 0
@@ -131,12 +135,19 @@ function openContainerFence(line: string, emptyItemColumn: number | null = null)
     index = separatorEnd
     column = contentColumn
   }
-  const fence = parseFence(line.slice(index))
+  const impliedColumn =
+    quotes === 0 && contentColumn < 0
+      ? emptyItemColumn !== null && leadingColumns(line) >= emptyItemColumn
+        ? emptyItemColumn
+        : itemContentColumn !== null && leadingColumns(line) >= itemContentColumn
+          ? itemContentColumn
+          : null
+      : null
+  const remaining = impliedColumn === null ? line.slice(index) : afterColumns(impliedColumn, line.slice(index))
+  const fence = parseFence(remaining)
   if (!fence) return null
-  const implied =
-    quotes === 0 && contentColumn < 0 && emptyItemColumn !== null && leadingColumns(line) >= emptyItemColumn
-  if (quotes === 0 && contentColumn < 0 && !implied) return null
-  return { fence, quotes, contentColumn: contentColumn >= 0 ? contentColumn : implied ? emptyItemColumn : -1 }
+  if (quotes === 0 && contentColumn < 0 && impliedColumn === null) return null
+  return { fence, quotes, contentColumn: contentColumn >= 0 ? contentColumn : (impliedColumn ?? -1) }
 }
 
 /**
@@ -2794,8 +2805,11 @@ export function splitMarkdownChunks(
       emptyItemColumn !== null && leadingColumns(line) >= emptyItemColumn
         ? openContainerFence(line, emptyItemColumn)
         : null
-    if (emptyItemFence) {
-      containerFence = emptyItemFence
+    const itemFence =
+      run !== null && leadingColumns(line) >= run.content ? openContainerFence(line, null, run.content) : null
+    const ownedFence = emptyItemFence ?? itemFence
+    if (ownedFence) {
+      containerFence = ownedFence
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -2855,7 +2869,7 @@ export function splitMarkdownChunks(
     // A fence the line opens behind quote or list markers: that block holds it, so `parseFence` sees
     // it only past those markers — `- ``` ` is three backticks behind a marker, and every line the
     // item indents to its content column is code the parser never reads for definitions.
-    const openedFence = openContainerFence(line, emptyItemColumn)
+    const openedFence = openContainerFence(line, emptyItemColumn, run?.content ?? null)
     if (openedFence) {
       containerFence = openedFence
       endListOutsideItem(line)
@@ -3100,8 +3114,11 @@ export function splitMarkdownChunks(
     // paragraph is paragraph text, and hoisting it would shadow the real definition. A container
     // opener that breaks that paragraph — a deeper quote, or a list marker, which opens a fresh
     // item — leaves the definition standing behind it.
+    const lineMarker = LIST_ITEM.exec(line)
+    const orderedParagraphStart =
+      afterIndentedCode && lineMarker !== null && lineMarker[2] === undefined && lineMarker[3] !== '1'
     const definition =
-      (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode
+      (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode || orderedParagraphStart
         ? null
         : linkDefinition(lines, i, itemSource)
     if (definition) {
