@@ -968,6 +968,17 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/first'])
   })
 
+  it('keeps list ownership through an HTML block opened on the item marker', () => {
+    // The item marker opens the block and the blank ends only the block, so the indented
+    // definition is the item's content and the first definition wins.
+    const content = ['- <br>', '', '    [r]: https://first.example', '', '[r]', '', '[r]: https://right.example'].join(
+      '\n'
+    )
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://first.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://first.example'])
+  })
+
   it('ends an empty item at the blank that follows it', () => {
     // The blank closes the empty item, so the indented definition below is document-level code and
     // cannot be hoisted; keeping the item alive made it the winning first definition.
@@ -3591,6 +3602,18 @@ describe('a malformed tag that never closes', () => {
     // `<div>` plus 50,000 `<li>` keep the stack deep; an unindexed `lastIndexOf('p')` on each of
     // 300,000 blank lines took ~17 s. The indexed close is constant-time when no `p` is open.
     const content = '<div>\n' + '<li>x\n'.repeat(50_000) + '\n'.repeat(300_000) + 'end\n</div>'
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('walks a long marker chain without recounting the prefix', () => {
+    // Each apparent list marker used to slice and recount the growing prefix, taking 7.19 s.
+    const content = 'p\n' + '2. '.repeat(32_000) + 'a\n' + '\n'.repeat(32)
 
     const started = Date.now()
     const window = splitMarkdownChunks(content)

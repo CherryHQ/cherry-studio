@@ -67,8 +67,6 @@ function parseFence(line: string): Fence | null {
 }
 
 /** A list item marker a fence may sit behind — `- ` ``` `` opens a fence inside the item. */
-const LIST_MARKER_PREFIX = /^ {0,3}(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)/
-
 function isClosingFence(line: string, fence: Fence): boolean {
   const match = /^[ \t]*(`{3,}|~{3,})[ \t]*$/.exec(line)
   return !!match && leadingColumns(line) <= 3 && match[1][0] === fence.marker && match[1].length >= fence.length
@@ -105,29 +103,35 @@ interface ContainerFence {
  */
 function openContainerFence(line: string, emptyItemColumn: number | null = null): ContainerFence | null {
   if (leadingColumns(line) >= 4) return null
-  let content = line
+  const quoteAt = / {0,3}>[ \t]?/y
+  const itemAt = / {0,3}(?:[-+*]|\d{1,9}[.)])(?=[ \t]|$)/y
+  let index = 0
+  let column = 0
   let quotes = 0
   let contentColumn = -1
-  // The chain is finite: each step consumes at least one marker character, so the walk terminates.
+  // Walk the markers with sticky regexes so each apparent marker reads only its own text; slicing
+  // the rest per marker made a line of them quadratic.
   for (;;) {
-    const quote = QUOTE_MARKER.exec(content)
-    const item = quote ? null : LIST_MARKER_PREFIX.exec(content)
+    quoteAt.lastIndex = index
+    const quote = quoteAt.exec(line)
     if (quote) {
-      content = content.slice(quote[0].length)
+      column = advancingColumns(column, quote[0])
+      index = quoteAt.lastIndex
       quotes += 1
       continue
     }
+    itemAt.lastIndex = index
+    const item = itemAt.exec(line)
     if (!item) break
-    // The marker's separator is the whitespace run that follows it, and its columns set the item's
-    // content column — the fence sits at it. Counted on the line itself: a tab advances to the next
-    // multiple of four wherever it falls, so the markers in front of the marker count too.
-    const separator = /^[ \t]*/.exec(content.slice(item[0].length))?.[0] ?? ''
-    const markerColumns = columnCount(line.slice(0, line.length - content.length + item[0].length))
-    contentColumn = columnCount(line.slice(0, line.length - content.length + item[0].length + separator.length))
+    const markerColumns = advancingColumns(column, item[0])
+    let separatorEnd = itemAt.lastIndex
+    while (separatorEnd < line.length && (line[separatorEnd] === ' ' || line[separatorEnd] === '\t')) separatorEnd += 1
+    contentColumn = advancingColumns(markerColumns, line.slice(itemAt.lastIndex, separatorEnd))
     if (contentColumn - markerColumns >= 5) return null
-    content = content.slice(item[0].length + separator.length)
+    index = separatorEnd
+    column = contentColumn
   }
-  const fence = parseFence(content)
+  const fence = parseFence(line.slice(index))
   if (!fence) return null
   const implied =
     quotes === 0 && contentColumn < 0 && emptyItemColumn !== null && leadingColumns(line) >= emptyItemColumn
@@ -243,8 +247,13 @@ function quoteDepth(container: string): number {
 
 /** The column a prefix ends at — a tab advances to the next multiple of four, as the parser counts. */
 function columnCount(prefix: string): number {
-  let columns = 0
-  for (const character of prefix) {
+  return advancingColumns(0, prefix)
+}
+
+/** The column after `text`, read from an absolute `start` so tabs keep their tab-stop width. */
+function advancingColumns(start: number, text: string): number {
+  let columns = start
+  for (const character of text) {
     columns = character === '\t' ? columns + (4 - (columns % 4)) : columns + 1
   }
   return columns
@@ -2870,6 +2879,10 @@ export function splitMarkdownChunks(
       htmlBlockContainer = container?.[0] ?? (leavesParagraphContainer && !opensHtml ? paragraphContainer : null)
       htmlBlockStart = i
       htmlComment.open = false
+      // The marker line itself opens the item that holds this block, so its ownership must survive
+      // the blank that ends the block.
+      const owningItem = LIST_ITEM.exec(line)
+      if (owningItem) run = trackListItem(run, owningItem, line)
       const opening = withoutHtmlComments(uncontained, htmlComment)
       htmlBlockContent = [opening]
       htmlBlockElementBase = htmlOpenElements.depth
