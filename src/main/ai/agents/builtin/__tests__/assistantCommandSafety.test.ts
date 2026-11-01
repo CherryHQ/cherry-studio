@@ -46,6 +46,13 @@ describe('detectDestructiveAssistantCommand', () => {
     ['pwsh.exe del victim.txt', 'permanent Windows file deletion'],
     ['powershell -nop -ep bypass del foo', 'permanent Windows file deletion'],
     ['powershell -NoProfile -NonInteractive del victim.txt', 'permanent Windows file deletion'],
+    // PowerShell `return` executes its expression, and a scoped assignment target executes its
+    // right-hand side - both are real deletion positions the pre-narrowing guard covered.
+    ["pwsh -NoProfile -Command 'return del victim.txt'", 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '$script:output = del victim.txt'", 'permanent Windows file deletion'],
+    // Batch echo suppression applies to any command, including `start` and its arguments.
+    ['cmd /c "@start /b del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c "@@start /min /b del victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c "2>nul del /q victim.txt"', 'permanent Windows file deletion'],
     ['cmd /c >nul del /q victim.txt', 'permanent Windows file deletion'],
     ['cmd /c "1>out.txt 2>&1 del victim.txt"', 'permanent Windows file deletion'],
@@ -233,6 +240,13 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('cmd /c start start del victim.txt')).toBe(
       'permanent Windows file deletion'
     )
+    // Echo-suppressed start with arguments still denies, including nested through a plain start.
+    expect(detectDestructiveAssistantCommand('cmd /c "@start /b del victim.txt"')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cmd /c start @start /b del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
   })
 
   it('stays linear on large newline runs and mixed gap runs (separator restart regression)', () => {
@@ -283,6 +297,60 @@ describe('detectDestructiveAssistantCommand', () => {
       'permanent Windows file deletion'
     )
     expect(detectDestructiveAssistantCommand('powershell -NoProfile del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('blocks true CMD equalities with 257+ char unquoted operands (base parity)', () => {
+    // The pre-narrowing guard blocked these; the earlier 256-char cap dropped them. The left
+    // operand now excludes `=` instead of capping length, so valid long literals deny again.
+    const a257 = 'a'.repeat(257)
+    expect(detectDestructiveAssistantCommand(`if ${a257}==${a257} del victim.txt`)).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand(`if ${'x'.repeat(300)}==y del victim.txt`)).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('stays linear on failing equality runs (operand repartition regression)', () => {
+    // Letting unquoted operands cross `==` boundaries makes every boundary a candidate split and
+    // rescans the remainder per split: quadratic. The left operand cannot cross `==`, so each
+    // position has exactly one parse.
+    const chain = 'if ' + 'a=='.repeat(40000) + 'b x'
+    const many = 'echo "' + ('if ' + 'q'.repeat(60) + '==r ').repeat(6000) + '"'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(chain)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(many)).toBeUndefined()
+    // Naive unbounded operands are quadratic here; bounded is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+  })
+
+  it('stays linear on repeated switch-glued start tokens (switch-anchor rescan regression)', () => {
+    // `/start` is a switch-shaped token, not the start command - but it both anchored the
+    // start-arguments branch and was consumed as a switch argument by earlier anchors, so every
+    // token restarted an argument scan over the remainder (measured 238/953/3772ms at 4k/8k/16k).
+    // The start-arguments anchor now requires command position (whitespace, separator or quote
+    // before it), so argument-glued `start` tokens no longer anchor it.
+    const slash = 'echo "' + '/start '.repeat(16000) + 'x"'
+    const atStart = 'echo "' + '@start '.repeat(20000) + 'x"'
+    const nestedAt = 'start ' + '@start '.repeat(20000) + 'x'
+    const backslash = 'start ' + '\\start '.repeat(10000) + 'x'
+    const dashed = 'start ' + 'foo-start '.repeat(10000) + 'x'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(slash)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(atStart)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(nestedAt)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(backslash)).toBeUndefined()
+    expect(detectDestructiveAssistantCommand(dashed)).toBeUndefined()
+    // Unfixed took 2.5-7.8s per shape here; linear is low ms. 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // Real start forms still deny: switches, titles, and nested starts.
+    expect(detectDestructiveAssistantCommand('cmd /c start /b del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('cmd /c start "t" /min del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cmd /c start start del victim.txt')).toBe(
       'permanent Windows file deletion'
     )
   })

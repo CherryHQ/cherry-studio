@@ -26,16 +26,20 @@ const GITHUB_ISSUE_CREATION_PATTERN =
 // - Conservative blocking: prose that contains a syntactically valid conditional (e.g.
 //   "echo if a==b then del is risky") still blocks, matching pre-existing behavior; erring toward
 //   deny is safe here.
-// - Bounded fragments: unquoted EQUALITY operands are capped at 256 chars so the pattern stays
-//   linear on adversarial input (the tool command string is unbounded and this runs on the main
-//   thread). Longer equality operands remain covered when quoted. No complete cmd parser is intended.
+// - Structural bounding, not caps: an unquoted LEFT `==` operand may not cross a `==` boundary
+//   (single `=` segments are allowed), so a failed match has exactly one operand split per
+//   position and cannot repartition a run like `a==a==...` across operand boundaries - that
+//   repartitioning was the quadratic. Arbitrary-length operands (257+ chars) match again,
+//   restoring pre-narrowing parity; the right `==` operand and `EQU`-style operands are plain
+//   space-delimited scans, which are linear. No complete cmd parser is intended.
 // The `exist` operand is deliberately NOT capped: the pre-existing guard blocked a bare token of
 // any length after `exist`, and `\S+` / quoted scans are plain linear repetitions, so capping it
 // would only narrow coverage (a 257+ char token would stop matching and the deletion would sail through).
-const CMD_QUOTED_OR_SHORT = String.raw`(?:"[^"]*"|'[^']*'|\S{1,256})`
+const CMD_QUOTED_OR_BARE = String.raw`(?:"[^"]*"|'[^']*'|[^\s]+)`
+const CMD_EQ_LEFT_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|[^\s=]+(?:=[^\s=]+)*)`
 const CMD_EXIST_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|\S+)`
-const CMD_COMPARISON_OPERANDS = String.raw`${CMD_QUOTED_OR_SHORT}\s+(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\s+${CMD_QUOTED_OR_SHORT}`
-const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_QUOTED_OR_SHORT}\s*==\s*${CMD_QUOTED_OR_SHORT}|${CMD_COMPARISON_OPERANDS})(?=\s)`
+const CMD_COMPARISON_OPERANDS = String.raw`${CMD_QUOTED_OR_BARE}\s+(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\s+${CMD_QUOTED_OR_BARE}`
+const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_EQ_LEFT_OPERAND}\s*==\s*${CMD_QUOTED_OR_BARE}|${CMD_COMPARISON_OPERANDS})(?=\s)`
 // CMD and sh both allow redirections before the command word (`2>nul del x`, `>log 2>&1 rd x`,
 // `<nul erase x`), with optional whitespace between operator and target (`2> nul del x`). Targets
 // stay unbounded: the unquoted form excludes whitespace, redirection and quote characters, inner
@@ -52,8 +56,14 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // argument list instead of drawing a line a valid command can cross. A bare value may be neither
 // the deletion word nor `start` itself: without that, every `start` word in the string would
 // restart an argument scan over the whole remainder (quadratic), and nested `start start del x`
-// still denies because the unanchored retry anchors at the innermost `start`.
-const CMD_START_ARGS = String.raw`(?:\s+"[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|start\b)[^\s;&|/"(){}]+)+`
+// still denies because the unanchored retry anchors at the innermost `start`. The anchor itself
+// is suppressed after argument-token characters (`/start`, `\start`, `foo-start`): a `start`
+// glued to an argument token is not the start command, and every such token would otherwise
+// restart an argument scan (quadratic, e.g. `/start ` repeated). Command-position starts - after
+// whitespace, separators, quotes or a batch `@` echo-suppression prefix - still anchor, so
+// `@start /b del x` and nested starts keep denying. Bare values stop at `@start` too: an
+// echo-suppressed start token is a command, not an argument.
+const CMD_START_ARGS = String.raw`(?:\s+"[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|@?start\b)[^\s;&|/"(){}]+)+`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
 // The gap before the deletion token is one atomic scan: the lookahead captures the maximal run of
 // whitespace/quotes/`@` and the backreference re-matches it, so a failed token check cannot split the
@@ -65,14 +75,17 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // only as far as the nearest preceding newline (lazy run), so a whole run stays linear, and a
 // newline after other gap characters still fires at the run's first newline.
 // `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
-// assignment target may precede it (`$null = del x`), and the token itself may be followed by
+// assignment target may precede it (`$null = del x`, including scoped targets like
+// `$script:output = del x`), and the token itself may be followed by
 // adjacent redirections (`del>nul x`) - all ordinary executable deletion forms that keep the
 // enforced deny. A `$var =` mention inside prose still denies, matching the pre-narrowing
 // guard: the mention is indistinguishable from a real assignment without full quoting state.
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){` +
     '`' +
-    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else)(?=\s)|\bstart${CMD_START_ARGS}(?=\s)|\$[a-zA-Z_][a-zA-Z0-9_]*\s*=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|start|xargs|sudo|exec|then|do|else|return)(?=\s)|(?<![^\s;&|(){}"'` +
+    '`' +
+    String.raw`@])\bstart${CMD_START_ARGS}(?=\s)|\$[a-zA-Z_][a-zA-Z0-9_]*(?::[a-zA-Z_][a-zA-Z0-9_]*)?\s*=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
   'i'
 )
 
