@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { ipcApi } from '@renderer/ipc'
 import { restoreRecycleBinItems, showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
@@ -26,7 +27,7 @@ import type { Group } from '@shared/data/types/group'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { useAgentMutations } from './agentAdapter'
-import { useAssistantMutations } from './assistantAdapter'
+import { useDuplicateAssistantMutation } from './assistantAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
 type ResourceCreateWizardKind = 'assistant' | 'agent'
@@ -103,7 +104,8 @@ export function useResourceCatalogController(
     setActiveGroupId(null)
   }, [resourceType])
 
-  const { createAssistant, duplicateAssistant } = useAssistantMutations()
+  const { createAssistant } = useAssistantMutations()
+  const { duplicateAssistant } = useDuplicateAssistantMutation()
   const { createAgent } = useAgentMutations()
   const { groups } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')

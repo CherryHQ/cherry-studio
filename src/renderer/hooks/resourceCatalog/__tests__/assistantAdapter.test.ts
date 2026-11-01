@@ -119,4 +119,15 @@ describe('useAssistantMutationsById', () => {
     })
     expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
   })
+
+  it('refreshes pins when the assistant is archived and its topics are kept', async () => {
+    ipcRequestMock.mockResolvedValue({ deleted: true })
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await result.current.deleteAssistant()
+    })
+
+    expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins'])
+  })
 })
