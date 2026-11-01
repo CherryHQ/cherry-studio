@@ -741,6 +741,8 @@
   "chat.input.knowledge_base": "ฐานความรู้",
   "chat.input.knowledge_base_disabled_by_files": "ลบไฟล์แนบเพื่อใช้ฐานความรู้",
   "chat.input.knowledge_base_manage": "จัดการฐานความรู้",
+  "chat.input.knowledge_base_retrieval_label": "การค้นหา",
+  "chat.input.knowledge_base_retrieve": "ค้นหาจากฐานความรู้",
   "chat.input.knowledge_base_unavailable": "เลือกโมเดลที่รองรับเครื่องมือ",
   "chat.input.locate_editing_message": "ค้นหาข้อความต้นฉบับ",
   "chat.input.mcp_prompts.description": "แทรกพรอมต์ที่เผยแพร่โดย MCP Server",

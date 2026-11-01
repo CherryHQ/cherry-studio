@@ -54,6 +54,7 @@ import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import {
   appendComposerText,
   createComposerInputAdapter,
+  insertKnowledgeBaseTokenAtStart,
   insertComposerTokenAtCursor,
   updateComposerToken
 } from './composerInputAdapter'
@@ -355,6 +356,10 @@ function addMissingToken(
   existingTokens: readonly ComposerSerializedToken[]
 ) {
   if (existingTokens.some((existing) => existing.id === token.id)) return
+  if (token.kind === 'knowledge') {
+    insertKnowledgeBaseTokenAtStart(editor, token)
+    return
+  }
   insertComposerTokenAtCursor(editor, token)
 }
 

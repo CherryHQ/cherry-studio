@@ -741,6 +741,8 @@
   "chat.input.knowledge_base": "Cơ sở tri thức",
   "chat.input.knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
   "chat.input.knowledge_base_manage": "Quản lý cơ sở kiến thức",
+  "chat.input.knowledge_base_retrieval_label": "Truy xuất",
+  "chat.input.knowledge_base_retrieve": "Truy xuất từ cơ sở tri thức",
   "chat.input.knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ",
   "chat.input.locate_editing_message": "Định vị thông điệp gốc",
   "chat.input.mcp_prompts.description": "Chèn prompt do máy chủ MCP cung cấp",

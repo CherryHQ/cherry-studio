@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from '../composerDraft'
-import { appendComposerText, createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
+import {
+  appendComposerText,
+  createComposerInputAdapter,
+  insertKnowledgeBaseTokenAtStart,
+  updateComposerToken
+} from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
 import { tokenizePromptVariablesInEditor } from '../promptVariables'
 import { createEditableMessageDraft, replaceEditedMessageParts } from '../variants/chat/messageEditingDraft'
@@ -91,6 +96,32 @@ describe('createComposerInputAdapter', () => {
     editor.commands.clearContent()
     updateComposerToken(editor, token)
     expect(serializeComposerDocument(editor)).toEqual({ text: '', tokens: [] })
+  })
+
+  it('keeps retrieval tokens before typed text when a knowledge base is selected after the prompt', () => {
+    const currentEditor = createEditor()
+    const adapter = createComposerInputAdapter(currentEditor)
+    adapter.insertText('Where is the project plan?', { tokenizeVariables: false })
+    currentEditor.commands.setTextSelection(currentEditor.state.doc.content.size - 1)
+    const selectionBeforeInsert = currentEditor.state.selection.from
+
+    insertKnowledgeBaseTokenAtStart(currentEditor, {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge',
+      label: 'Retrieval · Knowledge One',
+      promptText: 'Search Knowledge One.'
+    })
+    insertKnowledgeBaseTokenAtStart(currentEditor, {
+      id: 'knowledge:kb-2',
+      kind: 'knowledge',
+      label: 'Retrieval · Knowledge Two',
+      promptText: 'Search Knowledge Two.'
+    })
+
+    const draft = serializeComposerDocument(currentEditor)
+    expect(draft.tokens.map((token) => token.id)).toEqual(['knowledge:kb-1', 'knowledge:kb-2'])
+    expect(draft.text).toBe('Search Knowledge One. Search Knowledge Two. Where is the project plan?')
+    expect(currentEditor.state.selection.from).toBe(selectionBeforeInsert + 4)
   })
 
   it('turns ${name} into an editable field by default (quick phrases rely on it)', () => {

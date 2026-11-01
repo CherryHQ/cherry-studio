@@ -741,6 +741,8 @@
   "chat.input.knowledge_base": "知识库",
   "chat.input.knowledge_base_disabled_by_files": "移除附件后可使用知识库",
   "chat.input.knowledge_base_manage": "管理知识库",
+  "chat.input.knowledge_base_retrieval_label": "检索",
+  "chat.input.knowledge_base_retrieve": "从知识库检索",
   "chat.input.knowledge_base_unavailable": "请选择支持工具调用的模型",
   "chat.input.locate_editing_message": "定位原消息",
   "chat.input.mcp_prompts.description": "插入 MCP 服务器提供的提示词",

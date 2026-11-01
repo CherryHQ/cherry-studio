@@ -741,6 +741,8 @@
   "chat.input.knowledge_base": "Base di conoscenza",
   "chat.input.knowledge_base_disabled_by_files": "Rimuovi i file allegati per usare la base di conoscenza",
   "chat.input.knowledge_base_manage": "Gestisci base di conoscenza",
+  "chat.input.knowledge_base_retrieval_label": "Recupero",
+  "chat.input.knowledge_base_retrieve": "Recupera dalla base di conoscenza",
   "chat.input.knowledge_base_unavailable": "Seleziona un modello che supporti gli strumenti",
   "chat.input.locate_editing_message": "Trova messaggio originale",
   "chat.input.mcp_prompts.description": "Inserisci un prompt pubblicato da un server MCP",

@@ -63,6 +63,35 @@ export function insertComposerTokenAtCursor(
   chain.insertContent(' ').run()
 }
 
+export function insertKnowledgeBaseTokenAtStart(editor: Editor, token: ComposerDraftToken) {
+  if (editor.isDestroyed || token.kind !== 'knowledge') return
+
+  const paragraph = editor.state.doc.firstChild
+  let position = 1
+  let foundKnowledgeToken = false
+
+  if (paragraph) {
+    for (let index = 0; index < paragraph.childCount; index += 1) {
+      const child = paragraph.child(index)
+      if (child.type.name === COMPOSER_TOKEN_NODE_NAME && child.attrs.kind === 'knowledge') {
+        position += child.nodeSize
+        foundKnowledgeToken = true
+      } else if (foundKnowledgeToken && child.isText && child.text?.startsWith(' ')) {
+        position += 1
+        break
+      } else {
+        break
+      }
+    }
+  }
+
+  const content = Fragment.fromArray([
+    editor.schema.nodeFromJSON({ type: COMPOSER_TOKEN_NODE_NAME, attrs: token }),
+    editor.schema.text(' ')
+  ])
+  editor.view.dispatch(editor.state.tr.insert(position, content))
+}
+
 export function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
   const fromOffset = Math.max(0, Math.min(range.from, range.to))
   const toOffset = Math.max(fromOffset, range.to)

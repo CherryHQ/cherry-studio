@@ -609,6 +609,7 @@ vi.mock('react-i18next', async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string, options?: Record<string, unknown>) => {
         if (key === 'common.selectedItems') return `${options?.count ?? 0} selected`
+        if (key === 'chat.input.knowledge_base_retrieval_label') return 'Retrieval'
         return String(options?.defaultValue ?? key)
       },
       i18n: { resolvedLanguage: 'en-US' }
@@ -4708,7 +4709,7 @@ describe('ChatComposer', () => {
         expect.objectContaining({
           id: 'knowledge:kb-1',
           kind: 'knowledge',
-          label: 'Knowledge One'
+          label: 'Retrieval · Knowledge One'
         })
       ])
     )
@@ -4737,7 +4738,7 @@ describe('ChatComposer', () => {
               expect.objectContaining({
                 id: 'knowledge:kb-1',
                 kind: 'knowledge',
-                label: 'Knowledge One'
+                label: 'Retrieval · Knowledge One'
               })
             ]
           }
@@ -5314,7 +5315,8 @@ describe('ChatComposer', () => {
     const [knowledgeToken] = mocks.surfaceProps?.tokens ?? []
     expect(knowledgeToken).toMatchObject({
       id: 'knowledge:kb-1',
-      kind: 'knowledge'
+      kind: 'knowledge',
+      label: 'Retrieval · Knowledge One'
     })
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [serializeComposerToken(knowledgeToken)] })

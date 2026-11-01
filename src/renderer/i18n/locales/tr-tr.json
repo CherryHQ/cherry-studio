@@ -741,6 +741,8 @@
   "chat.input.knowledge_base": "Bilgi Tabanı",
   "chat.input.knowledge_base_disabled_by_files": "Bilgi Tabanını kullanmak için ekli dosyaları kaldırın",
   "chat.input.knowledge_base_manage": "Bilgi Tabanını Yönet",
+  "chat.input.knowledge_base_retrieval_label": "Getirme",
+  "chat.input.knowledge_base_retrieve": "Bilgi tabanından getir",
   "chat.input.knowledge_base_unavailable": "Araç kullanabilen bir model seçin",
   "chat.input.locate_editing_message": "Özgün mesajı bul",
   "chat.input.mcp_prompts.description": "Bir MCP sunucusu tarafından yayımlanan istemi ekleyin",

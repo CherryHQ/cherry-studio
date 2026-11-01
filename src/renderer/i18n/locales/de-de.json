@@ -741,6 +741,8 @@
   "chat.input.knowledge_base": "Wissensdatenbank",
   "chat.input.knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
   "chat.input.knowledge_base_manage": "Wissensdatenbank verwalten",
+  "chat.input.knowledge_base_retrieval_label": "Abruf",
+  "chat.input.knowledge_base_retrieve": "Aus Wissensdatenbank abrufen",
   "chat.input.knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
   "chat.input.locate_editing_message": "Ursprüngliche Nachricht finden",
   "chat.input.mcp_prompts.description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
