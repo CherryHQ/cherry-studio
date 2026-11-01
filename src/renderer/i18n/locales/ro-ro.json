@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} rezultat(e) căutare",
   "message.websearch.fetch_empty": "Nu au fost găsite rezultate de căutare",
   "message.websearch.fetch_opaque": "Căutat de model",
+  "message.websearch.provider_fallback": "Căutare web: {{provider}} nu a putut finaliza o solicitare. Se încearcă cu {{fallbackProvider}}.",
   "miniApp.activity.clear": "Șterge jurnalul",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Doar refuzuri",

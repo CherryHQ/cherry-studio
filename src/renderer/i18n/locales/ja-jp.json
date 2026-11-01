@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}}件の検索結果",
   "message.websearch.fetch_empty": "検索結果は見つかりませんでした",
   "message.websearch.fetch_opaque": "モデルで検索しました",
+  "message.websearch.provider_fallback": "ウェブ検索: {{provider}} はリクエストを完了できませんでした。代わりに {{fallbackProvider}} を試します。",
   "miniApp.activity.clear": "ログを消去",
   "miniApp.activity.count": "{{name}} × {{calls}}（{{bytes}}）",
   "miniApp.activity.denied_only": "拒否のみ",

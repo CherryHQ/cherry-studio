@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} résultats de recherche",
   "message.websearch.fetch_empty": "Aucun résultat de recherche trouvé",
   "message.websearch.fetch_opaque": "Recherché par le modèle",
+  "message.websearch.provider_fallback": "Recherche web : {{provider}} n’a pas pu traiter une requête. Nouvelle tentative avec {{fallbackProvider}}.",
   "miniApp.activity.clear": "Effacer le journal",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Refus uniquement",

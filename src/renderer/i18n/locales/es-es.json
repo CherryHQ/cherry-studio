@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} resultados de búsqueda",
   "message.websearch.fetch_empty": "No se encontraron resultados de búsqueda",
   "message.websearch.fetch_opaque": "Buscado por el modelo",
+  "message.websearch.provider_fallback": "Búsqueda web: {{provider}} no pudo completar una solicitud. Se intentará con {{fallbackProvider}}.",
   "miniApp.activity.clear": "Borrar registro",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Solo rechazos",

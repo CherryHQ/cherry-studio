@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} результатов поиска",
   "message.websearch.fetch_empty": "Результатов поиска не найдено",
   "message.websearch.fetch_opaque": "Найдено моделью",
+  "message.websearch.provider_fallback": "Поиск в интернете: {{provider}} не смог выполнить запрос. Выполняется попытка через {{fallbackProvider}}.",
   "miniApp.activity.clear": "Очистить журнал",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Только отказы",

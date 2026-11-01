@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "{{count}} arama sonucu",
   "message.websearch.fetch_empty": "Arama sonucu bulunamadı",
   "message.websearch.fetch_opaque": "Model tarafından arandı",
+  "message.websearch.provider_fallback": "Web araması: {{provider}} isteği tamamlayamadı. Bunun yerine {{fallbackProvider}} deneniyor.",
   "miniApp.activity.clear": "Günlüğü temizle",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "Yalnızca reddedilenler",

@@ -2565,6 +2565,7 @@
   "message.websearch.fetch_complete": "ผลการค้นหา {{count}} รายการ",
   "message.websearch.fetch_empty": "ไม่พบผลการค้นหา",
   "message.websearch.fetch_opaque": "ค้นหาโดยโมเดล",
+  "message.websearch.provider_fallback": "การค้นหาเว็บ: {{provider}} ไม่สามารถดำเนินการตามคำขอได้ กำลังลองใช้ {{fallbackProvider}} แทน",
   "miniApp.activity.clear": "ล้าง log",
   "miniApp.activity.count": "{{name}} × {{calls}} ({{bytes}})",
   "miniApp.activity.denied_only": "เฉพาะที่ถูกปฏิเสธ",
