@@ -52,19 +52,21 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   // provider key is never fetched, so it can't land in the CLI config file. Model metadata is still
   // read by the real model id (for contextWindow etc.); a failed read degrades to the raw model id.
   if (args.gateway) {
-    const modelRecord = await dataApiService
-      .get(`/models/${args.modelId}`)
-      .then((record) => record as Model | null)
-      .catch((error) => {
-        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-        return null
-      })
+    const [realProvider, modelRecord] = await Promise.all([
+      dataApiService.get(`/providers/${providerId}`),
+      dataApiService
+        .get(`/models/${args.modelId}`)
+        .then((record) => record as Model | null)
+        .catch((error) => {
+          logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+          return null
+        })
+    ])
     return {
       provider: args.gateway.provider,
       apiKey: args.gateway.apiKey,
-      model: formatGatewayModelId(providerId, modelRecord?.apiModelId ?? model),
-      // The gateway addressing id is UUID-prefixed and unreadable; label with the model's
-      // display name (falling back to the bare model id) for CLIs that show one.
+      model: formatGatewayModelId(realProvider.alias ?? providerId, modelRecord?.apiModelId ?? model),
+      // Keep model labels independent of the provider identifier used for routing.
       modelLabel: modelRecord?.name ?? modelRecord?.apiModelId ?? model,
       modelRecord,
       configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)

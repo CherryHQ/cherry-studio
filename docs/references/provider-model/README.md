@@ -12,3 +12,4 @@ How Cherry Studio defines AI providers and models: preset registry data ships in
 | Document | Purpose |
 | --- | --- |
 | [Provider & Model Registry System](./provider-registry.md) | How preset provider/model data is loaded, normalized, seeded, and merged with user data |
+| [Provider identifiers](./provider-identifiers.md) | Editable aliases, internal identities, and external model addresses |

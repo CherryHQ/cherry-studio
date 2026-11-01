@@ -41,6 +41,7 @@ export type SubmitProviderEditorParams =
   | {
       mode: 'edit'
       name: string
+      alias?: string | null
       defaultChatEndpoint: EndpointType
       /** Logo edit; omitted leaves it unchanged. */
       logo?: ProviderLogoEdit
@@ -48,6 +49,7 @@ export type SubmitProviderEditorParams =
   | {
       mode: 'create'
       name: string
+      alias?: string | null
       defaultChatEndpoint: EndpointType
       endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>>
       presetProviderId?: string
@@ -126,6 +128,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         const originalEditingId = editingProvider.id
         await updateProviderById(originalEditingId, {
           name: trimmedName,
+          ...(params.alias !== undefined ? { alias: params.alias } : {}),
           defaultChatEndpoint: params.defaultChatEndpoint
         })
         if (params.logo) {
@@ -144,6 +147,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       const provider = await createProvider({
         providerId,
         name: trimmedName,
+        ...(params.alias !== undefined ? { alias: params.alias } : {}),
         ...(params.presetProviderId ? { presetProviderId: params.presetProviderId } : {}),
         defaultChatEndpoint: params.defaultChatEndpoint,
         ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),

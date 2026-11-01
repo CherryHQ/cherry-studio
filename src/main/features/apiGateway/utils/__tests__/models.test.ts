@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
-    getByProviderId: mocks.getProvider,
+    getByIdentifier: mocks.getProvider,
     list: mocks.listProviders
   }
 }))
@@ -65,6 +65,26 @@ describe('api gateway model listing', () => {
         }
       ]
     })
+  })
+
+  it('lists aliases and resolves both forms to the same internal model', async () => {
+    const provider = { id: 'openai', name: 'Company', alias: 'company', isEnabled: true }
+    mocks.listProviders.mockReturnValue([provider])
+    mocks.getProvider.mockImplementation((identifier: string) => {
+      if (identifier === 'company' || identifier === 'openai') return provider
+      throw new Error('not found')
+    })
+    expect((await getModels()).data.map((model) => model.id)).toEqual(['company:gpt-4o'])
+    for (const prefix of ['company', 'openai']) {
+      expect(await resolveGatewayModelAddress(`${prefix}:gpt-4o [1M]`)).toMatchObject({
+        providerId: 'openai',
+        uniqueModelId: 'openai::gpt-4o',
+        modelAddress: `${prefix}:gpt-4o`
+      })
+    }
+    await expect(resolveGatewayModelAddress('unknown:gpt-4o')).rejects.toThrow(/not available/)
+    provider.isEnabled = false
+    await expect(resolveGatewayModelAddress('company:gpt-4o')).rejects.toThrow(/not available/)
   })
 
   it('does not expose the managed CherryAI default model', async () => {
@@ -271,14 +291,17 @@ describe('api gateway model listing', () => {
       mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
     })
 
-    it('keeps listed Cherry Cloud models out of the public gateway', async () => {
-      const response = await getModels()
-      expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+    it.each([CHERRY_CLOUD_PROVIDER_ID, 'cloud-alias'])(
+      'keeps Cherry Cloud models out of the public gateway through %s',
+      async (identifier) => {
+        const response = await getModels()
+        expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
 
-      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
-        'not available through the API gateway'
-      )
-    })
+        await expect(resolveGatewayModelAddress(`${identifier}:deepseek-free`)).rejects.toThrow(
+          'not available through the API gateway'
+        )
+      }
+    )
 
     it('serves Cherry Cloud models to internal requests', async () => {
       await expect(

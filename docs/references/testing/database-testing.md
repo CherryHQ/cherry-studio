@@ -95,6 +95,7 @@ resets the mocks.
 
 ```typescript
 export interface TestDatabaseOptions {
+  beforeMigration?: string
   seeders?: ISeeder[]
 }
 ```
@@ -109,14 +110,28 @@ import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSee
 setupTestDatabase({ seeders: [new PresetProviderSeeder()] })
 ```
 
+## Testing a historical schema upgrade
+
+Use `setupTestDatabase({ beforeMigration: '0027_knowledge_base_order' })` to
+initialize the database with production migrations strictly before that journal
+tag. Populate the old schema, then call `applyMigrations(dbh.db, migrationsFolder)`
+with the full production migration directory and verify data preservation and
+new constraints. Use raw inserts when the current Drizzle schema includes
+columns that did not exist at the baseline.
+
+Do not delete migration journal entries from an already-current schema: later
+migrations would replay against tables they have already changed. The harness
+preserves schema between tests, so give each upgrade scenario its own describe
+scope; use a separate default harness for latest-schema idempotence tests.
+
 ## Testing a Schema Migration on Populated Rows
 
 To check that a shipped migration keeps existing rows, populate the tables,
 then call `replayMigration(dbh, '<tag>')`. It re-runs that one migration
 through `applyMigrations`, as an upgrade would. A migration that is not
-re-runnable needs its own schema change reverted first (see
-`knowledgeOrderMigration.test.ts`). The migrations after it are not re-run,
-so the test keeps passing when a later `ALTER TABLE ... ADD` lands.
+re-runnable needs its own schema change reverted first; prefer the historical
+baseline harness above when testing the complete upgrade path. The migrations
+after it are not re-run, so the test keeps passing when a later `ALTER TABLE ... ADD` lands.
 
 ## Migration Recipes
 

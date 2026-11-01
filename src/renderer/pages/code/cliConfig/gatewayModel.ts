@@ -1,6 +1,8 @@
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
+export type GatewayModel = Model & { providerAlias?: string }
+
 /**
  * The gateway-addressed model string ("providerId:apiModelId") for a stored real `UniqueModelId`,
  * used by the connection-match sides so the value they compare against a written config is identical
@@ -10,12 +12,13 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
  */
 export function gatewayExpectedModel(
   uniqueModelId: string | null | undefined,
-  apiModelId?: string
+  apiModelId?: string,
+  providerAlias?: string
 ): string | undefined {
   if (!uniqueModelId || !isUniqueModelId(uniqueModelId)) return undefined
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   try {
-    return formatGatewayModelId(providerId, apiModelId ?? modelId)
+    return formatGatewayModelId(providerAlias ?? providerId, apiModelId ?? modelId)
   } catch {
     return undefined
   }
@@ -30,11 +33,14 @@ export function gatewayExpectedModel(
  */
 export function gatewayModelIdFromAddress(
   gatewayAddress: string | null | undefined,
-  models: Map<UniqueModelId, Model> | undefined
+  models: Map<UniqueModelId, GatewayModel> | undefined
 ): UniqueModelId | undefined {
   if (!gatewayAddress || !models) return undefined
   for (const [uniqueModelId, model] of models) {
-    if (gatewayExpectedModel(uniqueModelId, model.apiModelId) === gatewayAddress) {
+    if (
+      gatewayExpectedModel(uniqueModelId, model.apiModelId, model.providerAlias) === gatewayAddress ||
+      gatewayExpectedModel(uniqueModelId, model.apiModelId) === gatewayAddress
+    ) {
       return uniqueModelId
     }
   }

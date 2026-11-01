@@ -15,6 +15,7 @@ import {
   type CliConfigFileDraft,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
+  type GatewayModel,
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
   readCliConfigFiles,
@@ -39,7 +40,7 @@ interface UseLaunchDialogControllerOptions {
   /** Synthetic Cherry gateway bundle — used to re-verify/rebuild the gateway config before launch. */
   apiGatewayProvider?: ApiGatewayProviderBundle | null
   /** Models currently available through the gateway, keyed by UniqueModelId. */
-  gatewayModelsById: Map<UniqueModelId, Model>
+  gatewayModelsById: Map<UniqueModelId, GatewayModel>
   /** Every enabled model, keyed by UniqueModelId — the direct-launch counterpart of the map above. */
   modelById: Map<UniqueModelId, Model>
   /** True while the model query is in flight, when a miss in either map above proves nothing. */
@@ -192,7 +193,8 @@ export function useLaunchDialogController({
           const onDiskModel = extractConnectionFromCliConfigDraft(selectedCliTool, onDiskFiles)?.model
           const expectedModel = gatewayExpectedModel(
             cliConfigContext.modelId,
-            gatewayModelsById.get(cliConfigContext.modelId)?.apiModelId
+            gatewayModelsById.get(cliConfigContext.modelId)?.apiModelId,
+            gatewayModelsById.get(cliConfigContext.modelId)?.providerAlias
           )
           if (onDiskModel && expectedModel && onDiskModel !== expectedModel) {
             const onDiskModelId = gatewayModelIdFromAddress(onDiskModel, gatewayModelsById)

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
 import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
@@ -43,6 +44,9 @@ export function useCurrentCliConfigConnection({
   const [reloadRevision, setReloadRevision] = useState(0)
   const readGenerationRef = useRef(0)
   const { models } = useModels({ enabled: true })
+  const { providers } = useProviders()
+  const selectedModel = models.find((model) => model.id === currentProviderConfig?.modelId)
+  const providerAlias = providers.find((provider) => provider.id === selectedModel?.providerId)?.alias
   const reload = useCallback(() => setReloadRevision((revision) => revision + 1), [])
 
   const isGateway = !!enabledProvider && isApiGatewayProviderId(enabledProvider.id)
@@ -76,7 +80,9 @@ export function useCurrentCliConfigConnection({
       let expectedModel: string | undefined
       if (isGateway) {
         apiKeys = gatewayApiKey ? [{ id: 'gateway', key: gatewayApiKey, isEnabled: true }] : []
-        expectedModel = gatewayExpectedModel(currentProviderConfig?.modelId, gatewayApiModelId)
+        expectedModel = gatewayExpectedModel(currentProviderConfig?.modelId, gatewayApiModelId, providerAlias)
+        if (connection.model === gatewayExpectedModel(currentProviderConfig?.modelId, gatewayApiModelId))
+          expectedModel = connection.model
       } else {
         apiKeys = await readProviderApiKeys(enabledProvider.id)
         const currentCliConfigContext = resolveCliConfigApplyContext(
@@ -107,6 +113,7 @@ export function useCurrentCliConfigConnection({
     isGateway,
     gatewayApiKey,
     gatewayApiModelId,
+    providerAlias,
     reloadRevision
   ])
 

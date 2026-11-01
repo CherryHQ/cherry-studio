@@ -41,9 +41,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       new Map(
         allModels
           .filter((model) => gatewayProviderIds.has(model.providerId) && isPublicGatewayRoutableModel(model))
-          .map((model) => [model.id, model])
+          .map((model) => [
+            model.id,
+            { ...model, providerAlias: providers.find((provider) => provider.id === model.providerId)?.alias }
+          ])
       ),
-    [allModels, gatewayProviderIds]
+    [allModels, gatewayProviderIds, providers]
   )
   const defaultGatewayModelId =
     defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined

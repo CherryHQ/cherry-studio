@@ -80,3 +80,15 @@ describe('Provider DTO logo validation', () => {
     expect(UpdateProviderSchema.safeParse({ providerSettings: { cacheControl: { ttl: '30m' } } }).success).toBe(false)
   })
 })
+
+describe('provider alias input', () => {
+  it('trims identifiers, distinguishes clearing from omission, and rejects routing delimiters', () => {
+    expect(CreateProviderSchema.parse({ providerId: 'p', name: 'P', alias: ' company-1 ' }).alias).toBe('company-1')
+    expect(UpdateProviderSchema.parse({ alias: '  ' })).toEqual({ alias: null })
+    expect(UpdateProviderSchema.parse({ alias: null })).toEqual({ alias: null })
+    expect(UpdateProviderSchema.parse({ name: 'New name' })).not.toHaveProperty('alias')
+    for (const alias of ['a:b', 'a/b', 'a b', 'ABC', '公司']) {
+      expect(UpdateProviderSchema.safeParse({ alias }).success).toBe(false)
+    }
+  })
+})

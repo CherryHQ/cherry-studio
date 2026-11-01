@@ -92,10 +92,18 @@ const ProviderSettingsMergePatchSchema = z.object({
 // DTOs
 // ============================================================================
 
+export const ProviderAliasSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9_-]*$/)
+  .nullable()
+  .transform((value) => value || null)
+
 /** DTO for creating a new provider */
 export const CreateProviderSchema = z.strictObject({
   /** User-defined unique ID (required) */
   providerId: z.string().min(1),
+  alias: ProviderAliasSchema.optional(),
   /** Associated preset provider ID */
   presetProviderId: z.string().optional(),
   /** Display name (required on create) */
@@ -127,6 +135,7 @@ export type CreateProviderDto = z.infer<typeof CreateProviderSchema>
  */
 const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
   name: true,
+  alias: true,
   endpointConfigs: true,
   defaultChatEndpoint: true,
   authConfig: true

@@ -34,6 +34,7 @@ export interface ModelsFilter {
 
 export interface ResolvedGatewayModelAddress {
   providerId: string
+  modelAddress: string
   apiModelId: string
   uniqueModelId: UniqueModelId
   provider: Provider
@@ -84,7 +85,7 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
 function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   const apiModelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
   return {
-    id: formatGatewayModelId(model.providerId, apiModelId),
+    id: formatGatewayModelId(provider?.alias ?? model.providerId, apiModelId),
     object: 'model',
     created: Math.floor(Date.now() / 1000),
     owned_by: model.ownedBy || provider?.name || model.providerId
@@ -106,18 +107,19 @@ export async function resolveGatewayModelAddress(
     throw gatewayModelError(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`, 400)
   }
 
-  const providerId = modelAddress.slice(0, sepIdx)
+  const identifier = modelAddress.slice(0, sepIdx)
   const apiModelId = modelAddress.slice(sepIdx + 1)
+  let provider: Provider
+  try {
+    provider = providerService.getByIdentifier(identifier)
+  } catch {
+    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
+  }
+  const providerId = provider.id
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
     throw gatewayModelError('CherryAI managed default model is not available through the API gateway', 400)
   }
 
-  let provider: Provider
-  try {
-    provider = providerService.getByProviderId(providerId)
-  } catch {
-    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
-  }
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
@@ -140,7 +142,14 @@ export async function resolveGatewayModelAddress(
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
-  return { providerId, apiModelId: match.id, uniqueModelId: match.candidate.id, provider, model: match.candidate }
+  return {
+    providerId,
+    modelAddress: formatGatewayModelId(identifier, match.id),
+    apiModelId: match.id,
+    uniqueModelId: match.candidate.id,
+    provider,
+    model: match.candidate
+  }
 }
 
 /**
