@@ -172,6 +172,20 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(runtime.get('session-a')).toBe(replacement)
   })
 
+  it('preserves the committed location when a retained guest changes destination', () => {
+    runtime.ensure('session-a', 'https://example.com/a')
+    const guest = document.createElement('webview')
+    runtime.installGuest('session-a', guest)
+    runtime.updateGuest('session-a', guest, { url: 'https://example.com/committed-a' })
+    runtime.ensure('session-a', 'https://example.com/b')
+    expect(runtime.get('session-a')).toMatchObject({
+      sourceUrl: 'https://example.com/b',
+      url: 'https://example.com/committed-a'
+    })
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')?.sourceUrl).toBe('https://example.com/committed-a')
+  })
+
   it('recovers an artifact that crashes before its first commit from the artifact URL', () => {
     runtime.ensure('session-a', 'https://example.com/page')
     const httpGuest = document.createElement('webview')

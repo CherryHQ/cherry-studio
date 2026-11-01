@@ -2,6 +2,7 @@ import type { WebviewTag } from 'electron'
 
 import { cacheService } from '@renderer/data/CacheService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { classifyTurn } from '@shared/ai/transport'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
@@ -61,8 +62,10 @@ export class AgentBrowserRuntimeService {
     const securityProfile = sourceUrl.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : profile
     if (existing) {
       if (existing.sourceUrl !== sourceUrl || existing.securityProfile !== securityProfile) {
-        // A different entry or profile replaces the guest, so the previous guest's committed location no longer applies.
-        this.update(sessionId, { sourceUrl, securityProfile, url: '' })
+        const replacesGuest =
+          getGuestAuthorizationKey(existing.securityProfile, existing.sourceUrl) !==
+          getGuestAuthorizationKey(securityProfile, sourceUrl)
+        this.update(sessionId, { sourceUrl, securityProfile, ...(replacesGuest ? { url: '' } : {}) })
       }
       return
     }

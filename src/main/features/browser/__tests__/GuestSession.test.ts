@@ -91,6 +91,92 @@ describe('GuestSession command lifetime', () => {
     expect(session.busy).toBe(false)
   })
 
+  it('immediately restores network observation after a managed guest recovers', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    const before = mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+    mock.crash()
+    mock.recover()
+    // CDP stops delivering Network events when detached, so check the connection and domain re-enablement.
+    await vi.waitFor(() => {
+      expect(mock.debugger.isAttached()).toBe(true)
+      expect(
+        mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+      ).toBeGreaterThan(before)
+    })
+    mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+      requestId: 'after-recovery',
+      type: 'Fetch',
+      request: { method: 'GET', url: 'https://example.com/after', headers: {} }
+    })
+    expect(session.networkRequests().requests.map((request) => request.url)).toContain('https://example.com/after')
+  })
+
+  it('reattaches and restores network observation when Electron detached after a crash', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    const before = mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+    mock.crash()
+    mock.debugger.detach()
+    mock.recover()
+    await vi.waitFor(() => {
+      expect(mock.debugger.isAttached()).toBe(true)
+      expect(
+        mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+      ).toBeGreaterThan(before)
+    })
+  })
+
+  it('leaves a borrowed guest without an observer detached after recovery', async () => {
+    const { session, mock } = setup()
+    await session.send('Runtime.enable')
+    mock.crash()
+    mock.recover()
+    expect(mock.debugger.isAttached()).toBe(false)
+  })
+
+  it('waits for recovery before dispatching a concurrent command', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    const started = new Signal<void>()
+    const resume = new Signal<object>()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) => {
+      if (method === 'Page.enable') {
+        started.resolve()
+        return Promise.resolve(resume)
+      }
+      return fallback(method, params)
+    })
+    mock.crash()
+    mock.recover()
+    await started
+    const command = session.send('Runtime.enable')
+    expect(mock.debugger.attach).toHaveBeenCalledTimes(1)
+    resume.resolve({})
+    await expect(command).resolves.toBeDefined()
+    expect(mock.debugger.attach).toHaveBeenCalledTimes(1)
+  })
+
+  it('detaches after recovery initialization fails and retries on the next command', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    mock.crash()
+    mock.debugger.sendCommand.mockRejectedValueOnce(new Error('recovery failed'))
+    mock.recover()
+    await vi.waitFor(() => expect(mock.debugger.isAttached()).toBe(false))
+    await expect(session.send('Runtime.enable')).resolves.toBeDefined()
+    expect(mock.debugger.isAttached()).toBe(true)
+  })
+
   it('keeps observing downloads after recovery while an observe() handle is held', async () => {
     const { session, mock } = setup()
     const handle = await session.observe()
