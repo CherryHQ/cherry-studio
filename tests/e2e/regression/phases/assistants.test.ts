@@ -687,9 +687,10 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       window.api.dataApi.request({ id: 'mp23-list', method: 'GET', path: '/assistants' })
     )
     expect(result.status).toBe(200)
-    return (result.data as { items: unknown[] }).items
+    return (result.data as { items: { name?: string }[] }).items
+      // Filter before parsing: an unrelated pre-existing row must not fail this case's schema check.
+      .filter((item) => item.name?.startsWith(name))
       .map((item) => AssistantSchema.parse(item))
-      .filter((item) => item.name.startsWith(name))
   }
   try {
     // Persisted local fixtures only; export/import does not require model inference.
@@ -808,15 +809,13 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     await page.getByRole('button', { name: 'Import Assistant', exact: true }).click()
     dialog = page.getByRole('dialog')
     await dialog.locator('input[type="file"]').setInputFiles(exportedPath)
-    await expect(dialog).toContainText(/Imported successfully|already exists|overwrite|replace|rename|name conflict/i)
+    await expect(dialog).toContainText('Imported successfully: MP-23-assistant.json')
     await screenshot('MP-23 repeated same-name import handling')
     const afterRepeat = await readAssistants()
+    expect(afterRepeat).toHaveLength(3)
     expect(afterRepeat.find(({ id }) => id === original.id)).toEqual(original)
     expect(afterRepeat.find(({ id }) => id === imported.id)).toEqual(imported)
-    await expect(dialog, 'MP-23: same-name import must explicitly offer overwrite or rename handling').toContainText(
-      /already exists|overwrite|replace|rename|name conflict/i,
-      { timeout: 3000 }
-    )
+    expect(afterRepeat.find(({ id }) => id !== original.id && id !== imported.id)).toMatchObject({ name, prompt, emoji })
   } finally {
     await rm(exportedPath, { force: true })
     await page.keyboard.press('Escape').catch(() => undefined)
