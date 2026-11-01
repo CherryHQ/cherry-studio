@@ -300,7 +300,6 @@ export interface WebCitationReference extends BaseCitationReference {
 
 /**
  * Knowledge base citation reference
- * Data structure compatible with KnowledgeReference[] from renderer
  */
 export interface KnowledgeCitationReference extends BaseCitationReference {
   citationType: CitationType.KNOWLEDGE
@@ -318,7 +317,6 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
 
 /**
  * Memory citation reference
- * Data structure compatible with MemoryItem[] from renderer
  */
 export interface MemoryCitationReference extends BaseCitationReference {
   citationType: CitationType.MEMORY
