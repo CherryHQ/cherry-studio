@@ -2587,6 +2587,8 @@ export function splitMarkdownChunks(
   let previousStatus: 'paragraph' | 'block' = 'block'
   /** Whether the previous line was indented code, where an empty marker cannot open a list. */
   let previousWasIndentedCode = false
+  /** The container of that indented code, so the guard applies only while it is still held. */
+  let previousIndentedCodeContainer: string | null = null
   /** Whether the previous line was a definition, after which a type-7 tag starts a paragraph. */
   let previousWasDefinition = false
   /** The container prefix the line was written behind, when it opened a paragraph. */
@@ -2723,8 +2725,10 @@ export function splitMarkdownChunks(
     const paragraphOpenAtLine = previousStatus === 'paragraph'
     const afterIndentedCode = previousWasIndentedCode
     const afterDefinition = previousWasDefinition
+    const afterIndentedCodeContainer = previousIndentedCodeContainer
     previousWasIndentedCode = false
     previousWasDefinition = false
+    previousIndentedCodeContainer = null
     // The item above belongs to the line immediately below it: a blank between them ends the item,
     // and the indented line after it is code the parser reads at the top level.
     const emptyItemColumn = pendingEmptyItem
@@ -2944,6 +2948,7 @@ export function splitMarkdownChunks(
       (previousStatus === 'block' || opensContainerBlock) &&
       (containerHoldsCode || (innerIndent >= itemCodeFloor && !startsBlock(uncontained)))
     previousWasIndentedCode = indentedCode
+    previousIndentedCodeContainer = indentedCode ? (container?.[0] ?? null) : null
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
         // A marker-only line behind the definition's container (`>` on its own) is blank the way
@@ -3113,8 +3118,12 @@ export function splitMarkdownChunks(
     // opener that breaks that paragraph — a deeper quote, or a list marker, which opens a fresh
     // item — leaves the definition standing behind it.
     const lineMarker = LIST_ITEM.exec(line)
+    // The guard applies at the code block's own level: top-level code followed by a top-level
+    // marker, not quoted code left behind by an unquoted marker (which opens a real list).
+    const sameContainer =
+      afterIndentedCodeContainer === null && (container === null || !containerMarkers(container[0]).includes('>'))
     const orderedParagraphStart =
-      afterIndentedCode && lineMarker !== null && lineMarker[2] === undefined && lineMarker[3] !== '1'
+      afterIndentedCode && sameContainer && lineMarker !== null && lineMarker[2] === undefined && lineMarker[3] !== '1'
     const definition =
       (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode || orderedParagraphStart
         ? null
@@ -3157,9 +3166,13 @@ export function splitMarkdownChunks(
         // in: a marker that opens a block of its own leaves it a line of prose instead.
         const paragraphPrefix = DEFINITION_CONTAINER.exec(lines[paragraphStart])?.[0] ?? ''
         const underlinePrefix = container?.[0] ?? ''
+        const underlineHeldByItem =
+          paragraphContainer !== null && containerMarkers(paragraphContainer).some((marker) => marker !== '>')
+        const underlineInItem = run !== null && leadingColumns(line) >= run.content
         if (
           quoteDepth(underlinePrefix) === quoteDepth(paragraphPrefix) &&
-          !containerOpensBlock(underlinePrefix, paragraphPrefix)
+          !containerOpensBlock(underlinePrefix, paragraphPrefix) &&
+          !(underlineHeldByItem && !underlineInItem)
         ) {
           const text = lines
             .slice(paragraphStart, i)
@@ -3185,8 +3198,15 @@ export function splitMarkdownChunks(
       // Indented code is a block of its own, so the line under it starts from no open paragraph —
       // which is what lets the definition there stand instead of reading as paragraph text.
       const emptyMarkerParagraph = EMPTY_LIST_ITEM.test(line) && (afterIndentedCode || afterDefinition)
+      const lazySetextUnderline =
+        paragraphOpen &&
+        paragraphContainer !== null &&
+        containerMarkers(paragraphContainer).some((marker) => marker !== '>') &&
+        SETEXT_UNDERLINE.test(uncontained) &&
+        !(run !== null && leadingColumns(line) >= run.content)
       const status =
         !emptyMarkerParagraph &&
+        !lazySetextUnderline &&
         (indentedCode || isCompletedBlock(line, container?.[0] ?? null, paragraphOpen, run?.content ?? null))
           ? 'block'
           : 'paragraph'

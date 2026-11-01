@@ -1046,6 +1046,15 @@ describe('splitMarkdownChunks', () => {
     )
   })
 
+  it('accepts a definition that opens a list after quoted code', () => {
+    // The quoted code block is left behind, so `2.` opens a real item and its definition is the
+    // first one; the indented-code guard must not survive the container change.
+    const content = ['>     code', '2. [r]: /first', '', '[r]: /right', '', 'read [r]'].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['/first'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/first'])
+  })
+
   it('keeps a quoted code-shaped line as paragraph text', () => {
     // Five columns behind the quote are indented code only when no quoted paragraph is open; here
     // the line continues the paragraph, so the definition below it is prose.
@@ -1062,6 +1071,17 @@ describe('splitMarkdownChunks', () => {
     expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['https://right.example']))
     expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
       new Set(['https://right.example'])
+    )
+  })
+
+  it('does not complete a setext heading outside the list item', () => {
+    // The unindented `===` lazily continues the item's paragraph, so it is text and the
+    // definition-shaped line below stays paragraph text; only the later definition wins.
+    const content = ['1. p', '===', '[r]: /first', '', '[r]: /right', '', 'read [r]'].join('\n')
+
+    expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['/right']))
+    expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
+      new Set(['/right'])
     )
   })
 
