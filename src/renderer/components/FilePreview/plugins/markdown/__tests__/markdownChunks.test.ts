@@ -3393,6 +3393,19 @@ describe('a malformed tag that never closes', () => {
     expect(elapsed).toBeLessThan(1_000)
   })
 
+  it('reads a multiline tag continuation once per line', () => {
+    // Re-joining and rescanning the pending prefix on every line took ~6 s on this 240 KB input;
+    // the carried cursor state makes the scan linear.
+    const content = ('<div\n' + 'a\n'.repeat(30_000) + '>\n\nvisible\n\n</div>\n\n').repeat(4)
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('keeps reading tags after an unterminated one on the same block', () => {
     // The unterminated `<a` is dropped, but the `</div>` behind it still has to close the element
     // the block opened — a walk that gave up at the first failure would leave `div` on the open

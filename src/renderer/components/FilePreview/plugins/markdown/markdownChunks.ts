@@ -43,9 +43,6 @@ export const MARKDOWN_CHUNK_BUDGET_CHARS = 24 * 1024
 /** The widest tag the heading text reads; bounding the slice keeps malformed runs linear. */
 const MAX_TAG_WINDOW = 4_096
 
-/** The longest unfinished HTML tag carried across block lines; a longer run is malformed, not a tag. */
-const MAX_PENDING_HTML_TAG_CHARS = 64 * 1024
-
 /**
  * A single indivisible block cannot be windowed, so one this large would still reach the renderer
  * whole. That is pathological input rather than a merely long document, and it falls back to the
@@ -593,82 +590,16 @@ const VOID_HTML_ELEMENTS = new Set([
   'wbr'
 ])
 
-interface HtmlTag {
+/** A tag the open HTML block is still reading; its attributes may continue on the next line. */
+interface PendingHtmlTag {
   name: string
   closing: boolean
-  selfClosing: boolean
+  quote: string | null
+  lastNonSpace: string
 }
 
-/**
- * Walk the tags a line carries, one character run at a time. A tag opens at `<` plus a name, ends
- * at the first `>` that is not inside matched quotes, and an unterminated one is dropped — which is
- * what keeps a line of stray quotes linear instead of exponential. `incomplete` receives a tag that
- * reached the line end without closing, so the HTML block's next line can complete it.
- */
-function* eachHtmlTag(line: string, incomplete?: { index: number }): Generator<HtmlTag> {
-  let index = 0
-  while (index < line.length) {
-    const at = line.indexOf('<', index)
-    if (at < 0) return
-    const named = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)/.exec(line.slice(at))
-    if (!named) {
-      index = at + 1
-      continue
-    }
-    const attrsStart = at + named[0].length
-    let cursor = attrsStart
-    let terminated = false
-    let restarted = false
-    while (cursor < line.length) {
-      const char = line[cursor]
-      if (char === '>') {
-        terminated = true
-        break
-      }
-      // A quoted run is opaque: a `>` inside it does not end the tag, and an unterminated quote
-      // runs to the end of the line rather than backtracking into the alternatives behind it.
-      if (char === '"' || char === "'") {
-        const end = line.indexOf(char, cursor + 1)
-        if (end < 0) {
-          // An unterminated quote holds no run: the rest of the tag is plain characters, and it
-          // ends at the next `>` — or the tag is dropped, which is what keeps a line of stray
-          // quotes linear instead of exponential.
-          const close = line.indexOf('>', cursor + 1)
-          if (close < 0) {
-            if (incomplete) incomplete.index = at
-            return
-          }
-          cursor = close
-          terminated = true
-          break
-        }
-        cursor = end + 1
-        continue
-      }
-      // A new tag opens before this one closes, so this one is malformed and is dropped; the
-      // next tag is read where it stands (an unfinished `<a` must not swallow a later `</div>`).
-      if (char === '<' && /^<(\/?)[A-Za-z]/.test(line.slice(cursor))) {
-        index = cursor
-        restarted = true
-        break
-      }
-      cursor += 1
-    }
-    if (restarted) continue
-    if (terminated) {
-      yield {
-        name: named[2].toLowerCase(),
-        closing: named[1] === '/',
-        selfClosing: /\/\s*$/.test(line.slice(attrsStart, cursor))
-      }
-      index = cursor + 1
-      continue
-    }
-    // The scan ran out of line before reaching `>`, so no later tag on this line can terminate
-    // either; keep this one for the block's next line.
-    if (incomplete) incomplete.index = at
-    return
-  }
+interface HtmlTagScan {
+  pending: PendingHtmlTag | null
 }
 
 /**
@@ -734,36 +665,68 @@ class HtmlElementStack {
   }
 }
 
-/** A tag the open HTML block left incomplete at a line end; the next line of the block completes it. */
-interface HtmlTagScan {
-  pending: string
-}
-
 function trackHtmlElements(line: string, stack: HtmlElementStack, scan: HtmlTagScan): void {
-  // Scanned by hand, not by a regex: the tag's attributes alternate between quoted runs and
-  // `[^>]`, and a tag that never closes makes those alternatives overlap — the backtracking an
-  // engine spends on it grows exponentially in the number of quotes, which stalls the splitter
-  // before the fallback has a chance to guard it. Each step here advances over one quote run or
-  // one plain character, so a whole line costs one pass over it.
-  const text = scan.pending.length > 0 ? `${scan.pending}\n${line}` : line
-  scan.pending = ''
-  const incomplete = { index: -1 }
-  for (const tag of eachHtmlTag(text, incomplete)) {
-    if (tag.closing) {
-      stack.closeTag(tag.name)
+  let index = 0
+  while (index < line.length) {
+    let tag = scan.pending
+    if (tag === null) {
+      const at = line.indexOf('<', index)
+      if (at < 0) return
+      const named = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)/.exec(line.slice(at))
+      if (!named) {
+        index = at + 1
+        continue
+      }
+      tag = { name: named[2].toLowerCase(), closing: named[1] === '/', quote: null, lastNonSpace: '' }
+      index = at + named[0].length
+    }
+    let terminated = false
+    let abandoned = false
+    while (index < line.length) {
+      const char = line[index]
+      // A quoted run is opaque; carrying the quote across lines is what lets a value continue.
+      if (tag.quote !== null) {
+        if (char === tag.quote) tag.quote = null
+        index += 1
+        continue
+      }
+      if (char === '>') {
+        terminated = true
+        break
+      }
+      if (char === '"' || char === "'") {
+        tag.quote = char
+        index += 1
+        continue
+      }
+      // A new tag opens before this one closes: this one is malformed, so read the new one in place.
+      if (char === '<' && /^<(\/?)[A-Za-z]/.test(line.slice(index))) {
+        abandoned = true
+        break
+      }
+      if (!/\s/.test(char)) tag.lastNonSpace = char
+      index += 1
+    }
+    if (terminated) {
+      if (tag.closing) {
+        stack.closeTag(tag.name)
+      } else {
+        // A raw name keeps the region contract its own tag shape sets: `<pre/>` is the type-7 tag
+        // the parser reads plain, and holding an element open there would swallow the lines below.
+        const opens =
+          tag.lastNonSpace === '/'
+            ? !stack.isForeign(tag.name) && !HTML_RAW_TAGS.has(tag.name)
+            : !VOID_HTML_ELEMENTS.has(tag.name)
+        if (opens) stack.openTag(tag.name)
+      }
+      scan.pending = null
+      index += 1
       continue
     }
-    // A raw name keeps the region contract its own tag shape sets: `<pre/>` is the type-7 tag the
-    // parser reads plain, and holding an element open there would swallow the lines below it.
-    const opens = tag.selfClosing
-      ? !stack.isForeign(tag.name) && !HTML_RAW_TAGS.has(tag.name)
-      : !VOID_HTML_ELEMENTS.has(tag.name)
-    if (opens) stack.openTag(tag.name)
-  }
-  // A tag may continue on the block's next line; keep the unfinished tail so the opening element
-  // is seen before a boundary can split the block away from the content it holds.
-  if (incomplete.index >= 0 && text.length - incomplete.index <= MAX_PENDING_HTML_TAG_CHARS) {
-    scan.pending = text.slice(incomplete.index)
+    // The line ended inside the tag; keep the cursor state so the next line continues in place.
+    scan.pending = abandoned ? null : tag
+    if (abandoned) continue
+    return
   }
 }
 
@@ -2557,7 +2520,7 @@ export function splitMarkdownChunks(
   // element until the closing tag turns up — so a boundary may not fall while one is open.
   const htmlOpenElements = new HtmlElementStack()
   /** A tag the open HTML block left unfinished at a line end, carried to the block's next line. */
-  const htmlTagScan: HtmlTagScan = { pending: '' }
+  const htmlTagScan: HtmlTagScan = { pending: null }
   // The stack's height when the open block began, so the elements it opened can be given back when
   // the container it was written behind ends with it.
   let htmlBlockElementBase = 0
@@ -2669,7 +2632,7 @@ export function splitMarkdownChunks(
     recordHtmlHeadings(htmlBlockStart, htmlBlockContent.join('\n'))
     htmlBlockContent = []
     htmlComment.open = false
-    htmlTagScan.pending = ''
+    htmlTagScan.pending = null
   }
 
   /**
