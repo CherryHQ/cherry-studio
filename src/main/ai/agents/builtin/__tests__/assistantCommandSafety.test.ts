@@ -535,6 +535,51 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand(huge)).toBe('permanent Windows file deletion')
     expect(performance.now() - start).toBeLessThan(2000)
   })
+
+  it('denies deletion assigned to a PowerShell static property target (round-9 review finding)', () => {
+    // Static-property assignment targets ([Type]::Prop =) are assignment-anchored forms, like $x =.
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '[Console]::Title = del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('[Console]::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('pwsh -Command [System.IO.File]::X = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Assignment without a deletion token: allow.
+    expect(detectDestructiveAssistantCommand('[Console]::Title = "hello"')).toBeUndefined()
+  })
+
+  it('stays linear on repeated quoted start tokens (round-9 review finding)', () => {
+    // Each quoted `start` token anchors its own scan; untempered, every anchor's argument walk
+    // swallowed the remaining tokens (quadratic: >8s at 8k tokens, now 24-44ms at 16k).
+    const repeated = 'echo ' + '"start /b" '.repeat(16000) + 'x'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(repeated)).toBeUndefined()
+    expect(performance.now() - start).toBeLessThan(2000)
+    // The single-quote-glued variant stays linear too.
+    const singleQuoted = 'echo "' + "'start ".repeat(8000) + 'x"'
+    const t2 = performance.now()
+    expect(detectDestructiveAssistantCommand(singleQuoted)).toBeUndefined()
+    expect(performance.now() - t2).toBeLessThan(2000)
+  })
+
+  it('keeps deny coverage when an early anchor swallows quoted start tokens (temper parity locks)', () => {
+    // The argument temper refuses quoted `start`+whitespace arguments; the scanner's untempered
+    // walk must restore every deny the temper would otherwise drop. These pass on the previous
+    // head too: they are coverage locks, not red checks.
+    expect(detectDestructiveAssistantCommand('"start /b" "start " arg del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('start "start " /min /b del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // A quote-glued `start ` whose closing quote swallows the rest never chained, on any
+    // version: both of these stayed allowed on v13/v15/v18 and must stay allowed here.
+    expect(detectDestructiveAssistantCommand('"start " arg del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('"start " "start " arg del victim.txt')).toBeUndefined()
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {

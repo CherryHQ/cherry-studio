@@ -77,8 +77,16 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // echo-suppressed start token is a command, not an argument - and neither is a quote-prefixed
 // one (`'start`) or a backtick-prefixed one (` + '`' + `start` + '`' + `): decorated start tokens still anchor their own scan,
 // so swallowing them as arguments would only restart overlapping suffix scans.
+// A quoted argument whose content is a (glue-decorated) `start` token followed by
+// whitespace is refused here on purpose: that token anchors its own start scan, and consuming
+// it as an argument would restart an overlapping suffix scan once per quoted `start` anchor
+// (quadratic on `echo "start /b" "start /b" ...`). Titles that are exactly `start` (no
+// trailing whitespace) still consume: their inner anchor cannot fire, so refusing them would
+// lose the deny on `start "start" del x`.
 const CMD_START_ARGS =
-  String.raw`(?:\s+"[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
+  String.raw`(?:\s+"(?![@` +
+  '`' +
+  String.raw`"']*start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
   '`' +
   String.raw`]*start\b)[^\s;&|/"(){}]+)+`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
@@ -120,7 +128,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\$[\w\u0080-\uffff][\w\u0080-\uffff]*(?::[\w\u0080-\uffff][\w\u0080-\uffff]*)?|\$\{[^{}\r\n]*\})(?:\.[\w\u0080-\uffff]+|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:::[\w\u0080-\uffff]+)+|\$[\w\u0080-\uffff][\w\u0080-\uffff]*(?::[\w\u0080-\uffff][\w\u0080-\uffff]*)?|\$\{[^{}\r\n]*\})(?:\.[\w\u0080-\uffff]+|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["']|>>?|<)`,
   'i'
 )
 
@@ -139,6 +147,7 @@ const SCAN_WS = /\s/
 const SCAN_GLUE = new Set(['@', '`', '"', "'"])
 const SCAN_GAP = new Set(['"', "'", '@'])
 const SCAN_BARE_EXCLUDE = new Set([';', '&', '|', '/', '"', '(', ')', '{', '}'])
+const SCAN_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
 const isScanWord = (c: string): boolean =>
   (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_'
 const scanLower = (c: string): string => (c >= 'A' && c <= 'Z' ? String.fromCharCode(c.charCodeAt(0) + 32) : c)
@@ -230,13 +239,18 @@ function longGlueStartDeletion(s: string): boolean {
       cur = te
     }
   }
-  // Anchors: `start` (case-insensitive, word boundary on the left) preceded by a >=65 glue run.
+  // Anchors: any command-position `start` (case-insensitive, word boundary on the left).
+  // Glue runs of 0-64 need a separator/whitespace/string-start predecessor (the regex
+  // window's semantics); runs >=65 accept any predecessor (the pre-ban long-run semantics).
+  // The untempered args walk here restores deny coverage the regex's quoted-branch temper
+  // drops when an early anchor's argument chain swallows later quoted `start` tokens.
   for (let a = 0; a + 5 <= n; a++) {
     if (!scanWordAt(s, a, 'start')) continue
     if (a > 0 && isScanWord(s[a - 1])) continue // \b
     let r = a - 1
     while (r >= 0 && SCAN_GLUE.has(s[r])) r--
-    if (a - 1 - r < 65) continue
+    const runLen = a - 1 - r
+    if (runLen < 65 && r >= 0 && !SCAN_WS.test(s[r]) && !SCAN_SEP.has(s[r])) continue
     if (good(a + 5)) return true
   }
   return false
