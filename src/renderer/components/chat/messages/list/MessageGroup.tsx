@@ -1,8 +1,9 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -360,17 +361,19 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <MessageWrapper
-                tabIndex={0}
-                className={classNames([
-                  'in-popover',
-                  {
-                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
-                    selected: message.id === selectedMessageId
-                  }
-                ])}>
-                <MessageItem onSelectContext={onSelectContext} {...messageProps} />
-              </MessageWrapper>
+              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+                <MessageWrapper
+                  tabIndex={0}
+                  className={classNames([
+                    'in-popover',
+                    {
+                      [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
+                      selected: message.id === selectedMessageId
+                    }
+                  ])}>
+                  <MessageItem onSelectContext={onSelectContext} {...messageProps} />
+                </MessageWrapper>
+              </SelectionContextMenu>
             }
             triggerContent={messageContent}
           />
@@ -380,6 +383,7 @@ const MessageGroup = ({
       return messageContent
     },
     [
+      actions.openBrowserUrl,
       isGrid,
       isGrouped,
       isMultiModelGroup,
@@ -518,6 +522,7 @@ const GridMessagePopover = ({
   trigger: 'hover' | 'click'
 }) => {
   const [open, setOpen] = useState(false)
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null)
   const isHover = trigger === 'hover'
 
   return (
@@ -530,12 +535,13 @@ const GridMessagePopover = ({
         </div>
       </PopoverTrigger>
       <PopoverContent
+        ref={setContentElement}
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
         className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-4"
         side="top"
         align="center">
-        {content}
+        <PortalContainerProvider container={contentElement}>{content}</PortalContainerProvider>
       </PopoverContent>
     </Popover>
   )

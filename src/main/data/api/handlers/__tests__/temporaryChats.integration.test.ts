@@ -101,7 +101,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
 
     // 6. The persistent messageService reads the topic as a linear tree with
     // activeNodeId pointing at the last message.
-    const tree = messageService.getTree(topic.id, { depth: -1 })
+    const tree = messageService.getTree(topic.id)
     expect(tree.activeNodeId).toBe(m4.id)
     expect(tree.siblingsGroups).toEqual([])
     const ids = tree.nodes.map((n) => n.id)

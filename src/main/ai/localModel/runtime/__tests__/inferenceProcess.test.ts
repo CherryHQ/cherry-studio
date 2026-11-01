@@ -53,7 +53,10 @@ describe('inference process definitions', () => {
     const initData = await asrInferenceProcess.createInitData!()
 
     expect(Object.keys(initData).sort()).toEqual(['appPath', 'artifactPaths', 'runtimeProfile'])
-    expect(initData.artifactPaths).toEqual({ 'sherpa-onnx': '/bindings/sherpa-onnx.node' })
+    expect(initData.artifactPaths).toEqual({
+      'sherpa-onnx': '/bindings/sherpa-onnx.node',
+      'mlx-node': '/bindings/mlx-node.node'
+    })
     expect(initData.runtimeProfile).toBe(asrInferenceProcess.resolveRuntimeProfile())
     expect(initData.runtimeProfile.id).toBe('cpu')
   })

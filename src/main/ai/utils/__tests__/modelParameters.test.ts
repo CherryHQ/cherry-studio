@@ -304,6 +304,26 @@ describe('getTemperature', () => {
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
     expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
   })
+
+  it.each([
+    'anthropic::claude-opus-4-8',
+    'anthropic::claude-opus-5',
+    'anthropic::claude-sonnet-5',
+    'anthropic::claude-fable-5-1',
+    'aws-bedrock::anthropic.claude-opus-4-8-v1:0',
+    'openrouter::anthropic/claude-sonnet-5'
+  ] as const)('disables temperature for newer Claude model %s', (id) => {
+    const a = makeSampling({ temperature: 0.8 })
+    expect(getTemperature(a, makeModel({ id }), OMIT_REASONING)).toBeUndefined()
+  })
+
+  it.each(['anthropic::claude-opus-4-6', 'anthropic::claude-sonnet-4-6', 'anthropic::claude-opus-4-20250514'] as const)(
+    'keeps temperature for %s',
+    (id) => {
+      const a = makeSampling({ temperature: 0.8 })
+      expect(getTemperature(a, makeModel({ id }), OMIT_REASONING)).toBe(0.8)
+    }
+  )
 })
 
 describe('getTopP', () => {
@@ -366,6 +386,18 @@ describe('getTopP', () => {
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
     expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
   })
+
+  it.each([
+    'anthropic::claude-opus-4-8',
+    'anthropic::claude-opus-5',
+    'anthropic::claude-sonnet-5',
+    'anthropic::claude-fable-5-1',
+    'aws-bedrock::anthropic.claude-opus-4-8-v1:0',
+    'openrouter::anthropic/claude-sonnet-5'
+  ] as const)('disables topP for newer Claude model %s', (id) => {
+    const a = makeSampling({ enableTemperature: false, enableTopP: true, topP: 0.8 })
+    expect(getTopP(a, makeModel({ id }), OMIT_REASONING)).toBeUndefined()
+  })
 })
 
 describe('filterStandardParams', () => {
@@ -378,6 +410,15 @@ describe('filterStandardParams', () => {
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
     expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
   })
+
+  it.each(['anthropic::claude-opus-4-8', 'anthropic::claude-sonnet-5-5', 'anthropic::claude-fable-5-1'] as const)(
+    'drops topK for newer Claude model %s',
+    (id) => {
+      expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, makeModel({ id }))).toEqual({
+        frequencyPenalty: 0.1
+      })
+    }
+  )
 
   it('keeps topK for other models', () => {
     const input = { topK: 40 }

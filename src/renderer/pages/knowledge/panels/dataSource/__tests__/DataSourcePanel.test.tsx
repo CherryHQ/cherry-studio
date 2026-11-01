@@ -340,6 +340,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.delete_confirm_description': '删除后将无法恢复该数据源及其索引数据。',
             'knowledge.data_source.delete_confirm_title': '确认删除数据源',
             'knowledge.data_source.delete_failed': '删除数据源失败',
+            'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
             'knowledge.data_source.reindex_failed': '重新索引数据源失败',
             'knowledge.data_source.empty_description': '暂无数据源',
             'knowledge.data_source.filters.file': '文件',
@@ -587,6 +588,163 @@ describe('DataSourcePanel', () => {
     expect(onAdd).toHaveBeenCalledWith('file', files)
     expect(screen.queryByText('拖拽文件到此处上传')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+  })
+
+  describe('native directory drops', () => {
+    const getPathForFile = vi.fn()
+    const directoryItem = (file: File) => ({
+      kind: 'file',
+      getAsFile: () => file,
+      webkitGetAsEntry: () => ({ isDirectory: true, fullPath: `/${file.name}` })
+    })
+    const renderDropPanel = (props: Partial<DataSourcePanelProps> = {}) => {
+      const onAdd = vi.fn()
+      render(
+        <DataSourcePanel
+          updatedAt="2026-04-15T09:00:00+08:00"
+          items={[]}
+          isLoading={false}
+          onAdd={onAdd}
+          onDelete={vi.fn()}
+          onReindex={vi.fn()}
+          {...props}
+        />
+      )
+      return onAdd
+    }
+
+    beforeEach(() => {
+      getPathForFile.mockReset().mockImplementation((file: File) => `/host/${file.name}`)
+      Object.assign(window.api.file, { getPathForFile })
+    })
+
+    it.each(['FolderDropFixture', 'DocsPdf.pdf'])('directory mistaken for an unsupported/document File: %s', (name) => {
+      const directory = new File(['nonzero directory size'], name, {
+        type: name.endsWith('.pdf') ? 'application/pdf' : ''
+      })
+      const onAdd = renderDropPanel()
+
+      fireEvent.drop(screen.getByText('上传第一个数据源'), {
+        dataTransfer: { files: [directory], items: [directoryItem(directory)] }
+      })
+
+      expect(onAdd.mock.calls).toEqual([['file', [], [`/host/${name}`]]])
+      expect(toast.warning).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('mixed roots lost or double-counted: partitions once without pairing item and file indices', () => {
+      const first = new File(['folder'], 'FolderDropFixture')
+      const second = new File(['folder'], 'DocsPdf.pdf', { type: 'application/pdf' })
+      const plain = new File(['text'], 'plain.md')
+      const unsupported = new File(['exe'], 'bad.exe')
+      const next = new File(['pdf'], 'next.pdf')
+      const files = [first, second, plain, unsupported, next]
+      const onAdd = renderDropPanel()
+
+      fireEvent.drop(screen.getByText('上传第一个数据源'), {
+        dataTransfer: {
+          files,
+          items: [
+            {
+              kind: 'string',
+              webkitGetAsEntry: () => {
+                throw new Error('String item inspected')
+              }
+            },
+            directoryItem(first),
+            directoryItem(second),
+            ...[plain, unsupported, next].map((file) => ({
+              kind: 'file',
+              webkitGetAsEntry: () => ({ isDirectory: false }),
+              getAsFile: () => file
+            }))
+          ]
+        }
+      })
+
+      expect(onAdd.mock.calls).toEqual([
+        ['file', [plain, unsupported, next], ['/host/FolderDropFixture', '/host/DocsPdf.pdf']]
+      ])
+      expect(getPathForFile.mock.calls.map(([file]) => file)).toEqual([first, second])
+    })
+
+    it.each(['files only', 'absent entry API', 'null entry'])(
+      'compatibility fallback broken: %s preserves the two-argument ordinary-file route',
+      (payload) => {
+        const files = [new File(['pdf'], 'plain.pdf'), new File(['exe'], 'bad.exe')]
+        const items =
+          payload === 'files only'
+            ? undefined
+            : files.map((file) => ({
+                kind: 'file',
+                getAsFile: () => file,
+                ...(payload === 'null entry' ? { webkitGetAsEntry: () => null } : {})
+              }))
+        const onAdd = renderDropPanel()
+
+        fireEvent.drop(screen.getByText('上传第一个数据源'), { dataTransfer: { files, items } })
+
+        expect(onAdd.mock.calls).toEqual([['file', files]])
+        expect(getPathForFile).not.toHaveBeenCalled()
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['entry throws', 'null File', 'File throws', 'path throws', 'empty path', 'relative path'])(
+      'native capture failure silently imports a subset: %s aborts the whole drop',
+      (failure) => {
+        const first = new File(['folder'], 'valid')
+        const failing = new File(['folder'], 'failing')
+        const item = {
+          kind: 'file',
+          webkitGetAsEntry: () => {
+            if (failure === 'entry throws') throw new Error('Entry unavailable')
+            return { isDirectory: true }
+          },
+          getAsFile: () => {
+            if (failure === 'File throws') throw new Error('File unavailable')
+            return failure === 'null File' ? null : failing
+          }
+        }
+        getPathForFile.mockImplementation((file: File) => {
+          if (file === first) return '/host/valid'
+          if (failure === 'path throws') throw new Error('Path unavailable')
+          return failure === 'empty path' ? '' : 'relative/folder'
+        })
+        const onAdd = renderDropPanel()
+
+        fireEvent.drop(screen.getByText('上传第一个数据源'), {
+          dataTransfer: { files: [first, failing, new File(['text'], 'plain.md')], items: [directoryItem(first), item] }
+        })
+
+        expect(onAdd).not.toHaveBeenCalled()
+        expect(vi.mocked(toast.error).mock.calls).toEqual([[expect.stringContaining('添加数据源失败: ')]])
+        expect(toast.warning).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['drilled-in directory', 'local embedding unavailable'])(
+      'existing import gate bypassed: %s disables directory drops',
+      (gate) => {
+        mockUseLocalModel.mockReturnValue({ status: 'downloading', percent: 42 })
+        const directory = new File(['folder'], 'FolderDropFixture')
+        const onAdd = renderDropPanel({
+          items: [createFileItem({ id: 'existing', originName: 'existing.pdf' })],
+          ...(gate === 'drilled-in directory'
+            ? { currentDirectory: createDirectoryItem({ id: 'directory-1' }) }
+            : { embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
+        })
+
+        fireEvent.drop(screen.getByText('existing.pdf'), {
+          dataTransfer: { files: [directory], items: [directoryItem(directory)] }
+        })
+
+        expect(onAdd).not.toHaveBeenCalled()
+        expect(getPathForFile).not.toHaveBeenCalled()
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
   })
 
   it('uses the first non-empty note line as the title and leaves blank notes without the old fallback label', () => {

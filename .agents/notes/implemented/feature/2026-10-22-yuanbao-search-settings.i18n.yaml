@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-22-yuanbao-search-settings.md
+2026-10-22-yuanbao-search-settings.md: c8aa061c6a94e14ef43c868a5c1e3519078a306a
+2026-10-22-yuanbao-search-settings.zh.md: cf272a2463640fc5fc3a6b3c5b44a0e7fb4fd60f

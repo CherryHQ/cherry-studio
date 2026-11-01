@@ -3,6 +3,7 @@ import { Activity, useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -17,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
+  overlayOnUpdate: null as
+    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
+    | null,
+  autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   sendTurn: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
@@ -42,6 +47,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/services/voice', () => ({
   autoReadService: {
+    update: mocks.autoReadUpdate,
     consume: mocks.autoReadConsume
   }
 }))
@@ -103,9 +109,13 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
     _topicId: string,
     executions: ActiveExecution[],
     _messages: CherryUIMessage[],
-    options?: { onFinish?: (executionId: string, event: ExecutionFinishEvent) => void }
+    options?: {
+      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
+      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
+    }
   ) => {
     mocks.overlayExecutions = executions
+    mocks.overlayOnUpdate = options?.onUpdate ?? null
     mocks.overlayOnFinish = options?.onFinish ?? null
     return {
       overlay: {},
@@ -208,9 +218,44 @@ describe('useChatRuntimeState', () => {
     mocks.overlayOnFinish = null
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadUpdate.mockReset()
     mocks.autoReadConsume.mockClear()
     mocks.autoReadEnabled = true
     latestRuntime = null
+  })
+
+  it('reads eligible live text before completion through the incremental coordinator', async () => {
+    mocks.autoReadEnabled = true
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    mocks.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
+    await act(async () => {
+      mocks.overlayOnUpdate?.('provider::model', {
+        attemptId: 7,
+        message: {
+          id: 'active-assistant',
+          role: 'assistant',
+          parts: [
+            { type: 'reasoning', text: 'Private.' },
+            { type: 'text', text: 'Live answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Live answer.'])
+    coordinator.cancelScope('topic-1')
   })
 
   it('reports a blocked stream open as not sent', async () => {

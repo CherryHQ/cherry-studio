@@ -116,13 +116,15 @@ describe('SessionList helpers', () => {
     expect(normalizeSessionDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
   })
 
-  it('allows drag only inside the same non-pinned display group', () => {
+  it('allows drag only inside the same display group, including the pinned group', () => {
     const cases = [
       ['same agent group', 'agent', 'session:agent:agent-a', 'session:agent:agent-a', true],
       ['different agent groups', 'agent', 'session:agent:agent-a', 'session:agent:agent-b', false],
       ['same workdir group', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-a', true],
       ['different workdir groups', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-b', false],
-      ['pinned group', 'workdir', 'session:pinned', 'session:pinned', false],
+      ['pinned group', 'workdir', 'session:pinned', 'session:pinned', true],
+      ['pinned to workdir group', 'workdir', 'session:pinned', 'session:workspace:ws-a', false],
+      ['workdir group to pinned', 'workdir', 'session:workspace:ws-a', 'session:pinned', false],
       ['time mode', 'time', 'session:workspace:ws-a', 'session:workspace:ws-a', false]
     ] as const
 

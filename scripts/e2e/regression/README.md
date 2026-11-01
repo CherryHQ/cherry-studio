@@ -3,6 +3,8 @@
 This directory owns the CI controller for the [Playwright regression scenarios](../../../tests/e2e/regression/README.md).
 It controls only the application recorded in its isolated run directory; it never discovers or stops a developer's Electron instance.
 
+The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, installation, and lifecycle functions for one temporary test on one selected platform. Its reports and task selection remain independent from regression runs.
+
 ## Responsibilities
 
 | Module | Responsibility |

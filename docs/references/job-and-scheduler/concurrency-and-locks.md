@@ -30,7 +30,7 @@ Layers 2 and 3 are counters / resource locks, not mutexes — outside this order
 
 ## Failure recovery
 
-A row stuck in `running` (e.g. the `spawnExecute` fallback chain swallowed a DB error) is reclaimed on the next process restart by `runStartupRecovery`. Mid-session recovery is not implemented — the case requires persistent DB-level failure (`SQLITE_CORRUPT`/`FULL`), which would also break any in-process reclaim attempt.
+A row stuck in `running` (e.g. the `spawnExecute` fallback chain swallowed a DB error) is reclaimed on the next process restart: by `abandonLeftovers` when its handler registers if it recovers by `abandon`, otherwise by `runStartupRecovery`. Mid-session recovery is not implemented — the case requires persistent DB-level failure (`SQLITE_CORRUPT`/`FULL`), which would also break any in-process reclaim attempt.
 
 ## Other services using `withWriteTx`
 

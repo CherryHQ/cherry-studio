@@ -19,7 +19,7 @@ V1 ships the narrowest layer that lets the first consumer stop hand-rolling proc
 
 **Reverse RPC (child → main)** — implemented as request-scoped `context.callHost` / `onHostCall`. An absent callback denies access; the consumer validates method names, payloads, live permissions and ownership. The host aborts capabilities on request cancellation/stop and fences replies by generation and request identity.
 
-**Raw byte channel** — a side channel for streaming binary data without structured clone. Structured clone already moves 4 MiB fine; revisit only against a measured throughput problem.
+**Raw byte channel** — a side channel for streaming binary data without structured clone. Bounded request streams already use structured clone with byte/frame credit; see the [consumer guide](README.md#bounded-request-streams). Structured clone already moves 4 MiB fine; revisit only against a measured throughput problem.
 
 **Runtime payload validation** — main and child ship in the same signed build, so V1 validates the envelope, not the payload. If a future consumer loads third-party entry code, that assumption breaks and the contract needs a schema.
 

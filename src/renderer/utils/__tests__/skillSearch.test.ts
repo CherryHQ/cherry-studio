@@ -294,7 +294,7 @@ describe('searchSkills', () => {
     expect(results.every((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
   })
 
-  it('deduplicates case-insensitive names returned by different registries', async () => {
+  it('keeps same-named skills from different publishers and registries independently installable', async () => {
     const fetchMock = vi.fn(async (url: string | URL) => {
       const requestUrl = url.toString()
       let body: unknown
@@ -304,14 +304,21 @@ describe('searchSkills', () => {
           query: 'review',
           skills: [
             {
-              id: 'owner/repo/code-review',
+              id: 'first/repo/code-review',
               skillId: 'code-review',
               name: 'Code-Review',
               installs: 10,
-              source: 'owner/repo'
+              source: 'first/repo'
+            },
+            {
+              id: 'second/repo/code-review',
+              skillId: 'code-review',
+              name: 'code-review',
+              installs: 5,
+              source: 'second/repo'
             }
           ],
-          count: 1
+          count: 2
         }
       } else if (requestUrl.startsWith('https://claude-plugins.dev/')) {
         body = {
@@ -319,8 +326,8 @@ describe('searchSkills', () => {
             {
               id: 'plugin-code-review',
               name: 'code-review',
-              namespace: 'owner',
-              metadata: { repoOwner: 'owner', repoName: 'repo', directoryPath: 'code-review' }
+              namespace: 'third',
+              metadata: { repoOwner: 'third', repoName: 'repo', directoryPath: 'code-review' }
             }
           ]
         }
@@ -334,8 +341,42 @@ describe('searchSkills', () => {
 
     const results = await searchSkills('review')
 
-    expect(results).toHaveLength(1)
-    expect(results[0]).toMatchObject({ name: 'Code-Review', sourceRegistry: 'skills.sh' })
+    expect(results.map((result) => result.installSource)).toEqual([
+      'skills.sh:first/repo/code-review',
+      'skills.sh:second/repo/code-review',
+      'claude-plugins:third/repo/code-review'
+    ])
+  })
+
+  it('offers one install when a registry repeats the same source with different display names', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => ({
+        ok: true,
+        json: async () =>
+          url.toString().startsWith('https://skills.sh/')
+            ? {
+                query: 'review',
+                skills: ['Code Review', 'Code Review Updated'].map((name) => ({
+                  id: 'owner/repo/code-review',
+                  skillId: 'code-review',
+                  name,
+                  installs: 10,
+                  source: 'owner/repo'
+                })),
+                count: 2
+              }
+            : url.toString().startsWith('https://claude-plugins.dev/')
+              ? { skills: [] }
+              : { results: [] }
+      }))
+    )
+
+    const results = await searchSkills('review')
+
+    expect(results.map((result) => ({ name: result.name, installSource: result.installSource }))).toEqual([
+      { name: 'Code Review', installSource: 'skills.sh:owner/repo/code-review' }
+    ])
   })
 
   it('should reject when all registries fail', async () => {

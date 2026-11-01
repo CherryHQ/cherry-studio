@@ -47,9 +47,9 @@ app's deep strict signature, and a capabilities round trip. The helper is signed
 its dedicated empty entitlement policy rather than Electron's inherited relaxations.
 A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.
 
-Windows x64 system ASR and TTS use the SAPI helper under `windows/`. ASR is
-explicitly selected as `local-voice::windows-system-asr`; it does not replace the
-platform's default ASR model. A `probe_asr` request initializes the installed recognizer and
+Windows x64 system ASR and TTS use the SAPI helper under `windows/`. On Windows
+x64, `resolveDefaultAsrModel` recommends `local-voice::windows-system-asr` when
+no model is explicitly selected. An explicit selection is preserved. A `probe_asr` request initializes the installed recognizer and
 dictation grammar before transcription; it does not activate a microphone or
 install assets. Main decodes recorded WebM/Opus through the same utility process
 as Apple ASR, then sends the derived mono 16 kHz WAV to SAPI. Its build and
@@ -59,3 +59,28 @@ for build prerequisites, independent protocol and real ASR/TTS smokes, packaged
 helper signature checks, and the remaining NSIS/portable device acceptance.
 The native synthesis protocol requires an explicit `speed` from 0.5 to 2;
 Apple and Windows adapters both forward the selected speed.
+
+## Apple PCM streaming
+
+`SystemSpeechNativeClient.stream()` accepts `synthesize_stream` with an exact installed
+voice, complete text and speed. It returns an early `output` promise (format plus a
+single-consumer PCM iterator), `completed`, `closed`, and idempotent `cancel()`.
+Completion requires valid protocol EOF and successful helper exit; closure only
+confirms resource release. Neither means that the renderer has finished playback.
+
+The Apple callback writes bounded NDJSON directly to stdout: one `format`, ordered
+`pcm` messages containing base64 Float32 little-endian interleaved samples, then an
+`end` message with the exact frame count. Each chunk contains at most 1,024 frames,
+one or two channels, and each line is capped at 16 KiB. Error envelopes retain the
+existing stable error codes. Missing voices are not substituted. There is no WAV
+scratch file in this path; complete synthesis and Windows requests are unchanged.
+
+The callback writes synchronously to the bounded OS pipe. Node pulls stdout only
+as downstream consumes it, retaining at most its readable buffer, one read batch
+and an incomplete protocol line. This bounds transport storage, not the system
+speech engine's internal allocation. The producer-read deadline (120 seconds by
+default) runs only during pending reads or exit acknowledgement, not during a
+downstream pause. The owning application must retain its session deadline.
+Cancelling or ending iteration early terminates the helper and joins child/stdio
+closure before returning. Malformed output, discontinuities and missing EOF fail
+without exposing native diagnostics.

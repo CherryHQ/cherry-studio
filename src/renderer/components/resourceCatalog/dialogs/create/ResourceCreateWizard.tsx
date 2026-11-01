@@ -44,12 +44,13 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
 }
 
 function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
+  const agentType = kind === 'agent' ? 'pi' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
     description: '',
-    agentType: 'claude-code',
-    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
+    agentType,
+    permissionMode: AGENT_RUNTIME_CAPABILITIES[agentType].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
