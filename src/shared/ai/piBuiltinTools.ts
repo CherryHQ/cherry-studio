@@ -14,6 +14,8 @@ export type PiBuiltinToolDescriptor = {
 
 export const PI_TOOL_SEARCH_TOOL_NAME = 'tool_search'
 export const PI_TOOL_CALL_TOOL_NAME = 'tool_call'
+/** pi code-mode discovery wire name; transport-layer only (not in `PI_BUILTIN_TOOLS`). */
+export const PI_TOOL_DESCRIBE_TOOL_NAME = 'tool_describe'
 export const PI_TOOL_EXEC_TOOL_NAME = 'codemode'
 export const PI_TOOL_RECALL_TOOL_NAME = 'vcc_recall'
 

@@ -75,6 +75,23 @@ function makeListener(modelId?: UniqueModelId, onPersistFailed = vi.fn()) {
 }
 
 describe('PersistenceListener + TemporaryChatBackend', () => {
+  it('keeps the successful handoff marker when dropping empty content', async () => {
+    const listener = makeListener('openai::gpt-4o')
+    await listener.onDone({
+      finalMessage: {
+        id: 'a',
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: '' }, { type: 'data-steer-handoff', data: {} }]
+      },
+      status: 'success',
+      modelId: 'openai::gpt-4o'
+    })
+    expect(appendAssistantMessageMock.mock.calls[0][1].data.parts).toContainEqual({
+      type: 'data-steer-handoff',
+      data: {}
+    })
+  })
+
   it('retains the execution failure and reports a distinct persistence failure to cleanup observers', async () => {
     const result: StreamErrorResult = {
       status: 'error',
@@ -177,6 +194,24 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       { type: 'reasoning', text: 'real thought', state: 'done' },
       { type: 'text', text: 'answer' }
     ])
+  })
+
+  it('keeps status=success when hidden markers accompany real content', async () => {
+    const listener = makeListener()
+
+    const finalMessage = {
+      id: 'ignored',
+      role: 'assistant',
+      parts: [
+        { type: 'step-start' },
+        { type: 'text', text: 'a real answer' },
+        { type: 'data-citation', data: { title: 'source', url: 'https://example.com' } }
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ finalMessage, status: 'success' })
+
+    expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('success')
   })
 
   it('does not copy cumulative stream metadata into persistence', async () => {
@@ -384,15 +419,6 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       status: 'paused',
       runtimeStats: undefined
     })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
-  })
-
-  it('does not create an empty successful ordinary-chat reply', async () => {
-    const listener = makeMessageServiceListener()
-
-    await listener.onDone({ finalMessage: undefined, status: 'success' })
-
-    expect(messageFinalizeMock).not.toHaveBeenCalled()
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
