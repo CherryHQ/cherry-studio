@@ -701,7 +701,7 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1).describe('URL to read and index.'),
+  url: z.string().trim().url().describe('URL to read and index.'),
   // Restore-only: absolute path to a captured snapshot markdown in the source base.
   // When present, Knowledge copies it in and pins the item to it so the first index
   // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
