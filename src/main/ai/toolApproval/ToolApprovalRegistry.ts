@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -28,7 +29,15 @@ type PendingApproval = {
   abortListener?: () => void
 }
 
-type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+export type ToolApprovalCancelledEvent = {
+  approvalId: string
+  sessionId: string
+  toolCallId: string
+  presentation: 'stream' | 'message'
+  reason: string
+}
+
+export type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
 type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
@@ -40,6 +49,9 @@ type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'pres
  * agent-session driver; the SDK-native conversion lives in each driver.
  */
 class ToolApprovalRegistry {
+  private readonly _onCancelled = new Emitter<ToolApprovalCancelledEvent>()
+  readonly onCancelled: Event<ToolApprovalCancelledEvent> = this._onCancelled.event
+
   private readonly pending = new Map<string, PendingApproval>()
 
   /**
@@ -64,7 +76,7 @@ class ToolApprovalRegistry {
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
-      const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+      const abortListener = () => this.cancel(approvalId, 'aborted')
       stored.abortListener = abortListener
       signal.addEventListener('abort', abortListener, { once: true })
     }
@@ -98,13 +110,26 @@ class ToolApprovalRegistry {
     }
   }
 
+  cancel(approvalId: string, reason: string): ApprovalRegistration | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry) return undefined
+    this.pending.delete(approvalId)
+    this.detachAbort(entry)
+    entry.resolve({ approved: false, reason })
+    const registration = {
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      presentation: entry.presentation
+    }
+    this._onCancelled.fire({ approvalId, ...registration, reason })
+    return registration
+  }
+
   abort(sessionId: string, reason = 'session-aborted'): number {
     let aborted = 0
     for (const [approvalId, entry] of this.pending) {
       if (entry.sessionId !== sessionId) continue
-      this.pending.delete(approvalId)
-      this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
+      this.cancel(approvalId, reason)
       aborted++
     }
     if (aborted > 0) logger.info('Aborted pending approvals', { sessionId, count: aborted, reason })
@@ -119,11 +144,9 @@ class ToolApprovalRegistry {
   clear(reason = 'service-shutdown'): number {
     const count = this.pending.size
     if (count === 0) return 0
-    for (const [, entry] of this.pending) {
-      this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
+    for (const approvalId of this.pending.keys()) {
+      this.cancel(approvalId, reason)
     }
-    this.pending.clear()
     logger.info('Cleared all pending approvals', { count, reason })
     return count
   }

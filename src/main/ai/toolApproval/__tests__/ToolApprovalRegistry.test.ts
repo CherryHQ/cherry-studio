@@ -134,4 +134,76 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
   it('clear() is a no-op (returns 0) when nothing is pending', () => {
     expect(toolApprovalRegistry.clear()).toBe(0)
   })
+  it('cancels only the exact id and detaches its abort listener', async () => {
+    const controller = new AbortController()
+    const a = makeEntry({ signal: controller.signal, presentation: 'message' })
+    const b = makeEntry()
+    const events: unknown[] = []
+    const subscription = toolApprovalRegistry.onCancelled((event) => events.push(event))
+    try {
+      toolApprovalRegistry.register(a.entry)
+      toolApprovalRegistry.register(b.entry)
+      expect(toolApprovalRegistry.cancel(a.approvalId, 'connection closed')).toEqual({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        presentation: 'message'
+      })
+      controller.abort()
+      expect(toolApprovalRegistry.cancel(a.approvalId, 'again')).toBeUndefined()
+      await expect(a.result).resolves.toEqual({ approved: false, reason: 'connection closed' })
+      expect(events).toEqual([
+        {
+          approvalId: a.approvalId,
+          sessionId: 's1',
+          toolCallId: 'tc1',
+          presentation: 'message',
+          reason: 'connection closed'
+        }
+      ])
+      expect(toolApprovalRegistry.size()).toBe(1)
+      expect(toolApprovalRegistry.hasSession('s1')).toBe(true)
+      expect(toolApprovalRegistry.peek(b.approvalId)).toBeDefined()
+      toolApprovalRegistry.dispatch(b.approvalId, { approved: true })
+      await expect(b.result).resolves.toEqual({ approved: true })
+      expect(events).toHaveLength(1)
+      expect(toolApprovalRegistry.hasSession('s1')).toBe(false)
+    } finally {
+      subscription.dispose()
+    }
+  })
+
+  it.each(['signal', 'abort', 'clear', 'cancel'] as const)(
+    'emits one cancellation for %s, never for user dispatch',
+    async (action) => {
+      const controller = new AbortController()
+      const a = makeEntry({ signal: controller.signal, presentation: action === 'signal' ? 'stream' : 'message' })
+      const events: unknown[] = []
+      const subscription = toolApprovalRegistry.onCancelled((event) => events.push(event))
+      try {
+        toolApprovalRegistry.register(a.entry)
+        if (action === 'signal') controller.abort()
+        else if (action === 'abort') expect(toolApprovalRegistry.abort('s1', 'cancelled')).toBe(1)
+        else if (action === 'clear') expect(toolApprovalRegistry.clear('cancelled')).toBe(1)
+        else toolApprovalRegistry.cancel(a.approvalId, 'cancelled')
+        const reason = action === 'signal' ? 'aborted' : 'cancelled'
+        await expect(a.result).resolves.toEqual({ approved: false, reason })
+        expect(events).toEqual([
+          {
+            approvalId: a.approvalId,
+            sessionId: 's1',
+            toolCallId: 'tc1',
+            presentation: a.entry.presentation,
+            reason
+          }
+        ])
+        const user = makeEntry()
+        toolApprovalRegistry.register(user.entry)
+        toolApprovalRegistry.dispatch(user.approvalId, { approved: false, reason: 'user said no' })
+        await expect(user.result).resolves.toEqual({ approved: false, reason: 'user said no' })
+        expect(events).toHaveLength(1)
+      } finally {
+        subscription.dispose()
+      }
+    }
+  )
 })

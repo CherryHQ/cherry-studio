@@ -320,7 +320,9 @@ export function registerAgentMethods(
         ...('reason' in response ? { reason: response.reason } : {})
       }
       if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
+        application
+          .get('AgentSessionRuntimeService')
+          .respondToolApproval(params.interactionId, decision, { anchorId }) !== 'accepted'
       ) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
