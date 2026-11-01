@@ -627,6 +627,25 @@ describe('detectDestructiveAssistantCommand', () => {
     // xargs-prefix with a quoted title never reached the token on any version: allow lock.
     expect(detectDestructiveAssistantCommand('xargs "my start menu" del victim.txt')).toBeUndefined()
   })
+
+  it('denies exit-prefixed and nested-index-assigned deletion forms (round-11 review findings)', () => {
+    // `exit` joins the executable-prefix list alongside throw/call/xargs/... .
+    expect(detectDestructiveAssistantCommand('exit del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command 'exit del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('exit rd victim.txt')).toBe('permanent Windows file deletion')
+    // Assignment index segments allow one nesting level.
+    expect(detectDestructiveAssistantCommand('$a[$b[0]] = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('$a = @(42); $b = @(0); $a[$b[0]] = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Word-boundary and documented-gap controls.
+    expect(detectDestructiveAssistantCommand('exitCode del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('existing del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('$a[$b[$c[0]]] = del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('$a[0] = del victim.txt')).toBe('permanent Windows file deletion')
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {

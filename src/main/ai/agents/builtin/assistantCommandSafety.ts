@@ -105,8 +105,8 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
 // assignment target may precede it (`$null = del x`, including scoped targets like
 // `$script:output = del x`, indexed, property, braced or quoted targets like `$a[0] =` / `$h.result =` / `${output} =` / `$h."result" =`
-// (an index segment is any non-bracket run, so `$a[$i]` denies; nested brackets like
-// `$a[$b[0]]` stay a documented best-effort gap), and compound operators
+// (an index segment allows one nesting level, so `$a[$i]` and `$a[$b[0]]` deny;
+// deeper nesting stays a documented best-effort gap), and compound operators
 // like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
 // `iex`/`Invoke-Expression`, and dot invocation `. del x` - the dot anchor requires a
 // command-position predecessor (start, whitespace, quote, `@` or a separator), so a sentence
@@ -117,7 +117,7 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){` +
     '`' +
-    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|then|do|else|return|throw|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
     String.raw`@])\.(?=\s)|(?<![@` +
     '`' +
@@ -131,7 +131,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:::[\w\u0080-\uffff]+)+|\$[\w\u0080-\uffff][\w\u0080-\uffff]*(?::[\w\u0080-\uffff][\w\u0080-\uffff]*)?|\$\{[^{}\r\n]*\})(?:\.[\w\u0080-\uffff]+|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[[^\[\]\r\n]*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:::[\w\u0080-\uffff]+)+|\$[\w\u0080-\uffff][\w\u0080-\uffff]*(?::[\w\u0080-\uffff][\w\u0080-\uffff]*)?|\$\{[^{}\r\n]*\})(?:\.[\w\u0080-\uffff]+|\.(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
   'i'
 )
 
