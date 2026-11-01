@@ -2698,6 +2698,9 @@ export function splitMarkdownChunks(
     // and the indented line after it is code the parser reads at the top level.
     const emptyItemColumn = pendingEmptyItem
     pendingEmptyItem = null
+    // An empty item holds only the line immediately below it; a blank ends the item, so the
+    // indented definition after it is document-level code.
+    if (blank && emptyItemColumn !== null) run = null
     bufferChars += line.length + 1
 
     if (fence) {
@@ -2730,7 +2733,7 @@ export function splitMarkdownChunks(
       // and a shallower line is the item's content rather than a block that leaves it.
       const stripped =
         htmlBlockContainer === null ? line : stripDefinitionContainer(line, containerParams(htmlBlockContainer))
-      if (stripped !== null && !blank) {
+      if (stripped !== null && !isBlankLine(stripped)) {
         const uncommented = withoutHtmlComments(stripped, htmlComment)
         htmlBlockContent.push(uncommented)
         trackHtmlElements(uncommented, htmlOpenElements, htmlTagScan)

@@ -968,6 +968,17 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/first'])
   })
 
+  it('ends an empty item at the blank that follows it', () => {
+    // The blank closes the empty item, so the indented definition below is document-level code and
+    // cannot be hoisted; keeping the item alive made it the winning first definition.
+    const content = ['-', '', '    [r]: https://wrong.example', '', 'See [r].', '', '[r]: https://right.example'].join(
+      '\n'
+    )
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it("keeps an empty item's fence open until an unindented line leaves the item", () => {
     // The fence is indented into the empty item, so the unindented definition ends it and is
     // carried; treating the fence as document-level swallowed the definition.
@@ -1019,6 +1030,23 @@ describe('splitMarkdownChunks', () => {
 
     expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
+  it('closes a quoted HTML block on a marker-only blank line', () => {
+    // `>` is blank inside the quote; the blank ends the HTML block, so the quoted definition below
+    // is read and wins over the later duplicate.
+    const content = [
+      '> <span>',
+      '>',
+      '> [r]: https://first.example',
+      '',
+      'See [r].',
+      '',
+      '[r]: https://later.example'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://first.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://first.example'])
   })
 
   it('keeps a type-7 tag inside the quote it follows', () => {
