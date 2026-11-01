@@ -678,12 +678,6 @@ class HtmlElementStack {
     this.names.length = depth
   }
 
-  /** A markdown block below a blank renders a block-level tag, which implicitly closes `p`. */
-  closeParagraph(): void {
-    const paragraph = this.names.lastIndexOf('p')
-    if (paragraph >= 0) this.truncateTo(paragraph)
-  }
-
   get depth(): number {
     return this.names.length
   }
@@ -2866,9 +2860,10 @@ export function splitMarkdownChunks(
     // an open paragraph may open it. Inside a list item the parser measures from the item's content
     // column, so `    x` under `1. a` is that item's paragraph and only four columns past its
     // content column are code.
-    const itemCodeFloor = run !== null && leadingColumns(line) >= run.content ? run.content + 4 : 4
+    const innerIndent = leadingColumns(pastQuoteMarkers(line).content)
+    const itemCodeFloor = run !== null && innerIndent >= run.content ? run.content + 4 : 4
     const indentedCode =
-      !blank && previousStatus === 'block' && leadingColumns(line) >= itemCodeFloor && !startsBlock(line)
+      !blank && previousStatus === 'block' && innerIndent >= itemCodeFloor && !startsBlock(uncontained)
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
         // A marker-only line behind the definition's container (`>` on its own) is blank the way
@@ -3152,7 +3147,7 @@ export function splitMarkdownChunks(
     if (listContinues) continue
     run = null
     // The next markdown block renders block-level markup, which implicitly closes an open `<p>`.
-    if (followedBy >= 0) htmlOpenElements.closeParagraph()
+    if (followedBy >= 0) htmlOpenElements.closeTag('p')
     // An element a blank line only spans holds the blocks below it: one that never closes keeps
     // every later boundary off, and the oversized fallback a chunk that size trips is the exit.
     if (bufferChars >= budgetChars && htmlOpenElements.depth === 0) {

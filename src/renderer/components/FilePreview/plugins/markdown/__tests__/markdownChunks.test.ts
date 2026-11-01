@@ -959,6 +959,24 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('keeps a quoted indented code block out of the open paragraph', () => {
+    // Four columns inside the quote are code, so the definition below them stands; measuring the
+    // raw line let the quote hide the indent and the later definition won the label.
+    const content = [
+      '>     example',
+      '> [r]: https://right.example',
+      '',
+      'see [ref][r]',
+      '',
+      '[r]: https://wrong.example'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+
+    const chunks = chunksOf(content, 1)
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it('carries a definition indented beneath an empty list item', () => {
     // The item's content column is two, so the four columns of `    [x]` are its content rather
     // than top-level indented code — remark reads it as a definition, and skipping it left the
@@ -3401,6 +3419,19 @@ describe('a malformed tag that never closes', () => {
 
     // The `<div>` element never closes, so no boundary may fall and the document stays whole.
     expect(window.chunks).toHaveLength(1)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('does not scan the open-element stack on every blank line', () => {
+    // `<div>` plus 50,000 `<li>` keep the stack deep; an unindexed `lastIndexOf('p')` on each of
+    // 300,000 blank lines took ~17 s. The indexed close is constant-time when no `p` is open.
+    const content = '<div>\n' + '<li>x\n'.repeat(50_000) + '\n'.repeat(300_000) + 'end\n</div>'
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
     expect(elapsed).toBeLessThan(1_000)
   })
 
