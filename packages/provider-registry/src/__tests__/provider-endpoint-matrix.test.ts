@@ -326,9 +326,37 @@ describe('qwen-token-plan endpoint matrix', () => {
         effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
       }
     })
-    expect(
-      providerModelEntries(provider('qwen-token-plan')).filter((o) => o.reasoningContracts?.['anthropic-messages'])
-    ).toEqual([])
+    for (const entry of providerModelEntries(provider('qwen-token-plan')).filter((o) =>
+      o.endpointTypes?.includes('anthropic-messages')
+    )) {
+      expect(entry.reasoningContracts?.['anthropic-messages'], entry.apiModelId).toEqual({
+        support: { controls: [{ kind: 'toggle', default: true }] },
+        wire: format?.wire
+      })
+    }
+  })
+
+  it('gives every row declaring Anthropic Messages an explicit reasoning contract', () => {
+    const offenders = providerModelEntries(provider('qwen-token-plan'))
+      .filter((o) => o.endpointTypes?.includes('anthropic-messages') && !o.reasoningContracts?.['anthropic-messages'])
+      .map((o) => o.apiModelId)
+    expect(offenders).toEqual([])
+  })
+
+  it('offers only web search on the six Responses models', () => {
+    const modelIds = ['qwen3-8-max', 'qwen3-8-flash', 'qwen3-7-max', 'qwen3-7-plus', 'qwen3-6-plus', 'qwen3-6-flash']
+    expect(provider('qwen-token-plan').serverTools).toEqual([
+      {
+        id: 'web-search',
+        modelScope: 'model-dependent',
+        modelIds,
+        endpointTypes: ['openai-responses']
+      }
+    ])
+    const responsesModels = providerModelEntries(provider('qwen-token-plan'))
+      .filter((o) => o.endpointTypes?.includes('openai-responses'))
+      .map((o) => o.modelId)
+    expect(responsesModels.sort()).toEqual(modelIds.sort())
   })
 
   it.each(['kimi-k2-6', 'kimi-k2-5'])('explicitly toggles thinking from off by default for %s', (modelId) => {

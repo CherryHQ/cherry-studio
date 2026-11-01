@@ -14,6 +14,53 @@ const model = (partial: Partial<Model>): Model => partial as Model
 const preset = (presetProviderId: string): Provider => ({ id: presetProviderId, presetProviderId }) as Provider
 const copyOf = (presetProviderId: string): Provider => ({ id: 'user-copy-1', presetProviderId }) as Provider
 
+describe('qwen-token-plan built-in web search', () => {
+  const provider = {
+    ...preset('qwen-token-plan'),
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    serverTools: [
+      { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+    ]
+  } as Provider
+  const qwen = (endpointType: EndpointType) =>
+    model({
+      id: 'qwen-token-plan::qwen3-8-max',
+      providerId: provider.id,
+      apiModelId: 'qwen3.8-max',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      endpointTypes: [endpointType]
+    })
+
+  it('emits a bare Responses tool config without OpenAI-only searchContextSize', () => {
+    const m = qwen(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(
+      resolveWebToolRoutes(m, provider, {
+        webSearchEnabled: true,
+        modelToolsPreferred: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      }).webSearch
+    ).toBe('server')
+    expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, provider)).toEqual({ openai: {} })
+  })
+
+  it('falls back to client search on Chat Completions without native search params or a tool config', () => {
+    const m = qwen(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(
+      resolveWebToolRoutes(m, provider, {
+        webSearchEnabled: true,
+        modelToolsPreferred: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      }).webSearch
+    ).toBe('client')
+    expect(getWebSearchParams(m, provider)).toEqual({})
+    expect(buildProviderBuiltinWebSearchConfig('openai-compatible', webSearchConfig, m, provider)).toEqual({})
+  })
+})
+
 describe('buildProviderBuiltinWebSearchConfig', () => {
   it('emits a bare openai config for doubao so only {type:"web_search"} reaches Ark', () => {
     const config = buildProviderBuiltinWebSearchConfig(

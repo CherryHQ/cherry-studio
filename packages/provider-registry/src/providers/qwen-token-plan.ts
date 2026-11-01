@@ -10,6 +10,8 @@ const responsesEffortWire = modeWire(
   { autoEffort: 'xhigh' }
 )
 
+const anthropicToggleSupport: ReasoningSupport = { controls: [{ kind: 'toggle', default: true }] }
+
 const anthropicWire: ReasoningWireProfile = modeWire('thinking.type', {
   off: 'disabled',
   auto: 'enabled',
@@ -75,6 +77,15 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
+  serverTools: [
+    // Other documented tools (URL context, image searches, code interpreter) await per-SKU evidence on this host.
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIds: ['qwen3-8-max', 'qwen3-8-flash', 'qwen3-7-max', 'qwen3-7-plus', 'qwen3-6-plus', 'qwen3-6-flash'],
+      endpointTypes: ['openai-responses']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://bailian.console.aliyun.com/cn-beijing/subscription/token-plan',
@@ -89,6 +100,7 @@ export default defineProvider({
       modelId: 'qwen3-8-max',
       endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
         'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
@@ -98,6 +110,7 @@ export default defineProvider({
       modelId: 'qwen3-8-flash',
       endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
         'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
@@ -107,6 +120,7 @@ export default defineProvider({
       modelId: 'qwen3-7-max',
       endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { wire: qwenChatWire },
         'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
@@ -116,6 +130,7 @@ export default defineProvider({
       modelId: 'qwen3-7-plus',
       endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { wire: qwenChatWire },
         'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
@@ -125,6 +140,7 @@ export default defineProvider({
       modelId: 'qwen3-6-plus',
       endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { wire: qwenChatWire },
         'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
@@ -134,6 +150,7 @@ export default defineProvider({
       modelId: 'qwen3-6-flash',
       endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { wire: qwenChatWire },
         'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
@@ -143,6 +160,7 @@ export default defineProvider({
       modelId: 'deepseek-v4-1-flash',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
@@ -151,6 +169,7 @@ export default defineProvider({
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
@@ -161,6 +180,7 @@ export default defineProvider({
       name: 'DeepSeek V4 Pro (0813)',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
@@ -170,19 +190,24 @@ export default defineProvider({
       name: 'DeepSeek V4 Flash (0731)',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
     {
       apiModelId: 'kimi-k2.7-code',
       modelId: 'kimi-k2-7-code',
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire }
+      }
     },
     {
       apiModelId: 'kimi-k2.6',
       modelId: 'kimi-k2-6',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: kimiSupport, wire: kimiChatWire }
       }
     },
@@ -191,6 +216,7 @@ export default defineProvider({
       modelId: 'kimi-k2-5',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: kimiSupport, wire: kimiChatWire }
       }
     },
@@ -199,6 +225,7 @@ export default defineProvider({
       modelId: 'glm-5-3',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: glm53Support, wire: glm53ChatWire }
       }
     },
@@ -207,6 +234,7 @@ export default defineProvider({
       modelId: 'glm-5-2',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
@@ -215,6 +243,7 @@ export default defineProvider({
       modelId: 'glm-5-1',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
@@ -223,13 +252,17 @@ export default defineProvider({
       modelId: 'glm-5',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire },
         'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
       }
     },
     {
       apiModelId: 'MiniMax-M2.5',
       modelId: 'minimax-m2-5',
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      reasoningContracts: {
+        'anthropic-messages': { support: anthropicToggleSupport, wire: anthropicWire }
+      }
     }
   ]
 })

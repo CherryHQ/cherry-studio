@@ -1909,7 +1909,14 @@
         }
       },
       "modelListSource": "registry",
-      "name": "Qwen Token Plan"
+      "name": "Qwen Token Plan",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -2918,5 +2925,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d09c1a642c5d2741"
+  "version": "44ba44d27f2395f2"
 }
