@@ -187,7 +187,7 @@ export class GuestSession implements Disposable {
   }
 
   private readonly onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
-    if (this.processGone || sessionId || !cdpEventMethods.has(method)) return
+    if (sessionId || !cdpEventMethods.has(method)) return
     this.handleEvent({ method, params } as CdpEvent)
   }
 
@@ -197,7 +197,8 @@ export class GuestSession implements Disposable {
       this.currentMainFrameId = params.frame.id
       this.currentDocumentId = params.frame.loaderId
       this.invalidateDocument()
-      this.clearDialog()
+      // Recovery navigation can arrive after the new document's blocking startup dialog.
+      if (!this.processGone) this.clearDialog()
     } else if (
       method === 'Runtime.executionContextsCleared' ||
       (method === 'Runtime.executionContextDestroyed' && params.executionContextId === this.annotationContextId)
@@ -252,7 +253,6 @@ export class GuestSession implements Disposable {
     const wasAttached = this.attached
     this.attached = false
     this.invalidateDocument()
-    this.inspection.clear()
     this.clearDialog()
     this.dismissedDialog = undefined
     if (this.observing) {
@@ -399,6 +399,21 @@ export class GuestSession implements Disposable {
     this.operations++
     let capturing = false
     try {
+      // A recovered renderer can block dom-ready on a dialog before commands are re-armed.
+      if (
+        this.processGone &&
+        method === 'Page.handleJavaScriptDialog' &&
+        this.pendingDialog &&
+        !this.disposed &&
+        !this.guest.isDestroyed() &&
+        !this.guest.isDevToolsOpened() &&
+        this.attached &&
+        this.electronDebugger.isAttached()
+      ) {
+        const result = await this.wait(this.dispatch(method, params), options)
+        this.clearDialog()
+        return result
+      }
       await this.ensureAttached(options)
       options.signal?.throwIfAborted()
       if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')

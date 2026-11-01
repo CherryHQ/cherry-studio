@@ -151,6 +151,46 @@ describe('Agent browser authority and control lifetime', () => {
     })
   })
 
+  it('keeps recovery-gap calls rejected through old-binding detach and replacement attachment', async () => {
+    const { tabId: oldTabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    fixture.mock.crash()
+    service.agentBrowser.detach(sessionId, oldTabId, windowId)
+    const call = service.agentBrowser.ensureGuest({ agentId, sessionId }, new AbortController().signal)
+    const outcome = call.then(
+      () => 'resolved',
+      (error: unknown) => error
+    )
+    const immediate = await Promise.race([outcome, new Promise((resolve) => setTimeout(() => resolve('waiting'), 50))])
+    expect.soft(immediate).toMatchObject({ code: 'debugger_unavailable' })
+    expect(() => service.agentBrowser.attach(sessionId, 1, windowId)).toThrow('not_allowed')
+
+    const next = createGuest(2)
+    Object.assign(next.mock, { getType: () => 'webview', hostWebContents: host, session: fixture.mock.session })
+    vi.mocked(webContents.fromId).mockReturnValue(next.guest)
+    const { tabId } = service.agentBrowser.attach(sessionId, 2, windowId)
+    expect(await outcome).toMatchObject({ code: 'debugger_unavailable' })
+    service.agentBrowser.detach(sessionId, oldTabId, windowId)
+    expect(await service.agentBrowser.ensureGuest({ agentId, sessionId }, new AbortController().signal)).toMatchObject({
+      tabId,
+      guest: next.guest
+    })
+  })
+
+  it('rejects unauthorized detach without revoking the live binding or its later crash marker', async () => {
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    const target = service.agentBrowser.get({ agentId, sessionId })!
+    expect(() => service.agentBrowser.detach(sessionId, tabId, 'other')).toThrow(
+      expect.objectContaining({ code: 'not_allowed' })
+    )
+    expect(target.abort.signal.aborted).toBe(false)
+    expect(service.agentBrowser.get({ agentId, sessionId })).toBe(target)
+    fixture.mock.crash()
+    service.agentBrowser.detach(sessionId, tabId, 'other')
+    await expect(
+      service.agentBrowser.ensureGuest({ agentId, sessionId }, AbortSignal.timeout(50))
+    ).rejects.toMatchObject({ code: 'debugger_unavailable' })
+  })
+
   it.each(['detach', 'destroy', 'dispose', 'replace'] as const)('removes health listeners on %s', (reason) => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     const stale = fixture.mock.listeners('render-process-gone')[0] as () => void

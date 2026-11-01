@@ -268,7 +268,6 @@ export class BrowserGuestRegistry implements Disposable {
   }
 
   detach(sessionId: string, tabId: string, senderId: WindowId | null): void {
-    if (this.dead.get(sessionId) === tabId) this.dead.delete(sessionId)
     const target = this.targets.get(sessionId)
     if (!target || target.tabId !== tabId) return
     if (target.windowId !== senderId) throw new BrowserSessionError('not_allowed')

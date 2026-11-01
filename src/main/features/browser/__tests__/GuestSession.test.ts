@@ -70,6 +70,74 @@ describe('GuestSession command lifetime', () => {
     expect(() => session.resolveRef(matches[0].ref)).toThrow(expect.objectContaining({ code: 'stale_ref' }))
   })
 
+  it.each(['before', 'after'] as const)(
+    'dismisses a recovery startup dialog when frame navigation arrives %s the dialog',
+    async (navigationOrder) => {
+      vi.useFakeTimers()
+      const { guest, mock } = createGuest()
+      const session = new GuestSession(guest, 'managed')
+      sessions.push(session)
+      await session.send('Runtime.enable')
+      mock.crash()
+      mock.isCrashed.mockReturnValue(false)
+      const commands = mock.debugger.sendCommand.mock.calls.length
+      await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      await expect(session.send('Page.handleJavaScriptDialog', { accept: false })).rejects.toMatchObject({
+        code: 'debugger_unavailable'
+      })
+      const operation = vi.fn(async () => 'must not execute')
+      await expect(session.run(operation)).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      await expect(session.observe()).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      await expect(session.snapshot()).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      expect(operation).not.toHaveBeenCalled()
+      expect(mock.debugger.sendCommand.mock.calls).toHaveLength(commands)
+
+      const navigate = () =>
+        mock.debugger.emit('message', {}, 'Page.frameNavigated', { frame: { id: 'main', loaderId: 'recovered' } })
+      if (navigationOrder === 'before') navigate()
+      const dialog = { type: 'alert', message: 'Startup alert' }
+      mock.debugger.emit('message', {}, 'Page.javascriptDialogOpening', dialog)
+      expect.soft(session.pendingDialog).toEqual(dialog)
+      if (navigationOrder === 'after') navigate()
+      expect.soft(session.pendingDialog).toEqual(dialog)
+      await expect.soft(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'dialog_open' })
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(mock.debugger.sendCommand).toHaveBeenCalledWith('Page.handleJavaScriptDialog', { accept: false })
+      expect(session.pendingDialog).toBeUndefined()
+      expect(session.takeEvents()).toEqual({ dismissedDialog: dialog })
+      expect(session.isAvailable()).toBe(false)
+      await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      mock.recover()
+      await expect(session.send('Runtime.enable')).resolves.toBeDefined()
+    }
+  )
+
+  it('retains recovered startup requests before and after dom-ready', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    mock.crash()
+    mock.isCrashed.mockReturnValue(false)
+    const requests: string[] = []
+    session.onEvent((event) => {
+      if (event.method === 'Network.requestWillBeSent') requests.push(event.params.request.url)
+    })
+    mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+      requestId: 'startup',
+      type: 'Document',
+      request: { method: 'GET', url: 'https://example.com/startup', headers: {} }
+    })
+    expect.soft(requests).toEqual(['https://example.com/startup'])
+    expect(() => session.networkRequests()).toThrow(expect.objectContaining({ code: 'debugger_unavailable' }))
+    mock.recover()
+    await session.send('Runtime.enable')
+    mock.debugger.emit('message', {}, 'Network.loadingFinished', { requestId: 'startup' })
+    expect(session.networkRequests().requests).toEqual([
+      expect.objectContaining({ requestId: 'startup', url: 'https://example.com/startup', state: 'completed' })
+    ])
+  })
+
   it('re-arms download observation once when a managed guest recovers', () => {
     const fixture = createGuest()
     const session = new GuestSession(fixture.guest, 'managed')
