@@ -959,6 +959,41 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('does not inherit a departed quote into the top-level HTML block', () => {
+    // `<div>` after a quoted paragraph is a top-level block, so the definition-shaped line inside
+    // it is HTML text; inheriting the quote made the scanner hoist it as the winning definition.
+    const content = [
+      '> p',
+      '<div>',
+      '[r]: https://wrong.example',
+      '</div>',
+      '',
+      '[use][r]',
+      '',
+      '[r]: https://right.example'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
+  it('recognizes indented code in a quote that opens after a paragraph', () => {
+    // The quote opens a new block, so the four columns inside it are code and the definition below
+    // stands; the outside paragraph state must not keep the first definition from being read.
+    const content = [
+      'p',
+      '>     code',
+      '[r]: https://right.example',
+      '',
+      '[use][r]',
+      '',
+      '[r]: https://wrong.example'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it('keeps a definition that follows an HTML tag line after a list item', () => {
     // The complete tag leaves the item's paragraph and opens an HTML block, so `[r]:` is a
     // document definition; reading `<br>` as paragraph text skipped it and the link went literal.

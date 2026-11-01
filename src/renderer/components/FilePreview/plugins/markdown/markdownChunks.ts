@@ -2826,17 +2826,22 @@ export function splitMarkdownChunks(
     // own, opens only where a paragraph is not open: it cannot interrupt one.
     // A complete tag line at top level cannot continue a paragraph held by a container, so it
     // opens an HTML block and the definition below it stands.
+    const opensHtml = opensHtmlBlock(uncontained)
     const leavesParagraphContainer = previousStatus === 'paragraph' && paragraphContainer !== null && container === null
+    const paragraphHeldByItem =
+      paragraphContainer !== null && containerMarkers(paragraphContainer).some((marker) => marker !== '>')
     if (
       !containerHoldsCode &&
-      (opensHtmlBlock(uncontained) ||
-        ((previousStatus === 'block' || leavesParagraphContainer) && COMPLETE_TAG_LINE.test(uncontained)))
+      (opensHtml || ((previousStatus === 'block' || leavesParagraphContainer) && COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
       endListOutsideItem(line)
       // The block lives in the container it was opened behind, so its lines have to keep that
       // container: the marker chain the opening line carried, and an item's content column.
-      htmlBlockContainer = container?.[0] ?? (leavesParagraphContainer ? paragraphContainer : null)
+      // A type-7 tag can stay inside the list item whose paragraph it ended; a block-level tag
+      // and a quote-only prefix end their containers, so the block is read at the top level.
+      htmlBlockContainer =
+        container?.[0] ?? (leavesParagraphContainer && !opensHtml && paragraphHeldByItem ? paragraphContainer : null)
       htmlBlockStart = i
       htmlComment.open = false
       const opening = withoutHtmlComments(uncontained, htmlComment)
@@ -2866,8 +2871,12 @@ export function splitMarkdownChunks(
     // content column are code.
     const innerIndent = leadingColumns(pastQuoteMarkers(line).content)
     const itemCodeFloor = run !== null && innerIndent >= run.content ? run.content + 4 : 4
+    const opensContainerBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '', false)
     const indentedCode =
-      !blank && previousStatus === 'block' && innerIndent >= itemCodeFloor && !startsBlock(uncontained)
+      !blank &&
+      (previousStatus === 'block' || opensContainerBlock) &&
+      innerIndent >= itemCodeFloor &&
+      !startsBlock(uncontained)
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
         // A marker-only line behind the definition's container (`>` on its own) is blank the way
