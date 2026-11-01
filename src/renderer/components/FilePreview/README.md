@@ -287,9 +287,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
 - Markdown previews read the complete document without a fixed file-size rejection limit.
-- Text, Markdown and HTML source bodies use the renderer's `FileEditor` in read-only mode, with Pierre
-  row virtualization bound to the preview scroller. File editing uses the same component and
-  viewer-theme preferences; the existing host still owns permissions, drafts and saving.
+- Text and HTML source bodies use the renderer's `FileEditor` in read-only mode, with Pierre row
+  virtualization bound to the preview scroller. Markdown source uses the windowed `CodeViewer`
+  (`LazyCodeViewer`) instead. File editing uses `FileEditor` and viewer-theme preferences; the
+  existing host still owns permissions, drafts and saving.
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
   they never access Electron APIs. The adapter serves whole-document reads with one full
   `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
