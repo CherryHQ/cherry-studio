@@ -7,7 +7,8 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
@@ -111,12 +112,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [onOpenChange, open]
   )
 
-  // `limit: 500` matches ListAssistantsQuerySchema's max; realistic libraries sit well under it.
-  // If a user ever exceeds this we should move to usePaginatedQuery + scroll-load inside the popover.
-  const { data, isLoading, refetch } = useQuery('/assistants', {
-    enabled: selectorOpen,
-    query: { limit: 500 }
-  })
+  const { assistants, isLoading, refetch } = useAssistantsApi({ enabled: selectorOpen })
   const { groups, isLoading: isGroupsLoading } = useGroups('assistant', { enabled: selectorOpen })
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
@@ -134,7 +130,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
   const items: AssistantSelectorItem[] = useMemo(
     () => [
-      ...(data?.items ?? []).map((assistant) => ({
+      ...assistants.map((assistant) => ({
         id: assistant.id,
         name: assistant.name,
         emoji: assistant.emoji,
@@ -144,7 +140,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       })),
       ...(additionalItems ?? [])
     ],
-    [additionalItems, data?.items, groupById]
+    [additionalItems, assistants, groupById]
   )
 
   const selectorGroups = useMemo<ResourceSelectorShellGroup[]>(() => {
@@ -169,10 +165,10 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
   const handleEditItem = useCallback(
     (item: AssistantSelectorItem) => {
-      if (!data?.items.some((candidate) => candidate.id === item.id)) return
+      if (!assistants.some((candidate) => candidate.id === item.id)) return
       setEditDialogTarget({ kind: 'assistant', id: item.id })
     },
-    [data?.items]
+    [assistants]
   )
 
   const handleEditDialogOpenChange = useCallback(

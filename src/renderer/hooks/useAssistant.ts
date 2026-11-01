@@ -19,6 +19,7 @@
 import { useCallback, useRef } from 'react'
 
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -53,6 +54,7 @@ export function useAssistantsApi(options: { enabled?: boolean } = {}) {
     enabled: options.enabled ?? true,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
+  useDataChange(options.enabled === false ? [] : '/assistants', () => void refetch())
 
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
