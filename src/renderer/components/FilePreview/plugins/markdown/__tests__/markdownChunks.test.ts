@@ -959,6 +959,17 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('keeps a definition that follows an HTML tag line after a list item', () => {
+    // The complete tag leaves the item's paragraph and opens an HTML block, so `[r]:` is a
+    // document definition; reading `<br>` as paragraph text skipped it and the link went literal.
+    const content = '- foo\n<br>\n[r]: https://example.com/good\n\n' + 'filler\n\n'.repeat(3100) + 'see [r]'
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://example.com/good'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual([
+      'https://example.com/good'
+    ])
+  })
+
   it('keeps a quoted indented code block out of the open paragraph', () => {
     // Four columns inside the quote are code, so the definition below them stands; measuring the
     // raw line let the quote hide the indent and the later definition won the label.

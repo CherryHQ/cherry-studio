@@ -2824,15 +2824,19 @@ export function splitMarkdownChunks(
     // An HTML block swallows the lines to its blank one as raw text — a definition-shaped line among
     // them is text the parser never reads as one. A type-7 block, a complete tag on a line of its
     // own, opens only where a paragraph is not open: it cannot interrupt one.
+    // A complete tag line at top level cannot continue a paragraph held by a container, so it
+    // opens an HTML block and the definition below it stands.
+    const leavesParagraphContainer = previousStatus === 'paragraph' && paragraphContainer !== null && container === null
     if (
       !containerHoldsCode &&
-      (opensHtmlBlock(uncontained) || (previousStatus === 'block' && COMPLETE_TAG_LINE.test(uncontained)))
+      (opensHtmlBlock(uncontained) ||
+        ((previousStatus === 'block' || leavesParagraphContainer) && COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
       endListOutsideItem(line)
       // The block lives in the container it was opened behind, so its lines have to keep that
       // container: the marker chain the opening line carried, and an item's content column.
-      htmlBlockContainer = container?.[0] ?? null
+      htmlBlockContainer = container?.[0] ?? (leavesParagraphContainer ? paragraphContainer : null)
       htmlBlockStart = i
       htmlComment.open = false
       const opening = withoutHtmlComments(uncontained, htmlComment)
