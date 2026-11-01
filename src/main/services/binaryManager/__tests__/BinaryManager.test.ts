@@ -2438,6 +2438,100 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
     })
 
+    describe('external version targets', () => {
+      const bundledService = (version: string | undefined) => {
+        const service = makeService()
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        mockFs.existsSync.mockImplementation((...args: unknown[]) => String(args[0]) === '/mock/cherry.bin/uv')
+        mockFs.readFileSync.mockImplementation((candidate) => {
+          if (String(candidate) === '/mock/cherry.bin/.uv-version' && version !== undefined) return version
+          throw new Error('ENOENT')
+        })
+        return service
+      }
+
+      it.each([
+        ['0.11.16', '0.13.4'],
+        ['0.13.6', '0.13.4'],
+        [undefined, '0.13.4'],
+        ['', '0.13.4'],
+        ['0.13.6', 'latest'],
+        ['0.13.6', '0.13'],
+        ['latest', 'latest']
+      ])('rejects bundled marker %s with unproven exact target %s', async (version, targetVersion) => {
+        const service = bundledService(version)
+        const error = `Cannot satisfy uv@${targetVersion}: source=bundled; bundled version=${version || 'unknown (version marker missing or empty)'}. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.`
+
+        await expect(service.installByName({ name: 'uv', targetVersion })).rejects.toThrow(error)
+        await expect(service.installByName({ name: 'uv', targetVersion })).rejects.toThrow(error)
+        expect((await service.getToolSnapshots(['uv'])).uv).toMatchObject({
+          availability: { source: 'bundled' },
+          application: { status: 'absent' },
+          operation: { status: 'failed', action: 'install', error, targetVersion }
+        })
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+          uv: { status: 'failed', action: 'install', error, targetVersion }
+        })
+        await expect(service.getToolInventory()).resolves.toContainEqual({
+          name: 'uv',
+          recipe: 'uv',
+          status: 'failed',
+          ...(version ? { version } : {})
+        })
+        expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      })
+
+      it.each(['0.13.6', 'v0.13.6', undefined, ''])(
+        'accepts bundled marker 0.13.6 with target %s and clears a prior failure',
+        async (targetVersion) => {
+          const service = bundledService('0.13.6')
+          MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+            uv: { status: 'failed', action: 'install', error: 'previous target failed', targetVersion: '0.13.4' }
+          })
+
+          await expect(service.installByName({ name: 'uv', targetVersion })).resolves.toBeUndefined()
+
+          expect((await service.getToolSnapshots(['uv'])).uv.operation).toBeUndefined()
+          expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+          await expect(service.getToolInventory()).resolves.toContainEqual({
+            name: 'uv',
+            recipe: 'uv',
+            status: 'ready',
+            version: '0.13.6'
+          })
+          expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+          expect(mockPreferenceService.set).not.toHaveBeenCalled()
+        }
+      )
+
+      it('rejects an explicit system target without probing its version, then accepts a name-only request', async () => {
+        const service = makeService()
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        const error =
+          'Cannot satisfy fd@11.0.0: source=system; installed version cannot be verified. Cherry Studio cannot update or replace this system installation. Manage it outside Cherry Studio, or omit the version target (requestedVersion in cli_install) to use the available executable.'
+
+        await expect(service.installByName({ name: 'fd', targetVersion: '11.0.0' })).rejects.toThrow(error)
+        expect((await service.getToolSnapshots(['fd'])).fd).toMatchObject({
+          availability: { source: 'system', path: '/usr/local/bin/fd' },
+          operation: { status: 'failed', action: 'install', error, targetVersion: '11.0.0' }
+        })
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+          fd: { status: 'failed', action: 'install', error, targetVersion: '11.0.0' }
+        })
+        await expect(service.getToolInventory()).resolves.toContainEqual(
+          expect.objectContaining({ name: 'fd', status: 'failed' })
+        )
+
+        await expect(service.installByName({ name: 'fd' })).resolves.toBeUndefined()
+        expect((await service.getToolSnapshots(['fd'])).fd.operation).toBeUndefined()
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+        expect(mockExecFileAsync.mock.calls.every(([bin, args]) => bin === '/mock/mise' && args[0] === 'ls')).toBe(true)
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      })
+    })
+
     it('rejects a name-only install that resolves to a conflicting installation', async () => {
       const service = makeService()
       mockFs.existsSync.mockImplementation((...args: unknown[]) => String(args[0]).includes('shims'))
@@ -3072,6 +3166,9 @@ describe('BinaryManager', () => {
     const UV_BIN = '/mock/cherry.bin/uv'
     const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
     const BABELDOC = { name: 'babeldoc-stream', tool: 'pipx:babeldoc-stream' }
+    const BABELDOC_INSTALL_PATH = '/mock/mise/installs/pipx-babeldoc-stream/0.6.4.post4'
+    const BABELDOC_ENVIRONMENT = `${BABELDOC_INSTALL_PATH}/babeldoc-stream`
+    const PINNED_BABELDOC = { ...BABELDOC, pipDependencies: ['bitstring<5'] }
     const uvCalls = (subcommand: string) =>
       mockExecFileAsync.mock.calls.filter(
         (call: any[]) => call[0] === UV_BIN && call[1][0] === 'python' && call[1][1] === subcommand
@@ -3094,6 +3191,100 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
     }
+
+    const stubPinnedBabeldocInstall = () => {
+      stubManagedPythonInstall()
+      const managedInstall = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'ls' && args[2] === BABELDOC.tool) {
+          return {
+            stdout: JSON.stringify({
+              [BABELDOC.tool]: [{ version: '0.6.4.post4', active: true, install_path: BABELDOC_INSTALL_PATH }]
+            }),
+            stderr: ''
+          }
+        }
+        return managedInstall(bin, args, opts)
+      })
+      ;(mockFsp.readdir as any).mockResolvedValue(['bin', 'babeldoc-stream'])
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate !== `${BABELDOC_ENVIRONMENT}/pyvenv.cfg`) throw new Error('ENOENT')
+      })
+    }
+
+    it('enforces a declared pin in the active mise install environment', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {
+        env: { PIP_INDEX_URL: 'https://pypi.example/simple' },
+        usesDefaultChinaPipIndex: false
+      }
+      stubPinnedBabeldocInstall()
+
+      await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        UV_BIN,
+        ['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5'],
+        expect.objectContaining({
+          env: expect.objectContaining({ PIP_INDEX_URL: 'https://pypi.example/simple', UV_PYTHON_DOWNLOADS: 'never' }),
+          timeout: 120_000
+        })
+      )
+    })
+
+    it('re-enforces the pin when mise reports the same version already installed', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubPinnedBabeldocInstall()
+
+      await (service as any).installWithMise(PINNED_BABELDOC, undefined, [])
+      await (service as any).installWithMise(PINNED_BABELDOC, undefined, [])
+
+      const pipCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'pip')
+      expect(pipCalls).toHaveLength(2)
+      expect(pipCalls.map((call: any[]) => call[1])).toEqual([
+        ['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5'],
+        ['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5']
+      ])
+    })
+
+    it('does not invoke uv pip install when the pipx definition has no pins', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await (service as any).installWithMise(BABELDOC, undefined, [])
+      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'pip')).toHaveLength(0)
+    })
+
+    it('rejects the install when enforcing a declared pin fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubPinnedBabeldocInstall()
+      const managedInstall = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (bin === UV_BIN && args[0] === 'pip') throw new Error('bitstring unavailable')
+        return managedInstall(bin, args, opts)
+      })
+
+      await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).rejects.toThrow(
+        `Failed to update Python tool environment ${BABELDOC_ENVIRONMENT}: bitstring unavailable`
+      )
+    })
+
+    it('rejects a pinned install when mise reports no active install path', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).rejects.toThrow(
+        'mise did not report an active install path for babeldoc-stream'
+      )
+    })
 
     it('installs BabelDOC against an interpreter already in Cherry storage, without naming Python to mise', async () => {
       const service = new BinaryManager()
@@ -3444,6 +3635,46 @@ describe('BinaryManager', () => {
 
       await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
       expect(attemptedIndexes()).toEqual([TSINGHUA, TENCENT, OFFICIAL])
+    })
+
+    it('tries each index in order when pinned dependency enforcement fails', async () => {
+      const service = chinaService()
+      const installPath = '/mock/mise/installs/pipx-babeldoc-stream/0.6.4'
+      stubMise([])
+      const managedInstall = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'pipx:babeldoc-stream': [{ version: '0.6.4', active: true, install_path: installPath }]
+            }),
+            stderr: ''
+          }
+        }
+        if (bin === UV_BIN && args[0] === 'pip' && opts.env['UV_DEFAULT_INDEX'] !== OFFICIAL) {
+          throw new Error('pin unavailable')
+        }
+        return managedInstall(bin, args, opts)
+      })
+      ;(mockFsp.readdir as any).mockResolvedValue(['babeldoc-stream'])
+      mockFsp.access.mockResolvedValue(undefined)
+
+      await expect(
+        (service as any).installWithMise(
+          {
+            name: 'babeldoc',
+            tool: 'pipx:babeldoc-stream',
+            requestedVersion: '0.6.4',
+            pipDependencies: ['bitstring<5']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBe('0.6.4')
+
+      const pinCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[0] === UV_BIN && call[1][0] === 'pip')
+      expect(pinCalls.map((call: any[]) => call[2].env['UV_DEFAULT_INDEX'])).toEqual([TSINGHUA, TENCENT, OFFICIAL])
+      expect(pinCalls.every((call: any[]) => call[1].at(-1) === 'bitstring<5')).toBe(true)
     })
 
     it('names every index it tried when none of them can install', async () => {
@@ -3947,6 +4178,40 @@ describe('BinaryManager', () => {
   })
 
   describe('Agent CLI inventory', () => {
+    it('retains a targeted failure over bundled runnability until a successful install', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      mockFs.existsSync.mockImplementation((...args: unknown[]) => String(args[0]) === '/mock/cherry.bin/uv')
+      mockFs.readFileSync.mockImplementation((candidate) => {
+        if (String(candidate) === '/mock/cherry.bin/.uv-version') return '0.13.6'
+        throw new Error('ENOENT')
+      })
+      const operation = { status: 'failed', action: 'install', error: 'target mismatch', targetVersion: '0.13.4' }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', { uv: operation })
+
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toEqual(operation)
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'uv',
+        recipe: 'uv',
+        status: 'failed',
+        version: '0.13.6'
+      })
+
+      await service.installByName({ name: 'uv', targetVersion: 'v0.13.6' })
+
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toBeUndefined()
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'uv',
+        recipe: 'uv',
+        status: 'ready',
+        version: '0.13.6'
+      })
+      expect(mockExecFileAsync.mock.calls.every(([, args]) => args[0] === 'ls')).toBe(true)
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
     it('cancels the owned mise query and does not proceed to shim traversal', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

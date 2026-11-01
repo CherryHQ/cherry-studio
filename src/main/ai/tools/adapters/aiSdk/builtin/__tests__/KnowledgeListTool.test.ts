@@ -202,8 +202,8 @@ describe('kb_list', () => {
   })
 
   it('tells the model that browse results are not retrieved evidence', () => {
-    expect(entry.tool.description).toMatch(/metadata.*structure.*not.*retrieved evidence/i)
-    expect(entry.tool.description).toMatch(/content questions.*kb_search.*kb_read/i)
+    expect(entry.tool.description).toMatch(/metadata only.*kb_search.*kb_read/i)
+    expect(entry.tool.description).toMatch(/kb_search.*kb_read.*content/i)
   })
 
   it('passes the assistant scope into the paged service query', async () => {

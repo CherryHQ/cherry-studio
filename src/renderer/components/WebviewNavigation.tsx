@@ -80,11 +80,11 @@ export function WebviewNavigation({
   const [isAddressFocused, setIsAddressFocused] = useState(false)
   const historyListId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [historySearch, setHistorySearch] = useState('')
+  const [search, setSearchState] = useState('')
+  const setSearch = useCallback((value: string) => setSearchState(value.trim().slice(0, 500)), [])
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [activeSuggestion, setActiveSuggestion] = useState(-1)
   const showHistory = historyEnabled && historyOpen && isHostActive && isWebviewReady
-  const search = historySearch.trim().slice(0, 500)
   useEffect(() => {
     if (!showHistory) return
     const timer = setTimeout(() => setDebouncedSearch(search), 200)
@@ -97,7 +97,8 @@ export function WebviewNavigation({
   } = useQuery('/browser-visits', {
     query: { search: debouncedSearch, offset: 0, limit: 20 },
     enabled: showHistory && search === debouncedSearch,
-    swrOptions: { keepPreviousData: false }
+    // Hold the last list while the closing popover animates out; while open, never show another search's results.
+    swrOptions: { keepPreviousData: !showHistory }
   })
   const suggestions =
     search === debouncedSearch
@@ -176,9 +177,9 @@ export function WebviewNavigation({
     isAddressEditingRef.current = true
     setIsAddressFocused(true)
     setHistoryOpen(true)
-    setHistorySearch('')
+    setSearch('')
     setActiveSuggestion(-1)
-  }, [isAddressEditingRef])
+  }, [isAddressEditingRef, setSearch])
 
   const handleAddressBlur = useCallback(() => {
     setIsAddressFocused(false)
@@ -282,9 +283,15 @@ export function WebviewNavigation({
               value={isAddressFocused ? addressValue : addressDisplay}
               onChange={(event) => {
                 setAddressValue(event.target.value)
-                setHistorySearch(event.target.value)
+                setSearch(event.target.value)
                 setActiveSuggestion(-1)
                 setHistoryOpen(true)
+              }}
+              onMouseDown={(event) => {
+                if (event.button !== 0 || document.activeElement === event.currentTarget) return
+                // Without this, pointer drift during the focusing click extends the select-all into a partial range.
+                event.preventDefault()
+                event.currentTarget.focus()
               }}
               onFocus={handleAddressFocus}
               onBlur={handleAddressBlur}

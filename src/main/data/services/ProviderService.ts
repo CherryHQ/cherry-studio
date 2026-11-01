@@ -43,6 +43,7 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { ProviderBillingSchema } from '@shared/data/types/providerBilling'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
@@ -491,6 +492,7 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (dto.providerSettings?.billing) ProviderBillingSchema.parse(dto.providerSettings.billing)
     if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
       throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
     }
@@ -613,6 +615,7 @@ class ProviderService {
           current.providerSettings,
           dto.providerSettings
         ) as Partial<ProviderSettings>
+        if (updates.providerSettings?.billing) ProviderBillingSchema.parse(updates.providerSettings.billing)
       }
 
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled

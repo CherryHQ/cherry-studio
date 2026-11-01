@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-chat-stream-idle-bound.md
+2026-10-29-chat-stream-idle-bound.md: 34ecbb2a35363ce62ef0feafd0d6e8081d9ee7aa
+2026-10-29-chat-stream-idle-bound.zh.md: 6bf80667da066a53af3499cc13ad42a5fc635624

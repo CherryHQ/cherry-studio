@@ -1,4 +1,10 @@
-export { connectionMethods, pairingMethods, connectionNotificationSchema, remoteLimits } from './connection'
+export {
+  connectionMethods,
+  pairingMethods,
+  connectionNotificationSchema,
+  remoteEndpointSnapshotSchema,
+  remoteLimits
+} from './connection'
 export { jsonRpcRequestSchema, jsonRpcResponseSchema, jsonRpcNotificationSchema, jsonRpcErrorSchema } from './jsonRpc'
 export type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification, JsonRpcError } from './jsonRpc'
 export { remoteFailureSchema } from './errors'
@@ -18,9 +24,16 @@ export {
   remoteDiscoveryType,
   remoteConnectPath,
   directEndpointSchema,
+  advertisedEndpointSchema,
   configuredEndpointsSchema,
   remoteDiscoveryTxtSchema,
   directEndpointUrl,
   parseDirectEndpoint
 } from './discovery'
 export type { DirectEndpoint } from './discovery'
+
+export { pairingQrSchema } from './pairing'
+export type { PairingQr } from './pairing'
+
+export { uploadTransferLimits, uploadChunkHeaderSchema, uploadAckSchema, isUploadChunk } from './records'
+export type { UploadChunkHeader, UploadChunk, UploadAck } from './records'

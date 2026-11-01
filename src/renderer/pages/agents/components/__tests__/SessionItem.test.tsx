@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import SessionItem, { type SessionItemMenuActions } from '../SessionItem'
@@ -18,10 +19,6 @@ vi.mock('@renderer/components/chat/actions/ResourceListActionContextMenu', () =>
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useOptionalRightPanelActions: () => undefined,
   useOptionalRightPanelState: () => undefined
-}))
-
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [[]]
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -107,13 +104,15 @@ describe('SessionItem', () => {
 
     render(
       <Provider items={[session]} selectedId={session.id}>
-        <SessionItem
-          session={session}
-          sessionMenuActions={sessionMenuActions}
-          onDelete={onDelete}
-          onOpenRenameDialog={vi.fn()}
-          onPress={vi.fn()}
-        />
+        <SessionHoverPreviewGroup>
+          <SessionItem
+            session={session}
+            sessionMenuActions={sessionMenuActions}
+            onDelete={onDelete}
+            onOpenRenameDialog={vi.fn()}
+            onPress={vi.fn()}
+          />
+        </SessionHoverPreviewGroup>
       </Provider>
     )
 

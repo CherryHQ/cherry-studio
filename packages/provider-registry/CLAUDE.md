@@ -3,7 +3,7 @@
 The bundled AI **provider + model catalog**. This package has two faces:
 
 - **Build-time**: a generation pipeline (`src/creators/` + `src/providers/` + `scripts/generate-catalog.ts`) that emits the three `data/*.json` files.
-- **Runtime**: schemas + `registry-loader.ts` that the app reads those JSON files through.
+- **Runtime**: portable schemas and queries (`registry.ts`), optional bundled data entries, and Node file loading (`registry-loader.ts`).
 
 Full architecture: [docs/architecture.md](docs/architecture.md). Consumer API: [README.md](README.md).
 
@@ -60,5 +60,7 @@ replace an existing baseline.
 
 Structural compatibility is not enough for runtime-interpreted values. When catalog data starts
 using a new adapter family, endpoint type, reasoning wire behavior, or another value older app code
-cannot execute, bump `REGISTRY_MIN_APP_VERSION` to the first compatible application version. The
+cannot execute, bump `REGISTRY_MIN_APP_VERSION` in `src/catalog.ts` to the first compatible application version. The
 publish manifest admits a client only when `minAppVersion <= appVersion <= sourceAppVersion`.
+Create a new schema-version stream for that higher floor; never cut off an existing stream's clients.
+The publisher preserves older streams' published minimum versions while updating compatible data.

@@ -1,17 +1,27 @@
 import { EventEmitter } from 'events'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { BaseService } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
+import { FileManager } from '@main/services/file'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -127,14 +137,17 @@ vi.mock('@data/services/AgentChannelService', () => ({
 function simulateStream(parts: Array<{ type: string; delta?: string }>) {
   mockStartAgentSessionRun.mockImplementationOnce(
     async ({
-      listeners
+      listeners,
+      onPersist
     }: {
+      onPersist?: () => void
       listeners: Array<{
         id: string
         onChunk: (chunk: unknown) => void
         onDone: (result: { status: string }) => void | Promise<void>
       }>
     }) => {
+      onPersist?.()
       for (const listener of listeners) {
         for (const part of parts) {
           listener.onChunk(part)
@@ -157,6 +170,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
+  adapter.discardResponse = vi.fn()
   adapter.notifyChatIds = []
   return adapter
 }
@@ -172,7 +186,21 @@ async function handleIncomingAndFlush(adapter: ReturnType<typeof createMockAdapt
 }
 
 describe('ChannelMessageHandler', () => {
-  beforeEach(() => {
+  setupTestDatabase()
+  let managedRoot: string
+  beforeEach(async () => {
+    managedRoot = await mkdtemp(path.join(os.tmpdir(), 'channel-managed-'))
+    await mkdir(path.join(managedRoot, 'files'))
+    vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
+      path.join(managedRoot, 'files', filename ?? '')
+    )
+    BaseService.resetInstances()
+    const manager = new FileManager()
+    Object.assign(application.get('FileManager'), {
+      createInternalEntry: manager.createInternalEntry.bind(manager),
+      getPhysicalPath: manager.getPhysicalPath.bind(manager),
+      getUrl: manager.getUrl.bind(manager)
+    })
     vi.useFakeTimers()
     vi.clearAllMocks()
     // Restore default agent mock after clearAllMocks
@@ -192,8 +220,10 @@ describe('ChannelMessageHandler', () => {
     channelMessageHandler.clearSessionTracker('agent-1')
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers()
+    vi.mocked(application.getPath).mockRestore()
+    await rm(managedRoot, { recursive: true, force: true })
   })
 
   it('collectStreamResponse accumulates text across turns and sends via adapter', async () => {
@@ -227,6 +257,52 @@ describe('ChannelMessageHandler', () => {
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
+  })
+
+  it('delivers a sanitized terminal reply when admission throws an unexpected error', async () => {
+    const adapter = createMockAdapter({ channelType: 'wecom' })
+    vi.mocked(agentSessionService.create).mockReturnValueOnce({
+      id: 'session-admission',
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/test-workspace' }
+    } as any)
+    mockStartAgentSessionRun.mockRejectedValueOnce(new Error('provider secret=private'))
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello',
+      messageId: 'inbound-1'
+    })
+    expect(adapter.sendMessage.mock.calls).toEqual([
+      ['chat-1', t('common.channel_message_processing_error'), { replyToMessageId: 'inbound-1' }]
+    ])
+  })
+
+  it('leaves admitted stream errors to the listener without sending a second terminal reply', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValueOnce({
+      id: 'session-stream-error',
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/test-workspace' }
+    } as any)
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }: any) => {
+      setTimeout(() => {
+        for (const listener of listeners) void listener.onError({ error: { message: 'runtime failed' } })
+      }, 1)
+      return { mode: 'started' }
+    })
+    const pending = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello'
+    })
+    await vi.advanceTimersByTimeAsync(1001)
+    await pending
+    expect(adapter.sendMessage.mock.calls).toEqual([
+      ['chat-1', t('common.channel_error', { error: 'runtime failed' }), undefined]
+    ])
   })
 
   it('settles a busy channel message and leaves the chat queue usable', async () => {
@@ -369,7 +445,102 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
 
-  it('confines an image with a hostile media type to channel-images as .png', async () => {
+  it.each(['Compare these attachments', ''])('sends structured attachments with unchanged text %j', async (text) => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    try {
+      const adapter = createMockAdapter()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text,
+        images: [{ media_type: 'image/png', data: Buffer.from('image bytes').toString('base64') }],
+        files: ['first file', 'second file'].map((content) => ({
+          filename: 'report #1 中文.txt',
+          media_type: 'text/plain',
+          data: Buffer.from(content).toString('base64'),
+          size: Buffer.byteLength(content)
+        }))
+      })
+
+      const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+      expect(parts.filter((part) => part.type === 'text')).toEqual(text ? [{ type: 'text', text }] : [])
+      const files = parts.filter((part) => part.type === 'file')
+      expect(files).toMatchObject([
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'image/png',
+          filename: expect.stringMatching(/\.png$/)
+        },
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'text/plain',
+          filename: 'report #1 中文.txt'
+        },
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'text/plain',
+          filename: 'report #1 中文.txt'
+        }
+      ])
+      expect(new Set(files.map((file) => file.url)).size).toBe(3)
+      expect(await Promise.all(files.map((file) => readFile(new URL(file.url), 'utf8')))).toEqual([
+        'image bytes',
+        'first file',
+        'second file'
+      ])
+      const content = buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)
+      for (const file of files) {
+        expect(content).toContain(fileURLToPath(file.url))
+        expect(content).toContain(JSON.stringify(file.filename))
+      }
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['images', 'files'] as const)('does not dispatch a turn when saving %s fails', async (kind) => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    try {
+      await rm(path.join(managedRoot, 'files'), { recursive: true })
+      await writeFile(path.join(managedRoot, 'files'), 'blocks managed file creation')
+      const adapter = createMockAdapter()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'should not run' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'Read the attachment',
+        [kind]: [
+          { filename: 'report.txt', media_type: kind === 'images' ? 'image/png' : 'text/plain', data: 'AA==', size: 1 }
+        ]
+      })
+
+      expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+      expect(adapter.sendMessage.mock.calls).toEqual([
+        ['chat-1', t('common.channel_message_processing_error'), { replyToMessageId: undefined }]
+      ])
+    } finally {
+      mockStartAgentSessionRun.mockReset()
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves a managed original for an image with a hostile media type', async () => {
     const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-images-'))
     try {
       const adapter = createMockAdapter()
@@ -392,11 +563,14 @@ describe('ChannelMessageHandler', () => {
         images: [{ media_type: 'image/a\\..\\..\\..\\evil', data: Buffer.from('img').toString('base64') }]
       })
 
-      const written = await readdir(path.join(workDir, '.cherry-studio', 'channel-images'))
-      expect(written).toHaveLength(1)
-      expect(written[0]).toMatch(/\.png$/)
-      expect(await readdir(workDir)).toEqual(['.cherry-studio'])
-      expect(await readdir(path.join(workDir, '.cherry-studio'))).toEqual(['channel-images'])
+      const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+      const file = parts.find((part) => part.type === 'file')!
+      expect(file).toBeDefined()
+      expect(file.filename?.endsWith('.png')).toBe(true)
+      const entryId = file.type === 'file' ? readCherryMeta(file)?.fileEntryId : undefined
+      expect(entryId).toBeTruthy()
+      expect(await readFile(new URL(file.url), 'utf8')).toBe('img')
+      expect(await readFile(application.get('FileManager').getPhysicalPath(entryId!), 'utf8')).toBe('img')
     } finally {
       await rm(workDir, { recursive: true, force: true })
     }
@@ -424,7 +598,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', undefined)
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', undefined, { status: 'success' })
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -798,14 +972,16 @@ describe('ChannelMessageHandler', () => {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
-      text: 'first'
+      text: 'first',
+      messageId: 'first-id'
     })
     await vi.advanceTimersByTimeAsync(500)
     const second = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
-      text: 'second'
+      text: 'second',
+      messageId: 'second-id'
     })
 
     await vi.advanceTimersByTimeAsync(999)
@@ -815,6 +991,7 @@ describe('ChannelMessageHandler', () => {
     await Promise.all([first, second])
     expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
     expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe('first\nsecond')
+    expect(adapter.discardResponse.mock.calls).toEqual([['chat-1', { replyToMessageId: 'first-id' }]])
   })
 
   it('flushes a sustained message burst at the original sixteen-second deadline', async () => {

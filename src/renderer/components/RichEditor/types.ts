@@ -99,7 +99,11 @@ export interface RichEditorRef {
   getContent: () => string
   /** Get current editor content as Markdown */
   getMarkdown: () => string
-  /** Set editor Markdown content */
+  /** Get the current document selection and its plain text */
+  getSelection: () => { from: number; to: number; text: string } | null
+  /** Replace a document range with literal text; return false when editing is unavailable or the range is invalid. */
+  replaceRange: (range: { from: number; to: number }, text: string) => boolean
+  /** Load or synchronize Markdown content without firing content-change callbacks. */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
   focus: () => void

@@ -8,7 +8,7 @@ sources:
 
 # Adding an Agent Runtime
 
-How to add another agent runtime alongside `claude-code`, `pi`, and `dsh`. For the
+How to add another agent runtime alongside `claude-code` and `pi`. For the
 host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
@@ -83,6 +83,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      API-key rotation, open connections, or write state.
    - `listAvailableTools(mcpIds)` — the tool catalog for approval UI.
    - `connect(input)` — build an `AgentRuntimeConnection`.
+   - `workspaceRelocation`, when the runtime persists workspace-dependent history:
+     own native validation and opaque checkpoint remapping here, stage artifacts through
+     the host, and declare the artifact paths the runtime owns. See
+     [Managed workspace relocation](./agent-session-runtime.md#managed-workspace-relocation).
    - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
      runtimes that benefit from idle warmup (see the Claude driver).
 
@@ -122,8 +126,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 4. **Stream adapter** — convert runtime-native events into
    `UIMessageChunk`s. Import your transport constant from the descriptor
    (single source), never re-declare the string. Reference implementations:
-   `claudeCode/streamAdapter.ts`, `pi/piStreamAdapter.ts`, and
-   `dsh/dshStreamAdapter.ts`.
+   `claudeCode/streamAdapter.ts` and `pi/piStreamAdapter.ts`.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a

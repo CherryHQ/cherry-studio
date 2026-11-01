@@ -1,5 +1,7 @@
 # Cherry Studio Contributor Guide
 
+English | [中文](CONTRIBUTING.zh.md)
+
 Welcome to the Cherry Studio contributor community! We are committed to making Cherry Studio a project that provides long-term value and hope to invite more developers to join us. Whether you are an experienced developer or a beginner just starting out, your contributions will help us better serve users and improve software quality.
 
 ## How to Contribute

@@ -11,7 +11,7 @@ Entry point for **IpcApi** — Cherry Studio's unified, type-safe channel for RP
 
 IpcApi is the **fifth parallel subsystem** alongside BootConfig / Cache / Preference / DataApi. It does **not** absorb any of them — it collects the "business capability IPC" those four cannot cover (window/system/shell/notification/external-service/file commands).
 
-> **Status:** the framework and most business domains have shipped. `src/shared/IpcChannel.ts` still contains the DataApi/Preference/Cache transports plus legacy app, backup, file, LAN-transfer, Copilot, and small-domain channels, as well as the deliberate `Tab_MoveWindow` and Python reverse-RPC carve-outs. Retiring those remaining legacy entries, moving the transport constants under `ipc/`, and narrowing `window.electron` are still pending.
+> **Status:** the framework and most business domains have shipped. `src/shared/IpcChannel.ts` still contains the DataApi/Preference/Cache transports plus legacy app, backup, file, Copilot, and small-domain channels, as well as the deliberate `Tab_MoveWindow` and Python reverse-RPC carve-outs. Retiring those remaining legacy entries, moving the transport constants under `ipc/`, and narrowing `window.electron` are still pending.
 
 ## Quick Navigation
 

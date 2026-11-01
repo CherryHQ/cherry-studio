@@ -22,17 +22,24 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     previewValue,
-    resetPreviewKey
+    resetPreviewKey,
+    disabled
   }: {
     actions?: ReactNode
     value: string
     onChange: (value: string) => void
     previewValue?: string
     resetPreviewKey?: number
+    disabled?: boolean
   }) => (
     <div>
       {actions}
-      <textarea aria-label="system-prompt" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      <textarea
+        aria-label="system-prompt"
+        value={value}
+        readOnly={disabled}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
       <output aria-label="system-prompt-preview">{previewValue}</output>
       <output data-testid="preview-reset-key">{resetPreviewKey}</output>
     </div>
@@ -55,21 +62,31 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
     fallbackSource,
     emptyValueSystemPrompt,
     existingValueSystemPrompt,
-    onChange
+    onChange,
+    onRunningChange
   }: {
     fallbackSource?: string
     emptyValueSystemPrompt: string
     existingValueSystemPrompt: string
     onChange: (value: string) => void
+    onRunningChange?: (running: boolean) => void
   }) => (
-    <button
-      type="button"
-      data-fallback-source={fallbackSource}
-      data-empty-value-system-prompt={emptyValueSystemPrompt}
-      data-existing-value-system-prompt={existingValueSystemPrompt}
-      onClick={() => onChange('Polished system prompt')}>
-      Polish prompt
-    </button>
+    <>
+      <button
+        type="button"
+        data-fallback-source={fallbackSource}
+        data-empty-value-system-prompt={emptyValueSystemPrompt}
+        data-existing-value-system-prompt={existingValueSystemPrompt}
+        onClick={() => onChange('Polished system prompt')}>
+        Polish prompt
+      </button>
+      <button type="button" onClick={() => onRunningChange?.(true)}>
+        Start polishing
+      </button>
+      <button type="button" onClick={() => onRunningChange?.(false)}>
+        Finish polishing
+      </button>
+    </>
   )
 }))
 
@@ -140,5 +157,17 @@ describe('SystemPromptStep', () => {
 
     expect(screen.getByLabelText('system-prompt')).toHaveValue('Polished system prompt')
     expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
+  })
+
+  it('locks the editor only while polishing is running', async () => {
+    const user = userEvent.setup()
+
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: 'Start polishing' }))
+    expect(screen.getByLabelText('system-prompt')).toHaveAttribute('readonly')
+
+    await user.click(screen.getByRole('button', { name: 'Finish polishing' }))
+    expect(screen.getByLabelText('system-prompt')).not.toHaveAttribute('readonly')
   })
 })

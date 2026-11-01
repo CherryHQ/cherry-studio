@@ -453,12 +453,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
 
   return (
     <Dialog open={openState} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent closeOnOverlayClick={false} className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-[600px]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
-        {error && <Alert className="mb-1" message={error} type="error" showIcon />}
-        <div className="space-y-4">
+        {error && <Alert className="mb-1 shrink-0" message={error} type="error" showIcon />}
+        <div className="min-h-0 space-y-4 overflow-y-auto">
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
               autoFocus
@@ -527,7 +527,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             </FormRow>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button type="button" variant="outline" onClick={handleCancel}>
             {i18n.t('common.cancel')}
           </Button>

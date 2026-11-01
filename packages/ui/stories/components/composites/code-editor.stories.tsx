@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import * as cmThemes from '@uiw/codemirror-themes-all'
 import { action } from 'storybook/actions'
 
-import { CodeEditor } from '../../../src/components'
+import CodeEditor from '../../../src/components/composites/code-editor'
 import type { CodeMirrorTheme, LanguageConfig } from '../../../src/components/composites/code-editor/types'
 
 // The app-facing getCmThemeNames/getCmThemeByName are async (themes-all loads on
