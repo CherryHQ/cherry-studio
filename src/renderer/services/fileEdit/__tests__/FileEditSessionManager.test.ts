@@ -450,6 +450,32 @@ describe('owner drain (notes relocation barrier)', () => {
     lease.release()
   })
 
+  it.each([false, true])(
+    'replays an observation deferred by the owner seal without losing a dirty draft (%s)',
+    async (dirty) => {
+      const lease = await manager.acquire('notes', handle)
+      if (dirty) {
+        lease.acceptEdit('unsaved draft')
+        failWrite = true
+        await expect(manager.drainOwner('notes')).rejects.toThrow('File save failed')
+      } else {
+        await manager.drainOwner('notes')
+      }
+      disk = snapshot('external update')
+      await lease.invalidate()
+      expect(lease.getSnapshot().draft).toBe(dirty ? 'unsaved draft' : 'a')
+      manager.releaseOwner('notes')
+      await vi.waitFor(() => {
+        if (dirty) expect(lease.getSnapshot().conflict).toBe(true)
+        else expect(lease.getSnapshot().freshness).toBe('known')
+      })
+      expect(lease.getSnapshot().draft).toBe(dirty ? 'unsaved draft' : 'external update')
+      expect(lease.getSnapshot().conflict).toBe(dirty)
+      expect(writes).toEqual([])
+      lease.release()
+    }
+  )
+
   it('leaves other owners editable and writable while notes are sealed', async () => {
     const artifactPath = AbsoluteFilePathSchema.parse('/artifact/B.md')
     const files = new Map<string, FileEditRead>([

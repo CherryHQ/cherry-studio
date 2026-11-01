@@ -214,6 +214,10 @@ export class FileEditSessionManager {
       if (session.snapshot.ownerId !== ownerId || !session.snapshot.sealed) continue
       this.publish(session, { sealed: false })
       this.evict(session)
+      // Observations received while sealed could not read the disk. Replay
+      // them only for sessions still retained after release, using the normal
+      // invalidation path so unsaved drafts retain conflict protection.
+      if (session.needsRevalidation && this.sessions.get(session.key) === session) void this.invalidate(session)
     }
   }
 
