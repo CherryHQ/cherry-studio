@@ -18,6 +18,23 @@ describe('detectDestructiveAssistantCommand', () => {
     ['cmd /c if /i not "a" NEQ "b" erase victim.txt', 'permanent Windows file deletion'],
     ['cmd.exe /c "@del /q victim.txt"', 'permanent Windows file deletion'],
     ['if exist victim.txt @rd /s /q victim.txt', 'permanent Windows file deletion'],
+    // Batch `@` echo suppression tolerates whitespace before the command (`@ echo off` is idiomatic),
+    // so `@ del` executes the deletion exactly like `@del`.
+    ['cmd /c @ del /q victim.txt', 'permanent Windows file deletion'],
+    ['cmd.exe /c "@  del /q victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c @\tdel /q victim.txt', 'permanent Windows file deletion'],
+    ['echo hi && @ del file.txt', 'permanent Windows file deletion'],
+    ['cmd /c if 1 EQU 1 "@ del victim.txt"', 'permanent Windows file deletion'],
+    ['if exist victim.txt @ rd /s /q victim.txt', 'permanent Windows file deletion'],
+    // cmd accepts repeated @ signs (`@@@@@@@@echo off` runs); mixed @/whitespace runs too.
+    ['cmd /c @@del victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c @@@@@@@@del victim.txt', 'permanent Windows file deletion'],
+    ['cmd /c @@ del victim.txt', 'permanent Windows file deletion'],
+    // Conservative deny: `@ "del x"` and `@ @ del` are dubious cmd syntax (not verified executable),
+    // but blocking them costs nothing - a denied malformed command only errors - and allowing them
+    // would need a full parser. The atomic gap keeps these linear.
+    ['cmd /c @ "del victim.txt"', 'permanent Windows file deletion'],
+    ['cmd /c @ @ del victim.txt', 'permanent Windows file deletion'],
     ['if defined SHOULD_DELETE del victim.txt', 'permanent Windows file deletion'],
     ['if exist "my file.txt" del /q "my file.txt"', 'permanent Windows file deletion'],
     ['if ERRORLEVEL 1 del victim.txt', 'permanent Windows file deletion'],
@@ -73,6 +90,8 @@ describe('detectDestructiveAssistantCommand', () => {
     'pwd && ls -la "T:/Some folder del something"',
     'cd "T:/Archivo General" && mkdir -p test && echo "prueba de tanteo del Bibliotecario" > test/file.txt && ls -la test',
     'echo "DEL del Rd erase"',
+    'echo @ del is only prose here',
+    'git commit -m "docs: mention @ del command form"',
     'ls modelo'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
@@ -100,6 +119,22 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(performance.now() - start).toBeLessThan(2000)
     // The quote-separated tail form still detects.
     expect(detectDestructiveAssistantCommand('cmd /c   "del /q victim.txt')).toBe('permanent Windows file deletion')
+  })
+
+  it('stays linear on long @/quote runs before a non-deletion tail (atomic gap regression)', () => {
+    // The `@` whitespace gap must be one atomic scan: alternating @/space or quote/space pairs
+    // are the split-ambiguity worst case for a naive `@?\\s*` tail.
+    for (const pair of ['@ ', '" ', "@'"]) {
+      const probe = 'echo ok && ' + pair.repeat(80_000) + 'echo hello'
+      const start = performance.now()
+      expect(detectDestructiveAssistantCommand(probe)).toBeUndefined()
+      // A split-ambiguity tail is quadratic here; atomic is a few ms. 2s is generous CI headroom.
+      expect(performance.now() - start).toBeLessThan(2000)
+    }
+    // The spaced-@ tail still detects after a long whitespace run.
+    expect(detectDestructiveAssistantCommand('cmd /c ' + ' '.repeat(2000) + '@ del /q v.txt')).toBe(
+      'permanent Windows file deletion'
+    )
   })
 
   it('keeps the pre-existing unbounded bare operand (257+ chars still blocked)', () => {
