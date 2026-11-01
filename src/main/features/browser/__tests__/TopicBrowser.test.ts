@@ -77,7 +77,7 @@ describe('topic browser ownership and cancellation', () => {
   }
 
   it.each(['focused', 'background'] as const)(
-    'accepts %s keyboard input after a topic changes assistant',
+    'delivers keyboard input after a %s acknowledgement after a topic changes assistant',
     async (status) => {
       vi.useRealTimers()
       const { fixture, tabId } = attachTopicGuest()
@@ -90,11 +90,8 @@ describe('topic browser ownership and cancellation', () => {
       dbh.db.update(topicTable).set({ assistantId: newOwner }).where(eq(topicTable.id, topicId)).run()
       const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: newOwner })
       let input = ''
-      const send = fixture.mock.debugger.sendCommand.getMockImplementation()!
-      fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
-        if (method === 'Input.dispatchKeyEvent' && (params as { type: string }).type === 'char')
-          input += (params as { text: string }).text
-        return send(method, params)
+      fixture.mock.sendInputEvent.mockImplementation((event) => {
+        if (event.type === 'char') input += event.keyCode
       })
       vi.mocked(application.get('IpcApiService').send).mockImplementation((eventWindow, event, payload) => {
         if (event !== 'browser.input.focus_requested') return
@@ -106,8 +103,12 @@ describe('topic browser ownership and cancellation', () => {
           oldControl.execute('pressKey', { key: 'x' }, tabId, new AbortController().signal)
         ).rejects.toMatchObject({ code: 'not_allowed' })
         expect(input).toBe('')
-        await control.execute('pressKey', { key: 'x' }, tabId, new AbortController().signal)
+        const action = control.execute('pressKey', { key: 'x' }, tabId, new AbortController().signal)
+        await action
         expect(input).toBe('x')
+        expect(fixture.mock.debugger.sendCommand.mock.calls.filter(([method]) => method.startsWith('Input.'))).toEqual(
+          []
+        )
         expect(service.topicBrowser.get({ sessionId: topicId, ownerId: newOwner })?.tabId).toBe(tabId)
       } finally {
         await oldControl.close()
@@ -146,13 +147,20 @@ describe('topic browser ownership and cancellation', () => {
           request.sessionId,
           request.tabId,
           request.requestId,
-          failure === 'unavailable' ? 'unavailable' : 'background',
+          failure === 'unavailable' ? failure : 'focused',
           eventWindow
         )
       })
       try {
-        await expect(control.execute('pressKey', { key: 'x' }, tabId, abort.signal)).rejects.toThrow()
+        const action = control.execute('pressKey', { key: 'x' }, tabId, abort.signal)
+        if (failure === 'cancel') await expect(action).rejects.toThrow('cancelled')
+        else
+          await expect(action).rejects.toMatchObject({
+            code:
+              failure === 'owner-change' ? 'not_allowed' : failure === 'unavailable' ? 'input_unavailable' : 'not_found'
+          })
         expect(inputs).toBe(0)
+        expect(fixture.mock.sendInputEvent).not.toHaveBeenCalled()
       } finally {
         await control.close()
       }

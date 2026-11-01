@@ -80,7 +80,7 @@ src/main/features/browser/
   actions/
     resolveTarget.ts                        ref → backendNodeId → centre point + occlusion check
     mouse.ts                                click / hover / scroll via Input.dispatchMouseEvent
-    keyboard.ts                             type / press_key via Input.dispatchKeyEvent + insertText, key table
+    keyboard.ts                             type / press_key via guest input or managed CDP, key table
     forms.ts                                select_option; upload_file deferred
     settle.ts                               post-action wait (navigation or network-quiet)
   mcp/                                      moved from src/main/ai/mcp/servers/browser/ (git mv, history kept)
@@ -141,7 +141,7 @@ export interface BrowserSnapshot {
 // Planned PR B adapter result; not part of the PR A API.
 export interface BrowserActionResult {
   ok: boolean
-  error?: 'stale_ref' | 'not_found' | 'dialog_open' | 'occluded' | 'timeout' | 'debugger_unavailable' | 'not_allowed'
+  error?: 'stale_ref' | 'input_not_focused' | 'input_unavailable' | 'not_found' | 'dialog_open' | 'occluded' | 'timeout' | 'debugger_unavailable' | 'not_allowed'
   url: string
   title: string
   navigated: boolean               // main-frame navigation happened during settle
@@ -362,8 +362,31 @@ and the scrolled-page Electron acceptance case.
 
 ### 5.4 Keyboard (`actions/keyboard.ts`)
 
-- `type`: verify the target is editable, then `DOM.focus({ backendNodeId })`. With `clear`, select all using `Control/Meta+a` and clear with `Backspace`; otherwise position the caret at the end. Insert text with `Input.insertText`, then read back `value ?? textContent`. A mismatch retries the complete expected value once through the centralized key-event pipeline, after clearing the field. Multiline mismatches and a failed retry return `not_found` without exposing the observed field value. With `submit`, press Enter after successful verification.
-- `press_key`: parse `Modifier+Key`; the centralized key table maps names to `{ key, code, windowsVirtualKeyCode }`. Dispatch `rawKeyDown`, an optional `char`, then `keyUp`. Printable text and Enter (`text: '\r'`) emit `char` unless Control, Meta or Alt suppress text. Modifiers bitmask: Alt 1, Control 2, Meta 4, Shift 8. The platform select-all chord also passes Chromium's `selectAll` editing command.
+- `type`: verify the target is editable and request input focus once, then `DOM.focus({ backendNodeId })`. With `clear`, borrowed sessions select the contents in-page using the same helper that positions the caret: `setSelectionRange(0, value.length)` for inputs/textareas or `Range.selectNodeContents` and `getSelection().addRange` for contenteditable targets. Recheck the input target, then send `Backspace`. For inputs without a selection API (including email and number), clear `value` in-page and dispatch bubbling `input`, then `change`, in one `callOnElement` round trip; read-back verification still applies. Managed sessions retain the `Control/Meta+a` CDP chord with `commands: ['selectAll']`, followed by `Backspace`. Without `clear`, position the caret at the end. Borrowed sessions send `keyDown`, `char`, then `keyUp` per Unicode code point through their own `webContents.sendInputEvent`; text newlines use only `char '\r'`, without Enter key-down/key-up. A single-line target rejects multiline text with `not_found` in the initial capability check, before any mutation. Managed sessions use CDP `Input.insertText`. Read back `value ?? textContent`. A mismatch clears and retries the complete expected value once through the same session delivery path, one character at a time. Multiline mismatches and a failed retry return `not_found` without exposing the observed field value. With `submit`, press Enter after successful verification.
+- `press_key`: parse `Modifier+Key`; the centralized key table maps names to `{ key, code, windowsVirtualKeyCode }`. Borrowed sessions send `keyDown`, an optional `char`, then `keyUp` with Electron modifiers. Managed sessions dispatch CDP `rawKeyDown`, optional `char`, then `keyUp` with modifier bits Alt 1, Control 2, Meta 4, Shift 8. Printable text and Enter (`text: '\r'`) emit `char` unless Control, Meta or Alt suppress text. The managed platform select-all chord passes Chromium's `selectAll` editing command. The borrowed platform select-all chord (`Meta+a` on macOS, `Control+a` elsewhere) uses the same page selection helper on `document.activeElement`, then still dispatches the modifier key events so `keydown` handlers fire. With no active editable element, it sends key events only.
+
+For `type`, `submit: true` is the only path that sends Enter. Borrowed input
+delivers the Enter key event to the bound
+guest regardless of host focus: `keyDown Enter`, `char '\r'`, then `keyUp Enter`.
+Page `keydown` handlers receive it and textareas insert a line break. Forms that
+accept implicit submission (a submit button, or at most one field that blocks
+implicit submission) submit; the page's own `keydown` handling decides the rest.
+
+The borrowed controller supplies the focus request and routing assertion through
+`BrowserActionOptions`. Both renderer `focused` and `background` acknowledgements
+permit input; `unavailable` returns `input_unavailable`. Direct guest delivery works
+independently of the host document's DOM focus and OS foreground focus, including
+inert panes. The controller validates the current binding, cancellation, deadline,
+debugger availability and dialog state before each event. Typing additionally checks
+the resolved editable's editing host against its root's active element, including
+shadow roots. It does not require `document.hasFocus()`. Target editing-focus loss
+returns `input_not_focused` without reacquiring focus or continuing clearing, retry
+or submission. Key release requires a valid route, ref and operation; otherwise it
+is skipped. `press_key` requires no editable target, so Tab remains usable. Inspect
+the page and resolve fresh refs before retrying an input failure; `input_unavailable`
+also requires reopening the pane. Earlier input may already have been applied.
+Managed interactions and MCP mouse/form interactions enable focus emulation;
+borrowed keyboard tools use direct guest delivery.
 
 ### 5.5 Forms (`actions/forms.ts`)
 
@@ -618,7 +641,7 @@ same pattern as today's `servers/__tests__/browser.test.ts`):
 
 `resolveTarget.test.ts`: centre from the largest quad; `getNodeForLocation` returning a descendant → not occluded; a sibling → occluded.
 
-`mouse.test.ts` / `keyboard.test.ts` / `forms.test.ts`: assert the CDP command sequence and parameters the guest receives (the contract of "real input events"): three mouse events at the resolved point, `insertText` after `focus`, `Control+a`/`Delete` before typing when `clear`, read-back mismatch → per-character retry → error; `press_key('Control+a')` → modifiers 2 with `windowsVirtualKeyCode` 65. Deferred upload tests must cover traversal and symlink escape once the trusted-context prerequisite exists.
+`mouse.test.ts` / `keyboard.test.ts` / `forms.test.ts`: assert the input sequence and parameters the guest receives (the contract of "real input events"): three mouse events at the resolved point; managed `Input.insertText` after `DOM.focus`; borrowed `keyDown`/`char`/`keyUp` per Unicode code point. With `clear`, managed sessions send the platform select-all command and `Backspace`; borrowed sessions select in-page, recheck the target and send `Backspace`, without CDP `Input.*`. Read-back mismatch → per-character retry → error; managed `press_key('Control+a')` → modifiers 2 with `windowsVirtualKeyCode` 65. Deferred upload tests must cover traversal and symlink escape once the trusted-context prerequisite exists.
 
 `settle.test.ts` (fake timers): navigation started within 100 ms → waits for `loadEventFired`, `navigated: true`; no navigation → resolves after 300 ms quiet; a request every 200 ms → resolves at the 5 s cap.
 
@@ -917,7 +940,10 @@ each call. Never accept a raw `webContentsId`, profile or owner from model argum
 or foreign targets fail; do not fall back to another session or create a hidden MCP tab. Opening a
 browser requests `browser.guest.ensure_requested` at the stable renderer host and waits with cancellation
 and a deadline for a verified binding. `browser.pane.open_requested` is a separate presentation request;
-tool execution does not depend on a visible pane. A renderer with no declared session owner cannot
+observations and other non-keyboard tools do not depend on a visible pane. Borrowed
+keyboard/text input targets the bound guest regardless of host focus or pane visibility,
+requests DOM focus once, and stops if the intended field loses editing focus; it does not
+reveal the pane or reacquire focus as recovery. A renderer with no declared session owner cannot
 create the guest; an unavailable host still returns a bounded error.
 
 `WebviewSurface` keeps a stable portal parent and the last viewport. Hidden presentation uses opacity
@@ -964,9 +990,9 @@ unmount: preserve the guest when merely hiding it; handle actual unmount through
 `GuestSession` currently gates Network/inspection, download observation, dialog timers and focus
 emulation on `managed`. Separate the requested browser-observation lifetime from destruction ownership
 so an authorized visible control lease can observe console/network/downloads without making the page
-evictable. Annotation-only leases keep their current lightweight behavior. Do not copy hidden-page
-focus emulation or automatic dialog dismissal to user-visible pages; reuse native dialog UI and
-explicit `handle_dialog`. A remaining annotation lease must survive browser-controller disposal.
+evictable. Annotation-only leases keep their current lightweight behavior. Borrowed keyboard input
+uses direct guest delivery; MCP mouse/form interactions enable focus emulation. Borrowed pages use
+native dialog UI and explicit `handle_dialog`. A remaining annotation lease must survive browser-controller disposal.
 
 Extract the target lookup/page-host boundary currently embedded in `CdpBrowserController`; keep
 actions and snapshots shared. The standalone host retains its existing behavior. The pane host

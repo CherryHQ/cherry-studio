@@ -97,14 +97,20 @@ export class SessionBrowserController extends BrowserPageController {
         target.abort.signal.addEventListener('abort', release, { once: true })
         this.lease = { target, session, release }
       }
+      const session = this.lease.session
       return {
         tabId: target.tabId,
-        session: this.lease.session,
-        pointer: this.pointerFeedback(target, this.lease.session),
+        session,
+        pointer: this.pointerFeedback(target, session),
         focusInput: async (options: CommandOptions) => {
           this.assertAvailable()
           await this.binding.focusInput(target, options)
           this.assertAvailable()
+        },
+        assertRoute: async () => {
+          this.assertAvailable()
+          if (this.binding.get() !== target || target.guest.isDestroyed())
+            throw new BrowserSessionError('input_unavailable')
         },
         signal: AbortSignal.any([this.operationSignal, target.abort.signal])
       }

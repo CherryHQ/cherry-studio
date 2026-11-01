@@ -19,6 +19,7 @@ export abstract class BrowserPageController {
     signal?: AbortSignal
     pointer?: BrowserPointerFeedback
     focusInput?: BrowserActionOptions['focusInput']
+    assertRoute?: BrowserActionOptions['assertRoute']
   }>
   abstract open(
     url: string,

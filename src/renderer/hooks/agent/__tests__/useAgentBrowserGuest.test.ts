@@ -56,8 +56,8 @@ it('keeps the new binding alive when a previous attachment completes after effec
   expect(binding).toBeUndefined()
 })
 
-it.each(['focused', 'background', 'unavailable'] as const)(
-  'reports %s input readiness without moving focus into an inert guest',
+it.each(['focused', 'background', 'unavailable', 'failed', 'throwing'] as const)(
+  'reports %s focus status without moving focus into an inert guest',
   async (expected) => {
     let onFocus!: (request: EventPayload<'browser.input.focus_requested'>) => void
     let reply: InputFor<'browser.input.focused'> | undefined
@@ -75,6 +75,10 @@ it.each(['focused', 'background', 'unavailable'] as const)(
     const guest = Object.assign(document.createElement('webview'), {
       getWebContentsId: () => 42
     }) as unknown as WebviewTag
+    if (expected === 'failed' || expected === 'throwing')
+      vi.spyOn(guest, 'focus').mockImplementation(() => {
+        if (expected === 'throwing') throw new Error('Guest focus failed')
+      })
     guest.tabIndex = 0
     plane.append(guest)
     document.body.append(composer, plane)
@@ -95,7 +99,10 @@ it.each(['focused', 'background', 'unavailable'] as const)(
       expect(reply).toBeUndefined()
       expect(document.activeElement).toBe(composer)
       onFocus(request)
-      expect(reply).toMatchObject({ requestId: 'request', status: expected })
+      expect(reply).toMatchObject({
+        requestId: 'request',
+        status: expected === 'failed' || expected === 'throwing' ? 'unavailable' : expected
+      })
       expect(document.activeElement).toBe(expected === 'focused' ? guest : composer)
       expect(plane.hasAttribute('inert')).toBe(expected === 'background')
     } finally {
