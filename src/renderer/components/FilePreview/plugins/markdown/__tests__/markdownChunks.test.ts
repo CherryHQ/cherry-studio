@@ -979,6 +979,30 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://first.example'])
   })
 
+  it('does not open a list on a dash that follows indented code', () => {
+    // The empty marker cannot interrupt the paragraph it starts, so the dash is text and the
+    // indented definition-shaped line is part of that paragraph, not a definition.
+    const content = '    code\n-\n    [r]: /first\n\n[r]: /right\n\n[r]\n'
+
+    expect(new Set(resolvedReferenceUrls(content))).toEqual(new Set(['/right']))
+    expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
+      new Set(['/right'])
+    )
+  })
+
+  it('gives an empty ordered item its implicit separator column', () => {
+    // `1.` holds content at column 3, so the fence at column 2 is document-level and `# Hidden`
+    // stays inside it instead of becoming a heading in a new chunk.
+    const content = '1.\n  ```\n' + 'example\n\n'.repeat(4_000) + '# Hidden\n\n'
+
+    const chunks = chunksOf(content)
+    const headings = chunks.flatMap((chunk) =>
+      (parsed(chunk.text).children as Array<{ type: string }>).filter((node) => node.type === 'heading')
+    )
+
+    expect(headings).toHaveLength(0)
+  })
+
   it('ends an empty item at the blank that follows it', () => {
     // The blank closes the empty item, so the indented definition below is document-level code and
     // cannot be hoisted; keeping the item alive made it the winning first definition.

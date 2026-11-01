@@ -2457,6 +2457,8 @@ interface ListRun {
 function itemContentColumn(line: string, item: RegExpExecArray): number {
   const separator = /^[ \t]*/.exec(line.slice(item[0].length))?.[0] ?? ''
   const markerEnd = columnCount(line.slice(0, item[0].length))
+  // An empty item still carries the one-space separator between marker and content.
+  if (separator.length === 0) return markerEnd + 1
   const content = columnCount(line.slice(0, item[0].length + separator.length))
   return content - markerEnd > 4 ? markerEnd + 1 : content
 }
@@ -2572,6 +2574,8 @@ export function splitMarkdownChunks(
    * definition is complete where it stands, so the line below opens a definition freely.
    */
   let previousStatus: 'paragraph' | 'block' = 'block'
+  /** Whether the previous line was indented code, where an empty marker cannot open a list. */
+  let previousWasIndentedCode = false
   /** The container prefix the line was written behind, when it opened a paragraph. */
   let paragraphContainer: string | null = null
   /** The line the open paragraph starts at — the text a setext underline turns into a heading. */
@@ -2703,6 +2707,9 @@ export function splitMarkdownChunks(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const blank = isBlankLine(line)
+    const paragraphOpenAtLine = previousStatus === 'paragraph'
+    const afterIndentedCode = previousWasIndentedCode
+    previousWasIndentedCode = false
     // The item above belongs to the line immediately below it: a blank between them ends the item,
     // and the indented line after it is code the parser reads at the top level.
     const emptyItemColumn = pendingEmptyItem
@@ -2918,6 +2925,7 @@ export function splitMarkdownChunks(
         ((previousStatus === 'block' || opensContainerBlock) &&
           innerIndent >= itemCodeFloor &&
           !startsBlock(uncontained)))
+    previousWasIndentedCode = indentedCode
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&
         // A marker-only line behind the definition's container (`>` on its own) is blank the way
@@ -3172,7 +3180,11 @@ export function splitMarkdownChunks(
     }
 
     // A thematic break carries an item marker at its head but is a block of its own.
-    const item = THEMATIC_BREAK.test(line) || setextHeading ? null : LIST_ITEM.exec(line)
+    const emptyItemOpens =
+      !EMPTY_LIST_ITEM.test(line) ||
+      (!paragraphOpenAtLine && !afterIndentedCode) ||
+      (run !== null && leadingColumns(line) < run.content)
+    const item = THEMATIC_BREAK.test(line) || setextHeading || !emptyItemOpens ? null : LIST_ITEM.exec(line)
     if (item) {
       run = trackListItem(run, item, line)
       pendingEmptyItem = item[1] === '' && EMPTY_LIST_ITEM.test(line) ? itemContentColumn(line, item) : null
