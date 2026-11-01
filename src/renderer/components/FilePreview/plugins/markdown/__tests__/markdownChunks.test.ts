@@ -979,6 +979,24 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://first.example'])
   })
 
+  it('keeps a non-interrupting ordered marker as paragraph text', () => {
+    // `2.` cannot interrupt the paragraph, so it opens no list and the indented definition-shaped
+    // line is code; tracking the item hoisted the wrong definition.
+    const content = [
+      'Paragraph',
+      '2. item',
+      '',
+      '    [x]: https://wrong.example',
+      '',
+      'see [x]',
+      '',
+      '[x]: https://right.example'
+    ].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['https://right.example'])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
+  })
+
   it('does not open a list on a dash that follows indented code', () => {
     // The empty marker cannot interrupt the paragraph it starts, so the dash is text and the
     // indented definition-shaped line is part of that paragraph, not a definition.
@@ -988,6 +1006,20 @@ describe('splitMarkdownChunks', () => {
     expect(new Set(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text)))).toEqual(
       new Set(['/right'])
     )
+  })
+
+  it('keeps a fence after a definition and an HTML tag intact', () => {
+    // `<br>` after a definition starts a paragraph, not an HTML block, so the following fence is
+    // a code block and no boundary may fall inside it.
+    const content =
+      '[x]: https://right.example\n<br>\n```text\n' +
+      'sample code with a blank line below\n\n'.repeat(1_000) +
+      'END_OF_CODE\n```\n\nOutside.'
+
+    const chunks = chunksOf(content)
+    const codeChunk = chunks.find((chunk) => chunk.text.includes('sample code'))
+
+    expect(codeChunk?.text).toContain('END_OF_CODE')
   })
 
   it('gives an empty ordered item its implicit separator column', () => {

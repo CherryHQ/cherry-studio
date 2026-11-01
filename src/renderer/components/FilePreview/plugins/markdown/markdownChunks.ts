@@ -2576,6 +2576,8 @@ export function splitMarkdownChunks(
   let previousStatus: 'paragraph' | 'block' = 'block'
   /** Whether the previous line was indented code, where an empty marker cannot open a list. */
   let previousWasIndentedCode = false
+  /** Whether the previous line was a definition, after which a type-7 tag starts a paragraph. */
+  let previousWasDefinition = false
   /** The container prefix the line was written behind, when it opened a paragraph. */
   let paragraphContainer: string | null = null
   /** The line the open paragraph starts at — the text a setext underline turns into a heading. */
@@ -2709,7 +2711,9 @@ export function splitMarkdownChunks(
     const blank = isBlankLine(line)
     const paragraphOpenAtLine = previousStatus === 'paragraph'
     const afterIndentedCode = previousWasIndentedCode
+    const afterDefinition = previousWasDefinition
     previousWasIndentedCode = false
+    previousWasDefinition = false
     // The item above belongs to the line immediately below it: a blank between them ends the item,
     // and the indented line after it is code the parser reads at the top level.
     const emptyItemColumn = pendingEmptyItem
@@ -2875,6 +2879,7 @@ export function splitMarkdownChunks(
       !containerHoldsCode &&
       (opensHtml ||
         ((previousStatus === 'block' || leavesParagraphContainer || opensContainerBlock) &&
+          !afterDefinition &&
           COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
@@ -3061,6 +3066,7 @@ export function splitMarkdownChunks(
       definitionBlocks.push(definitions.length)
       definitions.push(footnoteSource)
       definitionLines += 1
+      previousWasDefinition = true
       inDefinition = true
       footnoteDefinition = true
       sawBlankInDefinition = false
@@ -3104,6 +3110,7 @@ export function splitMarkdownChunks(
       definitions.push(definition.text)
       definedLabels.add(normalizeReferenceLabel(definition.label))
       definitionLines += definition.lines
+      previousWasDefinition = true
       bufferChars += definition.text.length + 1
       i += definition.lines - 1
       inDefinition = false
@@ -3180,11 +3187,14 @@ export function splitMarkdownChunks(
     }
 
     // A thematic break carries an item marker at its head but is a block of its own.
+    const marker = THEMATIC_BREAK.test(line) || setextHeading ? null : LIST_ITEM.exec(line)
     const emptyItemOpens =
       !EMPTY_LIST_ITEM.test(line) ||
       (!paragraphOpenAtLine && !afterIndentedCode) ||
       (run !== null && leadingColumns(line) < run.content)
-    const item = THEMATIC_BREAK.test(line) || setextHeading || !emptyItemOpens ? null : LIST_ITEM.exec(line)
+    // An ordered marker interrupts an open paragraph only at `1.`; `2.` is paragraph text.
+    const orderedInterrupts = marker === null || !paragraphOpenAtLine || marker[2] !== undefined || marker[3] === '1'
+    const item = marker && emptyItemOpens && orderedInterrupts ? marker : null
     if (item) {
       run = trackListItem(run, item, line)
       pendingEmptyItem = item[1] === '' && EMPTY_LIST_ITEM.test(line) ? itemContentColumn(line, item) : null
