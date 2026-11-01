@@ -1428,6 +1428,7 @@
   "error.claude_code_exit.code": "Claude Code が予期せず終了しました（コード {{code}}）。診断参照: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code が予期せず停止しました（シグナル {{signal}}）。診断参照: {{reference}}",
   "error.claude_code_exit.start": "Claude Code を起動できませんでした。診断参照: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "現在のターンで承認を表示できなかったため、Cherry Studio はツールのリクエストをブロックしました。実行中の処理があれば停止し、このセッションで新しいメッセージを送信して、エージェントに再試行を依頼してください。ブロックされたリクエストは実行されていません。",
   "error.content": "内容",
   "error.data": "データ",
   "error.detail": "エラーの詳細",

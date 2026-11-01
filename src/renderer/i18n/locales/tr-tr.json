@@ -1428,6 +1428,7 @@
   "error.claude_code_exit.code": "Claude Code beklenmedik şekilde kapandı (kod {{code}}). Tanılama referansı: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code beklenmedik şekilde durdu (sinyal {{signal}}). Tanılama referansı: {{reference}}",
   "error.claude_code_exit.start": "Claude Code başlatılamadı. Tanılama referansı: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio, onayı etkin turda gösterilemediği için bir araç isteğini engelledi. Devam eden çalışmaları durdurun, ardından bu oturumda ajandan yeniden denemesini isteyen yeni bir mesaj gönderin. Engellenen istek yürütülmedi.",
   "error.content": "İçerik",
   "error.data": "Veri",
   "error.detail": "Hata Ayrıntıları",

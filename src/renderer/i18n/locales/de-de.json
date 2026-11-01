@@ -1428,6 +1428,7 @@
   "error.claude_code_exit.code": "Claude Code wurde unerwartet beendet (Code {{code}}). Diagnosereferenz: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code wurde unerwartet gestoppt (Signal {{signal}}). Diagnosereferenz: {{reference}}",
   "error.claude_code_exit.start": "Claude Code konnte nicht gestartet werden. Diagnosereferenz: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio hat eine Werkzeuganfrage blockiert, weil die zugehörige Genehmigung im aktiven Durchlauf nicht angezeigt werden konnte. Beenden Sie alle noch laufenden Vorgänge und senden Sie dann in dieser Sitzung eine neue Nachricht, in der Sie den Agenten bitten, es erneut zu versuchen. Die blockierte Anfrage wurde nicht ausgeführt.",
   "error.content": "Inhalt",
   "error.data": "Daten",
   "error.detail": "Fehlerdetails",

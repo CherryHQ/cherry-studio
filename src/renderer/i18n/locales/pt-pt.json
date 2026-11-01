@@ -1428,6 +1428,7 @@
   "error.claude_code_exit.code": "O Claude Code terminou inesperadamente (código {{code}}). Referência de diagnóstico: {{reference}}",
   "error.claude_code_exit.signal": "O Claude Code parou inesperadamente (sinal {{signal}}). Referência de diagnóstico: {{reference}}",
   "error.claude_code_exit.start": "Não foi possível iniciar o Claude Code. Referência de diagnóstico: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "O Cherry Studio bloqueou um pedido de ferramenta porque não foi possível apresentar a respetiva aprovação no turno ativo. Pare qualquer execução ainda em curso e, em seguida, envie uma nova mensagem nesta sessão a pedir ao agente para tentar novamente. O pedido bloqueado não foi executado.",
   "error.content": "conteúdo",
   "error.data": "dados",
   "error.detail": "Detalhes do erro",

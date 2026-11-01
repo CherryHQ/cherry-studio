@@ -3093,35 +3093,83 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(2)
     })
 
-    it('still denies a main-agent approval requested after its turn ended', async () => {
-      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
-      mocks.applicationGet.mockImplementation((name: string) => {
-        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
-        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-        if (name === 'AgentSessionRuntimeService') {
-          return { getInteractionState }
-        }
-        throw new Error(`Unexpected application.get(${name})`)
-      })
-      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-e'), {} as never)
-      const emit = vi.fn()
-      settings.approvalEmitter!.emit = emit
+    it.each(['Edit', 'Bash', 'Write'])(
+      'keeps main-agent %s pending for a message responder without a live stream',
+      async (toolName) => {
+        const reportOutOfTurnApprovalDenied = vi.fn()
+        mocks.applicationGet.mockImplementation((name: string) => {
+          if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+          if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+          if (name === 'AgentSessionRuntimeService') {
+            return {
+              getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' }),
+              reportOutOfTurnApprovalDenied
+            }
+          }
+          throw new Error(`Unexpected application.get(${name})`)
+        })
+        const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-e'), {} as never)
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+        const settled = vi.fn()
 
-      const result = await settings.canUseTool!('SomeTool', {}, {
-        signal: { aborted: false },
-        toolUseID: 'tu-bg'
-      } as never)
+        void Promise.resolve(
+          settings.canUseTool!(toolName, {}, {
+            signal: { aborted: false },
+            toolUseID: 'tu-bg'
+          } as never)
+        ).then(settled)
+        await Promise.resolve()
 
-      expect(result).toEqual({
-        behavior: 'deny',
-        message:
-          'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
-      })
-      expect(getInteractionState).toHaveBeenCalledWith('warm-e')
-      // Nothing was emitted or registered, so no promise is left for a responder that will never come.
-      expect(emit).not.toHaveBeenCalled()
-      expect(mocks.approvalRegister).not.toHaveBeenCalled()
-    })
+        expect(settled).not.toHaveBeenCalled()
+        expect(mocks.approvalRegister).toHaveBeenCalledTimes(1)
+        expect(mocks.approvalRegister).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'warm-e',
+            toolName,
+            presentation: 'message'
+          })
+        )
+        expect(emit).toHaveBeenCalledTimes(1)
+        expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolName, presentation: 'message' }))
+        expect(reportOutOfTurnApprovalDenied).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['Edit', 'Bash', 'Write'])(
+      'denies main-agent %s and reports it when no responder exists',
+      async (toolName) => {
+        const reportOutOfTurnApprovalDenied = vi.fn()
+        mocks.applicationGet.mockImplementation((name: string) => {
+          if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+          if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+          if (name === 'AgentSessionRuntimeService') {
+            return {
+              getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'unavailable' }),
+              reportOutOfTurnApprovalDenied
+            }
+          }
+          throw new Error(`Unexpected application.get(${name})`)
+        })
+        const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-e'), {} as never)
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+
+        const result = await settings.canUseTool!(toolName, {}, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg'
+        } as never)
+
+        expect(result).toEqual({
+          behavior: 'deny',
+          message:
+            'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
+        })
+        expect(emit).not.toHaveBeenCalled()
+        expect(mocks.approvalRegister).not.toHaveBeenCalled()
+        expect(reportOutOfTurnApprovalDenied).toHaveBeenCalledExactlyOnceWith('warm-e')
+      }
+    )
 
     it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
       const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))

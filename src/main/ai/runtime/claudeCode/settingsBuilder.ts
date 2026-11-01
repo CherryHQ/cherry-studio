@@ -583,15 +583,17 @@ async function buildToolPermissions(
     // background agent is still waiting for the user. Tools needing a user-authored answer stay
     // fail-closed on channel/scheduled runs — they have no responder.
     if (
-      (!hasLiveTurnStream && !requiresUserResponse) ||
-      (requiresUserResponse &&
-        (!hasLiveTurnStream || isBackgroundAgent) &&
-        interactionState.userResponse === 'unavailable')
+      interactionState.userResponse === 'unavailable' &&
+      ((!hasLiveTurnStream && !requiresUserResponse) ||
+        (requiresUserResponse && (!hasLiveTurnStream || isBackgroundAgent)))
     ) {
       logger.warn('Approval requested outside a live interactive turn — denying', {
         toolName,
         isBackgroundAgent
       })
+      if (!isBackgroundAgent) {
+        application.get('AgentSessionRuntimeService').reportOutOfTurnApprovalDenied(session.id)
+      }
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
