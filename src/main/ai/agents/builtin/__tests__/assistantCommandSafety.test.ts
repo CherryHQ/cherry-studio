@@ -666,6 +666,21 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$? = del victim.txt')).toBeUndefined()
     expect(detectDestructiveAssistantCommand('what? = del victim.txt')).toBeUndefined()
   })
+
+  it('denies ?-tailed scoped identifier assignment forms (round-13 review finding)', () => {
+    // Pre-existing parity gap, never covered on any earlier version: scoped identifier tails
+    // excluded ? while the bare tail (widened above) accepts it. Same correction shape.
+    expect(detectDestructiveAssistantCommand('$global:a? = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '$global:a? = del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('$script:a? = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('$private:x? = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('$global:a?b = del victim.txt')).toBe('permanent Windows file deletion')
+    // The scoped first character still excludes ?, and existing scoped coverage is unchanged.
+    expect(detectDestructiveAssistantCommand('$global:? = del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('$global:a = del victim.txt')).toBe('permanent Windows file deletion')
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
