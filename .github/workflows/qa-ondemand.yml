@@ -68,7 +68,7 @@ jobs:
         run: |
           echo "QA_RUN_DIR=$RUNNER_TEMP/qa-ondemand" >> "$GITHUB_ENV"
           echo "QA_OUT=$RUNNER_TEMP/qa-ondemand/report" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -118,13 +118,13 @@ jobs:
         run: |
           echo "QA_RUN_DIR=$RUNNER_TEMP/qa-ondemand" >> "$GITHUB_ENV"
           echo "QA_OUT=$RUNNER_TEMP/qa-ondemand/report" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Checkout application under test
         if: needs.resolve.outputs.mode == 'branch'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
