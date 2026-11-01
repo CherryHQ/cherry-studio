@@ -14,7 +14,7 @@ The file domain separates these runtime capabilities:
 
 - `FileManager` manages persistent `FileEntry` records and entry-owned file operations.
 - `DirectoryTreeManager` manages live, in-memory directory mirrors for renderer consumers.
-- `FileEditService` owns pinned editing leases and write receipts; the renderer owns drafts through its [file editing session manager](./file-editing.md).
+- `FileEditService` owns pinned editing leases and conditional writes; the renderer owns drafts through its [file editing session manager](./file-editing.md).
 
 FileManager and directory trees share the watcher primitive. A directory tree does not create
 `FileEntry` rows and a `FileEntry` does not join a directory tree automatically.

@@ -21,6 +21,7 @@ export interface WebviewResource {
   element: WebviewTag | null
   loaded: boolean
   visible: boolean
+  lastAccessTime: number
 }
 
 export class WebviewRuntimeService {
@@ -47,12 +48,15 @@ export class WebviewRuntimeService {
       if (!source || (!existing && !demand.visible)) continue
       if (existing && existing.source.partition === source.partition) {
         next.push(
-          isEqual(existing.source, source) && existing.visible === demand.visible
+          isEqual(existing.source, source) &&
+            existing.visible === demand.visible &&
+            existing.lastAccessTime === demand.lastAccessTime
             ? existing
             : {
                 ...existing,
                 source,
                 visible: demand.visible,
+                lastAccessTime: demand.lastAccessTime,
                 loaded: existing.loaded && existing.source.src === source.src
               }
         )
@@ -63,7 +67,8 @@ export class WebviewRuntimeService {
           instance: ++this.nextInstance,
           element: null,
           loaded: false,
-          visible: demand.visible
+          visible: demand.visible,
+          lastAccessTime: demand.lastAccessTime
         })
       }
     }
@@ -108,6 +113,10 @@ export class WebviewRuntimeService {
 
   dispose(): void {
     this.publish([])
+  }
+
+  release(key: string): void {
+    this.publish(this.resources.filter((resource) => resource.key !== key))
   }
 
   private publish(next: readonly WebviewResource[]): void {

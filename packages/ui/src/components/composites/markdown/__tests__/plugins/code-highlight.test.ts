@@ -20,7 +20,7 @@ function highlight(
 const source = (result: HighlightResult) =>
   result.tokens.map((line) => line.map((token) => token.content).join('')).join('\n')
 
-describe('Highlights Streamdown plugin', () => {
+describe('Shared syntax Streamdown plugin', () => {
   it('preserves Unicode and trailing lines while supplying light and dark token styles', async () => {
     const code = 'const message = "中文 🍒";  \n\n'
     const result = await highlight(createCodeHighlightPlugin(), code)
@@ -63,11 +63,11 @@ describe('Highlights Streamdown plugin', () => {
     expect(plugin.supportsLanguage('abap')).toBe(false)
   })
 
-  it('keeps minified lines intact without creating thousands of token spans', async () => {
+  it('keeps long lines complete and highlighted beyond the former tokenizer cutoff', async () => {
     const code = 'const a = 1;'.repeat(2000)
     const result = await highlight(createCodeHighlightPlugin(), code)
     expect(source(result)).toBe(code)
-    expect(result.tokens[0]).toHaveLength(1)
+    expect(result.tokens[0].some((token) => token.content === 'const' && token.color)).toBe(true)
   })
 
   it('uses bundled defaults when a custom TextMate theme has no Highlights equivalent', async () => {

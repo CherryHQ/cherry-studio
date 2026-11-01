@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
 
-import { classifyError } from '../errorClassifier'
+import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
@@ -53,6 +53,28 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+  it.each([
+    makeError({ message: groqBody, statusCode: 400 }),
+    makeError({
+      message: 'Bad Request',
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { message: groqBody } }),
+      data: { error: { message: groqBody } }
+    }),
+    makeCopiedRetry(groqBody, [
+      makeApiCallAttempt({ statusCode: 400, responseBody: JSON.stringify({ error: { message: groqBody } }) })
+    ])
+  ])('routes a Groq tier refusal to permission recovery: %s', (error) => {
+    expect(classifyError(error, 'groq')).toMatchObject({
+      category: 'permission',
+      i18nKey: 'error.diagnosis.permission',
+      navTarget: '/settings/provider?id=groq'
+    })
+  })
+
   it('uses the parse diagnosis for a serialized unresolved tool call', () => {
     expect(
       classifyError(
@@ -435,11 +457,41 @@ describe('classifyError', () => {
     expect(result.category).toBe('model')
   })
 
+  it('classifies a stale assistant model resolution failure as model', () => {
+    const result = classifyError(
+      makeError({ message: 'Cannot resolve modelId: not in request and assistant has no model' })
+    )
+
+    expect(result.category).toBe('model')
+  })
+
   it('classifies a missing configured model id as model', () => {
     const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
 
     expect(result.category).toBe('model')
     expect(result.i18nKey).toBe('error.diagnosis.model')
+  })
+
+  // #22571: main rejects a stale assistant-bound model before calling the provider. Falling through
+  // to the unknown-text fallback labelled it `bad_request` ("check your request parameters").
+  it.each([
+    ['Cannot resolve modelId: not in request and assistant has no model'],
+    ['Cannot resolve providerId: not in request and assistant has no model']
+  ])('classifies the local model resolution failure %s as model', (message) => {
+    const result = classifyError(makeError({ message }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+    expect(result.navTarget).toBe('/settings/provider')
+  })
+
+  // Format 4: DataApiErrorFactory.notFound('Model', 'provider/model')
+  it('classifies DataApiError notFound for model as model with extracted id', () => {
+    const result = classifyError(makeError({ message: "Model with id 'ollama/qwen2.5-14b-instruct' not found" }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Rate limit
@@ -512,6 +564,25 @@ describe('classifyError', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
     expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('offers network recovery for the embedded runtime connection code', () => {
+    expect(classifyError(makeError({ message: 'API Error: Unable to connect to API (ConnectionRefused)' }))).toEqual({
+      category: 'network',
+      i18nKey: 'error.diagnosis.network',
+      navTarget: '/settings/general'
+    })
+  })
+
+  it('does not infer a network failure from explanatory connection prose in provider data', () => {
+    const result = classifyError(
+      makeError({
+        responseBody: 'The provider explains how to open a connection.',
+        data: { detail: 'The guide discusses connection refused errors.' }
+      })
+    )
+
+    expect(result.category).toBe('unknown')
   })
 
   it('classifies timeout as network', () => {
@@ -751,5 +822,32 @@ describe('classifyError', () => {
   it('prioritizes finishReason over status code', () => {
     const result = classifyError(makeError({ finishReason: 'content-filter', statusCode: 500 }))
     expect(result.category).toBe('content')
+  })
+})
+
+describe('getLocalModelResolutionFailure', () => {
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('does not invent an identifier for %s', (message) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual({})
+    expect(classifyError(makeError({ message }), 'openai')).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider?id=openai'
+    })
+  })
+
+  it.each([
+    ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
+    ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
+    ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
+    ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
+  ])('preserves identifiers supplied by %s', (message, expected) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual(expected)
+  })
+
+  it('does not mistake a provider response for a local resolution failure', () => {
+    expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
   })
 })

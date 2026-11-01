@@ -613,6 +613,13 @@ export interface SiblingsGroup {
 }
 
 /**
+ * Off-path branches in a {@link TreeResponse} stop this many levels below their first-turn
+ * message, keeping the flow canvas within what its recursive Dagre layout can handle. The
+ * active path and its direct children are always returned in full.
+ */
+export const TREE_OFF_PATH_DEPTH_LIMIT = 1000
+
+/**
  * Tree query response structure
  */
 export interface TreeResponse {

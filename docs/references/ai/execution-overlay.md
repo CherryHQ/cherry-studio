@@ -74,6 +74,13 @@ class that owns:
   arrived between `register` and the reader's first `read()` are
   already buffered in the stream's internal queue — late readers never
   miss replayed chunks.
+- **Attach selects covered output once.** Incoming chunks and terminal events
+  wait in arrival order. If queued live delivery covers the entire retained
+  `replayFrom`–`replayThrough` interval, consume it instead of replay; otherwise
+  apply replay and skip covered live chunks. This preserves a queued prefix
+  that Main's ring already evicted. Identical text beyond the cutoff remains
+  valid output. Terminal attach responses and request failures drain queued
+  output before settling; a queued terminal is not reported twice.
 - **Terminal demux.** `ai.stream.done` / `ai.stream.error` close the
   matching branch and fan out an `ExecutionTerminal` (`{ isAbort,
   isError }`) to listeners; if the payload carries `isTopicDone` or no

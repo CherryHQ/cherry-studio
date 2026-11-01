@@ -144,11 +144,11 @@ export class WindowManager extends BaseService {
 
   // ─── Events ────────────────────────────────────────────────────
 
-  private readonly _onWindowCreated = this.registerDisposable(new Emitter<ManagedWindow>())
+  private readonly _onWindowCreated = new Emitter<ManagedWindow>()
   /** Fires when a new window is created. Domain services subscribe to inject behavior. */
   public readonly onWindowCreated: Event<ManagedWindow> = this._onWindowCreated.event
 
-  private readonly _onWindowDestroyed = this.registerDisposable(new Emitter<ManagedWindow>())
+  private readonly _onWindowDestroyed = new Emitter<ManagedWindow>()
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
 
@@ -276,6 +276,9 @@ export class WindowManager extends BaseService {
 
   protected override onDestroy(): void {
     logger.info('Destroying, closing all windows...')
+    // Dispose before closing windows: every subscriber has already stopped.
+    this._onWindowCreated.dispose()
+    this._onWindowDestroyed.dispose()
 
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null

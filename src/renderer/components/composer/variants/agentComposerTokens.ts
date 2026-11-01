@@ -9,6 +9,16 @@ import {
   knowledgeBaseToComposerToken
 } from './shared/composerTokens'
 
+export const AGENT_MANAGED_TOKEN_KINDS = [
+  'file',
+  'knowledge',
+  'skill'
+] as const satisfies readonly ComposerDraftToken['kind'][]
+export const AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
+  'file',
+  'skill'
+] as const satisfies readonly ComposerDraftToken['kind'][]
+
 export const agentFileToComposerToken = fileToComposerToken
 export const agentKnowledgeBaseToComposerToken = knowledgeBaseToComposerToken
 export const getAgentComposerTokenIds = getComposerTokenIds

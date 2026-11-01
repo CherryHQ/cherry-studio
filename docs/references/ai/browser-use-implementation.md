@@ -1179,6 +1179,12 @@ IPC, host-window link interception, app menu links and external mini-app popups 
 external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
 their existing handling.
 
+`app.browser.auto_open_panel` defaults to `true` and controls tool-driven opening of the right-side browser panel
+in Agent sessions and Assistant topics. When disabled, browser tools continue operating without opening the panel
+or switching away from another selected pane. Changing this setting does not close an already-open panel.
+Manual browser opening retains its existing availability and link-routing rules; browser-control permission remains
+independent.
+
 Standalone browser tabs synchronize page titles and favicons from Electron WebView events into the
 tab model. Main-frame document navigation clears the previous site's icon; missing or failed favicon
 images fall back to a globe. Subframe navigation does not change the tab metadata.
@@ -1288,11 +1294,11 @@ intentionally skipped under the local validation override.
 ## 15. Assistant conversation browser
 
 The assistant browser layer is stacked above PR #20582. Chat's AI SDK loop and Agent's
-native runtimes remain separate; both use the same session tool definitions,
-`SessionBrowserController`, CDP sessions, screenshot tiles and WebMCP implementation.
+native runtimes remain separate; both reach the browser through the automation REPL and
+`BrowserSessionService.createControl()`, sharing `SessionBrowserController`, CDP sessions,
+screenshot tiles and WebMCP implementation.
 Pure tool schemas and descriptions live in `src/main/ai/mcp/browserToolDefinitions.ts`;
 browser feature handlers consume that contract, without an AI-to-feature import.
-On the AI SDK chat path, the assistant browser tool surface is exposed through the deferred tool pool (`tool_search`, `tool_inspect`, and `tool_invoke`), so a Topic that never uses the browser pays only the meta-tool and `<deferred-tools>` overhead instead of full browser schemas at every context size; Agent runtimes retain their unchanged runtime-native browser MCP surface.
 
 `BrowserGuestRegistry` owns guest validation, leases and cursor identity. Agent and Topic
 registries resolve their owners through their respective data services. Their shared guest
@@ -1305,7 +1311,7 @@ main process validates the Topic's current assistant on every call. Synthetic re
 a Topic do not expose browser tools. Parallel model replies in one Topic use one serialized
 browser tool queue; different Topics have independent queues. Request cancellation reaches
 pending guest creation and CDP commands without cancelling another request's controller.
-Idle Topic controllers are released after five minutes; their renderer-owned pages survive.
+Each automation run releases its Topic controller when the run ends; renderer-owned pages survive.
 
 The existing retained WebView host also renders Topic browsers outside page Activity. A Topic
 browser capability supplies its anchor inside the existing right-panel shell, alongside resources,

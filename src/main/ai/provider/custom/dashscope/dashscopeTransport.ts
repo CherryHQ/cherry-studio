@@ -124,6 +124,8 @@ export interface DashScopeTransportSettings {
   imageBaseURL?: string
   /** Proxy-aware fetch from provider settings; falls back to global `fetch` when unset. */
   fetch?: FetchFunction
+  /** Provider-level extra headers merged into every image request. */
+  headers?: Record<string, string>
 }
 
 type ResponseFamily = 'choices' | 'results' | 'image_url'
@@ -352,15 +354,27 @@ function buildRequestBody(
   descriptor: DashScopeModelDescriptor
 ): Record<string, unknown> {
   const bag = (input.providerParams ?? {}) as DashScopeProviderParams
+  // Descriptor ids arrive in both shapes: the catalog's canonical `modelId` (no dots,
+  // what built-in listings resolve to) and the vendor `apiModelId` (what manually
+  // added models keep). List both per body family.
   switch (descriptor.id) {
     case 'z-image-turbo':
     case 'qwen-image-3.0':
+    case 'qwen-image-3-0':
     case 'qwen-image-3.0-pro':
+    case 'qwen-image-3-0-pro':
+    case 'qwen-image-2.0':
+    case 'qwen-image-2-0':
+    case 'qwen-image-2.0-pro':
+    case 'qwen-image-2-0-pro':
     case 'qwen-image-edit':
     case 'qwen-image-edit-plus':
     case 'wan2.6-image':
+    case 'wan2-6-image':
     case 'wan2.7-image':
+    case 'wan2-7-image':
     case 'wan2.7-image-pro':
+    case 'wan2-7-image-pro':
       return buildChatLikeBody(input, bag)
     case 'qwen-image':
     case 'qwen-image-plus':
@@ -371,6 +385,7 @@ function buildRequestBody(
     case 'wanx-v1':
       return buildWanxV1Body(input, bag)
     case 'wan2.5-i2i-preview':
+    case 'wan2-5-i2i-preview':
       return buildWan25I2IBody(input, bag)
     case 'qwen-mt-image':
       return buildQwenMtImageBody(input, bag)
@@ -385,12 +400,14 @@ class DashScopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
   private fetch?: FetchFunction
+  private extraHeaders: Record<string, string> | undefined
   private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
 
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
     this.fetch = settings.fetch
+    this.extraHeaders = settings.headers
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -540,6 +557,7 @@ class DashScopeTransport implements ImageGenerationTransport {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         ...(method === 'POST' && { 'Content-Type': 'application/json' }),
+        ...this.extraHeaders,
         ...options.extraHeaders
       },
       signal: controller.signal
