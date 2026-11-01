@@ -43,4 +43,14 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('mcpToolMetadata')
     expect(opts.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
   })
+  it('declares the per-task stop affordance for cold and prewarmed queries', () => {
+    const opts = createClaudeCodeQueryOptions({
+      modelId: 'sonnet',
+      settings: { perTaskStopAffordance: false }
+    })
+
+    // The driver renders task Stop controls and implements `stopTask`; the declaration must not be
+    // disabled by a caller, because the CLI otherwise kills background tasks on every interrupt.
+    expect(opts.perTaskStopAffordance).toBe(true)
+  })
 })
