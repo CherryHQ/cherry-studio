@@ -132,12 +132,14 @@ Does this R→M channel go through IpcApi?
 | `Python_ExecutionResponse` | Separate — renderer-as-server reverse RPC (request-id correlated, carries error); IpcApi's main-as-server `request` model doesn't fit, handle on its own |
 | `Cache_Sync` | Stays in the Cache subsystem |
 
+`window.api.shell.openExternal` delegates to `system.shell.open_external_website` through IpcApi; main validates the URL and confirms external-application links before opening them.
+
 ## Not In Scope For IpcApi
 
 | Item | Stays in |
 |---|---|
 | `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
-| `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
+| `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
 | `preference.onChanged`, `dataApi.onDataChanged` | their own subsystems |
 | `Cache_Sync` / `Cache_SyncBatch` / `Cache_GetAllShared` | Cache subsystem |
 | `Python_ExecutionRequest` / `Python_ExecutionResponse` | Python renderer-as-server reverse RPC |

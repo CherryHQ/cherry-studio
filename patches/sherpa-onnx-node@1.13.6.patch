@@ -1,0 +1,16 @@
+diff --git a/addon.js b/addon.js
+--- a/addon.js
++++ b/addon.js
+@@ -3,3 +3,5 @@
+ const os = require('os');
+ const path = require('path');
+-const addonStaticImport = require('./addon-static-import');
++const addonStaticImport = process.env.CHERRY_SHERPA_ONNX_BINDING_PATH
++    ? null
++    : require('./addon-static-import');
+@@ -19,1 +21,4 @@
+-let addon = addonStaticImport;
++// PATCHED by Cherry Studio: load the verified on-demand native binding when provided.
++let addon = process.env.CHERRY_SHERPA_ONNX_BINDING_PATH
++    ? require(process.env.CHERRY_SHERPA_ONNX_BINDING_PATH)
++    : addonStaticImport;

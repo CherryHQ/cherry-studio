@@ -49,6 +49,9 @@ export type SendMessageOptions = {
   replyInThread?: boolean
 }
 
+export type ChannelStreamOutcome = { status: 'success' | 'paused' }
+export type ChannelStreamErrorOptions = { suppressDelivery: boolean }
+
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
 type ChannelConfigByType = {
   [T in AgentChannelType]: Extract<AgentChannelEntity, { type: T }>['config']
@@ -129,6 +132,11 @@ export abstract class ChannelAdapter extends EventEmitter {
     return this._connected
   }
 
+  /** Whether this instance still owns a stream subscription, including recoverable transport loss. */
+  isStreamListenerAlive(): boolean {
+    return this.connected
+  }
+
   /**
    * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
    * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
@@ -196,6 +204,9 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.connectAbort = null
   }
 
+  /** Allow adapters to recover transports invalidated while the system was suspended. */
+  handleSystemResume(): void {}
+
   /**
    * Check if the adapter has everything it needs to connect immediately.
    * Return true if credentials/config are available (e.g. cached token exists).
@@ -240,25 +251,40 @@ export abstract class ChannelAdapter extends EventEmitter {
     // Default no-op — adapters that support streaming should override.
   }
 
+  /** Release an inbound response superseded by batching without sending a reply. */
+  // oxlint-disable-next-line no-unused-vars
+  discardResponse(_chatId: string, _opts?: SendMessageOptions): void {}
+
   /**
    * Called when the stream is complete. The adapter should finalize the
    * streaming UI (close streaming card, send final message, etc.).
    * @returns true if the adapter handled the final delivery (e.g. updated the card).
    *          false means the caller should fall back to sendMessage().
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onStreamComplete(_chatId: string, _finalText: string, _opts?: SendMessageOptions): Promise<boolean> {
+  /* oxlint-disable no-unused-vars */
+  async onStreamComplete(
+    _chatId: string,
+    _finalText: string,
+    _opts?: SendMessageOptions,
+    _outcome?: ChannelStreamOutcome
+  ): Promise<boolean> {
     return false
   }
 
   /**
    * Called when the stream errors out. The adapter can update the streaming
-   * UI to show an error state.
+   * UI to show an error state. Return true when error delivery is handled.
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onStreamError(_chatId: string, _error: string, _opts?: SendMessageOptions): Promise<void> {
-    // Default no-op.
+  async onStreamError(
+    _chatId: string,
+    _error: string,
+    _opts?: SendMessageOptions,
+    _options?: ChannelStreamErrorOptions
+  ): Promise<boolean> {
+    return false
   }
+
+  /* oxlint-enable no-unused-vars */
 
   // Typed event emitter overrides
   override emit(event: 'message', data: ChannelMessageEvent): boolean

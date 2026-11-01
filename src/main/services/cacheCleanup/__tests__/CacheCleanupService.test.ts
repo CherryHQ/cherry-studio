@@ -33,7 +33,8 @@ vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
 }))
 
-vi.mock('@data/db/restore/restoreJournal', () => ({
+vi.mock(import('@data/db/restore/restoreJournal'), async (importOriginal) => ({
+  ...(await importOriginal()),
   hasPendingRestore: hasPendingRestoreMock
 }))
 
@@ -306,13 +307,48 @@ describe('CacheCleanupService', () => {
     await expectExisting(knownBasePath, unknownDirectory)
   })
 
-  it('does not advertise bytes from an orphan-file plan that the safety threshold aborts', async () => {
+  it('counts and clears historical failed restore databases as orphaned data', async () => {
+    const failed = rootPath('work-failed-62f9b5ce-9f03-425e-8448-3a4cd55e971f.sqlite')
+    const live = rootPath('Data', 'cherrystudio.sqlite')
+    await writeTestFile(failed, Buffer.alloc(127))
+    await writeTestFile(live, 'keep')
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    expect(inspection.results[0]?.size).toEqual({ bytes: 127, accuracy: 'exact', completeness: 'complete' })
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(failed)
+    expect(await fs.readFile(live, 'utf8')).toBe('keep')
+  })
+
+  it('reports the full reclaimable size of a large orphan-file plan', async () => {
+    const plan = { ...emptyFileSweepReport, plannedDeleteCount: 25, plannedDeleteBytes: 12 * 1024 * 1024 }
+    MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockImplementation(async (options) =>
+      options?.bypassSafetyThreshold ? plan : { ...plan, outcome: 'aborted', abortReason: 'count-fraction' }
+    )
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockImplementation(async (options) =>
+      options?.bypassSafetyThreshold
+        ? { ...plan, actualDeleteCount: 25, actualDeleteBytes: 12 * 1024 * 1024 }
+        : { ...plan, outcome: 'aborted', abortReason: 'count-fraction' }
+    )
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+
+    expect(inspection.results[0]?.size).toEqual({
+      bytes: 12 * 1024 * 1024,
+      accuracy: 'exact',
+      completeness: 'complete'
+    })
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+    expect(cleanup.results[0]?.status).toBe('cleared')
+  })
+
+  it('does not advertise orphan-file bytes while a restore is pending', async () => {
+    hasPendingRestoreMock.mockReturnValue(true)
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
       ...emptyFileSweepReport,
       outcome: 'aborted',
-      abortReason: 'count-fraction',
-      plannedDeleteCount: 25,
-      plannedDeleteBytes: 4096
+      abortReason: 'pending-restore'
     })
 
     const inspection = await cacheCleanupService.inspect(['orphaned_data'])

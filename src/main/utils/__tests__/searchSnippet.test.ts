@@ -72,4 +72,24 @@ describe('searchSnippet', () => {
       '...'
     ])
   })
+
+  it('keeps hashes inside the text when stripping markdown', () => {
+    expect(stripMarkdownFormatting('我在用 C# 写一个爬虫')).toBe('我在用 C# 写一个爬虫')
+    expect(stripMarkdownFormatting('F# 语言教程')).toBe('F# 语言教程')
+    expect(stripMarkdownFormatting('标签 # 待办事项')).toBe('标签 # 待办事项')
+    expect(stripMarkdownFormatting('####### 七个井号不是标题')).toBe('####### 七个井号不是标题')
+  })
+
+  it('strips ATX headings only at line start', () => {
+    expect(stripMarkdownFormatting('# 标题一\n## 标题二\n正文')).toBe('标题一\n标题二\n正文')
+    expect(stripMarkdownFormatting('###### 六级标题')).toBe('六级标题')
+  })
+
+  it('keeps messages searchable when the content contains hashes', () => {
+    const message = '我在用 C# 写一个爬虫'
+
+    const snippet = buildSearchSnippet(message, ['C#'], 'substring')
+
+    expect(snippet).toContain('C#')
+  })
 })

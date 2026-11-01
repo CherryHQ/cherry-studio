@@ -4,6 +4,8 @@ import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } fr
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Tooltip } from '@cherrystudio/ui'
+
 import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
 import {
   RightPanel,
@@ -25,16 +27,28 @@ const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
-    <div
-      data-testid="tooltip-trigger"
-      data-content={typeof content === 'string' ? content : undefined}
-      data-disabled={isDisabled ? 'true' : undefined}>
-      {children}
-    </div>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const { createContext, use } = await import('react')
+
+  const TooltipSurfaceContext = createContext(true)
+
+  return {
+    Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => {
+      const surfaceActive = use(TooltipSurfaceContext)
+      return (
+        <div
+          data-testid="tooltip-trigger"
+          data-content={typeof content === 'string' ? content : undefined}
+          data-disabled={isDisabled || !surfaceActive ? 'true' : undefined}>
+          {children}
+        </div>
+      )
+    },
+    TooltipSurface: ({ active = true, children }: PropsWithChildren<{ active?: boolean }>) => (
+      <TooltipSurfaceContext value={active}>{children}</TooltipSurfaceContext>
+    )
+  }
+})
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
   const { Component } = await import('react')
@@ -148,12 +162,17 @@ function StatefulPanel({ panelId, scope }: RightPanelComponentProps<TestScope>) 
   const [count, setCount] = useState(0)
   if (panelId === 'first' && scope.firstShouldThrow) throw new Error('render failed')
 
+  const counter = (
+    <button type="button" onClick={() => setCount((current) => current + 1)}>
+      {panelId}:{count}
+    </button>
+  )
+
   return (
     <>
       {panelId === 'first' && scope.firstHeaderMode === 'content' ? <RightPanelHeaderControls canMaximize /> : null}
-      <button type="button" onClick={() => setCount((current) => current + 1)}>
-        {panelId}:{count}
-      </button>
+      {/* Stands in for content like ClickableFilePath whose tooltip outlives the panel. */}
+      {panelId === 'second' ? <Tooltip content="second-tip">{counter}</Tooltip> : counter}
     </>
   )
 }
@@ -276,13 +295,14 @@ describe('RightPanel', () => {
     expect(screen.getByText('first:1')).toBe(first)
   })
 
-  it('replaces state when a panel identity changes', () => {
+  it('closes a replaced instance until the user explicitly opens its replacement', async () => {
+    const user = userEvent.setup()
     const { rerender } = render(
       <Harness defaultOpen>
         <RightPanel />
       </Harness>
     )
-    fireEvent.click(screen.getByText('first:0'))
+    await user.click(screen.getByRole('button', { name: 'first:0' }))
 
     rerender(
       <Harness defaultOpen scope={{ ...readyScope, firstKey: 'replacement' }}>
@@ -290,7 +310,84 @@ describe('RightPanel', () => {
       </Harness>
     )
 
-    expect(screen.getByText('first:0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'first:0' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'second:0' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByRole('button', { name: 'first:0' })).toBeVisible()
+  })
+
+  it('closes an unavailable selection without opening another panel or reopening on recovery', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+
+    rerender(
+      <Harness defaultOpen scope={{ ...readyScope, firstReadiness: 'unavailable' }}>
+        <RightPanel />
+      </Harness>
+    )
+
+    expect(screen.queryByRole('button', { name: 'first:0' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'second:0' })).not.toBeInTheDocument()
+    rerender(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+    expect(screen.queryByRole('button', { name: 'first:0' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'open second' }))
+    expect(screen.getByRole('button', { name: 'second:0' })).toBeVisible()
+  })
+
+  it('keeps the selected stable instance open when another instance changes', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <Harness>
+        <RightPanel />
+      </Harness>
+    )
+    await user.click(screen.getByRole('button', { name: 'open second' }))
+    await user.click(screen.getByRole('button', { name: 'second:0' }))
+
+    rerender(
+      <Harness scope={{ ...readyScope, firstKey: 'replacement' }}>
+        <RightPanel />
+      </Harness>
+    )
+
+    expect(screen.getByRole('button', { name: 'second:1' })).toBeVisible()
+  })
+
+  it('opens an instance created in the same batch as its selection request', async () => {
+    function OpenDynamicPanel({ onCreate }: { onCreate: () => void }) {
+      const actions = useRightPanelActions()
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            onCreate()
+            actions.requestOpen('first')
+          }}>
+          create panel
+        </button>
+      )
+    }
+    function DynamicHarness() {
+      const [created, setCreated] = useState(false)
+      return (
+        <RightPanelProvider capabilities={created ? capabilities : []} scope={readyScope}>
+          <OpenDynamicPanel onCreate={() => setCreated(true)} />
+          <RightPanel />
+        </RightPanelProvider>
+      )
+    }
+    const user = userEvent.setup()
+    render(<DynamicHarness />)
+    await user.click(screen.getByRole('button', { name: 'create panel' }))
+    expect(screen.getByRole('button', { name: 'first:0' })).toBeVisible()
   })
 
   it('preserves open intent while environmental presentation is disabled', () => {
@@ -337,6 +434,21 @@ describe('RightPanel', () => {
 
     rerender(<Harness />)
     expect(screen.getByTestId('presentation-open')).toHaveTextContent('false')
+  })
+
+  it('opens the default available panel when the parent opens without naming a panel', () => {
+    const pane = (defaultOpen: boolean) => (
+      <RightPanelProvider capabilities={capabilities} scope={readyScope} defaultOpen={defaultOpen}>
+        <ControllerProbe />
+        <RightPanelViewport />
+      </RightPanelProvider>
+    )
+    const { rerender } = render(pane(false))
+
+    rerender(pane(true))
+
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+    expect(screen.getByRole('button', { name: 'first:0' })).toBeVisible()
   })
 
   it('uses one toggle behavior for shortcuts', () => {
@@ -449,6 +561,26 @@ describe('RightPanel', () => {
     // tooltip wrapper may remount on state change, which would make an
     // assertion against the stale reference flaky even when behavior is right.
     expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
+  })
+
+  it('drops tooltips anchored in a panel hidden by switching to another panel', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    const findSecondTip = () =>
+      screen.getAllByTestId('tooltip-trigger').find((node) => node.getAttribute('data-content') === 'second-tip')
+    expect(findSecondTip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('first')
+    // The second panel's subtree stays mounted but Activity-hidden (display:none). A tooltip
+    // open over it never sees the leave events that would close it and Radix parks its content
+    // at the viewport origin, so the deactivated surface must disable it at once.
+    expect(findSecondTip()).toHaveAttribute('data-disabled', 'true')
   })
 
   it('keeps shell controls available when a content-composed panel fails to render', () => {

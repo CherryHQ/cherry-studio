@@ -19,6 +19,7 @@ interface AgentChatMainProps {
   sessionMessagesEnabled: boolean
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -31,6 +32,8 @@ interface AgentChatMainProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage: (messageId: string) => Promise<void>
+  startEditing: (messageId: string) => Promise<void>
+  editBusy: boolean
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
 }
 
@@ -39,6 +42,7 @@ export default function AgentChatMain({
   sessionMessagesEnabled,
   agentId,
   sessionId,
+  workspacePath,
   messages,
   activeAgent,
   partsByMessageId,
@@ -51,6 +55,8 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: AgentChatMainProps) {
   if (placement !== 'docked' || !sessionMessagesEnabled) {
@@ -63,6 +69,7 @@ export default function AgentChatMain({
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
           sessionId={sessionId}
+          workspacePath={workspacePath}
           messages={messages}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
@@ -75,6 +82,8 @@ export default function AgentChatMain({
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
           deleteMessage={agentId ? deleteMessage : undefined}
+          startEditing={agentId ? startEditing : undefined}
+          editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
         />
       </div>
@@ -84,18 +93,23 @@ export default function AgentChatMain({
 
 const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
   const {
+    isAgentToolFlowActive,
     canOpenAgentToolFlow,
     canOpenArtifactFile,
+    canPreviewInputFileInRightPane,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFileInRightPane,
     openBrowserUrl,
     openExternalUrl
   } = useAgentRightPaneActions()
   return (
     <AgentSessionMessages
       {...props}
+      isAgentToolFlowActive={isAgentToolFlowActive}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+      previewInputFile={canPreviewInputFileInRightPane ? previewInputFileInRightPane : undefined}
       openBrowserUrl={openBrowserUrl}
       openExternalUrl={openExternalUrl}
     />

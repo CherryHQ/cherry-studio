@@ -1,14 +1,12 @@
+import { previewFormats } from '@cherrystudio/file-preview/react'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { normalizeExt } from '@shared/utils/file'
 
 import { htmlFilePreviewPlugin } from './plugins/html/htmlFilePreviewPlugin'
-import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
-import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
-import { powerPointFilePreviewPlugin } from './plugins/powerpoint/powerPointFilePreviewPlugin'
-import { spreadsheetFilePreviewPlugin } from './plugins/spreadsheet/spreadsheetFilePreviewPlugin'
+import { mermaidFilePreviewPlugin } from './plugins/mermaid/mermaidFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import { wordFilePreviewPlugin } from './plugins/word/wordFilePreviewPlugin'
+import { videoFilePreviewPlugin } from './plugins/video/videoFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
 export interface FilePreviewRegistry {
@@ -44,18 +42,22 @@ export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRe
 
 export const filePreviewRegistry = createFilePreviewRegistry({
   extensionPlugins: [
+    ...previewFormats.map((format) => ({ ...format, load: () => import('./ElectronFilePreview') })),
     htmlFilePreviewPlugin,
-    imageFilePreviewPlugin,
     markdownFilePreviewPlugin,
-    pdfFilePreviewPlugin,
-    powerPointFilePreviewPlugin,
-    spreadsheetFilePreviewPlugin,
+    mermaidFilePreviewPlugin,
     textFilePreviewPlugin,
-    wordFilePreviewPlugin
+    videoFilePreviewPlugin
   ]
 })
 
 /** Whether the plugin that would render `filePath` declares `supportsSelectionReference`. */
 export function canProduceSelectionReference(filePath: string): boolean {
   return resolveExtensionPlugin(filePath, filePreviewRegistry)?.supportsSelectionReference === true
+}
+
+/** Whether `filePath` gets a rendered preview (HTML, Markdown, images, documents) rather than plain text. */
+export function hasRenderedFilePreview(filePath: string): boolean {
+  const plugin = resolveExtensionPlugin(filePath, filePreviewRegistry)
+  return plugin !== null && plugin !== textFilePreviewPlugin
 }

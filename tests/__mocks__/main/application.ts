@@ -1,8 +1,10 @@
 import { vi } from 'vitest'
 
+import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
+import { mockFileIntakeService } from './FileIntakeService'
 import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
@@ -80,6 +82,17 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+const serviceOverrides = new Map<string, unknown>()
+
+export const MockApplicationUtils = {
+  setService(name: string, service: unknown): void {
+    serviceOverrides.set(name, service)
+  },
+  resetServices(): void {
+    serviceOverrides.clear()
+  }
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -87,10 +100,14 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   FileManager: MockMainFileManagerExport.fileManager,
+  FileIntakeService: mockFileIntakeService,
+  AttachmentPresenceService: mockAttachmentPresenceService,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
+  RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
 /** Type for per-service overrides */
@@ -110,6 +127,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
   // property behaves exactly as it does against the real ServiceContainer.
   class MockServiceContainer {
     get(name: string) {
+      if (serviceOverrides.has(name)) return serviceOverrides.get(name)
       if (name in serviceInstances) {
         return serviceInstances[name as keyof typeof serviceInstances]
       }

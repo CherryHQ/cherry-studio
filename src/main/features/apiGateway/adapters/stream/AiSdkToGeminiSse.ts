@@ -39,6 +39,7 @@ interface GeminiUsageMetadata {
   candidatesTokenCount: number
   totalTokenCount: number
   thoughtsTokenCount?: number
+  cachedContentTokenCount?: number
 }
 
 interface GeminiCandidate {
@@ -96,6 +97,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         this.appendText(chunk.delta || '', true)
         break
 
+      case 'tool-input-error':
       case 'tool-input-available': {
         // Gemini 3 requires the model's thought signature echoed back on the next
         // function-calling turn; the Google provider surfaces it on the tool call's
@@ -158,17 +160,34 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
     const reasoningTokens = metadata.stats?.outputTokenDetails?.reasoningTokens
     if (reasoningTokens !== undefined) this.thoughtsTokens = reasoningTokens
   }
 
   private buildUsageMetadata(): GeminiUsageMetadata {
+    // AI SDK's `outputTokens` counts all generated tokens including reasoning —
+    // the breakdown lives in `outputTokenDetails` (every major provider maps
+    // total = text + reasoning). Gemini reports candidates separately from
+    // thoughts (total = prompt + candidates + thoughts), so emitting the
+    // reasoning-inclusive total as candidatesTokenCount would double-count
+    // thoughts inside the frame.
+    const candidatesTokenCount = Math.max(0, this.state.outputTokens - this.thoughtsTokens)
     const usage: GeminiUsageMetadata = {
       promptTokenCount: this.state.inputTokens,
-      candidatesTokenCount: this.state.outputTokens,
+      candidatesTokenCount,
       totalTokenCount: this.state.inputTokens + this.state.outputTokens
     }
     if (this.thoughtsTokens > 0) usage.thoughtsTokenCount = this.thoughtsTokens
+    // The projected `inputTokens` is Gemini's cache-inclusive prompt total
+    // (`promptTokenCount`), so cache reads are a subset of it — report them on
+    // their own field without touching the sum, mirroring the thoughtsTokenCount
+    // convention of staying absent when zero.
+    if (this.state.cacheReadTokens !== undefined && this.state.cacheReadTokens > 0) {
+      usage.cachedContentTokenCount = this.state.cacheReadTokens
+    }
     return usage
   }
 

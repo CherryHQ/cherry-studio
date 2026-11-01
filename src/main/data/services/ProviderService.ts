@@ -43,6 +43,7 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { ProviderBillingSchema } from '@shared/data/types/providerBilling'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
@@ -334,6 +335,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
       undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
+    supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
     serverTools: presetMetadata.serverTools ?? [],
@@ -490,6 +492,7 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (dto.providerSettings?.billing) ProviderBillingSchema.parse(dto.providerSettings.billing)
     if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
       throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
     }
@@ -532,7 +535,8 @@ class ProviderService {
             isEnabled: false
           }
           return insertWithOrderKey(tx, userProviderTable, values, {
-            pkColumn: userProviderTable.providerId
+            pkColumn: userProviderTable.providerId,
+            position: 'first'
           }) as UserProviderRow
         }),
       {
@@ -546,9 +550,8 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider. A false-to-true enabled transition moves the
-   * provider to the first position in the same transaction; redundant enabled
-   * writes preserve the user's current order.
+   * Update an existing provider. Enabling or disabling does not change
+   * `orderKey`; callers that want a new position must use `move` / `reorder`.
    */
   update(providerId: string, dto: UpdateProviderInput): Provider {
     assertManagedCherryProviderPatchAllowed(providerId, dto)
@@ -568,7 +571,6 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
-          isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
@@ -613,17 +615,9 @@ class ProviderService {
           current.providerSettings,
           dto.providerSettings
         ) as Partial<ProviderSettings>
+        if (updates.providerSettings?.billing) ProviderBillingSchema.parse(updates.providerSettings.billing)
       }
 
-      if (dto.isEnabled === true && !current.isEnabled) {
-        try {
-          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
-            pkColumn: userProviderTable.providerId
-          })
-        } catch (error) {
-          this.rethrowOrderError(error)
-        }
-      }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
       const [updated] = tx

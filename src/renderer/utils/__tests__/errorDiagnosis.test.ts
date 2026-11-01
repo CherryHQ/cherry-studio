@@ -65,6 +65,33 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it.each([
+      [
+        `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`,
+        false
+      ],
+      ['insufficient_quota', true]
+    ] as const)('gives the correct Context for %s', async (message, quota) => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
+      )
+      await diagnoseError(makeError({ message, statusCode: 400 }), 'en', { providerId: 'groq' })
+      const prompt = mockFetchGenerate.mock.calls[0][0].prompt
+      const context = prompt.split('## Context\n')[1]?.split('\n')[0]
+      if (quota) {
+        expect(context).toBe(
+          "The user's quota or account balance is exhausted on groq. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue."
+        )
+      } else {
+        expect(context).toBe(
+          "Groq rejected the selected service tier because it is not available for this organization. Suggest opening Response settings > Service tier in the chat composer and selecting Standard (on_demand), or checking the organization's plan and service-tier access in Groq Billing > Plans. This message does not establish quota or balance exhaustion or an invalid API key. Do not recommend topping up or regenerating the key based on this message. Do not promise that changing tiers will make the request succeed."
+        )
+        expect(context).not.toContain('quota or account balance is exhausted')
+      }
+    })
+
     it('returns parsed diagnosis result from AI', async () => {
       const mockResult = {
         summary: 'Auth error',
@@ -236,6 +263,27 @@ describe('ErrorDiagnosisService', () => {
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('billing_hard_limit_reached')
       expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+    })
+
+    it('gives payload-too-large errors actionable context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'payload', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(
+        makeError({
+          statusCode: 413,
+          message: '413 Request Entity Too Large',
+          responseBody: '<html><body><h1>413 Request Entity Too Large</h1></body></html>'
+        }),
+        'en'
+      )
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('request payload is too large')
+      expect(callArgs.prompt).toContain('new topic')
+      expect(callArgs.prompt).toContain('attachments')
+      expect(callArgs.prompt).toContain('summarize')
     })
 
     it('does not route insufficient permissions to quota context', async () => {

@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
+import { KNOWLEDGE_RUNTIME_ITEMS_MAX, KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
 import { isHttpUrl } from '@shared/utils/url'
 
 /**
@@ -325,26 +325,79 @@ export type KbTreeOutput = z.infer<typeof kbTreeOutputSchema>
 
 export const KB_MANAGE_TOOL_NAME = 'kb_manage'
 
-export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh'] as const
+export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh', 'create'] as const
 export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
+// Batch add shares the ingestion pipeline's batch bound (`knowledge.add_items` enforces the same
+// constant), so the tool can never advertise a size the service would reject.
+export const KB_MANAGE_ADD_MAX_ITEMS = KNOWLEDGE_RUNTIME_ITEMS_MAX
 
 // One flat object, not a discriminated union: which fields apply depends on `action`
-// (and, for add, on `type`). The core validates the combination and returns a steer
-// string on a missing field, so the model gets a clear error rather than a schema reject.
-// Fields the chosen action does not use are simply omitted.
+// (and, for add, on `type` — or on the per-entry fields of `items`). The core validates the
+// combination and returns a steer string on a missing field, so the model gets a clear error
+// rather than a schema reject. Fields the chosen action does not use are simply omitted.
+export const kbManageAddItemSchema = z.object({
+  type: z
+    .enum(KB_MANAGE_ADD_TYPES)
+    .optional()
+    .describe('The source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'),
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('For type="file": absolute local filesystem path of the file to import.'),
+  url: z.string().trim().min(1).optional().describe('For type="url": the URL to fetch and index.'),
+  content: z.string().min(1).optional().describe('For type="note": the plain-text note content to index.'),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('For type="note": optional display title (defaults to the note\'s first line).')
+})
+
+export type KbManageAddItem = z.infer<typeof kbManageAddItemSchema>
+
 export const kbManageInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'ID of the knowledge base to modify — a base id from kb_list. Required for add/delete/refresh; not used by create.'
+    ),
   action: z
     .enum(KB_MANAGE_ACTIONS)
     .describe(
-      'add: import a new source (set `type` + its field). delete: remove documents by `conceptIds`. ' +
-        'refresh: re-index documents by `conceptIds`. All actions modify the base and require user approval.'
+      'add: import source(s) into `baseId` (set `items`, or the single-source `type` + its field). ' +
+        'delete: remove documents by `conceptIds`. refresh: re-index documents by `conceptIds`. ' +
+        'create: create a new knowledge base (set `name`). All actions modify knowledge data and require user approval.'
+    ),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'For action="create": display name of the new knowledge base. The base is created keyword-searchable ' +
+        '(BM25-only); an embedding model can be attached later from the knowledge-base settings.'
+    ),
+  items: z
+    .array(kbManageAddItemSchema)
+    .min(1)
+    .max(KB_MANAGE_ADD_MAX_ITEMS)
+    .optional()
+    .describe(
+      `For action="add": import up to ${KB_MANAGE_ADD_MAX_ITEMS} sources in one call, each entry carrying ` +
+        '`type` and its field. Omit `items` to add the single source given by the top-level `type` + its ' +
+        'field; passing both forms in one call is rejected.'
     ),
   type: z
     .enum(KB_MANAGE_ADD_TYPES)
     .optional()
     .describe(
-      'For action="add" only: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'
+      'For action="add" without `items`: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'
     ),
   path: z
     .string()
@@ -374,7 +427,9 @@ export const kbManageInputSchema = z.object({
 
 export const kbManageOutputSchema = z.object({
   action: z.enum(KB_MANAGE_ACTIONS),
-  // add: the source identifiers that were imported (one per add call).
+  // create: the base that was created — `baseId` for follow-up add/search calls, `name` as confirmation.
+  created: z.object({ baseId: z.string(), name: z.string() }).optional(),
+  // add: the source identifiers that were imported (one entry per source — a batch `items` add reports all).
   added: z.array(z.string()).optional(),
   // delete / refresh: the Concept IDs that resolved to a document and were applied.
   deleted: z.array(z.string()).optional(),
@@ -476,11 +531,7 @@ export const toMarkdownOutputSchema = z.object({
 })
 
 export const TO_MARKDOWN_DESCRIPTION =
-  'Convert one supported local document to Markdown. Relative paths resolve from the session workspace. ' +
-  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
-  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
-  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
-  'file instead of being returned; read the returned path in slices as needed.'
+  'Convert a local document to Markdown in a temp file; scan-only PDFs need OCR. See path for supported formats.'
 
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
@@ -506,10 +557,7 @@ export const reportArtifactsInputSchema = z.object({
 })
 
 export const REPORT_ARTIFACTS_DESCRIPTION =
-  'Declare the final deliverable file(s) produced for the user. Call this once, at the end of the task, ' +
-  'after the requested file(s) are finished — pass the final path(s) and an optional one-line summary. ' +
-  'List only final deliverables; omit intermediate, scratch, or temporary files. Skip the call entirely ' +
-  'if the task produced no files.'
+  'Declare final deliverable files once, at the end of the task. Omit scratch files; skip if none were produced.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
@@ -519,9 +567,9 @@ export type { GenerateImageOutput, GenerateImageOutputItem } from './generateIma
 export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageOutputSchema } from './generateImageTool'
 
 // ── agent autonomy tools (cron / notify / config) ────────────────
-// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
-// are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;
-// only the names are shared (the approval policy references them).
+// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their zod input
+// schemas live in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`; only the names are shared
+// (the approval policy references them).
 
 export const CRON_TOOL_NAME = 'cron'
 export const NOTIFY_TOOL_NAME = 'notify'
@@ -614,7 +662,8 @@ export const mcpResourceEntrySchema = z.object({
 })
 
 export const mcpResourceListOutputSchema = z.object({
-  resources: z.array(mcpResourceEntrySchema)
+  resources: z.array(mcpResourceEntrySchema),
+  resourceTemplates: z.array(mcpResourceEntrySchema.omit({ uri: true }).extend({ uriTemplate: z.string() }))
 })
 
 export const mcpResourceReadInputSchema = z.object({
@@ -628,7 +677,7 @@ export const mcpResourceReadInputSchema = z.object({
   uri: z
     .string()
     .min(1)
-    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".'),
+    .describe('Resource URI returned by mcp_resource_list, or expanded from a uriTemplate published by that server.'),
   offset: z
     .number()
     .int()

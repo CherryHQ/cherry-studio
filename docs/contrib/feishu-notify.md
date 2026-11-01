@@ -2,7 +2,6 @@
 description: CLI script that sends Feishu webhook card notifications from GitHub Actions workflows, with command reference
 sources:
   - scripts/feishu-notify.ts
-  - .github/workflows/github-issue-tracker.yml
 ---
 
 # Feishu Notification Script
@@ -105,7 +104,7 @@ pnpm tsx scripts/feishu-notify.ts issue \
 
 ## Usage in GitHub Actions
 
-This script is primarily used in `.github/workflows/github-issue-tracker.yml`:
+The `issue` command can be called from a GitHub Actions step:
 
 ```yaml
 - name: Install dependencies

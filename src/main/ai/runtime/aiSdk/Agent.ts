@@ -3,6 +3,7 @@
  */
 
 import {
+  type FinishReason,
   InvalidResponseDataError,
   type LanguageModelUsage,
   type ModelMessage,
@@ -158,7 +159,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal
-  ): Promise<{ text: string; usage: LanguageModelUsage }> {
+  ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
       await safeCall('onStart', hooks.onStart)
@@ -185,7 +186,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
-      return { text: result.text, usage: result.usage }
+      return {
+        text: result.text,
+        usage: result.usage,
+        finishReason: result.finishReason,
+        ...(result.rawFinishReason === undefined ? {} : { rawFinishReason: result.rawFinishReason })
+      }
     } catch (err) {
       const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
       if (isCancellation) {

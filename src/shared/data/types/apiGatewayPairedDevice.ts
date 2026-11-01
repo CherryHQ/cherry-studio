@@ -1,9 +1,12 @@
 import * as z from 'zod'
 
+import { remoteCapabilitySchema } from '@cherrystudio/remote-protocol'
+
 export const ApiGatewayPairedDeviceSchema = z.strictObject({
   id: z.uuidv4(),
   name: z.string().trim().min(1).max(64),
   platform: z.string().trim().min(1).max(32),
+  remoteAccess: z.strictObject({ capabilities: z.array(remoteCapabilitySchema) }).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })

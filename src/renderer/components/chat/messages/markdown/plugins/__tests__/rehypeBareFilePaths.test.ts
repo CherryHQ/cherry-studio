@@ -71,6 +71,20 @@ describe('findBareFilePathMatches', () => {
     expect(paths('See /tmp/docs and/or continue below', 'posix')).toEqual([])
   })
 
+  it('does not linkify a lone slash run in prose such as an inline division formula', () => {
+    expect(paths('I = (E₀∠δ - U)/jX_s…\n定子电流！', 'posix')).toEqual([])
+    expect(paths('P = (E₀U·sinδ)/X_d。', 'posix')).toEqual([])
+  })
+
+  it('keeps single-segment absolute paths that carry a filename signal', () => {
+    expect(paths('Open /README.md, /tmp/.env and /etc/hosts.', 'posix')).toEqual([
+      '/README.md',
+      '/tmp/.env',
+      '/etc/hosts'
+    ])
+    expect(paths("Open '/logs' now", 'posix')).toEqual(['/logs'])
+  })
+
   it('keeps paths followed by line and tab boundaries', () => {
     expect(paths('/tmp/first.txt\n/tmp/second.txt\t~/third.txt', 'posix')).toEqual([
       '/tmp/first.txt',
@@ -125,8 +139,9 @@ describe('findBareFilePathMatches', () => {
   })
 
   it('recognizes Cherry navigation routes on Windows', () => {
-    expect(paths('Open /app/chat and /settings/mcp/servers.', 'windows')).toEqual([
+    expect(paths('Open /app/chat, /settings/archive and /settings/mcp/servers.', 'windows')).toEqual([
       '/app/chat',
+      '/settings/archive',
       '/settings/mcp/servers'
     ])
   })

@@ -113,19 +113,6 @@ export interface ClearTopicMessagesResponse {
 // ============================================================================
 
 /**
- * Query parameters for GET /topics/:id/tree
- */
-export const TreeQuerySchema = z.strictObject({
-  /** Root node ID (defaults to tree root) */
-  rootId: z.string().optional(),
-  /** End node ID (defaults to topic.activeNodeId) */
-  nodeId: z.string().optional(),
-  /** Depth to expand beyond active path (-1 = all, 0 = path only, 1+ = layers) */
-  depth: z.number().int().optional()
-})
-export type TreeQueryParams = z.infer<typeof TreeQuerySchema>
-
-/**
  * Query parameters for GET /topics/:id/messages
  *
  * Uses "before cursor" semantics for loading historical messages:
@@ -157,6 +144,11 @@ export const DeleteMessageQuerySchema = z.strictObject({
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
+export const DeleteBranchQuerySchema = z.strictObject({
+  topicId: z.string().min(1)
+})
+export type DeleteBranchQuery = z.infer<typeof DeleteBranchQuerySchema>
+
 /**
  * Query parameters for GET /topics/:topicId/path
  */
@@ -180,6 +172,14 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  '/messages/:id/branch': {
+    DELETE: {
+      params: { id: string }
+      query: DeleteBranchQuery
+      response: DeleteMessageResponse
+    }
+  }
+
   /**
    * Delete the complete assistant reply group containing one representative.
    *
@@ -197,13 +197,12 @@ export type MessageSchemas = {
 
   /**
    * Tree query endpoint for visualization
-   * @example GET /topics/abc123/tree?depth=1
+   * @example GET /topics/abc123/tree
    */
   '/topics/:topicId/tree': {
-    /** Get tree structure for visualization */
+    /** Get the topic's whole message tree for visualization */
     GET: {
       params: { topicId: string }
-      query?: TreeQueryParams
       response: TreeResponse
     }
   }

@@ -21,12 +21,39 @@ const gptImageFullImageGeneration = {
   }
 }
 
+const gptImage25ImageGeneration = {
+  modes: {
+    generate: {
+      supports: {
+        quality: gptImageFullSupports.quality,
+        size: {
+          default: '1024x1024',
+          options: [
+            'auto',
+            '1024x1024',
+            '1536x1024',
+            '1024x1536',
+            '1536x864',
+            '864x1536',
+            '1536x960',
+            '3840x2160',
+            '2160x3840'
+          ],
+          render: 'chips' as const,
+          type: 'enum' as const
+        }
+      }
+    }
+  }
+}
+
 export default defineCreator({
   id: 'openai',
   name: 'OpenAI',
   fetchModels: openaiCompatible('openai', 'OPENAI_API_KEY'),
   modelsDevProviders: ['openai'],
   reasoningFamilies: [
+    { pattern: '^gpt-6[.-]1-sol(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
     { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
@@ -72,6 +99,140 @@ export default defineCreator({
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
     {
+      id: 'gpt-6.1-terra',
+      name: 'GPT-6.1 Terra',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 1 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.05 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 1.25 },
+        output: { currency: 'USD', perMillionTokens: 5 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 2 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 2.5 },
+            output: { currency: 'USD', perMillionTokens: 7.5 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: false,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    },
+    {
+      id: 'gpt-6.1-sol',
+      name: 'GPT-6.1 Sol',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 4 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 5 },
+            output: { currency: 'USD', perMillionTokens: 15 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: false,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    },
+    {
+      id: 'gpt-6-sol',
+      name: 'GPT-6 Sol',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 4 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.4 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 5 },
+            output: { currency: 'USD', perMillionTokens: 15 }
+          }
+        ]
+      },
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] }
+    },
+    {
+      id: 'gpt-6-luna',
+      name: 'GPT-6 Luna',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.1 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.01 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.125 },
+        output: { currency: 'USD', perMillionTokens: 0.5 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 0.2 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.02 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 0.25 },
+            output: { currency: 'USD', perMillionTokens: 0.75 }
+          }
+        ]
+      },
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }] }
+    },
+    {
       id: 'gpt-6-astra',
       name: 'GPT-6 Astra',
       family: 'gpt',
@@ -108,6 +269,24 @@ export default defineCreator({
         systemMessage: true
       },
       reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }] }
+    },
+    {
+      id: 'gpt-image-2-5-flare',
+      name: 'GPT Image 2.5 Flare',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: gptImage25ImageGeneration
+    },
+    {
+      id: 'gpt-image-2-5-sunburst',
+      name: 'GPT Image 2.5 Sunburst',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: gptImage25ImageGeneration
     },
     {
       id: 'gpt-image-1-mini',
@@ -202,7 +381,17 @@ export default defineCreator({
               },
               size: {
                 default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+                options: [
+                  'auto',
+                  '1024x1024',
+                  '1536x1024',
+                  '1024x1536',
+                  '1536x864',
+                  '864x1536',
+                  '1536x960',
+                  '3840x2160',
+                  '2160x3840'
+                ],
                 render: 'chips',
                 type: 'enum'
               }

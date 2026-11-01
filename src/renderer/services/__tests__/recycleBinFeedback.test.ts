@@ -14,6 +14,10 @@ import {
   showRecycleBinUndo
 } from '../recycleBinFeedback'
 
+const mainWindowNavigationMocks = vi.hoisted(() => ({ openSettingsTab: vi.fn() }))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => mainWindowNavigationMocks)
+
 function getInitialToastConfig(): ToastConfig {
   const config = vi.mocked(toast.success).mock.calls[0]?.[0]
 
@@ -29,6 +33,16 @@ function getUndoAction(): ToastAction {
 
   if (!action) {
     throw new Error('expected an undo action')
+  }
+
+  return action
+}
+
+function getViewArchiveAction(): ToastAction {
+  const action = getInitialToastConfig().secondaryAction
+
+  if (!action) {
+    throw new Error('expected a view-archive action')
   }
 
   return action
@@ -56,7 +70,7 @@ describe('recycleBinFeedback', () => {
     expect(getInitialToastConfig()).toMatchObject({
       action: { label: 'Undo' },
       timeout: 5000,
-      title: 'Draft moved to Recycle Bin'
+      title: 'Draft moved to Archive'
     })
 
     await getUndoAction().onClick()
@@ -69,7 +83,7 @@ describe('recycleBinFeedback', () => {
 
     await getUndoAction().onClick()
 
-    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Recycle Bin')
+    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Archive')
   })
 
   it('keeps resource status readable with an archive title and a working undo action', async () => {
@@ -93,7 +107,26 @@ describe('recycleBinFeedback', () => {
     await getUndoAction().onClick()
 
     expect(onUndo).toHaveBeenCalledOnce()
-    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Recycle Bin')
+    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Archive')
+  })
+
+  it('sends a user who skips undo to the Archive page instead of losing the item', async () => {
+    // Archived items leave the visible list, so this toast is the only in-place route back to them.
+    showRecycleBinUndo({ itemName: 'Draft', onUndo: vi.fn().mockResolvedValue(undefined) })
+
+    expect(getInitialToastConfig().secondaryAction).toMatchObject({ label: 'View in Archive' })
+
+    await getViewArchiveAction().onClick()
+
+    expect(mainWindowNavigationMocks.openSettingsTab).toHaveBeenCalledWith('/settings/archive')
+  })
+
+  it('offers the same Archive route on a batch archive toast', () => {
+    showRecycleBinBatchUndo({ itemCount: 2, onUndo: vi.fn() })
+
+    void getViewArchiveAction().onClick()
+
+    expect(mainWindowNavigationMocks.openSettingsTab).toHaveBeenCalledWith('/settings/archive')
   })
 
   it('logs and reports a rejected single-item restore without leaking the rejection', async () => {
@@ -105,7 +138,7 @@ describe('recycleBinFeedback', () => {
     await expect(getUndoAction().onClick()).resolves.toBeUndefined()
 
     expect(loggerError).toHaveBeenCalledWith('Recycle Bin undo failed', error)
-    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Recycle Bin')
+    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Archive')
   })
 
   it('reports the restored and failed counts for a fully successful batch', async () => {
@@ -116,7 +149,7 @@ describe('recycleBinFeedback', () => {
     expect(getInitialToastConfig()).toMatchObject({
       action: { label: 'Undo' },
       timeout: 5000,
-      title: 'Moved to Recycle Bin: 2'
+      title: 'Moved to Archive: 2'
     })
 
     await getUndoAction().onClick()
@@ -131,7 +164,7 @@ describe('recycleBinFeedback', () => {
 
     const title = getInitialToastConfig().title
 
-    expect(title).toBe('Moved to Recycle Bin: 1')
+    expect(title).toBe('Moved to Archive: 1')
     expect(title).not.toContain('1 items')
   })
 
@@ -159,7 +192,7 @@ describe('recycleBinFeedback', () => {
 
     expect(onUndo).toHaveBeenCalledOnce()
     expect(loggerError).toHaveBeenCalledWith('Recycle Bin batch undo failed', error)
-    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Recycle Bin')
+    expect(toast.error).toHaveBeenCalledWith('Failed to restore from Archive')
   })
 
   it('counts a concurrent restore as complete only when the active endpoint finds the item', async () => {

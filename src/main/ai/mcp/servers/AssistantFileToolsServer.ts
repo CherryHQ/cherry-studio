@@ -1,7 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import * as z from 'zod'
+import { type CallToolResult, McpServer } from '@modelcontextprotocol/server'
 
 import { loggerService } from '@logger'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
@@ -32,83 +29,59 @@ interface AssistantFileToolContext {
   workspacePath: string
 }
 
-interface AssistantFileToolHandler {
-  description: string
-  inputSchema: z.ZodType
-  run: (args: unknown, signal: AbortSignal) => Promise<unknown>
+// Failures stay opaque to the model: they can carry attachment entry ids or absolute paths.
+async function runTool(name: string, signal: AbortSignal, run: () => Promise<unknown>): Promise<CallToolResult> {
+  try {
+    const value = await run()
+    return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] }
+  } catch (error) {
+    if (signal.aborted || isAbortError(error)) throw error
+    logger.error(`Tool error: ${name}`, error instanceof Error ? error : { error: String(error) })
+    return { content: [{ type: 'text', text: 'Tool execution failed' }], isError: true }
+  }
 }
 
-function toTool(name: string, handler: AssistantFileToolHandler): Tool {
-  const inputSchema = z.toJSONSchema(handler.inputSchema) as Record<string, unknown>
-  delete inputSchema.$schema
-  return { name, description: handler.description, inputSchema: inputSchema as Tool['inputSchema'] }
-}
+export function createAssistantFileToolsServer(context: AssistantFileToolContext): McpServer {
+  const server = new McpServer({ name: 'assistant-files', version: '1.0.0' })
 
-export class AssistantFileToolsServer {
-  public readonly mcpServer: McpServer
-  private readonly handlers: Record<string, AssistantFileToolHandler>
+  server.registerTool(
+    READ_FILE_TOOL_NAME,
+    { description: READ_FILE_DESCRIPTION, inputSchema: readFileInputSchema },
+    async (input, ctx) =>
+      runTool(READ_FILE_TOOL_NAME, ctx.mcpReq.signal, async () => {
+        const result = await readFile(
+          input,
+          { attachments: listAgentSessionAttachments(context.sessionId) },
+          ctx.mcpReq.signal
+        )
+        const output = readFileModelOutput(result)
+        if (output.type !== 'text') throw new Error('read_file returned an unexpected output type')
+        return output.value
+      })
+  )
 
-  constructor(context: AssistantFileToolContext) {
-    this.handlers = {
-      [READ_FILE_TOOL_NAME]: {
-        description: READ_FILE_DESCRIPTION,
-        inputSchema: readFileInputSchema,
-        run: async (args, signal) => {
-          const input = readFileInputSchema.parse(args)
-          const result = await readFile(input, { attachments: listAgentSessionAttachments(context.sessionId) }, signal)
-          const output = readFileModelOutput(result)
-          if (output.type !== 'text') throw new Error('read_file returned an unexpected output type')
-          return output.value
-        }
-      },
-      [SAVE_ATTACHMENT_TOOL_NAME]: {
-        description: SAVE_ATTACHMENT_DESCRIPTION,
-        inputSchema: saveAttachmentInputSchema,
-        run: async (args, signal) =>
-          saveAttachmentToWorkspace(
-            context.workspacePath,
-            saveAttachmentInputSchema.parse(args),
-            listAgentSessionAttachments(context.sessionId),
-            signal
-          )
-      },
-      [MOVE_TO_TRASH_TOOL_NAME]: {
-        description: MOVE_TO_TRASH_DESCRIPTION,
-        inputSchema: moveToTrashInputSchema,
-        run: async (args, signal) =>
-          moveWorkspaceItemToTrash(context.workspacePath, moveToTrashInputSchema.parse(args), signal)
-      }
-    }
+  server.registerTool(
+    SAVE_ATTACHMENT_TOOL_NAME,
+    { description: SAVE_ATTACHMENT_DESCRIPTION, inputSchema: saveAttachmentInputSchema },
+    async (input, ctx) =>
+      runTool(SAVE_ATTACHMENT_TOOL_NAME, ctx.mcpReq.signal, () =>
+        saveAttachmentToWorkspace(
+          context.workspacePath,
+          input,
+          listAgentSessionAttachments(context.sessionId),
+          ctx.mcpReq.signal
+        )
+      )
+  )
 
-    this.mcpServer = new McpServer({ name: 'assistant-files', version: '1.0.0' }, { capabilities: { tools: {} } })
-    this.setupHandlers()
-  }
+  server.registerTool(
+    MOVE_TO_TRASH_TOOL_NAME,
+    { description: MOVE_TO_TRASH_DESCRIPTION, inputSchema: moveToTrashInputSchema },
+    async (input, ctx) =>
+      runTool(MOVE_TO_TRASH_TOOL_NAME, ctx.mcpReq.signal, () =>
+        moveWorkspaceItemToTrash(context.workspacePath, input, ctx.mcpReq.signal)
+      )
+  )
 
-  private setupHandlers(): void {
-    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: Object.entries(this.handlers).map(([name, handler]) => toTool(name, handler))
-    }))
-    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
-      const handler = this.handlers[request.params.name]
-      if (!handler) {
-        return { content: [{ type: 'text', text: `Unknown tool: ${request.params.name}` }], isError: true }
-      }
-
-      try {
-        const value = await handler.run(request.params.arguments, extra.signal)
-        return {
-          content: [
-            {
-              type: 'text',
-              text: typeof value === 'string' ? value : JSON.stringify(value)
-            }
-          ]
-        }
-      } catch (error) {
-        if (extra.signal.aborted || isAbortError(error)) throw error
-        logger.error(`Tool error: ${request.params.name}`, error instanceof Error ? error : { error: String(error) })
-        return { content: [{ type: 'text', text: 'Error: Tool execution failed' }], isError: true }
-      }
-    })
-  }
+  return server
 }

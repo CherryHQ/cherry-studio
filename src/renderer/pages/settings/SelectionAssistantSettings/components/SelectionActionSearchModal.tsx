@@ -27,7 +27,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
@@ -200,7 +200,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     const customUrl = form.getValues('customUrl')
     if (customUrl) {
       const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
-      void ipcApi.request('system.shell.open_website', testUrl)
+      void openExternalWebsite(testUrl)
     }
   }
 
