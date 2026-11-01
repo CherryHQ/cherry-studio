@@ -3258,6 +3258,7 @@
   "provider.qwencloud": "QwenCloud",
   "provider.qwenlm": "QwenLM",
   "provider.radeon-cloud": "AMD GPU Cloud",
+  "provider.rapid-mlx": "Rapid-MLX",
   "provider.silicon": "硅基流动",
   "provider.sophnet": "SophNet",
   "provider.stepfun": "阶跃星辰",
