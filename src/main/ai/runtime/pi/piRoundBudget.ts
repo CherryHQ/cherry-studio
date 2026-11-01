@@ -1,9 +1,6 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 
 type PiAgent = AgentSession['agent']
-type PiFinishTurn = NonNullable<PiAgent['finishTurn']>
-type PiTurnContext = Parameters<PiFinishTurn>[0]
-type PiTurnDecision = Awaited<ReturnType<PiFinishTurn>>
 
 export interface PiRoundBudget {
   /** Completed tool-calling rounds observed in the current run. */
@@ -40,7 +37,9 @@ export interface PiRoundBudget {
 export function installPiRoundBudget(agent: PiAgent, limit: number, onLimitReached: () => void): PiRoundBudget {
   let rounds = 0
   const previous = agent.finishTurn
-  agent.finishTurn = async (turn: PiTurnContext, signal?: AbortSignal): Promise<PiTurnDecision> => {
+  // Parameter and return types are inferred from the FinishTurn assignment target: an explicit
+  // Awaited<ReturnType<...>> annotation resolves void in the union and is not assignable back.
+  agent.finishTurn = async (turn, signal) => {
     const decision = (await previous?.(turn, signal)) ?? undefined
     if (signal?.aborted) return decision
     if (decision?.action === 'end') return decision
