@@ -646,6 +646,26 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$a[$b[$c[0]]] = del victim.txt')).toBeUndefined()
     expect(detectDestructiveAssistantCommand('$a[0] = del victim.txt')).toBe('permanent Windows file deletion')
   })
+
+  it('denies computed-property and ?-identifier assignment forms (round-12 review findings)', () => {
+    // Computed member access with a quoted name: $h.("result") - and its quote-escaped content.
+    expect(detectDestructiveAssistantCommand('$h.("result") = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(
+      detectDestructiveAssistantCommand('pwsh -NoProfile -Command \'$h = @{}; $h.("result") = del victim.txt\'')
+    ).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("$h.('result') = del victim.txt")).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('$h.("a""b") = del victim.txt')).toBe('permanent Windows file deletion')
+    // Arbitrary computed expressions stay a documented best-effort gap.
+    expect(detectDestructiveAssistantCommand('$h.($x) = del victim.txt')).toBeUndefined()
+    // Identifiers may contain ? in the tail; the first character still cannot be ?.
+    expect(detectDestructiveAssistantCommand('$a? = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '$a? = del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('$x?y = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('$? = del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('what? = del victim.txt')).toBeUndefined()
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
