@@ -683,6 +683,27 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$global:? = del victim.txt')).toBe('permanent Windows file deletion')
     expect(detectDestructiveAssistantCommand('$global:a = del victim.txt')).toBe('permanent Windows file deletion')
   })
+
+  it('denies quoted static-member assignment forms (round-15 review finding)', () => {
+    // Static member access with a quoted name: [Console]::"Title" - mirrors the instance
+    // quoted-property coverage, including quote-escaped content. Real gap versus shipped
+    // main's broader guard; uncovered on all earlier revisions of this PR.
+    expect(detectDestructiveAssistantCommand('[Console]::"Title" = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('pwsh -NoProfile -Command \'[Console]::"Title" = del victim.txt\'')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand("[Console]::'Title' = del victim.txt")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('[A]::"a""b" = del victim.txt')).toBe('permanent Windows file deletion')
+    // Bare static members stay covered; a quoted member mention without an assignment stays allowed.
+    expect(detectDestructiveAssistantCommand('[Console]::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('echo [Console]::"Title"')).toBeUndefined()
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
