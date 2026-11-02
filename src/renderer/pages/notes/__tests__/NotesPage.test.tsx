@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => {
     reloadSession: vi.fn().mockResolvedValue(undefined),
     keepDraftSession: vi.fn().mockResolvedValue(undefined),
     notifyExternalChange: vi.fn(),
+    treeOnMutation: undefined as undefined | ((event: unknown) => void),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
     isActiveTab: true,
@@ -218,14 +219,17 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/hooks/useDirectoryTree', () => ({
-  useDirectoryTree: () => ({
-    root: mocks.treeRoot,
-    isLoading: mocks.treeIsLoading,
-    error: null,
-    version: mocks.treeVersion,
-    treeId: 'notes-tree',
-    getNode: mocks.getNode
-  })
+  useDirectoryTree: (_root: unknown, _options: unknown, onMutation: (event: unknown) => void) => {
+    mocks.treeOnMutation = onMutation
+    return {
+      root: mocks.treeRoot,
+      isLoading: mocks.treeIsLoading,
+      error: null,
+      version: mocks.treeVersion,
+      treeId: 'notes-tree',
+      getNode: mocks.getNode
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useNote', () => ({
@@ -237,8 +241,8 @@ vi.mock('@renderer/hooks/useNote', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useFileEditSession', () => ({
-  useFileEditSession: () => ({
+vi.mock('@renderer/components/notes/NotesFileEditSessionProvider', () => ({
+  useNotesFileEditSession: () => ({
     status: mocks.sessionStatus,
     sessionId: mocks.activeFilePath,
     documentEpoch: 1,
@@ -257,7 +261,8 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     reload: mocks.reloadSession,
     keepDraft: mocks.keepDraftSession,
     flush: mocks.flushSession,
-    notifyExternalChange: mocks.notifyExternalChange
+    notifyExternalChange: mocks.notifyExternalChange,
+    refreshFromDiskIfIdle: vi.fn(async () => {})
   })
 }))
 
@@ -374,6 +379,8 @@ vi.mock('../NotesSidebar', () => ({
   }
 }))
 
+import { lockNotesEditsForRelocation, unlockNotesEditsForRelocation } from '@renderer/hooks/notesFileEditFlush'
+
 import NotesPage from '../NotesPage'
 
 async function renderReadyNotesPage() {
@@ -385,6 +392,7 @@ async function renderReadyNotesPage() {
 
 describe('NotesPage print payloads', () => {
   beforeEach(() => {
+    unlockNotesEditsForRelocation()
     vi.clearAllMocks()
     mocks.finishMutation.mockReset().mockResolvedValue(undefined)
     mocks.prepareMutation.mockReset().mockImplementation(async () => ({ finish: mocks.finishMutation }))
@@ -452,6 +460,20 @@ describe('NotesPage print payloads', () => {
         markdown: mocks.currentContent
       })
     )
+  })
+
+  it('refreshes only the active note on updated tree mutations', async () => {
+    render(<NotesPage />)
+    mocks.notifyExternalChange.mockClear()
+    act(() => {
+      mocks.treeOnMutation?.({ type: 'updated', path: '/notes/other.md', stats: { mtime: 1 } })
+      mocks.treeOnMutation?.({ type: 'added', path: '/notes/note.md' })
+      mocks.treeOnMutation?.({ type: 'removed', path: '/notes/note.md' })
+      mocks.treeOnMutation?.({ type: 'renamed', oldPath: '/notes/note.md', newPath: '/notes/new.md' })
+    })
+    expect(mocks.notifyExternalChange).not.toHaveBeenCalled()
+    act(() => mocks.treeOnMutation?.({ type: 'updated', path: '/notes/note.md', stats: { mtime: 2 } }))
+    expect(mocks.notifyExternalChange).toHaveBeenCalledExactlyOnceWith()
   })
 
   it('opens a requested saved note once its directory-tree entry arrives', async () => {
@@ -778,6 +800,18 @@ describe('NotesPage print payloads', () => {
     })
     return outcome
   }
+
+  it('blocks a rename during relocation without touching disk or preparing a mutation', async () => {
+    lockNotesEditsForRelocation()
+    try {
+      expect(await rename()).toEqual({ ok: false, reason: 'failed' })
+      expect(mocks.prepareMutation).not.toHaveBeenCalled()
+      expect(mocks.renameEntry).not.toHaveBeenCalled()
+      expect(toast.warning).toHaveBeenCalledWith('settings.data.notes_relocation.error.in_progress')
+    } finally {
+      act(() => unlockNotesEditsForRelocation())
+    }
+  })
 
   it('returns the actual renamed stem only after cleanup and active-path updates settle', async () => {
     mocks.showWorkspace = true

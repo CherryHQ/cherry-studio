@@ -89,3 +89,19 @@ it('debounces real edits and rejects a callback captured before a document repla
   act(() => oldEdit('stale replacement'))
   expect(result.current.draft).toBe('changed')
 })
+
+it('refreshFromDiskIfIdle adopts clean disk changes and never clobbers a dirty draft', async () => {
+  const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
+  await waitFor(() => expect(result.current.status).toBe('ready'))
+
+  disk = new TextEncoder().encode('external')
+  await act(async () => result.current.refreshFromDiskIfIdle())
+  expect(result.current.draft).toBe('external')
+  expect(result.current.conflict).toBe(false)
+
+  act(() => result.current.setDraft('local'))
+  disk = new TextEncoder().encode('moved externally')
+  await act(async () => result.current.refreshFromDiskIfIdle())
+  expect(result.current.draft).toBe('local')
+  expect(result.current.conflict).toBe(true)
+})

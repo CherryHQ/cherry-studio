@@ -46,6 +46,12 @@ export interface FileEditSession {
   keepDraft(): Promise<void>
   flush(): Promise<void>
   notifyExternalChange(): void
+  /**
+   * Awaitable disk revalidation (notes tree reconnects). Never clobbers a dirty
+   * draft: a clean session adopts the latest disk content, while a dirty one
+   * only surfaces a conflict when the on-disk baseline moved.
+   */
+  refreshFromDiskIfIdle(): Promise<void>
   prepareMutation(): Promise<PreparedFileMutation>
 }
 
@@ -143,6 +149,7 @@ export function useFileEditSession(
       notifyExternalChange: () => {
         void lease?.invalidate()
       },
+      refreshFromDiskIfIdle: () => (lease ? lease.invalidate() : Promise.resolve()),
       prepareMutation: () => manager.prepareMutation()
     }),
     [invoke, manager, lease]

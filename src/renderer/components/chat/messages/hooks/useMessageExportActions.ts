@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react'
 
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { ipcApi } from '@renderer/ipc'
 import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import type {
@@ -35,8 +34,6 @@ export function useMessageExportActions({
   topicName,
   exportToObsidian: showObsidianExport
 }: MessageExportActionParams): MessageExportActions & { exportMessages: ExportMessages } {
-  const { notesPath } = useNotesSettings()
-
   const exportContent = useCallback(
     async (messages: MessageExportView[], target: MessageExportTarget, title?: string) => {
       const { exportMessagesToTarget } = await import('@renderer/services/ExportService')
@@ -78,16 +75,13 @@ export function useMessageExportActions({
     [exportContent]
   )
 
-  const exportToNotes = useCallback(
-    async (message: MessageExportView) => {
-      const { exportMessageToNotes, getMessageTitle, messageToMarkdown } =
-        await import('@renderer/services/ExportService')
-      const title = await getMessageTitle(message)
-      const markdown = await messageToMarkdown(message)
-      return exportMessageToNotes(title, markdown, notesPath)
-    },
-    [notesPath]
-  )
+  const exportToNotes = useCallback(async (message: MessageExportView) => {
+    const { exportMessageToNotes, getMessageTitle, messageToMarkdown } =
+      await import('@renderer/services/ExportService')
+    const title = await getMessageTitle(message)
+    const markdown = await messageToMarkdown(message)
+    return exportMessageToNotes(title, markdown, '')
+  }, [])
 
   const exportToNotion = useCallback(async (message: MessageExportView) => {
     const { exportMessageToNotion, getMessageTitle, messageToMarkdown } =
