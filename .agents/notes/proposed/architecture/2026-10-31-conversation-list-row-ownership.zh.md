@@ -35,7 +35,7 @@ const handleDelete = useCallback(async (id: string) => {
 
 渲染列表和读取函数共用同一组纯函数，所以顺序不会不一致。响应式渲染仍使用 `useQuery`，快照只给处理函数用。
 
-**3. 功能目录。** `Sessions` 移到 `pages/agents/components/sessions/`，边界清楚的部分拆到各自的文件：行菜单操作、改名、创建、分组展开、分组结构和工作目录分组处理函数。依赖宿主大部分状态的处理函数留在 `Sessions.tsx`：删除流程、智能体分组处理函数、排序和分组头。这个模式验证后，`Topics` 采用相同结构。
+**3. 功能目录。** `Sessions` 移到 `pages/agents/components/Sessions/`，边界清楚的部分拆到各自的文件：行菜单操作、改名、创建、分组展开、分组结构和工作目录分组处理函数。依赖宿主大部分状态的处理函数留在 `Sessions.tsx`：删除流程、智能体分组处理函数、排序和分组头。这个模式验证后，`Topics` 采用相同结构。
 
 ### 预期性能
 

@@ -4,7 +4,7 @@ import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
-import Sessions from './components/sessions/Sessions'
+import { Sessions } from './components/Sessions'
 import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {

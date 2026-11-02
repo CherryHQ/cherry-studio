@@ -35,7 +35,7 @@ const handleDelete = useCallback(async (id: string) => {
 
 The rendered list and the reader share the same pure functions, so they cannot disagree on order. Reactive rendering still uses `useQuery`; the snapshot is for handlers only.
 
-**3. Feature folders.** `Sessions` moves to `pages/agents/components/sessions/`, and the parts with a clear boundary move to their own files: row menu actions, rename, creation, group expansion, group structure, and workdir group handlers. Handlers that depend on most of the host's state stay in `Sessions.tsx`: delete flow, agent group handlers, reorder, and group headers. `Topics` follows the same shape after the pattern is proven.
+**3. Feature folders.** `Sessions` moves to `pages/agents/components/Sessions/`, and the parts with a clear boundary move to their own files: row menu actions, rename, creation, group expansion, group structure, and workdir group handlers. Handlers that depend on most of the host's state stay in `Sessions.tsx`: delete flow, agent group handlers, reorder, and group headers. `Topics` follows the same shape after the pattern is proven.
 
 ### Expected performance
 
