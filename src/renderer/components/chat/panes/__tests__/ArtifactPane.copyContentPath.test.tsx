@@ -121,17 +121,19 @@ function model(): ArtifactFileTreeModel {
 }
 
 function renderPreview(workspacePath: string, filePath: string) {
+  const selection = { workspacePath, filePath }
   return render(
     <CommandContextKeyProvider>
       <CommandProvider>
         <ArtifactPaneView
-          headerVariant="pane"
           paneTitle="Files"
           paneActions={null}
           workspacePath={workspacePath}
           selectedFile={null}
           onSelectedFileChange={vi.fn()}
-          previewFileSelection={{ workspacePath, filePath }}
+          previewFileSelection={selection}
+          fileTabs={[selection]}
+          onPreviewClose={vi.fn()}
           model={model()}
           searchKeyword=""
           onSearchKeywordChange={vi.fn()}
