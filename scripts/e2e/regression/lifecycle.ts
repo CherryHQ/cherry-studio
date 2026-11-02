@@ -125,7 +125,10 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
           LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
         }
       : {}
-  for (const directory of Object.values(windowsDirectories)) mkdirSync(directory, { recursive: true })
+  const cliDirectories = ['.claude', '.codex', '.config', '.hermes', join('AppData', 'Local')].map((name) =>
+    join(homeDirectory, name)
+  )
+  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories]) mkdirSync(directory, { recursive: true })
   if (process.platform === 'win32') {
     for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
   }
@@ -140,7 +143,10 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
     // Chromium on macOS resolves its temporary directory from NSTemporaryDirectory or this override, not TMPDIR.
     MAC_CHROMIUM_TMPDIR: tempDirectory,
     CLAUDE_CONFIG_DIR: join(homeDirectory, '.claude'),
-    CODEX_HOME: join(homeDirectory, '.codex')
+    CODEX_HOME: join(homeDirectory, '.codex'),
+    XDG_CONFIG_HOME: join(homeDirectory, '.config'),
+    HERMES_HOME: join(homeDirectory, '.hermes'),
+    LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
   }
 }
 

@@ -58,5 +58,17 @@ export {
   type TodoWriteDetails
 } from './todoExtension'
 
+export {
+  type BehaviorSessionRequest,
+  createPiBehavior,
+  type PiBehavior,
+  type PiBehaviorOptions
+} from './behavior/harness'
 export type { AgentRuntimeEvent, CompactionReason } from './sessionEvents'
-export { createPiRuntime, type PiRuntime, type PiRuntimeOptions, type PiSessionOptions } from './runtime'
+export {
+  createPiRuntime,
+  type PiRuntime,
+  type PiRuntimeOptions,
+  type PiSessionOptions,
+  type PiThreadHandle
+} from './runtime'
