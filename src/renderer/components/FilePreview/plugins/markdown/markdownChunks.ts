@@ -2832,11 +2832,17 @@ export function splitMarkdownChunks(
     // the chunk it was written in: carrying it would render an empty quote or list in every other.
     const container = DEFINITION_CONTAINER.exec(line)
     const uncontained = container ? line.slice(container[0].length) : line
+    // A line indented into the open item is measured from the item's content column, where four
+    // columns past it are code — the same rule the parser applies inside a list.
+    const itemFloor = emptyItemColumn ?? run?.content ?? null
+    const indentInsideItem =
+      itemFloor !== null && leadingColumns(line) >= itemFloor ? leadingColumns(line) - itemFloor : null
     // The same code checks a link definition's own start applies here: a container indented to four
     // columns, or one whose markers leave five columns of whitespace behind them, holds its content
     // in indented code the parser never reads as a block.
+    const containerStartsInCode = container !== null && (indentInsideItem ?? leadingColumns(line)) >= 4
     const containerHoldsCode =
-      container !== null && (leadingColumns(line) >= 4 || containerWhitespaceOpensCode(container[0]))
+      container !== null && (containerStartsInCode || containerWhitespaceOpensCode(container[0]))
     const htmlEnd = containerHoldsCode ? null : htmlBlockTerminator(uncontained)
     if (htmlEnd) {
       if (!htmlEnd.test(line)) {
@@ -2850,8 +2856,12 @@ export function splitMarkdownChunks(
       continue
     }
     // A container that opens a block ends the paragraph (and list) above it before any
-    // paragraph-interruption rule is applied to what it carries.
-    const opensContainerBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '', false)
+    // paragraph-interruption rule is applied to what it carries. A container the indent turns
+    // into code cannot interrupt an open paragraph — the same rule as indented code itself.
+    const opensContainerBlock =
+      container !== null &&
+      !(previousStatus === 'paragraph' && containerStartsInCode) &&
+      containerOpensBlock(container[0], paragraphContainer ?? '', false)
     const dollarOpen = dollarFenceAtStart(line)
     if (dollarOpen > 0 && !dollarFenceClosesOnOwnLine(line, dollarOpen)) {
       dollarFence = dollarOpen

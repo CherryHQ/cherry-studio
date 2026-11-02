@@ -1633,6 +1633,29 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes('/wrong'))).toHaveLength(1)
   })
 
+  it('keeps an apparent quote indented into the paragraph as paragraph text', () => {
+    // Four columns cannot open a block quote, and indented code cannot interrupt a paragraph:
+    // `    > prose` continues the open paragraph, so the definition shape under it is prose too.
+    const content = [
+      'intro',
+      '    > prose',
+      '[r]: https://github.com/wrong',
+      '',
+      '[r]: https://github.com/right',
+      '',
+      'see [r]'
+    ].join('\n')
+
+    const chunks = chunksOf(content)
+
+    // The literal `[r]` in the prose paragraph is a shortcut reference as well as the `see [r]` one.
+    const resolved = ['https://github.com/right', 'https://github.com/right']
+
+    expect(chunks).toHaveLength(1)
+    expect(resolvedReferenceUrls(content)).toEqual(resolved)
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(resolved)
+  })
+
   it('keeps a standalone setext underline paragraph text instead of completing a heading', () => {
     // `===` with no paragraph above it is prose, so the definition shape below it stays in that
     // paragraph; reading the underline as a completed heading hoisted the literal `/wrong` line.
