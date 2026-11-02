@@ -88,9 +88,11 @@ native command failure also records `failed`, and a later admission receipt pres
 
 The token is neither a deduplication key nor persisted in the native transcript. A host needing
 restart correlation must save the observed input/entry association. The native patch snapshots
-unanswered placed inputs at request preparation. A final normal reply settles that batch; tool
-and explicit boundary continuations retain it, and errors settle only after native retries and
-recovery stop. Queued or subsequently placed inputs are excluded from the preceding response.
+unanswered placed inputs at request preparation. Normal replies keep their batches provisional
+until native retries, recovery, and `agent_before_settle` have finished. A continuation resumes
+the latest reply's batch; an independent queued follow-up keeps the preceding answer association.
+Only final native settlement publishes outcomes, so continuation failure cannot leave a provisional
+answer marked completed. Queued or subsequently placed inputs are excluded from the preceding response.
 
 `input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
 forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
@@ -437,10 +439,13 @@ or stop comes from the handlers `install` registers and the steps they decide. T
   settles. The optional input ID follows that thread's custom message, including one sent by a job created in the
   call; the signal withdraws its waiting steer. `submitUser` (a person's text), `prompt`, `compact`, `settled` and
   `close` are the host's other entries. `prompt` preserves native command/input preflight and native steer/follow-up
-  queues inside the current execution; `submitUser` uses the adapter's inbox for separate runs. `close()` first waits for the opens in
-  progress (a session being built, `onOpen`) and then tears them down with the rest. Before it disposes any session it
-  stops every run as `turns.stop` does, a prompt Pi still prepares included, waits for each to end and withdraws the
-  queued input. Once it began, no job starts, an open leaves the input queued during it unstarted, and a session built
+  queues inside the current execution; `submitUser` uses the adapter's inbox for separate runs. The inbox waits for
+  host prompts, including native preflight. Once they finish, eligible queued work resumes; execution failure or
+  interruption still leaves it queued. `close()` first waits for opens in progress (a session being built, `onOpen`)
+  and then tears them down with the rest. Before disposing any session it stops every run as `turns.stop` does,
+  withdraws queued input, and joins host prompts even when their preflight outlived the preceding run. A prompt
+  admitted during closure is stopped at native run start before any model request. An uncancellable preflight can
+  delay closure until it returns. Once it began, no job starts, an open leaves the input queued during it unstarted, and a session built
   after that is disposed unopened, its open rejecting with the closed error. New prompts, compactions, turn starts, child messages and child creation reject as soon as closing begins; reads and stops remain available for cleanup.
 - Only the adapter starts runs in a session it opens. Use `submitUser`, `prompt` and `compact`, never `session.prompt` or
   `session.compact`, and install no extension there that starts a run (`pi.sendMessage(…, { triggerTurn: true })`,

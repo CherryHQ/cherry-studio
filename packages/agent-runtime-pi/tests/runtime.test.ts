@@ -4,7 +4,6 @@ import { join } from 'node:path'
 
 import {
   fauxAssistantMessage,
-  fauxToolCall,
   fauxProvider,
   fauxToolCall,
   InMemoryCredentialStore,
@@ -167,6 +166,40 @@ it('rejects a loader returning a different native identity', async () => {
     status: 'rejected',
     error: { code: 'identity-mismatch' }
   })
+})
+
+it('does not dispatch a root input whose preflight resumes during shutdown', async () => {
+  const { runtime, options, faux } = await setup()
+  const entered = gate()
+  const release = gate()
+  onTestFinished(() => release.resolve())
+  let requests = 0
+  faux.setResponses([
+    () => {
+      requests += 1
+      return fauxAssistantMessage('must not run')
+    }
+  ])
+  const handle = confirmed(
+    await runtime.create({
+      ...options,
+      extensionFactories: [
+        (pi) => {
+          pi.on('input', async () => {
+            entered.resolve()
+            await release.promise
+          })
+        }
+      ]
+    })
+  )
+  const submission = handle.input.submit(input('work'))
+  await entered.promise
+  const closing = runtime.shutdown()
+  release.resolve()
+  await submission
+  confirmed(await closing)
+  expect(requests).toBe(0)
 })
 
 it('correlates identical transformed inputs and shares one response across batched steering', async () => {
@@ -374,6 +407,68 @@ it('does not change an answered input when a queued follow-up fails', async () =
   expect(states.findLast((event) => event.input.inputId === 'root')?.input.outcome).toBe('completed')
   expect(states.findLast((event) => event.input.inputId === 'follow')?.input.outcome).toBe('failed')
 })
+
+it.each(['stop', 'error'] as const)(
+  'keeps input pending until a settle continuation ends with %s',
+  async (stopReason) => {
+    const { runtime, options, faux } = await setup()
+    const boundary = gate()
+    const resume = gate()
+    onTestFinished(() => resume.resolve())
+    faux.setResponses([
+      fauxAssistantMessage('provisional answer'),
+      fauxAssistantMessage('final response', {
+        stopReason,
+        ...(stopReason === 'error' && { errorMessage: 'model failed' })
+      })
+    ])
+    let continued = false
+    const handle = confirmed(
+      await runtime.create({
+        ...options,
+        settings: { retry: { enabled: false } },
+        extensionFactories: [
+          (pi) => {
+            pi.on('agent_before_settle', async () => {
+              if (continued) return
+              continued = true
+              boundary.resolve()
+              await resume.promise
+              return {
+                continue: true,
+                entries: [
+                  { type: 'custom_message', customType: 'result', content: 'Continue with this result', display: false }
+                ]
+              }
+            })
+          }
+        ]
+      })
+    )
+    const events = await observe(handle)
+    await handle.input.submit(input('work'))
+    await boundary.promise
+    expect(events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome)).toBe(false)
+    resume.resolve()
+    await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+    const terminal = events.filter((event) => event.type === 'input.changed' && event.input.outcome)
+    expect(terminal).toHaveLength(1)
+    expect(terminal[0]).toMatchObject({
+      input: {
+        inputId: 'work',
+        outcome: stopReason === 'stop' ? 'completed' : 'failed',
+        response: { session: handle.thread }
+      }
+    })
+    if (terminal[0].type !== 'input.changed') throw new Error('Missing input outcome')
+    const responseId = terminal[0].input.response?.id
+    expect(
+      events.findLast((event) => event.type === 'message.upsert' && event.message.id === responseId)
+    ).toMatchObject({
+      message: { parts: [{ type: 'text', text: 'final response' }] }
+    })
+  }
+)
 
 it.each(['error', 'length', 'toolUse'] as const)(
   'does not treat native settlement after %s as input success',
@@ -710,10 +805,10 @@ it('binds a child launched during session initialization to its ready parent', a
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   expect(JSON.stringify(snapshot.messages)).toContain('child report')
   expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
-  expect(snapshot.delegations).toHaveLength(1)
-  const delegation = snapshot.delegations?.[0]
-  if (!delegation) throw new Error('Missing child delegation')
-  const child = confirmed(await runtime.open(delegation.child))
+  expect(snapshot.subagents).toHaveLength(1)
+  const subagent = snapshot.subagents?.[0]
+  if (!subagent?.child) throw new Error('Missing child context')
+  const child = confirmed(await runtime.open(subagent.child))
   expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
 })
 

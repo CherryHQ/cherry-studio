@@ -494,6 +494,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       const stops = await Promise.allSettled(all.map((conv) => stopRun(adapter, conv)))
       // Every run first: a parent's tool call may be waiting on a foreground child.
       const aborts = await Promise.allSettled(all.flatMap((conv) => conv.native?.session.abort() ?? []))
+      await Promise.all(all.map((conv) => waitFor(conv, () => conv.hostPrompts === 0)))
       const failures = [...stops, ...aborts].flatMap((settled) =>
         settled.status === 'rejected' ? [settled.reason as unknown] : []
       )

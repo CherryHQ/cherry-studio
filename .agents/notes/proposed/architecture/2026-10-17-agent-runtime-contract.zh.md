@@ -196,7 +196,7 @@ Pi 冷启动重开时，先恢复父会话保存的 subagent registry 与交付�
 
 未打补丁的 Pi 1.3.0 `PromptOptions` 没有调用方关联 token，steering/follow-up 的内部记录使用文本。P0 的第一部分现已在原生层增加调用方关联，贯穿输入变换、队列、历史放置和由所有者管理的 child 续接。Cherry 通过固定版本的依赖补丁携带这项变更，关联的 Pi 工作区保留源码及回归测试；它尚不是上游发布版本。[证据记录](../testing/2026-10-17-agent-harness-evidence.md#p0-input-correlation-check--2026-10-19)列出验证及限制。token 不修改 transcript 内容，不提供去重，也不会自行跨重开保留。
 
-P0 现在已有包级终态和多输入归属证据。Pi 补丁在原生请求准备时保存尚未回答且已放置的输入集合，并在最终回答或终态收束后通过 `input_settled` 返回实际响应 entry。工具／边界续接和重试会保留该集合；排队或稍后才放置的输入不能继承较早的响应。Pi 强类型 `input-settled` 事件保留原生 entry ID、输入 ID、停止原因和中止证据。这是原生响应归属，不证明任务语义上成功，也不证明任意上下文钩子处理后逐字消费了输入。桌面路径仍需满足 P1–P4 的接入门槛。
+P0 现在已有包级终态和多输入归属证据。Pi 补丁在原生请求准备时保存尚未回答且已放置的输入集合，每个正常回复对应的输入批次在最终原生收束前都只是候选结果。运行后的续接会恢复最新候选回复的输入批次；独立排队的 follow-up 保留各自的回答关联。只有重试、恢复和 `agent_before_settle` 全部结束，`input_settled` 才发布实际终态响应 entry。续接失败不能保留候选成功结果；排队或稍后才放置的输入不能继承较早的响应。Pi 强类型 `input-settled` 事件保留原生 entry ID、输入 ID、停止原因和中止证据。这是原生响应归属，不证明任务语义上成功，也不证明任意上下文钩子处理后逐字消费了输入。桌面路径仍需满足 P1–P4 的接入门槛。
 
 公共层仅增加可选的 `InputState.response: ItemRef`：多个输入可以共享同一个终态响应，无需创造执行 ID，也无需给 assistant 回答指定单个 `MessageItem.inputId`。Pi 提供原生输入集合证据，Durable 提供各 submission 的回答 entry。该引用遵循 current-view 身份与覆盖规则，不是通用持久历史键。正常最终回答映射为 `completed`，错误为 `failed`，中断为 `aborted`，截断或没有最终回答为 `unanswered`。Durable 原生 `done` 也包含截断／仅工具调用的回答，因此适配器读取实际回答后才声明成功。证据缺失时不设置 outcome。已处理命令可能失败而不产生 assistant 回答；迟到回执必须保留已确认终态。只有对应投影和终态证据完成持久化后，才结束产品投递。
 
@@ -267,7 +267,7 @@ flowchart LR
 
 ##### 复用产品消息树
 
-既有[消息树](../../../../docs/references/chat/message-tree.md)使用 `topic`、`message.parentId` 和 `topic.activeNodeId` 表达消息前序、编辑／重发和分支选择，普通聊天也沿选中路径构造模型历史。产品结构优先复用这套模型，不再建立第二棵 context 树。`agent_session_message` 当前仍是独立的平铺模型；两者收敛属于设计与迁移工作，不是本方案已实现的行为。
+既有[消息树](../../../../docs/dev/references/chat/message-tree.md)使用 `topic`、`message.parentId` 和 `topic.activeNodeId` 表达消息前序、编辑／重发和分支选择，普通聊天也沿选中路径构造模型历史。产品结构优先复用这套模型，不再建立第二棵 context 树。`agent_session_message` 当前仍是独立的平铺模型；两者收敛属于设计与迁移工作，不是本方案已实现的行为。
 
 | 关系 | 所有者与表达方式 |
 | --- | --- |

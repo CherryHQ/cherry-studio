@@ -53,7 +53,7 @@ export function submit(adapter: Adapter, conv: Conversation, key: string, input:
 }
 
 export function drain(adapter: Adapter, conv: Conversation): void {
-  if (!adapter.accepting() || conv.active || !piIdle(conv)) return
+  if (!adapter.accepting() || conv.active || conv.hostPrompts > 0 || !piIdle(conv)) return
   const key = conv.inbox.shift()
   if (key !== undefined) startRun(adapter, conv, key)
 }
@@ -143,6 +143,8 @@ export async function promptUser(
       ...options,
       preflightResult: (disposition) => {
         if (disposition === 'started' && (!run || conv.active !== run)) run = begin()
+        // Close may have stopped the preceding run while this prompt was still in native preflight.
+        if (run && !adapter.accepting()) run.stopRequested = true
         if (signal?.aborted) abort()
         if (disposition === 'handled' && run && conv.active === run) finishRun(adapter, conv, undefined)
         options?.preflightResult?.(disposition)
@@ -154,6 +156,7 @@ export async function promptUser(
   } finally {
     signal?.removeEventListener('abort', abort)
     conv.hostPrompts -= 1
+    if (!run || run.pending || conv.ends.get(run.run)?.live === 'completed') drain(adapter, conv)
     wake(conv)
   }
 }
