@@ -34,14 +34,17 @@ function makeTool(name: string, descriptionChars = 10): LanguageModelV3FunctionT
   }
 }
 
-function hasCacheControl(value: { providerOptions?: unknown }): boolean {
-  return Boolean(
-    (value.providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined)?.anthropic?.cacheControl
-  )
+function hasCacheControl(value: unknown): boolean {
+  return Boolean(getCacheControl(value))
 }
 
-function getCacheControl(value: { providerOptions?: unknown }): unknown {
-  return (value.providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined)?.anthropic?.cacheControl
+function getCacheControl(value: unknown): unknown {
+  const options = (
+    (value as { providerOptions?: unknown }).providerOptions as
+      | { anthropic?: { cacheControl?: unknown; cache_control?: unknown } }
+      | undefined
+  )?.anthropic
+  return options?.cacheControl ?? options?.cache_control
 }
 
 function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
@@ -54,6 +57,11 @@ function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
     if (typeof message.content !== 'string') {
       for (const part of message.content) {
         if ('providerOptions' in part && hasCacheControl(part)) controls.push(getCacheControl(part))
+        if (part.type === 'tool-result') {
+          if (hasCacheControl(part.output)) controls.push(getCacheControl(part.output))
+          if (part.output.type === 'content')
+            for (const item of part.output.value) if (hasCacheControl(item)) controls.push(getCacheControl(item))
+        }
       }
     }
   }
@@ -61,19 +69,7 @@ function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
 }
 
 function countCacheMarkers(params: LanguageModelV3CallOptions): number {
-  let count = 0
-  for (const tool of params.tools ?? []) {
-    if ('providerOptions' in tool && hasCacheControl(tool)) count++
-  }
-  for (const message of params.prompt) {
-    if (hasCacheControl(message)) count++
-    if (typeof message.content !== 'string') {
-      for (const part of message.content) {
-        if ('providerOptions' in part && hasCacheControl(part)) count++
-      }
-    }
-  }
-  return count
+  return collectCacheControls(params).length
 }
 
 async function transform(
@@ -276,5 +272,162 @@ describe('transformAnthropicCacheParams', () => {
     expect(hasCacheControl(out.prompt[0])).toBe(false)
     expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
     expect(countCacheMarkers({ ...out, tools: undefined })).toBe(0)
+  })
+})
+
+describe('overflow cleanup', () => {
+  const mark = { anthropic: { cache_control: { type: 'ephemeral', ttl: '1h' } } }
+  const provider = makeProvider({ enabled: true, tokenThreshold: 1, cacheLastNMessages: 2 })
+  const part = (message: LanguageModelV3Message) => (message.content as { providerOptions?: unknown }[])[0]
+
+  it.each([1, 3, 4])('preserves four selected targets with %i incoming hints', async (count) => {
+    const tools = [
+      makeTool('zeta', 100),
+      ...Array.from({ length: count }, (_, i) => ({ ...makeTool(`a${i}`), providerOptions: mark }))
+    ]
+    const input = {
+      tools,
+      prompt: [textMessage('system', 'system'), textMessage('user', 'first'), textMessage('assistant', 'second')]
+    }
+    const before = structuredClone(input)
+    const out = await transform(input, provider)
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(out.tools?.filter(hasCacheControl).map((tool) => tool.name)).toEqual(['zeta'])
+    expect(hasCacheControl(out.prompt[0])).toBe(true)
+    expect(hasCacheControl(part(out.prompt[1]))).toBe(true)
+    expect(hasCacheControl(part(out.prompt[2]))).toBe(true)
+    expect(input).toEqual(before)
+  })
+
+  it.each(['holder', 'item'])('counts tool result output %s hints', async (kind) => {
+    const output =
+      kind === 'holder'
+        ? { type: 'text', value: 'result', providerOptions: mark }
+        : { type: 'content', value: [{ type: 'text', text: 'result', providerOptions: mark }] }
+    const out = await transform(
+      {
+        tools: [makeTool('zeta', 100)],
+        prompt: [
+          textMessage('system', 'system'),
+          {
+            role: 'tool',
+            content: [{ type: 'tool-result', toolCallId: '1', toolName: 'x', output }]
+          } as LanguageModelV3Message,
+          textMessage('user', 'one'),
+          textMessage('user', 'two')
+        ]
+      },
+      provider
+    )
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(hasCacheControl(out.tools![0])).toBe(true)
+    expect(hasCacheControl(part(out.prompt[2]))).toBe(true)
+    expect(hasCacheControl(part(out.prompt[3]))).toBe(true)
+  })
+
+  it('retains sorted tools then prompt positions, removing both aliases', async () => {
+    const dual = {
+      anthropic: { cacheControl: { type: 'ephemeral' }, cache_control: { type: 'ephemeral' }, extra: 'keep' },
+      other: { x: 1 }
+    }
+    const input = {
+      tools: ['z', 'a'].map((name) => ({ ...makeTool(name), providerOptions: mark })),
+      prompt: Array.from({ length: 3 }, (_, i) => ({
+        ...textMessage('system', String(i)),
+        providerOptions: i === 2 ? dual : mark
+      }))
+    }
+    const before = structuredClone(input)
+    const out = await transform(input, makeProvider({ enabled: true, tokenThreshold: 999999 }))
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(out.tools?.filter(hasCacheControl).map((t) => t.name)).toEqual(['a', 'z'])
+    expect(out.prompt.map(hasCacheControl)).toEqual([true, true, false])
+    expect(out.prompt[2].providerOptions).toEqual({ anthropic: { extra: 'keep' }, other: { x: 1 } })
+    expect(input).toEqual(before)
+  })
+
+  it('cleans empty prompts without reordering tools', async () => {
+    const tools = ['e', 'd', 'c', 'b', 'a'].map((name) => ({ ...makeTool(name), providerOptions: mark }))
+    const out = await transform({ prompt: [], tools }, provider)
+    expect(out.tools?.map((t) => t.name)).toEqual(['e', 'd', 'c', 'b', 'a'])
+    expect(out.tools?.filter(hasCacheControl).map((t) => t.name)).toEqual(['d', 'c', 'b', 'a'])
+  })
+
+  it('replaces the TTL of an already selected target and leaves exactly four holders unchanged otherwise', async () => {
+    const input = {
+      tools: [{ ...makeTool('zeta', 100), providerOptions: mark }],
+      prompt: [textMessage('system', 'system'), textMessage('user', 'one'), textMessage('user', 'two')]
+    }
+    const out = await transform(input, provider)
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(getCacheControl(out.tools![0])).toEqual({ type: 'ephemeral' })
+    expect((out.tools![0] as LanguageModelV3FunctionTool).providerOptions).toEqual({
+      anthropic: { ...mark.anthropic, cacheControl: { type: 'ephemeral' } }
+    })
+  })
+
+  it.each([
+    { enabled: false, tokenThreshold: 1 },
+    { enabled: true, tokenThreshold: 0 }
+  ])('returns disabled inputs untouched', async (settings) => {
+    const input = {
+      prompt: [],
+      tools: Array.from({ length: 5 }, (_, i) => ({ ...makeTool(String(i)), providerOptions: mark }))
+    }
+    expect(await transformAnthropicCacheParams(input, makeProvider(settings), undefined)).toBe(input)
+  })
+
+  it.each(['volatile', 'system disabled'])('respects %s placement gate during overflow', async (gate) => {
+    const tools = Array.from({ length: 5 }, (_, i) => ({ ...makeTool(String(i), 100), providerOptions: mark }))
+    const out = await transform(
+      { tools, prompt: [textMessage('system', 'system'), textMessage('user', 'user')] },
+      makeProvider({ enabled: true, tokenThreshold: 1, cacheSystemMessage: gate !== 'system disabled' }),
+      gate === 'volatile' ? ({ prompt: '{{time}}' } as Assistant) : undefined
+    )
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(hasCacheControl(out.prompt[0])).toBe(false)
+    expect(hasCacheControl(out.tools!.at(-1)!)).toBe(true)
+  })
+
+  it('counts shared holders by position and preserves schemas, signatures and unrelated options', async () => {
+    const options = {
+      anthropic: { cacheControl: { type: 'ephemeral' }, cache_control: { type: 'ephemeral' }, signature: 'signed' },
+      other: { keep: true }
+    }
+    const shared = { type: 'reasoning', text: 'thought', providerOptions: options }
+    const tools = [makeTool('zeta', 100)]
+    const input = {
+      tools,
+      prompt: [
+        textMessage('system', 'system'),
+        { role: 'assistant', content: [shared, shared, shared, shared, shared] },
+        textMessage('user', 'one'),
+        textMessage('user', 'two')
+      ]
+    } as LanguageModelV3CallOptions
+    const before = structuredClone(input)
+    const out = await transform(input, provider)
+    expect(countCacheMarkers(out)).toBe(4)
+    expect((out.tools![0] as LanguageModelV3FunctionTool).inputSchema).toEqual(tools[0].inputSchema)
+    const parts = out.prompt[1].content as (typeof shared)[]
+    expect(parts.map(hasCacheControl)).toEqual([false, false, false, false, false])
+    expect(parts.map((p) => p.providerOptions)).toEqual(
+      Array(5).fill({ anthropic: { signature: 'signed' }, other: { keep: true } })
+    )
+    expect(input).toEqual(before)
+  })
+
+  it('preserves an already marked selection through overflow and replaces its TTL', async () => {
+    const input = {
+      tools: [
+        { ...makeTool('a'), providerOptions: mark },
+        { ...makeTool('zeta', 100), providerOptions: mark }
+      ],
+      prompt: [textMessage('system', 'system'), textMessage('user', 'one'), textMessage('user', 'two')]
+    }
+    const out = await transform(input, provider)
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(out.tools?.filter(hasCacheControl).map((t) => t.name)).toEqual(['zeta'])
+    expect(getCacheControl(out.tools![1])).toEqual({ type: 'ephemeral' })
   })
 })

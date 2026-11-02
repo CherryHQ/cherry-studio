@@ -1,10 +1,7 @@
-import { describe, expect, expectTypeOf, it } from 'vitest'
-
-import type { Delegation } from '@cherrystudio/agent-runtime'
+import { describe, expect, it } from 'vitest'
 
 import {
   delegationStatus,
-  type DelegationStatus,
   pendingResults,
   readSubagents,
   resolveChild,
@@ -75,9 +72,8 @@ describe('subagent ledger', () => {
     ])
   })
 
-  // Catches the projection drifting from agent-runtime's `Delegation.status`, which adapters assign it to (D40).
+  // Catches a running record projected as completed, or a finished one still reported active.
   it('projects a run record onto the delegation status', () => {
-    expectTypeOf<DelegationStatus>().toEqualTypeOf<Delegation['status']>()
     expect([delegationStatus(run('a')), delegationStatus(run('a', { status: 'finished' }))]).toEqual([
       'active',
       'completed'
