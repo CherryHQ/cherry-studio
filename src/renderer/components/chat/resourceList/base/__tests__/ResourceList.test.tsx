@@ -562,6 +562,47 @@ describe('ResourceList', () => {
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
   })
 
+  it('keeps actions stable when host handlers change, and calls the latest handler', () => {
+    const actionRefs: unknown[] = []
+    const Provider = ResourceList.Provider<TestItem>
+    const createHandlers = () => ({
+      onCollapsedStateChange: vi.fn(),
+      onGroupHeaderSelectItem: vi.fn(),
+      onOpenContextMenu: vi.fn(),
+      onRenameItem: vi.fn(),
+      onReorder: vi.fn(),
+      onSelectItem: vi.fn()
+    })
+    const firstHandlers = createHandlers()
+    const latestHandlers = createHandlers()
+
+    function ActionProbe() {
+      const { actions } = useResourceList<TestItem>()
+      actionRefs.push(actions)
+      return (
+        <button type="button" onClick={() => actions.selectItem('topic-1')}>
+          Select
+        </button>
+      )
+    }
+
+    const renderList = (handlers: ReturnType<typeof createHandlers>) => (
+      <Provider items={ITEMS} {...handlers}>
+        <ResourceList.Frame>
+          <ActionProbe />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const { rerender } = render(renderList(firstHandlers))
+    rerender(renderList(latestHandlers))
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+
+    expect(new Set(actionRefs).size).toBe(1)
+    expect(latestHandlers.onSelectItem).toHaveBeenCalledWith('topic-1')
+    expect(firstHandlers.onSelectItem).not.toHaveBeenCalled()
+  })
+
   it('keeps resource actions stable when local filter state changes', () => {
     const actionRefs: unknown[] = []
     const Provider = ResourceList.Provider<TestItem>

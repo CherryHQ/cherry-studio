@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { KeyedMutex } from '@shared/utils/async'
 
 import {
   artifactEntryPath,

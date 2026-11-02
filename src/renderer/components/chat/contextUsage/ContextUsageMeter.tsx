@@ -46,7 +46,7 @@ export function ContextUsageMeter({
           '--context-usage-progress': `${normalizedPercentage}%`
         } as CSSProperties
       }>
-      <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
+      <span aria-hidden className="absolute inset-[2px] rounded-full bg-composer-surface" />
     </span>
   )
 }
