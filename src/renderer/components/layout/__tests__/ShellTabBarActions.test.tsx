@@ -1,11 +1,23 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import type * as UpdateCheckModule from '@renderer/services/AppUpdateCheckService'
+let appUpdateCheckService: typeof UpdateCheckModule.appUpdateCheckService
+
+import type * as ShellModule from '../ShellTabBarActions'
+let AppUpdateButton: typeof ShellModule.AppUpdateButton
+let ShellTabBarActions: typeof ShellModule.ShellTabBarActions
+
+beforeEach(async () => {
+  vi.resetModules()
+  ;({ appUpdateCheckService } = await import('@renderer/services/AppUpdateCheckService'))
+  ;({ AppUpdateButton, ShellTabBarActions } = await import('../ShellTabBarActions'))
+})
 
 const { mocks, updateState } = vi.hoisted(() => ({
   mocks: {
@@ -71,8 +83,6 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
-
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -108,6 +118,32 @@ describe('ShellTabBarActions', () => {
     await waitFor(() => {
       expect(mocks.showUpdatePopup).toHaveBeenCalledWith({ releaseInfo: updateState.info })
     })
+  })
+
+  it('does not open a stale release when the channel session changes while the dialog loads', async () => {
+    updateState.available = true
+    updateState.downloaded = true
+    updateState.info = { version: '2.0.0' }
+    render(<ShellTabBarActions />)
+
+    // The click returns before the dialog import settles, so the session can change first.
+    const presented = vi.spyOn(appUpdateCheckService, 'presentDownloadedUpdate')
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Found new version' }))
+      const presentation = presented.mock.results[0]?.value
+      if (!(presentation instanceof Promise)) throw new Error('presentDownloadedUpdate did not return its promise')
+      const epoch = appUpdateCheckService.invalidateSharedUpdateCheck()
+      expect(appUpdateCheckService.isActiveUpdateSession()).toBe(false)
+      appUpdateCheckService.resumeSharedUpdateSession(epoch)
+      expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotAvailable')
+      await presentation
+
+      expect(mocks.showUpdatePopup).not.toHaveBeenCalled()
+      expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateNotAvailable')
+    } finally {
+      presented.mockRestore()
+    }
   })
 
   it('keeps the update action hidden until the update is ready to install', () => {
