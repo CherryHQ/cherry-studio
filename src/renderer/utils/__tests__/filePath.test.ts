@@ -23,6 +23,13 @@ describe('filePath utils', () => {
 })
 
 describe('parseFileLinkHref', () => {
+  it('rejects UNC paths unless network targets are explicitly allowed', () => {
+    const href = String.raw`\\server\share\docs\report.md`
+
+    expect(parseFileLinkHref(href)).toBeNull()
+    expect(parseFileLinkHref(href, { allowNetworkTargets: true })).toBe(href)
+  })
+
   it.each([
     // strips hash / query, decodes percent-encoding, keeps single-segment names
     ['./README.md#安装', './README.md'],
@@ -46,6 +53,10 @@ describe('parseFileLinkHref', () => {
     ['https%3A%2F%2Fexample.com%2Fpage.md'], // encoded external https
     ['%2F%2Fcdn.example.com%2Fx.md'], // encoded protocol-relative
     ['%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%20%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%09%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%0A%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%C2%A0%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
     ['%5C%2F%5C%2Fattacker.example%5Cshare%5Cnotes.txt'],
     ['%2F%5Cattacker.example%5Cshare%5Cnotes.txt'],
     [String.raw`\\attacker.example\share\notes.txt`], // literal UNC: leading "\\" is a network root

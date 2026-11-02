@@ -10,6 +10,7 @@ export function MarkdownHostProvider({
   children,
   resolveImageSrc,
   openFilePath,
+  allowNetworkFileLinks,
   openExternalUrl,
   copyRichContent,
   exportTableAsExcel,
@@ -20,13 +21,23 @@ export function MarkdownHostProvider({
     () => ({
       resolveImageSrc,
       openFilePath,
+      allowNetworkFileLinks,
       openExternalUrl,
       copyRichContent,
       exportTableAsExcel,
       notifySuccess,
       notifyError
     }),
-    [resolveImageSrc, openFilePath, openExternalUrl, copyRichContent, exportTableAsExcel, notifySuccess, notifyError]
+    [
+      resolveImageSrc,
+      openFilePath,
+      allowNetworkFileLinks,
+      openExternalUrl,
+      copyRichContent,
+      exportTableAsExcel,
+      notifySuccess,
+      notifyError
+    ]
   )
   return <MarkdownHostContext value={value}>{children}</MarkdownHostContext>
 }

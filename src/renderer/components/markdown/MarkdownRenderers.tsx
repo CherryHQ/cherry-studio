@@ -104,7 +104,9 @@ export function MarkdownLinkRenderer({
     )
   }
 
-  const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+  const fileLinkPath = openFilePath
+    ? parseFileLinkHref(props.href, { allowNetworkTargets: host.allowNetworkFileLinks })
+    : null
   if (fileLinkPath && openFilePath) {
     return (
       <a

@@ -97,6 +97,25 @@ describe('ChatMarkdown adapter', () => {
     expect(isDirectory).not.toHaveBeenCalled()
   })
 
+  it('whitespace-prefixed UNC link does not reach the file opener', async () => {
+    const user = userEvent.setup()
+    const openPath = vi.fn()
+    const isDirectory = vi.fn().mockResolvedValue(false)
+    mocks.actions = { openPath, isDirectory }
+    render(
+      <ChatMarkdown
+        block={{ id: 'part', content: '[Notes](%20%5C%5Cattacker.example%5Cshare%5Cnotes.txt)', status: 'success' }}
+      />
+    )
+    const link = screen.getByRole('link', { name: 'Notes' })
+    expect(link).toHaveAttribute('href', '%20%5C%5Cattacker.example%5Cshare%5Cnotes.txt')
+
+    await user.click(link)
+
+    expect(openPath).not.toHaveBeenCalled()
+    expect(isDirectory).not.toHaveBeenCalled()
+  })
+
   it('prefers the artifact preview for file links when both openers are available', async () => {
     const user = userEvent.setup()
     const openArtifactFile = vi.fn()

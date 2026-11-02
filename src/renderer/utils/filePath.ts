@@ -65,7 +65,10 @@ export function isInlineFilePath(value: string): boolean {
  * inline *text*): any schemeless target is treated as a file, so single-segment
  * links like `README.md` resolve too.
  */
-export function parseFileLinkHref(href: string | undefined): string | null {
+export function parseFileLinkHref(
+  href: string | undefined,
+  options: { allowNetworkTargets?: boolean } = {}
+): string | null {
   if (!href) return null
   const rawPath = href.replace(/[?#].*$/, '') // drop query + hash
   if (!rawPath) return null
@@ -77,8 +80,8 @@ export function parseFileLinkHref(href: string | undefined): string | null {
     path = rawPath // keep raw path on malformed percent-encoding
   }
 
-  // UNC / protocol-relative are external: fs.stat on a network path can trigger SMB authentication.
-  if (!path || /^[\\/]{2}/.test(path)) return null
+  if (!path || path.startsWith('//')) return null // protocol-relative → external
+  if (!options.allowNetworkTargets && /^[\\/]{2}/.test(path.trim())) return null // UNC: fs.stat can trigger SMB auth
   if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
   return path
 }

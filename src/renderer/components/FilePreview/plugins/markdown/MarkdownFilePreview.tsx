@@ -85,7 +85,8 @@ function resolveMarkdownImageSrc(filePath: AbsoluteFilePath, src: string): strin
 }
 
 function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
-  const linkPath = parseFileLinkHref(href)
+  // User-opened files can link to the same path types, preserving existing UNC navigation.
+  const linkPath = parseFileLinkHref(href, { allowNetworkTargets: true })
   if (!linkPath) return null
 
   const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success ? linkPath : joinPath(workspacePath, linkPath)
@@ -145,7 +146,10 @@ function MarkdownPreviewContent({
   )
 
   return (
-    <MarkdownHostProvider resolveImageSrc={resolveImageSrc} openFilePath={navigation ? openFilePath : undefined}>
+    <MarkdownHostProvider
+      resolveImageSrc={resolveImageSrc}
+      openFilePath={navigation ? openFilePath : undefined}
+      allowNetworkFileLinks>
       {markdown}
     </MarkdownHostProvider>
   )
