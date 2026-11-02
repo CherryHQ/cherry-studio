@@ -161,7 +161,7 @@ describe('useOpenClawGatewayController', () => {
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: undefined })
   })
 
-  it('stops launch and shows the original validation message when config sync fails', async () => {
+  it('stops launch and keeps the raw validation text with a translated summary', async () => {
     const validationMessage = 'tools.web.fetch.ssrfPolicy: Unrecognized key'
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
@@ -184,6 +184,193 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
-    expect(mocks.toastError).toHaveBeenCalledWith(validationMessage)
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: expect.objectContaining({ message: validationMessage }),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({ message: validationMessage, operation: 'openclaw.sync_config' }),
+          localizedErrorMessage: 'code.apply_failed'
+        }),
+        title: 'code.apply_failed'
+      })
+    )
+  })
+
+  it('keeps the raw gateway stop failure under a stop summary', async () => {
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.stop_gateway')
+        return Promise.resolve({ success: false, message: 'Failed to stop gateway' })
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onStop()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.stop_gateway')
+    expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: expect.objectContaining({ message: 'Failed to stop gateway' }),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'Failed to stop gateway',
+            operation: 'openclaw.stop_gateway'
+          }),
+          localizedErrorMessage: 'code.stop_failed'
+        }),
+        title: 'code.stop_failed'
+      })
+    )
+  })
+
+  it('keeps a thrown gateway stop error and clears the stopping state', async () => {
+    const stopError = new Error('gateway socket closed')
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.stop_gateway') return Promise.reject(stopError)
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    let outcome: unknown = 'pending'
+    await act(async () => {
+      outcome = await result.current.onStop()
+    })
+
+    expect(outcome).toBeUndefined()
+    expect(result.current.stopping).toBe(false)
+    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.stop_gateway')
+    expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: stopError,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'gateway socket closed',
+            operation: 'openclaw.stop_gateway',
+            source: 'code.openclaw'
+          }),
+          localizedErrorMessage: 'code.stop_failed'
+        }),
+        title: 'code.stop_failed'
+      })
+    )
+  })
+
+  it('keeps a thrown gateway launch rejection and can launch again', async () => {
+    const failure = new Error('gateway ipc rejected')
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })
+      if (route === 'openclaw.start_gateway') return Promise.reject(failure)
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    let outcome: unknown = 'pending'
+    await act(async () => {
+      outcome = await result.current.onLaunch()
+    })
+
+    expect(outcome).toBeUndefined()
+    expect(result.current.launching).toBe(false)
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'gateway ipc rejected',
+            operation: 'openclaw.start_gateway',
+            source: 'code.openclaw'
+          }),
+          localizedErrorMessage: 'code.launch.error'
+        }),
+        title: 'code.launch.error'
+      })
+    )
+
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })
+      if (route === 'openclaw.start_gateway') return Promise.resolve({ success: true })
+      if (route === 'openclaw.get_dashboard_url') return Promise.resolve('https://dashboard.local')
+      return Promise.resolve({ success: true })
+    })
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    expect(mocks.openSmartMiniApp).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a thrown dashboard open rejection on the launch detail', async () => {
+    const failure = new Error('dashboard url rejected')
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'running' })
+      if (route === 'openclaw.get_dashboard_url') return Promise.reject(failure)
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    let outcome: unknown = 'pending'
+    await act(async () => {
+      outcome = await result.current.onOpenDashboard()
+    })
+
+    expect(outcome).toBeUndefined()
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'dashboard url rejected',
+            operation: 'openclaw.get_dashboard_url',
+            source: 'code.openclaw'
+          }),
+          localizedErrorMessage: 'code.launch.error'
+        }),
+        title: 'code.launch.error'
+      })
+    )
   })
 })
