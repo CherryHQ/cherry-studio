@@ -31,7 +31,14 @@ type SkillSession = {
     string,
     { serverId: string; uri: string; signal: AbortSignal; validate: () => void; dispose: () => void }
   >
-  loads: Map<string, Promise<{ entry: McpSkillEntry; content: McpResource }>>
+  loads: Map<
+    string,
+    {
+      result: Promise<{ entry: McpSkillEntry; content: McpResource }>
+      abort: AbortController
+      observed?: McpSkillEntry
+    }
+  >
 }
 
 const fingerprintOf = (serverKey: string) => createHash('sha256').update(serverKey).digest('hex')
@@ -248,7 +255,14 @@ export class McpSkillService extends BaseService {
   }
 
   private observe(session: SkillSession, entry: McpSkillEntry): void {
-    const held = session.skills.get(keyOf(entry.serverId, entry.uri))
+    const key = keyOf(entry.serverId, entry.uri)
+    const pending = session.loads.get(key)
+    if (pending) {
+      if (pending.observed && !isDeepStrictEqual(manifestOf(pending.observed), manifestOf(entry)))
+        pending.abort.abort(new Error(t('mcp.skills.changed')))
+      pending.observed ??= entry
+    }
+    const held = session.skills.get(key)
     if (held && !isDeepStrictEqual(manifestOf(held.entry), manifestOf(entry))) {
       this.invalidate(held)
     }
@@ -270,13 +284,14 @@ export class McpSkillService extends BaseService {
     const session = this.session(sessionId)
     const key = keyOf(serverId, uri)
     const pending = session.loads.get(key)
-    if (pending) return pending
-    const run = this.loadOnce(sessionId, serverId, uri, signal)
-    session.loads.set(key, run)
+    if (pending) return pending.result
+    const abort = new AbortController()
+    const run = this.loadOnce(sessionId, serverId, uri, AbortSignal.any([abort.signal, ...(signal ? [signal] : [])]))
+    session.loads.set(key, { result: run, abort })
     try {
       return await run
     } finally {
-      if (session.loads.get(key) === run) session.loads.delete(key)
+      if (session.loads.get(key)?.result === run) session.loads.delete(key)
     }
   }
 
@@ -312,6 +327,7 @@ export class McpSkillService extends BaseService {
       application.get('McpRuntimeService').getServerKey(this.server(session, serverId))
     )
     const entry = await this.get(sessionId, serverId, uri, requestSignal)
+    requestSignal.throwIfAborted()
     if (entry.resources === 'dynamic') throw new Error(t('mcp.skills.dynamic'))
     const key = keyOf(serverId, uri)
     const existing = session.skills.get(key)

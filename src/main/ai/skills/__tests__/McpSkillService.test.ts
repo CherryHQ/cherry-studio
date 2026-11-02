@@ -650,23 +650,40 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
   })
 
-  it.each([
-    { source: 'picker', replacement: true },
-    { source: 'session', replacement: true },
-    { source: 'get', replacement: true },
-    { source: 'picker', replacement: false }
-  ])(
-    'handles $source discovery during an initial load (replacement: $replacement)',
-    async ({ source, replacement }) => {
+  it.each(
+    ['metadata', 'file'].flatMap((stage) => [
+      { stage, source: 'picker', replacement: true },
+      { stage, source: 'session', replacement: true },
+      { stage, source: 'get', replacement: true },
+      { stage, source: 'picker', replacement: false }
+    ])
+  )(
+    'handles $source discovery during an initial load at the $stage stage (replacement: $replacement)',
+    async ({ stage, source, replacement }) => {
       const reading = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
       const originalText = String(fixture.files.get(fixture.uri))
       const createServer = fixture.createServer.bind(fixture)
       vi.spyOn(fixture, 'createServer').mockImplementation(() => {
         const server = createServer()
+        if (stage === 'metadata') {
+          const handle = server.fallbackRequestHandler!
+          let firstGet = true
+          server.fallbackRequestHandler = async (request, context) => {
+            const result = await handle(request, context)
+            if (request.method === 'skills/get' && firstGet) {
+              firstGet = false
+              reading.resolve()
+              await release.promise
+            }
+            return result
+          }
+        }
         server.setRequestHandler('resources/read', async ({ params }) => {
-          reading.resolve()
-          await release.promise
+          if (stage === 'file') {
+            reading.resolve()
+            await release.promise
+          }
           return { contents: [{ uri: params.uri, text: originalText }], ttlMs: 0, cacheScope: 'private' }
         })
         return server
