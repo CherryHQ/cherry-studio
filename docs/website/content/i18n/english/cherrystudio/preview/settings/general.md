@@ -18,7 +18,7 @@ Decide whether Cherry Studio stays running in the background like a messaging ap
 | **Minimize to Tray on Launch** | When started on boot, goes straight to the background without showing the main window | Use together with "Start Automatically on Boot" to keep your desktop tidy |
 | **Show Tray Icon** | Shows an icon in the system tray | Recommended, for quick access and status at a glance |
 | **Minimize to Tray on Close** | Clicking `X` sends it to the tray instead of quitting | Strongly recommended: it reopens instantly next time and ongoing conversations aren't interrupted |
-| **Keep the system awake while tasks are running** | Prevents the system from sleeping while background tasks (such as scheduled tasks or long replies) are running | Turn it on when you need tasks to run unattended for a long time |
+| **Keep the system awake while tasks are running** | Prevents idle sleep while background tasks (such as scheduled tasks or long replies) are running. The display may still turn off, and closing a laptop's lid, choosing Sleep, or a low battery can still put the computer to sleep | Turn it on when you need tasks to run unattended for a long time |
 
 {% hint style="info" %}
 With **Minimize to Tray on Close** turned off, clicking `X` quits the process completely. Only turn it off if you want the app to fully quit every time.
