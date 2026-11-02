@@ -114,7 +114,10 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'highlight-foreground',
   'highlight-accent',
   'markdown-important',
+  'chat-message-well',
+  'chat-message-well-solid',
   'chat-user',
+  'composer-surface',
   'resource-list-row-hover',
   'resource-list-row-active',
   'resource-list-row-active-foreground',
@@ -124,6 +127,9 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
 
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'background-subtle',
+  'chat-message-well',
+  'chat-message-well-solid',
+  'composer-surface',
   'foreground-tertiary',
   'foreground-disabled',
   'border-subtle',

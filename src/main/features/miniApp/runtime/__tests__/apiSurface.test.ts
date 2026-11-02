@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { MINI_APP_METHODS } from '@shared/types/miniAppManifest'
 
-const DTS = fs.readFileSync(path.join(process.cwd(), 'docs/references/mini-app/cherry.d.ts'), 'utf8')
+const DTS = fs.readFileSync(path.join(process.cwd(), 'docs/dev/references/mini-app/cherry.d.ts'), 'utf8')
 const PRELOAD = fs.readFileSync(path.join(process.cwd(), 'src/preload/miniAppBridge.ts'), 'utf8')
 
 /** The real namespaces, derived so `CherryApi` / `CherryUsage` are never mistaken for one. */

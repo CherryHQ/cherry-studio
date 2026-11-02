@@ -47,12 +47,17 @@ const mocks = vi.hoisted(() => ({
         </div>
       ) : null
   ),
+  ipcRequest: vi.fn(),
   loggerError: vi.fn(),
-  openPath: vi.fn(),
   save: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   write: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal()),
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -122,7 +127,7 @@ describe('HtmlArtifactView', () => {
     vi.clearAllMocks()
     mocks.resizeObserverCallbacks = []
     mocks.createTempFile.mockResolvedValue('/tmp/artifacts-preview.html')
-    mocks.openPath.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockResolvedValue(undefined)
     mocks.save.mockResolvedValue('/tmp/Preview.html')
     mocks.write.mockResolvedValue(undefined)
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
@@ -132,7 +137,6 @@ describe('HtmlArtifactView', () => {
       value: {
         file: {
           createTempFile: mocks.createTempFile,
-          openPath: mocks.openPath,
           save: mocks.save,
           write: mocks.write
         }
@@ -1324,7 +1328,9 @@ describe('HtmlArtifactView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
-    await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/artifacts-preview.html'))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_path', '/tmp/artifacts-preview.html')
+    )
     expect(mocks.createTempFile).toHaveBeenCalledWith('artifacts-preview.html')
     expect(mocks.write).toHaveBeenCalledWith('/tmp/artifacts-preview.html', '<main>Page</main>')
   })

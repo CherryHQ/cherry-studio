@@ -79,6 +79,7 @@ vi.mock('@logger', () => ({
 const { KnowledgeService } = await import('../KnowledgeService')
 const { knowledgeQueueName, toKnowledgeBaseId } = await import('../types')
 const { knowledgeItemService } = await import('@data/services/KnowledgeItemService')
+const { knowledgeBaseService } = await import('@data/services/KnowledgeBaseService')
 const { jobService } = await import('@data/services/JobService')
 
 const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
@@ -233,6 +234,65 @@ describe('KnowledgeService integration', () => {
       .from(knowledgeItemTable)
       .where(isNull(knowledgeItemTable.groupId))
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
+  })
+
+  it.each([
+    { scenario: 'disabling embeddings', targetModelId: null, dimensions: null },
+    {
+      scenario: 'switching embedding models',
+      targetModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      dimensions: 3072
+    }
+  ])('preserves custom chunking when restoring after $scenario', async ({ targetModelId, dimensions }) => {
+    if (targetModelId) {
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: targetModelId,
+          providerId: 'openai',
+          modelId: 'text-embedding-3-large',
+          presetModelId: 'text-embedding-3-large',
+          name: 'text-embedding-3-large',
+          orderKey: 'a2'
+        })
+        .run()
+    }
+    dbh.db
+      .update(knowledgeBaseTable)
+      .set({
+        status: 'completed',
+        error: null,
+        embeddingModelId,
+        dimensions: 1536,
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '##',
+        chunkSize: 777,
+        chunkOverlap: 77
+      })
+      .where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
+      .run()
+    dbh.db.update(knowledgeItemTable).set({ status: 'completed' }).run()
+    const sourceBase = knowledgeBaseService.getById(SOURCE_BASE_ID)
+    const service = new KnowledgeService()
+
+    const { base: restoredBase } = await service.restoreBase({
+      sourceBaseId: SOURCE_BASE_ID,
+      name: 'Configured KB copy',
+      embeddingModelId: targetModelId,
+      dimensions
+    })
+
+    expect(knowledgeBaseService.getById(restoredBase.id)).toMatchObject({
+      embeddingModelId: targetModelId,
+      dimensions,
+      chunkStrategy: 'delimiter',
+      chunkSeparator: '##',
+      chunkSize: 777,
+      chunkOverlap: 77
+    })
+    expect(restoredBase.id).not.toBe(SOURCE_BASE_ID)
+    expect(knowledgeItemService.getRootItemsByBaseId(restoredBase.id)).toHaveLength(1)
+    expect(knowledgeBaseService.getById(SOURCE_BASE_ID)).toEqual(sourceBase)
   })
 
   it('rolls back the deleting status when enqueueTx fails inside deleteItems', async () => {

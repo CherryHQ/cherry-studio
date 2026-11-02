@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
-import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import {
   ASSISTANT_CATALOG_MY_TAB,
   type AssistantCatalogPreset,
