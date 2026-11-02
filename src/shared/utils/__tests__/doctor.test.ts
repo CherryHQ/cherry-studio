@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
+import { doctorRequestSchemas } from '../../ipc/schemas/doctor'
+import { doctorAgentRequestSchemas } from '../../ipc/schemas/doctorAgent'
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { doctorScopeKey, doctorStateCacheKey, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import {
+  doctorAgentKey,
+  doctorProposalFailureDetail,
+  doctorRunFailureDetail,
+  doctorScopeKey,
+  doctorStateCacheKey,
+  isDoctorFixRequest,
+  isDoctorScopeKey,
+  isOperationIncident,
+  projectDoctorReport
+} from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -178,6 +190,48 @@ describe('doctorScopeKey', () => {
     expect(doctorScopeKey({ kind: 'agent', agentId: 'a1', providerId: 'deepseek', modelId: 'deepseek-v4-flash' })).toBe(
       'agent:a1:deepseek/deepseek-v4-flash'
     )
+    expect(doctorScopeKey({ kind: 'operation', operationId: 'op-1' })).toBe('operation:op-1')
+    expect(isDoctorScopeKey('operation:op-1')).toBe(true)
+    expect(isDoctorScopeKey('chat:openai/gpt-4o')).toBe(true)
+    expect(
+      doctorAgentKey('operation:op-1', {
+        kind: 'operation',
+        context: {
+          id: 'op-1',
+          occurredAt: '2026-10-14T00:00:00.000Z',
+          source: 'painting',
+          operation: 'painting.generate',
+          message: 'failed'
+        }
+      })
+    ).toBe('operation:op-1#op-1')
+    expect(doctorAgentKey('chat:openai/gpt-4o', { topicId: 'topic-1', messageId: 'message-1' })).toBe(
+      'chat:openai/gpt-4o#message-1'
+    )
+  })
+
+  it('gives each attempt of one message its own key and keeps a caller that omits errorId on the message id', () => {
+    const scope = 'chat:openai/gpt-4o' as const
+    const row = { topicId: 'topic-1', messageId: 'message-1' }
+    expect(doctorAgentKey(scope, { ...row, errorId: 'err-1' })).toBe(`${scope}#err-1`)
+    expect(doctorAgentKey(scope, { ...row, errorId: 'err-2' })).toBe(`${scope}#err-2`)
+    expect(doctorAgentKey(scope, { ...row, errorId: 'err-2' })).not.toBe(
+      doctorAgentKey(scope, { ...row, errorId: 'err-1' })
+    )
+    expect(doctorAgentKey(scope, row)).toBe(`${scope}#message-1`)
+    expect(isOperationIncident(row)).toBe(false)
+    expect(
+      isOperationIncident({
+        kind: 'operation',
+        context: {
+          id: 'op-1',
+          occurredAt: '2026-10-14T00:00:00.000Z',
+          source: 'painting',
+          operation: 'painting.generate',
+          message: 'failed'
+        }
+      })
+    ).toBe(true)
   })
 
   it('encodes every scope as one legal collision-safe cache-template segment', () => {
@@ -189,5 +243,164 @@ describe('doctorScopeKey', () => {
     ]
     expect(new Set(keys).size).toBe(keys.length)
     expect(keys.every((key) => /^doctor\.state\.[\w-]+$/.test(key))).toBe(true)
+  })
+
+  it('accepts an operation subject and keeps the message incident shape', () => {
+    expect(
+      doctorRequestSchemas['diagnostics.doctor.run'].input.safeParse({
+        tier: 'quick',
+        subject: { kind: 'operation', operationId: 'op-1' }
+      }).success
+    ).toBe(true)
+    expect(
+      doctorRequestSchemas['diagnostics.doctor.run_contextual'].input.safeParse({
+        subject: {
+          kind: 'operation',
+          operationId: 'paint-1',
+          providerId: 'openai',
+          modelId: 'gpt-image-1',
+          imageOnly: true
+        }
+      }).success
+    ).toBe(true)
+    expect(
+      doctorAgentRequestSchemas['diagnostics.doctor.agent.start'].input.safeParse({
+        scope: 'operation:op-1',
+        reportRunId: 'report-1',
+        incident: { topicId: 'topic-1', messageId: 'message-1' }
+      }).success
+    ).toBe(true)
+    expect(
+      doctorAgentRequestSchemas['diagnostics.doctor.agent.start'].input.safeParse({
+        scope: 'operation:op-1',
+        reportRunId: 'report-1',
+        incident: {
+          kind: 'operation',
+          context: {
+            id: 'op-1',
+            occurredAt: '2026-10-14T00:00:00.000Z',
+            source: 'painting',
+            operation: 'painting.generate',
+            message: 'upstream failed'
+          }
+        }
+      }).success
+    ).toBe(true)
+    expect(
+      doctorAgentRequestSchemas['diagnostics.doctor.agent.start'].input.safeParse({
+        scope: 'not-a-scope',
+        reportRunId: 'report-1'
+      }).success
+    ).toBe(false)
+    expect(
+      doctorAgentRequestSchemas['diagnostics.doctor.agent.start'].input.safeParse({
+        scope: 'operation:op-1',
+        reportRunId: 'report-1',
+        incident: { kind: 'operation', operationId: 'op-1', source: 'painting', operation: 'paint', message: 'failed' }
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('doctor failure detail', () => {
+  it('maps each service-owned run failure and leaves an external cause intact', () => {
+    expect(
+      doctorRunFailureDetail({
+        error: 'not started: busy',
+        errorSource: 'service',
+        ownedFailure: { kind: 'not_started', reason: 'busy' }
+      })
+    ).toEqual({ source: 'service', failure: { kind: 'not_started', reason: 'busy' } })
+    expect(
+      doctorRunFailureDetail({
+        error: 'not started: session-invalid',
+        errorSource: 'service',
+        ownedFailure: { kind: 'not_started', reason: 'session-invalid' }
+      })
+    ).toEqual({ source: 'service', failure: { kind: 'not_started', reason: 'session-invalid' } })
+    expect(
+      doctorRunFailureDetail({
+        error: 'Execution failed',
+        errorSource: 'service',
+        ownedFailure: { kind: 'execution_failed' }
+      })
+    ).toEqual({ source: 'service', failure: { kind: 'execution_failed' } })
+    expect(
+      doctorRunFailureDetail({ error: 'unknown error', errorSource: 'service', ownedFailure: { kind: 'unknown' } })
+    ).toEqual({ source: 'service', failure: { kind: 'unknown' } })
+    expect(doctorRunFailureDetail({ error: 'database locked', errorSource: 'external' })).toEqual({
+      source: 'external',
+      text: 'database locked'
+    })
+    expect(doctorRunFailureDetail({ error: 'Execution failed', errorSource: 'external' })).toEqual({
+      source: 'external',
+      text: 'Execution failed'
+    })
+    expect(doctorRunFailureDetail({ error: 'not started: busy', errorSource: 'external' })).toEqual({
+      source: 'external',
+      text: 'not started: busy'
+    })
+    expect(doctorRunFailureDetail({ error: 'not started: something else' })).toEqual({
+      source: 'external',
+      text: 'not started: something else'
+    })
+  })
+
+  it('still recognizes service sentences published before errorSource existed', () => {
+    expect(doctorRunFailureDetail({ error: 'not started: busy' })).toEqual({
+      source: 'service',
+      failure: { kind: 'not_started', reason: 'busy' }
+    })
+    expect(doctorRunFailureDetail({ error: 'not started: session-invalid' })).toEqual({
+      source: 'service',
+      failure: { kind: 'not_started', reason: 'session-invalid' }
+    })
+    expect(doctorRunFailureDetail({ error: 'Execution failed' })).toEqual({
+      source: 'service',
+      failure: { kind: 'execution_failed' }
+    })
+    expect(doctorRunFailureDetail({ error: 'unknown error' })).toEqual({
+      source: 'service',
+      failure: { kind: 'unknown' }
+    })
+    expect(doctorRunFailureDetail({ error: 'disk full' })).toEqual({ source: 'external', text: 'disk full' })
+  })
+
+  it('keeps inherited property names as external evidence on unmarked legacy state', () => {
+    for (const error of ['__proto__', 'constructor']) {
+      expect(doctorRunFailureDetail({ error })).toEqual({ source: 'external', text: error })
+      expect(doctorProposalFailureDetail({ error })).toEqual({ source: 'external', text: error })
+    }
+  })
+
+  it('maps a superseded proposal and keeps an external proposal error', () => {
+    expect(
+      doctorProposalFailureDetail({
+        error: 'report superseded',
+        errorSource: 'service',
+        ownedError: 'report_superseded'
+      })
+    ).toEqual({ source: 'service', failure: { kind: 'report_superseded' } })
+    expect(doctorProposalFailureDetail({ error: 'report superseded' })).toEqual({
+      source: 'service',
+      failure: { kind: 'report_superseded' }
+    })
+    expect(doctorProposalFailureDetail({ error: 'unknown error' })).toEqual({
+      source: 'service',
+      failure: { kind: 'unknown' }
+    })
+    expect(doctorProposalFailureDetail({ error: 'unknown error', errorSource: 'external' })).toEqual({
+      source: 'external',
+      text: 'unknown error'
+    })
+    expect(doctorProposalFailureDetail({ error: 'disk full', errorSource: 'external' })).toEqual({
+      source: 'external',
+      text: 'disk full'
+    })
+    expect(doctorProposalFailureDetail({ error: 'report superseded', errorSource: 'external' })).toEqual({
+      source: 'external',
+      text: 'report superseded'
+    })
+    expect(doctorProposalFailureDetail({})).toBeUndefined()
   })
 })

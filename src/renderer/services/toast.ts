@@ -71,14 +71,15 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
+  const title = planQuota
+    ? i18n.t('models.detail.quota_exhausted')
+    : category === 'unknown'
+      ? details || i18n.t('error.unknown')
+      : i18n.t(diagnosisKey)
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: planQuota
-      ? i18n.t('models.detail.quota_exhausted')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
+    title,
     description:
       [
         context.mcpServer?.name ?? provider?.name,
@@ -90,6 +91,14 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
         .filter(Boolean)
         .join(' · ') || undefined,
     details: category === 'unknown' ? undefined : details,
+    cause: error,
+    data: {
+      source: context.mcpServer ? 'mcp' : provider ? 'provider' : 'toast',
+      operation: `toast.${category}`,
+      localizedErrorMessage: title,
+      ...(provider ? { providerId: provider.id } : {}),
+      ...(context.mcpServer ? { recordId: context.mcpServer.id } : {})
+    },
     action:
       run && actionKind
         ? {
@@ -131,6 +140,14 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
         : undefined
   })
   return key
+}
+
+/** An error toast that must not open another error-detail dialog. */
+export function toastInlineError(message: string): string {
+  return notifications.error({
+    title: message,
+    data: { suppressDetail: true }
+  })
 }
 
 export const toast = { ...notifications, errorFromException }

@@ -7,7 +7,9 @@ import {
   buildDiagnosticReportDescription,
   DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES,
   type DiagnosticReportDescriptionLabels,
+  diagnosticMachineLocationId,
   diagnosticReportFields,
+  formatDiagnosticReportLocation,
   resolveDiagnosticReportLocation
 } from '../diagnosticReportDescription'
 
@@ -138,23 +140,42 @@ describe('buildDiagnosticReportDescription', () => {
 })
 
 describe('resolveDiagnosticReportLocation', () => {
-  const t = (key: string, options?: { defaultValue?: string }) =>
-    key === 'error.diagnostic_report.locations.work'
-      ? '工作对话'
-      : key === 'error.diagnostic_report.locations.home'
-        ? '普通对话'
-        : (options?.defaultValue ?? key)
+  const labels: Record<string, string> = {
+    'error.diagnostic_report.locations.application': '应用',
+    'error.diagnostic_report.locations.files': '文件',
+    'error.diagnostic_report.locations.home': '普通对话',
+    'error.diagnostic_report.locations.painting': '图像',
+    'error.diagnostic_report.locations.runtime': '运行时',
+    'error.diagnostic_report.locations.work': '工作对话'
+  }
+  const t = (key: string, options?: { defaultValue?: string }) => labels[key] ?? options?.defaultValue ?? key
 
   it('maps Agent location ids and leftover Chinese copy to the work-conversation label', () => {
     expect(resolveDiagnosticReportLocation(t, 'agent', 'zh-CN')).toBe('工作对话')
     expect(resolveDiagnosticReportLocation(t, 'Agent 对话', 'zh-CN')).toBe('工作对话')
+    expect(diagnosticMachineLocationId('agent')).toBeUndefined()
   })
 
   it('maps the home location id', () => {
     expect(resolveDiagnosticReportLocation(t, 'home')).toBe('普通对话')
+    expect(diagnosticMachineLocationId('home')).toBeUndefined()
+  })
+
+  it('maps painting, files, and runtime module ids', () => {
+    expect(resolveDiagnosticReportLocation(t, 'painting')).toBe('图像')
+    expect(resolveDiagnosticReportLocation(t, 'files')).toBe('文件')
+    expect(resolveDiagnosticReportLocation(t, 'runtime')).toBe('运行时')
+    expect(diagnosticMachineLocationId('painting')).toBeUndefined()
+  })
+
+  it('uses a generic heading for a route id and keeps that id', () => {
+    expect(resolveDiagnosticReportLocation(t, 'main:/settings/provider')).toBe('应用')
+    expect(diagnosticMachineLocationId('main:/settings/provider')).toBe('main:/settings/provider')
+    expect(formatDiagnosticReportLocation(t, 'main:/settings/provider')).toBe('应用 (main:/settings/provider)')
   })
 
   it('leaves already-translated locations unchanged', () => {
     expect(resolveDiagnosticReportLocation(t, 'Agent conversation')).toBe('Agent conversation')
+    expect(diagnosticMachineLocationId('Agent conversation')).toBeUndefined()
   })
 })

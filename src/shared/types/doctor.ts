@@ -55,8 +55,8 @@ export interface DoctorSubject {
 export type DoctorSubjectKey = keyof DoctorSubject
 
 /**
- * What a caller names; main resolves it into a `DoctorSubject`. `kind` exists for the IPC
- * union and the UI label only — check selection never reads it.
+ * What a caller names; main resolves it into a `DoctorSubject`. `applies` never reads `kind`.
+ * An operation run picks its catalog from the facts it actually has before that.
  */
 export type DoctorSubjectRef =
   | { readonly kind: 'global' }
@@ -65,9 +65,18 @@ export type DoctorSubjectRef =
       | { readonly providerId?: never; readonly modelId?: never }
       | { readonly providerId: string; readonly modelId: string }
     ))
+  | {
+      readonly kind: 'operation'
+      /** Same value as `AppErrorContext.id` for this fault. */
+      readonly operationId: string
+      readonly providerId?: string
+      readonly modelId?: string
+      /** Image-only models must not run the chat conversation probe. */
+      readonly imageOnly?: boolean
+    }
 
 /** Identity of a run's context; suffixes the shared cache key so contexts never share state. */
-export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}`
+export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}` | `operation:${string}`
 
 /**
  * Where a check runs. Three distinct types, not three shapes of one array:

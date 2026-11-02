@@ -65,7 +65,7 @@ describe('ErrorBoundary', () => {
 
     const details = screen.getByText(boomError.message)
     expect(details).not.toBeVisible()
-    await user.click(screen.getByText(i18n.t('error.boundary.details')))
+    await user.click(screen.getByText(i18n.t('error.boundary.details'), { selector: 'summary' }))
     expect(details).toBeVisible()
     await user.click(screen.getByRole('button', { name: i18n.t('common.copy') }))
     expect(writeText).toHaveBeenCalledWith(boomError.message)
