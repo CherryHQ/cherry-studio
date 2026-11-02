@@ -1209,6 +1209,29 @@ describe('detectDestructiveAssistantCommand', () => {
     ])('allows benign class-member lookup: %s', (command) => {
       expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
     })
+
+    // Round 33 (review 5744722533): signed numeric keys, line comments inside
+    // expression keys, and CR-only comment endings restored main's mandatory denial.
+    it.each([
+      ['@{-1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{+1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{ - 1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{-1.5 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{(1 # )\n) = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{ # cleanup\rresult=del victim.txt}', 'permanent Windows file deletion'],
+      ['@{ # cleanup\r\nresult=del victim.txt}', 'permanent Windows file deletion'],
+      ["pwsh -NoProfile -Command '@{-1 = del victim.txt}'", 'permanent Windows file deletion']
+    ])('denies destructive command: %s', (command, reason) => {
+      expect(detectDestructiveAssistantCommand(command)).toBe(reason)
+    })
+
+    it.each([['@{-1 = delivery}'], ['@{(1 # )\n) = delivery}'], ['@{ # cleanup\rresult=1}']])(
+      'allows benign command: %s',
+      (command) => {
+        expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+      }
+    )
   })
 })
 

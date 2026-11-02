@@ -782,6 +782,16 @@ function hashtableValueDeletion(s: string): boolean {
         k = end
         continue
       }
+      // Line comments end at CR, LF or CRLF (pwsh 7.4.6 tokenizer); their text must be
+      // opaque so a `)`/`]` inside the comment cannot balance an expression key. Only a
+      // `#` at a token boundary starts a comment - inside a bare word it is literal.
+      if (c === '#' && (k === 0 || !isKeyChar(s[k - 1]))) {
+        let j = k + 1
+        while (j < n && s[j] !== '\n' && s[j] !== '\r') j++
+        for (let m = k; m < j; m++) opaque[m] = 1
+        k = j
+        continue
+      }
       if (c === '`' && k + 1 < n) {
         k += 2
         continue
@@ -889,6 +899,31 @@ function hashtableValueDeletion(s: string): boolean {
         i = j
         continue
       }
+      // Signed numeric keys: `@{-1 = ...}` / `@{+ 1 = ...}` parse as unary-expression
+      // keys and the table value still executes (pwsh 7.4.6 parse probes, round-33
+      // review finding). Only a sign followed by digits is such a key; anything else
+      // falls through to the discard path unchanged.
+      if (c === '+' || c === '-') {
+        let j = i + 1
+        while (j < n && SCAN_WS.test(s[j])) j++
+        let digits = 0
+        while (j < n && s[j] >= '0' && s[j] <= '9') {
+          j++
+          digits++
+        }
+        if (digits > 0 && j < n && s[j] === '.' && j + 1 < n && s[j + 1] >= '0' && s[j + 1] <= '9') {
+          j++
+          while (j < n && s[j] >= '0' && s[j] <= '9') j++
+        }
+        if (digits === 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
       // Expression keys: `@{(1+1) = ...}` and `@{[string]1 = ...}` are valid keys whose
       // values execute (round-31 review finding; pwsh 7.4.6 parse-only: ParenExpressionAst
       // and ConvertExpressionAst keys with an execution-shaped del value). The close comes
@@ -961,7 +996,7 @@ function hashtableValueDeletion(s: string): boolean {
       // strict, and the documented comment-in-value exclusion is unchanged.
       if (c === '#') {
         let j = i + 1
-        while (j < n && s[j] !== '\n') j++
+        while (j < n && s[j] !== '\n' && s[j] !== '\r') j++
         i = j
         continue
       }
