@@ -20,8 +20,22 @@ const PS_IDENTIFIER_CHARS = String.raw`\w\u0080-\u009f\u00a1-\u167f\u1681-\u1fff
 // roots stay allow even though they parse as valid assignments - documented best-effort gaps.
 // The branch also refuses to start right after a `.`, so the documented computed-member gap
 // `$h.($x) = ...` keeps its shipped allow behavior instead of matching its inner `($x)`.
-const PS_QUOTED_DOUBLE = String.raw`"[^"\r\n]*(?:""[^"\r\n]*)*"`
-const PS_QUOTED_SINGLE = String.raw`'[^'\r\n]*(?:''[^'\r\n]*)*'`
+// PowerShell string delimiters beyond ASCII (pwsh 7.4.6 parse probes + CharTraits.cs /
+// tokenizer.cs ScanStringLiteral, round-32 review findings): a string opens and closes
+// with ANY character of its class - doubles are U+0022/U+201C/U+201D/U+201E, singles
+// U+0027/U+2018/U+2019/U+201A/U+201B; U+201F forms nothing. ANY two consecutive
+// characters of the class are an escaped literal quote inside the string (mixed pairs
+// included), so a class character closes only when the next character is not in the
+// class. The backtick escape applies only inside the double class. Sites that track
+// cmd.exe syntax (scanTokenEnd, the CMD_* operand grammar) keep ASCII-only quoting: cmd
+// has no smart quotes.
+const PS_DQUOTE_CHARS = new Set(['"', '“', '”', '„'])
+const PS_SQUOTE_CHARS = new Set(["'", '‘', '’', '‚', '‛'])
+const isPSDQuote = (c: string): boolean => PS_DQUOTE_CHARS.has(c)
+const isPSSQuote = (c: string): boolean => PS_SQUOTE_CHARS.has(c)
+const isPSQuote = (c: string): boolean => PS_DQUOTE_CHARS.has(c) || PS_SQUOTE_CHARS.has(c)
+const PS_QUOTED_DOUBLE = String.raw`["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]`
+const PS_QUOTED_SINGLE = String.raw`['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛]`
 const PS_STATIC_MEMBER = String.raw`(?:[${PS_IDENTIFIER_CHARS}]+|${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE}|\(\s*(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})\s*\))`
 const PS_DOT_MEMBER = String.raw`(?:[${PS_IDENTIFIER_CHARS}]+|(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})|\(\s*(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})\s*\))`
 const PS_VARIABLE = String.raw`\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?`
@@ -132,7 +146,7 @@ const CMD_START_ARGS =
   String.raw`(?:\s+"(?![^"\r\n]*?(?<![${PS_IDENTIFIER_CHARS}])start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|\/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
   '`' +
   String.raw`]*start\b)[^\s;&|/"(){}]+)+`
-const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
+const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["'“”„‘’‚‛]?(?:del|erase|rd)\b)`
 // The gap before the deletion token is one atomic scan: the lookahead captures the maximal run of
 // whitespace/quotes/`@` and the backreference re-matches it, so a failed token check cannot split the
 // run across adjacent quantifiers (split ambiguity was the quadratic here). The pattern has no other
@@ -168,21 +182,21 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
   String.raw`(?:^|[;&|(){` +
     '`' +
-    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|in|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["'“”„‘’‚‛]|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|in|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'“”„‘’‚‛` +
     '`' +
     String.raw`@])\.(?=\s)|(?<![@` +
     '`' +
-    String.raw`"']{65})(?<![^\s;&|(){}"'` +
+    String.raw`"'“”„‘’‚‛]{65})(?<![^\s;&|(){}"'“”„‘’‚‛` +
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart(?=\s)|(?<![@` +
+    String.raw`"'“”„‘’‚‛]{0,64})\bstart(?=\s)|(?<![@` +
     '`' +
-    String.raw`"']{65})(?<![^\s;&|(){}"'` +
+    String.raw`"'“”„‘’‚‛]{65})(?<![^\s;&|(){}"'“”„‘’‚‛` +
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<|[;|}&)])`,
+    String.raw`"'“”„‘’‚‛]{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛]|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛]|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["'“”„‘’‚‛]|@)*))\1(?:del|erase|rd)(?=\s|$|["'(“”„‘’‚‛]|>>?|<|[;|}&)])`,
   'i'
 )
 
@@ -198,8 +212,8 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
 // Per-position memoization makes the reachability walk O(n) total: independent per-candidate
 // rescans would be quadratic on composed inputs.
 const SCAN_WS = /\s/
-const SCAN_GLUE = new Set(['@', '`', '"', "'"])
-const SCAN_GAP = new Set(['"', "'", '@'])
+const SCAN_GLUE = new Set(['@', '`', '"', "'", '“', '”', '„', '‘', '’', '‚', '‛'])
+const SCAN_GAP = new Set(['"', "'", '@', '“', '”', '„', '‘', '’', '‚', '‛'])
 const SCAN_BARE_EXCLUDE = new Set([';', '&', '|', '/', '"', '(', ')', '{', '}'])
 const SCAN_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
 const isScanWord = (c: string): boolean =>
@@ -268,8 +282,7 @@ function longGlueStartDeletion(s: string): boolean {
         if (
           d + len >= n ||
           SCAN_WS.test(after) ||
-          after === '"' ||
-          after === "'" ||
+          isPSQuote(after) ||
           after === '>' ||
           after === '<' ||
           after === ';' ||
@@ -393,8 +406,7 @@ function getCommandLookupDeletion(s: string): boolean {
     const c = s[i]
     return (
       SCAN_WS.test(c) ||
-      c === '"' ||
-      c === "'" ||
+      isPSQuote(c) ||
       c === '(' ||
       c === ')' ||
       c === '>' ||
@@ -535,19 +547,20 @@ function aliasBindDeletion(s: string): boolean {
   const terminator = new Uint8Array(n + 1)
   for (let k = 0; k < n;) {
     const c = s[k]
-    if (c === '"' || c === "'") {
-      const q = c
+    if (isPSQuote(c)) {
+      const dq = isPSDQuote(c)
+      const inClass = dq ? isPSDQuote : isPSSQuote
       k++
       while (k < n) {
-        if (s[k] === q) {
-          if (k + 1 < n && s[k + 1] === q) {
+        if (inClass(s[k])) {
+          if (k + 1 < n && inClass(s[k + 1])) {
             k += 2
             continue
           }
           k++
           break
         }
-        if (q === '"' && s[k] === '`' && k + 1 < n) {
+        if (dq && s[k] === '`' && k + 1 < n) {
           k += 2
           continue
         }
@@ -623,7 +636,7 @@ function commentGapDeletion(s: string): boolean {
     }
   }
   if (count === 0) return false
-  const isGapChar = (c: string): boolean => c === '"' || c === "'" || c === '@' || SCAN_WS.test(c)
+  const isGapChar = (c: string): boolean => isPSQuote(c) || c === '@' || SCAN_WS.test(c)
   const blank = new Uint8Array(n)
   let marked = 0
   let i = 0
@@ -655,8 +668,7 @@ function commentGapDeletion(s: string): boolean {
           if (
             e >= n ||
             SCAN_WS.test(b) ||
-            b === '"' ||
-            b === "'" ||
+            isPSQuote(b) ||
             b === '(' ||
             b === '>' ||
             b === '<' ||
@@ -700,8 +712,8 @@ function hashtableValueDeletion(s: string): boolean {
   nextSQuote[n] = n
   nextRBrace[n] = n
   for (let k = n - 1; k >= 0; k--) {
-    nextDQuote[k] = s[k] === '"' ? k : nextDQuote[k + 1]
-    nextSQuote[k] = s[k] === "'" ? k : nextSQuote[k + 1]
+    nextDQuote[k] = isPSDQuote(s[k]) ? k : nextDQuote[k + 1]
+    nextSQuote[k] = isPSSQuote(s[k]) ? k : nextSQuote[k + 1]
     nextRBrace[k] = s[k] === '}' ? k : nextRBrace[k + 1]
   }
   // Lazily built once: quote/comment opacity (mirroring the alias family's string and
@@ -716,14 +728,16 @@ function hashtableValueDeletion(s: string): boolean {
   // resolved once. -2 unresolved, -1 no close, otherwise the close position.
   const dquoteKeyClose = new Int32Array(n).fill(-2)
   const squoteKeyClose = new Int32Array(n).fill(-2)
-  const resolveKeyQuoteClose = (start: number, q: '"' | "'"): number => {
-    const next = q === '"' ? nextDQuote : nextSQuote
-    const memo = q === '"' ? dquoteKeyClose : squoteKeyClose
+  const resolveKeyQuoteClose = (start: number, q: string): number => {
+    const dq = isPSDQuote(q)
+    const next = dq ? nextDQuote : nextSQuote
+    const memo = dq ? dquoteKeyClose : squoteKeyClose
+    const inClass = dq ? isPSDQuote : isPSSQuote
     const path: number[] = []
     let j = next[start]
     while (j < n && memo[j] === -2) {
       path.push(j)
-      if (s[j + 1] === q) {
+      if (j + 1 < n && inClass(s[j + 1])) {
         j = next[j + 2]
       } else {
         break
@@ -799,8 +813,7 @@ function hashtableValueDeletion(s: string): boolean {
           const c = s[e]
           return (
             SCAN_WS.test(c) ||
-            c === '"' ||
-            c === "'" ||
+            isPSQuote(c) ||
             c === '(' ||
             c === ')' ||
             c === '>' ||
@@ -836,7 +849,7 @@ function hashtableValueDeletion(s: string): boolean {
         i++
         continue
       }
-      if (c === '"' || c === "'") {
+      if (isPSQuote(c)) {
         const q = c
         // Same closes as the character loop, resolved through the per-candidate memo:
         // a doubled pair defers to the next candidate, a lone quote is the close. O(1)
@@ -900,26 +913,55 @@ function hashtableValueDeletion(s: string): boolean {
           continue
         }
         let j = close + 1
-        // One converted token may follow the type literal: a quoted string (doubling
-        // honored) or a bare run of key characters and dots (`[string]1`, `[int]'x'`).
-        if (j < n && (s[j] === '"' || s[j] === "'")) {
-          const q = s[j]
-          j++
-          while (j < n) {
-            if (s[j] === q) {
-              if (j + 1 < n && s[j + 1] === q) {
-                j += 2
-                continue
-              }
-              j++
-              break
-            }
-            j++
+        // The complete converted operand (pwsh 7.4.6 parse probes, round-32 review
+        // finding): whitespace and further chained casts (`[int][double]1`), one unary
+        // sign with optional surrounding whitespace (`[int] - 1`, `[int]-1`), then the
+        // operand token itself - a quoted string (same-char doubling honored), a
+        // parenthesized expression (`[int](1+1)`), a variable (`[int]$x`), or a bare run
+        // of key characters and dots (`[string]1`, `[int].5`, `[int]0x10`).
+        while (j < n) {
+          while (j < n && SCAN_WS.test(s[j])) j++
+          if (j < n && s[j] === '[') {
+            const castClose = getExprTables().matchClose[j]
+            if (castClose < 0) break
+            j = castClose + 1
+            continue
           }
+          break
+        }
+        while (j < n && SCAN_WS.test(s[j])) j++
+        if (j < n && (s[j] === '+' || s[j] === '-')) {
+          j++
+          while (j < n && SCAN_WS.test(s[j])) j++
+        }
+        if (j < n && isPSQuote(s[j])) {
+          const dq = isPSDQuote(s[j])
+          const next = dq ? nextDQuote : nextSQuote
+          const inClass = dq ? isPSDQuote : isPSSQuote
+          let k = next[j + 1]
+          while (k < n && k + 1 < n && inClass(s[k + 1])) k = next[k + 2]
+          j = k < n ? k + 1 : n
+        } else if (j < n && s[j] === '(') {
+          const parenClose = getExprTables().matchClose[j]
+          if (parenClose >= 0) j = parenClose + 1
+        } else if (j < n && s[j] === '$') {
+          j++
+          while (j < n && (isKeyChar(s[j]) || s[j] === '?' || s[j] === ':')) j++
         } else {
           while (j < n && (isKeyChar(s[j]) || s[j] === '.')) j++
         }
         top.expect = 'eq'
+        i = j
+        continue
+      }
+      // A line comment before a key is valid PowerShell (`@{ # cleanup\nresult=...}`,
+      // glued `@{#c` and multiple comment lines included; pwsh 7.4.6 parse probes,
+      // round-32 review finding): skip to the newline and keep the table frame. A
+      // comment between a key and its `=` is a parse error, so the eq state stays
+      // strict, and the documented comment-in-value exclusion is unchanged.
+      if (c === '#') {
+        let j = i + 1
+        while (j < n && s[j] !== '\n') j++
         i = j
         continue
       }
@@ -952,14 +994,14 @@ function hashtableValueDeletion(s: string): boolean {
         i++
         continue
       }
-      if (c === '"' || c === "'") {
-        const close = c === '"' ? nextDQuote[i + 1] : nextSQuote[i + 1]
+      if (isPSQuote(c)) {
+        const close = isPSDQuote(c) ? nextDQuote[i + 1] : nextSQuote[i + 1]
         if (close < n) {
           let interpolates = false
           let holdsTable = false
           for (let k = i + 1; k < close; k++) {
             const kc = s[k]
-            if (c === '"' && (kc === '$' || kc === '`')) {
+            if (isPSDQuote(c) && (kc === '$' || kc === '`')) {
               interpolates = true
               break
             }
@@ -975,7 +1017,7 @@ function hashtableValueDeletion(s: string): boolean {
             top.quotesBlind = true
           } else {
             let g = i + 1
-            while (g < close && (SCAN_WS.test(s[g]) || s[g] === '"' || s[g] === "'")) g++
+            while (g < close && (SCAN_WS.test(s[g]) || isPSQuote(s[g]))) g++
             if (g < close && tokenAt(g)) return true
             top.expect = 'skip'
             i = close + 1
@@ -1004,14 +1046,14 @@ function hashtableValueDeletion(s: string): boolean {
       i += 2
       continue
     }
-    if (c === '"' || c === "'") {
+    if (isPSQuote(c)) {
       if (top.quotesBlind !== true) {
-        const close = c === '"' ? nextDQuote[i + 1] : nextSQuote[i + 1]
+        const close = isPSDQuote(c) ? nextDQuote[i + 1] : nextSQuote[i + 1]
         if (close < n) {
           let opaque = true
           for (let k = i + 1; k < close; k++) {
             const kc = s[k]
-            if ((kc === '@' && s[k + 1] === '{') || (c === '"' && (kc === '$' || kc === '`'))) {
+            if ((kc === '@' && s[k + 1] === '{') || (isPSDQuote(c) && (kc === '$' || kc === '`'))) {
               opaque = false
               break
             }

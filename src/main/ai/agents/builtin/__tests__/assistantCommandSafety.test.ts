@@ -1109,6 +1109,107 @@ describe('detectDestructiveAssistantCommand', () => {
     // Titles that are exactly `start` (no trailing whitespace) still consume as arguments.
     expect(detectDestructiveAssistantCommand('start "start" del victim.txt')).toBe('permanent Windows file deletion')
   })
+  // Round 32 (review 5743985195): PowerShell smart-quote classes (CharTraits: doubles
+  // U+0022/201C/201D/201E, singles U+0027/2018/2019/201A/201B; U+201F forms nothing),
+  // class-pair escapes, spaced/signed cast operands, and line comments before keys.
+  describe('round 32: smart quotes, cast operands, and comments in hashtable literals', () => {
+    it.each([
+      ['& “del” victim.txt', 'permanent Windows file deletion'],
+      ['@{“k” = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{“a”“b” = 1; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{“a””b” = 1; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{“a“”b” = 1; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{‘a’’b’ = 1; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{‘a’‘b’ = 1; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int]“1” = 1; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int]“1” = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[string]‘a‘’b’ = del victim.txt}', 'permanent Windows file deletion'],
+      ['& „del„ victim.txt', 'permanent Windows file deletion'],
+      ['„del„ victim.txt', 'permanent Windows file deletion'],
+      ['@{„k„ = del victim.txt}', 'permanent Windows file deletion'],
+      ["pwsh -NoProfile -Command '& „del„ victim.txt'", 'permanent Windows file deletion'],
+      ['$h.“a“”b” = del victim.txt', 'permanent Windows file deletion'],
+      ['$h.“a””b” = del victim.txt', 'permanent Windows file deletion'],
+      ['@{a="del" ; x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{ # c\nx = del victim.txt}', 'permanent Windows file deletion'],
+      ["pwsh -NoProfile -Command '& “del” victim.txt'", 'permanent Windows file deletion'],
+      ["pwsh -NoProfile -Command '& ‘erase’ victim.txt'", 'permanent Windows file deletion'],
+      ['“del” victim.txt', 'permanent Windows file deletion'],
+      ['x; “del” victim.txt', 'permanent Windows file deletion'],
+      ['“del victim.txt”', 'permanent Windows file deletion'],
+      ['“del”', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name “del”) victim.txt', 'permanent Windows file deletion'],
+      ['@{[int] 1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int]-1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int] +1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int] - 1 = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int][double]1 = del victim.txt}', 'permanent Windows file deletion'],
+      ["@{[string] 'a b' = del victim.txt}", 'permanent Windows file deletion'],
+      ['@{[int]$x = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{[int](1+1) = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{ # cleanup\nresult=del victim.txt}', 'permanent Windows file deletion'],
+      ['@{#c\nresult=del victim.txt}', 'permanent Windows file deletion'],
+      ['@{a=1; # c\nb=del victim.txt}', 'permanent Windows file deletion'],
+      ['@{ # c1\n # c2\nresult=del victim.txt}', 'permanent Windows file deletion'],
+      ['@{“result” = del victim.txt}', 'permanent Windows file deletion'],
+      ['@{a=“del victim.txt”}', 'permanent Windows file deletion']
+    ])('denies destructive command: %s', (command, reason) => {
+      expect(detectDestructiveAssistantCommand(command)).toBe(reason)
+    })
+
+    it.each([
+      ['@{“k” = delivery}'],
+      ['echo “del victim.txt”'],
+      ['@{[int] 1 = delivery}'],
+      ['@{[int]-1 = delivery}'],
+      ['@{ # cleanup\nresult=1}'],
+      ['@{“result” = delivery}'],
+      ['echo “delivery”'],
+      ['@{[int] 1 = 1}'],
+      ['@{a=“delivery”}']
+    ])('allows benign command: %s', (command) => {
+      expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+    })
+
+    // Every PowerShell quote-class member (CharTraits v7.4.6) must quote in lookup and
+    // hashtable-key positions: doubles U+0022/201C/201D/201E, singles U+0027/2018/2019/201A/201B.
+    it.each([
+      ['& (Get-Command -Name "del") victim.txt', 'permanent Windows file deletion'],
+      ['@{"k" = del victim.txt}', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name “del“) victim.txt', 'permanent Windows file deletion'],
+      ['@{“k“ = del victim.txt}', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name ”del”) victim.txt', 'permanent Windows file deletion'],
+      ['@{”k” = del victim.txt}', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name „del„) victim.txt', 'permanent Windows file deletion'],
+      ['@{„k„ = del victim.txt}', 'permanent Windows file deletion'],
+      ["& (Get-Command -Name 'del') victim.txt", 'permanent Windows file deletion'],
+      ["@{'k' = del victim.txt}", 'permanent Windows file deletion'],
+      ['& (Get-Command -Name ‘del‘) victim.txt', 'permanent Windows file deletion'],
+      ['@{‘k‘ = del victim.txt}', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name ’del’) victim.txt', 'permanent Windows file deletion'],
+      ['@{’k’ = del victim.txt}', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name ‚del‚) victim.txt', 'permanent Windows file deletion'],
+      ['@{‚k‚ = del victim.txt}', 'permanent Windows file deletion'],
+      ['& (Get-Command -Name ‛del‛) victim.txt', 'permanent Windows file deletion'],
+      ['@{‛k‛ = del victim.txt}', 'permanent Windows file deletion']
+    ])('denies class-member lookup/key: %s', (command, reason) => {
+      expect(detectDestructiveAssistantCommand(command)).toBe(reason)
+    })
+
+    it.each([
+      ['& (Get-Command -Name "delivery")'],
+      ['& (Get-Command -Name “delivery“)'],
+      ['& (Get-Command -Name ”delivery”)'],
+      ['& (Get-Command -Name „delivery„)'],
+      ["& (Get-Command -Name 'delivery')"],
+      ['& (Get-Command -Name ‘delivery‘)'],
+      ['& (Get-Command -Name ’delivery’)'],
+      ['& (Get-Command -Name ‚delivery‚)'],
+      ['& (Get-Command -Name ‛delivery‛)']
+    ])('allows benign class-member lookup: %s', (command) => {
+      expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+    })
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
