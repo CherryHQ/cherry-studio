@@ -6,7 +6,7 @@ import { Button, Drawer, DrawerContent, DrawerTitle, ScrollArea } from '@cherrys
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { NotificationRecord } from '@shared/data/types/notification'
@@ -45,10 +45,7 @@ function NotificationItem({
   const unreadDescriptionId = useId()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
-  const { appUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
-    const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
-    return UpdateDialogPopup.show({ releaseInfo })
-  })
+  const { appUpdateState, checkForUpdate } = useAppUpdateCheck()
   const { trigger: markRead } = useMutation('PATCH', '/notifications/:id', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
@@ -200,9 +197,7 @@ function NotificationItem({
             </p>
           )}
           {canUpdate && (
-            <Button
-              onClick={() => void checkForUpdate()}
-              disabled={appUpdateState.checking || appUpdateState.downloading}>
+            <Button onClick={checkForUpdate} disabled={appUpdateState.checking || appUpdateState.downloading}>
               {appUpdateState.downloading
                 ? `${t('settings.about.downloading')} ${Math.round(appUpdateState.downloadProgress)}%`
                 : appUpdateState.downloaded

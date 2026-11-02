@@ -60,18 +60,21 @@ const pendingTabAttachQueue: Tab[] = []
 let pendingNotificationId: string | undefined
 let isMainRendererReadyForTabAttach = false
 let errorReceiverReady = false
+let updateReceiverReady = false
 
-type MainSurfaceReceiver = 'error'
+type MainSurfaceReceiver = 'error' | 'update'
 
 /**
  * The tab-ready flag stays set after a provider crash: the webContents is still
- * alive, but AppErrorRuntime has unmounted. Delivery of that event requires the
- * receiver that actually mounts the listener.
+ * alive, but AppErrorRuntime and the update handler have unmounted. Delivery of
+ * those events requires the receiver that actually mounts the listener.
  */
 export function setMainSurfaceReceiver(kind: MainSurfaceReceiver, ready: boolean): void {
   if (kind === 'error') {
     errorReceiverReady = ready
     if (ready) flushMainRendererFault()
+  } else {
+    updateReceiverReady = ready
   }
 }
 
@@ -112,6 +115,7 @@ export function openNotificationInMainWindow(id: string): void {
 export function resetMainRendererTabAttachDelivery(): void {
   isMainRendererReadyForTabAttach = false
   errorReceiverReady = false
+  updateReceiverReady = false
 }
 
 function flushPendingTabAttaches(): void {
@@ -170,6 +174,7 @@ export function deliverToReadyMain<E extends IpcEventName>(event: E, payload: Ev
  */
 function isSurfaceReceiverReady(event: IpcEventName): boolean {
   if (event === 'app.error.open') return errorReceiverReady
+  if (event === 'app.updater.run_check') return updateReceiverReady
   return true
 }
 
