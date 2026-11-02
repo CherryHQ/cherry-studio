@@ -94,6 +94,12 @@ describe('backgroundTasks', () => {
     storageDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-tasks-'))
   })
 
+  // A test that fails before its own restore must not hand its steered table to the next one.
+  afterEach(() => {
+    psSteer.read = null
+    writeHook.onWrite = null
+  })
+
   // The 15s retry loop below outlives vitest's default 10s hookTimeout, so the hook must
   // carry its own budget or the runner kills it mid-retry with an anonymous timeout error.
   afterEach(async () => {
@@ -1961,7 +1967,13 @@ describe('backgroundTasks', () => {
           // Kill must still reach the survivor: its own identity authorizes the signal, and the
           // record may only say stopped once nothing of the task is left.
           const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
-          expect(stopped?.status).toBe('stopped')
+          // A marker scan that cannot answer leaves the record running on purpose — conservative,
+          // not a survivable worker — and the next read reconciles it once nothing is left.
+          expect(stopped?.status === 'stopped' || stopped?.terminationUnverified).toBe(true)
+          await vi.waitFor(
+            async () => expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('stopped'),
+            { timeout: 10_000 }
+          )
           await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
         } finally {
           try {

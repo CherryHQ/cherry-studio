@@ -383,7 +383,13 @@ describe('a task whose record write fails', () => {
         // Ownership, not the record alone, is what keeps a leaderless group controllable.
         expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
         const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
-        expect(stopped?.status).toBe('stopped')
+        // A marker scan that cannot answer leaves the record running on purpose — conservative,
+        // not a survivable worker — and the next read reconciles it once nothing is left.
+        expect(stopped?.status === 'stopped' || stopped?.terminationUnverified).toBe(true)
+        await vi.waitFor(
+          async () => expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('stopped'),
+          { timeout: 10_000 }
+        )
         await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
       } finally {
         killSpy.mockRestore()
