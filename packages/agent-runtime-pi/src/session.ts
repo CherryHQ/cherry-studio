@@ -98,14 +98,20 @@ async function buildSession(
           subagentExtension({
             port: options.subagents,
             parentSession: sessionManager,
-            createSession: ({ fork, beforeModelRequest: beforeChildRequest, ...overrides }) =>
+            createSession: ({
+              fork,
+              beforeModelRequest: beforeChildRequest,
+              beforeStart: beforeChildStart,
+              ...overrides
+            }) =>
               buildSession(
                 {
                   ...options,
                   ...overrides,
                   subagents: fork ? options.subagents : undefined
                 },
-                beforeChildRequest
+                beforeChildRequest,
+                beforeChildStart
               )
           })
         ]

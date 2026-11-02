@@ -76,6 +76,7 @@ export interface SubagentSessionOverrides {
    * for it); a throw refuses the request before it reaches the port or the summarizer.
    */
   beforeModelRequest: () => void
+  beforeStart: (session: AgentSession) => void
 }
 
 /** What the session that registers `subagent` lends it. */
@@ -201,37 +202,63 @@ class RequestLimit {
 
 /** Runs the task to settlement; the result carries the subagent's final message and the sum of its usage. */
 async function run(
-  child: AgentRuntimeSession,
+  createSession: (beforeStart: (session: AgentSession) => void) => Promise<AgentRuntimeSession>,
+  onSessionCreated: SubagentSessionOptions['onSessionCreated'],
   prompt: string,
   signal: AbortSignal | undefined,
   base: Omit<SubagentDetails, 'outcome'>,
   limit: RequestLimit
 ): Promise<AgentToolResult<SubagentDetails>> {
-  const { session } = child
+  let session: AgentSession | undefined
+  let unsubscribe: (() => void) | undefined
   let stopped: 'aborted' | 'limit_reached' | undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
     stopped ??= reason
-    void session.abort()
+    void session?.abort()
   }
   limit.whenReached(() => stop('limit_reached'))
   // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
   const replies: AssistantMessage[] = []
-  const unsubscribe = session.subscribe((event) => {
-    if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
-    // An abort before the run starts is a no-op in Pi, and the run clears it; repeat it once the run is live.
-    if (event.type === 'agent_start' && stopped) void session.abort()
+  let cancel!: () => void
+  const cancelled = new Promise<undefined>((resolve) => {
+    cancel = () => resolve(undefined)
   })
-  const onAbort = () => stop('aborted')
+  const onAbort = () => {
+    stop('aborted')
+    cancel()
+  }
   signal?.addEventListener('abort', onAbort, { once: true })
+  let child: AgentRuntimeSession | undefined
   let error: string | undefined
   try {
-    if (signal?.aborted) stop('aborted')
-    else await session.prompt(taskText(prompt), { expandPromptTemplates: false, source: 'extension' })
-  } catch (thrown) {
-    error = thrown instanceof Error ? thrown.message : String(thrown)
+    if (signal?.aborted) onAbort()
+    else {
+      const creating = createSession((created) => {
+        signal?.throwIfAborted()
+        session = created
+        unsubscribe = session.subscribe((event) => {
+          if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
+          // Pi clears an idle abort when a run starts; repeat it once startup work becomes live.
+          if (event.type === 'agent_start' && stopped) void created.abort()
+        })
+        onSessionCreated?.(created)
+      }).then((created) => {
+        if (signal?.aborted) return created.dispose()
+        child = created
+      })
+      await Promise.race([creating, cancelled])
+      if (child && !stopped) {
+        try {
+          await child.session.prompt(taskText(prompt), { expandPromptTemplates: false, source: 'extension' })
+        } catch (thrown) {
+          error = thrown instanceof Error ? thrown.message : String(thrown)
+        }
+      }
+    }
   } finally {
-    unsubscribe()
+    unsubscribe?.()
     signal?.removeEventListener('abort', onAbort)
+    await child?.dispose()
   }
 
   const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
@@ -286,19 +313,25 @@ export function subagentExtension({ port, createSession, parentSession }: Subage
         }
         if (!options || signal?.aborted) return notStarted(base)
         const limit = new RequestLimit()
-        const child = await createSession({
-          sessionManager: createSubagentSessionManager(parentSession, subagent, forkPoint),
-          fork,
-          extensionFactories: options.extensionFactories ?? [],
-          onEvent: options.onEvent,
-          beforeModelRequest: limit.beforeModelRequest
-        })
-        try {
-          options.onSessionCreated?.(child.session)
-          return await run(child, prompt, signal, base, limit)
-        } finally {
-          await child.dispose()
-        }
+        return run(
+          (beforeStart) =>
+            createSession({
+              sessionManager: createSubagentSessionManager(parentSession, subagent, forkPoint),
+              fork,
+              extensionFactories: options.extensionFactories ?? [],
+              onEvent: options.onEvent,
+              beforeModelRequest: () => {
+                signal?.throwIfAborted()
+                limit.beforeModelRequest()
+              },
+              beforeStart
+            }),
+          options.onSessionCreated,
+          prompt,
+          signal,
+          base,
+          limit
+        )
       }
     })
   }
