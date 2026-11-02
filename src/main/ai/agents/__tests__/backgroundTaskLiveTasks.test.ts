@@ -209,10 +209,14 @@ describe('listLiveDetachedBackgroundTasks', () => {
       const live = await listLiveDetachedBackgroundTasks()
       expect(live.map((task) => task.id)).toEqual(['bt-survivor'])
     } finally {
-      try {
-        process.kill(survivorPid, 'SIGKILL')
-      } catch {
-        // already reaped
+      // A PID file that never arrived leaves this at zero; signalling zero would hit this worker's
+      // whole process group instead of the fixture.
+      if (survivorPid > 0) {
+        try {
+          process.kill(survivorPid, 'SIGKILL')
+        } catch {
+          // already reaped
+        }
       }
     }
   })

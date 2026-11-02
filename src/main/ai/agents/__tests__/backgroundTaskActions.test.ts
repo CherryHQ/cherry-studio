@@ -71,6 +71,7 @@ import {
 } from '../backgroundTaskActions'
 import * as tasks from '../backgroundTasks'
 import {
+  clearDetachedTaskLedgerForTest,
   getDetachedBackgroundTask,
   isPidAlive,
   startDetachedBackgroundTask,
@@ -446,6 +447,10 @@ describe('stopAllAgentBackgroundTasks', () => {
         )
         await new Promise((resolve) => setTimeout(resolve, 1_000))
         expect(isPidAlive(workerPid)).toBe(true)
+        // The launch pulse may have captured the worker before it left the group. That recorded
+        // identity is real evidence, so the force kill would legitimately reach the worker; remove
+        // it to leave only the inherited stdio naming it, which is the state this test is about.
+        await clearDetachedTaskLedgerForTest(storageDir, record.id)
 
         await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
           `Cannot permanently delete Agent agent-1 while background task ${record.id} is running`

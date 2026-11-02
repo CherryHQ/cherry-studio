@@ -59,6 +59,7 @@ import {
   POSIX_DETACHED_TASK_SUPERVISOR,
   WINDOWS_DETACHED_TASK_RUNNER,
   buildDetachedBackgroundTaskSpawn,
+  clearDetachedTaskLedgerForTest,
   forgetDetachedTaskOwnershipForTest,
   getDetachedBackgroundTask,
   isPidAlive,
@@ -858,6 +859,10 @@ describe('backgroundTasks', () => {
           )
           await new Promise((resolve) => setTimeout(resolve, 1_000))
           expect(isPidAlive(workerPid)).toBe(true)
+          // The launch pulse may have captured the worker before it left the group. That recorded
+          // identity is real evidence, so a stop would legitimately reach the worker; remove it to
+          // leave only the inherited stdio naming it, which is the state this test is about.
+          await clearDetachedTaskLedgerForTest(storageDir, record.id)
 
           const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
           expect(afterKill?.status).toBe('running')

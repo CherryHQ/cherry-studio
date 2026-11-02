@@ -1573,6 +1573,15 @@ export function forgetDetachedTaskOwnershipForTest(taskId?: string): void {
   else ownedTaskGroups.delete(taskId)
 }
 
+/** Test seam: drop the recorded identities on disk, leaving only the live stdio tie. */
+export async function clearDetachedTaskLedgerForTest(storageDir: string, taskId: string): Promise<void> {
+  // A pulse that captured a member before the removal settles first, or its rename recreates the file.
+  await ownedTaskGroups.get(taskId)?.persisting
+  await withLedgerLock(taskId, async () => {
+    await rm(memberIdentitiesPath(storageDir, taskId), { force: true })
+  })
+}
+
 export function isPidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
