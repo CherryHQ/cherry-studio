@@ -107,7 +107,20 @@ function runMacHotkey(keys: string[]): void {
   if (!key) throw new Error('A hotkey must include a non-modifier key')
   const namedCodes: Record<string, number> = { Enter: 36, Escape: 53, Space: 49 }
   const action = namedCodes[key] === undefined ? `keystroke ${JSON.stringify(key)}` : `key code ${namedCodes[key]}`
-  const script = `tell application "System Events" to ${action}${modifiers.length > 0 ? ` using {${modifiers.join(', ')}}` : ''}`
+  const press = `${action}${modifiers.length > 0 ? ` using {${modifiers.join(', ')}}` : ''}`
+  // While an external text viewer is open it owns the selection, but the app window can steal
+  // frontmost back; re-activate the viewer in the same script so the keystroke lands on it.
+  const script = activeMacTextFixturePath
+    ? [
+        'tell application "TextEdit" to activate',
+        'delay 0.5',
+        'tell application "System Events"',
+        'tell process "TextEdit" to set frontmost to true',
+        'delay 0.3',
+        press,
+        'end tell'
+      ].join('\n')
+    : `tell application "System Events" to ${press}`
   execFileSync('osascript', ['-e', script], { stdio: 'ignore', timeout: 10_000 })
 }
 

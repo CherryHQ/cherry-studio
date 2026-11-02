@@ -464,7 +464,10 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
         window.api.dataApi.request({ id: 'mp22-list', method: 'GET', path: '/assistants' })
       )
       expect(listed.status).toBe(200)
-      const temporary = (listed.data as { items: unknown[] }).items
+      // Filter before parsing: rows owned by other cases or the seed profile must not fail this
+      // case's schema check, and this step only asserts the assistant the editor just created.
+      const temporary = (listed.data as { items: { name?: string }[] }).items
+        .filter((item) => item.name?.startsWith(temporaryName))
         .map((item) => AssistantSchema.parse(item))
         .find((item) => item.name === temporaryName)
       expect(temporary).toBeDefined()
