@@ -45,12 +45,15 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import ToastHost from '@renderer/components/ToastHost'
+import { degradedFaultHostService } from '@renderer/services/DegradedFaultHostService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
 import {
   MigrationIpcChannels,
   type MigrationStage,
+  type MigrationSupportLink,
   type PreparedMigrationExportPaths
 } from '@shared/data/migration/v2/types'
 
@@ -350,6 +353,15 @@ const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
   )
 }
 
+function runtimeFaultSnapshot(error: unknown): string {
+  if (typeof error === 'string') return error
+  if (!(error instanceof Error)) return String(error)
+  const headline = `${error.name}: ${error.message}`
+  const stack = error.stack?.trim()
+  if (!stack || stack.startsWith(headline)) return stack || headline
+  return `${headline}\n${stack}`
+}
+
 const THEME_STORAGE_KEY = 'migration:theme_mode'
 const themeLabelKey: Record<string, string> = {
   dark: 'settings.theme.dark',
@@ -368,6 +380,8 @@ const MigrationApp: React.FC = () => {
   const [skipOpen, setSkipOpen] = useState(false)
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false)
   const [diagnosticExportOpen, setDiagnosticExportOpen] = useState(false)
+  const [runtimeFault, setRuntimeFault] = useState<string | null>(null)
+  const [runtimeActionError, setRuntimeActionError] = useState<string | null>(null)
   const [diagnosticResult, setDiagnosticResult] = useState<'included' | 'not_included' | null>(null)
   const [warningsDialogOpen, setWarningsDialogOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
@@ -383,6 +397,25 @@ const MigrationApp: React.FC = () => {
     },
     []
   )
+
+  useEffect(() => {
+    // Keep the snapshot the banner is showing. A later fault waits until it is dismissed.
+    degradedFaultHostService.setDegradedFaultHandler((error) => {
+      setRuntimeFault((current) => current ?? runtimeFaultSnapshot(error))
+    })
+    return () => degradedFaultHostService.setDegradedFaultHandler(null)
+  }, [])
+
+  const openSupportLink = (purpose: MigrationSupportLink) => {
+    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenSupportLink, purpose).then(
+      (opened: unknown) => {
+        setRuntimeActionError(opened === true ? null : t('migration.runtime.open_failed'))
+      },
+      () => {
+        setRuntimeActionError(t('migration.runtime.open_failed'))
+      }
+    )
+  }
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -953,6 +986,49 @@ const MigrationApp: React.FC = () => {
           </div>
         )}
       </div>
+      {runtimeFault ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
+          <div
+            role="alert"
+            className="pointer-events-auto w-full max-w-lg space-y-2 rounded-lg border border-border bg-background p-3 shadow-md">
+            <p className="text-sm break-words whitespace-pre-wrap text-foreground">{runtimeFault}</p>
+            <p className="text-xs text-muted-foreground">{t('migration.runtime.analysis_unavailable')}</p>
+            {runtimeActionError ? <p className="text-xs text-destructive">{runtimeActionError}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard.writeText(runtimeFault).then(
+                    () => setRuntimeActionError(null),
+                    () => setRuntimeActionError(t('migration.runtime.copy_failed'))
+                  )
+                }}>
+                {t('migration.runtime.copy')}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openSupportLink('feedback')}>
+                {t('migration.runtime.feedback')}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openSupportLink('releases')}>
+                {t('migration.runtime.releases')}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setDiagnosticExportOpen(true)}>
+                {t('migration.diagnostics.title')}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setRuntimeFault(null)
+                  setRuntimeActionError(null)
+                }}>
+                {t('common.close')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <AppErrorRuntime mode="degraded" />
       <ToastHost />
     </>
   )
