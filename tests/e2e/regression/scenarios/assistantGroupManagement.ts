@@ -88,12 +88,19 @@ export async function assistantGroupManagement(
     await expect(group()).toHaveText('QA 分组0')
     await screenshot('MP-24 new empty group and two assistants')
 
+    // Assign groups in the edit dialog; assistant cards do not support drag-and-drop.
     for (const [index, name] of names.entries()) {
-      await card(name).dragTo(group())
-      await screenshot(`MP-24 assistant ${index + 1} after drag into group`)
+      await card(name).click()
+      const editor = page.getByRole('dialog', { name: 'Edit Assistant', exact: true })
+      await editor.getByRole('combobox', { name: 'Group', exact: true }).click()
+      await page.getByRole('option', { name: 'QA 分组', exact: true }).click()
+      // The edit dialog flushes its debounced save on close; pressing Escape is ignored while a save is pending.
+      await editor.locator('[data-slot="dialog-close"]').click()
+      await expect(editor).toBeHidden()
+      await screenshot(`MP-24 assistant ${index + 1} assigned to group`)
       await expect
         .poll(async () => (await readAssistants())[index].groupId, {
-          message: 'Dragging an assistant into QA 分组 must persist its group membership'
+          message: 'Assigning an assistant to QA 分组 must persist its group membership'
         })
         .toBe(groupId)
       await expect(group()).toHaveText(`QA 分组${index + 1}`)

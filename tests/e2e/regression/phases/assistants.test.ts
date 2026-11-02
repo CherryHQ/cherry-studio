@@ -23,7 +23,7 @@ import {
 } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
-import { sendChatMarker } from '../helpers/chat'
+import { selectChatModel, sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp } from '../helpers/navigation'
 import { assistantGroupManagement } from '../scenarios/assistantGroupManagement'
@@ -121,11 +121,14 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
       // start a new conversation so the request reaches the mock provider.
       await page.getByRole('button', { name: 'New Chat', exact: true }).last().click()
       await expect(composer).toBeEditable()
+      // A new conversation keeps the assistant's own model, so switch it to the mock provider explicitly.
+      await selectChatModel(page, server.modelId, providerId)
+      await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(server.modelId)
       await screenshot('MP-20 new conversation composer')
       await composer.fill('hello')
       const started = performance.now()
       const requestPromise = server.nextRequest(5_000)
-      await composer.press('Enter')
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
       const request = await requestPromise
       expect(request.body.model).toBe(server.modelId)
       expect(request.body.messages).toEqual(
@@ -141,7 +144,7 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
       })
       const firstTextMs = performance.now() - started
       request.complete(' from MP-20.')
-      expect(firstTextMs, 'First visible assistant text after pressing Enter').toBeLessThanOrEqual(5_000)
+      expect(firstTextMs, 'First visible assistant text after sending').toBeLessThanOrEqual(5_000)
       await testInfo.attach('MP-20 first text timing (mock provider)', {
         body: JSON.stringify({ firstTextMs, limitMs: 5_000 }),
         contentType: 'application/json'
@@ -169,7 +172,7 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
 
       await selectSidebarApp(page, 'Chat')
       await expect(composer).toBeEditable()
-      const recentTopic = page.getByText(name, { exact: true }).filter({ visible: true })
+      const recentTopic = page.getByTestId('topic-list-row').filter({ hasText: name, visible: true })
       await expect(recentTopic).toHaveCount(1)
       await screenshot('MP-20 conversation list')
       await recentTopic.click()
@@ -644,14 +647,33 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
           }
         }
         if (agentId) {
-          // The case archived the agent, so purge it in its trashed state instead of the active-only route.
-          const permanentlyDeletedAgent = (await window.api.ipcApi.request('ai.agent.delete', {
-            agentId,
-            deleteSessions: true,
-            permanent: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAgent.ok || !permanentlyDeletedAgent.data.deleted)
-            throw new Error('cleanup left the case agent in the trash')
+          let deleted = false
+          for (let attempt = 0; attempt < 11; attempt++) {
+            const result = (await window.api.ipcApi.request('ai.agent.delete', {
+              agentId,
+              deleteSessions: true,
+              permanent: true
+            })) as IpcResult<{ deleted: boolean }>
+            if (!result.ok) throw new Error('cleanup failed to purge the case agent')
+            if (result.data.deleted) {
+              deleted = true
+              break
+            }
+            if (attempt < 10) await new Promise((resolve) => setTimeout(resolve, 1_000))
+          }
+          if (!deleted) {
+            const result = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
+              agentId,
+              deleteSessions: true
+            })) as IpcResult<{ deleted: boolean }>
+            if (!result.ok || !result.data.deleted) throw new Error('cleanup failed to delete the case agent')
+          }
+          const reread = await window.api.dataApi.request({
+            id: 'cleanup-agent-verify',
+            method: 'GET',
+            path: `/agents/${agentId}`
+          })
+          if (reread.status !== 404) throw new Error('cleanup left the case agent readable')
         }
         await window.api.dataApi.request({
           id: 'mp22-cleanup-provider',
@@ -767,12 +789,14 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       try {
         await page.evaluate(() => navigator.clipboard.writeText('MP23_BEFORE_COPY'))
         openExternalText(app.record.platform, app.paths, exportedPath)
-        sendSystemHotkey(app.record.platform, ['Meta', 'c'])
         // The external viewer keeps focus while the copy lands, so the renderer clipboard API
         // refuses to read it back; pbpaste reads the same system clipboard without focus.
         await expect
           .poll(
-            () => execFileSync('/usr/bin/pbpaste', { encoding: 'utf8' }).replace(/\r\n/g, '\n').trimEnd(),
+            () => {
+              sendSystemHotkey(app.record.platform, ['Meta', 'c'])
+              return execFileSync('/usr/bin/pbpaste', { encoding: 'utf8' }).replace(/\r\n/g, '\n').trimEnd()
+            },
             { timeout: 15_000 }
           )
           .toBe(content.trimEnd())

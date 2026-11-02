@@ -100,6 +100,8 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
 export async function startMockChatServer(): Promise<MockChatServer> {
   const modelId = 'mock-chat'
   const requests: MockChatRequest[] = []
+  /** Requests that reached the server but not the chat route, for diagnosing wrong base URLs. */
+  const unexpected: string[] = []
   const waiters = new Set<{ resolve(request: MockChatRequest): void; reject(error: Error): void }>()
   let requestId = 0
   let closing = false
@@ -112,6 +114,7 @@ export async function startMockChatServer(): Promise<MockChatServer> {
       return
     }
     if (req.method !== 'POST' || route !== '/v1/chat/completions') {
+      unexpected.push(`${req.method} ${route}`)
       sendJson(res, 404, { error: { message: 'Unknown mock endpoint', type: 'invalid_request_error' } })
       return
     }
@@ -165,7 +168,15 @@ export async function startMockChatServer(): Promise<MockChatServer> {
             reject(error)
           }
         }
-        const timer = setTimeout(() => waiter.reject(new Error('Timed out waiting for a mock chat request')), timeoutMs)
+        const timer = setTimeout(
+          () =>
+            waiter.reject(
+              new Error(
+                `Timed out waiting for a mock chat request${unexpected.length ? ` (unexpected requests: ${unexpected.join(', ')})` : ''}`
+              )
+            ),
+          timeoutMs
+        )
         waiters.add(waiter)
       })
     },
