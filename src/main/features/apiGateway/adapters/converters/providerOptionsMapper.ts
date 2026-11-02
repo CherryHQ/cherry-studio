@@ -96,7 +96,9 @@ function canPassThroughAnthropicReasoning(
   const matchesThinkingType = (mode: 'off' | 'auto' | 'effort') =>
     context.reasoningProfile.wire[mode]?.operations.some(
       (operation) =>
-        operation.target === 'thinking.type' && operation.value.source === 'literal' && operation.value.value === config.type
+        operation.target === 'thinking.type' &&
+        operation.value.source === 'literal' &&
+        operation.value.value === config.type
     ) ?? false
 
   if (config.type === 'enabled') {
@@ -177,7 +179,11 @@ export function mapAnthropicThinkingToProviderOptions(
   }
 
   if (effort != null) {
-    return buildProviderOptions(context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint), effort, maxTokens)
+    return buildProviderOptions(
+      context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint),
+      effort,
+      maxTokens
+    )
   }
   if (!config) return undefined
   context ??= resolveProviderReasoningContext(provider, model, resolvedEndpoint)

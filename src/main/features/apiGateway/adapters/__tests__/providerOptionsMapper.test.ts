@@ -168,9 +168,9 @@ describe('same-dialect lossless pass-through', () => {
       wire: REASONING_FORMAT_PROFILES['anthropic'].alwaysOnWire
     })
 
-    expect(
-      mapAnthropicThinkingToProviderOptions(target, opus55, { type: 'enabled', budget_tokens: 4096 })
-    ).toEqual({ anthropic: { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'high' } })
+    expect(mapAnthropicThinkingToProviderOptions(target, opus55, { type: 'enabled', budget_tokens: 4096 })).toEqual({
+      anthropic: { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'high' }
+    })
   })
 
   it('maps legacy Anthropic thinking into Bedrock adaptive reasoning options', () => {
@@ -192,9 +192,9 @@ describe('same-dialect lossless pass-through', () => {
     })
     mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: bedrockWire })
 
-    expect(
-      mapAnthropicThinkingToProviderOptions(target, opus55, { type: 'enabled', budget_tokens: 4096 })
-    ).toEqual({ bedrock: { reasoningConfig: { type: 'adaptive', maxReasoningEffort: 'high' } } })
+    expect(mapAnthropicThinkingToProviderOptions(target, opus55, { type: 'enabled', budget_tokens: 4096 })).toEqual({
+      bedrock: { reasoningConfig: { type: 'adaptive', maxReasoningEffort: 'high' } }
+    })
   })
 
   it('omits a native effort the model cannot express instead of sending it literally (#20287)', () => {

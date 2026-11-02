@@ -170,7 +170,9 @@ describe('provider reasoning contracts', () => {
   })
 
   it('uses adaptive effort for Claude Opus 5.5 on aws-bedrock', () => {
-    const contract = override('aws-bedrock', 'claude-opus-5-5').reasoningContracts?.['anthropic-messages']
+    const model = override('aws-bedrock', 'claude-opus-5-5')
+    expect(model.apiModelId).toBe('anthropic.claude-opus-5-5')
+    const contract = model.reasoningContracts?.['anthropic-messages']
     expect(contract?.wire?.effort?.operations).toEqual([
       { target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } },
       { target: 'reasoningConfig.maxReasoningEffort', value: { source: 'effort' } }

@@ -157,6 +157,16 @@ export default defineProvider({
         }
       },
       {
+        modelId: 'claude-opus-5-5',
+        apiModelId: 'anthropic.claude-opus-5-5',
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: 4 },
+          output: { currency: 'USD', perMillionTokens: 20 },
+          cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+          cacheWrite: { currency: 'USD', perMillionTokens: 5 }
+        }
+      },
+      {
         modelId: 'claude-sonnet-4-5',
         apiModelId: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
         pricing: {
