@@ -123,6 +123,15 @@ describe('detectDestructiveAssistantCommand', () => {
     ['del&', 'permanent Windows file deletion'],
     ['Get-Item victim.txt | rd)', 'permanent Windows file deletion'],
     ['Get-Item victim.txt | erase&& echo done', 'permanent Windows file deletion'],
+    // Foreach collection expression and Get-Command/gcm name-lookup indirection: the
+    // collection command runs before the loop body, and a token resolved by the lookup runs
+    // when invoked through the call operator. Listing-only spellings over-deny conservatively.
+    ['foreach ($i in del victim.txt) {}', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command 'foreach ($i in del victim.txt) {}'", 'permanent Windows file deletion'],
+    ['foreach ($i in rd victimdir) {}', 'permanent Windows file deletion'],
+    ['& (Get-Command -Name del) victim.txt', 'permanent Windows file deletion'],
+    ['pwsh -NoProfile -Command "& (Get-Command -Name del) victim.txt"', 'permanent Windows file deletion'],
+    ['& (Get-Command -CommandType Alias -Name erase) victim.txt', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],

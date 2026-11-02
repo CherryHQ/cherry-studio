@@ -150,7 +150,12 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // and (an index segment allows one nesting level, so `$a[$i]` and `$a[$b[0]]` deny;
 // deeper nesting stays a documented best-effort gap), and compound operators
 // like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
-// `iex`/`Invoke-Expression`, and dot invocation `. del x` - the dot anchor requires a
+// `iex`/`Invoke-Expression`, `in` (a `foreach ($i in <collection>)` collection expression
+// evaluates a command in that position before the loop body runs), a `Get-Command`/`gcm`
+// name lookup with optional flags or flag/value pairs between the cmdlet and the token (the
+// resolved `del`/`erase`/`rd` runs when the lookup result is invoked through the call
+// operator, e.g. `& (Get-Command -Name del) x`; the listing-only spelling over-denies
+// conservatively, matching the pre-narrowing guard), and dot invocation `. del x` - the dot anchor requires a
 // command-position predecessor (start, whitespace, quote, `@` or a separator), so a sentence
 // period in prose like `cleanup. erase` does not anchor), and the token itself may be followed by
 // adjacent redirections (`del>nul x`), and the deletion token may close an executable statement or
@@ -165,9 +170,9 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // Native execution ordering for read-only targets is unverified here; the deny direction
 // conservatively assumes the right-hand side may run, matching the `$null = del x` form's intent.
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
-  String.raw`(?:^|[;&|(){` +
+  String.raw`(?:(?:^|[;&|(){` +
     '`' +
-    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|in|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
     String.raw`@])\.(?=\s)|(?<![@` +
     '`' +
@@ -181,7 +186,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<|[;|}&)])`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1|\b(?:Get-Command|gcm)(?=((?:\s+-[A-Za-z]+(?:\s+[^\s;&|(){}"'-][^\s;&|(){}]*)?)*(?:\s|["']|@)+))\2)(?:del|erase|rd)(?=\s|$|["'(]|>>?|<|[;|}&)])`,
   'i'
 )
 
