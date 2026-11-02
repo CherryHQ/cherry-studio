@@ -203,6 +203,13 @@
       "when": 1792520576221,
       "tag": "0028_slow_ravenous",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1792948344082,
+      "tag": "0029_sloppy_pandemic",
+      "breakpoints": true
     }
   ],
   "version": "7"

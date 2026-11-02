@@ -36,7 +36,13 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
-import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
+import {
+  isCherryAIProvider,
+  isLoginBasedProvider,
+  isSystemProvider,
+  matchesPreset,
+  resolveEndpointDialect
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -45,6 +51,7 @@ import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGatew
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
+import { withGoogleReplayIdentity } from './piGoogleReplay'
 import { projectPiReasoningCompat } from './piReasoningCompat'
 import { withReasoningSummarySuppressed } from './piResponsesReasoning'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple, loadPiOpenAiResponsesApi } from './piSdk'
@@ -133,9 +140,13 @@ export async function materializePiProviderStream(injection: PiProviderInjection
       : injection.suppressReasoningSummary
         ? withReasoningSummarySuppressed(injection.providerConfig, (await loadPiOpenAiResponsesApi()).streamSimple)
         : injection.providerConfig
+  const streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
   return {
     providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    streamSimple:
+      injection.api === 'google-generative-ai'
+        ? withGoogleReplayIdentity(streamSimple, injection.providerName)
+        : streamSimple
   }
 }
 
@@ -186,9 +197,9 @@ export function buildPiProviderInjection(
 
   const baseUrl = isCodexProviderId(provider.id)
     ? formatApiHost(resolvedEndpoint.baseUrl, false)
-    : formatPiBaseUrl(resolvedEndpoint.baseUrl, api)
+    : projectPiGatewayBaseUrl(provider, api, formatPiBaseUrl(resolvedEndpoint.baseUrl, api))
   const modelId = getRawModelId(model)
-  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType, baseUrl)
 
   const providerConfig: PiProviderInjection['providerConfig'] = {
     name: provider.name,
@@ -276,9 +287,10 @@ export function buildPiGatewayInjection(
       : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
   if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gatewayApi = api && api !== 'azure-openai-responses' ? api : 'openai-completions'
+  const baseUrl = formatPiBaseUrl(gateway.baseUrl, gatewayApi)
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
-  const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType, baseUrl)
   const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
 
   return {
@@ -287,7 +299,7 @@ export function buildPiGatewayInjection(
     suppressReasoningSummary: false,
     providerConfig: {
       name: provider.name,
-      baseUrl: formatPiBaseUrl(gateway.baseUrl, gatewayApi),
+      baseUrl,
       apiKey: PI_PLACEHOLDER_API_KEY,
       api: gatewayApi,
       ...(headers ? { headers } : {}),
@@ -297,6 +309,14 @@ export function buildPiGatewayInjection(
     modelId,
     usageCapture: { owner: 'provider-calls' }
   }
+}
+
+// Gateway stores its native `/v1/ai` base; Pi's OpenAI drivers need `/v1` (#22785).
+// Mirrors OpenClawService.formatOpenAIUrl, bounded to Gateway presets and OpenAI APIs.
+function projectPiGatewayBaseUrl(provider: Provider, api: PiApi, formattedBaseUrl: string): string {
+  if (!matchesPreset(provider, SystemProviderIds.gateway)) return formattedBaseUrl
+  if (api !== 'openai-completions' && api !== 'openai-responses') return formattedBaseUrl
+  return formattedBaseUrl.replace(/\/v1\/ai$/, '/v1')
 }
 
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
@@ -453,12 +473,19 @@ function buildThinkingLevelMap(model: Model): PiChatModelConfig['thinkingLevelMa
   return map
 }
 
+function targetsHostname(baseUrl: string, hostname: string): boolean {
+  const url = URL.parse(baseUrl)
+  if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) return false
+  return url.hostname.toLowerCase().replace(/\.$/, '') === hostname
+}
+
 function buildPiModelConfig(
   provider: Provider,
   model: Model,
   id: string,
   api: PiApi,
-  endpointType: EndpointType | undefined
+  endpointType: EndpointType | undefined,
+  baseUrl: string
 ): PiChatModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
@@ -472,7 +499,16 @@ function buildPiModelConfig(
     api === 'anthropic-messages'
       ? projectPiReasoningCompat(providerRegistryService.resolveReasoningProfile(provider, model, endpointType))
       : {}
+  const custom =
+    !isSystemProvider(provider) &&
+    !isCherryAIProvider(provider) &&
+    !providerRegistryService.isRegistryProvider(provider.id)
+  const omitStore =
+    api === 'openai-completions' &&
+    (targetsHostname(baseUrl, 'generativelanguage.googleapis.com') ||
+      (custom && !targetsHostname(baseUrl, 'api.openai.com')))
   const compat = {
+    ...(omitStore ? { supportsStore: false } : {}),
     // Cherry's endpoint capability overrides pi's URL-based developer-role inference.
     ...(api === 'openai-completions' || api === 'openai-responses'
       ? { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole }

@@ -2,21 +2,21 @@ import { LRUCache } from 'lru-cache'
 import MarkdownIt from 'markdown-it'
 
 import {
-  createSnapshotExecutor,
-  loadCodeHighlightRuntime,
-  type HighlightDocument
-} from '@cherrystudio/ui/code-highlight'
+  createCodeBlockDocument,
+  createCodeBlockSnapshotExecutor,
+  codeBlockToHtml,
+  type CodeBlockDocument
+} from '@cherrystudio/ui/code-block'
 import type { HighlightRequest, HighlightResponse, HighlightValue } from '@renderer/types/codeHighlight'
-import { loadCodeTheme } from '@renderer/utils/codeHighlight'
 
 const documents = new LRUCache<
   string,
-  { document: HighlightDocument; revision: number; configurationRevision: number }
+  { document: CodeBlockDocument; revision: number; configurationRevision: number }
 >({
   max: 50,
   dispose: ({ document }) => document.dispose()
 })
-const snapshot = createSnapshotExecutor()
+const snapshot = createCodeBlockSnapshotExecutor()
 class MissingSession extends Error {}
 
 async function handle(request: HighlightRequest): Promise<HighlightValue> {
@@ -26,9 +26,9 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
     return null
   }
   if (request.type === 'open') {
-    const [runtime, theme] = await Promise.all([loadCodeHighlightRuntime(), loadCodeTheme(request.theme)])
+    const document = await createCodeBlockDocument(request.code, request.language)
     documents.set(request.sessionId, {
-      document: runtime.createDocument(request.code, request.language, theme),
+      document,
       revision: request.revision,
       configurationRevision: request.configurationRevision
     })
@@ -46,8 +46,7 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
     }
     if (request.type === 'configure') {
       if (request.configurationRevision <= entry.configurationRevision) throw new Error('Stale configuration revision')
-      const [runtime, theme] = await Promise.all([loadCodeHighlightRuntime(), loadCodeTheme(request.theme)])
-      const document = runtime.createDocument(entry.document.code, request.language, theme)
+      const document = await createCodeBlockDocument(entry.document.code, request.language)
       documents.set(request.sessionId, { ...entry, document, configurationRevision: request.configurationRevision })
       return null
     }
@@ -55,11 +54,25 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
       throw new Error('Stale range read')
     return entry.document.read(request.range)
   }
-  const [runtime, theme] = await Promise.all([loadCodeHighlightRuntime(), loadCodeTheme(request.theme)])
-  const highlight = (code: string, language: string) =>
-    runtime.codeToHtml(code, language, theme).replace('class="highlights"', 'class="shiki highlights"')
-  if (request.type === 'html') return highlight(request.code, request.language)
-  return new MarkdownIt({ linkify: true, typographer: true, highlight }).render(request.code)
+  if (request.type === 'html') return codeBlockToHtml(request.code, request.language, request.theme)
+  const markdown = new MarkdownIt({ linkify: true, typographer: true })
+  const tokens = markdown.parse(request.code, {})
+  const codeBlocks = tokens.filter((token) => token.type === 'fence' || token.type === 'code_block')
+  const highlighted = new Map(
+    await Promise.all(
+      codeBlocks.map(
+        async (token) =>
+          [
+            token,
+            await codeBlockToHtml(token.content, token.info.trim().split(/\s+/)[0] || 'text', request.theme)
+          ] as const
+      )
+    )
+  )
+  const render = (items: typeof tokens, index: number) => highlighted.get(items[index]) ?? ''
+  markdown.renderer.rules.fence = render
+  markdown.renderer.rules.code_block = render
+  return markdown.renderer.render(tokens, markdown.options, {})
 }
 
 type Job = HighlightRequest & { id: number; generation: number }

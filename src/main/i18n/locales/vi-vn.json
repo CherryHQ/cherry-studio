@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "Đặt lại dữ liệu ứng dụng",
   "dialog.diagnostic_bundle.title": "Lưu gói chẩn đoán",
   "dialog.diagnostic_bundle.zip_filter": "Tệp nén ZIP",
+  "dialog.external_link.message": "Mở liên kết này trong ứng dụng bên ngoài?",
+  "dialog.external_link.open": "Mở ứng dụng",
   "dialog.html_files": "Tệp HTML",
   "dialog.migration_database_unavailable.detail": "Kiểm tra để đảm bảo vị trí dữ liệu khả dụng, có thể ghi và ổ đĩa còn đủ dung lượng trống, rồi thử lại.",
   "dialog.migration_database_unavailable.message": "Cherry Studio không thể truy cập cơ sở dữ liệu cục bộ.",
