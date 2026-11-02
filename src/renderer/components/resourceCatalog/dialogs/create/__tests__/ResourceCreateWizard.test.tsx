@@ -31,6 +31,15 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: modelHook.defaultModel }),
   useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
@@ -292,16 +301,32 @@ describe('ResourceCreateWizard', () => {
   it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    const onSubmit = vi.fn().mockRejectedValue(new Error('Selected skill no longer exists'))
+    const cause = new Error('Selected skill no longer exists')
+    const onSubmit = vi.fn().mockRejectedValue(cause)
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(await screen.findByText('Selected skill no longer exists')).toBeInTheDocument()
+    expect(await screen.findByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: 'library.config.dialogs.create.submit_failed',
+          source: 'library.resource',
+          operation: 'resource.create',
+          recordId: 'assistant'
+        })
+      )
+    )
     expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.assistant_title' })).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalled()
 

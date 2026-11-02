@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import QuickCreateMcpServerDialog from '../QuickCreateMcpServerDialog'
@@ -107,6 +108,36 @@ describe('QuickCreateMcpServerDialog', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('common.name')
     expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open and reports a create failure without the raw cause', async () => {
+    const failure = new Error('registry down')
+    const { onCreate, onOpenChange, user } = setup(vi.fn().mockRejectedValue(failure))
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'new-server')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'settings.mcp.addError',
+          cause: failure,
+          data: expect.objectContaining({
+            localizedErrorMessage: 'settings.mcp.addError',
+            errorContext: expect.objectContaining({
+              message: 'registry down',
+              source: 'settings.mcp',
+              operation: 'mcp.server.create',
+              recordId: 'new-server'
+            })
+          })
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('registry down')
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onCreate).toHaveBeenCalledOnce()
   })
 
   it('resets registry options when reopened', async () => {
