@@ -1,12 +1,14 @@
 import { useMemo } from 'react'
 
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useModels } from '@renderer/hooks/useModel'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, getClaudeCodeGatewayApiModelId } from '@shared/utils/apiGateway'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const EMPTY_SESSION_ID = '__none__'
 
@@ -28,7 +30,8 @@ export function useAgentSessionContextUsage(
   model?: Model
 ): AgentSessionContextUsageState {
   const cachedUsage = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
-  const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
+  const { models } = useModels(model ? { providerId: model.providerId, enabled: true } : undefined)
+  const expectedModels = useMemo(() => getContextUsageModelCandidates(model, models), [model, models])
   const sessionUsage = sessionId ? (cachedUsage ?? null) : null
   const effectiveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
   const maxTokens = resolveMaxTokens(effectiveUsage, model?.contextWindow)
@@ -52,7 +55,7 @@ function resolveMaxTokens(usage: AgentSessionContextUsage | null, contextWindow:
 
 // The usage cache deliberately survives reconnects, so a stale entry from the previous model must
 // not be divided by the new model's window.
-function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
+function getContextUsageModelCandidates(model: Model | undefined, siblings: readonly Model[]): string[] | undefined {
   if (!model) return undefined
   let parsed: ReturnType<typeof parseUniqueModelId>
   try {
@@ -67,6 +70,11 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
   const candidates = [apiModelId, parsed.modelId]
   try {
     candidates.push(formatGatewayModelId(parsed.providerId, apiModelId))
+    const routable = siblings.filter(
+      (row) => row.providerId === model.providerId && row.isEnabled && isGatewayRoutableModel(row)
+    )
+    const alias = getClaudeCodeGatewayApiModelId(model, routable)
+    if (alias !== apiModelId) candidates.push(formatGatewayModelId(parsed.providerId, alias))
   } catch {
     // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
   }

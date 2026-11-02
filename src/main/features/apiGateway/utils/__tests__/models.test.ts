@@ -118,6 +118,62 @@ describe('api gateway model listing', () => {
     })
   })
 
+  it('resolves eligible internal aliases to the original wire model and preserves exact precedence', async () => {
+    const dotted = {
+      id: 'copilot::claude-opus-5.5',
+      providerId: 'copilot',
+      apiModelId: 'claude-opus-5.5',
+      capabilities: []
+    }
+    const dashed = {
+      id: 'copilot::claude-opus-5-5',
+      providerId: 'copilot',
+      apiModelId: 'claude-opus-5-5',
+      capabilities: []
+    }
+    const marked = { ...dashed, id: 'copilot::claude-opus-5-5[1m]', apiModelId: 'claude-opus-5-5[1m]' }
+    mocks.listModels.mockReturnValue([dotted])
+    for (const suffix of ['', '[1m]']) {
+      await expect(resolveGatewayModelAddress(`copilot:claude-opus-5-5${suffix}`, true)).resolves.toMatchObject({
+        apiModelId: 'claude-opus-5.5',
+        uniqueModelId: dotted.id,
+        model: dotted
+      })
+    }
+    await expect(resolveGatewayModelAddress('copilot:claude-opus-5-5')).rejects.toThrow('not available')
+    await expect(resolveGatewayModelAddress('copilot:claude-opus-5.5')).resolves.toMatchObject({ model: dotted })
+    for (const rows of [
+      [dotted, dashed, marked],
+      [marked, dashed, dotted]
+    ]) {
+      mocks.listModels.mockReturnValue(rows)
+      await expect(resolveGatewayModelAddress('copilot:claude-opus-5-5', true)).resolves.toMatchObject({
+        model: dashed
+      })
+      await expect(resolveGatewayModelAddress('copilot:claude-opus-5.5', true)).resolves.toMatchObject({
+        model: dotted
+      })
+      await expect(resolveGatewayModelAddress('copilot:claude-opus-5-5[1m]', true)).resolves.toMatchObject({
+        model: marked
+      })
+    }
+  })
+
+  it('rejects ambiguous aliases while preserving each literal address', async () => {
+    const lower = {
+      id: 'copilot::claude-opus-5.5',
+      providerId: 'copilot',
+      apiModelId: 'claude-opus-5.5',
+      capabilities: []
+    }
+    const upper = { ...lower, id: 'copilot::CLAUDE-OPUS-5.5', apiModelId: 'CLAUDE-OPUS-5.5' }
+    mocks.listModels.mockReturnValue([lower, upper])
+
+    await expect(resolveGatewayModelAddress('copilot:claude-opus-5-5', true)).rejects.toThrow('not available')
+    await expect(resolveGatewayModelAddress('copilot:claude-opus-5.5', true)).resolves.toMatchObject({ model: lower })
+    await expect(resolveGatewayModelAddress('copilot:CLAUDE-OPUS-5.5', true)).resolves.toMatchObject({ model: upper })
+  })
+
   // The listing shares isPublicGatewayRoutableModel with the renderer's gateway picker: it must never
   // advertise a model the proxy cannot route (non-chat classes, un-addressable provider ids).
   it('does not expose non-chat (audio/video/transcription) models', async () => {

@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, getClaudeCodeGatewayApiModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
@@ -131,11 +131,22 @@ export async function resolveGatewayModelAddress(
   // back to the id without a Claude Code context marker / trailing whitespace (e.g. `model [1M]`, or
   // `model ` after Claude Code strips the bracket token from a spaced marker).
   const normalizedApiModelId = stripClaudeContextMarker(apiModelId)
-  const match =
+  const exactMatch =
     candidates.find(({ id }) => id === apiModelId) ??
     (normalizedApiModelId && normalizedApiModelId !== apiModelId
       ? candidates.find(({ id }) => id === normalizedApiModelId)
       : undefined)
+  const aliases =
+    internal && !exactMatch
+      ? candidates.filter(({ candidate, id }) => {
+          const alias = getClaudeCodeGatewayApiModelId(
+            candidate,
+            candidates.map(({ candidate }) => candidate)
+          )
+          return alias !== id && stripClaudeContextMarker(alias) === normalizedApiModelId
+        })
+      : []
+  const match = exactMatch ?? (aliases.length === 1 ? aliases[0] : undefined)
   if (!match) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }

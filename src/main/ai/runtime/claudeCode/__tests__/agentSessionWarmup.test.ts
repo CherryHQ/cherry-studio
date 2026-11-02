@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
+  listModels: vi.fn((): Model[] => []),
   resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -51,7 +52,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.getModelByKey }
+  modelService: { getByKey: mocks.getModelByKey, list: mocks.listModels }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -145,6 +146,7 @@ function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferre
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.listModels.mockReturnValue([])
     mocks.resolveReasoningProfile.mockReturnValue({
       format: 'anthropic',
       wire: REASONING_FORMAT_PROFILES.anthropic.wire
@@ -1093,6 +1095,155 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'https://anthropic.example.com'
     })
+  })
+
+  it('uses the eligible Copilot alias and 1M budget for every gateway slot', async () => {
+    const model = {
+      id: 'copilot::claude-opus-5.5',
+      providerId: 'copilot',
+      apiModelId: 'claude-opus-5.5',
+      contextWindow: 1_000_000,
+      maxOutputTokens: 128_000,
+      isEnabled: true,
+      capabilities: [],
+      endpointTypes: ['openai-chat-completions']
+    }
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: model.id })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'copilot',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://copilot.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.listModels.mockReturnValue([model as unknown as Model])
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const expected = 'copilot:claude-opus-5-5[1m]'
+    expect(request?.sdkModelId).toBe(expected)
+    expect(request?.options.model).toBe(expected)
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: mocks.internalGateway.baseUrl,
+      ANTHROPIC_MODEL: expected,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: expected,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: expected,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: expected,
+      CLAUDE_CODE_SUBAGENT_MODEL: expected
+    })
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+    const originalSignature = request?.connectionConfig.rebuildSignature
+    const sibling = { ...model, id: 'copilot::claude-opus-5-5', apiModelId: 'claude-opus-5-5' }
+    mocks.listModels.mockReturnValue([model as unknown as Model, sibling as unknown as Model])
+    const collided = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(collided?.sdkModelId).toBe('copilot:claude-opus-5.5[1m]')
+    expect(collided?.connectionConfig.rebuildSignature).not.toBe(originalSignature)
+    mocks.listModels.mockReturnValue([sibling as unknown as Model, model as unknown as Model])
+    const reordered = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(reordered?.connectionConfig.rebuildSignature).toBe(collided?.connectionConfig.rebuildSignature)
+    mocks.listModels.mockReturnValue([model as unknown as Model])
+    const restored = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(restored?.sdkModelId).toBe(expected)
+    expect(restored?.connectionConfig.rebuildSignature).toBe(originalSignature)
+  })
+
+  it('derives independent slot aliases from each provider and preserves an explicit subagent override', async () => {
+    const row = (providerId: string, apiModelId: string) =>
+      ({
+        id: `${providerId}::${apiModelId}`,
+        providerId,
+        apiModelId,
+        contextWindow: 1_000_000,
+        isEnabled: true,
+        capabilities: [],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      }) as Model
+    const primary = row('copilot', 'claude-opus-5.5')
+    const plan = row('copilot', 'claude-sonnet-4.6')
+    const small = row('copilot', 'claude-haiku-4.5')
+    const otherSmall = row('other', 'claude-haiku-4.5')
+    const otherCollision = row('copilot', 'claude-haiku-4-5')
+    const rows = [primary, plan, small, otherSmall]
+    mocks.getProviderByProviderId.mockImplementation((id: string) => ({
+      id,
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${id}.example.com` } }
+    }))
+    mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) =>
+      rows.find((model) => model.providerId === providerId && model.apiModelId === modelId)
+    )
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
+      rows.filter((model) => model.providerId === providerId)
+    )
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: primary.id, planModel: plan.id, smallModel: small.id })
+    mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: 'custom:explicit' } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect(env).toMatchObject({
+        ANTHROPIC_MODEL: 'copilot:claude-opus-5-5[1m]',
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'copilot:claude-opus-5-5[1m]',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'copilot:claude-sonnet-4-6[1m]',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'copilot:claude-haiku-4-5[1m]',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'custom:explicit'
+      })
+    }
+
+    rows.push(otherCollision)
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: primary.id, planModel: plan.id, smallModel: otherSmall.id })
+    const crossProvider = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    for (const env of [crossProvider?.settings.env, crossProvider?.options.env]) {
+      expect(env).toMatchObject({
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'copilot:claude-sonnet-4-6[1m]',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:claude-haiku-4-5[1m]',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'custom:explicit'
+      })
+    }
+  })
+
+  it('ignores a non-routable sibling when deriving the gateway alias', async () => {
+    const model = {
+      id: 'copilot::claude-opus-5.5',
+      providerId: 'copilot',
+      apiModelId: 'claude-opus-5.5',
+      contextWindow: 1_000_000,
+      isEnabled: true,
+      capabilities: [],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as Model
+    const sibling = {
+      ...model,
+      id: 'copilot::claude-opus-5-5',
+      apiModelId: 'claude-opus-5-5',
+      capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION]
+    }
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: model.id })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'copilot',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://copilot.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.listModels.mockReturnValue([model, sibling])
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.sdkModelId).toBe('copilot:claude-opus-5-5[1m]')
+    expect(request?.settings.env?.ANTHROPIC_MODEL).toBe('copilot:claude-opus-5-5[1m]')
+  })
+
+  it.each([
+    [999_999, 'gpt-5.5'],
+    [undefined, 'gpt-5.5'],
+    [1_000_000, 'gpt-5.5[1m]'],
+    [1_048_576, 'gpt-5.5[1m]']
+  ])('applies the gateway context marker at the declared window %s', async (contextWindow, expected) => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-5.5' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'openai::gpt-5.5',
+      providerId: 'openai',
+      apiModelId: 'gpt-5.5',
+      contextWindow
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.sdkModelId).toBe(`openai:${expected}`)
   })
 
   it('routes non-Anthropic provider models through the local API gateway', async () => {

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import type { Model } from '@shared/data/types/model'
+import {
+  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
+  formatGatewayModelId,
+  gatewayClientOrigin,
+  normalizeClaudeCodeModelId,
+  getClaudeCodeGatewayApiModelId
+} from '@shared/utils/apiGateway'
 
 /** The gateway proxy's parse side (proxyStream.ts): split on the FIRST ':'. */
 function parseByFirstColon(gatewayModelId: string): { providerId: string; modelId: string } {
@@ -68,5 +75,42 @@ describe('gatewayClientOrigin', () => {
   it('leaves an ordinary host untouched', () => {
     expect(gatewayClientOrigin('127.0.0.1', 23333)).toBe('http://127.0.0.1:23333')
     expect(gatewayClientOrigin('localhost', 8080)).toBe('http://localhost:8080')
+  })
+})
+
+describe('Claude Code gateway aliases', () => {
+  it('normalizes only a complete numeric Claude version', () => {
+    for (const family of ['opus', 'sonnet', 'haiku', 'fable']) {
+      expect(normalizeClaudeCodeModelId(`claude-${family}-5.5`)).toBe(`claude-${family}-5-5`)
+    }
+    expect(normalizeClaudeCodeModelId('Claude-Opus-4.6[1M]')).toBe('claude-opus-4-6[1M]')
+    for (const id of [
+      'claude-opus-5-5',
+      'anthropic/claude-opus-5.5',
+      'claude-opus-5.5-20260901',
+      'claude-opus-5.5-thinking',
+      'claude-opus-5.5.1',
+      'gpt-5.5',
+      'gemini-3.8-flash',
+      'qwen3:14b'
+    ]) {
+      expect(normalizeClaudeCodeModelId(id)).toBe(id)
+    }
+  })
+  it('withholds an alias when a sibling can claim it', () => {
+    const dotted = {
+      id: 'copilot::claude-opus-5.5',
+      apiModelId: 'claude-opus-5.5'
+    } as unknown as Model
+    const dashed = {
+      id: 'copilot::claude-opus-5-5',
+      apiModelId: 'claude-opus-5-5'
+    } as unknown as Model
+    expect(getClaudeCodeGatewayApiModelId(dotted, [dotted])).toBe('claude-opus-5-5')
+    expect(getClaudeCodeGatewayApiModelId(dotted, [])).toBe('claude-opus-5.5')
+    expect(getClaudeCodeGatewayApiModelId(dotted, [dotted, dashed])).toBe('claude-opus-5.5')
+    expect(getClaudeCodeGatewayApiModelId(dotted, [dashed, dotted])).toBe('claude-opus-5.5')
+    const marked = { ...dashed, id: 'copilot::claude-opus-5-5[1m]', apiModelId: 'claude-opus-5-5[1m]' } as Model
+    expect(getClaudeCodeGatewayApiModelId(dotted, [dotted, marked])).toBe('claude-opus-5.5')
   })
 })

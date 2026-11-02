@@ -12,6 +12,10 @@ import type { Model } from '@shared/data/types/model'
 
 import { useAgentSessionContextUsage } from '../useAgentSessionContextUsage'
 
+const siblings = vi.hoisted(() => ({ models: [] as Model[] }))
+const useModels = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/hooks/useModel', () => ({ useModels }))
+
 vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
 
@@ -25,6 +29,9 @@ beforeEach(() => {
     configurable: true,
     value: { cache: { broadcastSync: vi.fn(), onSync: vi.fn(), getAllShared: vi.fn(async () => ({})) } }
   })
+  siblings.models = []
+  useModels.mockClear()
+  useModels.mockReturnValue(siblings)
   cacheService.deleteShared(KEY)
   // 200,000 tokens reported by a small-window model.
   cacheService.setShared(KEY, {
@@ -41,6 +48,51 @@ afterEach(() => {
 })
 
 describe('useAgentSessionContextUsage', () => {
+  it('does not query models when no model is selected', () => {
+    renderHook(() => useAgentSessionContextUsage(SESSION_ID))
+    expect(useModels).toHaveBeenCalledWith(undefined)
+  })
+
+  it('accepts only an eligible provider-prefixed Claude alias', () => {
+    const selected = {
+      id: 'copilot::claude-opus-5.5',
+      providerId: 'copilot',
+      apiModelId: 'claude-opus-5.5',
+      isEnabled: true,
+      capabilities: [],
+      contextWindow: 1_000_000
+    } as unknown as Model
+    siblings.models = [selected]
+    for (const id of ['copilot:claude-opus-5-5[1m]', 'copilot:claude-opus-5-5', 'copilot:claude-opus-5.5']) {
+      cacheService.setShared(KEY, {
+        categories: [],
+        totalTokens: 300_000,
+        maxTokens: 200_000,
+        percentage: 100,
+        model: id
+      })
+      const { result, unmount } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, selected))
+      expect(result.current.maxTokens).toBe(1_000_000)
+      expect(result.current.percentage).toBe(30)
+      unmount()
+    }
+    cacheService.setShared(KEY, {
+      categories: [],
+      totalTokens: 300_000,
+      maxTokens: 200_000,
+      percentage: 100,
+      model: 'copilot:claude-opus-5-5'
+    })
+    siblings.models = [selected, { ...selected, id: 'copilot::claude-opus-5-5', apiModelId: 'claude-opus-5-5' }]
+    const { result, unmount } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, selected))
+    expect(result.current.usage).toBeNull()
+    unmount()
+    siblings.models = [{ ...selected, providerId: 'other', id: 'other::claude-opus-5.5' }]
+    expect(renderHook(() => useAgentSessionContextUsage(SESSION_ID, selected)).result.current.usage).toBeNull()
+    siblings.models = []
+    expect(renderHook(() => useAgentSessionContextUsage(SESSION_ID, selected)).result.current.usage).toBeNull()
+  })
+
   it('drops a reading published by a different model', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::big-model', 1_000_000)))
 
