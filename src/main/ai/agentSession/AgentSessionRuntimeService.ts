@@ -1163,12 +1163,10 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier.promise
   }
 
-  async closeLocalAgentForUninstall(presetId: string): Promise<boolean> {
-    const entries = [...this.entries.values()].filter(
-      (entry) =>
-        entry.agentType === 'local' &&
-        agentService.getAgent(entry.agentId)?.configuration?.localRuntime?.presetId === presetId
-    )
+  /** Close owned entries only after every matching session is free of turns and background work. */
+  async closeIdleSessions(sessionIds: readonly string[]): Promise<boolean> {
+    const targets = new Set(sessionIds)
+    const entries = [...this.entries.values()].filter((entry) => targets.has(entry.sessionId))
     if (
       entries.some(
         (entry) => this.isSessionBusy(entry.sessionId) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)

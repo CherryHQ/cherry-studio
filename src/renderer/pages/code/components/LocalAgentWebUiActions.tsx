@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSharedCacheValue } from '@data/hooks/useCache'
+import { AgentWebUiControl } from '@renderer/components/localAgent/AgentWebUiControl'
 import { useHermesDashboardController } from '@renderer/hooks/agent/useHermesDashboardController'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
@@ -12,7 +13,6 @@ import { LOCAL_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/lo
 import { CodeCli } from '@shared/types/codeCli'
 import { LOCAL_AGENT_WEB_UI_IDS, type LocalAgentWebUiId } from '@shared/types/managedTool'
 
-import { AgentWebUiControl } from './AgentWebUiControl'
 import { CodeBuddyWebUiActions } from './CodeBuddyWebUiActions'
 
 interface Props {

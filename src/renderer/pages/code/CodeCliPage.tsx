@@ -2,12 +2,12 @@ import { useTranslation } from 'react-i18next'
 
 import { CommandContextMenu } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
-import { LocalAgentDirectory } from '@renderer/components/localAgent/LocalAgentDirectory'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 
 import { CodeCliConfiguration } from './components/CodeCliConfiguration'
 import { LocalAgentCliConfig } from './components/LocalAgentCliConfig'
+import { LocalAgentDirectory } from './components/LocalAgentDirectory'
 
 export default function CodeCliPage() {
   const { t } = useTranslation()
@@ -38,7 +38,7 @@ export default function CodeCliPage() {
         )
       }}
       renderCliConfig={(tool) => <LocalAgentCliConfig key={tool} tool={tool} />}
-      renderCli={(tool) => <CodeCliConfiguration key={tool} initialTool={tool} embedded />}
+      renderCli={(tool) => <CodeCliConfiguration key={tool} initialTool={tool} />}
     />
   )
 }

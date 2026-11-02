@@ -2,8 +2,6 @@ import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'luc
 import {
   type ComponentType,
   type ReactNode,
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -36,7 +34,6 @@ import type {
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
-const TextSourcePreview = lazy(textFilePreviewPlugin.load)
 
 type FilePreviewStateKind = 'directory' | 'invalid_path' | 'load_error' | 'unavailable' | 'unsupported'
 
@@ -160,10 +157,7 @@ function FilePreviewPluginRenderer({
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview =
-    sourceLocation && TEXT_CONTENT_PLUGIN_IDS.has(plugin.descriptor.id) && plugin.descriptor.id !== 'text'
-      ? TextSourcePreview
-      : plugin.component
+  const PluginPreview = plugin.component
 
   return (
     <ErrorBoundary
@@ -171,19 +165,17 @@ function FilePreviewPluginRenderer({
       resetKeys={[refreshKey]}
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
-      <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview
-          filePath={filePath}
-          fileName={fileName}
-          metadata={metadata}
-          metadataRequest={metadataRequest}
-          sourceLocation={sourceLocation}
-          onSelectionReference={onSelectionReference}
-          onLineComment={onLineComment}
-          refreshKey={refreshKey}
-          type={type}
-        />
-      </Suspense>
+      <PluginPreview
+        filePath={filePath}
+        fileName={fileName}
+        metadata={metadata}
+        metadataRequest={metadataRequest}
+        sourceLocation={sourceLocation}
+        onSelectionReference={onSelectionReference}
+        onLineComment={onLineComment}
+        refreshKey={refreshKey}
+        type={type}
+      />
     </ErrorBoundary>
   )
 }

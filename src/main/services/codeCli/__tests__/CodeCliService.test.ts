@@ -1216,7 +1216,10 @@ describe('CodeCliService', () => {
     it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
       const { codeCliService } = await loadModules()
 
-      await codeCliService.writeConfigFiles(CodeCli.HERMES, [{ target: 'hermes-config', content: 'model: {}\n' }])
+      await codeCliService.writeConfigFiles({
+        cliTool: CodeCli.HERMES,
+        files: [{ target: 'hermes-config', content: 'model: {}\n' }]
+      })
 
       expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
       expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))

@@ -7,6 +7,7 @@ import { app } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { notifyLocalModelChange, syncLocalAgentConfigModel } from '@main/ai/runtime/localAgent/selectModel'
 import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
@@ -22,6 +23,7 @@ import {
   type CodeCliToolPreset
 } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { InputFor } from '@shared/ipc/types'
 import type {
   BinaryInstallByNameRequest,
   BinaryRemoveRequest,
@@ -483,18 +485,27 @@ export class CodeCliService extends BaseService {
     return operation
   }
 
-  /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
-  public async writeConfigFiles(
-    cliTool: FileConfiguredCli,
-    files: CliConfigWriteFile[],
-    commit?: () => void
-  ): Promise<void> {
+  /** Apply a CLI draft and its Agent projection together, rejecting stale files inside the write queue. */
+  public async writeConfigFiles(input: InputFor<'code_cli.write_config'>): Promise<void> {
+    let agentId: string | undefined
     await this.updateConfigFiles(
-      cliTool,
-      [],
-      () => files,
-      () => commit?.()
+      input.cliTool,
+      input.expectedFiles?.map((file) => file.target) ?? [],
+      (current) => {
+        if (
+          input.expectedFiles?.some(
+            (file) => current.find((entry) => entry.target === file.target)?.content !== file.content
+          )
+        ) {
+          throw new Error(t('code_cli.config_changed'))
+        }
+        return input.files
+      },
+      () => {
+        agentId = syncLocalAgentConfigModel(input.cliTool, input.files, input.preserveModelSource)
+      }
     )
+    if (agentId) notifyLocalModelChange(agentId)
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */

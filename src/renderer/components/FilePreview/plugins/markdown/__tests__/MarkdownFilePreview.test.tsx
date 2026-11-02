@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import type { FilePreviewType } from '../../../types'
+import type { FilePreviewPluginProps, FilePreviewType } from '../../../types'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/FileEditor', () => ({
-  default: (props: { value: string }) => <div data-testid="code-viewer">{props.value}</div>
+  default: (props: { value: string; readOnly: boolean }) => (
+    <textarea aria-label="Markdown source" data-testid="code-viewer" readOnly={props.readOnly} value={props.value} />
+  )
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -66,6 +68,7 @@ function renderPreview(
     refreshKey: number
     size: number
     type: FilePreviewType
+    sourceLocation: FilePreviewPluginProps['sourceLocation']
   }> = {}
 ) {
   return render(
@@ -75,11 +78,23 @@ function renderPreview(
       metadata={{ size: overrides.size ?? 15, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
+      sourceLocation={overrides.sourceLocation}
     />
   )
 }
 
 describe('MarkdownFilePreview', () => {
+  it('opens a source location read-only without rendering Markdown or its mode switch', async () => {
+    renderPreview({ sourceLocation: { line: 1 } })
+
+    const source = await screen.findByRole('textbox', { name: 'Markdown source' })
+    expect(source).toHaveValue('# File preview')
+    expect(source).toHaveAttribute('readonly')
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
+  })
+
   it('ignores an obsolete read failure while replacement metadata is pending', async () => {
     const obsoleteRead = Promise.withResolvers<string>()
     const metadata = {

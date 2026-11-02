@@ -8,7 +8,7 @@ import { codeCliHandlers } from '../codeCli'
 
 const codeCliService = Object.assign(application.get('CodeCliService'), {
   run: vi.fn(),
-  updateConfigFiles: vi.fn(),
+  writeConfigFiles: vi.fn(),
   readConfigFiles: vi.fn(),
   getAvailableTerminalsForPlatform: vi.fn()
 })
@@ -47,7 +47,7 @@ describe('codeCliHandlers', () => {
 
   describe('code_cli.write_config', () => {
     it('turns a thrown write error into a failed OperationResult instead of rejecting', async () => {
-      codeCliService.updateConfigFiles.mockRejectedValue(new Error('disk full'))
+      codeCliService.writeConfigFiles.mockRejectedValue(new Error('disk full'))
       const input = {
         cliTool: CodeCli.OPENAI_CODEX as const,
         files: [{ target: 'codex-auth' as const, content: '{}\n' }]

@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSharedCacheValue } from '@data/hooks/useCache'
+import { AgentWebUiControl } from '@renderer/components/localAgent/AgentWebUiControl'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { cliTabIcon } from '@renderer/utils/tabIcons'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
-
-import { AgentWebUiControl } from './AgentWebUiControl'
 
 const logger = loggerService.withContext('CodeBuddyWebUiActions')
 

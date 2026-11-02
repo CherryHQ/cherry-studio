@@ -1,11 +1,15 @@
+import '@data/services/AgentGlobalSkillService'
 import fs from 'node:fs'
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle'
 
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
@@ -19,6 +23,7 @@ const state = vi.hoisted(() => ({
   existing: '',
   exit: '0',
   busy: false,
+  openSessions: [] as string[],
   removeBlocked: false,
   china: false,
   registry: 'https://registry.npmjs.org/',
@@ -46,7 +51,13 @@ vi.mock('@application', async () => {
         }
       })
     },
-    AgentSessionRuntimeService: { closeLocalAgentForUninstall: async () => !state.busy },
+    AgentSessionRuntimeService: {
+      closeIdleSessions: async (sessionIds: readonly string[]) => {
+        if (state.busy) return false
+        state.openSessions = state.openSessions.filter((id) => !sessionIds.includes(id))
+        return true
+      }
+    },
     IpcApiService: { broadcast: () => {} }
   })
 })
@@ -77,6 +88,8 @@ vi.mock('@main/utils/commandResolver', () => ({
 }))
 
 describe('local agent system installation', () => {
+  setupTestDatabase()
+
   beforeEach(async () => {
     BaseService.resetInstances()
     state.runtimeAvailable = true
@@ -87,6 +100,7 @@ describe('local agent system installation', () => {
     state.existing = ''
     state.exit = '0'
     state.busy = false
+    state.openSessions = []
     state.removeBlocked = false
     state.china = false
     state.registry = 'https://registry.npmjs.org/'
@@ -132,6 +146,16 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     vi.unstubAllGlobals()
     await rm(state.root, { recursive: true, force: true })
   })
+
+  function createLocalSession(agentId: string, presetId: string) {
+    agentService.createAgentWithId(agentId, {
+      name: agentId,
+      type: 'local',
+      model: null,
+      configuration: { localRuntime: { presetId, protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+    return agentSessionService.create({ agentId, name: agentId, workspace: { type: 'system' } }).id
+  }
 
   it('installs the required system Bun before omp', async () => {
     state.name = 'omp'
@@ -409,6 +433,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   })
 
   it('blocks removal during an active agent session', async () => {
+    state.openSessions = [createLocalSession('busy-kilo', 'kilo')]
     state.busy = true
     await writeFile(path.join(state.root, 'kilo'), 'keep')
     expect(await new LocalAgentInstallService().uninstall('kilo', path.join(state.root, 'kilo'))).toEqual({
@@ -416,6 +441,44 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       reason: 'busy'
     })
     expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('keep')
+    expect(state.openSessions).toHaveLength(1)
+  })
+
+  it('closes only sessions belonging to the uninstalled local preset', async () => {
+    const matching = createLocalSession('matching-kilo', 'kilo')
+    const other = createLocalSession('other-agent', 'opencode')
+    const additional = agentSessionService.create({
+      agentId: 'matching-kilo',
+      name: 'second Kilo session',
+      workspace: { type: 'system' }
+    }).id
+    state.openSessions = [matching, other, additional]
+    state.existing = path.join(state.root, 'managed-kilo')
+    await writeFile(state.existing, 'managed')
+
+    expect(await new LocalAgentInstallService().uninstall('kilo', state.existing)).toEqual({ ok: true })
+    expect(state.openSessions).toEqual([other])
+    expect(agentSessionService.listIdsByAgent('matching-kilo')).toHaveLength(2)
+  })
+
+  it.skipIf(process.platform === 'win32')('matches an adapter when uninstalling its native terminal CLI', async () => {
+    state.name = 'pi'
+    const matching = createLocalSession('matching-pi', 'pi-acp')
+    const other = createLocalSession('other-agent', 'opencode')
+    state.openSessions = [matching, other]
+    const directory = path.join(state.root, '@earendil-works/pi-coding-agent')
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      path.join(directory, 'package.json'),
+      JSON.stringify({ name: '@earendil-works/pi-coding-agent', bin: { pi: 'cli.js' } })
+    )
+    await writeFile(path.join(directory, 'cli.js'), 'installed')
+    const executable = path.join(state.root, 'pi')
+    await symlink(path.join(directory, 'cli.js'), executable)
+
+    expect(await new LocalAgentInstallService().uninstallCli('pi', executable)).toEqual({ ok: true })
+    expect(state.openSessions).toEqual([other])
+    expect(fs.existsSync(directory)).toBe(false)
   })
 
   it('serializes removal against pending installation', async () => {

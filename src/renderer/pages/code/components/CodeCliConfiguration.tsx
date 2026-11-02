@@ -5,16 +5,11 @@ import type { CodeCli } from '@shared/types/codeCli'
 import { useCodeCliPageViewProps } from '../hooks/useCodeCliPageViewProps'
 import { CodeCliPageView } from './CodeCliPageView'
 
-interface CodeCliPageProps {
-  initialTool?: CodeCli
-  onToolChange?: (tool: CodeCli) => void
+interface CodeCliConfigurationProps {
+  initialTool: CodeCli
 }
 
-export const CodeCliConfiguration: FC<CodeCliPageProps & { embedded?: boolean }> = ({
-  initialTool,
-  onToolChange,
-  embedded
-}) => {
-  const viewProps = useCodeCliPageViewProps(initialTool, onToolChange)
-  return <CodeCliPageView {...viewProps} embedded={embedded} />
+export const CodeCliConfiguration: FC<CodeCliConfigurationProps> = ({ initialTool }) => {
+  const viewProps = useCodeCliPageViewProps(initialTool)
+  return <CodeCliPageView {...viewProps} />
 }

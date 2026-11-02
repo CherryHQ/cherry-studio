@@ -1,6 +1,4 @@
 import { application } from '@application'
-import { notifyLocalModelChange, syncLocalAgentConfigModel } from '@main/ai/runtime/localAgent/selectModel'
-import { t } from '@main/i18n'
 import type { codeCliRequestSchemas } from '@shared/ipc/schemas/codeCli'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -17,25 +15,7 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
   },
   'code_cli.write_config': async (input) => {
     try {
-      let agentId: string | undefined
-      await application.get('CodeCliService').updateConfigFiles(
-        input.cliTool,
-        input.expectedFiles?.map((file) => file.target) ?? [],
-        (current) => {
-          if (
-            input.expectedFiles?.some(
-              (file) => current.find((entry) => entry.target === file.target)?.content !== file.content
-            )
-          ) {
-            throw new Error(t('code_cli.config_changed'))
-          }
-          return input.files
-        },
-        () => {
-          agentId = syncLocalAgentConfigModel(input.cliTool, input.files, input.preserveModelSource)
-        }
-      )
-      if (agentId) notifyLocalModelChange(agentId)
+      await application.get('CodeCliService').writeConfigFiles(input)
       return { success: true as const }
     } catch (error) {
       return { success: false as const, message: error instanceof Error ? error.message : 'Unknown error' }

@@ -96,7 +96,7 @@ describe('CLI-only Agent details', () => {
   it.each([CodeCli.DEEPSEEK_HARNESS, CodeCli.OPENCLAW])(
     'selects a model directly for %s without launching it',
     async (tool) => {
-      render(<CodeCliConfiguration initialTool={tool} embedded />)
+      render(<CodeCliConfiguration initialTool={tool} />)
       const button = await screen.findByRole('button', { name: 'DeepSeek Chat' })
       expect(screen.getByRole('tab', { name: '智能体模型' })).toBeDisabled()
       expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
@@ -114,7 +114,7 @@ describe('CLI-only Agent details', () => {
 
   it('launches DSH with the selected model and saved tool settings', async () => {
     configured(CodeCli.DEEPSEEK_HARNESS)
-    render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} embedded />)
+    render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} />)
     await userEvent.click(screen.getByRole('button', { name: '启动 WebUI' }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('deepseek_harness.start', {
@@ -135,7 +135,7 @@ describe('CLI-only Agent details', () => {
       key,
       tool === CodeCli.OPENCLAW ? 'running' : { status: 'running', url: 'http://127.0.0.1:43123' }
     )
-    render(<CodeCliConfiguration initialTool={tool} embedded />)
+    render(<CodeCliConfiguration initialTool={tool} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'DeepSeek Chat' })).toBeDisabled())
     expect(screen.getByRole('button', { name: '高级设置' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '升级' })).toBeDisabled()
@@ -154,7 +154,7 @@ describe('CLI-only Agent details', () => {
       operations.push('remove')
       return true
     })
-    render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} embedded />)
+    render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} />)
     await userEvent.click(screen.getByRole('button', { name: '卸载' }))
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /卸载|删除|确认/ }))
     await waitFor(() => expect(operations).toEqual(['stop', 'remove']))

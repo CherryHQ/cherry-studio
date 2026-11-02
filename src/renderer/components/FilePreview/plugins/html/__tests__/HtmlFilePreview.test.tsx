@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import type { FilePreviewType } from '../../../types'
+import type { FilePreviewPluginProps, FilePreviewType } from '../../../types'
 import HtmlFilePreview from '../HtmlFilePreview'
 
 const mocks = vi.hoisted(() => ({
@@ -91,6 +91,7 @@ function renderPreview(
     refreshKey: number
     size: number
     type: FilePreviewType
+    sourceLocation: FilePreviewPluginProps['sourceLocation']
   }> = {}
 ) {
   return render(
@@ -100,6 +101,7 @@ function renderPreview(
       metadata={{ size: overrides.size ?? 42, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
+      sourceLocation={overrides.sourceLocation}
     />
   )
 }
@@ -115,6 +117,21 @@ describe('HtmlFilePreview', () => {
       }
     })
   })
+
+  it.each(['file', 'artifact'] as const)(
+    'opens %s source locations read-only without starting HTML preview',
+    async (type) => {
+      renderPreview({ type, sourceLocation: { line: 1 } })
+
+      const source = await screen.findByRole('textbox', { name: 'HTML source' })
+      expect(source).toHaveValue('<h1>Hello</h1>')
+      expect(source).toHaveAttribute('readonly')
+      expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
+    }
+  )
 
   it('reads the file and renders it in a sandboxed frame with a file:// base URL', async () => {
     renderPreview()

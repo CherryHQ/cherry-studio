@@ -5,13 +5,10 @@ import { ConfirmDialog } from '@cherrystudio/ui'
 import { AgentTerminalDialog } from '@renderer/components/localAgent/AgentTerminalDialog'
 
 import { CodeCliContentPanel } from './CodeCliContentPanel'
-import { CodeCliSidebar } from './CodeCliSidebar'
 import { ConfigEditPanel } from './configEditPanel/ConfigEditPanel'
 import { OwnLoginConfigPanel } from './configEditPanel/OwnLoginConfigPanel'
 
 export interface CodeCliPageViewProps {
-  embedded?: boolean
-  sidebarProps: ComponentProps<typeof CodeCliSidebar>
   contentProps?: ComponentProps<typeof CodeCliContentPanel>
   emptyMessage: string
   launchDialogProps: ComponentProps<typeof AgentTerminalDialog>
@@ -22,8 +19,6 @@ export interface CodeCliPageViewProps {
 }
 
 export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
-  embedded = false,
-  sidebarProps,
   contentProps,
   emptyMessage,
   launchDialogProps,
@@ -35,8 +30,6 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
   return (
     <div data-ui="code.view" className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
       <div className="flex min-h-0 flex-1">
-        {!embedded && <CodeCliSidebar {...sidebarProps} />}
-
         <div data-ui="code.content" className="flex min-h-0 min-w-0 flex-1 flex-col">
           {contentProps ? (
             <CodeCliContentPanel {...contentProps} />

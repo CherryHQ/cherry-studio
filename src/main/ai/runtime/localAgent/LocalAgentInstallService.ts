@@ -6,6 +6,8 @@ import path from 'node:path'
 import { valid, gt } from 'semver'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { regionService } from '@main/services/RegionService'
@@ -105,6 +107,17 @@ export class LocalAgentInstallService extends BaseService {
       .get('BinaryManager')
       .getToolSnapshots([target.executable, ...(target.aliases ?? [])])
     return selectAvailableInstallation(target, snapshots)
+  }
+
+  private closeIdleAgentSessions(presetIds: readonly string[]): Promise<boolean> {
+    const targets = new Set(presetIds)
+    const sessionIds = agentService
+      .listAgents()
+      .agents.filter(
+        (agent) => agent.type === 'local' && targets.has(agent.configuration?.localRuntime?.presetId ?? '')
+      )
+      .flatMap((agent) => agentSessionService.listIdsByAgent(agent.id))
+    return application.get('AgentSessionRuntimeService').closeIdleSessions(sessionIds)
   }
 
   async getVersion(presetId: string, latest: boolean) {
@@ -209,9 +222,8 @@ export class LocalAgentInstallService extends BaseService {
             (entry) => entry.executable === preset.executable || entry.terminalExecutable === preset.executable
           )
         : [preset]
+      if (!(await this.closeIdleAgentSessions(agents.map((agent) => agent.id)))) return { ok: false, reason: 'busy' }
       for (const agent of agents) {
-        if (!(await application.get('AgentSessionRuntimeService').closeLocalAgentForUninstall(agent.id)))
-          return { ok: false, reason: 'busy' }
         const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === agent.id)
         if (webUiId) await application.getOptional('LocalAgentWebUiService')?.stop(webUiId)
         if (agent.id === 'codebuddy-code') await application.getOptional('CodeBuddyWebUiService')?.stop()
@@ -324,11 +336,7 @@ export class LocalAgentInstallService extends BaseService {
         !(await this.canUpgradeInstallation(recipe, preset.executable, existing.path))
       )
         return { ok: false, reason: 'unsupported' }
-      if (
-        targetVersion &&
-        preset.protocol &&
-        !(await application.get('AgentSessionRuntimeService').closeLocalAgentForUninstall(preset.id))
-      )
+      if (targetVersion && preset.protocol && !(await this.closeIdleAgentSessions([preset.id])))
         return { ok: false, reason: 'failed' }
       this.abort.signal.throwIfAborted()
       if (recipe.manager === 'binary') {

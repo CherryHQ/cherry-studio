@@ -96,10 +96,8 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   return {
     refreshModels,
     filterProviders,
-    filterProvidersForTool: filterCliProviders,
     makeModelFilter,
     resolveProviderMeta,
-    resolveProviderMetaForTool,
     gatewayModelsById,
     modelById,
     defaultGatewayModelId,

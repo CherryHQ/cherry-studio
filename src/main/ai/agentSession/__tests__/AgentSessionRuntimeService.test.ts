@@ -3971,6 +3971,55 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  describe('closeIdleSessions', () => {
+    it('rejects a busy batch before closing any idle session', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
+
+      expect(await service.closeIdleSessions(['session-1', 'session-2'])).toBe(false)
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(service.inspect('session-2')).toBeDefined()
+
+      await service.closeSession('session-1')
+      await service.closeSession('session-2')
+    })
+
+    it('keeps the whole batch open while a matching session owns background work', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
+      service.markTurnTerminal('session-2', 'success')
+
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(true)
+      expect(await service.closeIdleSessions(['session-2', 'session-1'])).toBe(false)
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(service.inspect('session-2')).toBeDefined()
+
+      await service.closeSession('session-1')
+      await service.closeSession('session-2')
+    })
+
+    it('closes only requested owned idle entries and ignores unrelated busy sessions', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
+
+      expect(await service.closeIdleSessions(['missing-session', 'session-1', 'session-1'])).toBe(true)
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(service.inspect('session-2')).toBeDefined()
+
+      await service.closeSession('session-2')
+    })
+  })
+
   it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
     const onIdle = vi.fn()

@@ -6,18 +6,14 @@ import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion
 import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { clearCliConfig, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
-import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import {
   CLI_OWN_LOGIN_PROVIDER_ID,
   CodeCli,
   GATEWAY_CAPABLE_CLI_TOOLS,
-  isApiGatewayProviderId,
   LOGIN_CAPABLE_CLI_TOOLS
 } from '@shared/types/codeCli'
 
@@ -38,27 +34,9 @@ import { useSortedSupportedProviders } from './useSortedSupportedProviders'
 
 const logger = loggerService.withContext('CodeCliPage')
 
-type CliToolOption = (typeof CLI_TOOLS)[number]
-
-const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
-const codeCliSidebarTarget = (tool: CodeCli) =>
-  createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.CODE_CLI, tool)
-
-export function useCodeCliPageViewProps(
-  initialTool?: CodeCli,
-  onToolChange?: (tool: CodeCli) => void
-): CodeCliPageViewProps {
+export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewProps {
   const { t } = useTranslation()
-  const toMeta = useCallback(
-    (tool: CliToolOption): CodeToolMeta => ({
-      id: tool.value,
-      label: t(tool.label),
-      icon: tool.icon
-    }),
-    [t]
-  )
   const {
-    configs,
     selectedCliTool,
     currentToolState,
     currentProviderId,
@@ -69,11 +47,10 @@ export function useCodeCliPageViewProps(
     deleteProviderConfig,
     setCurrentProvider,
     reorderProviders,
-    selectTool,
     setTerminal,
     selectFolder,
     selectedTerminal
-  } = useCodeCli(initialTool, onToolChange)
+  } = useCodeCli(initialTool)
 
   const [modelSaving, setModelSaving] = useState(false)
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
@@ -82,43 +59,13 @@ export function useCodeCliPageViewProps(
   const {
     refreshModels,
     filterProviders,
-    filterProvidersForTool,
     makeModelFilter,
     resolveProviderMeta,
-    resolveProviderMetaForTool,
     gatewayModelsById,
     modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
-
-  // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
-  // provider display name when no model applies (own login, Claude detailed models).
-  const providerSummaries = useMemo(() => {
-    const summaries: Record<string, string> = {}
-    for (const tool of CLI_TOOLS) {
-      const state = configs[tool.value as CodeCliId]
-      const currentId = state?.current
-      if (!currentId) continue
-      if (currentId === CLI_OWN_LOGIN_PROVIDER_ID) {
-        if (!LOGIN_CAPABLE_CLI_TOOLS.has(tool.value)) continue
-        summaries[tool.value] = t('code.own_login.title', { toolName: t(tool.label) })
-        continue
-      }
-      // The gateway is synthetic (absent from the real provider list); resolve its summary
-      // from the bundle's provider so the sidebar still shows the selected model.
-      const provider = isApiGatewayProviderId(currentId)
-        ? GATEWAY_CAPABLE_CLI_TOOLS.has(tool.value)
-          ? apiGatewayBundle?.provider
-          : undefined
-        : providers.find((p) => p.id === currentId)
-      if (!provider) continue
-      if (!isApiGatewayProviderId(currentId) && filterProvidersForTool(tool.value, [provider]).length === 0) continue
-      const meta = resolveProviderMetaForTool(tool.value, provider, state.providers[currentId])
-      summaries[tool.value] = meta.modelName || meta.providerName
-    }
-    return summaries
-  }, [configs, providers, apiGatewayBundle, filterProvidersForTool, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
     (error: unknown) => {
@@ -173,39 +120,25 @@ export function useCodeCliPageViewProps(
       apiGatewayProvider: apiGatewayBundle
     })
 
-  const { statuses } = useCliVersionStatuses(CLI_TOOL_IDS)
-  const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
-  const isCliSidebarPinned = useCallback(
-    (tool: CodeCli) => isSidebarShortcutPinned(codeCliSidebarTarget(tool)),
-    [isSidebarShortcutPinned]
-  )
-  const toggleCliSidebarShortcut = useCallback(
-    (tool: CliToolOption) =>
-      setSidebarShortcutPinned(codeCliSidebarTarget(tool.value), !isCliSidebarPinned(tool.value), toMeta(tool).label),
-    [toMeta, setSidebarShortcutPinned, isCliSidebarPinned]
-  )
-  const visibleTools = CLI_TOOLS
-  const activeTool = useMemo<CliToolOption | undefined>(
-    () => visibleTools.find((tool) => tool.value === selectedCliTool),
-    [selectedCliTool, visibleTools]
-  )
+  const { statuses } = useCliVersionStatuses([selectedCliTool])
+  const activeTool = CLI_TOOLS.find((tool) => tool.value === selectedCliTool)
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
   const isHermesDashboardTool = selectedCliTool === CodeCli.HERMES
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
-  const activeMeta = activeTool ? toMeta(activeTool) : null
+  const activeMeta: CodeToolMeta | null = activeTool
+    ? { id: activeTool.value, label: t(activeTool.label), icon: activeTool.icon }
+    : null
   const toolName = activeMeta?.label ?? ''
   // Local busy Sets give instant feedback; snapshot operations cover mutations
   // initiated in another window or before this page mounted.
   const mergedInstallingTools = useMemo(() => {
     const merged = new Set<string>(installingTools)
-    for (const tool of CLI_TOOLS) {
-      const status = statuses[tool.value]
-      if (status?.operation?.status === 'installing') merged.add(tool.value)
-    }
+    const status = statuses[selectedCliTool]
+    if (status?.operation?.status === 'installing') merged.add(selectedCliTool)
     return merged
-  }, [installingTools, statuses])
+  }, [installingTools, selectedCliTool, statuses])
   const snapshotStatus: VersionStatus = statuses[selectedCliTool] ?? {
     installed: false,
     source: 'none',
@@ -319,18 +252,6 @@ export function useCodeCliPageViewProps(
   )
 
   return {
-    sidebarProps: {
-      tools: visibleTools,
-      selectedCliTool,
-      onSelectTool: selectTool,
-      toMeta,
-      statuses,
-      installingTools: mergedInstallingTools,
-      upgradingTools,
-      providerSummaries,
-      isSidebarPinned: isCliSidebarPinned,
-      onToggleSidebar: toggleCliSidebarShortcut
-    },
     contentProps: activeMeta
       ? {
           selectedCliTool,

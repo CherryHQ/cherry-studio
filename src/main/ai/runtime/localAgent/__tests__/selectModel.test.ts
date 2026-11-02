@@ -1,4 +1,5 @@
 import '@data/services/AgentGlobalSkillService'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -32,13 +33,16 @@ describe('global local agent model selection', () => {
   let home: string
   const service = new CodeCliService()
   const originalUpdate = application.get('CodeCliService').updateConfigFiles
+  const originalWrite = application.get('CodeCliService').writeConfigFiles
   beforeAll(async () => {
     home = await mkdtemp(path.join(tmpdir(), 'cherry-global-model-'))
     vi.mocked(application.getPath).mockImplementation((_key, filename) => path.join(home, filename ?? ''))
     application.get('CodeCliService').updateConfigFiles = service.updateConfigFiles.bind(service)
+    application.get('CodeCliService').writeConfigFiles = service.writeConfigFiles.bind(service)
   })
   afterAll(async () => {
     application.get('CodeCliService').updateConfigFiles = originalUpdate
+    application.get('CodeCliService').writeConfigFiles = originalWrite
     await rm(home, { recursive: true, force: true })
   })
 
@@ -243,6 +247,93 @@ describe('global local agent model selection', () => {
       vi.mocked(getRawShellEnv).mockResolvedValue({})
     }
   })
+  it('checks editor drafts inside the queue so concurrent writes cannot share a stale snapshot', async () => {
+    const agent = agentService.createAgentWithId('queued-pi', {
+      name: 'Pi',
+      type: 'local',
+      model: null,
+      configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+    const original = '{"defaultProvider":"native","defaultModel":"original"}'
+    await service.writeConfigFiles({
+      cliTool: CodeCli.PI,
+      files: [{ target: 'pi-settings', content: original }]
+    })
+    const writes = await Promise.allSettled(
+      ['first', 'second'].map((model) =>
+        service.writeConfigFiles({
+          cliTool: CodeCli.PI,
+          files: [
+            { target: 'pi-settings', content: JSON.stringify({ defaultProvider: 'native', defaultModel: model }) }
+          ],
+          expectedFiles: [{ target: 'pi-settings', content: original }]
+        })
+      )
+    )
+
+    expect(writes[0].status).toBe('fulfilled')
+    expect(writes[1]).toMatchObject({ status: 'rejected', reason: new Error(t('code_cli.config_changed')) })
+    expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8')).defaultModel).toBe('first')
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('native/first')
+  })
+
+  it('publishes committed editor state and restores files when the Agent projection rejects it', async () => {
+    const sourceModelId = createUniqueModelId('custom', 'example')
+    const agent = agentService.createAgentWithId('editor-rollback', {
+      name: 'Claude',
+      type: 'local',
+      model: null,
+      configuration: {
+        localRuntime: {
+          presetId: 'claude',
+          protocol: 'claude',
+          enabled: true,
+          args: [],
+          env: {},
+          nativeModel: 'example',
+          sourceModelId,
+          sourceModelViaGateway: true
+        }
+      }
+    })
+    const original = '{"model":"example","effortLevel":"medium"}'
+    const content = original.replace('medium', 'high')
+    const filename = path.join(home, '.claude/settings.json')
+    await service.writeConfigFiles({
+      cliTool: CodeCli.CLAUDE_CODE,
+      files: [{ target: 'claude-settings', content: original }],
+      preserveModelSource: true
+    })
+    const notifications: { nativeModel?: string; content: string }[] = []
+    const broadcast = vi.spyOn(application.get('WindowManager'), 'broadcast').mockImplementation(() => {
+      notifications.push({
+        nativeModel: agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel,
+        content: readFileSync(filename, 'utf8')
+      })
+    })
+    try {
+      await service.writeConfigFiles({
+        cliTool: CodeCli.CLAUDE_CODE,
+        files: [{ target: 'claude-settings', content }],
+        expectedFiles: [{ target: 'claude-settings', content: original }],
+        preserveModelSource: true
+      })
+      await expect(
+        service.writeConfigFiles({ cliTool: CodeCli.CLAUDE_CODE, files: [{ target: 'claude-settings', content: '{' }] })
+      ).rejects.toThrow(t('code_cli.model.invalid_config', { format: 'JSON' }))
+
+      expect(notifications).toEqual([{ nativeModel: 'example', content }])
+      expect(await readFile(filename, 'utf8')).toBe(content)
+      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toMatchObject({
+        nativeModel: 'example',
+        sourceModelId,
+        sourceModelViaGateway: true
+      })
+    } finally {
+      broadcast.mockRestore()
+    }
+  })
+
   it('retains model source for parameter edits and rejects an editor draft after an external edit', async () => {
     const sourceModelId = createUniqueModelId('custom', 'example')
     const agent = agentService.createAgentWithId('editor-claude', {
@@ -262,7 +353,11 @@ describe('global local agent model selection', () => {
       }
     })
     const original = '{"env":{"ANTHROPIC_MODEL":"example"},"effortLevel":"medium"}'
-    await service.writeConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-settings', content: original }])
+    await service.writeConfigFiles({
+      cliTool: CodeCli.CLAUDE_CODE,
+      files: [{ target: 'claude-settings', content: original }],
+      preserveModelSource: true
+    })
     const input = {
       cliTool: CodeCli.CLAUDE_CODE as const,
       files: [{ target: 'claude-settings' as const, content: original.replace('medium', 'high') }],

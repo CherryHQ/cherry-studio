@@ -98,6 +98,13 @@ afterEach(() => {
 })
 
 describe('FilePreview plugin loading', () => {
+  it('keeps the registered plugin in control when a source location is requested', async () => {
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} sourceLocation={{ line: 3 }} />)
+
+    expect(await screen.findByRole('toolbar', { name: 'Preview tools' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument()
+  })
+
   it('preloads the matching plugin while metadata is pending and reuses that load', async () => {
     let resolveMetadata: (metadata: {
       kind: 'file'

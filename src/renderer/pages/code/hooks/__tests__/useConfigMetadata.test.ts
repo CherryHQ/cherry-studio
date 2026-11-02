@@ -115,11 +115,14 @@ describe('useConfigMetadata.filterProviders', () => {
     expect(filtered).toEqual([apiKeyProvider])
   })
 
-  it('filters providers with the requested CLI tool instead of the active one', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+  it('filters providers for the tool supplied by the current owner', () => {
+    const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useConfigMetadata(tool, []), {
+      initialProps: { tool: CodeCli.CLAUDE_CODE }
+    })
 
-    expect(result.current.filterProvidersForTool(CodeCli.CLAUDE_CODE, [apiKeyProvider])).toEqual([apiKeyProvider])
-    expect(result.current.filterProvidersForTool(CodeCli.OPENAI_CODEX, [apiKeyProvider])).toEqual([])
+    expect(result.current.filterProviders([apiKeyProvider])).toEqual([apiKeyProvider])
+    rerender({ tool: CodeCli.OPENAI_CODEX })
+    expect(result.current.filterProviders([apiKeyProvider])).toEqual([])
   })
 })
 

@@ -7,8 +7,9 @@ sources:
   - src/shared/ai/executionIdentity.ts
   - src/main/ai/runtime/localAgent
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/services/codeCli/CodeCliService.ts
   - src/main/features/apiGateway/proxyStream.ts
-  - src/renderer/components/localAgent/LocalAgentDirectory.tsx
+  - src/renderer/pages/code/components/LocalAgentDirectory.tsx
   - src/renderer/pages/code/CodeCliPage.tsx
 ---
 

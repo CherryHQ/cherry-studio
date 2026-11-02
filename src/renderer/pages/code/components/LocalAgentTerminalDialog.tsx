@@ -2,12 +2,11 @@ import { useState } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
+import { AgentTerminalDialog } from '@renderer/components/localAgent/AgentTerminalDialog'
 import { useAvailableTerminals } from '@renderer/hooks/agent/useAvailableTerminals'
 import { toast } from '@renderer/services/toast'
 import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent'
 import type { LocalAgentPreset } from '@shared/ai/localAgent'
-
-import { AgentTerminalDialog } from './AgentTerminalDialog'
 
 export function LocalAgentTerminalDialog({
   open,
