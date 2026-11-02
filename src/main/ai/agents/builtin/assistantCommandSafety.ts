@@ -594,6 +594,13 @@ function commentGapDeletion(s: string): boolean {
 
 function hashtableValueDeletion(s: string): boolean {
   const n = s.length
+  interface TableFrame {
+    expect: 'key' | 'eq' | 'valueStart' | 'skip'
+    brace: number
+    paren: number
+    escaped?: boolean
+    quotesBlind?: boolean
+  }
   const stack: TableFrame[] = []
   const nextDQuote = new Int32Array(n + 1)
   const nextSQuote = new Int32Array(n + 1)
