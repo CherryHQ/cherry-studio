@@ -704,6 +704,24 @@ describe('detectDestructiveAssistantCommand', () => {
     )
     expect(detectDestructiveAssistantCommand('echo [Console]::"Title"')).toBeUndefined()
   })
+
+  it('denies parenthesized quoted static-member assignment forms (round-16 review finding)', () => {
+    // Static member access with a parenthesized quoted name: [Console]::("Title") - mirrors
+    // the instance parenthesized quoted-property coverage. Real gap versus shipped main's
+    // broader guard; uncovered on every earlier revision of this PR (v1-v25).
+    expect(detectDestructiveAssistantCommand('[Console]::("Title") = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(
+      detectDestructiveAssistantCommand('pwsh -NoProfile -Command \'[Console]::("Title") = del victim.txt\'')
+    ).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("[Console]::('Title') = del victim.txt")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('[A]::("a""b") = del victim.txt')).toBe('permanent Windows file deletion')
+    // Spaced parenthesized content stays uncovered, matching the instance-side convention.
+    expect(detectDestructiveAssistantCommand('[Console]::( "Title" ) = del victim.txt')).toBeUndefined()
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
