@@ -196,6 +196,16 @@ describe('detectDestructiveAssistantCommand', () => {
     // the table: the frame pops and the nested table still scans.
     ['@{a="`;"; b=@{c=del victim.txt}}', 'permanent Windows file deletion'],
     ['@{k=";"; a="`;"; b=@{c=del victim.txt}}', 'permanent Windows file deletion'],
+    // Binding a deletion token as an alias value arms a later bare invocation.
+    ['Set-Alias -Name wipe -Value del; wipe victim.txt', 'permanent Windows file deletion'],
+    ['Set-Alias wipe del', 'permanent Windows file deletion'],
+    ['sal wipe erase', 'permanent Windows file deletion'],
+    ['New-Alias wipe rd; rd victimdir', 'permanent Windows file deletion'],
+    // A PowerShell block comment never separates commands: `<# note #> del x` deletes.
+    ['<# explanation #> del victim.txt', 'permanent Windows file deletion'],
+    ['echo ok; <# c #> del victim.txt', 'permanent Windows file deletion'],
+    ['<##> del victim.txt', 'permanent Windows file deletion'],
+    ['<# a #> <# b #> rd victimdir', 'permanent Windows file deletion'],
     ['echo "@{result = del victim.txt}"', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
@@ -247,6 +257,10 @@ describe('detectDestructiveAssistantCommand', () => {
     'echo "DEL del Rd erase"',
     'echo @ del is only prose here',
     '@{a="; b=del x"}',
+    'Set-Alias -Name delivery -Value Get-ChildItem',
+    'Set-Alias -Name ls -Value Get-ChildItem; ls',
+    // An unterminated block comment is a syntax error; nothing executes.
+    '<# unterminated del victim.txt',
     'git commit -m "docs: mention @ del command form"',
     'git status 2>&1 | head -5',
     'npm test > output.log 2>&1',

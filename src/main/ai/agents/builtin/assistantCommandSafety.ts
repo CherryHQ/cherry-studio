@@ -464,6 +464,134 @@ function getCommandLookupDeletion(s: string): boolean {
 // here-strings, dotted bare keys, block comments before the value token and malformed
 // entries stay documented best-effort gaps. The deletion token keeps the regex's following boundary, so `@{result = delivery}`
 // stays allowed.
+// Binding a deletion token as an alias value arms a later bare invocation:
+// `Set-Alias -Name wipe -Value del; wipe victim.txt` deletes through `wipe`. Deny the
+// binding command itself when a deletion token appears anywhere in its argument extent
+// (flags and positionals alike), matching the pre-narrowing guard's plain-token
+// coverage. Quote-blind and argument-shape-blind like the lookup family: an alias
+// command word plus a deletion word before the next command separator denies
+// conservatively (`Set-Alias -Name del -Value Get-ChildItem` redefines the token away
+// from deletion but still denies, mirroring the shipped over-deny).
+function aliasBindDeletion(s: string): boolean {
+  const n = s.length
+  // commandEnd[p]: the next command terminator (`;`, `&`, `|`, newline, `)`, `}`) at or
+  // after p, or n. Disjoint extents make the per-command walks O(n) in total.
+  const commandEnd = new Int32Array(n + 1)
+  commandEnd[n] = n
+  for (let k = n - 1; k >= 0; k--) {
+    const c = s[k]
+    commandEnd[k] =
+      c === ';' || c === '&' || c === '|' || c === '\r' || c === '\n' || c === ')' || c === '}' ? k : commandEnd[k + 1]
+  }
+  for (let a = 0; a < n; a++) {
+    let wlen = 0
+    if (scanWordAt(s, a, 'set-alias')) wlen = 9
+    else if (scanWordAt(s, a, 'new-alias')) wlen = 9
+    else if (scanWordAt(s, a, 'sal')) wlen = 3
+    else if (scanWordAt(s, a, 'nal')) wlen = 3
+    else continue
+    if (a > 0 && isScanWord(s[a - 1])) continue
+    if (a + wlen < n && isScanWord(s[a + wlen])) continue
+    const end = commandEnd[a]
+    for (let k = a + wlen; k < end; k++) {
+      for (const w of ['erase', 'del', 'rd']) {
+        if (scanWordAt(s, k, w) && !isScanWord(s[k - 1] ?? '')) {
+          const e = k + w.length
+          if (e >= n || !isScanWord(s[e])) return true
+        }
+      }
+    }
+    a = end
+  }
+  return false
+}
+
+// A PowerShell block comment (`<# ... #>`) never executes and never separates commands, so
+// `<# note #> del x` runs the deletion exactly like whitespace would. Comments do not nest and
+// the first `#>` ends the comment (about_Comments); an unterminated `<#` swallows the rest of
+// the input as comment text (a syntax error), so span collection stops there. This scanner is
+// the linear home for that gap content - putting a comment atom inside the regex's
+// capture/backreference gap rescans an unterminated `<#` run at every gap position (quadratic).
+// One forward pass collects comment spans with disjoint jumps; a second pass extends each
+// maximal gap run (whitespace/quotes/`@`/comments) and, when the run ends at a deletion token
+// with the regex's following boundary, blanks that run's comments to spaces (length preserved)
+// and lets the unchanged regex family judge the anchor on the blanked copy. The verdict is
+// original-input OR blanked-input, so this scanner can only add denies; comment content that
+// merely looks anchored (`<#; del x #>`) keeps the original quote-blind verdict.
+function commentGapDeletion(s: string): boolean {
+  const n = s.length
+  const commentEndAtStart = new Int32Array(n + 1).fill(-1)
+  let count = 0
+  for (let i = 0; i + 1 < n; ) {
+    if (s[i] === '<' && s[i + 1] === '#') {
+      let j = i + 2
+      while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+      if (j + 1 >= n) break
+      commentEndAtStart[i] = j + 2
+      count++
+      i = j + 2
+    } else {
+      i++
+    }
+  }
+  if (count === 0) return false
+  const isGapChar = (c: string): boolean => c === '"' || c === "'" || c === '@' || SCAN_WS.test(c)
+  const blank = new Uint8Array(n)
+  let marked = 0
+  let i = 0
+  while (i < n) {
+    // Extend the maximal gap run starting at i.
+    let j = i
+    const spans: number[] = [] // flattened [start, end) comment spans inside this run
+    while (j < n) {
+      if (isGapChar(s[j])) {
+        j++
+        continue
+      }
+      const ce = commentEndAtStart[j]
+      if (ce !== -1) {
+        spans.push(j, ce)
+        j = ce
+        continue
+      }
+      break
+    }
+    // A deletion token with the regex's following boundary at the run end?
+    if (spans.length > 0) {
+      for (const w of ['erase', 'del', 'rd']) {
+        if (scanWordAt(s, j, w) && (j === 0 || !isScanWord(s[j - 1]))) {
+          const e = j + w.length
+          const b = e >= n ? '' : s[e]
+          if (
+            e >= n ||
+            SCAN_WS.test(b) ||
+            b === '"' ||
+            b === "'" ||
+            b === '(' ||
+            b === '>' ||
+            b === '<' ||
+            b === ';' ||
+            b === '|' ||
+            b === '}' ||
+            b === ')'
+          ) {
+            for (let k = 0; k < spans.length; k += 2) {
+              for (let p = spans[k]; p < spans[k + 1]; p++) blank[p] = 1
+            }
+            marked += spans.length / 2
+          }
+          break
+        }
+      }
+    }
+    i = j + 1
+  }
+  if (marked === 0) return false
+  const chars = s.split('')
+  for (let k = 0; k < n; k++) if (blank[k] === 1) chars[k] = ' '
+  return WINDOWS_AMBIGUOUS_DELETE_PATTERN.test(chars.join(''))
+}
+
 function hashtableValueDeletion(s: string): boolean {
   const n = s.length
   interface TableFrame {
@@ -745,7 +873,11 @@ export function detectDestructiveAssistantCommand(command: string): string | und
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
   return (
     DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason ??
-    (longGlueStartDeletion(normalized) || getCommandLookupDeletion(normalized) || hashtableValueDeletion(normalized)
+    (longGlueStartDeletion(normalized) ||
+    getCommandLookupDeletion(normalized) ||
+    hashtableValueDeletion(normalized) ||
+    aliasBindDeletion(normalized) ||
+    commentGapDeletion(normalized)
       ? 'permanent Windows file deletion'
       : undefined)
   )
