@@ -201,11 +201,17 @@ describe('detectDestructiveAssistantCommand', () => {
     ['Set-Alias wipe del', 'permanent Windows file deletion'],
     ['sal wipe erase', 'permanent Windows file deletion'],
     ['New-Alias wipe rd; rd victimdir', 'permanent Windows file deletion'],
+    // A quoted separator inside an alias argument is not a command terminator: the deletion
+    // token later in the same command extent still arms the alias.
+    ['Set-Alias -Description ";" -Name wipe -Value del; wipe victim.txt', 'permanent Windows file deletion'],
     // A PowerShell block comment never separates commands: `<# note #> del x` deletes.
     ['<# explanation #> del victim.txt', 'permanent Windows file deletion'],
     ['echo ok; <# c #> del victim.txt', 'permanent Windows file deletion'],
     ['<##> del victim.txt', 'permanent Windows file deletion'],
     ['<# a #> <# b #> rd victimdir', 'permanent Windows file deletion'],
+    // `&` chains commands like `;` does: comment-blanked `del&&` / `del&` still delete.
+    ['Get-Item victim.txt | <# c #> del&& Write-Output done', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | <# c #> del& Write-Output done', 'permanent Windows file deletion'],
     // A quoted delimiter inside a command-prefixed value stays inert; the deletion after it runs.
     ['@{a=Write-Output "}"; b=del victim.txt}', 'permanent Windows file deletion'],
     ['@{a=Write-Output "("; b=del victim.txt}', 'permanent Windows file deletion'],

@@ -475,14 +475,51 @@ function getCommandLookupDeletion(s: string): boolean {
 function aliasBindDeletion(s: string): boolean {
   const n = s.length
   // commandEnd[p]: the next command terminator (`;`, `&`, `|`, newline, `)`, `}`) at or
-  // after p, or n. Disjoint extents make the per-command walks O(n) in total.
+  // after p, or n. Disjoint extents make the per-command walks O(n) in total. Terminator
+  // positions are collected by one forward pass that tracks PowerShell quoting and block
+  // comments, so a quoted `";"` argument (`Set-Alias -Description ";" ...`) or comment text
+  // never ends the extent: only out-of-string, out-of-comment separators do. Double quotes
+  // honor backtick escapes and `""` doubling; single quotes honor `''` doubling; block
+  // comments do not nest and end at the first `#>`.
+  const terminator = new Uint8Array(n + 1)
+  for (let k = 0; k < n;) {
+    const c = s[k]
+    if (c === '"' || c === "'") {
+      const q = c
+      k++
+      while (k < n) {
+        if (s[k] === q) {
+          if (k + 1 < n && s[k + 1] === q) {
+            k += 2
+            continue
+          }
+          k++
+          break
+        }
+        if (q === '"' && s[k] === '`' && k + 1 < n) {
+          k += 2
+          continue
+        }
+        k++
+      }
+      continue
+    }
+    if (c === '<' && k + 1 < n && s[k + 1] === '#') {
+      let j = k + 2
+      while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+      k = j + 1 < n ? j + 2 : n
+      continue
+    }
+    if (c === '`' && k + 1 < n) {
+      k += 2
+      continue
+    }
+    if (c === ';' || c === '&' || c === '|' || c === '\r' || c === '\n' || c === ')' || c === '}') terminator[k] = 1
+    k++
+  }
   const commandEnd = new Int32Array(n + 1)
   commandEnd[n] = n
-  for (let k = n - 1; k >= 0; k--) {
-    const c = s[k]
-    commandEnd[k] =
-      c === ';' || c === '&' || c === '|' || c === '\r' || c === '\n' || c === ')' || c === '}' ? k : commandEnd[k + 1]
-  }
+  for (let k = n - 1; k >= 0; k--) commandEnd[k] = terminator[k] === 1 ? k : commandEnd[k + 1]
   for (let a = 0; a < n; a++) {
     let wlen = 0
     if (scanWordAt(s, a, 'set-alias')) wlen = 9
@@ -562,6 +599,8 @@ function commentGapDeletion(s: string): boolean {
         if (scanWordAt(s, j, w) && (j === 0 || !isScanWord(s[j - 1]))) {
           const e = j + w.length
           const b = e >= n ? '' : s[e]
+          // Mirrors the regex's following boundary exactly: \s, end, quote, `(`, `>`/`<`,
+          // `;`, `|`, `}`, `)`, AND `&` (`del&&` chains the next command in PowerShell 7).
           if (
             e >= n ||
             SCAN_WS.test(b) ||
@@ -573,7 +612,8 @@ function commentGapDeletion(s: string): boolean {
             b === ';' ||
             b === '|' ||
             b === '}' ||
-            b === ')'
+            b === ')' ||
+            b === '&'
           ) {
             for (let k = 0; k < spans.length; k += 2) {
               for (let p = spans[k]; p < spans[k + 1]; p++) blank[p] = 1
