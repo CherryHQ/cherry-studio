@@ -159,3 +159,15 @@ it('places popular CLI-only and ACP agents together in the default order', async
     ])
   })
 })
+
+it('opens existing DeepSeek links as one ACP entry and preserves its saved order', async () => {
+  navigation.search = { id: 'cli:deepseek-harness' }
+  mockPreferenceState.set('feature.code_cli.agent_order', ['cli:deepseek-harness', 'claude'])
+  vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
+  render(<LocalAgentDirectory renderCli={() => null} />)
+  expect(await screen.findByRole('heading', { name: 'DeepSeek Harness' })).toBeVisible()
+  expect(screen.getByRole('switch')).not.toBeChecked()
+  const rows = within(screen.getByRole('complementary')).getAllByRole('button', { name: / · |^OpenClaw$/ })
+  expect(rows[0]).toHaveAccessibleName(/^DeepSeek Harness ·/)
+  expect(rows.filter((row) => row.getAttribute('aria-label')?.startsWith('DeepSeek Harness'))).toHaveLength(1)
+})

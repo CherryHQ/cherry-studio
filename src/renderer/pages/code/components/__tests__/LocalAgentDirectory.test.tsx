@@ -511,9 +511,11 @@ describe('local agent settings navigation', () => {
     ['kilo', 'ai.local_agents.web_stop', false],
     ['codebuddy-code', 'ai.codebuddy_web.stop', false],
     ['hermes', 'hermes_dashboard.stop', false],
+    ['deepseek-harness', 'deepseek_harness.stop', false],
     ['claude', undefined, false],
     ['opencode', 'ai.local_agents.web_stop', true],
-    ['hermes', 'hermes_dashboard.stop', true]
+    ['hermes', 'hermes_dashboard.stop', true],
+    ['deepseek-harness', 'deepseek_harness.stop', true]
   ] as const)('stops WebUI after disabling %s via %s (stop fails=%s)', async (presetId, stopRoute, fails) => {
     navigation.search = { id: presetId }
     let agent: AgentEntity = {
@@ -541,11 +543,13 @@ describe('local agent settings navigation', () => {
       if (
         route === 'ai.local_agents.web_stop' ||
         route === 'ai.codebuddy_web.stop' ||
-        route === 'hermes_dashboard.stop'
+        route === 'hermes_dashboard.stop' ||
+        route === 'deepseek_harness.stop'
       ) {
         expect(agent.deletedAt).toBeDefined()
         stops.push(input ? [route, input] : [route])
-        if (fails && route !== 'hermes_dashboard.stop') throw new Error('stop failed')
+        if (fails && route !== 'hermes_dashboard.stop' && route !== 'deepseek_harness.stop')
+          throw new Error('stop failed')
         return { success: !fails, message: 'stop failed' } as never
       }
       return { models: [] } as never

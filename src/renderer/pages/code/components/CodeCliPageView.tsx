@@ -41,6 +41,26 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
         </div>
       </div>
 
+      <CodeCliDialogs
+        launchDialogProps={launchDialogProps}
+        removeDialogProps={removeDialogProps}
+        configPanelKey={configPanelKey}
+        configPanelProps={configPanelProps}
+        ownLoginConfigPanelProps={ownLoginConfigPanelProps}
+      />
+    </div>
+  )
+}
+
+export function CodeCliDialogs({
+  launchDialogProps,
+  removeDialogProps,
+  configPanelKey,
+  configPanelProps,
+  ownLoginConfigPanelProps
+}: Omit<CodeCliPageViewProps, 'contentProps' | 'emptyMessage'>) {
+  return (
+    <>
       <AgentTerminalDialog {...launchDialogProps} />
       <ConfirmDialog {...removeDialogProps} />
       {configPanelProps && (
@@ -53,6 +73,6 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
           <OwnLoginConfigPanel {...ownLoginConfigPanelProps} />
         </Fragment>
       )}
-    </div>
+    </>
   )
 }

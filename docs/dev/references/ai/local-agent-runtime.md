@@ -8,6 +8,7 @@ sources:
   - src/main/ai/runtime/localAgent
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
   - src/main/services/codeCli/CodeCliService.ts
+  - src/main/services/deepSeekHarness
   - src/main/features/apiGateway/proxyStream.ts
   - src/renderer/pages/code/components/LocalAgentDirectory.tsx
   - src/renderer/pages/code/CodeCliPage.tsx
@@ -23,10 +24,18 @@ The Code Mate launchpad and sidebar shortcuts open Settings → Agent Services,
 the sole manager for installation, model selection and CLI configuration.
 Legacy `/app/code` links and saved tabs redirect to settings, preserve the selected
 Agent, and reuse the existing settings tab.
-CLI-only tools (OpenClaw and DeepSeek Harness) use the same grouped model list and
-program layout. Selecting a model saves its provider and model for the next managed
-launch; their existing web launch, stop and configuration actions remain available.
-They do not expose a Cherry chat toggle or an unsupported terminal action.
+OpenClaw remains a CLI-only tool with the grouped model list and program layout;
+it does not expose a Cherry chat toggle or an unsupported terminal action.
+DeepSeek Harness connects through `dsh --profile acp` and uses the shared enable,
+archive and chat controls. It retains its Code Mate model list, configuration dialog
+and WebUI actions. New ACP connections apply the selected Code Mate model using
+the same native settings and credentials as the WebUI. The ACP profile override is
+written and rolled back with the existing configuration transaction, preserving
+unrelated user entries. Disabling or uninstalling also stops its managed WebUI.
+Chat follows this managed model selection; global switching from the chat picker
+is not supported. Protocol features depend on the installed CLI: 0.2.1-rc.5 sends
+committed assistant output and supports model/reasoning options, approvals and
+resume, without mode, command, plan, client file/terminal or elicitation callbacks.
 
 Interactive terminal actions open the shared Code Mate launch dialog to select a
 working directory and terminal application. Choices are saved per tool in
@@ -173,12 +182,15 @@ configuration errors remain visible during the first real request. A saved ACP m
 missing from a non-empty current catalog is rejected before a model-change request;
 Cherry asks for a new selection rather than silently switching models.
 
-DeepSeek Harness provider routes remain in `settings.yaml`. Its shared default model
-is written to the home `cordis.patch.yml` as an `agent-default-model` override,
-so CLI profiles use the same selection. A new credential store uses `version: 1`
+DeepSeek Harness writes shared provider routes, retained model catalogs and the
+`agent-default-model` override to the home `cordis.patch.yml`, so ACP, WebUI and
+headless profiles use the same selection. Managed catalogs already migrated into
+the ACP profile are preserved in this shared layer. Legacy `settings.yaml` is still
+updated, but its removal by DSH's native migration does not discard models needed
+to resume older sessions. A new credential store uses `version: 1`
 and `refs`. The headless profile restores the official credential, authorization and
 account readers, so saved credentials take precedence over environment fallbacks.
-Credentials, settings, home patches and headless patches are locked and restored together;
+Credentials, settings, home, ACP and headless patches are locked and restored together;
 rollback refuses to overwrite any subsequent user edit.
 
 Startup arguments are arrays, never shell strings. Environment overrides are
@@ -286,6 +298,8 @@ directly and shows its name and current value in the trigger; multiple items use
 submenus. Starting or ending generation does not clear the configuration display.
 
 Tools merge by native call ID. Standalone permission IDs settle their own cards.
+Approval previews reuse cached ACP tool titles and inputs when the permission
+request contains only its call ID; protocol option wrappers remain hidden.
 Unknown tool results use generic cards. Missing token/cost/model data is not
 invented. Images and model controls use connected capabilities; native slash
 commands populate the existing command menu.
@@ -294,6 +308,8 @@ Gateway sign-in failures retain the upstream provider identity through ACP error
 wrapping. The chat shows localized sign-in guidance and opens that provider's
 model settings, rather than the local Agent's login page. Raw diagnostics remain
 available in error details.
+Known native provider-adapter and model-catalog failures use localized diagnostics
+without calling a diagnosis model or treating them as missing Cherry models.
 
 ACP `session/prompt.usage` is stored as a typed, Main-authored
 `agent_session_message.data.localTurnUsage` turn summary. It does not create a

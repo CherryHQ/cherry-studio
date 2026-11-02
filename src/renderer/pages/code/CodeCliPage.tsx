@@ -6,8 +6,9 @@ import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 
 import { CodeCliConfiguration } from './components/CodeCliConfiguration'
+import { DeepSeekHarnessAgentDetails } from './components/DeepSeekHarnessAgentDetails'
 import { LocalAgentCliConfig } from './components/LocalAgentCliConfig'
-import { LocalAgentDirectory } from './components/LocalAgentDirectory'
+import { LocalAgentDetails, LocalAgentDirectory } from './components/LocalAgentDirectory'
 
 export default function CodeCliPage() {
   const { t } = useTranslation()
@@ -38,6 +39,13 @@ export default function CodeCliPage() {
         )
       }}
       renderCliConfig={(tool) => <LocalAgentCliConfig key={tool} tool={tool} />}
+      renderDetails={(props) =>
+        props.preset?.id === 'deepseek-harness' ? (
+          <DeepSeekHarnessAgentDetails key={props.preset.id} {...props} />
+        ) : (
+          <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />
+        )
+      }
       renderCli={(tool) => <CodeCliConfiguration key={tool} initialTool={tool} />}
     />
   )

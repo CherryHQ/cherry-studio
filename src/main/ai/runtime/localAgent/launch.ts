@@ -134,6 +134,7 @@ export async function resolveLocalAgentLaunch(
   const env =
     source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
   appendBundledGitPathTail(env)
+  if (config.presetId === 'deepseek-harness') env.DSH_HOME = application.getPath('external.deepseek_harness.config')
   let nativeModel: string | undefined
   if (config.presetId === 'poolside' && !terminal) {
     const [file] = await application.get('CodeCliService').readConfigFiles(['poolside-settings'])

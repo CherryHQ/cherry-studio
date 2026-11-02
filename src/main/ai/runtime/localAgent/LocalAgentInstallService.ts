@@ -228,6 +228,7 @@ export class LocalAgentInstallService extends BaseService {
         if (webUiId) await application.getOptional('LocalAgentWebUiService')?.stop(webUiId)
         if (agent.id === 'codebuddy-code') await application.getOptional('CodeBuddyWebUiService')?.stop()
         if (agent.id === 'hermes') await application.getOptional('HermesDashboardService')?.stop()
+        if (agent.id === 'deepseek-harness') await application.getOptional('DeepSeekHarnessService')?.stop()
       }
       if (detected.source === 'mise') {
         const manager = application.get('BinaryManager')

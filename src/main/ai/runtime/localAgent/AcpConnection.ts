@@ -23,6 +23,7 @@ import type { FinishReason } from 'ai'
 import { app as electronApp } from 'electron'
 import * as z from 'zod'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -99,6 +100,9 @@ export class AcpConnection extends LocalConnection {
   }
   private async startConnection(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
+    if (!probe && this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
+      launch.nativeModel = await application.get('DeepSeekHarnessService').prepareAgent()
+    }
     if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.defaultModel = this.config.nativeModel ?? launch.nativeModel
     this.abort.signal.throwIfAborted()
@@ -195,12 +199,12 @@ export class AcpConnection extends LocalConnection {
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const knownTool = this.tools.has(id)
         const options = params.options
+        const tool = { ...this.toolInputs.get(id), ...params.toolCall }
         const answer = await this.approve(
           id,
-          `ACP: ${params.toolCall.title ?? 'Tool'}`,
+          `ACP: ${tool.title ?? 'Tool'}`,
           {
-            localAcpTool: this.toolInputs.get(id),
-            tool: params.toolCall,
+            localAcpTool: tool,
             localPermissionOptions: options
           },
           signal

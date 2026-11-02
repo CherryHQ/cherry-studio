@@ -98,7 +98,12 @@ export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
           )
         })}
         {tool.rawInput != null && (
-          <ToolArgsTable args={{ input: tool.rawInput }} title={t('message.tools.sections.input')} />
+          <ToolArgsTable
+            args={
+              typeof tool.rawInput === 'object' ? (tool.rawInput as Record<string, unknown>) : { input: tool.rawInput }
+            }
+            title={t('message.tools.sections.input')}
+          />
         )}
         {tool.rawOutput != null && (
           <ToolArgsTable args={{ output: tool.rawOutput }} title={t('message.tools.sections.output')} />

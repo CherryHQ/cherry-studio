@@ -14,7 +14,7 @@ import {
   Search,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -96,7 +96,7 @@ const DEFAULT_AGENT_ORDER = new Map(
     'opencode',
     'copilot',
     'cli:openclaw',
-    'cli:deepseek-harness',
+    'deepseek-harness',
     'pi-acp',
     'hermes',
     'kimi',
@@ -132,11 +132,13 @@ const logger = loggerService.withContext('LocalAgentDirectory')
 export function LocalAgentDirectory({
   renderCli,
   renderCliConfig,
+  renderDetails = (props) => <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />,
   renderContextMenu
 }: {
   renderContextMenu?: (id: string, tool: CodeCli | undefined, name: string, row: ReactNode) => ReactNode
   renderCliConfig?: (tool: string) => ReactNode
   renderCli?: (tool: CodeCli) => ReactNode
+  renderDetails?: (props: ComponentProps<typeof LocalAgentDetails>) => ReactNode
 }) {
   const { t } = useTranslation()
   const [agentOrder, setAgentOrder] = usePreference('feature.code_cli.agent_order')
@@ -151,7 +153,7 @@ export function LocalAgentDirectory({
   const search = useSearch({ strict: false }) as { id?: string; tool?: CodeCli }
   const navigate = useNavigate()
   const requestedId =
-    search.id ??
+    (search.id === 'cli:deepseek-harness' ? 'deepseek-harness' : search.id) ??
     (search.tool &&
       (LOCAL_AGENT_PRESETS.find((preset) => codeCliForLocalAgent(preset.id) === search.tool)?.id ??
         `cli:${search.tool}`))
@@ -236,7 +238,9 @@ export function LocalAgentDirectory({
     !entry.agent?.deletedAt && entry.agent?.configuration?.localRuntime?.enabled
       ? 2
       : Number(installedIds.has(entry.id) || !!entry.agent?.configuration?.localRuntime?.executableOverride)
-  const orderIndex = new Map(agentOrder.map((id, index) => [id, index]))
+  const orderIndex = new Map(
+    agentOrder.map((id, index) => [id === 'cli:deepseek-harness' ? 'deepseek-harness' : id, index])
+  )
   const entries = [
     ...LOCAL_AGENT_PRESETS.map((preset) => ({
       id: preset.id,
@@ -436,42 +440,40 @@ export function LocalAgentDirectory({
         </div>
       </aside>
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {renderCli && cliTool && entry?.id.startsWith('cli:') ? (
-          renderCli(cliTool)
-        ) : entry || selected === 'custom-new' ? (
-          <LocalAgentDetails
-            installing={installingAgents.has(entry?.preset?.id ?? '')}
-            upgradeTargetVersion={installingAgents.get(entry?.preset?.id ?? '')}
-            onInstall={installAgent}
-            cliConfigEntry={renderCliConfig?.(cliTool ?? entry?.preset?.id ?? '')}
-            key={entry?.id ?? selected}
-            pendingSelection={
-              pendingSelection &&
-              pendingSelection !== selected &&
-              pendingSelection !== entry?.id &&
-              pendingSelection !== entry?.agent?.id
-                ? pendingSelection
-                : undefined
-            }
-            onNavigate={navigateToSelection}
-            onCancelNavigation={cancelNavigation}
-            preset={entry?.preset}
-            agent={entry?.agent}
-            detection={detections.find((d) => d.presetId === entry?.preset?.id)}
-            onSaved={async (id, refreshInstallations = true) => {
-              await Promise.all([refetch(), refetchArchivedAgents()])
-              setSelected(id)
-              void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
-              if (refreshInstallations) await refresh()
-            }}
-          />
-        ) : null}
+        {renderCli && cliTool && entry?.id.startsWith('cli:')
+          ? renderCli(cliTool)
+          : entry || selected === 'custom-new'
+            ? renderDetails({
+                installing: installingAgents.has(entry?.preset?.id ?? ''),
+                upgradeTargetVersion: installingAgents.get(entry?.preset?.id ?? ''),
+                onInstall: installAgent,
+                cliConfigEntry: renderCliConfig?.(cliTool ?? entry?.preset?.id ?? ''),
+                pendingSelection:
+                  pendingSelection &&
+                  pendingSelection !== selected &&
+                  pendingSelection !== entry?.id &&
+                  pendingSelection !== entry?.agent?.id
+                    ? pendingSelection
+                    : undefined,
+                onNavigate: navigateToSelection,
+                onCancelNavigation: cancelNavigation,
+                preset: entry?.preset,
+                agent: entry?.agent,
+                detection: detections.find((d) => d.presetId === entry?.preset?.id),
+                onSaved: async (id, refreshInstallations = true) => {
+                  await Promise.all([refetch(), refetchArchivedAgents()])
+                  setSelected(id)
+                  void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
+                  if (refreshInstallations) await refresh()
+                }
+              })
+            : null}
       </main>
     </div>
   )
 }
 
-function LocalAgentDetails({
+export function LocalAgentDetails({
   installing,
   upgradeTargetVersion,
   onInstall,
@@ -482,7 +484,10 @@ function LocalAgentDetails({
   preset,
   agent,
   detection,
-  onSaved
+  onSaved,
+  modelList,
+  renderActions,
+  children
 }: {
   installing: boolean
   upgradeTargetVersion?: string
@@ -495,6 +500,9 @@ function LocalAgentDetails({
   agent?: AgentEntity
   detection?: LocalAgentDetection
   onSaved: (id: string, refreshInstallations?: boolean) => Promise<void>
+  modelList?: ComponentProps<typeof LocalAgentModelList>
+  renderActions?: (config: LocalAgentConfiguration, disabled: boolean) => ReactNode
+  children?: ReactNode
 }) {
   const { t } = useTranslation()
   const { updateAgent } = useUpdateAgent()
@@ -518,7 +526,7 @@ function LocalAgentDetails({
   } = useLocalAgentModelCatalog(
     preset?.id ?? agent?.id ?? 'custom-new',
     initial,
-    !!(detection?.path || initial.executableOverride)
+    !modelList && !!(detection?.path || initial.executableOverride)
   )
   const modelSelection = useLocalAgentModelSelection(initial, catalog?.models ?? [])
   const version = useLocalAgentVersion(initial.executableOverride ? undefined : preset?.id, detection?.path)
@@ -802,6 +810,9 @@ function LocalAgentDetails({
           else if (configuration.presetId === 'hermes') {
             const stopped = await ipcApi.request('hermes_dashboard.stop')
             if (!stopped.success) throw new Error(stopped.message)
+          } else if (configuration.presetId === 'deepseek-harness') {
+            const stopped = await ipcApi.request('deepseek_harness.stop')
+            if (!stopped.success) throw new Error(stopped.message)
           }
         } catch (error) {
           logger.warn('Failed to stop disabled Agent WebUI', { presetId: configuration.presetId, error })
@@ -940,6 +951,7 @@ function LocalAgentDetails({
               }
               actions={
                 <>
+                  {available && renderActions?.(initial, busy)}
                   {available ? (
                     <>
                       {terminalButton}
@@ -1101,23 +1113,28 @@ function LocalAgentDetails({
           <div className="mx-auto w-full max-w-3xl space-y-3">
             {!editing && feedback}
             {archived && <p className="text-xs text-muted-foreground">{t('local_agents.disable_archive.status')}</p>}
-            {(preset || agent) && (
-              <LocalAgentModelList
-                models={modelSelection.models}
-                sourceRestrictions={modelSelection.sourceRestrictions}
-                groupFallback={agent?.name ?? preset?.name}
-                value={modelSelection.value}
-                disabled={busy || archived || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}
-                loading={modelsLoading}
-                loaded={!!catalog}
-                loadDisabled={!detection?.path && !initial.executableOverride}
-                onLoad={loadModels}
-                onSelect={selectModel}
-              />
+            {modelList ? (
+              <LocalAgentModelList {...modelList} disabled={busy || archived || modelList.disabled} />
+            ) : (
+              (preset || agent) && (
+                <LocalAgentModelList
+                  models={modelSelection.models}
+                  sourceRestrictions={modelSelection.sourceRestrictions}
+                  groupFallback={agent?.name ?? preset?.name}
+                  value={modelSelection.value}
+                  disabled={busy || archived || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}
+                  loading={modelsLoading}
+                  loaded={!!catalog}
+                  loadDisabled={!detection?.path && !initial.executableOverride}
+                  onLoad={loadModels}
+                  onSelect={selectModel}
+                />
+              )
             )}
           </div>
         </Scrollbar>
       </div>
+      {children}
       {editing && (
         <LocalAgentAdvancedSettings
           config={initial}

@@ -903,6 +903,7 @@ describe('local protocol processes', () => {
       await connection.start(cwd)
       const sending = connection.send(input)
       const first = await waitForApproval(events)
+      expect(first.request.toolName).toBe('ACP: Write file')
       toolApprovalRegistry.dispatch(first.request.approvalId, { approved: true })
       if (scenario !== 'approved-write') {
         await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))

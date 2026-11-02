@@ -6,9 +6,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
+import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CodeCli } from '@shared/types/codeCli'
 
 import { CodeCliConfiguration } from '../components/CodeCliConfiguration'
+import { DeepSeekHarnessAgentDetails } from '../components/DeepSeekHarnessAgentDetails'
 
 const binaries = vi.hoisted(() => ({ remove: vi.fn(), upgrade: vi.fn() }))
 vi.unmock('@cherrystudio/ui')
@@ -93,6 +95,26 @@ function configured(tool: CodeCli) {
 }
 
 describe('CLI-only Agent details', () => {
+  it('keeps DeepSeek model configuration alongside its ACP chat and enable controls', async () => {
+    configured(CodeCli.DEEPSEEK_HARNESS)
+    render(
+      <DeepSeekHarnessAgentDetails
+        preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === 'deepseek-harness')}
+        detection={{ presetId: 'deepseek-harness', path: '/usr/local/bin/dsh', source: 'system' }}
+        installing={false}
+        onInstall={vi.fn()}
+        onNavigate={vi.fn()}
+        onCancelNavigation={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: '对话' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'DeepSeek Chat' })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '参数设置' }))
+    expect(await screen.findByRole('dialog')).toBeVisible()
+  })
   it.each([CodeCli.DEEPSEEK_HARNESS, CodeCli.OPENCLAW])(
     'selects a model directly for %s without launching it',
     async (tool) => {

@@ -277,6 +277,7 @@ agent_servers:
 
   it.each([
     ['copilot', 'copilot', ['--acp']],
+    ['deepseek-harness', 'dsh', ['--profile', 'acp']],
     ['minimax', 'mcode', ['acp']],
     ['cursor', 'agent', ['acp']],
     ['cline', 'cline', ['--acp']],

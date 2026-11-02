@@ -14,7 +14,13 @@ import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { parseUniqueModelId, type Model, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { BinaryAvailability } from '@shared/types/binary'
-import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@shared/types/codeCli'
+import {
+  CodeCli,
+  isApiGatewayProviderId,
+  normalizeDeepSeekHarnessSettings,
+  type DeepSeekHarnessPermissionMode,
+  type DeepSeekHarnessSettings
+} from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { ManagedToolStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
@@ -78,6 +84,23 @@ export class DeepSeekHarnessService extends BaseService {
 
   getStatus(): ManagedToolStatusState {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
+  }
+
+  async prepareAgent(): Promise<string | undefined> {
+    const state = application.get('PreferenceService').get('feature.code_cli.configs')[CodeCli.DEEPSEEK_HARNESS]
+    if (!state?.current) return
+    const selected = state.providers[state.current]
+    const uniqueModelId = selected?.modelId
+    if (!uniqueModelId) return
+    const mode = isApiGatewayProviderId(state.current) ? 'gateway' : 'direct'
+    return this.operationMutex.runExclusive(async () => {
+      const { projection } = await this.syncConfig({
+        uniqueModelId,
+        mode,
+        ...normalizeDeepSeekHarnessSettings(selected.config)
+      })
+      return JSON.stringify([projection.route, projection.modelId])
+    })
   }
 
   /** Single status-transition point for the main-owned shared snapshot. */

@@ -14,7 +14,8 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 const mocks = vi.hoisted(() => ({
   failSettingsWrite: false,
   failProfileWrite: false,
-  failHeadlessWrite: false
+  failHeadlessWrite: false,
+  failAcpWrite: false
 }))
 
 vi.mock('@main/utils/file', async () => {
@@ -34,6 +35,10 @@ vi.mock('@main/utils/file', async () => {
       if (mocks.failHeadlessWrite && String(args[0]).includes(nodePath.default.join('profiles', 'headless'))) {
         mocks.failHeadlessWrite = false
         throw new Error('injected headless write failure')
+      }
+      if (mocks.failAcpWrite && String(args[0]).includes(nodePath.default.join('profiles', 'acp'))) {
+        mocks.failAcpWrite = false
+        throw new Error('injected ACP write failure')
       }
       if (mocks.failProfileWrite && nodePath.default.basename(args[0]) === 'cordis.patch.yml') {
         mocks.failProfileWrite = false
@@ -100,6 +105,7 @@ describe('DeepSeek Harness config transaction', () => {
     mocks.failSettingsWrite = false
     mocks.failProfileWrite = false
     mocks.failHeadlessWrite = false
+    mocks.failAcpWrite = false
     dir = (await mkdtemp(path.join(tmpdir(), 'deepseek-harness-config-'))) as AbsoluteFilePath
   })
 
@@ -385,10 +391,12 @@ describe('DeepSeek Harness config transaction', () => {
     await writeDeepSeekHarnessConfig(dir, projection())
     const once = await readFile(profilePath, 'utf8')
     expect(once).toContain('# profile note')
-    expect(parse(once)).toEqual([
-      { id: 'other-plugin', config: { keep: true } },
-      { id: 'agent-default-model', config: { provider: projection().route, model: 'claude-sonnet' } }
-    ])
+    expect(parse(once)).toEqual(
+      expect.arrayContaining([
+        { id: 'other-plugin', config: { keep: true } },
+        { id: 'agent-default-model', config: { provider: projection().route, model: 'claude-sonnet' } }
+      ])
+    )
     await writeDeepSeekHarnessConfig(dir, projection())
     expect(await readFile(profilePath, 'utf8')).toBe(once)
   })
@@ -420,6 +428,95 @@ describe('DeepSeek Harness config transaction', () => {
     mocks.failHeadlessWrite = true
     await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow('injected headless write failure')
     for (const name of ['settings.yaml', '.credentials.yaml', 'cordis.patch.yml', 'profiles/headless/cordis.patch.yml'])
+      await expect(readFile(path.join(dir, name), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('applies the same default to ACP while preserving its unrelated profile settings', async () => {
+    const profile = path.join(dir, 'profiles', 'acp', 'cordis.patch.yml')
+    await mkdir(path.dirname(profile), { recursive: true })
+    await writeFile(
+      profile,
+      '# ACP note\n- id: acp\n  config:\n    model: old\n    sessionListPageSize: 20\n- id: hmr\n  disabled: true\n'
+    )
+    const receipt = await writeDeepSeekHarnessConfig(dir, projection())
+    const content = await readFile(profile, 'utf8')
+    expect(content).toContain('# ACP note')
+    expect(parse(content)).toContainEqual({
+      id: 'acp',
+      config: { provider: projection().route, model: 'claude-sonnet', sessionListPageSize: 20 }
+    })
+    expect(parse(content)).toContainEqual({ id: 'hmr', disabled: true })
+    expect(parse(content)).toContainEqual(
+      expect.objectContaining({
+        id: 'llm-pi-ai',
+        config: expect.objectContaining({
+          providers: expect.objectContaining({
+            [projection().route]: expect.objectContaining({
+              apiKeyEnv: projection().credentialRef,
+              baseURL: 'https://api.anthropic.com'
+            })
+          })
+        })
+      })
+    )
+    expect(await rollbackDeepSeekHarnessConfig(receipt)).toBe(true)
+    expect(await readFile(profile, 'utf8')).toContain('model: old')
+  })
+
+  it('keeps every selected model shared across profiles after DSH consumes legacy settings', async () => {
+    const first = projection()
+    await writeDeepSeekHarnessConfig(dir, first)
+    await unlink(path.join(dir, 'settings.yaml'))
+    const second = { ...first, modelId: 'second-model', model: model({ apiModelId: 'second-model' }) }
+    await writeDeepSeekHarnessConfig(dir, second)
+    await unlink(path.join(dir, 'settings.yaml'))
+    await writeDeepSeekHarnessConfig(dir, {
+      ...second,
+      ...createDeepSeekHarnessDirectIdentity('another-provider', 'anthropic-messages')
+    })
+
+    const shared = parse(await readFile(path.join(dir, 'cordis.patch.yml'), 'utf8'))
+    const providers = shared.find((entry: { id: string }) => entry.id === 'llm-pi-ai').config.providers
+    expect(providers[first.route].models.map((entry: { id: string }) => entry.id)).toEqual([
+      'claude-sonnet',
+      'second-model'
+    ])
+    expect(providers[first.route]).toMatchObject({ apiKeyEnv: first.credentialRef, baseURL: first.baseUrl })
+  })
+
+  it('recovers an already migrated ACP model catalog into the shared profile without copying foreign routes', async () => {
+    const { route, credentialRef } = projection()
+    const acp = path.join(dir, 'profiles', 'acp', 'cordis.patch.yml')
+    await mkdir(path.dirname(acp), { recursive: true })
+    await writeFile(
+      acp,
+      `- id: llm-pi-ai\n  config:\n    providers:\n      ${route}:\n        apiKeyEnv: ${credentialRef}\n        models:\n          - id: previous-model\n      user-route:\n        apiKeyEnv: USER_KEY\n`
+    )
+    await writeDeepSeekHarnessConfig(dir, projection())
+    const shared = parse(await readFile(path.join(dir, 'cordis.patch.yml'), 'utf8'))
+    const providers = shared.find((entry: { id: string }) => entry.id === 'llm-pi-ai').config.providers
+    expect(providers[route].models.map((entry: { id: string }) => entry.id)).toEqual([
+      'previous-model',
+      'claude-sonnet'
+    ])
+    expect(providers['user-route']).toBeUndefined()
+    expect(
+      parse(await readFile(acp, 'utf8')).find((entry: { id: string }) => entry.id === 'llm-pi-ai').config.providers[
+        'user-route'
+      ]
+    ).toEqual({ apiKeyEnv: 'USER_KEY' })
+  })
+
+  it('restores every file when the final ACP profile write fails', async () => {
+    mocks.failAcpWrite = true
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow('injected ACP write failure')
+    for (const name of [
+      'settings.yaml',
+      '.credentials.yaml',
+      'cordis.patch.yml',
+      'profiles/headless/cordis.patch.yml',
+      'profiles/acp/cordis.patch.yml'
+    ])
       await expect(readFile(path.join(dir, name), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 

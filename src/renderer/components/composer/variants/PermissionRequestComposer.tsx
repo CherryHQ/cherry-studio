@@ -6,7 +6,12 @@ import { useTranslation } from 'react-i18next'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
-import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
+import {
+  AcpTool,
+  isValidAgentToolsType,
+  renderTool,
+  UnknownToolRenderer
+} from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
@@ -16,7 +21,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
+import { LocalAcpToolSchema, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -90,13 +95,16 @@ export function createPermissionRequestComposerOverride({
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
   const input = toolResponse.arguments as Record<string, unknown> | string | undefined
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input)
-    : UnknownToolRenderer({ toolName, input })
+  const acp = LocalAcpToolSchema.safeParse(input && typeof input === 'object' ? input.localAcpTool : undefined)
+  const renderedItem = acp.success
+    ? AcpTool({ tool: acp.data })
+    : isValidAgentToolsType(toolName)
+      ? renderTool(toolName, input)
+      : UnknownToolRenderer({ toolName, input })
 
   const item: ToolDisclosureItem = {
     ...renderedItem,
-    label: <PermissionPreviewHeader toolName={toolName} />,
+    label: acp.success ? renderedItem.label : <PermissionPreviewHeader toolName={toolName} />,
     children: renderBuiltinPreviewChildren(toolName, renderedItem.children),
     classNames: {
       ...renderedItem.classNames,

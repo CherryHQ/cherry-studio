@@ -135,13 +135,19 @@ describe('PermissionRequestComposer', () => {
     )
   })
 
-  it('translates a one-time ACP grant and returns its original option ID', async () => {
+  it('shows the native ACP operation without its protocol envelope and returns the original grant ID', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const request = makeRequest()
     request.toolResponse.arguments = {
+      localAcpTool: { title: 'Write report', rawInput: { file_path: '/tmp/report.txt', content: 'report body' } },
+      tool: { toolCallId: 'call-1' },
       localPermissionOptions: [{ optionId: 'once', kind: 'allow_once', name: 'Allow once' }]
     }
     render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('/tmp/report.txt')).toBeVisible()
+    expect(screen.getByText('report body')).toBeVisible()
+    expect(screen.queryByText('localAcpTool')).not.toBeInTheDocument()
+    expect(screen.queryByText('localPermissionOptions')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '允许一次' }))
     expect(onRespond).toHaveBeenCalledWith({
       match: request.match,

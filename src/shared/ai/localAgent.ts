@@ -107,6 +107,15 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     helpUrl: 'https://opencode.ai/docs/acp/'
   },
   {
+    id: 'deepseek-harness',
+    name: 'DeepSeek Harness',
+    protocol: 'acp',
+    executable: 'dsh',
+    args: ['--profile', 'acp'],
+    npmPackage: '@deepseek-ai/dsh',
+    helpUrl: 'https://github.com/deepseek-ai/deepseek-harness'
+  },
+  {
     id: 'kiro',
     terminalArgs: ['chat'],
     name: 'Kiro',
