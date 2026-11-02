@@ -727,6 +727,46 @@ describe('session MCP skills through real protocol and persistence', () => {
     }
   )
 
+  it.each(['picker', 'get'])(
+    'persists %s replacement invalidation for a closed runtime across service restart',
+    async (source) => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      const original = fixture.manifest()
+      skills.closeSession(sessionId)
+      skills.openSession('other-session', agentId)
+      const discover = () =>
+        source === 'picker'
+          ? application.get('McpCatalogService').listSkills(serverId)
+          : skills.get('other-session', serverId, fixture.uri)
+      await discover()
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
+
+      fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+      fixture.refresh()
+      const other = mcpServerService.create({
+        name: 'Unrelated origin',
+        type: 'streamableHttp',
+        baseUrl: 'http://127.0.0.1:3/mcp',
+        isActive: true
+      })
+      await application.get('McpCatalogService').listSkills(other.id)
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
+      await discover()
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+
+      fixture.publish(original)
+      await discover()
+      await skills._doStop()
+      BaseService.resetInstances()
+      skills = new McpSkillService()
+      await skills._doInit()
+      skills.openSession(sessionId, agentId)
+      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+      await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+    }
+  )
+
   it('invalidates another session when direct lookup discovers a replacement', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
     const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!

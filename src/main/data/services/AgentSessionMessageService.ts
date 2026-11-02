@@ -850,6 +850,27 @@ export class AgentSessionMessageService {
     })
   }
 
+  listMcpSkillContexts(serverId: string, uri: string): { sessionId: string; skill: McpSkillContext }[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ sessionId: sessionMessagesTable.sessionId, data: sessionMessagesTable.data })
+      .from(sessionMessagesTable)
+      .where(sql`exists (
+        select 1 from json_each(${sessionMessagesTable.data}, '$.mcpSkills') as skill
+        where json_extract(skill.value, '$.serverId') = ${serverId}
+          and json_extract(skill.value, '$.uri') = ${uri}
+          and json_extract(skill.value, '$.invalidated') = 0
+      )`)
+      .all()
+      .flatMap(({ sessionId, data }) =>
+        McpSkillContextSchema.array()
+          .parse(data.mcpSkills)
+          .filter((skill) => skill.serverId === serverId && skill.uri === uri && !skill.invalidated)
+          .map((skill) => ({ sessionId, skill }))
+      )
+  }
+
   listMcpSkills(sessionId: string): McpSkillContext[] {
     const db = application.get('DbService').getDb()
     this.assertActiveSession(db, sessionId)

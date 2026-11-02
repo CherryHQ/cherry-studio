@@ -74,9 +74,7 @@ export class McpSkillService extends BaseService {
   protected async onInit(): Promise<void> {
     this.registerDisposable(
       application.get('McpCatalogService').onSkillsObserved((entries) => {
-        for (const session of this.sessions.values()) {
-          for (const entry of entries) this.observe(session, entry)
-        }
+        for (const entry of entries) this.observeEntry(entry)
       })
     )
     this.registerDisposable(
@@ -254,6 +252,18 @@ export class McpSkillService extends BaseService {
     return results
   }
 
+  private observeEntry(entry: McpSkillEntry): void {
+    const changedSessions = new Set(
+      agentSessionMessageService
+        .listMcpSkillContexts(entry.serverId, entry.uri)
+        .filter(({ skill }) => !isDeepStrictEqual(manifestOf(skill), manifestOf(entry)))
+        .map(({ sessionId }) => sessionId)
+    )
+    for (const sessionId of changedSessions)
+      agentSessionMessageService.invalidateMcpSkill(sessionId, entry.serverId, entry.uri)
+    for (const session of this.sessions.values()) this.observe(session, entry)
+  }
+
   private observe(session: SkillSession, entry: McpSkillEntry): void {
     const key = keyOf(entry.serverId, entry.uri)
     const pending = session.loads.get(key)
@@ -276,7 +286,7 @@ export class McpSkillService extends BaseService {
       .getSkill(serverId, uri, AbortSignal.any([session.abort.signal, ...(signal ? [signal] : [])]))
     this.server(session, serverId)
     session.abort.signal.throwIfAborted()
-    for (const activeSession of this.sessions.values()) this.observe(activeSession, entry)
+    this.observeEntry(entry)
     return entry
   }
 
