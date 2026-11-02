@@ -16,6 +16,7 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
 
@@ -61,6 +62,7 @@ describe('Agent fork publication', () => {
     agentSessionMessageService.saveMessage({
       sessionId,
       runtimeResumeToken: 'native-parent',
+      nativeContextId: preparePiBranch(sessionId, undefined, 'native-parent').id,
       runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: 'leaf' } },
       message: {
         id: messageId,
@@ -196,6 +198,7 @@ describe('Agent fork publication', () => {
             sessionId,
             messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
           })
+          reservePiBranchTx(tx, sessionId, saved[0].id, nativeSessionId)
           agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
           if (outcome === 'write failed') throw new Error('write failed')
           return saved[0].id

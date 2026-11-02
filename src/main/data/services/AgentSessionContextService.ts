@@ -10,7 +10,7 @@ import {
 import { agentSessionContextTable as contexts, type AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 
-import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
+import { readAgentSessionAncestry } from './agentSessionMessageTree'
 
 const locatorSchema = z.discriminatedUnion('kind', [
   z.object({ version: z.literal(1), kind: z.literal('pi') }),
@@ -22,44 +22,34 @@ const locatorSchema = z.discriminatedUnion('kind', [
 ])
 
 class AgentSessionContextService {
-  bindBranchTx(
+  reserveBranchTx(
     tx: DbOrTx,
-    sessionId: string,
-    anchorMessageId: string,
-    nativeId: string,
-    checkpointMapping: Record<string, unknown> = {},
-    verified = false
-  ): void {
-    const locator = { version: 1, kind: 'pi' } as const
-    const backend =
-      tx.select().from(backends).where(eq(backends.locator, locator)).get() ??
-      tx.insert(backends).values({ locator, state: 'bound' }).returning().get()
-    const existing = tx
-      .select()
-      .from(contexts)
-      .where(
-        and(
-          eq(contexts.sessionId, sessionId),
-          eq(contexts.backendId, backend.id),
-          eq(contexts.nativeThreadId, nativeId)
-        )
-      )
-      .get()
-    const binding = {
-      nativeThreadId: nativeId,
-      anchorMessageId,
-      checkpointMapping: { fork: checkpointMapping },
-      bindingState: verified ? ('bound' as const) : (existing?.bindingState ?? ('pending' as const))
-    }
+    binding: Pick<AgentSessionContextRow, 'sessionId' | 'backendId' | 'anchorMessageId'> &
+      Partial<Pick<AgentSessionContextRow, 'nativeThreadId' | 'checkpointMapping'>>
+  ): AgentSessionContextRow {
+    this.backendTx(tx, binding.backendId)
+    if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
+    readAgentSessionAncestry(tx, binding.sessionId, binding.anchorMessageId)
+    const nativeId = binding.nativeThreadId
+    const existing = nativeId
+      ? tx
+          .select()
+          .from(contexts)
+          .where(
+            and(
+              eq(contexts.sessionId, binding.sessionId),
+              eq(contexts.backendId, binding.backendId),
+              eq(contexts.nativeThreadId, nativeId)
+            )
+          )
+          .get()
+      : undefined
     if (existing) {
-      if (existing.anchorMessageId && existing.anchorMessageId !== anchorMessageId)
+      if (existing.anchorMessageId && existing.anchorMessageId !== binding.anchorMessageId)
         throw new Error('Native context already belongs to another branch')
-      tx.update(contexts).set(binding).where(eq(contexts.id, existing.id)).run()
-    } else {
-      tx.insert(contexts)
-        .values({ sessionId, backendId: backend.id, ...binding })
-        .run()
+      return tx.update(contexts).set(binding).where(eq(contexts.id, existing.id)).returning().get()
     }
+    return tx.insert(contexts).values(binding).returning().get()
   }
 
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {
@@ -78,19 +68,12 @@ class AgentSessionContextService {
       .run()
   }
 
-  confirmBranchTx(tx: DbOrTx, sessionId: string, messageId: string, nativeId: string): void {
-    const binding = this.branchTx(tx, sessionId, messageId)
-    if (binding) {
-      if (binding.nativeThreadId !== nativeId) throw new Error('Native output belongs to another branch')
-      tx.update(contexts)
-        .set({ nativeThreadId: nativeId, bindingState: 'bound' })
-        .where(eq(contexts.id, binding.id))
-        .run()
-    } else {
-      const root = ensureAgentSessionRootTx(tx, sessionId)
-      this.bindBranchTx(tx, sessionId, root, nativeId, {}, true)
-      this.confirmBranchTx(tx, sessionId, messageId, nativeId)
-    }
+  confirmBranchTx(tx: DbOrTx, contextId: string, sessionId: string, messageId: string, nativeId: string): void {
+    const binding = this.contextTx(tx, contextId)
+    if (binding.sessionId !== sessionId || this.branchTx(tx, sessionId, messageId)?.id !== contextId)
+      throw new Error('Native output belongs to another branch')
+    if (binding.nativeThreadId !== nativeId) throw new Error('Native context identity cannot change')
+    tx.update(contexts).set({ nativeThreadId: nativeId, bindingState: 'bound' }).where(eq(contexts.id, contextId)).run()
   }
 
   ensureBackendTx(

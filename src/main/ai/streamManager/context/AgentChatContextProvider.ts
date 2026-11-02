@@ -16,6 +16,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -345,6 +346,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
           },
           'edit'
         )
+        if (validated.agentType === 'pi')
+          reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         return result
       })

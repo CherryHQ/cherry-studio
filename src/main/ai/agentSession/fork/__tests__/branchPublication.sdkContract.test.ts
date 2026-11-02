@@ -13,6 +13,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { forkPiSession } from '@main/ai/runtime/pi/piFork'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -95,6 +96,7 @@ describe('Pi branch publication with native files', () => {
       return messages.saveMessage({
         sessionId: 'product',
         runtimeResumeToken: manager.getSessionId(),
+        nativeContextId: preparePiBranch('product', messages.captureHead('product'), manager.getSessionId()).id,
         runtimeAnchor: {
           checkpoint: { runtime: 'pi', runtimeSessionId: manager.getSessionId(), leafId: manager.getLeafId()! }
         },
@@ -124,6 +126,7 @@ describe('Pi branch publication with native files', () => {
               { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Edited question' }] } }
             ]
           })
+          reservePiBranchTx(tx, 'product', row.id, nativeId)
           messages.setEditRuntimeTx(tx, 'product', row.id, nativeId)
           return { row, nativeId }
         }

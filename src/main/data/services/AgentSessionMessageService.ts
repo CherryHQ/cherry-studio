@@ -110,8 +110,9 @@ function isLegacyMessage(): SQL {
       )
   ) AND NOT EXISTS (
     WITH RECURSIVE input_path(id, parent_id, role, input_context_id) AS (
-      SELECT id, parent_id, role, input_context_id FROM agent_session_message
-        WHERE id = ${sessionMessagesTable.id} AND session_id = ${sessionMessagesTable.sessionId}
+      SELECT candidate.id, candidate.parent_id, candidate.role, candidate.input_context_id
+        FROM agent_session_message AS candidate
+        WHERE candidate.id = ${sessionMessagesTable.id} AND candidate.session_id = ${sessionMessagesTable.sessionId}
       UNION
       SELECT parent.id, parent.parent_id, parent.role, parent.input_context_id
         FROM agent_session_message AS parent JOIN input_path ON parent.id = input_path.parent_id
@@ -189,6 +190,7 @@ type SaveAgentSessionMessageParams = {
   runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
+  nativeContextId?: string
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
     deliveryStatus?: AgentSessionDeliveryStatus
@@ -592,7 +594,6 @@ export class AgentSessionMessageService {
   }
 
   setEditRuntimeTx(tx: DbOrTx, sessionId: string, userMessageId: string, nativeSessionId: string): void {
-    agentSessionContextService.bindBranchTx(tx, sessionId, userMessageId, nativeSessionId)
     tx.update(sessionMessagesTable)
       .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})` })
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, userMessageId)))
@@ -1473,9 +1474,14 @@ export class AgentSessionMessageService {
     timestampMs = Date.now()
   ): SavedAgentSessionMessage {
     const result = this.upsertMessage(db, params, timestampMs)
-    const checkpoint = RuntimeForkAnchorSchema.safeParse(params.runtimeAnchor)
-    if (params.runtimeResumeToken && checkpoint.success && checkpoint.data.checkpoint.runtime === 'pi') {
-      agentSessionContextService.confirmBranchTx(db, params.sessionId, result.entity.id, params.runtimeResumeToken)
+    if (params.nativeContextId && params.runtimeResumeToken) {
+      agentSessionContextService.confirmBranchTx(
+        db,
+        params.nativeContextId,
+        params.sessionId,
+        result.entity.id,
+        params.runtimeResumeToken
+      )
     }
     agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
     if (result.activityTimestamp !== null) {
