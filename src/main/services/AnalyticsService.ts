@@ -160,6 +160,12 @@ export class AnalyticsService extends BaseService implements Activatable {
     this.client!.trackTokenUsage(data)
   }
 
+  /** Reports a product event; dropped unless data collection is consented under the current policy. */
+  public trackEvent(eventType: string, data: Record<string, string | number | boolean>): void {
+    if (!this.isActivated || !this.desiredEnabled) return
+    this.client!.track(eventType, data)
+  }
+
   public async trackAppUpdate(): Promise<void> {
     if (!this.client || !this.desiredEnabled) {
       return

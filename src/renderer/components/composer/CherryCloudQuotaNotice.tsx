@@ -1,4 +1,5 @@
 import { Clock, Lock } from 'lucide-react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
@@ -6,6 +7,7 @@ import { useCommandRuntime } from '@renderer/hooks/command'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
+import { trackSubscriptionEntryView, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
 /** Sits above the composer input while the current Cherry Cloud model cannot be used. */
@@ -19,6 +21,18 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
   const offerSubscription = quota
     ? exhaustion.isFreeModel && !exhaustion.isSubscribed
     : reason === 'subscription_required'
+  const modelType = exhaustion.isFreeModel ? 'free' : 'paid'
+
+  useEffect(() => {
+    if (quota) {
+      trackSubscriptionEvent({
+        event: 'subscription_quota_exhausted_view',
+        modelType,
+        subscribed: exhaustion.isSubscribed
+      })
+    }
+    if (offerSubscription) trackSubscriptionEntryView('quota_notice')
+  }, [exhaustion.isSubscribed, modelType, offerSubscription, quota])
 
   const lockedMessages = {
     sign_in_required: t('chat.input.quota_notice.sign_in_required'),
@@ -59,13 +73,28 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
           type="button"
           size="sm"
           variant={offerSubscription ? 'default' : 'outline'}
-          onClick={() =>
-            offerSubscription ? void startCherryCloudSubscription() : openSettingsTab('/settings/profile')
-          }>
+          onClick={() => {
+            if (quota) {
+              trackSubscriptionEvent({
+                event: 'subscription_quota_action',
+                action: offerSubscription ? 'subscribe' : 'view_usage',
+                modelType
+              })
+            }
+            if (offerSubscription) void startCherryCloudSubscription('quota_notice')
+            else openSettingsTab('/settings/profile')
+          }}>
           {t(offerSubscription ? 'settings.subscription.go_to_subscribe' : 'settings.subscription.view_usage')}
         </Button>
       ) : null}
-      <Button type="button" size="sm" variant="outline" onClick={() => commandRuntime.execute('chat.model.select')}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          if (quota) trackSubscriptionEvent({ event: 'subscription_quota_action', action: 'switch_model', modelType })
+          commandRuntime.execute('chat.model.select')
+        }}>
         {t('chat.input.quota_notice.switch_model')}
       </Button>
     </div>

@@ -135,6 +135,38 @@ describe('useCherryCloudSubscriptionReminder', () => {
     expect(syncs()).toBeGreaterThan(syncsBefore)
   })
 
+  it.each([
+    ['a window refocus', 'focus_refresh'],
+    ['a subscription notification', 'notification']
+  ] as const)('reports an activation detected after %s', async (_trigger, detectedBy) => {
+    let publishRefresh = () => {}
+    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
+    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
+      if (event === 'cherry_cloud.account_refreshed') publishRefresh = () => handler(undefined)
+      return () => {}
+    })
+    onTestFinished(() => {
+      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
+    })
+    status = signedIn('account-1')
+    plans = unpaid()
+    renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() => expect(plansRequests()).toBe(1))
+
+    plans = paid('Plus')
+    if (detectedBy === 'notification') await act(async () => publishRefresh())
+    else await returnFromBrowser()
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('cherry_cloud.analytics.track', {
+        event: 'subscription_activated',
+        planName: 'Plus',
+        detectedBy,
+        sinceClick: 'none'
+      })
+    )
+  })
+
   it('does not announce a subscription made while signed out', async () => {
     let publishStatus: (next: CherryCloudStatus) => void = () => {}
     const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()

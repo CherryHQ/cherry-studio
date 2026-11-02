@@ -12,6 +12,7 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
  */
 
 const {
+  mockTrack,
   mockTrackAppLaunch,
   mockTrackTokenUsage,
   mockTrackAppUpdate,
@@ -20,6 +21,7 @@ const {
   MockAnalyticsClient,
   captured
 } = vi.hoisted(() => {
+  const track = vi.fn()
   const trackAppLaunch = vi.fn()
   const trackTokenUsage = vi.fn()
   const trackAppUpdate = vi.fn()
@@ -27,6 +29,7 @@ const {
   const getQueueSize = vi.fn(() => 0)
   const clientOptions: { fetch?: typeof fetch } = {}
   return {
+    mockTrack: track,
     mockTrackAppLaunch: trackAppLaunch,
     mockTrackTokenUsage: trackTokenUsage,
     mockTrackAppUpdate: trackAppUpdate,
@@ -34,9 +37,13 @@ const {
     mockGetQueueSize: getQueueSize,
     MockAnalyticsClient: vi.fn(function AnalyticsClientMock(
       options: AnalyticsClientOptions
-    ): Pick<AnalyticsClient, 'trackAppLaunch' | 'trackTokenUsage' | 'trackAppUpdate' | 'destroy' | 'getQueueSize'> {
+    ): Pick<
+      AnalyticsClient,
+      'track' | 'trackAppLaunch' | 'trackTokenUsage' | 'trackAppUpdate' | 'destroy' | 'getQueueSize'
+    > {
       clientOptions.fetch = options?.fetch
       return {
+        track,
         trackAppLaunch,
         trackTokenUsage,
         trackAppUpdate,
@@ -96,6 +103,7 @@ beforeEach(() => {
   captured.preferenceValues['app.privacy.data_collection.enabled'] = true
   captured.preferenceValues['app.privacy.policy_version'] = LATEST_PRIVACY_POLICY_VERSION
   destroyResolvers = []
+  mockTrack.mockReset()
   mockTrackAppLaunch.mockReset()
   mockTrackTokenUsage.mockReset()
   mockTrackAppUpdate.mockReset()
@@ -120,6 +128,22 @@ describe('AnalyticsService data collection preference', () => {
 
     await service.trackAppUpdate()
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
+  })
+
+  it('reports product events only while data collection is consented', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+    expect(mockTrack).toHaveBeenCalledWith('subscription_entry_view', { source: 'settings' })
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    mockTrack.mockClear()
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+    expect(mockTrack).not.toHaveBeenCalled()
   })
 
   it('activates after the latest privacy policy is accepted', async () => {

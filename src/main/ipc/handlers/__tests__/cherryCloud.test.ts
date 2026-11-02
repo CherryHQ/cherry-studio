@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const service = vi.hoisted(() => ({
   startLogin: vi.fn()
 }))
+const analytics = vi.hoisted(() => ({ trackEvent: vi.fn() }))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'CherryCloudService') return service
+      if (name === 'AnalyticsService') return analytics
       throw new Error(`Unexpected service: ${name}`)
     }
   }
@@ -37,5 +39,18 @@ describe('cherryCloudHandlers', () => {
 
     expect(error).toBeInstanceOf(IpcError)
     expect(error).toHaveProperty('code', code)
+  })
+
+  it('reports a subscription event with snake_case fields for the analytics backend', async () => {
+    await cherryCloudHandlers['cherry_cloud.analytics.track'](
+      { event: 'subscription_entry_click', source: 'selector_locked_row', signedIn: true, modelId: 'kimi-k2' },
+      { senderId: 'w1' }
+    )
+
+    expect(analytics.trackEvent).toHaveBeenCalledWith('subscription_entry_click', {
+      source: 'selector_locked_row',
+      signed_in: true,
+      model_id: 'kimi-k2'
+    })
   })
 })

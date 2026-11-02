@@ -112,6 +112,25 @@ describe('SubscriptionSettings', () => {
     }
   )
 
+  it('reports the usage view, Manage subscription, and FAQ clicks of a subscribed account', async () => {
+    requestMock.mockImplementation((route: string) => {
+      if (route === 'cherry_cloud.account_plans.get') return Promise.resolve(paidPlans('Plus'))
+      if (route === 'cherry_cloud.api_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
+      return Promise.resolve()
+    })
+    renderSettings()
+
+    await userEvent.click(await screen.findByRole('button', { name: /settings.subscription.manage/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.faq' }))
+
+    const tracked = requestMock.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track')
+    expect(tracked.map(([, event]) => event)).toEqual([
+      { event: 'subscription_usage_view', subscribed: true },
+      { event: 'subscription_manage_click' },
+      { event: 'subscription_faq_click', subscribed: true }
+    ])
+  })
+
   it('opens the production account center on the cloud origin', async () => {
     vi.stubEnv('DEV', false)
     requestMock.mockImplementation((route: string) => {

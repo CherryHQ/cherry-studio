@@ -117,6 +117,59 @@ export type CherryCloudAccountPlans = z.infer<typeof cherryCloudAccountPlansSche
 export type CherryCloudPlanModel = z.infer<typeof cherryCloudPlanModelSchema>
 export type CherryCloudPublicPlanCatalog = z.infer<typeof cherryCloudPublicPlanCatalogSchema>
 
+const subscriptionEntrySourceSchema = z.enum([
+  'selector_locked_row',
+  'selector_header',
+  'account_panel',
+  'settings',
+  'quota_notice',
+  'avatar_dot'
+])
+const quotaModelTypeSchema = z.enum(['free', 'paid'])
+
+/** Allow-listed subscription funnel events; none carries an account identifier or a price. */
+export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
+  z.strictObject({ event: z.literal('subscription_entry_view'), source: subscriptionEntrySourceSchema }),
+  z.strictObject({
+    event: z.literal('subscription_entry_click'),
+    source: subscriptionEntrySourceSchema,
+    signedIn: z.boolean(),
+    modelId: z.string().max(200).optional()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_sign_in_result'),
+    result: z.enum(['success', 'failed', 'cancelled']),
+    reason: z.enum(['upgrade_required', 'service_unavailable', 'other']).optional()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_portal_open'),
+    source: subscriptionEntrySourceSchema,
+    result: z.enum(['success', 'failed'])
+  }),
+  z.strictObject({
+    event: z.literal('subscription_activated'),
+    planName: z.string().max(100),
+    detectedBy: z.enum(['focus_refresh', 'notification']),
+    sinceClick: z.enum(['under_5m', 'under_30m', 'under_24h', 'over_24h', 'none'])
+  }),
+  z.strictObject({
+    event: z.literal('subscription_quota_exhausted_view'),
+    modelType: quotaModelTypeSchema,
+    subscribed: z.boolean()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_quota_action'),
+    action: z.enum(['subscribe', 'view_usage', 'switch_model']),
+    modelType: quotaModelTypeSchema
+  }),
+  z.strictObject({ event: z.literal('subscription_usage_view'), subscribed: z.boolean() }),
+  z.strictObject({ event: z.literal('subscription_manage_click') }),
+  z.strictObject({ event: z.literal('subscription_faq_click'), subscribed: z.boolean() })
+])
+
+export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
+export type SubscriptionEntrySource = z.infer<typeof subscriptionEntrySourceSchema>
+
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.account_origin.get': defineRoute({ input: z.void(), output: z.url() }),
@@ -128,7 +181,8 @@ export const cherryCloudRequestSchemas = {
     output: cherryCloudModelSyncResultSchema
   }),
   'cherry_cloud.account_plans.get': defineRoute({ input: z.void(), output: cherryCloudAccountPlansSchema }),
-  'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema })
+  'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema }),
+  'cherry_cloud.analytics.track': defineRoute({ input: cherryCloudAnalyticsEventSchema, output: z.void() })
 }
 
 export type CherryCloudEventSchemas = {
