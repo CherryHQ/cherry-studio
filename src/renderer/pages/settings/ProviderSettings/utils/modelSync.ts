@@ -13,6 +13,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
@@ -51,10 +52,24 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
   return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
 }
 
+/** Providers whose own model listing is the source of truth for limits and prices (not the registry snapshot). */
+const LIVE_CATALOG_PROVIDERS: ReadonlySet<string> = new Set([SystemProviderIds.dothoosh])
+
+/** A provider is live-catalog when its instance id OR its preset id is in LIVE_CATALOG_PROVIDERS. */
+const isLiveCatalogProvider = (providerId: string, presetProviderId?: string | null): boolean =>
+  LIVE_CATALOG_PROVIDERS.has(providerId) || (presetProviderId != null && LIVE_CATALOG_PROVIDERS.has(presetProviderId))
+
+const savesListedLimits = (
+  providerId: string,
+  presetProviderId: string | null | undefined,
+  model: Pick<Model, 'presetModelId'>
+): boolean => !model.presetModelId || isLiveCatalogProvider(providerId, presetProviderId)
+
 export function toCreateModelDto(
   providerId: string,
   model: Model,
-  endpointTypes?: RuntimeEndpointType[]
+  endpointTypes?: RuntimeEndpointType[],
+  presetProviderId?: string | null
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
@@ -69,7 +84,16 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    // A model unknown to the registry saves its listed limit and prices; a preset-backed one resolves them
+    // from the registry, except on a live-catalog provider (instance id or preset id) whose listing is newer.
+    ...(savesListedLimits(providerId, presetProviderId, model) && model.maxOutputTokens
+      ? { maxOutputTokens: model.maxOutputTokens }
+      : {}),
+    ...(savesListedLimits(providerId, presetProviderId, model) && model.maxInputTokens
+      ? { maxInputTokens: model.maxInputTokens }
+      : {}),
+    ...(savesListedLimits(providerId, presetProviderId, model) && model.pricing ? { pricing: model.pricing } : {})
   }
 }
 
@@ -80,7 +104,11 @@ export function toCreateModelDto(
  * — this layer overlays preset capabilities/limits/pricing that aren't
  * available from the upstream provider SDK.
  */
-async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<Model[]> {
+async function enrichFetchedModels(
+  providerId: string,
+  presetProviderId: string | null | undefined,
+  fetchedModels: Partial<Model>[]
+): Promise<Model[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
     return []
@@ -119,6 +147,14 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     'ownedBy'
   ] as const
 
+  // A live-catalog provider (instance id or preset id) has a listing newer than the registry snapshot: it wins,
+  // and the registry only fills what the listing left out. Every other provider keeps registry-over-listing.
+  const LIVE_FIELDS = new Set<string>(
+    isLiveCatalogProvider(providerId, presetProviderId)
+      ? ['contextWindow', 'maxOutputTokens', 'maxInputTokens', 'pricing']
+      : []
+  )
+
   return filteredModels.map((fetched) => {
     const base = fetched as Model
     const apiId = fetched.apiModelId ?? ''
@@ -142,10 +178,24 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'name' && keepFetchedName) {
         continue
       }
+      if (LIVE_FIELDS.has(field) && base[field] != null) {
+        continue
+      }
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value
       }
+    }
+
+    // A registry input cap that no longer fits under the live context window is bounded to that window, so the
+    // saved model cannot hydrate the oversized registry cap back.
+    if (
+      base.maxInputTokens == null &&
+      merged.maxInputTokens != null &&
+      merged.contextWindow != null &&
+      merged.maxInputTokens > merged.contextWindow
+    ) {
+      merged.maxInputTokens = merged.contextWindow
     }
 
     return merged
@@ -158,7 +208,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
+export async function fetchResolvedProviderModels(
+  providerId: string,
+  presetProviderId?: string | null
+): Promise<ListedModels<Model>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {
@@ -168,7 +221,7 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<L
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     // Enrichment rebuilds the array, so the notice main reported alongside the
     // models is carried onto the result.
-    const models = await enrichFetchedModels(providerId, fetched)
+    const models = await enrichFetchedModels(providerId, presetProviderId, fetched)
     return skippedModels ? { models, skippedModels } : { models }
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {

@@ -116,6 +116,8 @@ export function useProviderModelPullReconcile(providerId: string) {
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
+  const presetProviderId = provider?.presetProviderId
+
   const loadModels = useCallback(async (): Promise<ProviderModelLoadResult | null> => {
     const sequence = ++loadModelsSequenceRef.current
     const isLatestLoad = () => sequence === loadModelsSequenceRef.current
@@ -123,7 +125,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
     try {
-      const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId)
+      const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId, presetProviderId)
       if (!isLatestLoad()) return null
 
       const fetched = models.filter((model) => model.name?.trim())
@@ -152,7 +154,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     } finally {
       if (isLatestLoad()) setIsLoadingModels(false)
     }
-  }, [providerId, t])
+  }, [presetProviderId, providerId, t])
 
   const openPullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(true)
@@ -172,7 +174,9 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       const chunks = chunkArray(
-        toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
+        toAdd.map((model) =>
+          toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model), presetProviderId)
+        ),
         MODELS_BATCH_MAX_ITEMS
       )
       // A batch that lands commits and cannot be undone here, so the batches after
@@ -223,7 +227,7 @@ export function useProviderModelPullReconcile(providerId: string) {
         toast.warning(t('settings.models.manage.add_success_enable_failed'))
       }
     },
-    [createModels, enableProvider, models, provider, providerId, t]
+    [createModels, enableProvider, models, presetProviderId, provider, providerId, t]
   )
 
   const removeModels = useCallback(

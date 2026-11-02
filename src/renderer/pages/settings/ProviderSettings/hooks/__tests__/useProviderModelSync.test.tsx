@@ -10,6 +10,7 @@ const useProviderMock = vi.fn()
 const createModelsMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
 const resolveCreateModelEndpointTypesMock = vi.fn()
+const toCreateModelDtoMock = vi.fn()
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -30,14 +31,18 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('../../utils/modelSync', () => ({
-  fetchResolvedProviderModels: (...args: any[]) => fetchResolvedProviderModelsMock(...args),
+  fetchResolvedProviderModels: (providerId: string, presetProviderId?: string | null) =>
+    fetchResolvedProviderModelsMock(providerId, presetProviderId),
   resolveCreateModelEndpointTypes: (...args: any[]) => resolveCreateModelEndpointTypesMock(...args),
-  toCreateModelDto: (_providerId: string, model: any, endpointTypes: any) => ({
-    providerId: model.providerId,
-    modelId: model.id.split(':')[1],
-    name: model.name,
-    endpointTypes
-  })
+  toCreateModelDto: (_providerId: string, model: any, endpointTypes: any, presetProviderId?: string | null) => {
+    toCreateModelDtoMock(_providerId, model, endpointTypes, presetProviderId)
+    return {
+      providerId: model.providerId,
+      modelId: model.id.split(':')[1],
+      name: model.name,
+      endpointTypes
+    }
+  }
 }))
 
 describe('useProviderModelSync', () => {
@@ -106,7 +111,7 @@ describe('useProviderModelSync', () => {
     expect(dataApiGetMock).toHaveBeenCalledWith('/models', {
       query: { providerId: 'openai' }
     })
-    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', undefined)
     expect(createModelsMock).toHaveBeenCalledTimes(1)
   })
 
@@ -151,5 +156,53 @@ describe('useProviderModelSync', () => {
     })
 
     expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith(updatedProvider, model)
+  })
+
+  describe('duplicated provider preset identity', () => {
+    const DUPLICATE_ID = '6f1c2a9e-3b7d-4c58-9a10-2d4e8b5f7c31'
+    const liveModel = { id: `${DUPLICATE_ID}:claude-sonnet-5`, providerId: DUPLICATE_ID, name: 'Claude Sonnet 5' }
+
+    it('fetches and creates models with the stored provider preset', async () => {
+      useProviderMock.mockReturnValue({ provider: { id: DUPLICATE_ID, presetProviderId: 'dothoosh' } })
+      fetchResolvedProviderModelsMock.mockResolvedValue({ models: [liveModel] })
+      createModelsMock.mockResolvedValue([{ id: liveModel.id }])
+      const { result } = renderHook(() => useProviderModelSync(DUPLICATE_ID, { existingModels: [] }))
+
+      await act(async () => {
+        await result.current.syncProviderModels()
+      })
+
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith(DUPLICATE_ID, 'dothoosh')
+      expect(toCreateModelDtoMock).toHaveBeenCalledTimes(1)
+      expect(toCreateModelDtoMock.mock.calls[0][3]).toBe('dothoosh')
+    })
+
+    it('prefers the endpoint provider override preset over the stored provider', async () => {
+      useProviderMock.mockReturnValue({ provider: { id: DUPLICATE_ID } })
+      fetchResolvedProviderModelsMock.mockResolvedValue({ models: [liveModel] })
+      createModelsMock.mockResolvedValue([{ id: liveModel.id }])
+      const { result } = renderHook(() => useProviderModelSync(DUPLICATE_ID, { existingModels: [] }))
+
+      await act(async () => {
+        await result.current.syncProviderModels({ id: DUPLICATE_ID, presetProviderId: 'dothoosh' } as any)
+      })
+
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith(DUPLICATE_ID, 'dothoosh')
+      expect(toCreateModelDtoMock.mock.calls[0][3]).toBe('dothoosh')
+    })
+
+    it('passes another preset through unchanged', async () => {
+      useProviderMock.mockReturnValue({ provider: { id: DUPLICATE_ID, presetProviderId: 'openrouter' } })
+      fetchResolvedProviderModelsMock.mockResolvedValue({ models: [liveModel] })
+      createModelsMock.mockResolvedValue([{ id: liveModel.id }])
+      const { result } = renderHook(() => useProviderModelSync(DUPLICATE_ID, { existingModels: [] }))
+
+      await act(async () => {
+        await result.current.syncProviderModels()
+      })
+
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith(DUPLICATE_ID, 'openrouter')
+      expect(toCreateModelDtoMock.mock.calls[0][3]).toBe('openrouter')
+    })
   })
 })

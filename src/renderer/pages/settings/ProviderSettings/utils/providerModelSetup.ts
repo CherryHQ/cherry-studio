@@ -53,7 +53,14 @@ export async function persistProviderModels({
   const missingModels = uniqueSelectedModels.filter((model) => !persistedModels.has(model.id))
   for (const modelChunk of chunkArray(missingModels, MODELS_BATCH_MAX_ITEMS)) {
     const createdModels = await createModels(
-      modelChunk.map((model) => toCreateModelDto(provider.id, model, resolveCreateModelEndpointTypes(provider, model)))
+      modelChunk.map((model) =>
+        toCreateModelDto(
+          provider.id,
+          model,
+          resolveCreateModelEndpointTypes(provider, model),
+          provider.presetProviderId
+        )
+      )
     )
     const createdModelsById = new Map(createdModels.map((model) => [model.id, model]))
     const missingResult = modelChunk.find((model) => !createdModelsById.has(model.id))

@@ -44,4 +44,50 @@ describe('persistProviderModels', () => {
     expect(persisted).toHaveLength(models.length)
     expect(persisted.every((model) => model.isEnabled && !model.isHidden)).toBe(true)
   })
+
+  describe('live DotHoosh metadata for duplicated providers', () => {
+    const DUPLICATE_ID = '6f1c2a9e-3b7d-4c58-9a10-2d4e8b5f7c31'
+    const pricing = {
+      input: { perMillionTokens: 3, currency: 'USD' },
+      output: { perMillionTokens: 15, currency: 'USD' }
+    }
+    const presetBackedModel = {
+      id: `${DUPLICATE_ID}::claude-sonnet-5`,
+      providerId: DUPLICATE_ID,
+      apiModelId: 'claude-sonnet-5',
+      presetModelId: 'claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      maxOutputTokens: 64_000,
+      pricing
+    } as unknown as Model
+
+    async function persist(provider: Partial<Provider>) {
+      const createModels = vi.fn(async (items: any[]) => items.map(() => presetBackedModel))
+      await persistProviderModels({
+        provider: { id: DUPLICATE_ID, ...provider } as Provider,
+        selectedModels: [presetBackedModel],
+        localModels: [],
+        createModels,
+        updateModels: vi.fn(async () => [])
+      })
+      return createModels.mock.calls[0][0][0]
+    }
+
+    it('keeps listed limits and prices for a duplicate of the DotHoosh preset', async () => {
+      const dto = await persist({ presetProviderId: 'dothoosh' })
+
+      expect(dto).toMatchObject({ maxOutputTokens: 64_000, pricing })
+    })
+
+    it.each([{ presetProviderId: 'openrouter' }, {}])('drops listed limits and prices for %j', async (provider) => {
+      const dto = await persist(provider)
+
+      expect(dto).not.toHaveProperty('pricing')
+      expect(dto).not.toHaveProperty('maxOutputTokens')
+    })
+  })
 })
