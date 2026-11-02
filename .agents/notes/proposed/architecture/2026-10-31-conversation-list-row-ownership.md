@@ -35,7 +35,7 @@ const handleDelete = useCallback(async (id: string) => {
 
 The rendered list and the reader share the same pure functions, so they cannot disagree on order. Reactive rendering still uses `useQuery`; the snapshot is for handlers only.
 
-**3. Feature folders.** `Sessions` splits into `pages/agents/components/sessions/` by responsibility: list host, row actions, group menus, delete flow, reorder. `Topics` follows the same shape after the pattern is proven. Group menu builders keep their current shape and move with the split.
+**3. Feature folders.** `Sessions` moves to `pages/agents/components/sessions/`, and the parts with a clear boundary move to their own files: row menu actions, rename, creation, group expansion, group structure, and workdir group handlers. Handlers that depend on most of the host's state stay in `Sessions.tsx`: delete flow, agent group handlers, reorder, and group headers. `Topics` follows the same shape after the pattern is proven.
 
 ### Expected performance
 
@@ -58,6 +58,7 @@ Delivery is a stack, and each layer can merge alone. A timing baseline for AC7 i
 
 - Add Zustand or Jotai as in Folo: rejected. Cherry Studio already has four data systems, and the data is already outside React. A fifth system would duplicate SWR's cache.
 - ID-only rows with `useSessionById(id, selector)`: rejected for now. SWR caches pages, not entities, so this needs an entity index over the cache plus a place for optimistic names. Existing reference sharing delivers per-row invalidation without it.
+- Splitting every responsibility until no file exceeds 800 lines: rejected after trying it. It left `Sessions.tsx` at 759 lines, but the four remaining hooks took 11–25 parameters, were each called once, and still changed together with the host. Total lines grew by about 650 with no reuse or decoupling.
 - `useLatest` copies of list state in each host: rejected as the end state. It fixes the render cost, but every handler keeps a hidden dependency on host state, and the derivation stays inside the component.
 - Owned group menus, with a `ResourceList` component slot replacing `getGroupHeaderContextMenu`: rejected after measurement. In a dev build with 50 agents and 11 mounted headers, the menu callbacks caused 2 of the 12 header render passes on a pin toggle, 1 of 1 on a sidebar toggle, and 1 of 7 on a session update. At about 0.55 ms per header render, this saves an estimated 5–12 ms on actions that take 93–255 ms, and menus already open in about 45 ms. It would also change a shared `ResourceList` contract and add one subscription per mounted header.
 - Lazy menu items with a subscription hook: rejected. It needed `getExtraItems` and `subscribeExtraItems` on `CommandPopupMenu` and existed only to compensate for menu state living in the host.
@@ -69,7 +70,7 @@ Delivery is a stack, and each layer can merge alone. A timing baseline for AC7 i
 - AC2 — `useLatest` lives in `src/renderer/hooks/`, existing composer callers use it there, and their tests pass unchanged. (verification: unit)
 - AC3 — When one session changes, only that session's row re-renders, in time, agent, and workdir display modes. (verification: renderer)
 - AC4 — Deleting the active session picks its replacement from the current displayed list after that list has changed, and `handleDeleteSession` no longer depends on list state. (verification: renderer)
-- AC5 — `Sessions` lives in a feature folder where no file exceeds 800 lines, with no change to selection, rename, drag, archive, or undo. (verification: renderer and Electron)
+- AC5 — `Sessions` lives in a feature folder with row menu actions, rename, creation, group expansion, group structure, and workdir group handlers in their own files, with no change to selection, rename, drag, archive, or undo. (verification: renderer and Electron)
 - AC6 — `Topics` meets AC3, AC4, and AC5 for its time and assistant modes. (verification: renderer and Electron)
 - AC7 — With 500 sessions, a single-session update and a delete are profiled before layer 1 and after the final layer, the numbers are reported in the final PR, and neither is slower than the baseline. (verification: Electron)
 

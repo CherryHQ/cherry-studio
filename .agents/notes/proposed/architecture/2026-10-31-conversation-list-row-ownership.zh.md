@@ -35,7 +35,7 @@ const handleDelete = useCallback(async (id: string) => {
 
 渲染列表和读取函数共用同一组纯函数，所以顺序不会不一致。响应式渲染仍使用 `useQuery`，快照只给处理函数用。
 
-**3. 功能目录。** `Sessions` 按职责拆到 `pages/agents/components/sessions/`：列表宿主、行操作、分组菜单、删除流程、排序。这个模式验证后，`Topics` 采用相同结构。分组菜单的构建方式保持不变，随拆分一起移动。
+**3. 功能目录。** `Sessions` 移到 `pages/agents/components/sessions/`，边界清楚的部分拆到各自的文件：行菜单操作、改名、创建、分组展开、分组结构和工作目录分组处理函数。依赖宿主大部分状态的处理函数留在 `Sessions.tsx`：删除流程、智能体分组处理函数、排序和分组头。这个模式验证后，`Topics` 采用相同结构。
 
 ### 预期性能
 
@@ -58,6 +58,7 @@ const handleDelete = useCallback(async (id: string) => {
 
 - 像 Folo 一样引入 Zustand 或 Jotai：否决。Cherry Studio 已有四套数据系统，数据也已在 React 外部，第五套只会重复 SWR 缓存。
 - 只传 ID 的行加 `useSessionById(id, selector)`：暂时否决。SWR 按页缓存而不是按实体缓存，需要在缓存上加实体索引，还要安置乐观改名；现有引用共享不需要这些就能按行失效。
+- 按职责全部拆开，直到没有文件超过 800 行：实际做过后否决。`Sessions.tsx` 虽然降到 759 行，但剩下的 4 个 hook 需要 11–25 个参数，都只调用一次，改动时仍要和宿主一起改。总行数增加约 650 行，没有带来复用或解耦。
 - 在每个宿主用 `useLatest` 保存列表状态：不作为最终方案。它能解决渲染开销，但每个处理函数都隐式依赖宿主状态，推导也还留在组件里。
 - 分组菜单自有化，并用 `ResourceList` 组件插槽替换 `getGroupHeaderContextMenu`：实测后否决。在开发构建、50 个智能体、11 个已挂载分组头的条件下，菜单回调只造成置顶时 12 轮分组头渲染中的 2 轮、侧边栏切换时 1 轮中的 1 轮、会话更新时 7 轮中的 1 轮。按每次分组头渲染约 0.55 毫秒估算，这只能在耗时 93–255 毫秒的操作上省下 5–12 毫秒，而菜单本来约 45 毫秒就能打开。它还会改变 `ResourceList` 的共享约定，并让每个已挂载的分组头多一份订阅。
 - 懒加载菜单项加订阅 hook：否决。它需要给 `CommandPopupMenu` 增加 `getExtraItems` 和 `subscribeExtraItems`，只是为了补偿菜单状态放在宿主里。
@@ -69,7 +70,7 @@ const handleDelete = useCallback(async (id: string) => {
 - AC2 — `useLatest` 位于 `src/renderer/hooks/`，现有 composer 调用方改用该位置，其测试无需修改即通过。（验证：单元测试）
 - AC3 — 一条会话变化时，在时间、智能体、工作目录三种展示模式下都只重渲染该行。（验证：渲染层测试）
 - AC4 — 列表变化后删除当前会话，替代项取自当前显示的列表，且 `handleDeleteSession` 不再依赖列表状态。（验证：渲染层测试）
-- AC5 — `Sessions` 位于功能目录中，没有文件超过 800 行，选中、改名、拖拽、归档和撤销都不变。（验证：渲染层测试和 Electron）
+- AC5 — `Sessions` 位于功能目录中，行菜单操作、改名、创建、分组展开、分组结构和工作目录分组处理函数都在各自的文件里，选中、改名、拖拽、归档和撤销都不变。（验证：渲染层测试和 Electron）
 - AC6 — `Topics` 在时间和助手模式下满足 AC3、AC4 和 AC5。（验证：渲染层测试和 Electron）
 - AC7 — 在 500 条会话下，分别在第 1 层之前和最后一层之后分析单条会话更新和删除的耗时，在最后的 PR 中报告数据，两者都不比基线慢。（验证：Electron）
 
