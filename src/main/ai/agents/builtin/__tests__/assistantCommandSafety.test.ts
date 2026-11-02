@@ -163,6 +163,15 @@ describe('detectDestructiveAssistantCommand', () => {
     ['& (Get-Alias -Name erase) victim.txt', 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command '& (Get-Alias del) victim.txt'", 'permanent Windows file deletion'],
     ['& (Get-Alias -Name:"rd") victimdir', 'permanent Windows file deletion'],
+    // Block comments are stripped before parameter binding, so a comment between a
+    // lookup flag and its name still binds the name: `-Name <# ; #> del` binds `del`
+    // and the call operator invokes it (round-30 review finding; pwsh 7.4.6 parse-only:
+    // the comment token is consumed, the -Name argument is the literal `del`, and the
+    // outer command's invocation operator is the ampersand).
+    ['& (Get-Command -Name <# ; #> del) victim.txt', 'permanent Windows file deletion'],
+    ['& (Get-Alias -Name <# ; #> del) victim.txt', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '& (Get-Command -Name <# ; #> del) victim.txt'", 'permanent Windows file deletion'],
+    ['& (gcm -Name <#note#> erase) victim.txt', 'permanent Windows file deletion'],
     // Hashtable entry values execute when the literal evaluates: `@{result = del x}`
     // runs the pipeline assigned to the key. Bare and quoted keys anchor through the
     // scanner; `$`-rooted keys already deny through the assignment family. The scanner
@@ -178,6 +187,14 @@ describe('detectDestructiveAssistantCommand', () => {
     ["@{ 'my key' = del victim.txt }", 'permanent Windows file deletion'],
     ['@{a=(1;2); b=del victim.txt}', 'permanent Windows file deletion'],
     ['@{result = "del"}', 'permanent Windows file deletion'],
+    // Bare keys follow the parser's BMP letter/digit boundary: `résultat` and `结果`
+    // are valid bare keys, so their entry values execute like `result`'s (round-30
+    // review finding; pwsh 7.4.6 parse-only: zero errors, the del command is
+    // execution-shaped inside the hashtable, not shielded).
+    ['@{résultat = del victim.txt}', 'permanent Windows file deletion'],
+    ['@{结果 = del victim.txt}', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '@{résultat = del victim.txt}'", 'permanent Windows file deletion'],
+    ['@{$résultat = del victim.txt}', 'permanent Windows file deletion'],
     // A closed quoted value is one opaque segment: separators or braces inside it cannot
     // split the entry, so the later `b` entry still anchors (round-27 residual closure).
     ['@{a=";"; b=del victim.txt}', 'permanent Windows file deletion'],
@@ -284,6 +301,10 @@ describe('detectDestructiveAssistantCommand', () => {
     '& (Get-Alias -Name delx) victim.txt',
     '@{result = delivery}',
     '@{result = delx}',
+    '@{résultat = delivery}',
+    '@{结果 = delx}',
+    '& (Get-Command -Name <# ; #> delivery) victim.txt',
+    '& (Get-Alias -Name <# ; #> delx) victim.txt',
     '@{}'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
@@ -370,6 +391,64 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(performance.now() - start2).toBeLessThan(2000)
     // The hashtable value family still detects after the pass.
     expect(detectDestructiveAssistantCommand('@{result = del victim.txt}')).toBe('permanent Windows file deletion')
+  })
+
+  it('denies deletion behind Unicode bare hashtable keys (round-30 review finding)', () => {
+    // The ASCII-only key predicate abandoned the table before examining the executable
+    // value; BMP letters and decimal digits continue and start a bare key.
+    expect(detectDestructiveAssistantCommand('@{résultat = del victim.txt}')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('@{结果 = del victim.txt}')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('@{a٥b = del victim.txt}')).toBe('permanent Windows file deletion')
+    // Original-input denies are preserved alongside the widened key walk.
+    expect(detectDestructiveAssistantCommand('@{result = del victim.txt}')).toBe('permanent Windows file deletion')
+    // Benign values behind Unicode keys keep the token boundary.
+    expect(detectDestructiveAssistantCommand('@{résultat = delivery}')).toBeUndefined()
+  })
+
+  it('denies lookup names split by block comments and preserves raw-input denies (round-30 review finding)', () => {
+    // The comment-normalized copy unions with the raw walk: `-Name <# ; #> del` binds `del`.
+    expect(detectDestructiveAssistantCommand('& (Get-Command -Name <# ; #> del) victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('& (Get-Alias -Name <# ; #> rd) victimdir')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Comment text that merely contains a deletion token keeps the raw walk's
+    // conservative over-deny: the raw stepping treats comment content as live text
+    // (`<# del #>` reads as the name), and the union preserves that original-input deny.
+    expect(detectDestructiveAssistantCommand('& (Get-Command -Name <# del #> delivery) victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Raw-input denies survive the union unchanged.
+    expect(detectDestructiveAssistantCommand('& (Get-Command -Name del) victim.txt <# note #>')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Comment-shaped text inside a quoted echo argument blanks harmlessly: no lookup
+    // anchor follows, so the union still allows.
+    expect(detectDestructiveAssistantCommand('echo "<# ; #>"')).toBeUndefined()
+  })
+
+  it('stays linear on dense Unicode keys and comment-split lookup chains (round-30 review finding)', () => {
+    // The widened key predicate stays O(n): every key character is one category test.
+    const uniKeys = '@{' + 'résultat=1;'.repeat(20_000) + '}'
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(uniKeys)).toBeUndefined()
+    expect(performance.now() - start).toBeLessThan(2000)
+    // Dense comment spans ahead of benign lookup values: one blanking pass, one walk.
+    const comments = '& (Get-Command -Name ' + '<# x #>'.repeat(10_000) + ' delivery) victim.txt'
+    const start2 = performance.now()
+    expect(detectDestructiveAssistantCommand(comments)).toBeUndefined()
+    expect(performance.now() - start2).toBeLessThan(2000)
+    // An unterminated comment swallows the rest in a single jump.
+    const open = '& (Get-Command -Name <#' + 'x'.repeat(400_000)
+    const start3 = performance.now()
+    expect(detectDestructiveAssistantCommand(open)).toBeUndefined()
+    expect(performance.now() - start3).toBeLessThan(2000)
+    // Both round-30 families still detect after the passes.
+    expect(detectDestructiveAssistantCommand('@{résultat = del victim.txt}')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('& (Get-Command -Name <# ; #> del) victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
   })
 
   it('blocks redirection targets of any length (no fixed cap)', () => {

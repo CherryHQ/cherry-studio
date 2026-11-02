@@ -204,6 +204,15 @@ const SCAN_BARE_EXCLUDE = new Set([';', '&', '|', '/', '"', '(', ')', '{', '}'])
 const SCAN_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
 const isScanWord = (c: string): boolean =>
   (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_'
+// PowerShell bare hashtable keys and variable names accept BMP Unicode letters and decimal
+// digits beyond ASCII, so `@{résultat = del x}` and `@{结果 = del x}` parse with `del` as
+// the entry value (round-30 review finding; pwsh 7.4.6 parse probes: \p{L} and \p{Nd}
+// continue and start a bare key, while combining marks, connector/other punctuation, Nl,
+// ZWNJ and every astral character terminate it). Lone surrogate code units never match the
+// category test, so astral characters keep the parser's own rejection. This widens only
+// the key walk; deletion-token boundaries keep the regex family's ASCII `\b` contract.
+const UNICODE_KEY_CHAR = /[\p{L}\p{Nd}]/u
+const isKeyChar = (c: string): boolean => isScanWord(c) || (c > '\x7f' && UNICODE_KEY_CHAR.test(c))
 const scanLower = (c: string): string => (c >= 'A' && c <= 'Z' ? String.fromCharCode(c.charCodeAt(0) + 32) : c)
 function scanWordAt(s: string, i: number, w: string): boolean {
   for (let k = 0; k < w.length; k++) if (scanLower(s[i + k] ?? '') !== w[k]) return false
@@ -323,6 +332,37 @@ function longGlueStartDeletion(s: string): boolean {
 }
 
 const SCAN_VALUE_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
+// PowerShell strips block comments before parameter binding, so a comment between a
+// lookup flag and its value still binds the value: `& (Get-Command -Name <# ; #> del) x`
+// resolves and invokes `del` (Get-Alias/gal alike), while the raw lookup walk stops at the
+// `<#` because comment text is not skippable gap content (round-30 review finding). Blank
+// every block-comment span to spaces - length preserved so every index stays aligned -
+// with one forward pass that mirrors commentGapDeletion's span collection exactly:
+// comments do not nest, the first `#>` closes (about_Comments), and an unterminated `<#`
+// swallows the rest as comment text (a syntax error PowerShell never executes). The pass
+// is deliberately quote-blind like the rest of the family: `pwsh -Command '... <# ; #>
+// del ...'` re-parses its argument, where the span IS a comment, and the guard's
+// established stance already denies quoted `"del"` values, so blanking comment-shaped
+// string content can only over-deny in the same documented direction - never allow. The
+// call site unions the raw and blanked walks, so original-input denies are preserved and
+// the copy can only add denies; both passes are O(n) with no recursive copying.
+function blankBlockComments(s: string): string {
+  const n = s.length
+  const out = s.split('')
+  for (let i = 0; i + 1 < n;) {
+    if (s[i] === '<' && s[i + 1] === '#') {
+      let j = i + 2
+      while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+      const end = j + 1 < n ? j + 2 : n
+      for (let m = i; m < end; m++) out[m] = ' '
+      i = end
+    } else {
+      i++
+    }
+  }
+  return out.join('')
+}
+
 // Linear scanner for the Get-Command/gcm and Get-Alias/gal lookup families: `Get-Command -Name del`,
 // `Get-Command -Name:del`, `& (Get-Command -ErrorAction:Stop del) x`,
 // `& (gcm -CommandType:Alias -Name:del) x` and `Get-Command -ListImported:$true del`
@@ -338,7 +378,10 @@ const SCAN_VALUE_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
 // Get-Alias/gal resolve an alias to its target command, so `gal del` and
 // `Get-Alias -Name erase` deny through the same walk (round-26 review finding). The token itself
 // must follow the regex's following boundary, so `-Name delivery` / `-Name erased`
-// stay allowed and the comma-joined list form stays a documented open gap.
+// stay allowed and the comma-joined list form stays a documented open gap. A block
+// comment between a flag and its name (`-Name <# ; #> del`) still binds the name
+// (round-30 review finding); the call site re-runs this walk on the comment-blanked
+// copy and unions the verdicts, so the copy can only add denies.
 function getCommandLookupDeletion(s: string): boolean {
   const n = s.length
   const tailOk = (i: number): boolean => {
@@ -462,7 +505,9 @@ function getCommandLookupDeletion(s: string): boolean {
 // the entry; values that interpolate (`$` or backtick before the close), quotes glued to
 // other value content, escaped or doubled quotes inside values, concatenated segments,
 // here-strings, dotted bare keys, block comments before the value token and malformed
-// entries stay documented best-effort gaps. The deletion token keeps the regex's following boundary, so `@{result = delivery}`
+// entries stay documented best-effort gaps. Bare keys follow the parser's BMP
+// letter/digit boundary (round-30 review finding), so `@{résultat = del x}` and
+// `@{结果 = del x}` anchor the value like `@{result = del x}`. The deletion token keeps the regex's following boundary, so `@{result = delivery}`
 // stays allowed.
 // Binding a deletion token as an alias value arms a later bare invocation:
 // `Set-Alias -Name wipe -Value del; wipe victim.txt` deletes through `wipe`. Deny the
@@ -721,9 +766,9 @@ function hashtableValueDeletion(s: string): boolean {
         i = j
         continue
       }
-      if (isScanWord(c) || c === '?') {
+      if (isKeyChar(c) || c === '?') {
         let j = i + 1
-        while (j < n && (isScanWord(s[j]) || s[j] === '?')) j++
+        while (j < n && (isKeyChar(s[j]) || s[j] === '?')) j++
         top.expect = 'eq'
         i = j
         continue
@@ -740,7 +785,7 @@ function hashtableValueDeletion(s: string): boolean {
             continue
           }
         } else {
-          while (j < n && (isScanWord(s[j]) || s[j] === '?' || s[j] === ':')) j++
+          while (j < n && (isKeyChar(s[j]) || s[j] === '?' || s[j] === ':')) j++
         }
         top.expect = 'eq'
         i = j
@@ -947,6 +992,7 @@ export function detectDestructiveAssistantCommand(command: string): string | und
     DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason ??
     (longGlueStartDeletion(normalized) ||
     getCommandLookupDeletion(normalized) ||
+    (normalized.includes('<#') && getCommandLookupDeletion(blankBlockComments(normalized))) ||
     hashtableValueDeletion(normalized) ||
     aliasBindDeletion(normalized) ||
     commentGapDeletion(normalized)
