@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "内容被安全系统拦截，请修改后重试",
   "error.diagnosis.context_length": "对话上下文过长，请清理历史消息或开始新对话",
   "error.diagnosis.deprecated": "该模型已弃用，请更换其他模型",
+  "error.diagnosis.dsh": "Agent 运行时启动失败。请重试；若仍失败，请重启应用",
   "error.diagnosis.free_model_unavailable": "AI 诊断暂时不可用",
   "error.diagnosis.go_to_settings": "前往设置",
   "error.diagnosis.knowledge": "知识库向量化失败",

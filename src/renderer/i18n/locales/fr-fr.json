@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "Contenu bloqué par le système de sécurité, veuillez modifier et réessayer",
   "error.diagnosis.context_length": "Conversation trop longue, veuillez effacer l’historique ou commencer une nouvelle discussion",
   "error.diagnosis.deprecated": "Ce modèle a été retiré, veuillez passer à un autre modèle",
+  "error.diagnosis.dsh": "Le runtime de l'agent n'a pas pu démarrer. Réessayez, ou redémarrez l'application si le problème persiste",
   "error.diagnosis.free_model_unavailable": "Le diagnostic IA est temporairement indisponible",
   "error.diagnosis.go_to_settings": "Aller aux paramètres",
   "error.diagnosis.knowledge": "Échec de la vectorisation de la base de connaissances",

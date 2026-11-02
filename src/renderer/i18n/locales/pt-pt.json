@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
   "error.diagnosis.context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
   "error.diagnosis.deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",
+  "error.diagnosis.dsh": "O runtime do agente falhou ao iniciar. Tente novamente ou reinicie a aplicação se o problema persistir",
   "error.diagnosis.free_model_unavailable": "O diagnóstico por IA está temporariamente indisponível",
   "error.diagnosis.go_to_settings": "Ir para definições",
   "error.diagnosis.knowledge": "Falha na vetorização da base de conhecimento",

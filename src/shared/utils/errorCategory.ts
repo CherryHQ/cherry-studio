@@ -21,6 +21,7 @@ export const ERROR_CATEGORIES = [
   'knowledge',
   'ocr',
   'mcp',
+  'dsh',
   'parse',
   'unknown'
 ] as const
@@ -82,6 +83,21 @@ export function isMcpErrorMessage(message: string): boolean {
     msg.startsWith('mcp:') ||
     msg.startsWith('[mcp]') ||
     msg.includes('mcp_')
+  )
+}
+
+export function isDshErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase()
+  // The DSH client reports a local initialize timeout ("waiting for dsh profile ...") and the
+  // harness service has its own startup failure family; both are runtime-local, never network.
+  // Config-class failures (not installed, model disabled, user-cancelled) are deliberately NOT
+  // matched: retry/restart guidance would mislead there.
+  return (
+    msg.includes('dsh profile') ||
+    msg.includes('deepseek harness startup timed out') ||
+    msg.includes('deepseek harness web ui is unavailable') ||
+    msg.includes('deepseek harness exited before it was ready') ||
+    msg.includes('deepseek harness failed during startup')
   )
 }
 
@@ -246,6 +262,10 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // Feature-specific timeouts must win over generic network classification.
   if (isMcpErrorMessage(msg)) {
     return 'mcp'
+  }
+
+  if (isDshErrorMessage(msg)) {
+    return 'dsh'
   }
 
   if (msg.includes('ocr') || msg.includes('recognition failed') || msg.includes('engine not initialized')) {

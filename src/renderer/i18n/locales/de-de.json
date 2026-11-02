@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
   "error.diagnosis.context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
   "error.diagnosis.deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
+  "error.diagnosis.dsh": "Die Agent-Laufzeit konnte nicht gestartet werden. Erneut versuchen oder die App neu starten, falls der Fehler weiterhin auftritt",
   "error.diagnosis.free_model_unavailable": "Die KI-Diagnose ist vorübergehend nicht verfügbar.",
   "error.diagnosis.go_to_settings": "Zu Einstellungen",
   "error.diagnosis.knowledge": "Vektorisierung der Wissensdatenbank fehlgeschlagen",

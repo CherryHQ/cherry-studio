@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "İçerik güvenlik sistemi tarafından engellendi; içeriği değiştirip yeniden deneyin",
   "error.diagnosis.context_length": "Konuşma çok uzun; geçmişi temizleyin veya yeni bir sohbet başlatın",
   "error.diagnosis.deprecated": "Bu model kullanımdan kaldırıldı; başka bir modele geçin",
+  "error.diagnosis.dsh": "Aracı çalışma zamanı başlatılamadı. Yeniden deneyin; sorun devam ederse uygulamayı yeniden başlatın",
   "error.diagnosis.free_model_unavailable": "Yapay zekâ tanılaması geçici olarak kullanılamıyor",
   "error.diagnosis.go_to_settings": "Ayarlara Git",
   "error.diagnosis.knowledge": "Bilgi tabanı vektörleştirmesi başarısız oldu",

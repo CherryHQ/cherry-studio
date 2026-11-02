@@ -103,9 +103,28 @@ required service tier.`
     [Object.assign(new Error('Too many requests'), { status: 429 }), 'rate_limit'],
     [{ name: 'Error', message: 'Process exited', stack: null, claudeCodeExitCategory: 'proxy' }, 'proxy'],
     ['net::ERR_INTERNET_DISCONNECTED', 'network'],
+    ['RequestTimeoutError: initialize timed out after 10000ms waiting for dsh profile "cherry"', 'dsh'],
+    ['DeepSeek Harness startup timed out', 'dsh'],
+    ['DeepSeek Harness Web UI is unavailable', 'dsh'],
+    ['DeepSeek Harness exited before it was ready (code 1, signal null)', 'dsh'],
+    ['DeepSeek Harness failed during startup', 'dsh'],
     ['Unexplained failure', 'unknown']
   ] as const)('preserves the diagnosis when a thrown value enters a toast (%s)', (error, category) => {
     expect(classifyError(serializeToastError(error)).category).toBe(category)
+  })
+  describe('DSH startup guidance boundaries', () => {
+    // Config-class DeepSeek Harness failures must NOT get retry/restart startup guidance. #21912
+    it.each([
+      'The selected DeepSeek Harness model is disabled',
+      'DeepSeek Harness is not installed',
+      'DeepSeek Harness startup was cancelled'
+    ])('does not misclassify config-class failure %s as a retryable startup failure', (text) => {
+      expect(classifyError({ name: 'Error', message: text }).category).toBe('unknown')
+    })
+
+    it('keeps plain network timeouts on the network category', () => {
+      expect(classifyError({ name: 'Error', message: 'Request timed out' }).category).toBe('network')
+    })
   })
   it.each([
     ['auth', '/settings/provider?id=anthropic'],

@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
   "error.diagnosis.context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
   "error.diagnosis.deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",
+  "error.diagnosis.dsh": "El entorno de ejecución del agente no pudo iniciarse. Inténtalo de nuevo o reinicia la app si el problema persiste",
   "error.diagnosis.free_model_unavailable": "El diagnóstico de IA no está disponible temporalmente",
   "error.diagnosis.go_to_settings": "Ir a configuración",
   "error.diagnosis.knowledge": "Error en la vectorización de la base de conocimiento",

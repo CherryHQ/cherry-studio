@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "コンテンツがセキュリティシステムによりブロックされました。修正して再試行してください",
   "error.diagnosis.context_length": "会話が長すぎます。履歴をクリアするか、新しいチャットを開始してください。",
   "error.diagnosis.deprecated": "このモデルは廃止されました。別のモデルに切り替えてください。",
+  "error.diagnosis.dsh": "エージェントランタイムを起動できませんでした。再試行するか、問題が解決しない場合はアプリを再起動してください",
   "error.diagnosis.free_model_unavailable": "AI診断は一時的に利用できません",
   "error.diagnosis.go_to_settings": "設定へ移動",
   "error.diagnosis.knowledge": "ナレッジベースのベクトル化に失敗しました",

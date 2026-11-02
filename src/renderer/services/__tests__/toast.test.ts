@@ -35,3 +35,25 @@ required service tier.`
     })
   })
 })
+
+describe('DSH runtime startup toasts', () => {
+  it('renders the runtime-startup guidance and a retry action when the caller supplies one', () => {
+    const bareKey = toast.errorFromException({
+      name: 'RequestTimeoutError',
+      message: 'initialize timed out after 10000ms waiting for dsh profile "cherry"'
+    })
+    const withRetryKey = toast.errorFromException(
+      { name: 'Error', message: 'DeepSeek Harness startup timed out' },
+      { actions: { retry: () => undefined } }
+    )
+    const { toasts } = toast.getToastQueue()
+    expect(toasts.find((item) => item.key === bareKey)).toMatchObject({
+      title: enUS['error.diagnosis.dsh'],
+      action: undefined
+    })
+    expect(toasts.find((item) => item.key === withRetryKey)).toMatchObject({
+      title: enUS['error.diagnosis.dsh'],
+      action: { label: enUS['toast.error.retry'], onClick: expect.any(Function) }
+    })
+  })
+})

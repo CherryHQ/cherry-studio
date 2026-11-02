@@ -1441,6 +1441,7 @@
   "error.diagnosis.content": "เนื้อหาถูกบล็อกโดยระบบความปลอดภัย กรุณาแก้ไขและลองอีกครั้ง",
   "error.diagnosis.context_length": "การสนทนายาวเกินไป กรุณาล้างประวัติหรือเริ่มแชทใหม่",
   "error.diagnosis.deprecated": "โมเดลนี้ถูกยกเลิกแล้ว กรุณาเปลี่ยนเป็นโมเดลอื่น",
+  "error.diagnosis.dsh": "รันไทม์ของเอเจนต์เริ่มทำงานไม่สำเร็จ ลองอีกครั้ง หรือรีสตาร์ทแอปหากยังล้มเหลว",
   "error.diagnosis.free_model_unavailable": "การวินิจฉัยด้วย AI ไม่ว่างชั่วคราว",
   "error.diagnosis.go_to_settings": "ไปที่การตั้งค่า",
   "error.diagnosis.knowledge": "การทำเวกเตอร์ฐานความรู้ล้มเหลว",

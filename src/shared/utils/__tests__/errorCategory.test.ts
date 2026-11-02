@@ -270,6 +270,19 @@ describe('classifyErrorCategory embedded runtime connection codes (#22210)', () 
   })
 
   it.each([
+    ['RequestTimeoutError: initialize timed out after 10000ms waiting for dsh profile "cherry"', 'dsh'],
+    ['DeepSeek Harness startup timed out', 'dsh'],
+    ['DeepSeek Harness Web UI is unavailable', 'dsh'],
+    ['DeepSeek Harness exited before it was ready (code 1, signal null)', 'dsh']
+  ] as const)('classifies the DSH runtime failure %s as runtime-local instead of network', (text, category) => {
+    expect(classifyErrorCategory({ text })).toBe(category)
+  })
+
+  it('keeps a timeout without DSH markers classified as network', () => {
+    expect(classifyErrorCategory({ text: 'Request timed out after 10000ms' })).toBe('network')
+  })
+
+  it.each([
     [500, 'server'],
     [503, 'server'],
     [401, 'auth']
