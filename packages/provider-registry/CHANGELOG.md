@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.3.2
+
+### Patch Changes
+
+- [#22768](https://github.com/CherryHQ/cherry-studio/pull/22768) [`7f18ffb`](https://github.com/CherryHQ/cherry-studio/commit/7f18ffb7d8afbe4f0be48dc714854e5180729a90) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Correct Xiaomi MiMo catalog API model IDs to use the dotted version spelling required by the official endpoint.
+
 ## 0.3.1
 
 ### Patch Changes

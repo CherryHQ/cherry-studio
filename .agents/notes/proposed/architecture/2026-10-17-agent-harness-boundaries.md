@@ -10,10 +10,7 @@ Cherry needs a common way to access different agent harnesses without taking ove
 
 This note replaces the harness-definition document from the runtime stack. The three packages already exist, but desktop adoption, product-session storage relationships, and Lane projection remain integration work. It stays proposed because package implementation alone does not complete that integration or its acceptance criteria.
 
-Implementation facts in this note refer to the cumulative runtime stack inspected at `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766`. Behavior supplied by later layers remains a target at this layer; the note does not claim those features are already present here. Source links use that fixed snapshot, and notes not yet introduced link to their owning PR.
-
 The [SDK content protocol proposal](../simplification/2026-10-29-agent-runtime-content-protocol.md) revises the content dependency boundary: a standard AI SDK message protocol dependency is permitted without importing native SDKs or Cherry product types into the common package. This supersedes the earlier blanket AI SDK exclusion; execution and native storage ownership stay with the harness.
-
 
 ## Proposal
 
@@ -63,7 +60,7 @@ A child context, assignment, native run when known, triggering tool, content ite
 
 Stream accumulation follows content identity, not component mounting or parent-turn changes. Persisted display parts do not preserve a stream parser's state. Reconnection needs snapshot reconciliation and explicit gaps. Renaming the existing background flow to Lane would not remove its parent-message dependency. A host projection can outlive a window and be stored by a main-process or independent service; that service is not implemented by the new common package.
 
-Observing output and delivering a result to the parent model are different paths. Where the harness delivers the result, the host must not inject a duplicate on observing completion. For a host-owned cross-harness delegation, an explicit orchestration owner manages the relationship and result handoff while each harness owns its execution. Product-session message delivery alone does not establish this ownership. The [subagent control proposal](https://github.com/CherryHQ/cherry-studio/pull/21578) owns the remaining optional input and delegation controls.
+Observing output and delivering a result to the parent model are different paths. Where the harness delivers the result, the host must not inject a duplicate on observing completion. For a host-owned cross-harness delegation, an explicit orchestration owner manages the relationship and result handoff while each harness owns its execution. Product-session message delivery alone does not establish this ownership. The [subagent control proposal](2026-10-18-agent-runtime-subagent-control.md) owns the remaining optional input and delegation controls.
 
 ### Separate native storage from product storage
 
@@ -83,14 +80,14 @@ Current Pi uses native `SessionManager` for files and branches, with an in-memor
 
 | Location | Current responsibility |
 | --- | --- |
-| [agent-runtime](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime/README.md) | Common contracts, opaque IDs, and `ThreadFeed` observation delivery. No execution loop, SDK, Electron, AI SDK, or product entities. |
-| [agent-runtime-pi](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/README.md) | Pi coding-agent access and our Pi-specific goal, tools, and subagent extensions, using native sessions and storage. |
-| [agent-runtime-pi-durable](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/README.md) | Independent integration with Pi Durable's `Harness`, conversation and task APIs, scheduler, and storage. |
-| [Cherry model bridge](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md) | Host model selection and native Pi provider registration against the internal gateway. Pi retains protocol streaming, replay and the tool loop; Cherry retains credentials and provider-call billing. |
+| [agent-runtime](../../../../packages/agent-runtime/README.md) | Common contracts, opaque IDs, and `ThreadFeed` observation delivery. No execution loop, SDK, Electron, AI SDK, or product entities. |
+| [agent-runtime-pi](../../../../packages/agent-runtime-pi/README.md) | Pi coding-agent access and our Pi-specific goal, tools, and subagent extensions, using native sessions and storage. |
+| [agent-runtime-pi-durable](../../../../packages/agent-runtime-pi-durable/README.md) | Independent integration with Pi Durable's `Harness`, conversation and task APIs, scheduler, and storage. |
+| [Cherry model bridge](../../../../src/main/ai/runtime/pi/README.md) | Host model selection and native Pi provider registration against the internal gateway. Pi retains protocol streaming, replay and the tool loop; Cherry retains credentials and provider-call billing. |
 
 Pi Durable is a separate execution system, not a persistence switch on coding-agent. Both adapters depend on the common package and do not depend on each other. Pi's session owns request retries; the native HTTP client and internal gateway do not add retries or execute Pi's tools. Native compaction, verifier context, and child continuation use native messages and managers, not reconstruction from public display items.
 
-The desktop services still use their existing runtime path. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](https://github.com/CherryHQ/cherry-studio/pull/21607) and [background subagent note](https://github.com/CherryHQ/cherry-studio/pull/21693) own the Pi-specific decisions.
+The desktop services still use their existing runtime path. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](../feature/2026-10-11-agent-runtime-goal.md) and [background subagent note](../feature/2026-10-14-agent-runtime-background-subagent.md) own the Pi-specific decisions.
 
 ### Use native Pi providers through the internal gateway
 
