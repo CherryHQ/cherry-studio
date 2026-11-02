@@ -180,7 +180,26 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       inspect(message, messagePath)
       return
     }
+    const contentIndexes: number[] = []
+    const toolCallIndexes: number[] = []
+    const useEmittedOrder =
+      message.role === 'assistant' &&
+      message.content.every((part) => part.type === 'text' || (part.type === 'tool-call' && !part.providerExecuted))
+    // The adapter moves tool_use blocks to the end of each thinking-delimited segment.
     message.content.forEach((part, j) => {
+      if (useEmittedOrder && part.type === 'tool-call' && !part.providerExecuted) {
+        toolCallIndexes.push(j)
+        return
+      }
+      if (useEmittedOrder && part.type === 'reasoning') {
+        contentIndexes.push(...toolCallIndexes)
+        toolCallIndexes.length = 0
+      }
+      contentIndexes.push(j)
+    })
+    contentIndexes.push(...toolCallIndexes)
+    contentIndexes.forEach((j) => {
+      const part = message.content[j]
       if (part.type === 'tool-approval-response') return
       const path: HolderPath = [...messagePath, 'content', j]
       if (inspect(part, path)) return

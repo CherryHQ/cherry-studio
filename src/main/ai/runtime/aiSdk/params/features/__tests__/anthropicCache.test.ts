@@ -576,6 +576,82 @@ describe('serialized adapter cache markers', () => {
     expect(extractBodyMarkers(JSON.parse(raw)).map(({ ttl }) => ttl)).toEqual(['1h', '5m', '5m'])
   })
 
+  it('clamps the reviewer shape in emitted assistant block order', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        textMessage('user', 'history '.repeat(1600)),
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'shadowed',
+              toolName: 'lookup',
+              output: {
+                type: 'content',
+                value: [
+                  { type: 'text', text: 'first', providerOptions: { anthropic: { signature: 'x' } } },
+                  { type: 'text', text: 'shadowed', providerOptions: shortMark }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          role: 'assistant',
+          providerOptions: longMark,
+          content: [
+            { type: 'tool-call', toolCallId: 'lookup', toolName: 'lookup', input: {}, providerOptions: longMark },
+            { type: 'text', text: 'answer', providerOptions: shortMark }
+          ]
+        },
+        textMessage('user', 'next request'),
+        textMessage('assistant', 'final answer')
+      ]
+    }
+    const before = structuredClone(input)
+    const markers = extractBodyMarkers(JSON.parse(await captureBody(await transform(input, provider))))
+    expect(markers.length).toBeLessThanOrEqual(4)
+    const ranks = markers.map(({ ttl }) => (ttl === '1h' ? 1 : 0))
+    expect(ranks.every((rank, i) => i === 0 || rank <= ranks[i - 1])).toBe(true)
+    expect(markers).toEqual([
+      { position: 'messages.1.content.0', ttl: '5m' },
+      { position: 'messages.2.content.0', ttl: '5m' },
+      { position: 'messages.3.content.0', ttl: '5m' }
+    ])
+    expect(input).toEqual(before)
+  })
+
+  it('keeps the 1h tool-call hint when the adapter drops an assistant file part', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', toolCallId: 'lookup', toolName: 'lookup', input: {}, providerOptions: longMark },
+            {
+              type: 'file',
+              data: new Uint8Array([1]),
+              mediaType: 'application/pdf',
+              providerOptions: shortMark
+            }
+          ]
+        }
+      ]
+    }
+    const before = structuredClone(input)
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    const body: SerializedBody = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.0.content.0', ttl: '1h' }])
+    expect(body.messages?.[0].content).toEqual([
+      { type: 'tool_use', id: 'lookup', name: 'lookup', input: {}, cache_control: { type: 'ephemeral', ttl: '1h' } }
+    ])
+    expect(input).toEqual(before)
+  })
+
   it('ignores assistant tool-result output hints and retains the later text message fallback', async () => {
     const input: LanguageModelV3CallOptions = {
       prompt: [
