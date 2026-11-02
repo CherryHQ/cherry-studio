@@ -877,7 +877,7 @@ Ordinary steer may start a later run after normal completion; it has no run-only
 Background continuation keeps the child identity. Independent continuation of a completed
 foreground child is rejected because native tool ownership is immutable. Desktop native
 fork/edit checkpoints and `vcc_recall` are not exposed. See the
-[driver README](../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
+[driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
 
