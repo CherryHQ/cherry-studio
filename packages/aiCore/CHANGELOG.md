@@ -1,5 +1,12 @@
 # @cherrystudio/ai-core
 
+## 2.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae)]:
+  - @cherrystudio/ai-sdk-provider@0.1.10
+
 ## 2.4.3
 
 ### Patch Changes
