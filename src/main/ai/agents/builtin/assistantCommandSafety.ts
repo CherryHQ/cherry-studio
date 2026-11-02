@@ -3,6 +3,12 @@ interface DestructiveCommandPattern {
   pattern: RegExp
 }
 
+// PowerShell identifier/name characters with every Unicode whitespace excluded: whitespace
+// inside the class overlaps the adjacent \s* scans (U+00A0 matched both sides), which was
+// a quadratic backtracking family on whitespace-padded inputs; identifiers never
+// legitimately contain whitespace, so matching is unchanged on real input.
+const PS_IDENTIFIER_CHARS = String.raw`\w\u0080-\u009f\u00a1-\u167f\u1681-\u1fff\u200b-\u2027\u202a-\u202e\u2030-\u205e\u2060-\u2fff\u3001-\ufefe\uff00-\uffff`
+
 const SHELL_ARGUMENT_PATTERN = String.raw`(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|]+)`
 const GIT_GLOBAL_OPTION_PATTERN = String.raw`(?:(?:-C|-c|--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)\s+${SHELL_ARGUMENT_PATTERN}|(?:--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env|--list-cmds|--attr-source)=${SHELL_ARGUMENT_PATTERN}|-p|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs|--no-literal-pathspecs|--glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks|--no-lazy-fetch|--no-advice)`
 const GIT_DESTRUCTIVE_COMMAND_PATTERN = new RegExp(
@@ -97,7 +103,7 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // linear scanner below, which walks every command-position start anchor with untempered
 // arguments.
 const CMD_START_ARGS =
-  String.raw`(?:\s+"(?![^"\r\n]*?(?<![\w\u0080-\uffff])start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|\/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
+  String.raw`(?:\s+"(?![^"\r\n]*?(?<![${PS_IDENTIFIER_CHARS}])start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|\/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
   '`' +
   String.raw`]*start\b)[^\s;&|/"(){}]+)+`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`
@@ -113,7 +119,9 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
 // assignment target may precede it (`$null = del x`, including scoped targets like
 // `$script:output = del x`, indexed, property, braced or quoted targets like `$a[0] =` / `$h.result =` / `${output} =` / `$h."result" =`
-// (an index segment allows one nesting level, so `$a[$i]` and `$a[$b[0]]` deny;
+// a static member chain accepts scoped and property-rooted targets
+// (`$global:t::Title = del x`, `$h.t::Title = del x` - every executable static assignment form),
+// and (an index segment allows one nesting level, so `$a[$i]` and `$a[$b[0]]` deny;
 // deeper nesting stays a documented best-effort gap), and compound operators
 // like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
 // `iex`/`Invoke-Expression`, and dot invocation `. del x` - the dot anchor requires a
@@ -142,7 +150,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[\w\u0080-\uffff]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[\w\u0080-\uffff?][\w\u0080-\uffff?]*(?::[\w\u0080-\uffff?][\w\u0080-\uffff?]*)?|\$\{[^{}\r\n]*\}|(?:\$[\w\u0080-\uffff?][\w\u0080-\uffff?]*|\$\{[^{}\r\n]*\})(?:\s*::\s*(?:[\w\u0080-\uffff]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+)(?:\s*\.\s*(?:[\w\u0080-\uffff]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+)(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
   'i'
 )
 

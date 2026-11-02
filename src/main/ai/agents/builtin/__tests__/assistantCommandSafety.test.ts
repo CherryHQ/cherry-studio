@@ -647,6 +647,42 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$a[0] = del victim.txt')).toBe('permanent Windows file deletion')
   })
 
+  it('denies scoped and property-rooted static-member assignment chains (round-20 review findings)', () => {
+    // Scope-qualified variables and property chains followed by `::Type = <verb>` are real PowerShell
+    // assignment targets (the variable carries a typed object; the static call runs the verb's argument
+    // as the deletion target).
+    expect(detectDestructiveAssistantCommand('$global:t::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('$script:t::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '$local:t::Title = del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('$env:x::Title = del victim.txt')).toBe('permanent Windows file deletion')
+    // Property chain rooting: the leading identifier reaches the static member through properties.
+    expect(detectDestructiveAssistantCommand('$h.t::Title = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '$h.t::Title = del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    // A longer identifier is still a plain variable that can carry a typed object.
+    expect(detectDestructiveAssistantCommand('$globalx::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // A variable glued to a preceding word char still denies, matching the established treatment of
+    // variable-rooted static chains shipped in the round-19 repair (deny-side conservatism; the
+    // native PowerShell token split for such input is unverified).
+    expect(detectDestructiveAssistantCommand('existing $h.t::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // The identifier character class excludes Unicode whitespace (nbsp and friends): those codepoints
+    // are also matched by the adjacent \s*, and a character class overlapping its neighbour is a
+    // quadratic-backtracking vector on long attacker-controlled runs. A whitespace codepoint sitting
+    // between the root and `::` is still consumed by \s* and denies conservatively.
+    expect(detectDestructiveAssistantCommand('$a ::Title = del victim.txt')).toBe('permanent Windows file deletion')
+  })
+
   it('denies computed-property and ?-identifier assignment forms (round-12 review findings)', () => {
     // Computed member access with a quoted name: $h.("result") - and its quote-escaped content.
     expect(detectDestructiveAssistantCommand('$h.("result") = del victim.txt')).toBe('permanent Windows file deletion')
