@@ -16,6 +16,19 @@ vi.mock('@renderer/components/FileEditor', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    onClick,
+    type
+  }: {
+    children?: string
+    onClick?: () => void
+    type?: 'button' | 'reset' | 'submit'
+  }) => (
+    <button type={type ?? 'button'} onClick={onClick}>
+      {children}
+    </button>
+  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
