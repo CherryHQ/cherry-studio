@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-31T18:00:00Z",
+  "generated_at": "2026-11-02T17:58:43Z",
   "v2_branch_status": {
     "open_prs": 0,
     "merged_prs_30d": 0,
@@ -25,16 +25,27 @@
       "status": "active_development",
       "open_spec_branches": [
         "feature/agent-runtime-claude-code",
+        "feature/agent-runtime-claude-code-desktop",
         "feature/agent-runtime-durable-behavior",
         "feature/agent-runtime-shared-projection",
         "feature/agent-runtime-child-projection",
         "feature/agent-runtime-pi-root",
-        "docs/agent-runtime-claude-code-spec"
+        "feature/agent-runtime-native-contexts",
+        "feature/agent-runtime-message-tree",
+        "docs/agent-runtime-claude-code-spec",
+        "docs/agent-context-usage-spec"
       ],
       "p1_bugs": [
-        "#20941 - Work/Agent empty no-response error (135 comments)",
-        "#21905 - Autocompact thrashing (2.0.14–2.1.6)",
-        "#22850 - Windows spawn ENAMETOOLONG"
+        "#20941 - Work/Agent empty no-response error (144 comments)",
+        "#21905 - Autocompact thrashing (2.0.14-2.1.6)",
+        "#18741 - DeepSeek V4 No tool output found (30 comments)"
+      ],
+      "p2_bugs_today": [
+        "#23417 - Agent runtime download fails on 2.1.8, cannot be cancelled",
+        "#23387 - Gemini subagent hangs",
+        "#23386 - Completed task leaves spinning empty message",
+        "#23378 - CherryIN Bedrock strict field rejection",
+        "#23400 - cherry-browser Runtime.enable triggers anti-debugging"
       ]
     },
     {
@@ -48,44 +59,58 @@
       "adopting": ["BaseService", "@Injectable", "@ServicePhase", "@DependsOn decorators"]
     },
     {
+      "track": "Global Error Handling",
+      "status": "new_development",
+      "note": "New 7-PR stack visible in open PRs as of 2026-11-02",
+      "open_spec_branches": [
+        "SiinXu/global-errors-0-spec",
+        "SiinXu/global-errors-1-core",
+        "SiinXu/global-errors-2-update",
+        "SiinXu/global-errors-3-boot",
+        "SiinXu/global-errors-4-chat",
+        "SiinXu/global-errors-5-content",
+        "SiinXu/global-errors-6-settings"
+      ]
+    },
+    {
       "track": "Cherry Cloud Subscription",
       "status": "active_development",
       "open_spec_branches": [
+        "SiinXu/cherry-cloud-subscription-notifications",
         "SiinXu/cherry-cloud-subscription-quota-notice",
         "SiinXu/cherry-cloud-subscription-reminder",
         "SiinXu/cherry-cloud-subscription-selector",
         "SiinXu/cherry-cloud-subscription-editions",
-        "SiinXu/cherry-cloud-subscription-spec"
+        "SiinXu/cherry-cloud-subscription-usage"
       ]
     },
     {
-      "track": "Selection Assistant",
-      "status": "active_development",
+      "track": "Notification Center Redesign",
+      "status": "in_progress",
       "open_spec_branches": [
-        "eurfelux/selection-agent-window",
-        "eurfelux/selection-agent-action-data",
-        "eurfelux/selection-agent-nav-decoupling"
-      ],
-      "p3_features": [
-        "#23082 - Icon picker for custom actions",
-        "#23225 - Store Selection Assistant actions in dedicated table"
+        "codex/notification-center-redesign"
       ]
     }
   ],
   "v2_labeled_open_issues": {
-    "total": 6,
+    "total": 5,
     "issues": [
-      {"number": 22121, "title": "Responses reasoning delta without initialized reasoning part (P1)", "priority": "p1"},
       {"number": 20941, "title": "Work and Agent conversations empty no-response error (P1)", "priority": "p1"},
       {"number": 20940, "title": "Responses API stream events fail TypeValidation (P1)", "priority": "p1"},
-      {"number": 21418, "title": "Restore triggers restart; backup corrupted v6→v7 (P1)", "priority": "p1"},
-      {"number": 21085, "title": "File/KB scopes inline large builtin tool schemas, overflow context (P1)", "priority": "p1"},
-      {"number": 20027, "title": "Explain and recover when all generated images filtered as invalid (P1)", "priority": "p1"}
+      {"number": 22158, "title": "Conversation: gpt-6-astra HTTP 400 reasoning_effort not supported (P2)", "priority": "p2"},
+      {"number": 20942, "title": "Chat streams fail with net::ERR_HTTP2_PROTOCOL_ERROR not retried (P2)", "priority": "p2"},
+      {"number": 20963, "title": "Pi Work compaction can still exceed 49K custom-model context", "priority": "unlabeled"}
     ]
   },
+  "recent_merged_highlights": [
+    {"pr": 23418, "title": "fix(anthropic-cache): count only serialized breakpoints and keep TTL order", "merged": "2026-11-02"},
+    {"pr": 23414, "title": "fix(claude-code): identify Copilot dotted Opus 5.5 with 1M context", "merged": "2026-11-02"},
+    {"pr": 23415, "title": "fix(tool-schema): opt Responses tools out of default strict mode", "merged": "2026-11-02"},
+    {"pr": 23412, "title": "fix(chat): keep conversation anchors visible in narrow message columns", "merged": "2026-11-02"},
+    {"pr": 23410, "title": "feat(composer): localize builtin slash command descriptions", "merged": "2026-11-02"}
+  ],
   "release_context": {
     "latest_version": "v2.1.10",
-    "release_commit": "chore(release): sync v2.1.10 metadata (#23252)",
-    "note": "Active development continues; current release is 2.1.10"
+    "note": "Active development continues; 5+ fixes merged today"
   }
 }

@@ -1,30 +1,42 @@
 {
-  "generated_at": "2026-10-31T18:00:00Z",
-  "date": "2026-10-31",
+  "generated_at": "2026-11-02T17:58:43Z",
+  "date": "2026-11-02",
   "note": "GitHub Discussions GraphQL API not available via MCP tools. Analysis derived from issue tracker engagement signals.",
   "issue_discussion_proxy": {
     "high_engagement_issues_today": [
-      {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error (P1)", "comments": 135, "updated_at": "2026-10-31"},
-      {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation (P1)", "comments": 120, "updated_at": "2026-10-31"},
-      {"number": 22121, "title": "[Bug]: Responses reasoning delta without initialized reasoning part (P1)", "comments": 29, "updated_at": "2026-10-31"},
-      {"number": 22726, "title": "[Bug]: Normal chat sends unsupported max reasoning effort to GPT-5.6 Luna", "comments": 20, "updated_at": "2026-10-31"},
-      {"number": 22909, "title": "[Bug]: Work conversation 413 body length limit exceeded", "comments": 18, "updated_at": "2026-10-31"},
-      {"number": 22852, "title": "[Bug]: Claude chat with built-in tools fails on Bedrock relay", "comments": 15, "updated_at": "2026-10-31"},
-      {"number": 19793, "title": "Chat fails when response stream ends without finish reason (P1)", "comments": 85, "updated_at": "2026-10-31"}
+      {"number": 14198, "title": "[Bug]: Switching model mid-conversation fails with No conversation found", "comments": 266, "updated_at": "2026-11-02"},
+      {"number": 20976, "title": "[Bug]: Cherry adapter rejects mid-conversation system messages (P2)", "comments": 150, "updated_at": "2026-11-02"},
+      {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error (P1)", "comments": 144, "updated_at": "2026-11-02"},
+      {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation (P1)", "comments": 122, "updated_at": "2026-11-02"},
+      {"number": 18894, "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction", "comments": 117, "updated_at": "2026-11-01"},
+      {"number": 19793, "title": "Chat fails when response stream ends without finish reason (P1)", "comments": 89, "updated_at": "2026-11-01"},
+      {"number": 21191, "title": "[Bug]: A single corrupt image permanently bricks an Agent session", "comments": 86, "updated_at": "2026-11-01"},
+      {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3)", "comments": 74, "updated_at": "2026-11-01"},
+      {"number": 21965, "title": "[Bug]: Turns fail with HTTP 400 'Function tools with reasoning_effort are not supported'", "comments": 58, "updated_at": "2026-11-02"},
+      {"number": 22197, "title": "[Bug] DeepSeek Flash normal chat rejects max_tokens with HTTP 400", "comments": 42, "updated_at": "2026-11-01"}
     ],
     "feature_requests_high_interest": [
-      {"number": 18319, "title": "[Feature]: Make auto-compact trigger percentage configurable", "comments": 2},
-      {"number": 18271, "title": "[Feature]: Transparency and manual control over context compression", "comments": 2},
-      {"number": 22265, "title": "[Bug/Feature]: Qwen conversation reaches tool-call limit before final answer", "comments": 57},
-      {"number": 14897, "title": "[Feature]: Web Search — Auto Mode, Native Provider Coverage", "comments": 1}
+      {"number": 22514, "title": "[Feature]: Make archived Chat and Work conversations easy to find and reopen", "comments": 7},
+      {"number": 23263, "title": "[Feature]: Follow the latest question after resend and keep streaming replies in view", "comments": 4},
+      {"number": 23264, "title": "[Feature]: Restore MCP JSON export and batch Agent role import/export", "comments": 2},
+      {"number": 22906, "title": "[Feature]: Infinite canvas workspace for batch image generation", "comments": 2}
     ],
     "new_today_highlights": [
-      "23256: User-manageable local ASR catalog for non-en/zh languages",
-      "23255: Copilot Claude Opus 5.5 thinking process not shown (P2)",
-      "23250: Archived conversation regression — cannot be re-opened",
-      "23249: Tool call density setting (summary vs full detail)",
-      "23244: Agent browser pane recovery controls (planned, P3)"
+      "23417: Claude agent runtime download fails on 2.1.8 (p2, agent, claude-code) - blocks new installs",
+      "23408: Agent Mode misidentifies Copilot claude-opus-5.5 - fix already in PR #23414",
+      "23338: SECURITY - Diagnostic bundle exposes provider API keys in plaintext (no label yet)",
+      "23400: cherry-browser Runtime.enable triggers Liepin anti-debugging (p2, agent)",
+      "23386: Completed Agent task leaves spinning empty message, Stop cannot recover (p2)",
+      "23378: CherryIN Bedrock Work requests rejected on strict field (p2)",
+      "23387: Gemini subagent hangs - other subagent models and normal Gemini chat work fine"
     ]
   },
-  "trend_observation": "Agent stability (autocompact thrashing, empty no-response, context overflow) remains the dominant theme with 3 P1 bugs and 5+ P2 bugs. Windows-specific agent startup failures (#22850, #21898) also prominent. Provider compatibility issues (Bedrock, GPT reasoning, DeepSeek) have high comment counts indicating widespread impact."
+  "trend_observation": "Agent stability continues as the dominant theme (6+ P1/P2 bugs in agent, autocompact thrashing, empty no-response, context overflow). New today: a potential security issue (#23338 - API keys in diagnostic bundles) warrants immediate triage. Provider compatibility issues continue to generate high comment volume (DeepSeek, Gemini, Bedrock). Windows-specific bugs (#20344, #20343, #20097) remain unresolved. The global-errors PR stack (7 PRs) is a major new development focus visible in open PRs.",
+  "security_alert": {
+    "issue": 23338,
+    "title": "Diagnostic bundle can contain provider API keys in plaintext",
+    "opened": "2026-11-01",
+    "priority": "UNSET - needs immediate triage",
+    "action": "Needs p1 label and security review"
+  }
 }

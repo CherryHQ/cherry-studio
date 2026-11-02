@@ -1,131 +1,135 @@
 {
-  "generated_at": "2026-10-31T18:00:00Z",
-  "total_open_issues": 1546,
-  "analysis_sample": 150,
+  "generated_at": "2026-11-02T17:58:43Z",
+  "total_open_issues": 1600,
+  "analysis_sample": 100,
   "health_buckets": {
     "Active": {
       "description": "Updated within last 7 days",
       "count": 100,
-      "pct": 6.5,
-      "note": "Minimum count — all top-100 most-recently-updated issues fall here; actual Active count is higher"
+      "pct": 6.3,
+      "note": "Minimum count - all top-100 most-recently-updated issues fall here; actual Active count is higher"
     },
     "Aging": {
-      "description": "Updated 7–30 days ago",
-      "estimated_count": 300,
+      "description": "Updated 7-30 days ago",
+      "estimated_count": 310,
       "estimated_pct": 19.4,
-      "note": "Estimated from P1 sample distribution"
+      "note": "Estimated from sample distribution"
     },
     "Stale": {
-      "description": "Updated 30–90 days ago",
-      "estimated_count": 800,
-      "estimated_pct": 51.7,
-      "note": "Estimated from P1 sample distribution"
+      "description": "Updated 30-90 days ago",
+      "estimated_count": 820,
+      "estimated_pct": 51.3,
+      "note": "Estimated from sample distribution"
     },
     "Zombie": {
       "description": "Updated 90+ days ago",
-      "estimated_count": 346,
-      "estimated_pct": 22.4,
-      "note": "Estimated from P1 sample distribution"
+      "estimated_count": 370,
+      "estimated_pct": 23.1,
+      "note": "Estimated from sample distribution; includes issues like #14198 (266 comments, open since April)"
     }
   },
   "p1_issues_total": 101,
   "critical_p1_issues": [
     {
-      "number": 22121,
-      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
-      "labels": ["bug", "p1", "models", "v2", "chat"],
-      "updated_at": "2026-10-31",
-      "comments": 29,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22121"
-    },
-    {
       "number": 20941,
       "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
       "labels": ["bug", "p1", "v2", "agent", "chat"],
-      "updated_at": "2026-10-31",
-      "comments": 135,
+      "updated_at": "2026-11-02",
+      "comments": 144,
+      "age_days": 41,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
     },
     {
       "number": 20940,
       "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
       "labels": ["bug", "p1", "models", "v2", "chat"],
-      "updated_at": "2026-10-31",
-      "comments": 120,
+      "updated_at": "2026-11-02",
+      "comments": 122,
+      "age_days": 41,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
+    },
+    {
+      "number": 21905,
+      "title": "[Bug]: Work-mode Agent turns abort with 'Autocompact is thrashing' (2.0.14-2.1.6)",
+      "labels": ["bug", "p1"],
+      "updated_at": "2026-11-01",
+      "comments": 15,
+      "age_days": 16,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
     },
     {
       "number": 19793,
       "title": "Chat fails when a response stream ends without a finish reason",
       "labels": ["bug", "p1", "models", "chat"],
-      "updated_at": "2026-10-31",
-      "comments": 85,
+      "updated_at": "2026-11-01",
+      "comments": 89,
+      "age_days": 63,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
     },
     {
-      "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart; backup corrupted (v6→v7); data cannot be restored",
-      "labels": ["bug", "p1", "windows", "data", "v2"],
-      "updated_at": "2026-10-31",
-      "comments": 14,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21418"
+      "number": 18741,
+      "title": "[Bug]: DeepSeek V4 shows 'No tool output found for tool call' after long conversation",
+      "labels": ["bug", "p1", "agent", "chat"],
+      "updated_at": "2026-11-01",
+      "comments": 30,
+      "age_days": 77,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18741"
     },
     {
-      "number": 22850,
-      "title": "[Bug]: Windows Work sessions cannot start Claude runtime (spawn ENAMETOOLONG)",
-      "labels": ["bug", "p1", "windows", "agent", "claude-code", "ai:assign:coding"],
-      "updated_at": "2026-10-30",
-      "comments": 7,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+      "number": 20343,
+      "title": "Configured OCR fallback fails for image input on non-vision models",
+      "labels": ["bug", "p1", "windows", "models", "chat"],
+      "updated_at": "2026-11-01",
+      "comments": 58,
+      "age_days": 53,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/20343"
     },
     {
-      "number": 21905,
-      "title": "[Bug]: Work-mode Agent turns abort with 'Autocompact is thrashing' (2.0.14–2.1.6)",
-      "labels": ["bug", "p1"],
-      "updated_at": "2026-10-30",
-      "comments": 13,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
-    },
-    {
-      "number": 12397,
-      "title": "[Bug]: Expected 'function.name' to be a string (MCP tool schema)",
-      "labels": ["bug", "p1", "mcp", "assistant"],
-      "updated_at": "2026-10-31",
-      "comments": 12,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12397"
+      "number": 14356,
+      "title": "[Bug]: v2 fresh install every message fails with 'Topic not found'",
+      "labels": ["bug", "p1", "data", "chat"],
+      "updated_at": "2026-11-01",
+      "comments": 2,
+      "age_days": 198,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14356"
     }
   ],
   "high_comment_issues": [
-    {"number": 14198, "title": "[Bug]: Switching model mid-conversation fails with No conversation found", "comments": 255},
-    {"number": 20976, "title": "[Bug]: Cherry adapter rejects mid-conversation system messages — 49 local 400s/day", "comments": 137},
-    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error (P1)", "comments": 135},
-    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation (P1)", "comments": 120},
-    {"number": 18894, "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction", "comments": 114},
-    {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3)", "comments": 70},
-    {"number": 21191, "title": "[Bug]: A single corrupt image permanently bricks an Agent session", "comments": 75},
-    {"number": 22265, "title": "[Bug]: Qwen home conversation reaches tool-call limit before producing final answer", "comments": 57}
+    {"number": 14198, "title": "[Bug]: Switching model mid-conversation fails with No conversation found", "comments": 266, "age_days": 205},
+    {"number": 20976, "title": "[Bug]: Cherry adapter rejects mid-conversation system messages - 49 local 400s/day", "comments": 150, "age_days": 40},
+    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error (P1)", "comments": 144, "age_days": 41},
+    {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation (P1)", "comments": 122, "age_days": 41},
+    {"number": 18894, "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction", "comments": 117, "age_days": 75},
+    {"number": 19793, "title": "Chat fails when response stream ends without finish reason (P1)", "comments": 89, "age_days": 63},
+    {"number": 21191, "title": "[Bug]: A single corrupt image permanently bricks an Agent session", "comments": 86, "age_days": 34},
+    {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3)", "comments": 74, "age_days": 6}
   ],
   "unlabeled_issues": {
-    "count": 27,
-    "pct_of_total": 1.75,
+    "count": 32,
+    "pct_of_total": 2.0,
     "sample": [
-      {"number": 22583, "title": "[Bug]: Brackets and double quotes in the input box can only be typed half at a time"},
-      {"number": 22581, "title": "[Feature]: Chain scheduled tasks — run B only after A succeeds"},
-      {"number": 22580, "title": "[Feature]: Retry a failed scheduled task automatically"},
-      {"number": 22579, "title": "[Feature]: Let a scheduled task run only when a precondition is met"},
-      {"number": 22577, "title": "[Bug]: Gemini tool-call history serialized with missing/mismatched function name"}
+      {"number": 23351, "title": "[Bug]: Context usage is displayed under the wrong assistant conversation"},
+      {"number": 23344, "title": "[Bug]: Claude Opus 5.5 on Bedrock 400s because chat sends thinking.type=enabled instead of adaptive"},
+      {"number": 23333, "title": "[Bug]: Work chat stream ends a text part that was never started"},
+      {"number": 23325, "title": "[Bug]: Ollama Agent history sends string tool-call arguments to native /api/chat and fails with HTTP 400"},
+      {"number": 23313, "title": "[Bug]: Reasoning effort cannot be adjusted for Qwen 3.8 Next model (Strata provider)"},
+      {"number": 22331, "title": "[Bug] DeepSeek V4.1 Flash work chat is truncated at model output limit"}
     ]
   },
   "new_today": [
-    {"number": 23256, "title": "[Feature]: User-manageable local models catalog for multi-language ASR"},
-    {"number": 23255, "title": "[Bug]: GitHub Copilot Claude Opus 5.5 doesn't display thinking process (p2)"},
-    {"number": 23254, "title": "[Bug]: Regular conversation repeatedly reports illegal tool call (deepseek)"},
-    {"number": 23253, "title": "[Feature]: Add built-in Qwen Token Plan provider preset"},
-    {"number": 23250, "title": "[Bug]: Conversation restored from archive cannot be opened (regression #21105)"},
-    {"number": 23249, "title": "[Feature]: Tool call density setting"},
-    {"number": 23248, "title": "[Feature]: Recover gracefully from malformed Agent tool calls"},
-    {"number": 23246, "title": "[Feature]: Import only PDFs from Zotero attachment directory into knowledge base"},
-    {"number": 23245, "title": "[Bug]: Sonnet unexpectedly uses browser tools for answer-only requests"},
-    {"number": 23244, "title": "[Feature]: Add recovery controls and tab management to Agent browser pane"}
-  ]
+    {"number": 23417, "title": "[Bug]: Claude agent runtime download fails on 2.1.8 and cannot be cancelled", "labels": ["p2", "feature", "needs-review", "agent", "claude-code"]},
+    {"number": 23408, "title": "[Bug]: Agent Mode incorrectly identifies GitHub Copilot claude-opus-5.5 as Opus 5", "labels": ["bug", "p2", "models", "agent", "claude-code", "provider", "ai:assign:coding"]},
+    {"number": 23400, "title": "[Bug]: cherry-browser enabling Runtime.enable triggers Liepin anti-debugging", "labels": ["bug", "p2", "agent", "ai:assign:coding"]},
+    {"number": 23387, "title": "[Bug]: Gemini subagent hangs while other subagent models and normal Gemini chat work", "labels": ["bug", "p2", "models", "agent", "claude-code", "needs-info"]},
+    {"number": 23386, "title": "[Bug]: Completed Agent task leaves an empty assistant message spinning forever", "labels": ["bug", "p2", "agent", "ai:assign:coding"]},
+    {"number": 23378, "title": "[Bug]: CherryIN Claude Work requests fail when Bedrock rejects the strict field", "labels": ["bug", "p2", "agent", "claude-code", "provider", "ai:assign:coding"]},
+    {"number": 23338, "title": "Diagnostic bundle can contain provider API keys in plaintext", "labels": ["bug"]},
+    {"number": 23289, "title": "[Bug]: A single scheduled-job enqueue delivers the same message twice", "labels": ["bug", "p2", "agent", "needs-info", "ai:assign:coding"]}
+  ],
+  "security_issue_flagged": {
+    "number": 23338,
+    "title": "Diagnostic bundle can contain provider API keys in plaintext",
+    "severity": "high",
+    "note": "Built-in scan does not flag them. Requires immediate attention."
+  }
 }
