@@ -9,6 +9,7 @@ import {
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
   getClaudeContextModelId,
+  isCliConfigRoleBindingError,
   safeCreateUniqueModelId,
   sanitizeCliConfigBlob,
   stripClaudeDetailedModels,
@@ -404,9 +405,17 @@ export function useConfigDraftController({
       }
       onClose()
     } catch (err) {
-      // Keep the dialog open so the user's edits survive a failed apply.
+      // Keep the dialog open so the user's edits survive a failed apply. The role-binding
+      // guard's message is user-actionable and carries no secrets; everything else stays generic.
       logger.error('Failed to save CLI provider config', err as Error)
-      toast.error(t('code.apply_failed'))
+      // The typed guard error carries the actionable detail: short localized title plus the
+      // bounded guard message as the wrapping description (a long title would be truncated
+      // by the toast viewport, hiding the actionable part).
+      toast.error(
+        isCliConfigRoleBindingError(err)
+          ? { title: t('code.apply_failed'), description: err.message }
+          : t('code.apply_failed')
+      )
     } finally {
       setSubmitting(false)
     }
