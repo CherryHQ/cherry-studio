@@ -63,7 +63,10 @@ describe('session MCP skills through real protocol and persistence', () => {
       .run()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: sessionId, name: 'Skills', agentId, workspaceId: 'workspace', orderKey: 'a0' })
+      .values([
+        { id: sessionId, name: 'Skills', agentId, workspaceId: 'workspace', orderKey: 'a0' },
+        { id: 'other-session', name: 'Other', agentId, workspaceId: 'workspace', orderKey: 'a1' }
+      ])
       .run()
     agentSessionMessageService.saveMessage({
       sessionId,
@@ -655,6 +658,7 @@ describe('session MCP skills through real protocol and persistence', () => {
       { stage, source: 'picker', replacement: true },
       { stage, source: 'session', replacement: true },
       { stage, source: 'get', replacement: true },
+      { stage, source: 'other-session', replacement: true },
       { stage, source: 'picker', replacement: false }
     ])
   )(
@@ -704,7 +708,10 @@ describe('session MCP skills through real protocol and persistence', () => {
         }
         if (source === 'picker') await application.get('McpCatalogService').listSkills(serverId)
         else if (source === 'session') await skills.list(sessionId)
-        else await skills.get(sessionId, serverId, fixture.uri)
+        else if (source === 'other-session') {
+          skills.openSession('other-session', agentId)
+          await skills.get('other-session', serverId, fixture.uri)
+        } else await skills.get(sessionId, serverId, fixture.uri)
       } finally {
         release.resolve()
       }
@@ -719,6 +726,23 @@ describe('session MCP skills through real protocol and persistence', () => {
       }
     }
   )
+
+  it('invalidates another session when direct lookup discovers a replacement', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    skills.openSession('other-session', agentId)
+    await skills.get('other-session', serverId, fixture.uri)
+    expect(approval.signal.aborted).toBe(false)
+
+    fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+    fixture.refresh()
+    await skills.get('other-session', serverId, fixture.uri)
+
+    expect(approval.signal.aborted).toBe(true)
+    expect(() => approval.approve()).toThrow()
+    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+  })
 
   it.each(['picker', 'session'] as const)(
     'invalidates persisted skills and pending execution approval on %s catalog replacement',

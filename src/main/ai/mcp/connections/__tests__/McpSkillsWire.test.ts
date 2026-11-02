@@ -53,6 +53,34 @@ describe('MCP Skills wire contract', () => {
     }
   })
 
+  it.each(['file:///shared/reports', 'file://localhost/shared/reports', 'https://example.com/reports'])(
+    'discovers and reads %s through the MCP connection',
+    async (root) => {
+      const fixture = createMcpSkillsFixture()
+      const original = fixture.manifest()
+      const entry = {
+        ...original,
+        uri: `${root}/SKILL.md`,
+        resources: original.resources.map((resource) => ({
+          ...resource,
+          uri: resource.uri.replace('skill://reports', root)
+        }))
+      }
+      fixture.publish(entry)
+      fixture.files.set(entry.uri, fixture.files.get(original.uri)!)
+      const connection = await connect(fixture)
+      try {
+        expect(await connection.listSkills()).toContainEqual(entry)
+        expect(await connection.getSkill(entry.uri)).toEqual(entry)
+        const result = await connection.readResource(entry.uri, 'refresh')
+        expect(result.contents[0]).toMatchObject({ uri: entry.uri, text: fixture.files.get(original.uri) })
+        expect(fixture.requests).toContain(`read:${entry.uri}`)
+      } finally {
+        await connection.close()
+      }
+    }
+  )
+
   it('never sends extension methods to a server without the capability', async () => {
     const fixture = createMcpSkillsFixture()
     fixture.advertise(false)

@@ -276,7 +276,7 @@ export class McpSkillService extends BaseService {
       .getSkill(serverId, uri, AbortSignal.any([session.abort.signal, ...(signal ? [signal] : [])]))
     this.server(session, serverId)
     session.abort.signal.throwIfAborted()
-    this.observe(session, entry)
+    for (const activeSession of this.sessions.values()) this.observe(activeSession, entry)
     return entry
   }
 

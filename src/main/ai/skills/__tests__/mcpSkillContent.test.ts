@@ -19,6 +19,20 @@ describe('MCP skill content boundary', () => {
     }
   )
 
+  it.each(['../reports', '%2e%2e/reports', 'nested//reports', 'nested/%2F/reports'])(
+    'rejects ambiguous raw file URI root %s before URL normalization',
+    (path) => {
+      const skill = createMcpSkillsFixture().manifest()
+      const root = `file:///shared/${path}`
+      skill.uri = `${root}/SKILL.md`
+      skill.resources = skill.resources.map((resource) => ({
+        ...resource,
+        uri: resource.uri.replace('skill://reports', root)
+      }))
+      expect(() => validateMcpSkill(skill)).toThrow('Invalid skill resource path')
+    }
+  )
+
   it('rejects duplicate decoded paths, missing entry files, and mismatched names', () => {
     const skill = createMcpSkillsFixture().manifest()
     skill.resources.push({ ...skill.resources[0], uri: 'skill://reports/%53KILL.md' })

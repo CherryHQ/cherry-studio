@@ -41,7 +41,11 @@ export function validateMcpSkill(skill: McpSkill): McpSkill {
     throw new Error('Invalid skill root URI')
   const schemeEnd = root.indexOf('://')
   if (schemeEnd < 1) throw new Error('Skill URI must be hierarchical')
-  skillRelativePath(root.slice(0, schemeEnd + 2), root)
+  const authorityEnd = root.indexOf('/', schemeEnd + 3)
+  const authorityRoot = authorityEnd < 0 ? root : root.slice(0, authorityEnd)
+  if (authorityRoot.length > schemeEnd + 3) skillRelativePath(root.slice(0, schemeEnd + 2), authorityRoot)
+  // Check the raw path: URL parsing normalizes away traversal segments.
+  if (authorityEnd >= 0) skillRelativePath(authorityRoot, root)
   if (decodeURIComponent(root.slice(root.lastIndexOf('/') + 1)) !== skill.frontmatter.name)
     throw new Error('Skill URI does not match its name')
   if (skill.resources === 'dynamic') return skill
