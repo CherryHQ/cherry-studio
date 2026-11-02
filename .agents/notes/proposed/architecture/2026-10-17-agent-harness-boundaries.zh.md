@@ -63,7 +63,7 @@ Native harness facts -> adapter normalization -> host Lane/history projection ->
 
 流式累积跟随内容身份，不跟随组件挂载或父轮切换。保存展示 parts 不会保存流解析器状态；重连需要快照衔接和明确的缺口。仅把现有 background flow 改名为 Lane，不能消除它对父消息的依赖。宿主投影可以由主进程或独立服务保存并跨越窗口生命周期；新的公共包没有实现该服务。
 
-观察输出与向父模型交付结果是不同路径。Harness 已负责交付时，宿主不能因观察到完成再注入一份结果。对于宿主创建的跨 harness 委派，明确的编排所有者管理关系和结果交接，各 harness 负责自身执行。产品会话间的消息投递本身不能建立这种所有权。[子智能体控制方案](https://github.com/CherryHQ/cherry-studio/pull/21578) 负责记录后续可选输入与委派控制。
+观察输出与向父模型交付结果是不同路径。Harness 已负责交付时，宿主不能因观察到完成再注入一份结果。对于宿主创建的跨 harness 委派，明确的编排所有者管理关系和结果交接，各 harness 负责自身执行。产品会话间的消息投递本身不能建立这种所有权。[子智能体控制方案](2026-10-18-agent-runtime-subagent-control.md) 负责记录后续可选输入与委派控制。
 
 ### 分开原生存储与产品存储
 

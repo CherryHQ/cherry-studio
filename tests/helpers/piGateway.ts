@@ -26,6 +26,7 @@ import { onTestFinished } from 'vitest'
 import {
   type AgentRuntimeSessionOptions,
   type AgentRuntimeEvent,
+  type AgentRuntimeModel,
   createAgentRuntimeSession
 } from '@cherrystudio/agent-runtime-pi'
 import { loadPiApiStreamSimple } from '@main/ai/runtime/pi/piSdk'
@@ -232,4 +233,12 @@ export function hostStore() {
     if (event.type === 'session-append') entries.push(...plain(event.entries))
   }
   return { entries, events, onEvent }
+}
+
+export const NATIVE_MODEL: AgentRuntimeModel = {
+  ...MODEL,
+  api: 'openai-completions',
+  baseUrl: 'http://gateway-fixture.invalid',
+  provider: 'cherry',
+  id: 'bridged-model'
 }
