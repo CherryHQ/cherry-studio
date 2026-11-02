@@ -767,6 +767,39 @@ describe('SkillService', () => {
       )
     })
 
+    it.each(['builtin', 'copied'])('excludes exported %s skills while preserving user-owned links', async (kind) => {
+      const exportsRoot = path.join(home, '.agents', 'skills')
+      const managedCopy = path.join(mirrorRoot, `${kind}-skill`)
+      const exportedSkill = path.join(exportsRoot, `${kind}-skill`)
+      const userLink = path.join(exportsRoot, 'user-skill')
+      const canonicalSkill = path.join(dataSkillsRoot, 'canonical-skill')
+      const canonicalLink = path.join(exportsRoot, 'canonical-skill')
+      await fs.promises.mkdir(managedCopy, { recursive: true })
+      await fs.promises.mkdir(canonicalSkill, { recursive: true })
+      await fs.promises.mkdir(exportsRoot, { recursive: true })
+      await fs.promises.symlink(managedCopy, exportedSkill, 'junction')
+      await fs.promises.symlink(canonicalSkill, canonicalLink, 'junction')
+      await fs.promises.symlink(sourceSkillDir, userLink, 'junction')
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === exportsRoot
+          ? [exportedSkill, canonicalLink, userLink].map((folderPath) => ({
+              folderPath,
+              sourcePath: path.basename(folderPath)
+            }))
+          : []
+      )
+
+      const result = await skillService.discoverSystem()
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          directoryPath: await fs.promises.realpath(sourceSkillDir),
+          status: 'available',
+          placements: [expect.objectContaining({ directoryPath: userLink })]
+        })
+      ])
+    })
+
     it('imports a system skill into the managed library without changing agent associations', async () => {
       const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
 

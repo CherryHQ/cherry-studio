@@ -344,9 +344,6 @@ export class SkillService {
       })
     )
     const installedByFolder = new Map(installed.map((skill) => [normalizeFolderKey(skill.folderName), skill]))
-    const managedRoot = await fs.promises
-      .realpath(application.getPath('feature.agents.skills'))
-      .catch(() => path.resolve(application.getPath('feature.agents.skills')))
     const mirrorRoot = path.resolve(this.getMirrorRoot())
     const candidates = new Map<string, SystemSkillCandidate>()
 
@@ -358,7 +355,7 @@ export class SkillService {
         const entryPath = skillDirectory.folderPath
         try {
           const canonicalPath = await fs.promises.realpath(entryPath)
-          if (canonicalPath === managedRoot || canonicalPath.startsWith(managedRoot + path.sep)) continue
+          if (await this.isManagedSkillTarget(canonicalPath)) continue
 
           const placement: SystemSkillPlacement = {
             sourceId: source.id,
