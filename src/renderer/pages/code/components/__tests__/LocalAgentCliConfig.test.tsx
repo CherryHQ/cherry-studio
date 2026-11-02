@@ -101,6 +101,7 @@ it('edits CodeBuddy native settings without requiring a provider configuration',
 })
 
 it.each([
+  ['openclaw', 'openclaw-config', '{"gateway":{"port":18790}}', '{"gateway":{"port":18791}}'],
   [
     'cursor',
     'cursor-config',

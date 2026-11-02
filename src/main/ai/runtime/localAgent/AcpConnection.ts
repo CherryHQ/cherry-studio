@@ -37,6 +37,7 @@ import {
 } from '@shared/ai/elicitation'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
+import { isOpenClawTechnicalTitle } from '@shared/utils/conversationTitle'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { acpError } from './acpError'
@@ -667,7 +668,11 @@ export class AcpConnection extends LocalConnection {
         }
       })
     }
-    if (update.sessionUpdate === 'session_info_update' && update.title?.trim())
+    if (
+      update.sessionUpdate === 'session_info_update' &&
+      update.title?.trim() &&
+      !(this.config.presetId === 'openclaw' && isOpenClawTechnicalTitle(update.title))
+    )
       this.events.push({ type: 'session-title', title: update.title })
 
     if (update.sessionUpdate === 'usage_update' && update.cost && this.nativeId) {
@@ -785,7 +790,8 @@ export class AcpConnection extends LocalConnection {
       const model = this.localSessionInfo.activeModel?.id ?? null
       const response = await this.connection.agent.request<PromptResponse>('session/prompt', {
         sessionId: this.nativeId,
-        prompt
+        prompt,
+        ...(this.config.presetId === 'openclaw' ? { _meta: { prefixCwd: false } } : {})
       })
       const usage = response.usage
       if (usage) {

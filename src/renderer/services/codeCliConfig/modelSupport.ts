@@ -44,7 +44,8 @@ const filterGeminiProviders = (providers: Provider[]): Provider[] =>
  * - Claude Code: inject reads `anthropic-messages`.
  * - Codex: inject reads `openai-responses` only. Chat-completions is no longer
  *   supported by Codex (its binary rejects `wire_api = "chat"` at parse time).
- * - OpenCode / OpenClaw: inject reads anthropic-or-openai at runtime.
+ * - OpenCode: inject reads anthropic-or-openai at runtime.
+ * - OpenClaw: all Cherry models use the API gateway.
  * - DeepSeek Harness: direct mode also requires API-key or keyless authentication.
  * - Antigravity: use the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
@@ -58,7 +59,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
   [CodeCli.OPENAI_CODEX]: (providers) => providers.filter(hasResponses),
   [CodeCli.OPEN_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
-  [CodeCli.OPENCLAW]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [CodeCli.OPENCLAW]: (providers) => providers.filter((p) => !isAgentOnlyProvider(p)),
   [CodeCli.DEEPSEEK_HARNESS]: (providers) =>
     providers.filter(
       (p) =>
@@ -109,6 +110,7 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
         ...OPENAI_LIKE_ENDPOINTS
       ])
     case CodeCli.OPENCLAW:
+      return isPublicGatewayRoutableModel(model)
     case CodeCli.DEEPSEEK_HARNESS:
     case CodeCli.HERMES:
     case CodeCli.MINIMAX_CODE:
@@ -137,7 +139,10 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
 
 export function filterCliProviders(tool: CodeCli | ModelConfiguredCli, providers: Provider[]): Provider[] {
   return CLI_TOOL_PROVIDER_MAP[tool](providers).filter(
-    (provider) => provider.isEnabled && !isCherryAIProvider(provider) && !isLoginBasedProvider(provider)
+    (provider) =>
+      provider.isEnabled &&
+      !isCherryAIProvider(provider) &&
+      (tool === CodeCli.OPENCLAW || !isLoginBasedProvider(provider))
   )
 }
 

@@ -26,6 +26,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { isOpenClawTechnicalTitle } from '@shared/utils/conversationTitle'
 
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
@@ -144,9 +145,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId: ExecutionId = agent.model ?? `runtime:${agent.id}`
     const providerModel = agent.model ? parseUniqueModelId(agent.model) : undefined
-    const shouldAutoNameInitialTurn = deliveryMessage
-      ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
-      : !agentSessionMessageService.hasSessionMessages(sessionId)
+    const shouldAutoNameInitialTurn =
+      (deliveryMessage
+        ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
+        : !agentSessionMessageService.hasSessionMessages(sessionId)) ||
+      (!session.isNameManuallyEdited &&
+        agent.configuration?.localRuntime?.presetId === 'openclaw' &&
+        isOpenClawTechnicalTitle(session.name))
     return {
       sessionId,
       topicId: req.topicId,

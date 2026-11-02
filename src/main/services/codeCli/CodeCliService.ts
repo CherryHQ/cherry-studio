@@ -479,7 +479,9 @@ export class CodeCliService extends BaseService {
       .then(async () => {
         const apply = async () =>
           (await writeCliConfigFiles(cliTool, update(await readCliConfigFiles(targets)), commit)) as T
-        return cliTool === CodeCli.HERMES ? application.get('HermesDashboardService').writeConfigFiles(apply) : apply()
+        if (cliTool === CodeCli.HERMES) return application.get('HermesDashboardService').writeConfigFiles(apply)
+        if (cliTool === CodeCli.OPENCLAW) return application.get('OpenClawService').writeConfigFiles(apply)
+        return apply()
       })
     this.configWriteQueue = operation
     return operation

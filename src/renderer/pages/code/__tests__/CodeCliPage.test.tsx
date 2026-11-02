@@ -10,9 +10,13 @@ import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CodeCli } from '@shared/types/codeCli'
 
 import { CodeCliConfiguration } from '../components/CodeCliConfiguration'
+import { LocalAgentCliConfig } from '../components/LocalAgentCliConfig'
 import { ManagedLocalAgentDetails } from '../components/ManagedLocalAgentDetails'
 
 const binaries = vi.hoisted(() => ({ remove: vi.fn(), upgrade: vi.fn() }))
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ value }: { value: string }) => <textarea aria-label="config" value={value} readOnly />
+}))
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() }, useIpcOn: vi.fn() }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
@@ -95,30 +99,63 @@ function configured(tool: CodeCli) {
 }
 
 describe('managed local Agent details', () => {
-  it.each([CodeCli.DEEPSEEK_HARNESS, CodeCli.OPENCLAW] as const)(
-    'keeps %s model configuration alongside its ACP chat and enable controls',
-    async (tool) => {
-      configured(tool)
-      render(
-        <ManagedLocalAgentDetails
-          tool={tool}
-          preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === tool)}
-          detection={{ presetId: tool, path: '/usr/local/bin/tool', source: 'system' }}
-          installing={false}
-          onInstall={vi.fn()}
-          onNavigate={vi.fn()}
-          onCancelNavigation={vi.fn()}
-          onSaved={vi.fn()}
-        />
-      )
-      expect(screen.getByRole('switch')).not.toBeChecked()
-      expect(screen.getByRole('button', { name: '对话' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeDisabled()
-      expect(await screen.findByRole('button', { name: 'DeepSeek Chat' })).toBeVisible()
-      await userEvent.click(screen.getByRole('button', { name: '参数设置' }))
-      expect(await screen.findByRole('dialog')).toBeVisible()
-    }
-  )
+  it('keeps DeepSeek parameters alongside its ACP chat and enable controls', async () => {
+    const tool = CodeCli.DEEPSEEK_HARNESS
+    configured(tool)
+    render(
+      <ManagedLocalAgentDetails
+        tool={tool}
+        preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === tool)}
+        detection={{ presetId: tool, path: '/usr/local/bin/tool', source: 'system' }}
+        installing={false}
+        onInstall={vi.fn()}
+        onNavigate={vi.fn()}
+        onCancelNavigation={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: '对话' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'DeepSeek Chat' })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '参数设置' }))
+    expect(await screen.findByRole('dialog')).toBeVisible()
+  })
+
+  it('opens the OpenClaw native configuration without requiring a selected Cherry model', async () => {
+    vi.mocked(ipcApi.request).mockImplementation(
+      async (route) =>
+        (route === 'code_cli.read_config'
+          ? {
+              files: [
+                {
+                  target: 'openclaw-config',
+                  path: '/home/test/.openclaw/openclaw.json',
+                  content: '{"gateway":{"port":18790}}'
+                }
+              ]
+            }
+          : { success: true }) as never
+    )
+    render(
+      <ManagedLocalAgentDetails
+        tool={CodeCli.OPENCLAW}
+        preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === 'openclaw')}
+        detection={{ presetId: 'openclaw', path: '/usr/local/bin/openclaw', source: 'system' }}
+        cliConfigEntry={<LocalAgentCliConfig tool={CodeCli.OPENCLAW} />}
+        installing={false}
+        onInstall={vi.fn()}
+        onNavigate={vi.fn()}
+        onCancelNavigation={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('/home/test/.openclaw/openclaw.json')).toBeVisible()
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+  })
+
   it.each([CodeCli.DEEPSEEK_HARNESS, CodeCli.OPENCLAW] as const)(
     'selects a model directly for %s without launching it',
     async (tool) => {

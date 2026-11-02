@@ -249,6 +249,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }
       })
     }
+    if (scenario === 'openclaw-title') {
+      update({ sessionUpdate: 'session_info_update', title: 'agent:main:acp-bridge:native-session' })
+      update({ sessionUpdate: 'session_info_update', title: 'acp-bridge:native-session' })
+      update({ sessionUpdate: 'session_info_update', title: '[Working directory: ~/project…' })
+      update({ sessionUpdate: 'session_info_update', title: 'Explain the project' })
+    }
     if (scenario === 'session-title') {
       update({ sessionUpdate: 'session_info_update', title: 'Native initial title' })
       emit({

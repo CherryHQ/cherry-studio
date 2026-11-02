@@ -72,7 +72,8 @@ describe('writeCliConfigFiles', () => {
   beforeEach(async () => {
     vi.mocked(getRawShellEnv).mockResolvedValue({})
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
-    vi.mocked(application.getPath).mockImplementation((key: string) => {
+    vi.mocked(application.getPath).mockImplementation((key, filename) => {
+      if (key === 'external.openclaw.config') return path.join(home, 'native-openclaw', ...(filename ? [filename] : []))
       if (key === 'sys.home') return home
       throw new Error(`Unexpected getPath(${key})`)
     })
@@ -83,6 +84,20 @@ describe('writeCliConfigFiles', () => {
     vi.mocked(atomicWriteFile).mockClear()
     vi.mocked(remove).mockClear()
     await rm(home, { recursive: true, force: true })
+  })
+
+  it('reads and edits the same formal OpenClaw config used by its Gateway', async () => {
+    const file = path.join(home, 'native-openclaw', 'openclaw.json')
+    await mkdir(path.dirname(file), { recursive: true })
+    const original = '{"gateway":{"auth":{"token":"user-token"}},"agents":{"list":[{"id":"work"}]}}'
+    await writeFile(file, original)
+    const [draft] = await readCliConfigFiles(['openclaw-config'])
+    expect(draft).toEqual({ target: 'openclaw-config', path: file, content: original })
+    const next = original.replace('work', 'personal')
+    await writeCliConfigFiles(CodeCli.OPENCLAW, [{ target: 'openclaw-config', content: next }])
+    expect(await readFile(file, 'utf8')).toBe(next)
+    if (!isWin) expect((await stat(file)).mode & 0o777).toBe(0o600)
+    await expect(stat(path.join(home, '.openclaw', 'openclaw.json'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('writes Copilot settings without overwriting internal config.json state', async () => {

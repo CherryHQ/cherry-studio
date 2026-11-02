@@ -25,6 +25,8 @@ interface FileSnapshot {
 
 /** Resolve a declarative target path against its base: the pinned Hermes home, or sys.home for `~/…` spec paths. */
 async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFilePath> {
+  if (target === 'openclaw-config')
+    return AbsoluteFilePathSchema.parse(application.getPath('external.openclaw.config', 'openclaw.json'))
   const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
   if (pathBase === 'hermes-home') {
     return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))

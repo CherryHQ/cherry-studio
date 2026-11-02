@@ -10,7 +10,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
@@ -25,13 +25,14 @@ import {
   parseUniqueModelId,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
-import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
 import { CodeCli } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { isNonChatModel } from '@shared/utils/model'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { isPublicGatewayRoutableModel } from '@shared/utils/model'
+import { isAgentOnlyProvider } from '@shared/utils/provider'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { vertexAiService } from './VertexAiService'
@@ -376,8 +377,6 @@ const NO_KEY_PLACEHOLDERS: Record<string, string> = {
  */
 const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic']
 
-const UNSUPPORTED_SYNC_PROVIDER_IDS = new Set(['azure-openai', 'aws-bedrock', 'vertexai', 'vertex-anthropic'])
-
 /**
  * Endpoint types that use Anthropic API format
  * These are values from model.endpoint_type field
@@ -401,6 +400,7 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ApiGatewayService'])
 export class OpenClawService extends BaseService {
   private readonly operationMutex = new Mutex()
   private gatewayProcess?: ChildProcess
@@ -1129,64 +1129,38 @@ export class OpenClawService extends BaseService {
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
     const provider = providerService.getByProviderId(providerId)
     const primaryModel = modelService.getByKey(providerId, modelId)
-    const models = modelService.list({ providerId, enabled: true })
-    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
-
-    this.ensureSyncProviderSupported(provider)
-    if (isNonChatModel(primaryModel)) {
-      throw new Error('Selected OpenClaw model must support chat')
+    if (
+      !provider.isEnabled ||
+      isAgentOnlyProvider(provider) ||
+      !primaryModel.isEnabled ||
+      !isPublicGatewayRoutableModel(primaryModel)
+    ) {
+      throw new Error(t('local_agent.model_unavailable', { model: primaryModel.name }))
     }
 
-    const endpointType = this.getModelEndpointType(primaryModel, provider)
-    const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
-
-    if (!apiHost) {
-      throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)
-    }
-
-    const apiKey = this.resolveSyncApiKey(provider, apiKeys.map((entry) => entry.key).join(','))
-
+    const gateway = application.get('ApiGatewayService')
+    await gateway.start()
+    const apiKey = await gateway.ensureValidApiKey()
+    const { host, port } = gateway.getCurrentConfig()
+    const toGatewayModel = (model: DataModel): OpenClawSyncModel => ({
+      ...this.toOpenClawModel(model),
+      id: formatGatewayModelId(providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
+      endpoint_type: 'openai'
+    })
     return {
       provider: {
-        id: provider.id,
-        type: this.toOpenClawProviderType(provider.presetProviderId ?? provider.id, endpointType),
-        name: provider.name,
+        id: 'gateway',
+        type: 'openai',
+        name: 'Cherry Studio',
         apiKey,
-        apiHost,
-        anthropicApiHost:
-          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-            ? provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-            : undefined,
-        models: models
-          .filter(
-            (model) =>
-              !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
-          )
-          .map((model) => this.toOpenClawModel(model)),
-        presetProviderId: provider.presetProviderId,
-        headers: provider.settings?.extraHeaders
+        apiHost: `${gatewayClientOrigin(host, port)}/v1`,
+        models: modelService
+          .list({ providerId, enabled: true })
+          .filter((model) => !model.isHidden && isPublicGatewayRoutableModel(model))
+          .map(toGatewayModel)
       },
-      primaryModel: this.toOpenClawModel(primaryModel)
+      primaryModel: toGatewayModel(primaryModel)
     }
-  }
-
-  private resolveSyncApiKey(provider: DataProvider, apiKey: string): string {
-    if (apiKey) {
-      return apiKey
-    }
-
-    const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
-    if (provider.authType === 'api-key' && !noKeyPlaceholder && provider.authOptional !== true) {
-      throw new Error(`Provider ${provider.id} has no enabled API key configured`)
-    }
-
-    // Keyless providers honour authOptional even without a per-provider
-    // placeholder; OpenClaw itself still needs a non-empty value.
-    return noKeyPlaceholder ?? (provider.authOptional === true ? 'no-key-required' : '')
-  }
-
-  private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
-    return model.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   }
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
@@ -1196,26 +1170,6 @@ export class OpenClawService extends BaseService {
       NO_KEY_PLACEHOLDERS[provider.id] ??
       (provider.type ? NO_KEY_PLACEHOLDERS[provider.type] : undefined)
     )
-  }
-
-  private toOpenClawProviderType(providerType: string, endpointType: EndpointType): Provider['type'] {
-    if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
-      return 'openai-response'
-    }
-    if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-      return 'anthropic'
-    }
-    if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
-      return 'gemini'
-    }
-    return providerType as Provider['type']
-  }
-
-  private ensureSyncProviderSupported(provider: DataProvider): void {
-    const providerKey = provider.presetProviderId ?? provider.id
-    if (UNSUPPORTED_SYNC_PROVIDER_IDS.has(providerKey)) {
-      throw new Error(`OpenClaw sync does not support ${provider.name} providers yet`)
-    }
   }
 
   private toOpenClawModel(model: DataModel): OpenClawSyncModel {
@@ -1300,6 +1254,14 @@ export class OpenClawService extends BaseService {
       return 'gemini'
     }
     return 'openai'
+  }
+
+  public async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
+    return this.operationMutex.runExclusive(async () => {
+      const result = await write()
+      this.gatewayAuthToken = ''
+      return result
+    })
   }
 
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {

@@ -76,6 +76,22 @@ beforeEach(() => {
 })
 
 describe('useConfigMetadata.gatewayModelsById', () => {
+  it('offers OpenClaw gateway-convertible Gemini models without requiring a direct OpenAI endpoint', () => {
+    const gemini = {
+      id: 'gemini',
+      name: 'Gemini',
+      isEnabled: true,
+      endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+    } as unknown as Provider
+    const model = { ...makeModel('gemini', 'gemini-chat'), endpointTypes: ['google-generate-content'] } as Model
+    modelRecords.push(model)
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.OPENCLAW, [gemini, disabledProvider, oauthProvider]))
+    expect(result.current.filterProviders([gemini, disabledProvider, oauthProvider]).map((p) => p.id)).toEqual([
+      'gemini'
+    ])
+    expect(result.current.makeModelFilter('gemini')(model)).toBe(true)
+  })
+
   it('includes only models the running gateway can resolve', () => {
     const routableModel = makeModel('anthropic', 'claude-chat')
     const nonChatModel = makeModel('anthropic', 'embed', [MODEL_CAPABILITY.EMBEDDING])

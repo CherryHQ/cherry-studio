@@ -6,13 +6,7 @@ import { CLI_CONFIG_TARGET_IDS, FILE_CONFIGURED_CLI_TOOL_IDS } from '@shared/uti
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
 
-/**
- * Code CLI runtime schemas — launch/binary/terminal management plus the config
- * write boundary. File-based CLIs (Claude Code, Codex, OpenCode, Gemini, Qwen,
- * Kimi) build config drafts renderer-side and persist them through
- * code_cli.write_config; OpenClaw config is written by its own main-process
- * service.
- */
+/** CLI launch and raw configuration RPCs; OpenClaw's provider/model synchronization stays in its own service. */
 const terminalConfigSchema = z.object({
   id: z.string(),
   name: z.string()

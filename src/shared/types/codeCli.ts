@@ -104,7 +104,7 @@ export function isApiGatewayProviderId(id: string): boolean {
  * CLI tools that can be backed by the Cherry API gateway. The gateway exposes
  * Anthropic (`/v1/messages`), OpenAI (`/v1/chat/completions`, `/v1/responses`),
  * and Gemini (`/v1beta/models/*`) dialects, so Antigravity routes
- * through the gateway too. OpenClaw is excluded because it has its own gateway sync path.
+ * through the gateway too. OpenClaw syncs gateway-backed models through its native configuration.
  */
 export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.CLAUDE_CODE,

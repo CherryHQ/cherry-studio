@@ -15,6 +15,7 @@ import type { Topic } from '@shared/data/types/topic'
 import {
   buildFirstUserMessageTitle,
   normalizeConversationTitle,
+  isOpenClawTechnicalTitle,
   sanitizeConversationTitle,
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'
@@ -131,7 +132,7 @@ function matchesFirstUserMessageTitle(name: string | null | undefined, userText:
 // default or still the temporary title", which survives restarts because it
 // derives from the persisted name instead of runtime state.
 function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
-  if (isDefaultAgentSessionName(name)) return true
+  if (isDefaultAgentSessionName(name) || isOpenClawTechnicalTitle(name)) return true
   return userText !== undefined && matchesFirstUserMessageTitle(name, userText)
 }
 

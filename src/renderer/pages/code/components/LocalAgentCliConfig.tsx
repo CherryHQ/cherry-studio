@@ -157,7 +157,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
         onOpenChange={(next) => {
           if (!next) close()
         }}>
-        <DialogContent size="lg" aria-describedby={undefined} className="flex max-h-[85vh] flex-col">
+        <DialogContent size="xl" aria-describedby={undefined} className="flex max-h-[85vh] flex-col">
           <DialogHeader>
             <DialogTitle>{t('code.cli_config.title')}</DialogTitle>
           </DialogHeader>
@@ -181,7 +181,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
                   {toolFields}
                 </section>
               )}
-              <CliConfigEditor files={files} error={error} onChange={change} />
+              <CliConfigEditor files={files} error={error} onChange={change} height="min(55vh, 520px)" />
             </div>
           </Scrollbar>
           <DialogFooter>

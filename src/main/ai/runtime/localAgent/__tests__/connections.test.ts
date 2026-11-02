@@ -1514,6 +1514,19 @@ describe('local protocol processes', () => {
     expect(connection.localSessionInfo.configOptions?.[0].currentValue).toBe('brief')
   })
 
+  it('filters OpenClaw technical titles and disables the upstream directory prefix without changing the prompt', async () => {
+    const { connection, events, drained } = create('acp', 'openclaw-title', undefined, 'openclaw')
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    expect(events.filter((event) => event.type === 'session-title')).toEqual([
+      { type: 'session-title', title: 'Explain the project' }
+    ])
+    const prompt = (await readWire()).find((message) => message.method === 'session/prompt')
+    expect(prompt.params).toMatchObject({ prompt: [{ type: 'text', text: 'hello' }], _meta: { prefixCwd: false } })
+  })
+
   it.each([undefined, 'native-session'])(
     'receives native titles during setup and conversation without accepting other sessions: %s',
     async (resume) => {

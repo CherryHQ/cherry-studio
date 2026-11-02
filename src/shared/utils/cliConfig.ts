@@ -13,6 +13,7 @@ export const CLI_CONFIG_TARGET_IDS = [
   'codex-config',
   'codex-auth',
   'opencode-config',
+  'openclaw-config',
   'qwen-settings',
   'kimi-config',
   'pi-models',
@@ -128,6 +129,7 @@ export const CLI_CONFIG_FILE_SPECS: Record<
   'claude-settings': { label: 'Claude settings.json', path: CLAUDE_SETTINGS_PATH, language: 'json' },
   'codex-config': { label: 'Codex config.toml', path: CODEX_CONFIG_PATH, language: 'toml' },
   'codex-auth': { label: 'Codex auth.json', path: CODEX_AUTH_PATH, language: 'json' },
+  'openclaw-config': { label: 'OpenClaw openclaw.json', path: '~/.openclaw/openclaw.json', language: 'json' },
   'opencode-config': { label: 'OpenCode opencode.json', path: OPENCODE_CONFIG_PATH, language: 'json' },
   'qwen-settings': { label: 'Qwen settings.json', path: QWEN_CONFIG_PATH, language: 'json' },
   'kimi-config': { label: 'Kimi config.toml', path: KIMI_CONFIG_PATH, language: 'toml' },
@@ -167,6 +169,7 @@ export type ModelConfiguredCli = (typeof MODEL_CONFIGURED_CLI_TOOL_IDS)[number]
 
 export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   ...MODEL_CONFIGURED_CLI_TOOL_IDS,
+  CodeCli.OPENCLAW,
   'cursor',
   'kiro',
   CodeCli.QODER_CLI,
@@ -212,6 +215,7 @@ const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> 
   [CodeCli.CLAUDE_CODE]: ['claude-settings'],
   [CodeCli.OPENAI_CODEX]: ['codex-config', 'codex-auth'],
   [CodeCli.OPEN_CODE]: ['opencode-config'],
+  [CodeCli.OPENCLAW]: ['openclaw-config'],
   [CodeCli.QWEN_CODE]: ['qwen-settings'],
   [CodeCli.KIMI_CODE]: ['kimi-config'],
   [CodeCli.PI]: ['pi-models', 'pi-settings'],

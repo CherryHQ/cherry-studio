@@ -27,7 +27,11 @@ Legacy `/app/code` links and saved tabs redirect to settings, preserve the selec
 Agent, and reuse the existing settings tab.
 OpenClaw connects through `openclaw acp` to its local Gateway and uses the shared
 enable, archive and chat controls. It retains its Code Mate model list, native
-configuration entry and WebUI actions. Selecting a model synchronizes the native
+configuration entry and WebUI actions. Its configuration button opens the shared
+file editor for `~/.openclaw/openclaw.json` without requiring a selected Cherry
+model. Raw edits use the same Gateway write lock as model synchronization, with
+snapshot conflict checks and atomic owner-only writes. Saved credentials are
+reloaded before the next dashboard or ACP connection. Selecting a model synchronizes the native
 default immediately; a failed write rolls back the Cherry selection. Chat follows
 that default because the bridge does not expose ACP model selection.
 
@@ -40,6 +44,15 @@ ID. Explicit Gateway URLs or native state/config overrides bypass automatic loca
 Gateway management. Gateway credentials are passed through the child environment,
 not process arguments. Native database migration failures show a localized
 `openclaw doctor --fix` instruction; Cherry does not run that repair automatically.
+
+OpenClaw Cherry-model selections write a stable Cherry API gateway URL and key to
+its native configuration; upstream provider secrets stay in Cherry. Terminal, ACP
+and WebUI use the same gateway-backed default. Cherry must be running to serve it.
+Native Gateway authentication and non-Cherry provider settings are preserved.
+ACP prompts disable OpenClaw's working-directory text prefix while retaining the
+session cwd. Technical bridge IDs and directory-prefixed titles do not override
+conversation names. Existing technical titles are automatically named on the next
+submitted turn; manually edited names are preserved.
 
 OpenClaw 2026.10.2 advertises `session/resume` but does not resolve a bridge-created
 UUID from its persisted ledger after process restart. Cherry prefers its official
