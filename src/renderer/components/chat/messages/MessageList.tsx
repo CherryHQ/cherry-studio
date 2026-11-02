@@ -59,9 +59,9 @@ const CHAT_SIDE_PADDING_PX = 24
  * (base + max = 48px) exactly covers the rail's 32px hit strip + its margin, so
  * hover growth never touches the content nor does content enter the strip. */
 const RAIL_GUTTER_MAX_PX = 24
-/** Below this chat-column width the content keeps its full width and the rail is gone. */
+/** Below this chat-column width the gutter is zero; the rail keeps its 8px hit strip. */
 const RAIL_GUTTER_START_PX = 700
-/** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
+/** Width range over which the gutter and rail hit strip grow smoothly. */
 const RAIL_GUTTER_FADE_PX = 120
 const AFTER_MESSAGES = { key: 'after-messages' } as const
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
@@ -130,7 +130,7 @@ function MessageGroupLayer({
         narrowMode={narrowMode}
         withSidePadding
         // The gutter is mirrored on the left so the column stays
-        // centred and both margins match while the rail fades in.
+        // centred and both margins match as the gutter grows.
         style={{
           paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
           paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
@@ -203,10 +203,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
   const bottomOverlayInsets = useChatBottomOverlayInset()
 
-  // The gutter follows only the width (and the anchor preference) — NOT the turn
-  // count. With anchor navigation on, a wide window always yields the gutter, so
-  // when the conversation grows past the rail's turn threshold the rail simply
-  // fades into space that was already there, with no content jump.
+  // The gutter follows column width and the anchor preference, independently
+  // of turn count, so mounting the rail does not shift the content.
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const messageListScopeRef = useRef<HTMLDivElement | null>(null)
@@ -716,10 +714,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     if (!scrollElement) return
 
     const updateRailGutter = () => {
-      // The content yields a right-hand gutter that grows smoothly with the column
-      // width; the rail fades in within it. Tracking width continuously (rather
-      // than toggling at a threshold) means the content shifts smoothly and never
-      // jumps, and the gutter collapses to 0 when narrow so no space is wasted.
+      // Continuous gutter growth keeps messages and composer aligned without
+      // jumps; narrow columns keep their base padding and an 8px rail hit strip.
       const ramp = (scrollElement.clientWidth - RAIL_GUTTER_START_PX) / RAIL_GUTTER_FADE_PX
       const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
       setRailGutterPx(gutter)
