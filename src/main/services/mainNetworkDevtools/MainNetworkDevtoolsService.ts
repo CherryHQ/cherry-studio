@@ -818,7 +818,17 @@ function createCapturedBinaryBody(bytes: Uint8Array, contentType?: string): Main
   if (!isTextLikeContentType(contentType)) {
     return { contentType, size: bytes.byteLength, note: 'Binary request body is not captured.' }
   }
-  return createCapturedTextBody(new TextDecoder().decode(bytes), contentType, false, bytes.byteLength)
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    return createCapturedTextBody(text, contentType, false, bytes.byteLength)
+  } catch {
+    return {
+      contentType,
+      size: bytes.byteLength,
+      replayable: false,
+      note: 'Request body is not valid UTF-8 and cannot be replayed from capture.'
+    }
+  }
 }
 
 function createCapturedTextBody(
@@ -986,39 +996,40 @@ function skipJsonValue(text: string, start: number): number {
 }
 
 function redactJsonSensitiveValuesInText(text: string): string {
-  const keyPattern = /"((?:[^"\\]|\\.)*)"\s*:/g
   const replacements: { start: number; end: number; replacement: string }[] = []
+  let index = 0
+  while (index < text.length) {
+    if (text[index] !== '"') {
+      index++
+      continue
+    }
+    const keyStart = index
+    index = skipJsonValue(text, index)
+    const keyEnd = index
+    while (index < text.length && /\s/.test(text[index])) index++
+    if (text[index] !== ':') continue
+    index++
 
-  for (const match of text.matchAll(keyPattern)) {
-    const rawKey = match[1]
-    if (!rawKey) continue
-
-    let key = rawKey
+    let key: string
     try {
-      key = JSON.parse(`"${rawKey}"`) as string
+      key = JSON.parse(text.slice(keyStart, keyEnd)) as string
     } catch {
-      // keep raw key when malformed
+      // Preserve redaction for malformed escaped keys as the previous scanner did.
+      key = text.slice(keyStart + 1, keyEnd - 1)
     }
     if (!isSensitiveName(key, OAUTH_QUERY_EXTRAS)) continue
 
-    const valueStart = match.index + match[0].length
+    const valueStart = index
     const valueEnd = skipJsonValue(text, valueStart)
     replacements.push({ start: valueStart, end: valueEnd, replacement: JSON.stringify(REDACTED) })
+    // A sensitive parent covers its descendants. Skip it whole, keeping this scan linear.
+    index = valueEnd
   }
 
   if (replacements.length === 0) return text
 
-  // Keep only outermost ranges: a sensitive parent already covers its descendants, and applying a nested
-  // replacement first would shift the parent's end offset and leak part of its value.
-  const outermost: typeof replacements = []
-  for (const range of replacements.sort((a, b) => a.start - b.start)) {
-    const last = outermost.at(-1)
-    if (last && range.start < last.end) continue
-    outermost.push(range)
-  }
-
   let output = text
-  for (const { start, end, replacement } of outermost.reverse()) {
+  for (const { start, end, replacement } of replacements.reverse()) {
     output = output.slice(0, start) + replacement + output.slice(end)
   }
   return output

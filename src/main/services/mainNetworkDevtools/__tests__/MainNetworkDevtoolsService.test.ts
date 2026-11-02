@@ -322,6 +322,38 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 
+  it('redacts precision-sensitive JSON with many escaped quotes without suffix rescans', () => {
+    const body = `{"id":9007199254740993,"prompt":${JSON.stringify('"'.repeat(60000))},"credentials":{"token":"private-marker"}}`
+    const start = performance.now()
+    const captured = captureRequestBody(body, 'application/json')
+    expect(performance.now() - start).toBeLessThan(500)
+    expect(captured).toMatchObject({ replayable: false })
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).not.toContain('private-marker')
+    expect(JSON.parse(captured?.text ?? '{}').credentials).toBe('<redacted>')
+  })
+
+  it('keeps sensitive malformed JSON keys redacted on the precision-preserving path', () => {
+    for (const key of [String.raw`token\q`, String.raw`session\uZZZZ`, 'token\u0001']) {
+      const captured = captureRequestBody(`{"id":9007199254740993,"${key}":"leak-marker"}`, 'application/json')
+      expect(captured).toMatchObject({ replayable: false })
+      expect(captured?.text).toContain('<redacted>')
+      expect(captured?.text).not.toContain('leak-marker')
+    }
+  })
+
+  it('never marks invalid UTF-8 byte bodies as replayable', () => {
+    const bytes = Uint8Array.from([0x80, 0xff, 0x41])
+    for (const body of [bytes, bytes.buffer, Buffer.from(bytes)]) {
+      expect(captureRequestBody(body)).toMatchObject({ replayable: false, size: 3 })
+      expect(captureRequestBody(body)?.text).toBeUndefined()
+    }
+    expect(captureRequestBody(Buffer.from('plain UTF-8 text'))).toMatchObject({
+      text: 'plain UTF-8 text',
+      replayable: true
+    })
+  })
+
   it('marks gzip-compressed binary JSON bodies as non-replayable', () => {
     const body = Buffer.from('{"prompt":"hi"}', 'utf8')
     expect(captureRequestBody(body, 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({
