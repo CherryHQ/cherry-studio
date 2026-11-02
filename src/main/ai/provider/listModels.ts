@@ -692,12 +692,12 @@ const tokenDanceFetcher: ModelFetcher = {
   }
 }
 
-// Jev serves decisions only via POST /api/alpha/decisions; chat/completions rejects it with 400 (#20806).
-const EXCLUDED_OPENROUTER_MODEL_KEYWORDS = ['/jev', 'jev-'] as const
+// These Jev IDs use the Decisions API, not chat (#20806). Jev Router supports chat,
+// so exclude only known decision-only IDs rather than the entire Jev name family.
+const EXCLUDED_OPENROUTER_DECISION_MODEL_IDS = new Set(['typesafe/jev-1.13', '~typesafe/jev-latest'])
 
 function isSupportedOpenRouterChatModel(modelId: string): boolean {
-  const id = modelId.toLowerCase()
-  return !EXCLUDED_OPENROUTER_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+  return !EXCLUDED_OPENROUTER_DECISION_MODEL_IDS.has(modelId.toLowerCase())
 }
 
 const openRouterFetcher: ModelFetcher = {
