@@ -9,19 +9,24 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
 
-// Public, write-only key of the PostHog project that keeps usage insights, like the Sentry DSN.
-const POSTHOG_PROJECT_KEY = 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
+// Public, write-only keys of the PostHog projects that keep usage insights, like the Sentry DSN.
+// The China edition shares its project with the China subscription web page.
+const POSTHOG_PROJECT_KEYS = {
+  cn: 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna',
+  global: 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
+} as const satisfies Record<AppEdition, string>
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
   const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
   if (override) return override
-  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEY
+  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
 }
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
