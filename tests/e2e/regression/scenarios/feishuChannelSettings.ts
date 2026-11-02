@@ -45,7 +45,7 @@ export async function feishuChannelSettings(app: RegressionApp, initialPage: Pag
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const openChannels = async () => {
-    if (!(await page.locator('[data-ui~="settings.view"]').isVisible())) {
+    if (!(await page.locator('[data-ui~="settings.navigation"]').isVisible())) {
       await expect(page.getByRole('button', { name: '设置', exact: true }).first()).toBeVisible()
       await selectSidebarApp(page, '设置')
     }

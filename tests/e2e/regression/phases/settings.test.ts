@@ -317,7 +317,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
       { name: '模型服务', marker: content.getByPlaceholder('搜索模型平台...', { exact: true }) },
       { name: '数据', marker: content.getByText('数据', { exact: true }).first() },
       { name: '快捷键', marker: content.getByRole('heading', { name: '快捷键', exact: true }) },
-      { name: '关于我们', marker: content.getByText('关于我们', { exact: true }) },
+      { name: '关于我们', marker: content.getByText('全能 AI 工作站', { exact: true }) },
       { name: '外观', marker: content.locator('#setting-appearance-theme-mode') }
     ]
     let previous = proxy
