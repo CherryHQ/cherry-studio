@@ -188,23 +188,19 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const contentRef = useRef<HTMLDivElement>(null)
   const [externalScrollMargin, setExternalScrollMargin] = useState(0)
-  const [internalContentOffset, setInternalContentOffset] = useState(0)
   const usesExternalScroll = externalScrollElement !== undefined
   const horizontal = restOptions.horizontal
   const scrollMargin = usesExternalScroll ? externalScrollMargin : (restOptions.scrollMargin ?? 0)
 
-  const contentOffset = usesExternalScroll ? externalScrollMargin : internalContentOffset
-
   useLayoutEffect(() => {
     const content = contentRef.current
     const scrollElement = usesExternalScroll ? externalScrollElement : internalScrollerRef.current
-    if (!scrollElement || !content || (!usesExternalScroll && !isSticky)) return undefined
+    if (!usesExternalScroll || !scrollElement || !content) return undefined
 
     const measureScrollMargin = () => {
       const contentRect = content.getBoundingClientRect()
       const scrollRect = scrollElement.getBoundingClientRect()
-      const setContentOffset = usesExternalScroll ? setExternalScrollMargin : setInternalContentOffset
-      setContentOffset(
+      setExternalScrollMargin(
         horizontal
           ? contentRect.left - scrollRect.left + scrollElement.scrollLeft - scrollElement.clientLeft
           : contentRect.top - scrollRect.top + scrollElement.scrollTop - scrollElement.clientTop
@@ -222,25 +218,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     }
     return () => observer.disconnect()
   }, [externalScrollElement, usesExternalScroll, horizontal, isSticky, header])
-
-  useLayoutEffect(() => {
-    const content = contentRef.current
-    const scrollElement = usesExternalScroll ? externalScrollElement : internalScrollerRef.current
-    if (!isSticky || !scrollElement || !content) return undefined
-
-    const updateScrollOffset = () => {
-      content.style.setProperty(
-        '--dv-scroll-offset',
-        `${horizontal ? scrollElement.scrollLeft : scrollElement.scrollTop}px`
-      )
-    }
-    updateScrollOffset()
-    scrollElement.addEventListener('scroll', updateScrollOffset, { passive: true })
-    return () => {
-      scrollElement.removeEventListener('scroll', updateScrollOffset)
-      content.style.removeProperty('--dv-scroll-offset')
-    }
-  }, [externalScrollElement, usesExternalScroll, horizontal, isSticky, scrollMargin, contentOffset])
 
   const activeStickyIndexesRef = useRef<number[]>([])
 
@@ -378,6 +355,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
   const maxStickyDepth = stickyIndexes.reduce((max, index) => Math.max(max, getItemDepth?.(index) ?? 0), 0)
+  let previousStickyEnd = 0
   const hasFixedItemSize = horizontal
     ? itemContainerStyle?.width !== undefined
     : itemContainerStyle?.height !== undefined
@@ -409,6 +387,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
         ref={contentRef}
         style={{
           position: 'relative',
+          ...(isSticky && { display: 'flex', flexDirection: horizontal ? 'row' : 'column' }),
           width: horizontal ? `${totalSize}px` : '100%',
           height: !horizontal ? `${totalSize}px` : '100%'
         }}>
@@ -431,9 +410,9 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             }
           }
           const naturalOffset = virtualItem.start - scrollMargin
-          const offset = isItemClamped
-            ? `min(${totalSize - virtualItem.size}px, max(${naturalOffset}px, calc(var(--dv-scroll-offset, 0px) - ${contentOffset}px + ${stickyOffset}px)))`
-            : `${naturalOffset}px`
+          // In-flow gaps preserve virtual coordinates while native sticky follows compositor scrolling.
+          const flowGap = naturalOffset - previousStickyEnd
+          if (isItemClamped) previousStickyEnd = naturalOffset + virtualItem.size
 
           // Check if this item is visually covered by sticky items
           // If covered, disable pointer events to prevent hover/click bleeding through
@@ -454,9 +433,10 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
           const style: React.CSSProperties = {
             ...itemContainerStyle,
-            position: 'absolute',
-            top: 0,
-            left: 0,
+            position: isItemClamped ? 'sticky' : 'absolute',
+            top: horizontal || !isItemClamped ? 0 : stickyOffset,
+            left: horizontal && isItemClamped ? stickyOffset : 0,
+            ...(isItemClamped && { flexShrink: 0 }),
             zIndex: isItemSticky ? 1 + maxStickyDepth - depth : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemClamped && {
@@ -466,11 +446,13 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             }),
             ...(horizontal
               ? {
-                  transform: `translateX(${offset})`,
+                  ...(isItemClamped && { marginLeft: flowGap }),
+                  transform: isItemClamped ? undefined : `translateX(${naturalOffset}px)`,
                   height: '100%'
                 }
               : {
-                  transform: `translateY(${offset})`,
+                  ...(isItemClamped && { marginTop: flowGap }),
+                  transform: isItemClamped ? undefined : `translateY(${naturalOffset}px)`,
                   width: '100%'
                 })
           }
