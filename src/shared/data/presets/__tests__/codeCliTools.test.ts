@@ -25,7 +25,8 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot'],
   ['pi', 'pi', '@earendil-works/pi-coding-agent', 'npm', 'npm:@earendil-works/pi-coding-agent'],
   ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent[extras=web]'],
-  ['minimax-code', 'mcode', '@minimax-ai/code', 'npm', 'npm:@minimax-ai/code']
+  ['minimax-code', 'mcode', '@minimax-ai/code', 'npm', 'npm:@minimax-ai/code'],
+  ['letta', 'letta', '@letta-ai/letta-code', 'npm', 'npm:@letta-ai/letta-code']
 ]
 
 const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
@@ -42,7 +43,8 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
   [CodeCli.GITHUB_COPILOT_CLI]: 'copilot -p "<prompt>" -s --output-format json --no-ask-user',
   [CodeCli.PI]: 'pi --mode json --no-session "<prompt>"',
   [CodeCli.HERMES]: 'hermes -z "<prompt>"',
-  [CodeCli.MINIMAX_CODE]: 'mcode exec "<prompt>"'
+  [CodeCli.MINIMAX_CODE]: 'mcode exec "<prompt>"',
+  [CodeCli.LETTA]: 'letta -p "<prompt>" --output-format json'
 }
 
 const EXPECTED_SKILL_CAVEATS: Partial<Record<CodeCli, string[]>> = {

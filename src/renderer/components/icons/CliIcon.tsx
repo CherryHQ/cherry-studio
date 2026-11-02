@@ -7,6 +7,7 @@ import {
   GeminiCli,
   GithubCopilotCli,
   KimiCli as KimiCode,
+  LettaCli,
   OpenaiCodex,
   OpenCode,
   PiCli,
@@ -32,7 +33,8 @@ export const CLI_TOOLS = [
   { value: CodeCli.HERMES, label: 'code.cli_tools.hermes', icon: Nousresearch },
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
   { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek },
-  { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax }
+  { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax },
+  { value: CodeCli.LETTA, label: 'code.cli_tools.letta', icon: LettaCli }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>

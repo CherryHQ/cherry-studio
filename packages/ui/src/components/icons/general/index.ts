@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-08-27T03:01:24.432Z
- * Total icons: 24
+ * Generated at: 2026-11-02T09:04:44.492Z
+ * Total icons: 25
  */
 
 export { AddCategory } from './add-category'
@@ -22,6 +22,7 @@ export { GeminiCli } from './gemini-cli'
 export { GithubCopilotCli } from './github-copilot-cli'
 export { Group } from './group'
 export { KimiCli } from './kimi-cli'
+export { LettaCli } from './letta-cli'
 export { MessageAi1 } from './message-ai-1'
 export { MessageBalloonAi1 } from './message-balloon-ai-1'
 export { OpenCode } from './open-code'
