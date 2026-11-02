@@ -4515,7 +4515,10 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
     await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+        ...usage,
+        sessionId: 'session-1'
+      })
     )
 
     events.push({ type: 'turn-complete' })
@@ -4575,7 +4578,10 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).refreshContextUsage(entry)
       trailing.resolve(latestUsage)
       await vi.waitFor(() =>
-        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', latestUsage)
+        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', {
+          ...latestUsage,
+          sessionId: 'session-1'
+        })
       )
       expect(getContextUsage).toHaveBeenCalledTimes(2)
     })
@@ -4609,7 +4615,10 @@ describe('AgentSessionRuntimeService', () => {
       late.resolve(lateReading)
 
       await vi.waitFor(() =>
-        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', lateReading)
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+          ...lateReading,
+          sessionId: 'session-1'
+        })
       )
     })
 
@@ -4902,7 +4911,10 @@ describe('AgentSessionRuntimeService', () => {
 
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
-    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+      ...usage,
+      sessionId: 'session-1'
+    })
   })
 
   it('clears session-scoped shared cache entries when closing a session', () => {
@@ -5013,7 +5025,10 @@ describe('AgentSessionRuntimeService', () => {
       status: 'idle'
     })
     await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+        ...usage,
+        sessionId: 'session-1'
+      })
     )
 
     events.push({ type: 'turn-complete' })

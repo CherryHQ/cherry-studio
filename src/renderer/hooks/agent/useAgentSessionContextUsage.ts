@@ -29,7 +29,8 @@ export function useAgentSessionContextUsage(
 ): AgentSessionContextUsageState {
   const cachedUsage = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
   const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
-  const sessionUsage = sessionId ? (cachedUsage ?? null) : null
+  const sessionUsage =
+    sessionId && cachedUsage?.sessionId === sessionId ? cachedUsage : null
   const effectiveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
   const maxTokens = resolveMaxTokens(effectiveUsage, model?.contextWindow)
   const rawPercentage =

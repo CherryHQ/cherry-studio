@@ -2604,6 +2604,7 @@ describe('AgentComposer', () => {
       name: 'MiniMax M3'
     }
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      sessionId: 'session-1',
       categories: [],
       totalTokens: 42,
       maxTokens: 100,
@@ -2642,6 +2643,7 @@ describe('AgentComposer', () => {
     expect(within(sendAccessory).queryByText('minimax:MiniMax-M3')).not.toBeInTheDocument()
 
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      sessionId: 'session-1',
       categories: [],
       totalTokens: 24,
       maxTokens: 100,

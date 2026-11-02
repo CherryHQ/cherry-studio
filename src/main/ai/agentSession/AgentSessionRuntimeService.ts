@@ -2214,7 +2214,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
-    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), {
+      ...usage,
+      sessionId: entry.sessionId
+    })
   }
 
   /**
