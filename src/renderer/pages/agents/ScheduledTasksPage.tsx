@@ -7,6 +7,7 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, 
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -275,6 +276,13 @@ export default function ScheduledTasksPage() {
           <Button variant="ghost" onClick={conversation.retry}>
             {t('common.retry')}
           </Button>
+          <ErrorDetailAction
+            error={error}
+            message={t('agent.tasks.logs.loadError')}
+            source="agent.tasks"
+            operation="task.logs.load"
+            {...(taskId ? { recordId: taskId } : {})}
+          />
         </div>
       )}
       {createOpen !== undefined && (

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
@@ -78,7 +79,9 @@ function WizardFooter({
   onCancel,
   onBack,
   onNext,
-  onCreate
+  onCreate,
+  submitFault,
+  kind
 }: {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   stepIndex: number
@@ -89,6 +92,8 @@ function WizardFooter({
   onBack: () => void
   onNext: () => void
   onCreate: () => void
+  submitFault: unknown
+  kind: ResourceCreateWizardKind
 }) {
   const { t } = useTranslation()
   const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
@@ -99,7 +104,20 @@ function WizardFooter({
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+      {rootError ? (
+        <div className="mr-auto flex min-w-0 items-center gap-2">
+          <span className="text-destructive text-xs">{rootError}</span>
+          {submitFault != null ? (
+            <ErrorDetailAction
+              error={submitFault}
+              message={rootError}
+              source="library.resource"
+              operation="resource.create"
+              recordId={kind}
+            />
+          ) : null}
+        </div>
+      ) : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
@@ -170,6 +188,7 @@ export function ResourceCreateWizard({
   const submitPendingRef = useRef(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
+  const [submitFault, setSubmitFault] = useState<unknown>(null)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
@@ -202,6 +221,7 @@ export function ResourceCreateWizard({
     autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
+    setSubmitFault(null)
     setStepIndex(0)
   })
 
@@ -298,6 +318,7 @@ export function ResourceCreateWizard({
   const submitForm = form.handleSubmit(async (values) => {
     if (!values.modelId) return
     form.clearErrors('root')
+    setSubmitFault(null)
     try {
       await onSubmit({
         avatar: values.avatar,
@@ -312,9 +333,8 @@ export function ResourceCreateWizard({
         skillIds: values.skillIds
       })
     } catch (error) {
-      const message =
-        error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')
-      form.setError('root', { message })
+      setSubmitFault(error)
+      form.setError('root', { message: t('library.config.dialogs.create.submit_failed') })
     }
   })
   const handleCreate = async () => {
@@ -425,6 +445,8 @@ export function ResourceCreateWizard({
               onBack={goBack}
               onNext={goNext}
               onCreate={() => void handleCreate()}
+              submitFault={submitFault}
+              kind={kind}
             />
           </form>
         </Form>

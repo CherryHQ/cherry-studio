@@ -18,6 +18,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingGroup,
   SettingRow,
@@ -111,7 +112,7 @@ const PURGE_INVALIDATE_PATHS = [
 
 type FileReferencePreview =
   | { status: 'idle' | 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; error: unknown }
   | {
       status: 'ready'
       referencedFiles: number
@@ -230,7 +231,7 @@ const ArchiveSettings: FC = () => {
     } catch (error) {
       if (referenceRequestToken.current !== token) return
       logger.error('file reference preview failed', error as Error)
-      setFileReferencePreview({ status: 'error' })
+      setFileReferencePreview({ status: 'error', error })
     }
   }, [])
 
@@ -313,6 +314,12 @@ const ArchiveSettings: FC = () => {
       {fileReferencePreview.status === 'error' && (
         <div className="flex items-center gap-2">
           <span className="text-error-subtle-foreground">{t('settings.data.trash.file_refs.error')}</span>
+          <ErrorDetailAction
+            error={fileReferencePreview.error}
+            message={t('settings.data.trash.file_refs.error')}
+            source="settings.archive"
+            operation="archive.file_refs"
+          />
           <Button
             variant="outline"
             size="sm"

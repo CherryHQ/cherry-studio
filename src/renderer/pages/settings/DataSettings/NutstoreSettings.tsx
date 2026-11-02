@@ -1,12 +1,13 @@
 import dayjs from 'dayjs'
 import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -41,6 +42,10 @@ const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const nutstoreSyncState = useBackupSyncState('nutstore')
+  const nutstoreSyncError = useMemo(
+    () => (nutstoreSyncState.lastSyncError ? new Error(nutstoreSyncState.lastSyncError) : null),
+    [nutstoreSyncState.lastSyncError]
+  )
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
@@ -188,11 +193,19 @@ const NutstoreSettings: FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
-          <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
-            iconProps={{ style: { color: 'var(--error)' } }}
-          />
+        {!nutstoreSyncState.syncing && nutstoreSyncError && (
+          <>
+            <WarnTooltip
+              content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
+              iconProps={{ style: { color: 'var(--error)' } }}
+            />
+            <ErrorDetailAction
+              error={nutstoreSyncError}
+              message={t('settings.data.webdav.syncError')}
+              source="settings.data.nutstore"
+              operation="backup.sync"
+            />
+          </>
         )}
         {nutstoreSyncState.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>

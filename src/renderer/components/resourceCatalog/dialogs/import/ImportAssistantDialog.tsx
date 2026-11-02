@@ -17,6 +17,7 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
@@ -34,7 +35,10 @@ interface Props {
 }
 
 type ImportTab = 'file' | 'clipboard' | 'url'
-type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string }
+type ImportStatus =
+  | { kind: 'idle' }
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; message: string; cause?: unknown }
 type CompletedImportStatus = Exclude<ImportStatus, { kind: 'idle' }>
 type DraftOutcome = { kind: 'ok' } | { kind: 'failed'; name: string; error: string }
 const IMPORT_ERROR_I18N_KEYS = {
@@ -181,7 +185,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           : error instanceof Error
             ? error.message
             : t('message.agents.import.error')
-      setStatus({ kind: 'error', message })
+      setStatus({ kind: 'error', message, cause: error })
       setLoading(false)
       return
     }
@@ -294,7 +298,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           : error instanceof Error
             ? error.message
             : t('message.agents.import.error')
-      setStatus({ kind: 'error', message })
+      setStatus({ kind: 'error', message, cause: error })
     }
   }
 
@@ -450,7 +454,22 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           className="mt-4">
-          <Alert type="error" showIcon message={status.message} className="rounded-md px-3 py-2 text-xs shadow-none" />
+          <Alert
+            type="error"
+            showIcon
+            message={status.message}
+            className="rounded-md px-3 py-2 text-xs shadow-none"
+            action={
+              status.cause ? (
+                <ErrorDetailAction
+                  error={status.cause}
+                  message={status.message}
+                  source="resource.assistant"
+                  operation="assistant.import"
+                />
+              ) : undefined
+            }
+          />
         </motion.div>
       )}
     </AnimatePresence>

@@ -3,19 +3,21 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Input, Label } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import type { McpResourceTemplate as Template } from '@shared/types/mcp'
 
 import McpResourcePreview from './McpResourcePreview'
 
 export default function McpResourceTemplate({ template }: { template: Template }) {
   const { t } = useTranslation()
-  const parsed = useMemo(() => {
+  const parsedResult = useMemo(() => {
     try {
-      return new UriTemplate(template.uriTemplate)
-    } catch {
-      return undefined
+      return { template: new UriTemplate(template.uriTemplate), error: undefined as unknown }
+    } catch (error) {
+      return { template: undefined, error }
     }
   }, [template.uriTemplate])
+  const parsed = parsedResult.template
   const [values, setValues] = useState<Record<string, string>>({})
   const [previewUri, setPreviewUri] = useState<string>()
   let uri: string | undefined
@@ -30,7 +32,18 @@ export default function McpResourceTemplate({ template }: { template: Template }
       <p className="text-sm text-muted-foreground">{template.description}</p>
       <code className="break-all text-xs">{template.uriTemplate}</code>
       {!parsed ? (
-        <Alert type="error" message={t('common.error')} />
+        <Alert
+          type="error"
+          message={t('common.error')}
+          action={
+            <ErrorDetailAction
+              error={parsedResult.error}
+              source="mcp"
+              operation="mcp.resource.template"
+              recordId={template.uriTemplate}
+            />
+          }
+        />
       ) : (
         <>
           {parsed.variableNames.map((name) => (

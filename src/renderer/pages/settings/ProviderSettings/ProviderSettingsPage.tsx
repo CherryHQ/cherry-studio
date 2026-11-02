@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { AppRouter } from '@renderer/types/router'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
@@ -150,9 +151,12 @@ export default function ProviderSettingsPage() {
           message={t('common.error')}
           description={error.message}
           action={
-            <Button variant="outline" size="sm" onClick={() => void refetch()}>
-              {t('common.retry')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <ErrorDetailAction error={error} source="settings.provider" operation="provider.list" />
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t('common.retry')}
+              </Button>
+            </div>
           }
           className="max-w-lg rounded-md px-4 py-3 shadow-none"
         />
