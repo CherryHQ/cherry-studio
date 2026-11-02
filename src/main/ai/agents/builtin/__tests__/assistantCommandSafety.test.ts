@@ -115,6 +115,14 @@ describe('detectDestructiveAssistantCommand', () => {
     ['Get-Item victim.txt | erase; Write-Output done', 'permanent Windows file deletion'],
     ['Get-Item victim.txt | rd| Out-Null', 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command 'Get-Item victim.txt | del; Write-Output done'", 'permanent Windows file deletion'],
+    // Subexpression close and command-chain separators after the deletion token: the target
+    // arrives from pipeline input or the bare token prompts, matching the pre-narrowing guard.
+    ['(Get-Item victim.txt | del)', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '(Get-Item victim.txt | del)'", 'permanent Windows file deletion'],
+    ['del&&Write-Output done', 'permanent Windows file deletion'],
+    ['del&', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | rd)', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | erase&& echo done', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
