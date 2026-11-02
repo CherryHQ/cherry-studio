@@ -28,6 +28,7 @@ import {
   type PiDurableRuntimeOptions
 } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -35,6 +36,7 @@ import { AgentSessionContextSeeder } from '@data/db/seeding/seeders/AgentSession
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
 
 import { reconcileDurableBackend, createDurableBackend, openDurableStorage, prepareDurableRoot } from '../durableNativeContext'
@@ -204,6 +206,24 @@ describe('native context storage and reconciliation', () => {
     cleanup.push(() => runtime.shutdown())
     return { backend, runtime, options, faux }
   }
+
+  it('reserves one Durable branch without opening storage or permitting another harness to reuse it', () => {
+    const intent = prepareDurableBranch(sessionId)
+    const backend = contexts.backend(intent.backendId)
+    if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+    expect(backend.state).toBe('creating')
+    expect(existsSync(application.getPath('feature.agents.durable.stores', backend.locator.fileName))).toBe(false)
+    expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
+    expect(() => preparePiBranch(sessionId)).toThrow('another runtime')
+    expect(contexts.forSession(sessionId).map((context) => context.id)).toEqual([intent.id])
+    expect(
+      dbh.db
+        .select()
+        .from(agentRuntimeBackendTable)
+        .all()
+        .map((row) => row.id)
+    ).toEqual([backend.id])
+  })
 
   it('recovers the Durable root identity after native creation but before the product binding commits', async () => {
     const intent = prepareDurableBranch(sessionId)

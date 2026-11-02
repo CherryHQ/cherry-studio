@@ -24,7 +24,11 @@ host services. No additional interaction table or AI SDK model port is introduce
 
 ## Storage and projection
 
-`durableNativeContext.ts` resolves backend files through the central path registry.
+`durableContext.ts` selects and reserves the backend and branch in one database
+transaction, without opening native storage. `durableNativeContext.ts` resolves
+backend files through the central path registry. Its strict loader verifies native
+identity without changing Cherry's binding state; explicit recovery confirms the
+corresponding database binding.
 `agent_runtime_backend` and `agent_session_context` bind product sessions to native
 SQLite storage and conversations. Native backend and conversation markers repair an
 interrupted association write without guessing by history or replacing a missing store.
