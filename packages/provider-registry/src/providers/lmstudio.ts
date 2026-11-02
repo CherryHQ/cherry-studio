@@ -9,7 +9,8 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'http://localhost:1234'
+      baseUrl: 'http://localhost:1234',
+      dialect: { requiresMaxOutputTokens: true }
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
