@@ -87,8 +87,11 @@ function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResul
 const MIN_TRUNCATION_LENGTH = 512
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
 // The CLI closes an interrupted turn with a non-model placeholder (`model: "<synthetic>"`,
-// e.g. "No response requested."). It is a turn-closer, never a reply.
+// text "No response requested."). It is a turn-closer, never a reply. Local slash-command
+// output (e.g. /context) also arrives under the synthetic model marker but carries real
+// content, so only the placeholder itself is dropped.
 const SYNTHETIC_MODEL = '<synthetic>'
+const SYNTHETIC_TURN_CLOSER_TEXT = 'No response requested.'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
@@ -385,6 +388,18 @@ function createEmptyUsage(): LanguageModelV3Usage {
 
 export function isSyntheticClaudeCodeModel(model: unknown): boolean {
   return model === SYNTHETIC_MODEL
+}
+
+// Only the interrupt turn-closer is filtered; other synthetic-marked messages (local
+// slash-command output such as /context) carry real content and must render.
+function isSyntheticTurnCloser(message: SDKAssistantMessage): boolean {
+  const content = message.message?.content
+  if (!Array.isArray(content)) return false
+  const text = content
+    .map((block) => (block?.type === 'text' ? block.text : ''))
+    .join('')
+    .trim()
+  return text === SYNTHETIC_TURN_CLOSER_TEXT
 }
 
 export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
@@ -1042,7 +1057,7 @@ export class ClaudeCodeStreamAdapter {
       logger.warn('Assistant message was truncated by an interrupt')
     }
 
-    if (isSyntheticClaudeCodeModel(message.message?.model)) return
+    if (isSyntheticClaudeCodeModel(message.message?.model) && isSyntheticTurnCloser(message)) return
 
     if (!message.message?.content) return
 

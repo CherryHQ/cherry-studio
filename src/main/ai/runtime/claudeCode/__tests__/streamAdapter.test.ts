@@ -813,6 +813,31 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(adapter.hasTurnActivity).toBe(false)
   })
 
+  it('renders synthetic local slash-command output instead of dropping it', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        model: '<synthetic>',
+        content: [
+          { type: 'text', text: '## Context usage\n\n| Section | Tokens |\n| --- | --- |\n| System prompt | 1,024 |' }
+        ]
+      }
+    } as any)
+
+    // The text part stays open until the turn closes; the content is what matters here.
+    expect(parts.map((part) => part.type)).toEqual(['text-start', 'text-delta'])
+    expect(parts[1]).toMatchObject({
+      type: 'text-delta',
+      delta: '## Context usage\n\n| Section | Tokens |\n| --- | --- |\n| System prompt | 1,024 |'
+    })
+    expect(adapter.hasTurnActivity).toBe(true)
+  })
+
   it('maps streamed MCP tool use and result blocks', () => {
     const { adapter, parts } = createAdapter()
 
