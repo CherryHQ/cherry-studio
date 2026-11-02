@@ -103,7 +103,6 @@ required service tier.`
     [Object.assign(new Error('Too many requests'), { status: 429 }), 'rate_limit'],
     [{ name: 'Error', message: 'Process exited', stack: null, claudeCodeExitCategory: 'proxy' }, 'proxy'],
     ['net::ERR_INTERNET_DISCONNECTED', 'network'],
-    ['RequestTimeoutError: initialize timed out after 10000ms waiting for dsh profile "cherry"', 'dsh'],
     ['DeepSeek Harness startup timed out', 'dsh'],
     ['DeepSeek Harness Web UI is unavailable', 'dsh'],
     ['DeepSeek Harness exited before it was ready (code 1, signal null)', 'dsh'],

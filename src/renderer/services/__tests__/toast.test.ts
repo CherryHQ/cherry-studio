@@ -39,8 +39,8 @@ required service tier.`
 describe('DSH runtime startup toasts', () => {
   it('renders the runtime-startup guidance and a retry action when the caller supplies one', () => {
     const bareKey = toast.errorFromException({
-      name: 'RequestTimeoutError',
-      message: 'initialize timed out after 10000ms waiting for dsh profile "cherry"'
+      name: 'Error',
+      message: 'DeepSeek Harness Web UI is unavailable'
     })
     const withRetryKey = toast.errorFromException(
       { name: 'Error', message: 'DeepSeek Harness startup timed out' },

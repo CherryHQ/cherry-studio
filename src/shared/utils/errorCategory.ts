@@ -88,12 +88,10 @@ export function isMcpErrorMessage(message: string): boolean {
 
 export function isDshErrorMessage(message: string): boolean {
   const msg = message.toLowerCase()
-  // The DSH client reports a local initialize timeout ("waiting for dsh profile ...") and the
-  // harness service has its own startup failure family; both are runtime-local, never network.
+  // The harness service has its own startup failure family; these are runtime-local, never network.
   // Config-class failures (not installed, model disabled, user-cancelled) are deliberately NOT
   // matched: retry/restart guidance would mislead there.
   return (
-    msg.includes('dsh profile') ||
     msg.includes('deepseek harness startup timed out') ||
     msg.includes('deepseek harness web ui is unavailable') ||
     msg.includes('deepseek harness exited before it was ready') ||
