@@ -198,13 +198,22 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   /**
-   * Records a usage insight in PostHog under the anonymous client id, without a person profile; dropped unless
-   * data collection is consented under the current policy and a project key is configured.
+   * Records a usage insight in PostHog; dropped unless data collection is consented under the current policy and a
+   * project key is configured. In the China edition a signed-in Cherry Account is identified the way the China
+   * subscription web page and server identify it, so the purchase funnel joins by account; otherwise the event stays
+   * on the anonymous client id without a person profile.
    */
-  public trackEvent(eventType: string, data: Record<string, string | number | boolean>): void {
+  public trackEvent(
+    eventType: string,
+    data: Record<string, string | number | boolean>,
+    accountId?: string | null
+  ): void {
     if (!this.isActivated || !this.desiredEnabled || !this.posthog) return
+    const environment = import.meta.env.DEV ? 'development' : 'production'
+    const accountDistinctId =
+      accountId && getAppEdition() === 'cn' ? `cloud-api:cn:${environment}:account:${accountId}` : null
     this.posthog.capture({
-      distinctId: getClientId(),
+      distinctId: accountDistinctId ?? getClientId(),
       event: eventType,
       properties: {
         ...data,
@@ -212,13 +221,17 @@ export class AnalyticsService extends BaseService implements Activatable {
         app_edition: getAppEdition(),
         os: process.platform,
         // Same envelope as the subscription web page and server events in the shared project.
+        product: 'cloud-api',
         producer: 'client',
         surface: 'desktop',
+        entry: 'desktop',
         region: getAppEdition(),
-        environment: import.meta.env.DEV ? 'development' : 'production',
+        environment,
         test: import.meta.env.DEV,
         schema_version: 1,
-        $process_person_profile: false
+        // Pinned so PostHog does not record the sender's address in place of a missing one.
+        $ip: '0.0.0.0',
+        $process_person_profile: accountDistinctId !== null
       }
     })
   }

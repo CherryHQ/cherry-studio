@@ -129,11 +129,14 @@ const quotaModelTypeSchema = z.enum(['free', 'paid'])
 // One id per Subscribe click, also handed to the account portal so web and server events of the same purchase can be joined.
 const subscriptionFlowIdSchema = z.uuid()
 
-/** Allow-listed, anonymous subscription usage insights; none carries an account identifier or a price. */
+/**
+ * Allow-listed subscription usage insights; none carries a price. Names shared with the China subscription web page
+ * and server (`subscription_entry_clicked`, `subscription_entitlement_refresh_result`) follow their contract.
+ */
 export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   z.strictObject({ event: z.literal('subscription_entry_view'), source: subscriptionEntrySourceSchema }),
   z.strictObject({
-    event: z.literal('subscription_entry_click'),
+    event: z.literal('subscription_entry_clicked'),
     source: subscriptionEntrySourceSchema,
     flowId: subscriptionFlowIdSchema,
     signedIn: z.boolean(),
@@ -152,8 +155,9 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
     result: z.enum(['success', 'failed'])
   }),
   z.strictObject({
-    event: z.literal('subscription_activated'),
-    planName: z.string().max(100),
+    event: z.literal('subscription_entitlement_refresh_result'),
+    result: z.literal('succeeded'),
+    planId: z.uuid(),
     detectedBy: z.enum(['focus_refresh', 'notification']),
     sinceClick: z.enum(['under_5m', 'under_30m', 'under_24h', 'over_24h', 'none']),
     flowId: subscriptionFlowIdSchema.optional()

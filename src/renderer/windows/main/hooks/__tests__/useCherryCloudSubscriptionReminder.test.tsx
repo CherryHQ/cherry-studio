@@ -159,8 +159,9 @@ describe('useCherryCloudSubscriptionReminder', () => {
 
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith('cherry_cloud.analytics.track', {
-        event: 'subscription_activated',
-        planName: 'Plus',
+        event: 'subscription_entitlement_refresh_result',
+        result: 'succeeded',
+        planId: '22222222-2222-4222-8222-222222222222',
         detectedBy,
         sinceClick: 'none'
       })

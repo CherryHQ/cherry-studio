@@ -162,6 +162,8 @@ describe('AnalyticsService data collection preference', () => {
         region: 'global',
         environment: 'development',
         test: true,
+        product: 'cloud-api',
+        $ip: '0.0.0.0',
         $process_person_profile: false
       })
     })
@@ -179,6 +181,30 @@ describe('AnalyticsService data collection preference', () => {
     expect(posthog.capture).not.toHaveBeenCalled()
     finishShutdown()
   })
+
+  it.each([
+    ['cn', 'account-1', 'cloud-api:cn:development:account:account-1', true],
+    ['cn', null, 'test-client-id', false],
+    ['global', 'account-1', 'test-client-id', false]
+  ] as const)(
+    'identifies a %s edition event with account %s the way the China subscription web page does',
+    async (edition, accountId, distinctId, personProfile) => {
+      vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+      vi.mocked(getAppEdition).mockReturnValue(edition)
+      const service = new AnalyticsService()
+      await service._doInit()
+      await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+      service.trackEvent('subscription_entry_clicked', { source: 'settings' }, accountId)
+
+      expect(posthog.capture).toHaveBeenCalledWith(
+        expect.objectContaining({
+          distinctId,
+          properties: expect.objectContaining({ $process_person_profile: personProfile })
+        })
+      )
+    }
+  )
 
   it('sends no product events from a development build without a PostHog key', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const service = vi.hoisted(() => ({
-  startLogin: vi.fn()
+  startLogin: vi.fn(),
+  getStatus: vi.fn()
 }))
 const analytics = vi.hoisted(() => ({ trackEvent: vi.fn() }))
 
@@ -41,10 +42,11 @@ describe('cherryCloudHandlers', () => {
     expect(error).toHaveProperty('code', code)
   })
 
-  it('reports a subscription event with snake_case fields for the analytics backend', async () => {
+  it('reports a subscription event with snake_case fields under the signed-in account', async () => {
+    service.getStatus.mockResolvedValue({ phase: 'signed-in', accountId: 'account-1', displayName: null })
     await cherryCloudHandlers['cherry_cloud.analytics.track'](
       {
-        event: 'subscription_entry_click',
+        event: 'subscription_entry_clicked',
         source: 'selector_locked_row',
         flowId: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
         signedIn: true,
@@ -53,11 +55,15 @@ describe('cherryCloudHandlers', () => {
       { senderId: 'w1' }
     )
 
-    expect(analytics.trackEvent).toHaveBeenCalledWith('subscription_entry_click', {
-      source: 'selector_locked_row',
-      flow_id: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
-      signed_in: true,
-      model_id: 'kimi-k2'
-    })
+    expect(analytics.trackEvent).toHaveBeenCalledWith(
+      'subscription_entry_clicked',
+      {
+        source: 'selector_locked_row',
+        flow_id: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
+        signed_in: true,
+        model_id: 'kimi-k2'
+      },
+      'account-1'
+    )
   })
 })

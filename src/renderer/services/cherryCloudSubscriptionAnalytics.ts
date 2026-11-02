@@ -19,7 +19,7 @@ export function trackSubscriptionEntryView(source: SubscriptionEntrySource): voi
   trackSubscriptionEvent({ event: 'subscription_entry_view', source })
 }
 
-type ActivationEvent = Extract<CherryCloudAnalyticsEvent, { event: 'subscription_activated' }>
+type ActivationEvent = Extract<CherryCloudAnalyticsEvent, { event: 'subscription_entitlement_refresh_result' }>
 
 let lastSubscribeClick: { at: number; flowId: string } | null = null
 

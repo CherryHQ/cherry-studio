@@ -29,7 +29,7 @@ export async function startCherryCloudSubscription(
     return
   }
   const signedIn = status.phase === 'signed-in'
-  trackSubscriptionEvent({ event: 'subscription_entry_click', source, flowId, signedIn, ...details })
+  trackSubscriptionEvent({ event: 'subscription_entry_clicked', source, flowId, signedIn, ...details })
   if (signedIn) return openPortal(source, flowId)
 
   // Sign-in completes in the browser; the touchpoint may unmount before the session arrives. A later

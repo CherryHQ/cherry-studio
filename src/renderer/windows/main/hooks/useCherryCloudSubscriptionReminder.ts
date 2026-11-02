@@ -61,8 +61,9 @@ export function useCherryCloudSubscriptionReminder(): void {
     void mutate(CHERRY_CLOUD_AVAILABILITY_KEY)
     if (activePaid && previous.paidEntitlementId === null) {
       trackSubscriptionEvent({
-        event: 'subscription_activated',
-        planName: activePaid.plan.display_name,
+        event: 'subscription_entitlement_refresh_result',
+        result: 'succeeded',
+        planId: activePaid.plan.id,
         detectedBy:
           Date.now() - notificationRefreshAtRef.current < NOTIFICATION_REFRESH_WINDOW_MS
             ? 'notification'

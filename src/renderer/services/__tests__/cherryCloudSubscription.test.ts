@@ -62,7 +62,7 @@ describe('startCherryCloudSubscription', () => {
     })
     expect(tracked()).toEqual([
       {
-        event: 'subscription_entry_click',
+        event: 'subscription_entry_clicked',
         source: 'selector_locked_row',
         flowId,
         signedIn: true,
@@ -96,7 +96,7 @@ describe('startCherryCloudSubscription', () => {
     const flowId = portalUrls()[0].searchParams.get('flow_id')
     await vi.waitFor(() =>
       expect(tracked()).toEqual([
-        { event: 'subscription_entry_click', source: 'account_panel', flowId, signedIn: false },
+        { event: 'subscription_entry_clicked', source: 'account_panel', flowId, signedIn: false },
         { event: 'subscription_sign_in_result', flowId, result: 'success' },
         { event: 'subscription_portal_open', source: 'account_panel', flowId, result: 'success' }
       ])
