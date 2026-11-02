@@ -192,11 +192,51 @@ export function getTimeout(model: Model): number {
   return DEFAULT_TIMEOUT
 }
 
+/** With a cap, materialize the SDK's implicit 1024 for enabled thinking or clamp a valid explicit budget to cap - 1.
+ * Drop the block if cap - 1 cannot hold 1024; leave invalid explicit budgets untouched. */
+export function normalizeAnthropicThinkingOptions(
+  providerOptions: ProviderOptions,
+  providerOptionsKey: string,
+  providerOptionsName: string,
+  cap: number | undefined
+): { providerOptions: ProviderOptions; budgetTokens: number | undefined } {
+  let normalized = providerOptions
+  if (cap !== undefined) {
+    normalized = Object.fromEntries(
+      Object.entries(providerOptions).map(([namespace, options]) => {
+        const thinking = options.thinking
+        if (!thinking || typeof thinking !== 'object' || Array.isArray(thinking) || thinking.type !== 'enabled') {
+          return [namespace, options]
+        }
+        const budget = thinking.budgetTokens
+        // Invalid explicit budgets retain the SDK/provider's existing validation path.
+        if (budget !== undefined && (typeof budget !== 'number' || !Number.isInteger(budget) || budget < 1024)) {
+          return [namespace, options]
+        }
+        const updated = { ...options }
+        if (cap - 1 < 1024) delete updated.thinking
+        else updated.thinking = { ...thinking, budgetTokens: Math.min(budget ?? 1024, cap - 1) }
+        return [namespace, updated]
+      })
+    )
+  }
+  const effective = { ...normalized[providerOptionsKey], ...normalized[providerOptionsName] }
+  const thinking = effective.thinking
+  const budgetTokens =
+    thinking && typeof thinking === 'object' && !Array.isArray(thinking) && thinking.type === 'enabled'
+      ? typeof thinking.budgetTokens === 'number'
+        ? thinking.budgetTokens
+        : thinking.budgetTokens === undefined
+          ? 1024
+          : undefined
+      : undefined
+  return { providerOptions: normalized, budgetTokens }
+}
+
 /**
- * Anthropic Messages providers add the explicit thinking budget on top of
- * `maxOutputTokens`. Cherry Studio's limit is the total generated-token cap,
- * so pass the non-thinking remainder to the SDK. Adaptive thinking has no
- * explicit budget and therefore needs no adjustment.
+ * Convert a total-token cap into the answer allowance for Anthropic-endpoint
+ * paths without a serialized-body clamp, with a floor of 1.
+ * Without a numeric budget, keep the cap unchanged.
  */
 export function adjustMaxOutputTokensForReasoning(
   maxOutputTokens: number | undefined,

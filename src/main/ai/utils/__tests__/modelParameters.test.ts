@@ -10,6 +10,7 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
+  normalizeAnthropicThinkingOptions,
   stripUnsupportedModelParams
 } from '../modelParameters'
 
@@ -455,4 +456,90 @@ describe('sampling settings that do not come from an assistant', () => {
 
     expect(getTemperature(makeSampling({ temperature: 1.5 }), model, OMIT_REASONING)).toBe(1)
   })
+})
+
+// Catch oversized override budgets and canonical/dynamic disagreement before SDK serialization.
+describe('normalizeAnthropicThinkingOptions', () => {
+  it('normalizes every enabled namespace immutably and reads only the dynamic winner', () => {
+    const canonical = Object.freeze({ thinking: Object.freeze({ type: 'enabled', budgetTokens: 8191 }), other: true })
+    const dynamic = Object.freeze({ thinking: Object.freeze({ type: 'enabled', budgetTokens: 2048 }) })
+    const input = Object.freeze({ anthropic: canonical, newapi: dynamic, unused: canonical })
+    const result = normalizeAnthropicThinkingOptions(input, 'anthropic', 'newapi', 4096)
+    expect(result.providerOptions).toEqual({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 4095 }, other: true },
+      newapi: { thinking: { type: 'enabled', budgetTokens: 2048 } },
+      unused: { thinking: { type: 'enabled', budgetTokens: 4095 }, other: true }
+    })
+    expect(result.budgetTokens).toBe(2048)
+    expect(input.anthropic.thinking.budgetTokens).toBe(8191)
+  })
+
+  it.each([512, 1024])('omits the entire thinking mode when cap=%i cannot hold its minimum', (cap) => {
+    const result = normalizeAnthropicThinkingOptions(
+      {
+        anthropic: { thinking: { type: 'enabled', budgetTokens: 8191 }, other: true },
+        newapi: { thinking: { type: 'enabled' } }
+      },
+      'anthropic',
+      'newapi',
+      cap
+    )
+    expect(result).toEqual({ providerOptions: { anthropic: { other: true }, newapi: {} }, budgetTokens: undefined })
+  })
+
+  it.each([1025, 4096])('accounts for the SDK default budget under cap=%i', (cap) => {
+    expect(
+      normalizeAnthropicThinkingOptions({ anthropic: { thinking: { type: 'enabled' } } }, 'anthropic', 'anthropic', cap)
+    ).toEqual({
+      providerOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 1024 } } },
+      budgetTokens: 1024
+    })
+  })
+
+  it.each(['adaptive', 'disabled'])('does not deduct the canonical budget overridden by %s', (type) => {
+    const result = normalizeAnthropicThinkingOptions(
+      {
+        anthropic: { thinking: { type: 'enabled', budgetTokens: 8191 } },
+        newapi: { thinking: { type } }
+      },
+      'anthropic',
+      'newapi',
+      4096
+    )
+    expect(result.budgetTokens).toBeUndefined()
+    expect(result.providerOptions.newapi.thinking).toEqual({ type })
+  })
+
+  it('retains canonical thinking when the dynamic namespace overrides another field', () => {
+    expect(
+      normalizeAnthropicThinkingOptions(
+        {
+          anthropic: { thinking: { type: 'enabled', budgetTokens: 8191 } },
+          newapi: { cacheControl: { type: 'ephemeral' } }
+        },
+        'anthropic',
+        'newapi',
+        4096
+      ).budgetTokens
+    ).toBe(4095)
+  })
+
+  it('does not invent a cap or clone options when the cap is absent', () => {
+    const input = { anthropic: { thinking: { type: 'enabled', budgetTokens: 128000 } } }
+    const result = normalizeAnthropicThinkingOptions(input, 'anthropic', 'anthropic', undefined)
+    expect(result.providerOptions).toBe(input)
+    expect(result.budgetTokens).toBe(128000)
+    expect(normalizeAnthropicThinkingOptions({}, 'anthropic', 'anthropic', 4096).budgetTokens).toBeUndefined()
+  })
+
+  it.each(['2048', null, -1, 512, 2048.5])(
+    'preserves invalid explicit budget %j even under a low cap',
+    (budgetTokens) => {
+      const thinking = { type: 'enabled', budgetTokens }
+      expect(
+        normalizeAnthropicThinkingOptions({ anthropic: { thinking } }, 'anthropic', 'anthropic', 512).providerOptions
+          .anthropic.thinking
+      ).toEqual(thinking)
+    }
+  )
 })
