@@ -78,8 +78,12 @@ export class McpSkillService extends BaseService {
       })
     )
     this.registerDisposable(
-      agentService.onAgentUpdated(({ agentId, updates }) => {
+      agentService.onAgentUpdated(({ agentId, updates, agent }) => {
         if (updates.mcps === undefined) return
+        for (const { sessionId, skill } of agentSessionMessageService.listMcpSkillContexts({ agentId })) {
+          if (!agent.mcps?.includes(skill.serverId))
+            agentSessionMessageService.invalidateMcpSkill(sessionId, skill.serverId, skill.uri)
+        }
         for (const session of this.sessions.values()) {
           if (session.agentId !== agentId) continue
           session.abort.abort()
@@ -100,6 +104,10 @@ export class McpSkillService extends BaseService {
         const fingerprint = server?.isActive
           ? fingerprintOf(application.get('McpRuntimeService').getServerKey(server))
           : undefined
+        for (const { sessionId, skill } of agentSessionMessageService.listMcpSkillContexts({ serverId })) {
+          if (skill.originFingerprint !== fingerprint)
+            agentSessionMessageService.invalidateMcpSkill(sessionId, serverId, skill.uri)
+        }
         for (const session of this.sessions.values()) {
           const target = session.loadTargets.get(serverId)
           if (target && target.fingerprint !== fingerprint) target.abort.abort(new Error(t('mcp.skills.changed')))
@@ -116,6 +124,8 @@ export class McpSkillService extends BaseService {
     )
     this.registerDisposable(
       application.get('McpRuntimeService').onServerInvalidated((serverId) => {
+        for (const { sessionId, skill } of agentSessionMessageService.listMcpSkillContexts({ serverId }))
+          agentSessionMessageService.invalidateMcpSkill(sessionId, serverId, skill.uri)
         for (const session of this.sessions.values()) {
           session.loadTargets.get(serverId)?.abort.abort(new Error(t('mcp.skills.changed')))
           for (const held of session.skills.values()) {
@@ -255,7 +265,7 @@ export class McpSkillService extends BaseService {
   private observeEntry(entry: McpSkillEntry): void {
     const changedSessions = new Set(
       agentSessionMessageService
-        .listMcpSkillContexts(entry.serverId, entry.uri)
+        .listMcpSkillContexts({ serverId: entry.serverId, uri: entry.uri })
         .filter(({ skill }) => !isDeepStrictEqual(manifestOf(skill), manifestOf(entry)))
         .map(({ sessionId }) => sessionId)
     )

@@ -622,6 +622,67 @@ describe('session MCP skills through real protocol and persistence', () => {
     }
   )
 
+  it.each(
+    (['disable', 'configuration', 'deselect'] as const).flatMap((event) =>
+      [false, true].map((closed) => ({ event, closed }))
+    )
+  )('retains $event invalidation after restoration with closed=$closed', async ({ event, closed }) => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    if (closed) skills.closeSession(sessionId)
+
+    if (event === 'disable') {
+      mcpServerService.update(serverId, { isActive: false })
+      mcpServerService.update(serverId, { isActive: true })
+    } else if (event === 'configuration') {
+      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:2/mcp' })
+      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:1/mcp' })
+    } else {
+      agentService.updateAgent(agentId, { mcps: [] })
+      agentService.updateAgent(agentId, { mcps: [serverId] })
+    }
+
+    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+    expect(approval.signal.aborted).toBe(true)
+    expect(() => approval.approve()).toThrow()
+    if (!closed) skills.closeSession(sessionId)
+    skills.openSession(sessionId, agentId)
+    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+    await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+  })
+
+  it('preserves closed skill context for unchanged selection, metadata edits and unrelated origins or agents', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    skills.closeSession(sessionId)
+    mcpServerService.update(serverId, { name: 'Renamed origin' })
+    agentService.updateAgent(agentId, { mcps: [serverId] })
+    const other = mcpServerService.create({
+      name: 'Unrelated origin',
+      type: 'streamableHttp',
+      baseUrl: 'http://127.0.0.1:3/mcp',
+      isActive: true
+    })
+    mcpServerService.update(other.id, { isActive: false })
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'other-agent', type: 'pi', name: 'Other', instructions: '', orderKey: 'a1' })
+      .run()
+    agentService.updateAgent('other-agent', { mcps: [] })
+
+    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
+    skills.openSession(sessionId, agentId)
+    await expect(skills.load(sessionId, serverId, fixture.uri)).resolves.toMatchObject({ entry: { serverId } })
+  })
+
+  it('persists explicit server stop invalidation for a closed runtime', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    skills.closeSession(sessionId)
+    await runtime.stopServer(serverId)
+    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+    skills.openSession(sessionId, agentId)
+    await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+  })
+
   it('keeps invalidation across service restart and stores only an opaque origin fingerprint', async () => {
     const secret = 'private-auth-header'
     mcpServerService.update(serverId, { headers: { Authorization: secret } })

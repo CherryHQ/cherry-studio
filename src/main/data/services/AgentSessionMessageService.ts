@@ -850,23 +850,38 @@ export class AgentSessionMessageService {
     })
   }
 
-  listMcpSkillContexts(serverId: string, uri: string): { sessionId: string; skill: McpSkillContext }[] {
+  listMcpSkillContexts(filter: {
+    serverId?: string
+    uri?: string
+    agentId?: string
+  }): { sessionId: string; skill: McpSkillContext }[] {
     return application
       .get('DbService')
       .getDb()
       .select({ sessionId: sessionMessagesTable.sessionId, data: sessionMessagesTable.data })
       .from(sessionMessagesTable)
-      .where(sql`exists (
+      .innerJoin(sessionTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
+      .where(
+        and(
+          filter.agentId === undefined ? undefined : eq(sessionTable.agentId, filter.agentId),
+          sql`exists (
         select 1 from json_each(${sessionMessagesTable.data}, '$.mcpSkills') as skill
-        where json_extract(skill.value, '$.serverId') = ${serverId}
-          and json_extract(skill.value, '$.uri') = ${uri}
+        where ${filter.serverId === undefined ? sql`1` : sql`json_extract(skill.value, '$.serverId') = ${filter.serverId}`}
+          and ${filter.uri === undefined ? sql`1` : sql`json_extract(skill.value, '$.uri') = ${filter.uri}`}
           and json_extract(skill.value, '$.invalidated') = 0
-      )`)
+      )`
+        )
+      )
       .all()
       .flatMap(({ sessionId, data }) =>
         McpSkillContextSchema.array()
           .parse(data.mcpSkills)
-          .filter((skill) => skill.serverId === serverId && skill.uri === uri && !skill.invalidated)
+          .filter(
+            (skill) =>
+              (filter.serverId === undefined || skill.serverId === filter.serverId) &&
+              (filter.uri === undefined || skill.uri === filter.uri) &&
+              !skill.invalidated
+          )
           .map((skill) => ({ sessionId, skill }))
       )
   }
