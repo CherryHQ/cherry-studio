@@ -51,7 +51,8 @@ const bedrockEffortModels = new Set([
   'claude-opus-4-6',
   'claude-opus-4-7',
   'claude-opus-4-8',
-  'claude-sonnet-4-6'
+  'claude-sonnet-4-6',
+  'claude-opus-5-5'
 ])
 
 export default defineProvider({
