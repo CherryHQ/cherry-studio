@@ -11,7 +11,8 @@ import TopicBranchPanel from '../TopicBranchPanel'
 
 vi.mock('@cherrystudio/ui', async () => {
   const { ConfirmDialog } = await import('@cherrystudio/ui/components/composites/confirm-dialog')
-  return { ConfirmDialog }
+  const { Button } = await import('@cherrystudio/ui/components/primitives/button')
+  return { Button, ConfirmDialog }
 })
 
 const mocks = vi.hoisted(() => ({
@@ -188,6 +189,15 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel'
       })[key] ?? key
   })
+}))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 function deletionTree(): TreeResponse {
@@ -779,6 +789,53 @@ describe('TopicBranchPanel', () => {
     })
     expect(toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
   })
+
+  it('binds a topic tree failure to that topic without adding retry', async () => {
+    const cause = new Error('tree down')
+    mocks.useQuery.mockReturnValue({
+      data: undefined,
+      error: cause,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+    const { rerender } = render(<TopicBranchPanel open topicId="topic-a" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('common.error')
+    expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const first = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(first.localizedErrorMessage ?? first.message).toBe('common.error')
+    expect(first.error?.message ?? first.error).toBe(cause.message)
+    expect(first.context?.source ?? first.source).toBe('chat.topic')
+    expect(first.context?.operation ?? first.operation).toBe('topic.tree')
+    expect(first.context?.recordId ?? first.recordId).toBe('topic-a')
+
+    detailMocks.open.mockClear()
+    rerender(<TopicBranchPanel open topicId="topic-a" />)
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const again = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(again.error?.message ?? again.error.message).toBe(cause.message)
+    expect(again.context?.recordId ?? again.recordId).toBe('topic-a')
+
+    const other = new Error('other tree')
+    mocks.useQuery.mockReturnValue({
+      data: undefined,
+      error: other,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+    rerender(<TopicBranchPanel open topicId="topic-b" />)
+    detailMocks.open.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const next = detailMocks.open.mock.calls.at(-1)?.[0]
+    expect(next.context?.recordId ?? next.recordId).toBe('topic-b')
+    expect(next.error?.message ?? next.error).toBe('other tree')
+    expect(next).not.toBe(first)
+  })
+
   it('cancels without deleting, confirms once, and renders only the refreshed surviving previews', async () => {
     const user = userEvent.setup()
     const tree = showDeletionTree()

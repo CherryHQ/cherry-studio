@@ -2120,6 +2120,39 @@ describe('Topics', () => {
     expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
   })
 
+  it('reports a menu delete failure with the translated caption and the original cause', async () => {
+    const failure = new Error('disk locked')
+    topicDataMocks.deleteTopic.mockRejectedValueOnce(failure)
+    const { clearActiveTopic, getByText, setActiveTopic } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'chat.topics.manage.delete.error',
+          cause: failure,
+          data: expect.objectContaining({
+            localizedErrorMessage: 'chat.topics.manage.delete.error',
+            errorContext: expect.objectContaining({
+              message: 'disk locked',
+              source: 'chat',
+              operation: 'topic.delete',
+              recordId: 'topic-a'
+            })
+          })
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('disk locked')
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(clearActiveTopic).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
   it('deletes inline without opening a confirmation', async () => {
     const { getByText } = renderTopicList()
 
