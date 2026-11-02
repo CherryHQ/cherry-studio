@@ -4588,6 +4588,7 @@
   "settings.doctor.error_category.content": "คำตอบถูกบล็อกโดยตัวกรองความปลอดภัย",
   "settings.doctor.error_category.context_length": "พรอมต์ยาวเกินไป",
   "settings.doctor.error_category.deprecated": "ฟีเจอร์นี้ไม่มีให้ใช้งานแล้ว",
+  "settings.doctor.error_category.dsh": "รันไทม์ของเอเจนต์เริ่มทำงานไม่สำเร็จ",
   "settings.doctor.error_category.knowledge": "คำขอไปยังฐานความรู้ล้มเหลว",
   "settings.doctor.error_category.mcp": "คำขอไปยัง MCP ล้มเหลว",
   "settings.doctor.error_category.model": "โมเดลที่เลือกใช้งานไม่ได้",

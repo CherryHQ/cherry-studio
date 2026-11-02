@@ -4588,6 +4588,7 @@
   "settings.doctor.error_category.content": "内容被安全策略拦截",
   "settings.doctor.error_category.context_length": "输入内容过长",
   "settings.doctor.error_category.deprecated": "该功能已停用",
+  "settings.doctor.error_category.dsh": "Agent 运行时启动失败",
   "settings.doctor.error_category.knowledge": "知识库请求失败",
   "settings.doctor.error_category.mcp": "MCP 服务请求失败",
   "settings.doctor.error_category.model": "所选模型不可用",

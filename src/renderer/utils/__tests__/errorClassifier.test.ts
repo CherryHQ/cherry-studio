@@ -119,11 +119,11 @@ required service tier.`
       'DeepSeek Harness is not installed',
       'DeepSeek Harness startup was cancelled'
     ])('does not misclassify config-class failure %s as a retryable startup failure', (text) => {
-      expect(classifyError({ name: 'Error', message: text }).category).toBe('unknown')
+      expect(classifyError({ name: 'Error', message: text, stack: null }).category).toBe('unknown')
     })
 
     it('keeps plain network timeouts on the network category', () => {
-      expect(classifyError({ name: 'Error', message: 'Request timed out' }).category).toBe('network')
+      expect(classifyError({ name: 'Error', message: 'Request timed out', stack: null }).category).toBe('network')
     })
   })
   it.each([

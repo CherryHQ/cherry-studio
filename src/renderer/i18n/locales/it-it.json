@@ -4588,6 +4588,7 @@
   "settings.doctor.error_category.content": "La risposta è stata bloccata da un filtro di sicurezza",
   "settings.doctor.error_category.context_length": "Il prompt è troppo lungo",
   "settings.doctor.error_category.deprecated": "Questa funzionalità non è più disponibile",
+  "settings.doctor.error_category.dsh": "Il runtime dell'agente non è riuscito ad avviarsi",
   "settings.doctor.error_category.knowledge": "La richiesta alla base di conoscenza non è riuscita",
   "settings.doctor.error_category.mcp": "La richiesta MCP non è riuscita",
   "settings.doctor.error_category.model": "Il modello selezionato non è disponibile",

@@ -4588,6 +4588,7 @@
   "settings.doctor.error_category.content": "安全フィルターにより応答がブロックされました",
   "settings.doctor.error_category.context_length": "入力が長すぎます",
   "settings.doctor.error_category.deprecated": "この機能は利用できなくなりました",
+  "settings.doctor.error_category.dsh": "エージェントランタイムを起動できませんでした",
   "settings.doctor.error_category.knowledge": "ナレッジベースのリクエストに失敗しました",
   "settings.doctor.error_category.mcp": "MCP リクエストに失敗しました",
   "settings.doctor.error_category.model": "選択したモデルは利用できません",

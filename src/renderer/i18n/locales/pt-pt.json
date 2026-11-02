@@ -4588,6 +4588,7 @@
   "settings.doctor.error_category.content": "The response was blocked by a safety filter",
   "settings.doctor.error_category.context_length": "The prompt is too long",
   "settings.doctor.error_category.deprecated": "This feature is no longer available",
+  "settings.doctor.error_category.dsh": "O runtime do agente falhou ao iniciar",
   "settings.doctor.error_category.knowledge": "The knowledge base request failed",
   "settings.doctor.error_category.mcp": "The MCP request failed",
   "settings.doctor.error_category.model": "The selected model is unavailable",
