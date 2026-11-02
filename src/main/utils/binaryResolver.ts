@@ -33,7 +33,19 @@ export async function getBinaryPath(name?: string): Promise<string> {
   return binaryName
 }
 
+/** Resolve a bundled binary under `cherry.bin` only — skips mise shims. */
+export async function getStandaloneBinaryPath(name: string): Promise<string> {
+  const binaryName = getBinaryName(name)
+  const candidate = path.join(application.getPath('cherry.bin'), binaryName)
+  return fs.existsSync(candidate) ? candidate : binaryName
+}
+
 export async function isBinaryExists(name: string): Promise<boolean> {
   const cmd = await getBinaryPath(name)
+  return fs.existsSync(cmd)
+}
+
+export async function isStandaloneBinaryExists(name: string): Promise<boolean> {
+  const cmd = await getStandaloneBinaryPath(name)
   return fs.existsSync(cmd)
 }
