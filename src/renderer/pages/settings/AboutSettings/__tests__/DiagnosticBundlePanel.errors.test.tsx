@@ -22,7 +22,8 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: mocks.toastError, success: vi.fn() }
+  toast: { error: mocks.toastError, success: vi.fn() },
+  toastInlineError: (message: string) => mocks.toastError({ title: message, data: { suppressDetail: true } })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -70,8 +71,8 @@ describe('DiagnosticBundlePanel export errors', () => {
       })
     )
 
-    await waitFor(() =>
-      expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.errors.destination_conflict')
-    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.about.diagnostics.errors.destination_conflict')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })).toBeEnabled()
   })
 })

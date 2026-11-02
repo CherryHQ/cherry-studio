@@ -10,8 +10,11 @@ import {
   type DiagnosticUploadPanelHandle
 } from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { useDoctorController } from '@renderer/hooks/doctor'
+import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
+import type { AppErrorContext } from '@shared/types/appError'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorNavigateTarget, DoctorRunTier } from '@shared/types/doctor'
 import type { DoctorPanel } from '@shared/utils/doctor'
 
@@ -33,16 +36,34 @@ export interface DoctorDialogParams {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
   readonly initialRunTier?: DoctorRunTier
+  /** The same fault snapshot the error detail was opened with. Report and export carry it through. */
+  readonly errorContext?: AppErrorContext
+  /** Frozen AI snapshot from the error detail. A contextual report does not replace a missing one with the global analysis. */
+  readonly aiDiagnosis?: DiagnosticAiDiagnosis
 }
 
 type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, never>>
 
-export function DoctorDialog({ initialDescription, initialPanel, initialRunTier, open, resolve }: DoctorDialogProps) {
+export function DoctorDialog({
+  aiDiagnosis,
+  errorContext,
+  initialDescription,
+  initialPanel,
+  initialRunTier,
+  open,
+  resolve
+}: DoctorDialogProps) {
   const { t } = useTranslation()
   const reportPanelRef = useRef<DiagnosticUploadPanelHandle>(null)
   const panelHeadingRef = useRef<HTMLDivElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const canReturnToChecks = initialPanel === 'checks'
+  // A supplied snapshot wins. Global capture is only for the checks flow, and only when it has no fault.
+  const panelDiagnosis =
+    aiDiagnosis ??
+    (initialPanel === 'checks' && errorContext === undefined
+      ? captureDiagnosticAiDiagnosis({ scope: 'global' })
+      : undefined)
 
   const finishHandoff = useCallback(
     async (action: () => void) => {
@@ -163,7 +184,9 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
         {controller.session.activePanel === 'export' ? (
           <Suspense fallback={<PanelLoading />}>
             <DiagnosticBundlePanel
+              aiDiagnosis={panelDiagnosis}
               appVersion={controller.viewModel.report?.basics.version ?? ''}
+              errorContext={errorContext}
               onBusyChange={setBundleBusy}
               onClose={finishSecondaryPanel}
             />
@@ -173,7 +196,9 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
         {controller.session.activePanel === 'report' ? (
           <DiagnosticUploadPanel
             ref={reportPanelRef}
+            aiDiagnosis={panelDiagnosis}
             description={controller.session.descriptionDraft}
+            errorContext={errorContext}
             onBusyChange={setReportBusy}
             onDescriptionChange={controller.setDescription}
             onClose={finishSecondaryPanel}

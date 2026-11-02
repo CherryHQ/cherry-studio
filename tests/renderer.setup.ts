@@ -216,6 +216,8 @@ vi.mock('@cherrystudio/ui', async () => {
       )
     },
     NormalTooltip: ({ children }) => children,
+    WarnTooltip: ({ content }: { content?: React.ReactNode }) =>
+      React.createElement('span', { 'data-testid': 'warn-tooltip' }, content),
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
       if (asChild && React.isValidElement(children)) {

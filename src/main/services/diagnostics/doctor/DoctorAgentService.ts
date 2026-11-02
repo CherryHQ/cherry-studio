@@ -6,7 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { incidentErrors, readIncidentMessage } from '@main/ai/agents/doctor/doctorIncident'
+import { incidentErrors, readIncidentMessage, untrustedForModel } from '@main/ai/agents/doctor/doctorIncident'
 import { applyWrite, undoWrite, writeRisk } from '@main/ai/agents/doctor/doctorWrites'
 import { loadBuiltinAgentEnsureInput } from '@main/ai/agents/ensureBuiltinAgent'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
@@ -23,6 +23,7 @@ import type {
   DoctorAgentChange,
   DoctorAgentIncident,
   DoctorAgentKey,
+  DoctorAgentOwnedRunFailure,
   DoctorAgentProposal,
   DoctorAgentRun,
   DoctorAgentStartResult,
@@ -35,6 +36,7 @@ import {
   doctorAgentKey,
   doctorAgentStateCacheKey,
   doctorStateCacheKey,
+  isOperationIncident,
   projectDoctorReport
 } from '@shared/utils/doctor'
 import { isGatewayRoutableModel } from '@shared/utils/model'
@@ -143,13 +145,15 @@ export class DoctorAgentService extends BaseService {
         this.finish(key, runId, (current) => ({
           status: 'failed',
           error: message,
+          errorSource: 'service',
+          ownedFailure: { kind: 'not_started', reason: started.reason },
           ...current
         }))
         return { status: 'failed', message }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.finish(key, runId, (current) => ({ status: 'failed', error: message, ...current }))
+      this.finish(key, runId, (current) => ({ status: 'failed', error: message, errorSource: 'external', ...current }))
       throw error
     }
     return { status: 'started', runId }
@@ -172,7 +176,12 @@ export class DoctorAgentService extends BaseService {
       // Every proposal was reasoned from one report; once that report expired or was replaced the
       // reasoning no longer holds, whatever the write touches.
       if (this.currentReport(state.scope)?.runId !== state.reportRunId) {
-        this.patchProposal(input.key, input.runId, proposal.id, { status: 'rejected', error: 'report superseded' })
+        this.patchProposal(input.key, input.runId, proposal.id, {
+          status: 'rejected',
+          error: 'report superseded',
+          errorSource: 'service',
+          ownedError: 'report_superseded'
+        })
         return { status: 'stale' }
       }
       try {
@@ -182,7 +191,11 @@ export class DoctorAgentService extends BaseService {
         return { status: 'applied', change, ...(applied.fix ? { fix: applied.fix } : {}) }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        this.patchProposal(input.key, input.runId, proposal.id, { status: 'failed', error: message })
+        this.patchProposal(input.key, input.runId, proposal.id, {
+          status: 'failed',
+          error: message,
+          errorSource: 'external'
+        })
         return { status: 'failed', message }
       }
     })
@@ -300,6 +313,15 @@ export class DoctorAgentService extends BaseService {
   }
 
   private incidentPrompt(incident: DoctorAgentIncident): string[] {
+    if (isOperationIncident(incident)) {
+      return [
+        'The user opened this analysis from one failed operation. Explain why THAT operation failed; the report is context, not a substitute for this incident.',
+        'This incident has no conversation. Do not call conversation or message tools.',
+        '```json',
+        JSON.stringify(untrustedForModel(incident.context)),
+        '```'
+      ]
+    }
     const message = readIncidentMessage(incident)
     const errors = message ? incidentErrors(message) : []
     return [
@@ -322,11 +344,35 @@ export class DoctorAgentService extends BaseService {
     const scheduleFlush = () => {
       flushTimer ??= setTimeout(flush, TEXT_PUBLISH_INTERVAL_MS)
     }
-    const settle = (status: 'completed' | 'canceled' | 'failed', error?: string) => {
+    const settle = (
+      status: 'completed' | 'canceled' | 'failed',
+      failure?: {
+        readonly error: string
+        readonly errorSource: 'service' | 'external'
+        readonly ownedFailure?: DoctorAgentOwnedRunFailure
+      }
+    ) => {
       if (flushTimer) clearTimeout(flushTimer)
       this.finish(key, runId, (current) => {
         const run = { ...current, text, toolCalls: [...toolCalls] }
-        return status === 'failed' ? { status, error: error ?? 'unknown error', ...run } : { status, ...run }
+        if (status !== 'failed') return { status, ...run }
+        // No listener detail: the service has nothing external to show.
+        if (!failure) {
+          return {
+            status,
+            error: 'unknown error',
+            errorSource: 'service',
+            ownedFailure: { kind: 'unknown' },
+            ...run
+          }
+        }
+        return {
+          status,
+          error: failure.error,
+          errorSource: failure.errorSource,
+          ...(failure.ownedFailure ? { ownedFailure: failure.ownedFailure } : {}),
+          ...run
+        }
       })
     }
     return {
@@ -342,7 +388,15 @@ export class DoctorAgentService extends BaseService {
       },
       onDone: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),
       onPaused: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),
-      onError: (result) => settle('failed', result.error.message ?? 'Execution failed'),
+      onError: (result) => {
+        const message = result.error.message
+        settle(
+          'failed',
+          message == null
+            ? { error: 'Execution failed', errorSource: 'service', ownedFailure: { kind: 'execution_failed' } }
+            : { error: message, errorSource: 'external' }
+        )
+      },
       isAlive: () => this.active.get(key)?.runId === runId
     }
   }
@@ -374,7 +428,7 @@ export class DoctorAgentService extends BaseService {
     key: DoctorAgentKey,
     runId: string,
     proposalId: string,
-    patch: Partial<Pick<DoctorAgentProposal, 'status' | 'error'>>
+    patch: Partial<Pick<DoctorAgentProposal, 'status' | 'error' | 'errorSource' | 'ownedError'>>
   ): void {
     this.update(key, runId, (current) => ({
       ...current,
@@ -412,7 +466,15 @@ export class DoctorAgentService extends BaseService {
     const run = next(toRun(state))
     this.publish(
       key,
-      state.status === 'failed' ? { status: 'failed', error: state.error, ...run } : { status: state.status, ...run }
+      state.status === 'failed'
+        ? {
+            status: 'failed',
+            error: state.error,
+            ...(state.errorSource ? { errorSource: state.errorSource } : {}),
+            ...(state.ownedFailure ? { ownedFailure: state.ownedFailure } : {}),
+            ...run
+          }
+        : { status: state.status, ...run }
     )
   }
 

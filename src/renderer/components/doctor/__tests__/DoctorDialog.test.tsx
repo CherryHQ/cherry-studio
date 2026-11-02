@@ -12,7 +12,9 @@ import { buildDoctorViewModel } from '@renderer/utils/doctor'
 vi.unmock('@cherrystudio/ui')
 
 const mocks = vi.hoisted(() => ({
+  aiDiagnosis: undefined as unknown,
   controller: undefined as unknown as DoctorController,
+  errorContext: undefined as unknown,
   requestReportClose: vi.fn<DiagnosticUploadPanelHandle['requestClose']>()
 }))
 
@@ -25,7 +27,17 @@ vi.mock('../DoctorChecksPanel', () => ({
 }))
 
 vi.mock('@renderer/components/feedback/DiagnosticUploadPanel', () => ({
-  DiagnosticUploadPanel: ({ ref }: { ref?: RefObject<DiagnosticUploadPanelHandle | null> }) => {
+  DiagnosticUploadPanel: ({
+    aiDiagnosis,
+    errorContext,
+    ref
+  }: {
+    aiDiagnosis?: unknown
+    errorContext?: unknown
+    ref?: RefObject<DiagnosticUploadPanelHandle | null>
+  }) => {
+    mocks.aiDiagnosis = aiDiagnosis
+    mocks.errorContext = errorContext
     useImperativeHandle(ref, () => ({ requestClose: mocks.requestReportClose }), [])
     return <div>Report panel boundary</div>
   }
@@ -40,7 +52,59 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+import { cacheService } from '@data/CacheService'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
+import type { DoctorScopeKey } from '@shared/types/doctor'
+import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
+import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
+
+import { MockCacheUtils } from '../../../../../tests/__mocks__/renderer/CacheService'
 import { DoctorDialog } from '../DoctorDialog'
+
+function publishDiagnosis(scope: DoctorScopeKey, text: string, incident?: DoctorAgentIncident) {
+  const runId = 'report-1'
+  cacheService.setShared(doctorStateCacheKey(scope), {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      scope,
+      runId,
+      tier: 'quick',
+      selectedCheckIds: [],
+      startedAt: '2026-05-01T00:00:00.000Z',
+      finishedAt: '2026-05-01T00:00:01.000Z',
+      expiresAt: '2026-05-01T00:10:01.000Z',
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false
+      },
+      results: [],
+      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  })
+  const agent: DoctorAgentState = {
+    status: 'completed',
+    runId: 'agent-run-1',
+    scope,
+    reportRunId: runId,
+    sessionId: 'session-1',
+    modelId: 'openai::gpt-4o',
+    startedAt: '2026-05-01T00:00:02.000Z',
+    text,
+    toolCalls: [],
+    proposals: [],
+    changes: [],
+    ...(incident ? { incident } : {})
+  }
+  cacheService.setShared(doctorAgentStateCacheKey(doctorAgentKey(scope, incident)), agent)
+}
 
 type ControllerOverrides = {
   readonly canChangePanel?: boolean
@@ -60,6 +124,7 @@ function createController(overrides: ControllerOverrides = {}) {
       ignore: false,
       manualCheck: false
     },
+    actionError: null,
     cancel: vi.fn<DoctorController['cancel']>(),
     canChangePanel: true,
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
@@ -98,8 +163,24 @@ function createController(overrides: ControllerOverrides = {}) {
 describe('DoctorDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
+    mocks.aiDiagnosis = undefined
     mocks.controller = createController()
+    mocks.errorContext = undefined
     mocks.requestReportClose.mockResolvedValue(true)
+  })
+
+  it('passes the opened error context to the report panel', async () => {
+    const errorContext = {
+      id: 'op-1',
+      message: 'HTTP 500',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      operation: 'painting.generate',
+      source: 'painting'
+    }
+    render(<DoctorDialog errorContext={errorContext} initialPanel="report" open resolve={vi.fn()} />)
+    await screen.findByText('Report panel boundary')
+    expect(mocks.errorContext).toEqual(errorContext)
   })
 
   it('closes a directly opened report after the report panel accepts dismissal', async () => {
@@ -154,5 +235,50 @@ describe('DoctorDialog', () => {
     expect(dialog).toBeVisible()
     expect(mocks.requestReportClose).not.toHaveBeenCalled()
     expect(resolve).not.toHaveBeenCalled()
+  })
+
+  it('forwards an explicit snapshot without attaching a global cached result', async () => {
+    publishDiagnosis('global', 'Global cached conclusion.')
+    const snapshot: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'Explicit conclusion.'
+    }
+    render(<DoctorDialog aiDiagnosis={snapshot} initialPanel="report" open resolve={vi.fn()} />)
+
+    await screen.findByText('Report panel boundary')
+    expect(mocks.errorContext).toBeUndefined()
+    expect(mocks.aiDiagnosis).toBe(snapshot)
+  })
+
+  it('does not attach a global cached result to a contextual report that has no snapshot', async () => {
+    publishDiagnosis('global', 'Global cached conclusion.')
+    const errorContext = {
+      id: 'op-1',
+      message: 'HTTP 500',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      operation: 'painting.generate',
+      source: 'painting'
+    }
+    render(<DoctorDialog errorContext={errorContext} initialPanel="report" open resolve={vi.fn()} />)
+
+    await screen.findByText('Report panel boundary')
+    expect(mocks.errorContext).toEqual(errorContext)
+    expect(mocks.aiDiagnosis).toBeUndefined()
+  })
+
+  it('carries the current global analysis into a report opened from checks', async () => {
+    publishDiagnosis('global', 'Global conclusion.')
+    render(<DoctorDialog initialPanel="checks" open resolve={vi.fn()} />)
+
+    await screen.findByText('Report panel boundary')
+    expect(mocks.errorContext).toBeUndefined()
+    expect(mocks.aiDiagnosis).toMatchObject({
+      source: 'doctor-agent',
+      status: 'completed',
+      scope: 'global',
+      text: 'Global conclusion.'
+    })
+    expect(mocks.aiDiagnosis).not.toHaveProperty('errorId')
   })
 })

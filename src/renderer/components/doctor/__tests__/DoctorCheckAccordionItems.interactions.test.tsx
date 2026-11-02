@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
@@ -12,7 +12,18 @@ import { buildDoctorViewModel } from '@renderer/utils/doctor'
 vi.unmock('@cherrystudio/ui')
 
 const mocks = vi.hoisted(() => ({
-  mcpServers: [{ id: 'filesystem', name: 'Filesystem' }]
+  mcpServers: [{ id: 'filesystem', name: 'Filesystem' }],
+  toastError: vi.fn(),
+  toastInlineError: vi.fn(),
+  toastSuccess: vi.fn()
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: (...args: unknown[]) => mocks.toastError(...args),
+    success: (...args: unknown[]) => mocks.toastSuccess(...args)
+  },
+  toastInlineError: (...args: unknown[]) => mocks.toastInlineError(...args)
 }))
 
 vi.mock('@renderer/hooks/useMcpServer', () => ({
@@ -36,6 +47,7 @@ import { DoctorCheckAccordionItems } from '../DoctorCheckAccordionItems'
 import { DoctorChecksPanel } from '../DoctorChecksPanel'
 
 type ControllerOverrides = {
+  readonly actionError?: string | null
   readonly cancelConfirmation?: DoctorController['cancelConfirmation']
   readonly confirmEvidence?: DoctorController['confirmEvidence']
   readonly isInteracting?: DoctorController['isInteracting']
@@ -56,6 +68,7 @@ function createController(overrides: ControllerOverrides = {}) {
       ignore: false,
       manualCheck: false
     },
+    actionError: null,
     cancel: vi.fn<DoctorController['cancel']>(),
     canChangePanel: true,
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
@@ -535,5 +548,58 @@ describe('DoctorCheckAccordionItems interactions', () => {
     expect(localDetails).toHaveAttribute('aria-expanded', 'true')
     const evidence = screen.getByText('private Doctor evidence').closest('dl')
     expect(evidence).toHaveFocus()
+  })
+
+  it('shows a cancel failure while checks are still running and keeps cancel usable', async () => {
+    const user = userEvent.setup()
+    const controller = createController({
+      actionError: 'settings.doctor.messages.cancel_failed',
+      viewModel: {
+        canCancel: true,
+        problemCount: 0,
+        rows: [
+          {
+            domain: 'install',
+            status: 'pending',
+            id: 'install-version-channel',
+            actions: [],
+            actionsDisabled: true
+          }
+        ],
+        status: 'running',
+        summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 0 }
+      }
+    })
+    render(<DoctorChecksPanel controller={controller} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.messages.cancel_failed')
+    const cancel = screen.getByRole('button', { name: 'settings.doctor.actions.cancel_run' })
+    expect(cancel).toBeEnabled()
+    await user.click(cancel)
+    expect(controller.cancel).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a failed copy in the panel and clears it after the next copy succeeds', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValueOnce(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<DoctorChecksPanel controller={createCompletedPanelController()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.doctor.actions.copy' }))
+
+    expect(await screen.findByText('settings.doctor.messages.copy_failed')).toBeVisible()
+    expect(mocks.toastInlineError).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.more' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.doctor.actions.copy' }))
+
+    await waitFor(() => expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.doctor.messages.copied'))
+    expect(screen.queryByText('settings.doctor.messages.copy_failed')).not.toBeInTheDocument()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(mocks.toastInlineError).not.toHaveBeenCalled()
   })
 })

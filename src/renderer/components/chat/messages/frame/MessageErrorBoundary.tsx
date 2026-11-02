@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { isProd } from '@renderer/utils/platform'
 
 interface Props {
@@ -27,6 +28,11 @@ const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?
         className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-sm text-error-subtle-foreground">
         <div className="font-medium">{t('error.render.title')}</div>
         <div className="mt-1">{errorDescription}</div>
+        {error ? (
+          <div className="mt-2">
+            <ErrorDetailAction error={error} source="chat.message" operation="message.render" />
+          </div>
+        ) : null}
       </div>
     )
   )
