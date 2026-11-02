@@ -69,11 +69,10 @@ describe('ProviderRegistryService deAPI media-only catalog', () => {
     expect(
       providerRegistryService.getImageGenerationSupport('deapi', 'Flux1schnell')?.modes.generate?.supports.size
     ).toMatchObject({ options: ['512x512', '768x768', '1024x1024', '1024x1536', '1536x1024'] })
-    expect(
-      providerRegistryService.getImageGenerationSupport('deapi', 'Flux_2_Klein_4B_BF16')?.modes.edit
-    ).toMatchObject({
-      maxInputImages: 3
-    })
+    // The gateway caps Klein at n=2 for both generation and edits.
+    const klein = providerRegistryService.getImageGenerationSupport('deapi', 'Flux_2_Klein_4B_BF16')
+    expect(klein?.modes.generate?.supports.numImages).toMatchObject({ max: 2 })
+    expect(klein?.modes.edit).toMatchObject({ maxInputImages: 3, supports: { numImages: { max: 2 } } })
     const qwenEdit = providerRegistryService.getImageGenerationSupport('deapi', 'QwenImageEdit_Plus_NF4')
     expect(Object.keys(qwenEdit?.modes ?? {})).toEqual(['edit'])
     expect(qwenEdit?.modes.edit?.maxInputImages).toBe(1)

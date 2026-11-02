@@ -8872,7 +8872,7 @@
             "supports": {
               "numImages": {
                 "default": 1,
-                "max": 4,
+                "max": 2,
                 "min": 1,
                 "type": "range"
               },
@@ -44872,5 +44872,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d53d01f491ea0185"
+  "version": "e1d2a384f90cb096"
 }

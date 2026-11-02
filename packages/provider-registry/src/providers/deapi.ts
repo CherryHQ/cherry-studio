@@ -5,10 +5,10 @@ const DEAPI_BASE_URL = 'https://oai.deapi.ai/v1'
 
 const squareSizes = ['512x512', '768x768', '1024x1024']
 
-const generateMode = (sizes: string[]): ImageModeDef => ({
+const generateMode = (sizes: string[], maxImages = 4): ImageModeDef => ({
   supports: {
     size: { default: '1024x1024', options: sizes, render: 'chips', type: 'enum' },
-    numImages: { default: 1, max: 4, min: 1, type: 'range' }
+    numImages: { default: 1, max: maxImages, min: 1, type: 'range' }
   }
 })
 
@@ -78,7 +78,7 @@ export default defineProvider({
       apiModelId: 'Flux_2_Klein_4B_BF16',
       modelId: 'flux-2-klein-4b',
       endpointTypes: ['openai-image-generation', 'openai-image-edit'],
-      imageGeneration: { modes: { generate: generateMode(squareSizes), edit: editMode(3) } }
+      imageGeneration: { modes: { generate: generateMode(squareSizes, 2), edit: editMode(3) } }
     },
     {
       apiModelId: 'Flux1schnell',
