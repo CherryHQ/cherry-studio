@@ -965,7 +965,8 @@ async function listOpenAICompatibleModels(
   signal?: AbortSignal
 ): Promise<ListedModels> {
   const response = await getFromApi({
-    url: `${baseUrl}/models`,
+    url:
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ?? `${baseUrl}/models`,
     headers: defaultHeaders(provider),
     responseSchema: OpenAIModelsResponseSchema,
     abortSignal: signal

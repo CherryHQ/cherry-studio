@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "e1952ef3858002a8",
-    "count": 67,
+    "version": "711c7c02162fb2a7",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -574,6 +574,10 @@
       {
         "id": "openrouter",
         "name": "OpenRouter"
+      },
+      {
+        "id": "cheaper-inference",
+        "name": "Cheaper Inference"
       },
       {
         "id": "ollama",

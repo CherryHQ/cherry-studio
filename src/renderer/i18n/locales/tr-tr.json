@@ -3201,6 +3201,7 @@
   "provider.baidu-cloud": "Baidu Cloud",
   "provider.burncloud": "BurnCloud",
   "provider.cerebras": "Cerebras AI",
+  "provider.cheaper-inference": "Cheaper Inference",
   "provider.cherryai": "CherryAI",
   "provider.cherryin": "CherryIN",
   "provider.claude-code": "Claude Code",

@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-28T16:20:14.303Z
- * Total icons: 166
+ * Generated at: 2026-11-02T05:47:28.274Z
+ * Total icons: 167
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -35,6 +35,7 @@ import { BurncloudIcon } from './burncloud'
 import { BytedanceIcon } from './bytedance'
 import { CephalonIcon } from './cephalon'
 import { CerebrasIcon } from './cerebras'
+import { CheaperInferenceIcon } from './cheaper-inference/cheaper-inference'
 import { CherryinIcon } from './cherryin'
 import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
@@ -204,6 +205,7 @@ export const PROVIDER_ICON_CATALOG = {
   bytedance: BytedanceIcon,
   cephalon: CephalonIcon,
   cerebras: CerebrasIcon,
+  'cheaper-inference': CheaperInferenceIcon,
   cherryin: CherryinIcon,
   'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
