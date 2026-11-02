@@ -149,24 +149,22 @@ function NotificationItem({
             </time>
           </span>
         </Button>
-        <Tooltip content={t('notification.center.dismiss')} asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="absolute right-2 top-3 text-muted-foreground"
-            aria-label={t('notification.center.dismiss')}
-            loading={dismissing}
-            onClick={() =>
-              void dismiss()
-                .then(onDismiss)
-                .catch((error) => {
-                  logger.error('Failed to dismiss notification', error as Error)
-                  toast.error(t('notification.center.error'))
-                })
-            }>
-            <X className="size-4" />
-          </Button>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="absolute right-2 top-3 text-muted-foreground"
+          aria-label={t('notification.center.dismiss')}
+          loading={dismissing}
+          onClick={() =>
+            void dismiss()
+              .then(onDismiss)
+              .catch((error) => {
+                logger.error('Failed to dismiss notification', error as Error)
+                toast.error(t('notification.center.error'))
+              })
+          }>
+          <X className="size-4" />
+        </Button>
       </div>
       {expanded && (release || announcementUrl) && (
         <div className="space-y-3 pb-4 pl-7">
@@ -289,13 +287,19 @@ function NotificationList({
   )
 }
 
-export function NotificationCenterButton({ className = '' }: { className?: string }) {
+export function NotificationCenterButton({
+  className = '',
+  placement
+}: {
+  className?: string
+  placement?: 'top' | 'right' | 'bottom' | 'left'
+}) {
   const { t } = useTranslation()
   const unreadDescriptionId = useId()
   const center = use(NotificationCenterContext)
   if (!center) return null
   return (
-    <Tooltip content={t('notification.center.title')} asChild>
+    <Tooltip content={t('notification.center.title')} placement={placement} asChild>
       <Button
         variant="ghost"
         size="icon"

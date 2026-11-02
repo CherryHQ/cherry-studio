@@ -303,7 +303,9 @@ export default function Sidebar({
     renderUserTrigger: renderSidebarUserTrigger,
     actions: (footerLayout: SidebarVisibleLayout) => (
       <>
-        {layout !== 'hidden' && <NotificationCenterButton className={footerLayout === 'full' ? 'ml-1' : ''} />}
+        {layout !== 'hidden' && (
+          <NotificationCenterButton className={footerLayout === 'full' ? 'ml-1' : ''} placement="right" />
+        )}
         {showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout)}
       </>
     ),
