@@ -11,6 +11,7 @@ import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -52,6 +53,7 @@ export function useWindowRuntime(): void {
 
   // Also used by the light windows, so these stay as their own reusable hooks.
   useLanguageSync()
+  useWebSearchFallbackNotice()
   useCustomCss()
 
   // dayjs locale — only the windows that render localized dates need it.
