@@ -145,7 +145,10 @@ describe('detectDestructiveAssistantCommand', () => {
     ['& (gcm -CommandType:Alias -Name:del) victim.txt', 'permanent Windows file deletion'],
     ['Get-Command -ListImported:$true del', 'permanent Windows file deletion'],
     ['& (Get-Command -a -b -c -d -e -f -g -h -i del) victim.txt', 'permanent Windows file deletion'],
-    ['& (Get-Command -Module AVeryLongModuleNameExceedingThirtyTwoCharsIndeed del) victim.txt', 'permanent Windows file deletion'],
+    [
+      '& (Get-Command -Module AVeryLongModuleNameExceedingThirtyTwoCharsIndeed del) victim.txt',
+      'permanent Windows file deletion'
+    ],
     // Quoted colon-bound names keep the deny; quoted names that merely start with a
     // deletion token stay allowed on the token boundary.
     ['& (Get-Command -Name:"del") victim.txt', 'permanent Windows file deletion'],
