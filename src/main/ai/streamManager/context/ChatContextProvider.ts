@@ -3,7 +3,7 @@ import type { Span } from '@opentelemetry/api'
  * ChatContextProvider — produces a ready-to-dispatch bundle for one
  * `ai.stream.open` request. `dispatchStreamRequest` picks the first
  * provider whose `canHandle(topicId)` matches, asks it to prepare, and
- * calls `manager.send(...)` itself. See `docs/references/ai/stream-manager.md`.
+ * calls `manager.send(...)` itself. See `docs/dev/references/ai/stream-manager.md`.
  */
 
 import type { ExecutionId } from '@shared/ai/executionIdentity'

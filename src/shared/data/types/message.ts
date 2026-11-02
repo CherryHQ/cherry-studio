@@ -303,7 +303,6 @@ export interface WebCitationReference extends BaseCitationReference {
 
 /**
  * Knowledge base citation reference
- * Data structure compatible with KnowledgeReference[] from renderer
  */
 export interface KnowledgeCitationReference extends BaseCitationReference {
   citationType: CitationType.KNOWLEDGE
@@ -321,7 +320,6 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
 
 /**
  * Memory citation reference
- * Data structure compatible with MemoryItem[] from renderer
  */
 export interface MemoryCitationReference extends BaseCitationReference {
   citationType: CitationType.MEMORY
@@ -480,7 +478,7 @@ export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
  * - `root` — the per-topic content-less virtual root sentinel (one per topic,
  *   `parentId IS NULL`). Self-identifying so role-filtered content queries
  *   (`WHERE role = 'system'`) exclude it for free; never rendered or sent to a
- *   model. See `docs/references/chat/message-tree.md`.
+ *   model. See `docs/dev/references/chat/message-tree.md`.
  */
 export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>
