@@ -7,6 +7,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
@@ -78,12 +79,12 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   }, [action, language, t])
 
   const [isPreparing, setIsPreparing] = useState(false)
-  const [completionError, setCompletionError] = useState<string | null>(null)
+  const [completionError, setCompletionError] = useState<{ message: string; cause: unknown } | null>(null)
   const [requestStartedAt, setRequestStartedAt] = useState('')
 
   const { sendMessage, stop: stopChat } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
     setIsPreparing(false)
-    setCompletionError(getSelectionActionErrorMessage(err, t))
+    setCompletionError({ message: getSelectionActionErrorMessage(err, t), cause: err })
   })
 
   // Temporary topics use the message identities assigned by Main.
@@ -125,7 +126,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   )
 
   const isStreaming = isPending
-  const error = completionError
+  const error = completionError?.message ?? null
 
   const fetchResult = useCallback(() => {
     if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
@@ -196,9 +197,15 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
             </Suspense>
           )}
         </div>
-        {error && (
+        {error && completionError && (
           <div className="mt-3 mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-            {error}
+            <div>{error}</div>
+            <ErrorDetailAction
+              error={completionError.cause}
+              message={error}
+              source="selection"
+              operation="selection.action"
+            />
           </div>
         )}
       </div>
