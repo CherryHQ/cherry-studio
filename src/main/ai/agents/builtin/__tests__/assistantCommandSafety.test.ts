@@ -178,6 +178,24 @@ describe('detectDestructiveAssistantCommand', () => {
     ["@{ 'my key' = del victim.txt }", 'permanent Windows file deletion'],
     ['@{a=(1;2); b=del victim.txt}', 'permanent Windows file deletion'],
     ['@{result = "del"}', 'permanent Windows file deletion'],
+    // A closed quoted value is one opaque segment: separators or braces inside it cannot
+    // split the entry, so the later `b` entry still anchors (round-27 residual closure).
+    ['@{a=";"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ["@{a=';'; b=del victim.txt}", 'permanent Windows file deletion'],
+    ['@{a="}"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a=";"; b=@{c=del victim.txt}}', 'permanent Windows file deletion'],
+    // Double-quoted values interpolate: a `$` or backtick before the candidate close
+    // means it is not the segment end, so those values keep the quote-blind scan.
+    ['@{a="$(";")"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{k=1; a="$(";")"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a="$(";" + 1)"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a="$x(";")"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a="$(Get-Date)"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a="`"; b=del victim.txt}', 'permanent Windows file deletion'],
+    // An unterminated quoted key after an escaped separator must not hide the rest of
+    // the table: the frame pops and the nested table still scans.
+    ['@{a="`;"; b=@{c=del victim.txt}}', 'permanent Windows file deletion'],
+    ['@{k=";"; a="`;"; b=@{c=del victim.txt}}', 'permanent Windows file deletion'],
     ['echo "@{result = del victim.txt}"', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
@@ -228,6 +246,7 @@ describe('detectDestructiveAssistantCommand', () => {
     'cd "T:/Archivo General" && mkdir -p test && echo "prueba de tanteo del Bibliotecario" > test/file.txt && ls -la test',
     'echo "DEL del Rd erase"',
     'echo @ del is only prose here',
+    '@{a="; b=del x"}',
     'git commit -m "docs: mention @ del command form"',
     'git status 2>&1 | head -5',
     'npm test > output.log 2>&1',
