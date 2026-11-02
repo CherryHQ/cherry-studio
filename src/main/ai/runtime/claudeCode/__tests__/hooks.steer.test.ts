@@ -36,8 +36,7 @@ function hooksFor(event: 'PreToolUse' | 'PostToolBatch'): HookCallback[] {
     builtinRole: undefined,
     mountedServers: new Set(),
     pluginDirectories: new Map(),
-    supportsImages: false,
-    agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
+    supportsImages: false
   })
   const matchers = table?.[event]
   if (!matchers?.length) throw new Error(`no hooks registered for ${event}`)

@@ -122,8 +122,16 @@ describe('KnowledgeBaseToolRuntime', () => {
       active: true
     })
     expect(knowledgeLauncher.rootSearchItems).toEqual([
-      expect.objectContaining({ id: 'knowledge-base:kb-1', label: 'Knowledge One' }),
-      expect.objectContaining({ id: 'knowledge-base:kb-2', label: 'Knowledge Two' })
+      expect.objectContaining({
+        id: 'knowledge-base:kb-1',
+        label: 'Knowledge One',
+        filterText: 'Knowledge One kb-1'
+      }),
+      expect.objectContaining({
+        id: 'knowledge-base:kb-2',
+        label: 'Knowledge Two',
+        filterText: 'Knowledge Two kb-2'
+      })
     ])
     expect(knowledgeLauncher.suffix).toBeUndefined()
     expect(knowledgeLauncher.showInActiveControls).toBe(false)

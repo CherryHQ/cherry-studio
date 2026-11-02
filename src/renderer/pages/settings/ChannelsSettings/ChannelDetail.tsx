@@ -14,6 +14,7 @@ import {
   EmptyState,
   Input,
   Label,
+  Scrollbar,
   Select,
   SelectContent,
   SelectItem,
@@ -26,7 +27,7 @@ import {
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
-import Scrollbar from '@renderer/components/Scrollbar'
+import LegacyScrollbar from '@renderer/components/Scrollbar'
 import {
   SettingDivider,
   SettingGroup,
@@ -277,7 +278,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
             <DialogHeader className="shrink-0">
               <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
-            <Scrollbar className="flex min-h-0 flex-col gap-4">
+            <LegacyScrollbar className="flex min-h-0 flex-col gap-4">
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
@@ -327,7 +328,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   onRemove={() => channel && onDelete(channel.id)}
                 />
               )}
-            </Scrollbar>
+            </LegacyScrollbar>
           </>
         )}
       </DialogContent>

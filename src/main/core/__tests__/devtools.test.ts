@@ -69,6 +69,7 @@ import { installBundledDevtools, installDevtoolsExtensions } from '../devtools'
 describe('installDevtoolsExtensions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    applicationMock.getPath.mockImplementation((key: string) => `/mock/${key}`)
     platformMock.isDev = true
     toAsarUnpackedPathMock.mockImplementation((filePath: string) => filePath)
     installExtensionMock.mockResolvedValue('React Developer Tools')
@@ -111,6 +112,7 @@ describe('installDevtoolsExtensions', () => {
 describe('installBundledDevtools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    applicationMock.getPath.mockImplementation((key: string) => `/mock/${key}`)
     toAsarUnpackedPathMock.mockImplementation((filePath: string) =>
       filePath.replace('/app.asar/', '/app.asar.unpacked/')
     )
@@ -127,5 +129,11 @@ describe('installBundledDevtools', () => {
 
     expect(toAsarUnpackedPathMock).toHaveBeenCalledWith('/app.asar/resources/devtools/main-network')
     expect(loadExtensionMock).toHaveBeenCalledWith('/app.asar.unpacked/resources/devtools/main-network')
+  })
+
+  it('uses the default resources path for a subsequent installation', async () => {
+    await installBundledDevtools('main-network', 'Main Network')
+
+    expect(loadExtensionMock).toHaveBeenCalledWith('/mock/app.root.resources/devtools/main-network')
   })
 })

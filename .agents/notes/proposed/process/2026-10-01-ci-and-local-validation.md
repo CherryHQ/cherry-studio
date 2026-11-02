@@ -175,12 +175,10 @@ This does not establish controlled benchmark results or local multi-agent speedu
 
 ## Acceptance criteria
 
-| Phase | Work | Verification |
-| --- | --- | --- |
-| 1 | Shared inventory, change classification, docs path, missing package tests, superseded PR cancellation | Replay representative historical file sets; prove each package's tests are selected and gates remain valid |
-| 2 | Explicit local command contracts and bounded execution | File arguments reach only the intended project; check mode leaves tracked sources unchanged; instructions match actual commands |
-| 3 | Independent heavy CI checks and preparation reuse | Compare equivalent CI runs for end-to-end duration, runner minutes, setup time, and failures |
-| 4 | Cache and finer dependency selection | Verify cold/warm invalidation, deletions/renames, resource changes, and no stale-success reuse |
+- AC1 — Representative historical file sets select the shared inventory, documentation path, and every standalone package's tests; required gates remain valid and superseded PR runs are cancelled. (verification: scripts unit tests and required aggregation gates)
+- AC2 — File arguments reach only the intended project, check mode leaves tracked sources unchanged, local execution remains bounded, and instructions match the actual commands. (verification: scripts unit tests and clean-tree command runs)
+- AC3 — Heavy CI checks schedule independently while reusing preparation, and equivalent runs report end-to-end duration, runner minutes, setup time, and failures. (verification: CI workflow fixtures and metrics artifacts)
+- AC4 — Cold and warm caches invalidate for deletions, renames, and resource changes without reusing stale successful results. (verification: cache invalidation tests and equivalent cold/warm runs)
 
 Selection fixtures must cover ordinary docs, colocated README, runtime Markdown, main-only, renderer-only, shared, each standalone package, preload contracts, locales, migrations, scripts, root dependencies/configuration, unknown paths, mixed changes, deletion, rename, untracked input, and unavailable git history. Planned-job failure/cancellation must fail the gate; intentional no-op selection must be visible.
 
@@ -198,4 +196,4 @@ This proposal requires implementation review and measurement. The implementation
 - [Vitest related tests](https://vitest.dev/guide/cli.html#vitest-related) and [worker limits](https://vitest.dev/config/maxworkers): static dependency boundaries and per-invocation worker controls.
 - [TypeScript incremental compilation](https://www.typescriptlang.org/tsconfig/incremental.html): existing project-cache behavior.
 - [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax): filtering, concurrency, and skipped required workflows.
-- [Docs governance proposal](2026-08-18-docs-governance-and-spec-workflow.md): ownership of this proposed Agent Note and the distinction between workflow execution and local script aliases.
+- [Docs governance proposal](../../implemented/process/2026-08-18-docs-governance-and-spec-workflow.md): ownership of this proposed Agent Note and the distinction between workflow execution and local script aliases.

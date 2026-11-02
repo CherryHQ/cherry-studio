@@ -400,7 +400,9 @@ export class TreeDir extends TreeNode {
   }
 
   protected serialize(): SerializedTreeNode {
-    const children: Record<string, SerializedTreeNode> = {}
+    // A plain `{}` would route a child named `__proto__` through the prototype
+    // setter, so the node would vanish from the snapshot.
+    const children: Record<string, SerializedTreeNode> = Object.create(null)
     for (const [name, child] of Object.entries(this._children)) {
       children[name] = child.toJSON()
     }

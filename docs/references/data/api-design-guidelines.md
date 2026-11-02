@@ -499,6 +499,7 @@ Fences (all hard):
 | `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IpcApi route (e.g. `knowledge.add_items`). Job DataApi is GET-only. |
 | `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
 | `POST /agents/:agentId/restore` | Agent state plus schedule timers and Channel connections | IpcApi `ai.agent.restore` → `AgentLifecycleService`; DB-only primitives stay in data services. |
+  | Workspace registration | Physical path identity and active storage-operation admission plus a workspace row | IpcApi `ai.agent.workspace.register` → `AgentWorkspaceStorageService`; workspace DataApi is query/update/order only. |
 
 ### Why Misuse is Harmful
 

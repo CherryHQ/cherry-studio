@@ -4,13 +4,13 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
-import { and, asc, count as sqlCount, desc, eq, gte, inArray, ne, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count as sqlCount, desc, eq, gte, inArray, isNull, ne, type SQL, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import * as z from 'zod'
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -18,6 +18,7 @@ import type {
   KnowledgeBaseListItem,
   KnowledgeBaseListResponse,
   ListKnowledgeBasesQuery,
+  ReorderKnowledgeBaseDto,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
@@ -34,8 +35,10 @@ import {
   KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
 
+import { registerDataService } from './dataServiceRegistry'
 import { groupService } from './GroupService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
@@ -145,12 +148,13 @@ function getListSortColumn(sortBy: KnowledgeBaseListSortBy) {
   return {
     createdAt: knowledgeBaseTable.createdAt,
     updatedAt: knowledgeBaseTable.updatedAt,
-    name: knowledgeBaseTable.name
+    name: knowledgeBaseTable.name,
+    orderKey: knowledgeBaseTable.orderKey
   }[sortBy]
 }
 
 function getListSortValue(row: KnowledgeBaseRow, sortBy: KnowledgeBaseListSortBy): string | number {
-  return sortBy === 'name' ? row.name : row[sortBy]
+  return row[sortBy]
 }
 
 function rowToKnowledgeBaseListItem(row: { base: KnowledgeBaseRow; itemCount: number }): KnowledgeBaseListItem {
@@ -220,6 +224,7 @@ export class KnowledgeBaseService {
       .select({
         id: knowledgeBaseTable.id,
         name: knowledgeBaseTable.name,
+        orderKey: knowledgeBaseTable.orderKey,
         updatedAt: knowledgeBaseTable.updatedAt
       })
       .from(knowledgeBaseTable)
@@ -253,7 +258,7 @@ export class KnowledgeBaseService {
     const conditions = buildListFilterConditions(query)
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const sortBy = query.sortBy ?? 'createdAt'
-    const sortOrder = query.sortOrder ?? 'desc'
+    const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
     const orderFn = sortOrder === 'asc' ? asc : desc
     const sortColumn = getListSortColumn(sortBy)
     const rows = this.db
@@ -317,11 +322,11 @@ export class KnowledgeBaseService {
     const { limit } = query
     const filterConditions = buildListFilterConditions(query, filters)
     const sortBy = query.sortBy ?? 'createdAt'
-    const sortOrder = query.sortOrder ?? 'desc'
+    const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
     const sortColumn = getListSortColumn(sortBy)
     const ordering = keysetOrdering(sortColumn, knowledgeBaseTable.id, { major: sortOrder, tie: sortOrder })
     const cursor =
-      sortBy === 'name'
+      sortBy === 'name' || sortBy === 'orderKey'
         ? decodeListCursor(query.cursor, asStringKey, 'knowledge-base')
         : decodeListCursor(query.cursor, asNumericKey, 'knowledge-base')
     const conditions = [...filterConditions]
@@ -361,7 +366,11 @@ export class KnowledgeBaseService {
   }
 
   getById(id: string): KnowledgeBase {
-    const [row] = this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.db, id)
+  }
+
+  private getByIdTx(tx: DbOrTx, id: string): KnowledgeBase {
+    const [row] = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)
@@ -381,7 +390,7 @@ export class KnowledgeBaseService {
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR
     }
-    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
+    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'orderKey' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
       dimensions: usesEmbeddings ? (dto.dimensions ?? null) : null,
@@ -414,8 +423,11 @@ export class KnowledgeBaseService {
 
     const row = application.get('DbService').withWriteTx((tx) => {
       validateKnowledgeBaseGroupTx(tx, dto.groupId)
-      const [inserted] = tx.insert(knowledgeBaseTable).values(createValues).returning().all()
-      return inserted
+      return insertWithOrderKey(tx, knowledgeBaseTable, createValues, {
+        pkColumn: knowledgeBaseTable.id,
+        position: 'first',
+        scope: dto.groupId ? eq(knowledgeBaseTable.groupId, dto.groupId) : isNull(knowledgeBaseTable.groupId)
+      }) as KnowledgeBaseRow
     })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
@@ -423,7 +435,17 @@ export class KnowledgeBaseService {
   }
 
   update(id: string, dto: UpdateKnowledgeBaseDto, options?: { allowEmbeddingModelBackfill?: boolean }): KnowledgeBase {
-    const existing = this.getById(id)
+    return application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, dto, options))
+  }
+
+  /** {@link update} on the caller's transaction, so it can commit together with other writes. */
+  updateTx(
+    tx: DbOrTx,
+    id: string,
+    dto: UpdateKnowledgeBaseDto,
+    options?: { allowEmbeddingModelBackfill?: boolean }
+  ): KnowledgeBase {
+    const existing = this.getByIdTx(tx, id)
 
     const nextEmbeddingModelId =
       dto.embeddingModelId !== undefined ? dto.embeddingModelId?.trim() || null : existing.embeddingModelId
@@ -447,7 +469,7 @@ export class KnowledgeBaseService {
       const skipItemCountGuard = options?.allowEmbeddingModelBackfill === true && isFirstTimeEmbeddingSetup
 
       if (!skipItemCountGuard) {
-        const [{ count: itemCount }] = this.db
+        const [{ count: itemCount }] = tx
           .select({ count: sqlCount(knowledgeItemTable.id) })
           .from(knowledgeItemTable)
           .where(and(eq(knowledgeItemTable.baseId, id), ne(knowledgeItemTable.status, 'deleting')))
@@ -479,8 +501,9 @@ export class KnowledgeBaseService {
     // metadata-only updates (rename, move group) must not be blocked by them; that
     // gating lives inside `refineKnowledgeBaseInvariants` itself (only enforced
     // when `status === 'completed'`).
-    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...existingConfig } = existing
+    const { orderKey: _orderKey, id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...existingConfig } = existing
     void _id // Intentionally unused - excluding id/createdAt/updatedAt from the write candidate
+    void _orderKey
     void _createdAt
     void _updatedAt
     const updateCandidate = {
@@ -544,24 +567,56 @@ export class KnowledgeBaseService {
       this.assertEmbeddingModelIsNotBeingRemoved(nextEmbeddingModelId)
     }
 
-    const row = application.get('DbService').withWriteTx((tx) => {
-      if (dto.groupId !== undefined) {
-        validateKnowledgeBaseGroupTx(tx, dto.groupId)
-      }
-      const [updated] = tx
-        .update(knowledgeBaseTable)
-        .set(updates)
-        .where(eq(knowledgeBaseTable.id, id))
-        .returning()
-        .all()
-      if (!updated) {
-        throw DataApiErrorFactory.notFound('KnowledgeBase', id)
-      }
-      return updated
-    })
+    if (dto.groupId !== undefined) {
+      validateKnowledgeBaseGroupTx(tx, dto.groupId)
+    }
+    let [updated] = tx.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+    if (updated && dto.groupId !== undefined && dto.groupId !== existing.groupId) {
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope: dto.groupId === null ? isNull(knowledgeBaseTable.groupId) : eq(knowledgeBaseTable.groupId, dto.groupId)
+      })
+      updated = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()!
+    }
+    if (!updated) {
+      throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+    }
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
-    return rowToKnowledgeBase(row)
+    return rowToKnowledgeBase(updated)
+  }
+
+  ungroupTx(tx: DbOrTx, groupId: string): void {
+    const rows = tx
+      .select({ id: knowledgeBaseTable.id })
+      .from(knowledgeBaseTable)
+      .where(eq(knowledgeBaseTable.groupId, groupId))
+      .orderBy(asc(knowledgeBaseTable.orderKey), asc(knowledgeBaseTable.id))
+      .all()
+    for (const { id } of rows) {
+      tx.update(knowledgeBaseTable).set({ groupId: null }).where(eq(knowledgeBaseTable.id, id)).run()
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope: isNull(knowledgeBaseTable.groupId)
+      })
+    }
+  }
+
+  reorder(id: string, { anchor, groupId }: ReorderKnowledgeBaseDto): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const existing = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()
+      if (!existing) throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+      const targetGroupId = groupId === undefined ? existing.groupId : groupId
+      validateKnowledgeBaseGroupTx(tx, targetGroupId)
+      if (targetGroupId !== existing.groupId) {
+        tx.update(knowledgeBaseTable).set({ groupId: targetGroupId }).where(eq(knowledgeBaseTable.id, id)).run()
+      }
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope:
+          targetGroupId === null ? isNull(knowledgeBaseTable.groupId) : eq(knowledgeBaseTable.groupId, targetGroupId)
+      })
+    })
   }
 
   delete(id: string): void {
@@ -589,3 +644,4 @@ export class KnowledgeBaseService {
 }
 
 export const knowledgeBaseService = new KnowledgeBaseService()
+registerDataService('KnowledgeBaseService', knowledgeBaseService)

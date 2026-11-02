@@ -99,6 +99,8 @@ Improvements to code quality, performance, and maintainability.
 - No full imports of large dependencies when only a small part is used (tree-shaking)
 
 ### B2. Code Simplification
+- Added or materially changed logic checked against existing repository modules
+  before accepting duplication (see cherry-review-guidance.md § Existing Module Reuse)
 - Clearly duplicated or similar logic extracted (judge by complexity and maintenance
   cost, not count threshold)
 - Deep nested if/else simplified with early return

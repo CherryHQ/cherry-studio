@@ -47,7 +47,7 @@ export function isPathInside(child: string, parent: string): boolean {
   const b = normalizePathForComparison(parent)
   if (a === b) return false
   const rel = path.relative(b, a)
-  return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
+  return rel.length > 0 && !isOutsidePath(rel)
 }
 
 /** True iff `candidate` equals `container` or is a descendant of it. */

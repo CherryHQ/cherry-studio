@@ -33,7 +33,7 @@ export function registerCliTools(server: McpServer): void {
     CLI_LIST_TOOL_NAME,
     {
       description:
-        'List the current Cherry-managed CLI inventory. This does not inspect the user’s system PATH: a command reported as unavailable may still exist there, so check with `command -v <name>` before installing another copy. The result is read live from bundled binaries, mise installs, custom definitions, and Code CLI presets.',
+        'List Cherry-managed CLIs (bundled, mise, custom, Code CLI presets). Does not inspect the system PATH.',
       inputSchema: z.strictObject({})
     },
     async (_args, ctx) =>
@@ -47,7 +47,7 @@ export function registerCliTools(server: McpServer): void {
     CLI_SEARCH_TOOL_NAME,
     {
       description:
-        'Search the mise registry by executable name. Results contain the exact `name` and `tool` fields accepted by cli_install. If trusted documentation gives only an ecosystem install command, translate it directly when calling cli_install: `npm install -g @scope/pkg` → `npm:@scope/pkg`; `pipx install pkg` → `pipx:pkg`; `cargo install pkg` → `cargo:pkg`; `go install module@version` → `go:module`; GitHub Releases → `github:owner/repo`. Never guess the executable name.',
+        'Search the mise registry for a CLI. Returns name and tool fields for cli_install; never guess the executable.',
       inputSchema: cliSearchInputSchema
     },
     async ({ query }) =>
@@ -58,7 +58,7 @@ export function registerCliTools(server: McpServer): void {
     CLI_INSTALL_TOOL_NAME,
     {
       description:
-        'Install a reusable CLI into Cherry Studio’s isolated mise environment. Use a name/recipe returned by cli_search, or exact executable and mise recipe derived from trusted public documentation. The operation requires user approval and accepts the same backends as BinaryManager; validation errors explain how to correct the recipe.',
+        "Install a CLI into Cherry's isolated mise environment. Use a name from cli_search; requires user approval.",
       inputSchema: cliInstallInputSchema
     },
     async (definition, ctx) => {

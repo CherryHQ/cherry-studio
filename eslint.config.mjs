@@ -95,6 +95,11 @@ const BAN_MCP_SDK_V1 = {
     'MCP SDK v1 is only a type peer of the Claude Agent SDK. Use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
 }
 
+const BAN_WEB_SEARCH_INTERNALS = {
+  group: ['**/packages/web-search/src/**', '@cherrystudio/web-search/src/**', '@cherrystudio/web-search/dist/**'],
+  message: 'Use the public @cherrystudio/web-search entries instead of importing package internals.'
+}
+
 // File preview is a portable package: host-app modules are off-limits to its source.
 const FILE_PREVIEW_HOST_IMPORTS = [
   '@renderer',
@@ -178,8 +183,10 @@ const collectIndexTs = (dir, out = []) => {
   }
   return out
 }
+const RUNTIME_PACKAGES = ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable']
+const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
 const BARREL_DIRS = new Set()
-for (const idx of collectIndexTs(SRC_DIR)) {
+for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {
   try {
     if (isPureReexportIndex(fs.readFileSync(idx, 'utf8'))) BARREL_DIRS.add(path.dirname(idx))
   } catch {}
@@ -202,7 +209,7 @@ const BARREL_RESOLVE_CACHE = new Map()
 // Unresolved specs are skipped — misses only, never false positives. Deliberately unresolved:
 // `@logger` (single-file target, cannot hide a deep import), `@application` (bare-only usage,
 // zero `@application/` deep paths in src), `@test-helpers`/`@test-mocks` (tests are exempt),
-// `@cherrystudio/*` (packages/*, outside src).
+// `@cherrystudio/*` except the explicitly sealed runtime packages.
 const resolveBarrelSpec = (spec, fromFile) => {
   const key = `${fromFile}\0${spec}`
   if (BARREL_RESOLVE_CACHE.has(key)) return BARREL_RESOLVE_CACHE.get(key)
@@ -214,6 +221,14 @@ const resolveBarrelSpec = (spec, fromFile) => {
   else if (spec.startsWith('@shared/')) base = path.join(SRC_DIR, 'shared', spec.slice(8))
   else if (spec.startsWith('@data/'))
     base = path.join(SRC_DIR, proc === 'main' ? 'main' : 'renderer', 'data', spec.slice(6))
+  else {
+    for (const name of RUNTIME_PACKAGES) {
+      const prefix = `@cherrystudio/${name}`
+      if (spec === prefix) base = path.join(RENDERER_DIRNAME, 'packages', name, 'src')
+      else if (spec.startsWith(`${prefix}/`))
+        base = path.join(RENDERER_DIRNAME, 'packages', name, 'src', spec.slice(prefix.length + 1))
+    }
+  }
   let resolved = null
   if (base) {
     for (const c of [`${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts'), path.join(base, 'index.tsx'), base]) {
@@ -594,7 +609,7 @@ export default defineConfig([
   ...oxlint.configs['flat/typescript'],
   ...oxlint.configs['flat/unicorn'],
   // Custom rules should be after oxlint to overwrite
-  // LoggerService Custom Rules - only apply to src directory
+  // LoggerService and lifecycle Emitter Custom Rules - only apply to src directory
   {
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
@@ -604,6 +619,11 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+        },
+        {
+          selector: 'CallExpression[callee.property.name="registerDisposable"] > NewExpression[callee.name="Emitter"]',
+          message:
+            '❗Do not registerDisposable() an Emitter the service owns: stop would dispose it for good. Dispose it in onDestroy(): 📖 docs/references/lifecycle/lifecycle-usage.md\n\n'
         }
       ]
     }
@@ -979,6 +999,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
@@ -996,7 +1017,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
     }
@@ -1008,7 +1029,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
     }
@@ -1026,7 +1047,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
         }
       ]
     }
@@ -1041,7 +1062,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+        { patterns: [BAN_WEB_SEARCH_INTERNALS, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
       ],
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
     }
@@ -1053,7 +1074,45 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
+        }
+      ]
+    }
+  },
+  {
+    files: ['packages/web-search/src/**/*.ts'],
+    ignores: ['packages/web-search/src/**/__tests__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            {
+              group: [
+                'node:*',
+                'electron',
+                'electron/**',
+                'react',
+                'react-native',
+                'react-native/**',
+                'expo',
+                'expo-*',
+                '@application',
+                '@logger',
+                '@main/**',
+                '@renderer/**',
+                '@shared/**',
+                '@data/**',
+                '@test-mocks/**',
+                '**/src/main/**',
+                '**/src/renderer/**',
+                '**/src/shared/**',
+                '**/src/backend/**'
+              ],
+              message: 'Web search protocols must use portable dependencies and host-injected transport.'
+            }
+          ]
         }
       ]
     }
@@ -1066,6 +1125,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: FILE_PREVIEW_HOST_IMPORTS,
               message: 'File preview must use its portable source and host callbacks.'
@@ -1094,6 +1154,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: [
                 ...FILE_PREVIEW_HOST_IMPORTS,
@@ -1199,7 +1260,7 @@ export default defineConfig([
   },
   // Barrel / module-boundary rules (naming-conventions.md §6.4) — inline custom plugin, all error.
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', ...RUNTIME_PACKAGES.map((name) => `packages/${name}/src/**/*.ts`)],
     // tests are exempt by design: white-box tests may deep-import a barrel's internals
     ignores: ['src/**/*.test.*', 'src/**/__tests__/**', 'src/**/__mocks__/**'],
     plugins: { barrel: barrelPlugin },
@@ -1212,6 +1273,12 @@ export default defineConfig([
       'barrel/no-nesting': 'error',
       'barrel/no-bucket-root': 'error'
     }
+  },
+  {
+    files: ['packages/*/src/**/*.{ts,tsx}'],
+    ignores: [...RUNTIME_PACKAGES.map((name) => `packages/${name}/**`), '**/*.test.*', '**/__tests__/**'],
+    plugins: { barrel: barrelPlugin },
+    rules: { 'barrel/closed': 'error' }
   },
   // Directory & file naming rules (naming-conventions.md §3–§4, §6.6) — inline custom plugin.
   // Not tests-exempt (test file names follow the convention too); the __tests__/__mocks__/__snapshots__
@@ -1359,5 +1426,42 @@ export default defineConfig([
     rules: {
       'data-schema-key/valid-key': 'error'
     }
+  },
+  {
+    files: ['src/renderer/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
+    ignores: [
+      'packages/ui/src/lib/code-highlight/**',
+      'packages/ui/src/code-highlight.ts',
+      'packages/ui/src/lib/code-block/**',
+      'packages/ui/src/code-block.ts'
+    ],
+    plugins: {
+      'highlight-boundary': {
+        rules: {
+          'public-entry': {
+            meta: {
+              type: 'problem',
+              schema: [],
+              messages: {
+                private:
+                  'Import highlighting APIs through @cherrystudio/ui/code-highlight or @cherrystudio/ui/code-block.'
+              }
+            },
+            create(context) {
+              return {
+                ImportDeclaration(node) {
+                  if (
+                    typeof node.source.value === 'string' &&
+                    /lib\/(code-highlight|code-block)/.test(node.source.value)
+                  )
+                    context.report({ node, messageId: 'private' })
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: { 'highlight-boundary/public-entry': 'error' }
   }
 ])

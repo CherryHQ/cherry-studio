@@ -323,7 +323,7 @@ export class MainWindowService extends BaseService {
 }
 ```
 
-**Authoring rule:** do not `registerDisposable()` a field-owned Emitter. Dispose it in `onDestroy()`, not `onStop()`, so runtime `stop()` → `start()` does not leave the service with a permanently disposed emitter. Some existing services still register owned emitters through the stop-scoped disposable list; those are migration gaps, not examples to copy.
+**Authoring rule:** do not `registerDisposable()` a field-owned Emitter. Dispose it in `onDestroy()`, not `onStop()`, so runtime `stop()` → `start()` does not leave the service with a permanently disposed emitter. ESLint rejects `registerDisposable(new Emitter(...))` under `src/`.
 
 ### Consumer Pattern
 

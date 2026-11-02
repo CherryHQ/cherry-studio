@@ -3,8 +3,8 @@ import { openaiCompatible } from './types'
 
 export const minimaxOverrides = [
   {
-    modelId: 'minimax-m3-1-flash-preview',
-    apiModelId: 'MiniMax-M3.1-Flash-Preview',
+    modelId: 'minimax-m3-1-flash',
+    apiModelId: 'MiniMax-M3.1-Flash',
     endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
     reasoningContracts: {
       'anthropic-messages': {
@@ -15,11 +15,11 @@ export const minimaxOverrides = [
     }
   },
   {
-    modelId: 'minimax-m3',
+    apiModelId: 'minimax-m3',
     endpointTypes: ['openai-chat-completions', 'anthropic-messages']
   },
   {
-    modelId: 'image-01',
+    apiModelId: 'image-01',
     imageGeneration: {
       modes: {
         edit: {
@@ -60,7 +60,7 @@ export const minimaxOverrides = [
     }
   },
   {
-    modelId: 'image-01-live',
+    apiModelId: 'image-01-live',
     imageGeneration: {
       modes: {
         edit: {

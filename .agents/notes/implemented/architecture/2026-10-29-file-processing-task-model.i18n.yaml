@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-10-29-file-processing-task-model.md
+2026-10-29-file-processing-task-model.md: ff296bb72cf8b91e34d858c76829f5b894c022cb
+2026-10-29-file-processing-task-model.zh.md: 2f61e9afb9798dffb1efe42f360b0926930cc075

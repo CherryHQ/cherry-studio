@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "Sayfa numarası",
   "file_preview.pdf.too_large.description": "Bu PDF'nin bir bölümü uygulamada güvenli biçimde önizlenemeyecek kadar büyük.",
   "file_preview.pdf.too_large.title": "Bu PDF önizlenemiyor",
+  "file_preview.powerpoint.zip_limit.description": "Bu PowerPoint dosyası uygulamanın güvenli önizleme sınırlarını aşıyor.",
+  "file_preview.powerpoint.zip_limit.title": "Bu PowerPoint dosyası önizlenemiyor",
   "file_preview.too_large.action": "Varsayılan uygulamayla aç",
   "file_preview.too_large.description": "{{size}} dosya boyutu, {{limit}} önizleme sınırını aşıyor.",
   "file_preview.too_large.title": "Dosya önizlenemeyecek kadar büyük",

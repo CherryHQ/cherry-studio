@@ -7,6 +7,7 @@ import {
   getFileExtension,
   isSupportedExtension,
   isSupportedFile,
+  removeFileExtension,
   removeSpecialCharactersForFileName
 } from '../file'
 
@@ -84,6 +85,28 @@ describe('file', () => {
       const filePath = ''
       const result = getFileExtension(filePath)
       expect(result).toBe('.')
+    })
+  })
+
+  describe('removeFileExtension', () => {
+    it('should strip a plain extension', () => {
+      expect(removeFileExtension('document.pdf')).toBe('document')
+      expect(removeFileExtension('archive.tar.gz')).toBe('archive.tar')
+      expect(removeFileExtension('noextension')).toBe('noextension')
+    })
+
+    it('should keep a leading-dot file name intact', () => {
+      // A leading dot starts a hidden file name, not an extension — stripping it
+      // used to yield an empty string as the pasted attachment's origin_name.
+      expect(removeFileExtension('.env')).toBe('.env')
+      expect(removeFileExtension('.gitignore')).toBe('.gitignore')
+      expect(removeFileExtension('.config.json')).toBe('.config')
+    })
+
+    it('should only consider the base name when the path has dots in directories', () => {
+      expect(removeFileExtension('/srv/app.d/file')).toBe('/srv/app.d/file')
+      expect(removeFileExtension('/home/john.doe/notes')).toBe('/home/john.doe/notes')
+      expect(removeFileExtension('C:\\dir.x\\name')).toBe('C:\\dir.x\\name')
     })
   })
 

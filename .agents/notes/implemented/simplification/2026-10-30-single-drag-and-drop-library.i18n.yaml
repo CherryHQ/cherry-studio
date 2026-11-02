@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/simplification/2026-10-30-single-drag-and-drop-library.md
+2026-10-30-single-drag-and-drop-library.md: 0aca7d50bea5a3a76335e67bab1e7d600f5a93a7
+2026-10-30-single-drag-and-drop-library.zh.md: c8fe20d2b03a46363b85050ea5d36b133e794993

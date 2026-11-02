@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-27-open-exported-note.md
+2026-10-27-open-exported-note.md: bdc2e514221ae5609524259e59c60c33de1d59f5
+2026-10-27-open-exported-note.zh.md: 38c3013fd7cf1b64a1ef47ea4729600142c6b540

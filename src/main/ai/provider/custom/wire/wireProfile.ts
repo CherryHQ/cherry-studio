@@ -58,7 +58,7 @@ export const DIFFUSION_WIRE_PROFILE: WireProfile = {
 }
 
 /**
- * OpenAI image family (gpt-image / dall-e / newapi / cherryin / azure / …).
+ * OpenAI image family (gpt-image / dall-e / cherryin / azure / …).
  * Reproduces `openaiImageBody` — the OpenAI image-body fields only; no `seed`
  * (OpenAI's own model rejects it, and aggregators that accept it keep their own
  * profile). Dual-keyed under `openai` + the provider id by the registry.
@@ -249,7 +249,12 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // our providerId variant), so deliver under 'cherryin' here too — mirroring
   // google-vertex → vertex below.
   'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, key: 'cherryin', passthrough: true },
-  newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
+  newapi: {
+    profile: {
+      forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), ...(DIFFUSION_WIRE_PROFILE.forward ?? [])]
+    },
+    passthrough: true
+  },
   google: { profile: GOOGLE_WIRE_PROFILE },
   // Vertex reuses the google body but delivers under `vertex` (the key the
   // @ai-sdk/google-vertex image model reads), NOT the `google-vertex` provider id.
