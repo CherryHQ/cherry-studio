@@ -477,8 +477,12 @@ export function createSubagentExtension({
             model,
             sessionManager,
             inbox,
-            createSession
+            createSession,
+            signal: configureSignal
           })
+        } catch (error) {
+          if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
+          throw error
         } finally {
           release()
         }

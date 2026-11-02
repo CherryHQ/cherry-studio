@@ -12,7 +12,7 @@ English | [中文](2026-10-31-funasr-compat-decoder.zh.md)
 
 The catalog pins the compatibility decoder from ModelScope revision `ce0975f2a7a8ad6441223db59ce6e1362295ddfe` and installs it as `llm.int8.compat.onnx`. The bundle ID stays unchanged. Existing installations require only that decoder; inference refuses the old-only installation and resolves the new filename after repair. Download hashing and atomic publication remain owned by the existing acquisition layer.
 
-The old Hugging Face revision still serves incompatible bytes, so it and its mirror are excluded from this file's sources. Other bundle files retain their verified sources. [Local Models](../../../../docs/references/ai/local-models.md) owns the installation behavior.
+The old Hugging Face revision still serves incompatible bytes, so it and its mirror are excluded from this file's sources. Other bundle files retain their verified sources. [Local Models](../../../../docs/dev/references/ai/local-models.md) owns the installation behavior.
 
 ## Alternatives considered
 

@@ -1,4 +1,4 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-18-agent-runtime-subagent-control.md
 2026-10-18-agent-runtime-subagent-control.md: 5992cac3b637f8e382413d1baab9e0659204da1f

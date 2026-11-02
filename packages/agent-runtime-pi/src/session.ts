@@ -127,7 +127,7 @@ async function buildSession(
     createSubagentExtension({
       port: options.subagents,
       // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
-      createSession: ({ fork, beforeModelRequest: beforeChildRequest, ...overrides }) =>
+      createSession: ({ fork, beforeModelRequest: beforeChildRequest, beforeStart: beforeChildStart, ...overrides }) =>
         buildSession(
           {
             ...options,
@@ -135,7 +135,8 @@ async function buildSession(
             modelRuntime: overrides.modelRuntime ?? options.modelRuntime,
             subagents: fork ? options.subagents : undefined
           },
-          beforeChildRequest
+          beforeChildRequest,
+          beforeChildStart
         ),
       parentSession: sessionManager,
       parentModel: options.model,

@@ -55,6 +55,7 @@ export interface SubagentSessionOverrides {
    * for it); a throw refuses the request before it reaches the port or the summarizer.
    */
   beforeModelRequest: () => void
+  beforeStart: (session: AgentRuntimeSession['session']) => void
 }
 
 export type CreateSubagentSession = (overrides: SubagentSessionOverrides) => Promise<AgentRuntimeSession>
@@ -180,26 +181,66 @@ export async function openChild(input: {
   fork: boolean
   inbox: SubagentInbox
   createSession: CreateSubagentSession
+  signal?: AbortSignal
 }): Promise<AgentRuntimeSession> {
-  const { options } = input
+  const { options, signal } = input
+  signal?.throwIfAborted()
   const limit = new RequestLimit()
-  const child = await input.createSession({
-    sessionManager: input.sessionManager,
-    modelRuntime: options.modelRuntime,
-    fork: input.fork,
-    extensionFactories: [input.inbox.extension, ...(options.extensionFactories ?? [])],
-    onEvent: options.onEvent,
-    model: input.model,
-    beforeModelRequest: limit.beforeModelRequest
+  const replies: AssistantMessage[] = []
+  const firstEntry = input.sessionManager.getEntryCount()
+  let session: AgentRuntimeSession['session'] | undefined
+  let child: AgentRuntimeSession | undefined
+  let unsubscribe: (() => void) | undefined
+  let starting = true
+  let rejectCancelled!: (reason: unknown) => void
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    rejectCancelled = reject
   })
-  requestLimits.set(child, limit)
-  try {
-    options.onSessionCreated?.(child.session)
-  } catch (error) {
-    await child.dispose()
-    throw error
+  const onAbort = () => {
+    void session?.abort()
+    rejectCancelled(signal?.reason)
   }
-  return child
+  signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    const creating = input
+      .createSession({
+        sessionManager: input.sessionManager,
+        modelRuntime: options.modelRuntime,
+        fork: input.fork,
+        extensionFactories: [input.inbox.extension, ...(options.extensionFactories ?? [])],
+        onEvent: options.onEvent,
+        model: input.model,
+        beforeModelRequest: () => {
+          if (starting) signal?.throwIfAborted()
+          limit.beforeModelRequest()
+        },
+        beforeStart: (created) => {
+          signal?.throwIfAborted()
+          session = created
+          limit.whenReached(() => void created.abort())
+          unsubscribe = created.subscribe((event) => {
+            if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
+            if (event.type === 'agent_start' && (signal?.aborted || limit.reached)) void created.abort()
+          })
+          options.onSessionCreated?.(created)
+        }
+      })
+      .then((created) => {
+        if (signal?.aborted) return created.dispose()
+        child = created
+      })
+    await Promise.race([creating, cancelled])
+    signal?.throwIfAborted()
+    starting = false
+    startupRuns.set(child!, { limit, replies, firstEntry, unsubscribe: unsubscribe! })
+    return child!
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+    if (starting) {
+      unsubscribe?.()
+      await child?.dispose()
+    }
+  }
 }
 
 /**
@@ -208,10 +249,12 @@ export async function openChild(input: {
  */
 class RequestLimit {
   private requests = 0
+  reached = false
   private onLimit: (() => void) | undefined
 
   readonly beforeModelRequest = () => {
     if (this.requests >= MAX_SUBAGENT_REQUESTS) {
+      this.reached = true
       this.onLimit?.()
       throw new Error(`The subagent reached its limit of ${MAX_SUBAGENT_REQUESTS} model requests`)
     }
@@ -223,8 +266,16 @@ class RequestLimit {
   }
 }
 
-/** The cap of each session `openChild` built; a subagent session serves one run. */
-const requestLimits = new WeakMap<AgentRuntimeSession, RequestLimit>()
+/** Startup observations handed to the session's single subagent run. */
+const startupRuns = new WeakMap<
+  AgentRuntimeSession,
+  {
+    limit: RequestLimit
+    replies: AssistantMessage[]
+    firstEntry: number
+    unsubscribe: () => void
+  }
+>()
 
 export const zeroUsage = (): Usage => ({
   input: 0,
@@ -292,15 +343,16 @@ export async function runSubagent(
   inbox: SubagentInbox
 ): Promise<RunResult> {
   const { session } = child
-  const firstEntry = session.sessionManager.getEntryCount()
-  let stopped: 'aborted' | 'limit_reached' | undefined
+  const startup = startupRuns.get(child)!
+  startup.unsubscribe()
+  const { firstEntry, replies, limit } = startup
+  let stopped: 'aborted' | 'limit_reached' | undefined = limit.reached ? 'limit_reached' : undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
     stopped ??= reason
     void session.abort()
   }
-  requestLimits.get(child)?.whenReached(() => stop('limit_reached'))
+  limit.whenReached(() => stop('limit_reached'))
   // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
-  const replies: AssistantMessage[] = []
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
     // Pi drops an abort made before it starts preparing the run (while `input` handlers run); repeat it once live.
@@ -311,9 +363,9 @@ export async function runSubagent(
   let error: string | undefined
   try {
     if (signal.aborted) stop('aborted')
-    else if ('prompt' in start)
+    else if (!stopped && 'prompt' in start)
       await session.prompt(start.prompt, { expandPromptTemplates: false, source: 'extension' })
-    else await runMessages(child, [start.message])
+    else if (!stopped && 'message' in start) await runMessages(child, [start.message])
     // Messages that came while the run settled start the next run on the same session.
     while (!stopped && inbox.hasPending()) await runMessages(child, inbox.take())
   } catch (thrown) {
