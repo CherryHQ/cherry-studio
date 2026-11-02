@@ -10,9 +10,7 @@ Cherry 需要观察子智能体、管理委派工作，并在 harness 支持时�
 
 [当前运行时契约](2026-10-17-agent-runtime-contract.md)要求 `Delegation.child` 和 `ThreadHandle.submit` 必须存在。这些要求无法直接表达“可以观察委派，但没有公开子会话”或“可以观察子会话，但不能通过该访问入口输入”的情况。本文记录 Pi 的接入选择和公共契约的扩展提案，不改变已经实现的 v0 API，也不表示已经接入桌面应用。
 
-[AgentSessionDeliveryService](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/agentSession/AgentSessionDeliveryService.ts) 负责 Cherry 产品会话之间的消息投递。创建会话并投递第一条消息，不会因此建立子智能体的所有权、取消传播和资源清理语义。它不是子智能体控制器。
-
-本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
+[AgentSessionDeliveryService](../../../../src/main/ai/agentSession/AgentSessionDeliveryService.ts) 负责 Cherry 产品会话之间的消息投递。创建会话并投递第一条消息，不会因此建立子智能体的所有权、取消传播和资源清理语义。它不是子智能体控制器。
 
 ## Proposal
 
@@ -20,7 +18,7 @@ Cherry 需要观察子智能体、管理委派工作，并在 harness 支持时�
 
 继续使用 `packages/agent-runtime-pi` 中现有的子智能体实现。Cherry 有自己的 UI，当前选择不承担社区插件的 TUI 集成和终端交互假设带来的接入工作。这是一项集成决策，不表示所有社区插件都依赖 TUI 或无法无界面运行。社区实现仍可作为参考；若要改变该选择，需要针对具体可复用的执行接口，独立于其展示层进行评估。
 
-[Pi 子智能体扩展](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/subagent.ts)拥有子会话创建、续接、运行跟踪和结果交付职责，继续复用 Pi 原生会话、工具、执行循环和存储。Cherry 负责展示、权限和产品配置；扩展与公共运行时包不能依赖终端组件或 Cherry renderer 代码。[后台子智能体文档](https://github.com/CherryHQ/cherry-studio/pull/21693)维护 Pi 专属行为。
+[Pi 子智能体扩展](../../../../packages/agent-runtime-pi/src/subagent.ts)拥有子会话创建、续接、运行跟踪和结果交付职责，继续复用 Pi 原生会话、工具、执行循环和存储。Cherry 负责展示、权限和产品配置；扩展与公共运行时包不能依赖终端组件或 Cherry renderer 代码。[后台子智能体文档](../feature/2026-10-14-agent-runtime-background-subagent.md)维护 Pi 专属行为。
 
 ### 分开委派与会话
 
@@ -55,9 +53,9 @@ Cherry 需要观察子智能体、管理委派工作，并在 harness 支持时�
 
 | 实现 | 已核对的源码行为 | 尚存边界 |
 | --- | --- | --- |
-| Pi 适配器 | 自研扩展已有 `message_subagent`，而[公共访问入口](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/runtime.ts)拒绝向受管理子会话提交输入。 | 应通过扩展控制器接通输入，不能绕过它直接 prompt 它拥有的子会话。 |
-| Pi Durable 适配器 | [子会话访问入口](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/src/runtime.ts)已经暴露原生会话输入、观察和中断。 | 保留原生任务所有权、后台取消边界，以及 submit/interrupt 会启用整个 Harness 调度器的行为。 |
-| 适配器覆盖范围 | [Pi Durable 子会话测试](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/tests/runtime.test.ts)覆盖发现和独立观察。 | 它不能证明完整的子会话连续对话流程、统一 spawn/cancel 或桌面验收已经完成。 |
+| Pi 适配器 | 自研扩展已有 `message_subagent`，而[公共访问入口](../../../../packages/agent-runtime-pi/src/runtime.ts)拒绝向受管理子会话提交输入。 | 应通过扩展控制器接通输入，不能绕过它直接 prompt 它拥有的子会话。 |
+| Pi Durable 适配器 | [子会话访问入口](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)已经暴露原生会话输入、观察和中断。 | 保留原生任务所有权、后台取消边界，以及 submit/interrupt 会启用整个 Harness 调度器的行为。 |
+| 适配器覆盖范围 | [Pi Durable 子会话测试](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts)覆盖发现和独立观察。 | 它不能证明完整的子会话连续对话流程、统一 spawn/cancel 或桌面验收已经完成。 |
 
 Pi Durable 拥有的子上下文是原生会话。工具调用内的 `api.conversation()` 句柄随本次调用结束而失效，宿主访问使用 `harness.conversation(id)`。Pi Durable 1.3.0 的前台与后台子智能体示例展示了不同的所有权边界；能够继续输入，不等于已经安排了向父方报告结果。即使公共操作名称相同，这些原生差异仍然有效。
 

@@ -59,10 +59,24 @@ async function saveNote(store: ToolOutputStore, file: Parameters<ToolOutputStore
 }
 
 /**
+ * The marker that replaces `text` once it passes the threshold, its full text saved through the
+ * store; `undefined` while it fits.
+ */
+export async function offloadText(
+  { store, thresholdChars }: ToolOutputOffload,
+  text: string,
+  origin: { toolCallId: string; toolName: string }
+): Promise<string | undefined> {
+  if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) return undefined
+  const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
+  return offloadMarker(text, await saveNote(store, { name, content: text, ...origin }))
+}
+
+/**
  * Saves oversized tool output through the host store and gives the model a marker instead, so one
  * result cannot overflow the context. The transcript keeps the marker: it is what the model saw.
  */
-export function toolOutputOffloadExtension({ store, thresholdChars }: ToolOutputOffload): ExtensionFactory {
+export function toolOutputOffloadExtension(offload: ToolOutputOffload): ExtensionFactory {
   return (pi) => {
     pi.on('tool_result', async (event) => {
       // Errors stay readable; nested calls reach the model only through their caller; `read`
@@ -84,18 +98,12 @@ export function toolOutputOffloadExtension({ store, thresholdChars }: ToolOutput
           if (textPart.type === 'text') texts.push(textPart.text)
         }
         const text = texts.join('\n')
-        if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) {
+        const marker = await offloadText(offload, text, { toolCallId: event.toolCallId, toolName: event.toolName })
+        if (marker === undefined) {
           content.push(...event.content.slice(start, index))
           continue
         }
-        const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
-        const note = await saveNote(store, {
-          name,
-          content: text,
-          toolCallId: event.toolCallId,
-          toolName: event.toolName
-        })
-        content.push({ type: 'text', text: offloadMarker(text, note) })
+        content.push({ type: 'text', text: marker })
         changed = true
       }
       if (!changed) return undefined
