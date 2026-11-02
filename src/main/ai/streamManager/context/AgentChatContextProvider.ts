@@ -1,9 +1,10 @@
-import type { UIMessage } from 'ai'
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
+
+import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
@@ -15,7 +16,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
-import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
+import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'

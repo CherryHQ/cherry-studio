@@ -7,7 +7,7 @@ import { afterAll, expect, it } from 'vitest'
 import { runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { PiMessageMetadata } from '@main/ai/runtime/pi/PiMessageMetadata'
 
 import { RootMessageProjection } from '../RootMessageProjection'
@@ -36,7 +36,7 @@ it.each([
       .values({ id: workspaceId, name: 'Cost', type: 'user', path: '/test', orderKey: 'a0' })
       .run()
     dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Cost', orderKey: 'a0' }).run()
-    const context = contexts.preparePiBranch(sessionId)
+    const context = preparePiBranch(sessionId)
     const history = Array.from(
       { length: historySize },
       (_, index) =>

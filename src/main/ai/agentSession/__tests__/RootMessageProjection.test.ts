@@ -8,7 +8,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode'
 import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
