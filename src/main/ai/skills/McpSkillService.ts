@@ -249,7 +249,7 @@ export class McpSkillService extends BaseService {
 
   private observe(session: SkillSession, entry: McpSkillEntry): void {
     const held = session.skills.get(keyOf(entry.serverId, entry.uri))
-    if (held?.loaded && !isDeepStrictEqual(manifestOf(held.entry), manifestOf(entry))) {
+    if (held && !isDeepStrictEqual(manifestOf(held.entry), manifestOf(entry))) {
       this.invalidate(held)
     }
   }

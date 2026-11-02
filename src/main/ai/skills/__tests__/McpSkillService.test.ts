@@ -650,6 +650,59 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
   })
 
+  it.each([
+    { source: 'picker', replacement: true },
+    { source: 'session', replacement: true },
+    { source: 'get', replacement: true },
+    { source: 'picker', replacement: false }
+  ])(
+    'handles $source discovery during an initial load (replacement: $replacement)',
+    async ({ source, replacement }) => {
+      const reading = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const originalText = String(fixture.files.get(fixture.uri))
+      const createServer = fixture.createServer.bind(fixture)
+      vi.spyOn(fixture, 'createServer').mockImplementation(() => {
+        const server = createServer()
+        server.setRequestHandler('resources/read', async ({ params }) => {
+          reading.resolve()
+          await release.promise
+          return { contents: [{ uri: params.uri, text: originalText }], ttlMs: 0, cacheScope: 'private' }
+        })
+        return server
+      })
+      const input = { server_id: serverId, skill_uri: fixture.uri }
+      const approval = skills.toolApproval(sessionId, 'mcp__skills__load_mcp_skill', input, 'default')!
+      const pending = skills
+        .loadFromTool(sessionId, { ...input, ...approval.approve() }, new AbortController().signal)
+        .then(
+          (value) => ({ value, rejected: false }),
+          () => ({ value: undefined, rejected: true })
+        )
+      try {
+        await reading.promise
+        if (replacement) {
+          fixture.files.set(fixture.uri, `${originalText}Replacement instructions.\n`)
+          fixture.refresh()
+        }
+        if (source === 'picker') await application.get('McpCatalogService').listSkills(serverId)
+        else if (source === 'session') await skills.list(sessionId)
+        else await skills.get(sessionId, serverId, fixture.uri)
+      } finally {
+        release.resolve()
+      }
+      const result = await pending
+      expect(result.rejected).toBe(replacement)
+      if (replacement) {
+        expect(result.value).toBeUndefined()
+        expect(agentSessionMessageService.listMcpSkills(sessionId)).toEqual([])
+      } else {
+        expect(result.value?.content.text).toBe(originalText)
+        expect(agentSessionMessageService.listMcpSkills(sessionId)).toMatchObject([{ invalidated: false }])
+      }
+    }
+  )
+
   it.each(['picker', 'session'] as const)(
     'invalidates persisted skills and pending execution approval on %s catalog replacement',
     async (source) => {
