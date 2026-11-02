@@ -137,6 +137,20 @@ describe('detectDestructiveAssistantCommand', () => {
     ['& (Get-Command -Name:del) victim.txt', 'permanent Windows file deletion'],
     ['& (Get-Command -Name:erase) victim.txt', 'permanent Windows file deletion'],
     ['& (gcm -Name:rd) victimdir', 'permanent Windows file deletion'],
+    // Colon-valued options before the name: `-ErrorAction:Stop del` parses the value with
+    // the flag (about_Parameters allows space or colon), so the positional name still
+    // resolves and the lookup keeps the deny. Long flag runs and long values stay covered
+    // with no cap boundary (memoized scanner, not a bounded regex run).
+    ['& (Get-Command -ErrorAction:Stop del) victim.txt', 'permanent Windows file deletion'],
+    ['& (gcm -CommandType:Alias -Name:del) victim.txt', 'permanent Windows file deletion'],
+    ['Get-Command -ListImported:$true del', 'permanent Windows file deletion'],
+    ['& (Get-Command -a -b -c -d -e -f -g -h -i del) victim.txt', 'permanent Windows file deletion'],
+    ['& (Get-Command -Module AVeryLongModuleNameExceedingThirtyTwoCharsIndeed del) victim.txt', 'permanent Windows file deletion'],
+    // Quoted colon-bound names keep the deny; quoted names that merely start with a
+    // deletion token stay allowed on the token boundary.
+    ['& (Get-Command -Name:"del") victim.txt', 'permanent Windows file deletion'],
+    ["& (Get-Command -Name:'erase') victim.txt", 'permanent Windows file deletion'],
+    ['& (gcm -All -Name:"rd") victimdir', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
@@ -232,6 +246,22 @@ describe('detectDestructiveAssistantCommand', () => {
     }
     // The spaced-@ tail still detects after a long whitespace run.
     expect(detectDestructiveAssistantCommand('cmd /c ' + ' '.repeat(2000) + '@ del /q v.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+
+  it('stays linear on repeated lookup starts (lookup suffix-rescan regression)', () => {
+    // Every `gcm` occurrence used to rescan its suffix in the regex flag run: quadratic.
+    // The memoized scanner resolves each position once.
+    const probe = 'echo "' + 'gcm -x '.repeat(50_000) + '"'
+    expect(probe.length).toBeGreaterThan(300_000)
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(probe)).toBeUndefined()
+    // The quadratic form took ~8s here (measured 3.3s at 32k repeats); memoized is a few ms.
+    // 2s is generous CI headroom.
+    expect(performance.now() - start).toBeLessThan(2000)
+    // The colon-valued option form still detects after the memoized walk.
+    expect(detectDestructiveAssistantCommand('& (Get-Command -ErrorAction:Stop del) victim.txt)')).toBe(
       'permanent Windows file deletion'
     )
   })

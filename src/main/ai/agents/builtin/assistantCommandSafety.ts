@@ -151,11 +151,7 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // deeper nesting stays a documented best-effort gap), and compound operators
 // like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
 // `iex`/`Invoke-Expression`, `in` (a `foreach ($i in <collection>)` collection expression
-// evaluates a command in that position before the loop body runs), a `Get-Command`/`gcm`
-// name lookup with optional flags or flag/value pairs between the cmdlet and the token, with a space or colon between parameter name and value (the
-// resolved `del`/`erase`/`rd` runs when the lookup result is invoked through the call
-// operator, e.g. `& (Get-Command -Name del) x`; the listing-only spelling over-denies
-// conservatively, matching the pre-narrowing guard), and dot invocation `. del x` - the dot anchor requires a
+// evaluates a command in that position before the loop body runs), and dot invocation `. del x` - the dot anchor requires a
 // command-position predecessor (start, whitespace, quote, `@` or a separator), so a sentence
 // period in prose like `cleanup. erase` does not anchor), and the token itself may be followed by
 // adjacent redirections (`del>nul x`), and the deletion token may close an executable statement or
@@ -170,7 +166,7 @@ const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-
 // Native execution ordering for read-only targets is unverified here; the deny direction
 // conservatively assumes the right-hand side may run, matching the `$null = del x` form's intent.
 const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
-  String.raw`(?:(?:^|[;&|(){` +
+  String.raw`(?:^|[;&|(){` +
     '`' +
     String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["']|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|in|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'` +
     '`' +
@@ -186,7 +182,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1|\b(?:Get-Command|gcm)(?=((?:\s+-[A-Za-z]+(?:\s+[^\s;&|(){}"'-][^\s;&|(){}]*)?)*(?:[\s:"']|@)+))\2)(?:del|erase|rd)(?=\s|$|["'(]|>>?|<|[;|}&)])`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<|[;|}&)])`,
   'i'
 )
 
@@ -326,6 +322,115 @@ function longGlueStartDeletion(s: string): boolean {
   return false
 }
 
+const SCAN_VALUE_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
+// Linear scanner for the Get-Command/gcm lookup family: `Get-Command -Name del`,
+// `Get-Command -Name:del`, `& (Get-Command -ErrorAction:Stop del) x`,
+// `& (gcm -CommandType:Alias -Name:del) x` and `Get-Command -ListImported:$true del`
+// all resolve `del`/`erase`/`rd` to the destructive command, which runs when the lookup
+// result is invoked through the call operator (about_Operators); a parameter name and
+// value may be separated by a space or a colon (about_Parameters). The listing-only
+// spelling over-denies conservatively, matching the pre-narrowing guard. A flag run of
+// any length and values of any length stay covered - unlike a bounded regex run there is
+// no cap boundary - and per-position memoization keeps repeated `gcm -x ` adversaries
+// O(n) total instead of one overlapping suffix rescan per occurrence. The token itself
+// must follow the regex's following boundary, so `-Name delivery` / `-Name erased`
+// stay allowed and the comma-joined list form stays a documented open gap.
+function getCommandLookupDeletion(s: string): boolean {
+  const n = s.length
+  const tailOk = (i: number): boolean => {
+    if (i >= n) return true
+    const c = s[i]
+    return (
+      SCAN_WS.test(c) ||
+      c === '"' ||
+      c === "'" ||
+      c === '(' ||
+      c === ')' ||
+      c === '>' ||
+      c === '<' ||
+      c === ';' ||
+      c === '|' ||
+      c === '}' ||
+      c === '&'
+    )
+  }
+  const tokenAt = (i: number): boolean => {
+    for (const w of ['erase', 'del', 'rd']) {
+      if (scanWordAt(s, i, w)) {
+        const e = i + w.length
+        if (e >= n || !isScanWord(s[e])) return tailOk(e)
+      }
+    }
+    return false
+  }
+  // Memoized flag-chain reachability: good(e) = some flags/values continuation from e
+  // lands on the deletion token. Every transition consumes at least one character and
+  // each position is resolved once, so the whole walk stays O(n).
+  const memo = new Map<number, boolean>()
+  function good(e0: number): boolean {
+    let cur = e0
+    const path: number[] = []
+    while (true) {
+      const m = memo.get(cur)
+      if (m !== undefined) {
+        for (const p of path) memo.set(p, m)
+        return m
+      }
+      path.push(cur)
+      let j = cur
+      while (j < n && (SCAN_WS.test(s[j]) || SCAN_GAP.has(s[j]) || s[j] === ':')) j++
+      if (j === cur || j >= n) {
+        for (const p of path) memo.set(p, false)
+        return false
+      }
+      if (tokenAt(j)) {
+        for (const p of path) memo.set(p, true)
+        return true
+      }
+      if (s[j] === '-') {
+        let k = j + 1
+        while (k < n && ((s[k] >= 'a' && s[k] <= 'z') || (s[k] >= 'A' && s[k] <= 'Z'))) k++
+        if (k === j + 1) {
+          for (const p of path) memo.set(p, false)
+          return false
+        }
+        if (k < n && s[k] === ':') {
+          k++
+          // Colon-bound name: the token check wins over value consumption, mirroring the
+          // space-bound form's token-first rule, and the colon's gap mirrors the main
+          // walk so quoted names (`-Name:"del"`, `-Name:'del'`) keep the deny. Fallback
+          // value consumption still starts at the original position.
+          let g = k
+          while (g < n && (SCAN_WS.test(s[g]) || SCAN_GAP.has(s[g]) || s[g] === ':')) g++
+          if (g < n && tokenAt(g)) {
+            for (const p of path) memo.set(p, true)
+            return true
+          }
+          while (k < n && !SCAN_WS.test(s[k]) && !SCAN_VALUE_SEP.has(s[k])) k++
+        }
+        cur = k
+      } else if (!SCAN_VALUE_SEP.has(s[j])) {
+        let k = j
+        while (k < n && !SCAN_WS.test(s[k]) && !SCAN_VALUE_SEP.has(s[k])) k++
+        cur = k
+      } else {
+        for (const p of path) memo.set(p, false)
+        return false
+      }
+    }
+  }
+  for (let a = 0; a + 3 <= n; a++) {
+    let wlen = 0
+    if (scanWordAt(s, a, 'get-command')) wlen = 11
+    else if (scanWordAt(s, a, 'gcm')) wlen = 3
+    else continue
+    if (a > 0 && isScanWord(s[a - 1])) continue
+    if (a + wlen < n && isScanWord(s[a + wlen])) continue
+    if (good(a + wlen)) return true
+  }
+  return false
+}
+
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
     reason: 'permanent file deletion',
@@ -384,7 +489,9 @@ export function detectDestructiveAssistantCommand(command: string): string | und
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
   return (
     DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason ??
-    (longGlueStartDeletion(normalized) ? 'permanent Windows file deletion' : undefined)
+    (longGlueStartDeletion(normalized) || getCommandLookupDeletion(normalized)
+      ? 'permanent Windows file deletion'
+      : undefined)
   )
 }
 
