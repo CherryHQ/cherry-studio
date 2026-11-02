@@ -44,6 +44,7 @@ import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGatew
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
+import { withGoogleReplayIdentity } from './piGoogleReplay'
 import { projectPiReasoningCompat } from './piReasoningCompat'
 import { withReasoningSummarySuppressed } from './piResponsesReasoning'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple, loadPiOpenAiResponsesApi } from './piSdk'
@@ -132,9 +133,13 @@ export async function materializePiProviderStream(injection: PiProviderInjection
       : injection.suppressReasoningSummary
         ? withReasoningSummarySuppressed(injection.providerConfig, (await loadPiOpenAiResponsesApi()).streamSimple)
         : injection.providerConfig
+  const streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
   return {
     providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    streamSimple:
+      injection.api === 'google-generative-ai'
+        ? withGoogleReplayIdentity(streamSimple, injection.providerName)
+        : streamSimple
   }
 }
 
@@ -187,7 +192,7 @@ export function buildPiProviderInjection(
     ? formatApiHost(resolvedEndpoint.baseUrl, false)
     : projectPiGatewayBaseUrl(provider, api, formatPiBaseUrl(resolvedEndpoint.baseUrl, api))
   const modelId = getRawModelId(model)
-  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType, baseUrl)
 
   const providerConfig: PiProviderInjection['providerConfig'] = {
     name: provider.name,
@@ -273,9 +278,10 @@ export function buildPiGatewayInjection(
       : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
   if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gatewayApi = api && api !== 'azure-openai-responses' ? api : 'openai-completions'
+  const baseUrl = formatPiBaseUrl(gateway.baseUrl, gatewayApi)
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
-  const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType, baseUrl)
   const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
 
   return {
@@ -284,7 +290,7 @@ export function buildPiGatewayInjection(
     suppressReasoningSummary: false,
     providerConfig: {
       name: provider.name,
-      baseUrl: formatPiBaseUrl(gateway.baseUrl, gatewayApi),
+      baseUrl,
       apiKey: PI_PLACEHOLDER_API_KEY,
       api: gatewayApi,
       ...(headers ? { headers } : {}),
@@ -449,12 +455,19 @@ function buildThinkingLevelMap(model: Model): PiChatModelConfig['thinkingLevelMa
   return map
 }
 
+function targetsGoogleGenerativeLanguage(baseUrl: string): boolean {
+  const url = URL.parse(baseUrl)
+  if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) return false
+  return url.hostname.toLowerCase().replace(/\.$/, '') === 'generativelanguage.googleapis.com'
+}
+
 function buildPiModelConfig(
   provider: Provider,
   model: Model,
   id: string,
   api: PiApi,
-  endpointType: EndpointType | undefined
+  endpointType: EndpointType | undefined,
+  baseUrl: string
 ): PiChatModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
@@ -469,6 +482,7 @@ function buildPiModelConfig(
       ? projectPiReasoningCompat(providerRegistryService.resolveReasoningProfile(provider, model, endpointType))
       : {}
   const compat = {
+    ...(api === 'openai-completions' && targetsGoogleGenerativeLanguage(baseUrl) ? { supportsStore: false } : {}),
     // Cherry's endpoint capability overrides pi's URL-based developer-role inference.
     ...(api === 'openai-completions' || api === 'openai-responses'
       ? { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole }

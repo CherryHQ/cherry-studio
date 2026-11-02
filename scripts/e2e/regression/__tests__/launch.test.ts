@@ -47,7 +47,7 @@ it.each(['macos', 'windows'] as const)(
         process.execPath,
         join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
         '--',
-        '--inspect',
+        '--inspect=9229',
         '--sourcemap',
         '--remote-debugging-port=9222',
         '--disable-backgrounding-occluded-windows'
@@ -106,6 +106,30 @@ it('starts Windows installers with both owned inspector and renderer CDP ports',
   } finally {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('refuses to launch when another process owns the inspector port', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-owned-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  execFileSync.mockImplementation((file: string, args: string[]) =>
+    file === 'lsof' && args[1] === '-iTCP:9229' ? '9999' : ''
+  )
+  try {
+    await expect(
+      launchApp(paths, {
+        mode: 'branch',
+        platform: 'macos',
+        profile: 'clean',
+        targetRoot: directory,
+        runKey: 'inspector-owned'
+      })
+    ).rejects.toThrow('Inspector port 9229 is already owned by process 9999')
+    expect(spawn).not.toHaveBeenCalled()
+  } finally {
+    vi.restoreAllMocks()
     rmSync(directory, { recursive: true, force: true })
   }
 })

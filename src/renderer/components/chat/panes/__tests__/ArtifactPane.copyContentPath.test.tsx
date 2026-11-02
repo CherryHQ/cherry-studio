@@ -1,8 +1,14 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import React from 'react'
+import React, { type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import type * as CommandModule from '@renderer/components/command'
+import {
+  type CommandContextMenuExtraItem,
+  CommandContextKeyProvider,
+  CommandProvider
+} from '@renderer/components/command'
+import type * as OpenTargetModule from '@renderer/components/OpenTarget'
 import i18n from '@renderer/i18n/resolver'
 
 import { ARTIFACT_PREVIEW_MAX_SIZE_BYTES, ArtifactPaneView } from '../ArtifactPane'
@@ -27,10 +33,38 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+// Renders the breadcrumb menu's items inline; the real menu is native-only in tests.
+vi.mock('@renderer/components/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandModule>()),
+  CommandContextMenu: ({
+    children,
+    extraItems
+  }: {
+    children: ReactNode
+    extraItems?: readonly CommandContextMenuExtraItem[]
+  }) => (
+    <>
+      {children}
+      {(extraItems ?? [])
+        .flatMap((item) => (item.type === 'submenu' ? item.children : [item]))
+        .map((item) =>
+          item.type === 'item' ? (
+            <button key={item.id} type="button" role="menuitem" onClick={() => item.onSelect()}>
+              {item.label}
+            </button>
+          ) : null
+        )}
+    </>
+  )
+}))
 
-vi.mock('@renderer/components/OpenTarget', () => ({
+vi.mock('@renderer/components/OpenTarget', async (importOriginal) => ({
+  ...(await importOriginal<typeof OpenTargetModule>()),
   OpenTargetButton: () => null,
   loadOpenTargetMenuItems: async () => []
+}))
+vi.mock('@renderer/hooks/useExternalOpenTargets', () => ({
+  useExternalOpenTargets: () => ({ targets: [], openTarget: async () => undefined })
 }))
 
 type Meta = { kind: 'file'; type: 'text'; size: number; createdAt: number; modifiedAt: number; mime: string }
@@ -81,8 +115,6 @@ function model(): ArtifactFileTreeModel {
     expandedIds: new Set(),
     errorKind: undefined,
     onExpandedChange: vi.fn(),
-    refresh: vi.fn(),
-    reloadExpandedDirectories: vi.fn(),
     expandDirectory: vi.fn(),
     collapseDirectory: vi.fn()
   } as unknown as ArtifactFileTreeModel
@@ -114,6 +146,7 @@ describe('ArtifactPane Copy Content uses the selected file', () => {
   let originalLanguage = i18n.language
 
   beforeEach(async () => {
+    Element.prototype.scrollIntoView = vi.fn()
     originalLanguage = i18n.language
     clipboard.value = ''
     await i18n.changeLanguage('en-US')
@@ -162,8 +195,8 @@ describe('ArtifactPane Copy Content uses the selected file', () => {
     renderPreview(scenario.workspacePath, scenario.filePath)
     await waitFor(() => expect(metadata.pending.length).toBeGreaterThan(0))
     await metadata.settle()
-    expect(screen.queryByRole('button', { name: 'Copy Content' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Copy Path' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Absolute Path' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'File Content' })).toBeNull()
   })
 
   // A missing sibling must not hide Copy Content for a small selected text file.
@@ -198,7 +231,7 @@ describe('ArtifactPane Copy Content uses the selected file', () => {
     renderPreview(scenario.workspacePath, scenario.filePath)
     await waitFor(() => expect(metadata.pending.length).toBeGreaterThan(0))
     await metadata.settle()
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy Content' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'File Content' }))
     await waitFor(async () => expect(await navigator.clipboard.readText()).toBe(selectedContent))
   })
 })
