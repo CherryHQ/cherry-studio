@@ -7,6 +7,7 @@ import { CommandFocusScope } from '@renderer/components/command'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
+import { presentedRouteService } from '@renderer/services/PresentedRouteService'
 import type { AppRouter } from '@renderer/types/router'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
@@ -44,14 +45,16 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
 
   // Sync internal navigation back to tab state
   useEffect(() => {
+    if (isActive) presentedRouteService.recordPresentedRoute(router.state.location.href)
     return router.subscribe('onResolved', ({ toLocation }) => {
+      if (isActive) presentedRouteService.recordPresentedRoute(toLocation.href)
       const nextHref = toLocation.href
       setTransitionUrl(null)
       if (nextHref !== tab.url) {
         onUrlChange(nextHref)
       }
     })
-  }, [router, tab.url, onUrlChange])
+  }, [isActive, router, tab.url, onUrlChange])
 
   // Navigate when tab.url changes externally (e.g., from Sidebar)
   useEffect(() => {

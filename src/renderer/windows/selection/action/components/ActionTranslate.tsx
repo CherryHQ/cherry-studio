@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import CopyButton from '@renderer/components/CopyButton'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -149,7 +150,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
 
   const [isDetecting, setIsDetecting] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
-  const [completionError, setCompletionError] = useState<string | null>(null)
+  const [completionError, setCompletionError] = useState<{ message: string; cause: unknown } | null>(null)
 
   const {
     translate: runTranslate,
@@ -191,7 +192,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   }, [isTranslating, translationParts])
 
   const isStreaming = isTranslating || isDetecting || isPreparing
-  const error = completionError
+  const error = completionError?.message ?? null
 
   const clear = useCallback(() => {
     cancelTranslate()
@@ -231,7 +232,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
       await runTranslate(selectedText, translateLang)
     } catch (err) {
       setContent('')
-      setCompletionError(getSelectionActionErrorMessage(err, t))
+      setCompletionError({ message: getSelectionActionErrorMessage(err, t), cause: err })
     } finally {
       setIsPreparing(false)
     }
@@ -440,9 +441,15 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
             </Suspense>
           )}
         </div>
-        {error && (
+        {error && completionError && (
           <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
-            {error}
+            <div>{error}</div>
+            <ErrorDetailAction
+              error={completionError.cause}
+              message={error}
+              source="selection"
+              operation="selection.translate"
+            />
           </div>
         )}
       </div>
