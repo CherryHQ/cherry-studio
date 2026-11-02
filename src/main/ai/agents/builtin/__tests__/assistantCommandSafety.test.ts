@@ -745,6 +745,27 @@ describe('detectDestructiveAssistantCommand', () => {
     )
   })
 
+  it('denies variable-rooted static-member assignment forms (round-19 review finding)', () => {
+    // Shipped main's broader guard denies static member access rooted at a variable holding a
+    // type literal; every earlier revision of this PR (through v29) allowed them - a real
+    // regression versus main. Native execution of each form is unverified here; the deny
+    // direction conservatively matches main's behavior.
+    for (const cmd of [
+      '$t = [Console]; $t::Title = del victim.txt',
+      '$t::Title = del victim.txt',
+      '$t::"Title" = del victim.txt',
+      '$t::("Title") = del victim.txt',
+      '$t :: Title = del victim.txt',
+      '${t}::Title = del victim.txt',
+      '$t::Title . x = del victim.txt'
+    ]) {
+      expect(detectDestructiveAssistantCommand(cmd)).toBe('permanent Windows file deletion')
+    }
+    // Boundary: drive-qualified variables and plain assignments stay covered by the pre-existing
+    // alternatives; the new static chain must not swallow them differently than main does.
+    expect(detectDestructiveAssistantCommand('$env:x = del victim.txt')).toBe('permanent Windows file deletion')
+  })
+
   it('keeps quoted-start temper denies linear with word-glued titles intact (Path A v28)', () => {
     // Embedded command-position start inside a quoted argument still anchors its own scan.
     expect(detectDestructiveAssistantCommand('start "aa start /b" foo del victim.txt')).toBe(
