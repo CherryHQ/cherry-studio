@@ -13,7 +13,7 @@ on:
     types: [ready_for_review, synchronize, opened, reopened]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -45,9 +45,12 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
+          REF: ${{ github.ref }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             node scripts/validation/run.mjs --committed --base HEAD^1 --github-output
+          elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/main" ]]; then
+            node scripts/validation/run.mjs --all --github-output
           elif [[ "$EVENT_NAME" == "push" && -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
             if git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
               node scripts/validation/run.mjs --committed --base "$BEFORE_SHA" --github-output
@@ -61,10 +64,10 @@ jobs:
       - name: "Validation scope: ${{ steps.plan.outputs.scope }}"
         run: ":"
 
-  basic-checks:
+  repository-checks:
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    if: needs.changes.outputs.repository == 'true'
     env:
       TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
@@ -108,9 +111,8 @@ jobs:
 
       - uses: ./.github/actions/setup-validation
         id: dependencies
-        if: "!cancelled() && (needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true' || needs.changes.outputs.lint == 'true' || needs.changes.outputs.i18n == 'true')"
         with:
-          save-cache: ${{ github.event_name != 'pull_request' }}
+          save-cache: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
 
@@ -158,24 +160,55 @@ jobs:
             exit 1
           fi
 
-      # The marker covers every repository guard above, including generation/drift checks.
-      - name: Record repository success
-        id: repository-result
-        if: needs.changes.outputs.repository == 'true' && steps.repository-checks.outcome == 'success'
+  type-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.types == 'true'
+    env:
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - name: Type checks
-        id: type-checks
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.types == 'true'"
-        run: pnpm check --group types
+      - name: Prepare type declarations
+        run: pnpm --filter @cherrystudio/ai-sdk-provider build
+      - name: Types checks
+        run: pnpm check --group types --prepared
 
+  lint-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    env:
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - name: Lint checks
-        id: lint-checks
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.lint == 'true'"
         run: pnpm check --group lint
 
+  i18n-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.i18n == 'true'
+    env:
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
       - name: Check locale synchronization
         id: i18n-sync
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
         run: |
           pnpm i18n:sync
           if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales)" ]; then
@@ -184,15 +217,17 @@ jobs:
             exit 1
           fi
       - name: I18n checks
-        id: i18n-checks
-        if: "!cancelled() && steps.i18n-sync.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
         run: pnpm check --group i18n
 
-      - name: Verify planned checks
-        if: "!cancelled()"
+  basic-checks:
+    runs-on: ubuntu-latest
+    needs: [changes, repository-checks, type-checks, lint-checks, i18n-checks]
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify planned jobs
         env:
           VALIDATION_JOBS: ${{ toJSON(needs) }}
-          VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: node scripts/validation/verify.mjs basic
 
   main-test-shard:
@@ -212,7 +247,9 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group main --shard=${{ matrix.shard }}/3
+      - name: Prepare Node SQLite
+        run: pnpm rebuild:node
+      - run: pnpm check --prepared --group main --shard=${{ matrix.shard }}/3
 
   renderer-test-shard:
     name: renderer-test (${{ matrix.shard }}/5)
@@ -231,7 +268,7 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group renderer --shard=${{ matrix.shard }}/5
+      - run: pnpm check --prepared --group renderer --shard=${{ matrix.shard }}/5
 
   package-test:
     runs-on: ubuntu-latest
@@ -245,7 +282,7 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group packages
+      - run: pnpm check --prepared --group packages
       - name: Check Web Search Package
         if: contains(fromJSON(needs.changes.outputs.plan).projects, 'web-search')
         run: pnpm --filter @cherrystudio/web-search test:package
@@ -269,13 +306,17 @@ jobs:
         run: brew install python-setuptools
       - uses: ./.github/actions/setup-validation
         id: dependencies
+        with:
+          save-cache: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         shell: bash
         run: ":"
+      - name: Prepare Node SQLite
+        run: pnpm rebuild:node
       - name: Platform contracts
         env:
           VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
-        run: pnpm check --group platform
+        run: pnpm check --prepared --group platform
 
   general-test:
     runs-on: ubuntu-latest

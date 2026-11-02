@@ -37,6 +37,12 @@ Required workspace packages are built before typechecks and tests; main tests re
 SQLite for Node. Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
+`--prepared` is for a fresh CI checkout whose successful installation has already built
+workspace exports. The workflow must also build AI SDK declarations before types and
+rebuild SQLite for Node before main/platform tests. It skips only preparation, never
+planned checks or tests. Local commands omit it so source edits and ABI changes are
+prepared again; this is not a persistent build cache or an output-existence shortcut.
+
 `VALIDATION_PLAN` lets CI execute the exact plan from its classification job.
 `--github-output` emits that plan and selected job groups without installing dependencies.
 Unknown tasks or groups fail before execution. Summary validation rejects failed,
@@ -45,13 +51,13 @@ cancelled, missing, or unexpectedly skipped jobs selected by the plan.
 ## CI
 
 PRs compare the checked-out merge commit with its first parent, so earlier commits
-remain covered. Pushes compare the event's before/after range. A daily schedule and
-manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
-are not cancelled. Pull requests targeting a parent stack branch also run CI.
+remain covered. Main pushes, daily schedules and manual dispatch run the full plan.
+Release pushes compare the event's before/after range. PR concurrency cancels
+superseded runs; non-PR runs use independent run-ID groups so pending pushes cannot
+replace each other. Pull requests targeting a parent stack branch also run CI.
 
-Repository, typecheck, lint and i18n groups share one dependency installation in
-`basic-checks`, with separate plan conditions and step outcomes; later groups still
-run after an earlier group fails. Main/preload retain
+Repository, typecheck, lint and i18n groups run independently on Ubuntu, depending
+only on classification. `basic-checks` aggregates their results. Main/preload retain
 three Linux shards; renderer retains five. Selected package tests run once in their
 own job. macOS/Windows retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
@@ -59,9 +65,14 @@ system speech); platform selection is deliberately conservative whenever main is
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
 accepts a skipped dependency only when the plan explicitly excludes it. The basic
-gate also checks all four group outcomes in the same job, rejecting missing or
-unexpectedly skipped work even if that job reports success. Schema drift,
+gate checks all four job results, rejecting missing or unexpectedly skipped work. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
+
+The shared setup action restores the pnpm content-addressed store on all jobs. Only
+the main repository and platform jobs save it, populating Linux/macOS/Windows caches
+without creating large PR-scoped archives. Explicit restore/save actions remain because
+setup-node caching has no restore-only switch. The cache contains neither node_modules
+nor workspace outputs; frozen installation and native preparation remain required.
 
 ## Performance observations
 

@@ -265,6 +265,52 @@ describe('validation execution', () => {
     }
   )
 
+  it('keeps local native preparation but does not rebuild a freshly prepared CI checkout', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-prepared-'))
+    directories.push(cwd)
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(
+      pnpm,
+      `
+      const fs = require('node:fs')
+      const path = require('node:path')
+      const [command, subcommand] = process.argv.slice(2)
+      const built = path.join(process.env.FIXTURE_ROOT, 'built')
+      const native = path.join(process.env.FIXTURE_ROOT, 'native')
+      if (command === 'run' && subcommand === 'postinstall') {
+        if (process.env.PREPARED) process.exit(41)
+        fs.writeFileSync(built, 'fresh')
+      } else if (command === 'rebuild:node') {
+        if (process.env.PREPARED) process.exit(42)
+        fs.writeFileSync(native, 'node')
+      } else if (command === 'exec' && subcommand === 'vitest') {
+        if (!fs.existsSync(built) || !fs.existsSync(native)) process.exit(43)
+        fs.writeFileSync(path.join(process.env.FIXTURE_ROOT, 'validated'), 'passed')
+      } else process.exit(44)
+    `
+    )
+    const env = {
+      ...process.env,
+      npm_execpath: pnpm,
+      FIXTURE_ROOT: cwd,
+      VALIDATION_PLAN: JSON.stringify({ tasks: [], projects: ['main'] })
+    }
+    const invoke = (prepared: boolean) =>
+      spawnSync(
+        process.execPath,
+        ['scripts/validation/run.mjs', '--group', 'main', ...(prepared ? ['--prepared'] : [])],
+        { env: { ...env, PREPARED: prepared ? 'true' : '' }, encoding: 'utf8' }
+      )
+    expect(invoke(false).status).toBe(0)
+    expect(readFileSync(join(cwd, 'validated'), 'utf8')).toBe('passed')
+    rmSync(join(cwd, 'validated'))
+    expect(invoke(true).status).toBe(0)
+    expect(readFileSync(join(cwd, 'validated'), 'utf8')).toBe('passed')
+    rmSync(join(cwd, 'native'))
+    expect(invoke(true).status).toBe(43)
+    expect(invoke(false).status).toBe(0)
+  })
+
   it('executes only planned read-only tasks and propagates command failures', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-run-'))
     directories.push(cwd)

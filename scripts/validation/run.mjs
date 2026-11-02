@@ -17,6 +17,7 @@ const { values } = parseArgs({
     committed: { type: 'boolean' },
     group: { type: 'string' },
     shard: { type: 'string' },
+    prepared: { type: 'boolean' },
     'github-output': { type: 'boolean' }
   }
 })
@@ -90,13 +91,13 @@ function run(args) {
   if (result.error) throw result.error
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
-if (tasks.some((task) => task.startsWith('types-')) || projects.length) {
+if (!values.prepared && (tasks.some((task) => task.startsWith('types-')) || projects.length)) {
   run(['run', 'postinstall'])
   if (tasks.some((task) => task.startsWith('types-'))) run(['--filter', '@cherrystudio/ai-sdk-provider', 'build'])
 }
 for (const task of tasks) run(checkTasks[task].args)
 if (projects.length) {
-  if (projects.includes('main')) run(['rebuild:node'])
+  if (!values.prepared && projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
       ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/system-speech'], {
