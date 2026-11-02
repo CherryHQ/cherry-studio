@@ -74,7 +74,7 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
-  const writesCliConfig = isModelConfiguredCli(selectedCliTool)
+  const writesCliConfig = isModelConfiguredCli(selectedCliTool) || selectedCliTool === CodeCli.OPENCLAW
 
   // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real

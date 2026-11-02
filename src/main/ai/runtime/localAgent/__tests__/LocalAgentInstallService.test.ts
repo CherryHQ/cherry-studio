@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -143,6 +144,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     )
   })
   afterEach(async () => {
+    MockApplicationUtils.resetServices()
     vi.unstubAllGlobals()
     await rm(state.root, { recursive: true, force: true })
   })
@@ -420,6 +422,21 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       reason: 'unsupported'
     })
     expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('manual installation')
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
+  it('preserves the OpenClaw installation when its Gateway cannot be safely stopped', async () => {
+    state.name = 'openclaw'
+    const executable = path.join(state.root, state.name)
+    await writeFile(executable, 'installed')
+    MockApplicationUtils.setService('OpenClawService', {
+      stopGateway: async () => ({ success: false, message: 'external Gateway' })
+    })
+    expect(await new LocalAgentInstallService().uninstall('openclaw', executable)).toEqual({
+      ok: false,
+      reason: 'busy'
+    })
+    expect(await readFile(executable, 'utf8')).toBe('installed')
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 

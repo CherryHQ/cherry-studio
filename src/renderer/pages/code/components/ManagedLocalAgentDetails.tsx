@@ -4,15 +4,20 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { AgentWebUiControl } from '@renderer/components/localAgent/AgentWebUiControl'
-import { CodeCli } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import { useCodeCliPageViewProps } from '../hooks/useCodeCliPageViewProps'
 import { CodeCliDialogs } from './CodeCliPageView'
 import { LocalAgentDetails } from './LocalAgentDirectory'
 
-export function DeepSeekHarnessAgentDetails(props: ComponentProps<typeof LocalAgentDetails>) {
+export function ManagedLocalAgentDetails({
+  tool,
+  ...props
+}: ComponentProps<typeof LocalAgentDetails> & {
+  tool: CodeCli.DEEPSEEK_HARNESS | CodeCli.OPENCLAW
+}) {
   const { t } = useTranslation()
-  const view = useCodeCliPageViewProps(CodeCli.DEEPSEEK_HARNESS)
+  const view = useCodeCliPageViewProps(tool)
   const content = view.contentProps!
   const web = content.versionCard
   return (

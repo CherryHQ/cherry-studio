@@ -63,6 +63,8 @@ type Terminal = {
 
 export class AcpConnection extends LocalConnection {
   private gatewayLease?: { dispose: () => void }
+  private openClawLease?: { dispose: () => Promise<void> }
+  private releasingOpenClaw?: Promise<void>
   private defaultModel?: string
   private stderr = ''
   private promptCapabilities: PromptCapabilities = {}
@@ -102,6 +104,22 @@ export class AcpConnection extends LocalConnection {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
     if (!probe && this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
       launch.nativeModel = await application.get('DeepSeekHarnessService').prepareAgent()
+    }
+    if (
+      this.config.presetId === 'openclaw' &&
+      !this.config.env.OPENCLAW_STATE_DIR &&
+      !this.config.env.OPENCLAW_CONFIG_PATH &&
+      !this.config.env.OPENCLAW_GATEWAY_URL &&
+      !launch.args.some((arg) => arg === '--url' || arg.startsWith('--url='))
+    ) {
+      const lease = await application.get('OpenClawService').acquireGateway(this.abort.signal)
+      if (this.abort.signal.aborted) {
+        await lease.dispose()
+        this.abort.signal.throwIfAborted()
+      }
+      this.openClawLease = lease
+      launch.env.OPENCLAW_GATEWAY_URL = lease.url
+      if (lease.token) launch.env.OPENCLAW_GATEWAY_TOKEN = lease.token
     }
     if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.defaultModel = this.config.nativeModel ?? launch.nativeModel
@@ -414,7 +432,10 @@ export class AcpConnection extends LocalConnection {
       protocolVersion: response.protocolVersion,
       agent: this.localSessionInfo.protocolInfo.agent
     })
-    const supportsResume = response.agentCapabilities?.sessionCapabilities?.resume != null
+    // OpenClaw resume loses bridge UUID mappings across processes; load reads its persisted ledger.
+    const supportsResume =
+      response.agentCapabilities?.sessionCapabilities?.resume != null &&
+      !(this.config.presetId === 'openclaw' && response.agentCapabilities?.loadSession === true)
     this.supportsClose = response.agentCapabilities?.sessionCapabilities?.close != null
     this.localSessionInfo.resume = supportsResume || response.agentCapabilities?.loadSession === true
     this.promptCapabilities = response.agentCapabilities?.promptCapabilities ?? {}
@@ -824,7 +845,15 @@ export class AcpConnection extends LocalConnection {
     this.clearCompaction()
     this.gatewayLease?.dispose()
     this.gatewayLease = undefined
+    void this.releaseOpenClaw()?.catch((error) => logger.warn('Failed to release OpenClaw Gateway', { error }))
     super.dispose()
+  }
+  private releaseOpenClaw() {
+    if (!this.releasingOpenClaw && this.openClawLease) {
+      this.releasingOpenClaw = this.openClawLease.dispose()
+      this.openClawLease = undefined
+    }
+    return this.releasingOpenClaw
   }
   protected async stop() {
     if (this.active && this.nativeId) {
@@ -854,6 +883,7 @@ export class AcpConnection extends LocalConnection {
       ])
     } finally {
       this.terminals.clear()
+      await this.releaseOpenClaw()
     }
   }
 }

@@ -135,6 +135,11 @@ export async function resolveLocalAgentLaunch(
     source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
   appendBundledGitPathTail(env)
   if (config.presetId === 'deepseek-harness') env.DSH_HOME = application.getPath('external.deepseek_harness.config')
+  if (config.presetId === 'openclaw') {
+    env.OPENCLAW_STATE_DIR = application.getPath('external.openclaw.config')
+    env.OPENCLAW_CONFIG_PATH = application.getPath('external.openclaw.config', 'openclaw.json')
+    env.OPENCLAW_NO_AUTO_UPDATE = '1'
+  }
   let nativeModel: string | undefined
   if (config.presetId === 'poolside' && !terminal) {
     const [file] = await application.get('CodeCliService').readConfigFiles(['poolside-settings'])

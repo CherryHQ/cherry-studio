@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +19,7 @@ import { CodexConnection } from '../CodexConnection'
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { listLocalAgentModels } from '../LocalRuntimeDriver'
 
+const gateway = vi.hoisted(() => ({ acquireGateway: vi.fn() }))
 const managedFiles = vi.hoisted(() => ({ read: vi.fn(), getPhysicalPath: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -36,12 +38,19 @@ describe('local protocol processes', () => {
   let cwd: string
   const connections: Array<AcpConnection | CodexConnection> = []
   beforeEach(async () => {
+    gateway.acquireGateway.mockReset().mockResolvedValue({
+      url: 'ws://127.0.0.1:18790/ws',
+      token: '',
+      dispose: vi.fn().mockResolvedValue(undefined)
+    })
+    MockApplicationUtils.setService('OpenClawService', gateway)
     BaseService.resetInstances()
     cwd = await mkdtemp(path.join(tmpdir(), 'local-agent-contract-'))
     vi.mocked(application.getPath).mockReturnValue(cwd)
   })
   afterEach(async () => {
     await Promise.all(connections.splice(0).map((connection) => connection.close()))
+    MockApplicationUtils.resetServices()
     await rm(cwd, { recursive: true, force: true })
   })
 
@@ -60,9 +69,10 @@ describe('local protocol processes', () => {
     })
   }
 
-  function create(protocol: 'acp' | 'codex', scenario = 'normal', nativeModel?: string) {
+  function create(protocol: 'acp' | 'codex', scenario = 'normal', nativeModel?: string, presetId?: string) {
     const config: LocalAgentConfiguration = {
       protocol,
+      presetId,
       nativeModel,
       enabled: true,
       executableOverride: process.execPath,
@@ -84,6 +94,42 @@ describe('local protocol processes', () => {
         .join('')
     return { connection, events, drained, text }
   }
+
+  it('releases the OpenClaw Gateway after closing its ACP bridge', async () => {
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    gateway.acquireGateway.mockResolvedValue({
+      url: 'ws://127.0.0.1:18790/ws',
+      token: 'private-gateway-token',
+      dispose
+    })
+    const { connection, text, drained } = create('acp', 'normal', undefined, 'openclaw')
+    await connection.start(cwd)
+    await connection.send(input)
+    await connection.close()
+    await drained
+    expect(text()).toContain('hello')
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases a late OpenClaw lease when its connection has already closed', async () => {
+    let resolve!: (value: unknown) => void
+    gateway.acquireGateway.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    const { connection } = create('acp', 'normal', undefined, 'openclaw')
+    const starting = connection.start(cwd)
+    const failed = expect(starting).rejects.toThrow()
+    await vi.waitFor(() => expect(resolve).toBeDefined())
+    await connection.close()
+    resolve({ url: 'ws://127.0.0.1:18790/ws', token: '', dispose })
+    await failed
+    expect(dispose).toHaveBeenCalledTimes(1)
+    await expect(readFile(path.join(cwd, 'wire.jsonl'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 
   it('redacts a supplied API key from native authentication failures before crossing IPC', async () => {
     const service = new LocalAgentAuthService()
@@ -1242,37 +1288,37 @@ describe('local protocol processes', () => {
     await expect(readFile(path.join(cwd, 'foreign.txt'))).rejects.toThrow()
   })
 
-  it.each(['resume-only', 'resume-both', 'resume-null'])(
-    'restores ACP state using negotiated capabilities: %s',
-    async (scenario) => {
-      const { connection, events, text } = create('acp', scenario)
-      await connection.start(cwd, 'native-session')
-      expect(connection.localSessionInfo).toMatchObject({
-        resume: true,
-        activeModel: { id: 'updated-model' },
-        mode: { id: 'agent-mode', currentValue: 'ask' },
-        thoughtLevel: { id: 'reasoning-budget', currentValue: 'balanced' }
+  it.each([
+    ['resume-only', undefined, 'session/resume'],
+    ['resume-both', undefined, 'session/resume'],
+    ['resume-null', undefined, 'session/load'],
+    ['resume-both', 'openclaw', 'session/load']
+  ])('restores ACP state using negotiated capabilities: %s, preset=%s', async (scenario, presetId, method) => {
+    const { connection, events, text } = create('acp', scenario, undefined, presetId)
+    await connection.start(cwd, 'native-session')
+    expect(connection.localSessionInfo).toMatchObject({
+      resume: true,
+      activeModel: { id: 'updated-model' },
+      mode: { id: 'agent-mode', currentValue: 'ask' },
+      thoughtLevel: { id: 'reasoning-budget', currentValue: 'balanced' }
+    })
+    await vi.waitFor(() =>
+      expect(events).toContainEqual({
+        type: 'supported-commands',
+        commands: [{ name: 'review', description: 'Review code', argumentHint: '' }]
       })
-      await vi.waitFor(() =>
-        expect(events).toContainEqual({
-          type: 'supported-commands',
-          commands: [{ name: 'review', description: 'Review code', argumentHint: '' }]
-        })
-      )
-      await connection.send(input)
-      expect(text()).toBe('turn 1: hello')
-      const requests = await readWire()
-      const restore = requests.filter(({ method }) =>
-        ['session/load', 'session/resume', 'session/new'].includes(method)
-      )
-      expect(restore).toEqual([
-        expect.objectContaining({
-          method: scenario === 'resume-null' ? 'session/load' : 'session/resume',
-          params: { sessionId: 'native-session', cwd, mcpServers: [] }
-        })
-      ])
-    }
-  )
+    )
+    await connection.send(input)
+    expect(text()).toBe('turn 1: hello')
+    const requests = await readWire()
+    const restore = requests.filter(({ method }) => ['session/load', 'session/resume', 'session/new'].includes(method))
+    expect(restore).toEqual([
+      expect.objectContaining({
+        method,
+        params: { sessionId: 'native-session', cwd, mcpServers: [] }
+      })
+    ])
+  })
 
   it('retains a failed restore instead of loading or creating a replacement conversation', async () => {
     const { connection } = create('acp', 'resume-error')

@@ -7,11 +7,14 @@ import { resolveInstallRecipe, resolveCliInstallRecipe } from '../installRecipe'
 const registry = (id: string, distribution: unknown) => ({ agents: [{ id, distribution }] })
 
 describe('system agent install recipes', () => {
-  it('reuses the native DeepSeek Harness package for ACP without requiring a registry entry', () => {
-    expect(resolveInstallRecipe('deepseek-harness')).toMatchObject({
+  it.each([
+    ['deepseek-harness', '@deepseek-ai/dsh'],
+    ['openclaw', 'openclaw']
+  ])('reuses the native %s package for ACP without requiring a registry entry', (presetId, packageName) => {
+    expect(resolveInstallRecipe(presetId)).toMatchObject({
       manager: 'npm',
-      package: '@deepseek-ai/dsh',
-      args: ['install', '--global', '@deepseek-ai/dsh']
+      package: packageName,
+      args: ['install', '--global', packageName]
     })
   })
   it('uses official Kiro, Trae and Vibe installers without requiring registry entries', () => {

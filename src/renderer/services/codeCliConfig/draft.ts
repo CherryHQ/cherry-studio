@@ -30,7 +30,7 @@ const logger = loggerService.withContext('writeCliConfigDraft')
  * 0600 writes, and snapshot/rollback). Injection runs at the "enable config"
  * trigger (see CodeCliPage); launch (`ipcApi.request('code_cli.run', …)`) is
  * terminal-only. OpenClaw config is handled by the main-process
- * OpenClawService, so this module is a no-op for it.
+ * OpenClawService, which owns its schema-validated write.
  */
 
 /**
@@ -162,6 +162,12 @@ export async function writeCliConfigDraft(args: {
   writePrimaryModel?: boolean
   gateway?: CliConfigGatewayContext
 }): Promise<unknown> {
+  if (args.cliTool === CodeCli.OPENCLAW) {
+    if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
+    const result = await ipcApi.request('openclaw.sync_config', { uniqueModelId: args.modelId })
+    if (!result.success) throw new Error(result.message)
+    return
+  }
   let files = args.files
   if (args.modelId) {
     const writeArgs: CliConfigDraftBuildArgs = {

@@ -239,7 +239,11 @@ describe('local agent settings navigation', () => {
       finish = resolve
     })
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
-      if (route === 'ai.local_agents.detect') return [{ presetId: 'claude', path: '/usr/local/bin/claude' }] as never
+      if (route === 'ai.local_agents.detect')
+        return [
+          { presetId: 'claude', path: '/usr/local/bin/claude' },
+          { presetId: 'codex', source: 'none' }
+        ] as never
       if (route === 'ai.local_agents.version') return { current: '1.0.0', latest: '2.0.0', canUpgrade: true } as never
       if (route === 'ai.local_agents.install') {
         await upgrade
@@ -386,8 +390,19 @@ describe('local agent settings navigation', () => {
     }
   )
 
+  it('does not offer reinstalling an agent while its installation is still unknown', () => {
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return new Promise(() => {}) as never
+      return { models: [] } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    expect(screen.queryByRole('button', { name: '安装' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: '程序' })).getByRole('status')).not.toHaveTextContent('未安装')
+  })
+
   it('offers installation instead of connection and chat for an uninstalled agent', async () => {
     navigation.search = { id: 'codex' }
+    vi.mocked(ipcApi.request).mockResolvedValue([{ presetId: 'codex', source: 'none' }] as never)
     render(<LocalAgentSettingsPage />)
     expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()

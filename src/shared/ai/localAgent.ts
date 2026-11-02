@@ -107,6 +107,15 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     helpUrl: 'https://opencode.ai/docs/acp/'
   },
   {
+    id: 'openclaw',
+    name: 'OpenClaw',
+    protocol: 'acp',
+    executable: 'openclaw',
+    args: ['acp'],
+    npmPackage: 'openclaw',
+    helpUrl: 'https://docs.openclaw.ai/cli/acp'
+  },
+  {
     id: 'deepseek-harness',
     name: 'DeepSeek Harness',
     protocol: 'acp',

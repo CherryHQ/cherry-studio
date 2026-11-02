@@ -4,11 +4,12 @@ import { CommandContextMenu } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { CodeCliConfiguration } from './components/CodeCliConfiguration'
-import { DeepSeekHarnessAgentDetails } from './components/DeepSeekHarnessAgentDetails'
 import { LocalAgentCliConfig } from './components/LocalAgentCliConfig'
 import { LocalAgentDetails, LocalAgentDirectory } from './components/LocalAgentDirectory'
+import { ManagedLocalAgentDetails } from './components/ManagedLocalAgentDetails'
 
 export default function CodeCliPage() {
   const { t } = useTranslation()
@@ -40,8 +41,12 @@ export default function CodeCliPage() {
       }}
       renderCliConfig={(tool) => <LocalAgentCliConfig key={tool} tool={tool} />}
       renderDetails={(props) =>
-        props.preset?.id === 'deepseek-harness' ? (
-          <DeepSeekHarnessAgentDetails key={props.preset.id} {...props} />
+        props.preset?.id === 'deepseek-harness' || props.preset?.id === 'openclaw' ? (
+          <ManagedLocalAgentDetails
+            key={props.preset.id}
+            {...props}
+            tool={props.preset.id === 'openclaw' ? CodeCli.OPENCLAW : CodeCli.DEEPSEEK_HARNESS}
+          />
         ) : (
           <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />
         )

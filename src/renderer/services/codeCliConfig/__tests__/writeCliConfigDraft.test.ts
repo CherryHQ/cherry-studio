@@ -131,11 +131,16 @@ describe('writeCliConfigDraft', () => {
     vi.restoreAllMocks()
   })
 
-  it('is a no-op for openclaw (handled by OpenClawService)', async () => {
+  it.each([true, false])('synchronizes the OpenClaw native default model (success=%s)', async (success) => {
     mockGet({})
-    await writeCliConfigDraft({ cliTool: CodeCli.OPENCLAW, modelId: 'p::m' })
-    expect(written).toBeNull()
-    expect(dataApiService.get).not.toHaveBeenCalled()
+    mocks.request.mockImplementation(async (route, input) => {
+      expect(route).toBe('openclaw.sync_config')
+      expect(input).toEqual({ uniqueModelId: 'p::m' })
+      return { success, message: 'config is not writable' }
+    })
+    const pending = writeCliConfigDraft({ cliTool: CodeCli.OPENCLAW, modelId: 'p::m' })
+    if (success) await expect(pending).resolves.toBeUndefined()
+    else await expect(pending).rejects.toThrow('config is not writable')
   })
 
   it('throws when the provider cannot be resolved', async () => {

@@ -45,7 +45,9 @@ describe('local agent installation resolution', () => {
   let directory: string
   beforeEach(async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
-    vi.mocked(application.getPath).mockImplementation((key) => path.join(directory, key))
+    vi.mocked(application.getPath).mockImplementation((key, filename) =>
+      path.join(directory, key, ...(filename ? [filename] : []))
+    )
     inventory.openTerminal.mockReset()
     inventory.readConfigFiles.mockReset().mockResolvedValue([{ content: null }])
     inventory.isWin = process.platform === 'win32'
@@ -55,6 +57,17 @@ describe('local agent installation resolution', () => {
   })
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('starts OpenClaw ACP with the formal native state directory and config file', async () => {
+    inventory.snapshots.openclaw = { name: 'openclaw', availability: { source: 'system', path: '/user/bin/openclaw' } }
+    const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId: 'openclaw' })
+    expect(launch.args).toEqual(['acp'])
+    expect(launch.env).toMatchObject({
+      OPENCLAW_STATE_DIR: path.join(directory, 'external.openclaw.config'),
+      OPENCLAW_CONFIG_PATH: path.join(directory, 'external.openclaw.config', 'openclaw.json'),
+      OPENCLAW_NO_AUTO_UPDATE: '1'
+    })
   })
 
   it('uses the saved Poolside profile for ACP while leaving native terminal account handling to the CLI', async () => {

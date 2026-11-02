@@ -1,8 +1,10 @@
-import { execSync } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
 import path from 'node:path'
+
+import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
@@ -13,7 +15,7 @@ import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -25,6 +27,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
+import { CodeCli } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -399,6 +402,11 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
 export class OpenClawService extends BaseService {
+  private readonly operationMutex = new Mutex()
+  private gatewayProcess?: ChildProcess
+  private readonly gatewayLeases = new Set<symbol>()
+  private webUiRequested = false
+  private shuttingDown = false
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
@@ -438,7 +446,8 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    await this.stopGateway()
+    this.shuttingDown = true
+    await this.operationMutex.runExclusive(() => this.stopOwnedGateway())
   }
 
   /** Single gateway-status-transition point for the main-owned shared snapshot. */
@@ -772,64 +781,83 @@ export class OpenClawService extends BaseService {
    * Start the OpenClaw Gateway
    */
   public async startGateway(port?: number): Promise<OperationResult> {
-    // Guard before touching the port so a concurrent-start rejection cannot repoint
-    // it, and an omitted port keeps the preference-synced value instead of the default.
-    if (this.gatewayStatus === 'starting') {
-      return { success: false, message: 'Gateway is already starting' }
+    return this.operationMutex.runExclusive(async () => {
+      const result = await this.ensureGateway(port)
+      if (result.success) this.webUiRequested = true
+      return result
+    })
+  }
+
+  async acquireGateway(signal: AbortSignal) {
+    signal.throwIfAborted()
+    const state = application.get('PreferenceService').get('feature.code_cli.configs')[CodeCli.OPENCLAW]
+    const modelId = state?.current && state.providers[state.current]?.modelId
+    if (modelId) {
+      const synced = await this.syncConfig(modelId)
+      if (!synced.success) throw new Error(synced.message)
     }
+    return this.operationMutex.runExclusive(async () => {
+      signal.throwIfAborted()
+      const result = await this.ensureGateway()
+      if (!result.success) throw new Error(result.message)
+      if (signal.aborted) {
+        if (!this.webUiRequested && !this.gatewayLeases.size) await this.stopOwnedGateway()
+        signal.throwIfAborted()
+      }
+      const lease = Symbol()
+      this.gatewayLeases.add(lease)
+      this.loadAuthTokenFromConfig()
+      return {
+        url: this.gatewayUrl,
+        token: this.gatewayAuthToken,
+        dispose: () =>
+          this.operationMutex.runExclusive(async () => {
+            if (!this.gatewayLeases.delete(lease)) return
+            if (!this.gatewayLeases.size && !this.webUiRequested && this.gatewayProcess) {
+              const result = await this.stopOwnedGateway()
+              if (!result.success) throw new Error(result.message)
+            }
+          })
+      }
+    })
+  }
+
+  private async ensureGateway(port?: number): Promise<OperationResult> {
+    if (this.shuttingDown) return { success: false, message: t('openclaw.errors.shutting_down') }
+    if (port !== undefined && port !== this.gatewayPort && this.gatewayStatus === 'running')
+      return { success: false, message: t('openclaw.errors.sessions_active') }
     if (port !== undefined) this.gatewayPort = port
 
     try {
       const runtime = await this.resolveOpenClawRuntime()
       await this.assertConfigValid(runtime, openclawConfigPath())
-
-      // Check if the port is already in use
-      const isPortOpen = await this.checkPortOpen(this.gatewayPort)
-      if (isPortOpen) {
-        // Check if this is our gateway already running on this port
-        const { status } = await this.checkGatewayHealth()
-        if (status === 'healthy') {
-          // Stop the stale gateway (e.g. respawned orphan from a previous session)
-          logger.info('Detected stale gateway on port, stopping before restart...')
-          await this.stopGateway()
-
-          // Verify port is now free
-          const stillOpen = await this.checkPortOpen(this.gatewayPort)
-          if (stillOpen) {
-            return {
-              success: false,
-              message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
-            }
-          }
-        } else {
-          return {
-            success: false,
-            message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
-          }
-        }
+      if (await this.checkPortOpen(this.gatewayPort)) {
+        if ((await this.checkGatewayHealth()).status !== 'healthy')
+          return { success: false, message: t('openclaw.errors.port_in_use', { port: this.gatewayPort }) }
+        this.setGatewayStatus('running')
+        return { success: true }
       }
-
       this.setGatewayStatus('starting')
-
       await this.startAndWaitForGateway(runtime.path, runtime.env)
       this.setGatewayStatus('running')
-      logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true }
     } catch (error) {
+      if (this.gatewayProcess) await this.stopOwnedGateway()
       this.setGatewayStatus('error')
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to start gateway:', error as Error)
-      return { success: false, message: errorMessage }
+      const raw = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to start gateway', new Error(sanitizeOpenClawDiagnostic(raw)))
+      return {
+        success: false,
+        message:
+          /state database schema migration required|gateway\.maintenance_required|run openclaw doctor --fix/i.test(raw)
+            ? t('openclaw.errors.maintenance_required')
+            : sanitizeOpenClawDiagnostic(raw)
+      }
     }
   }
 
-  /**
-   * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
-   * Spawns the gateway as a detached process so its lifecycle is independent.
-   * Uses process termination to stop it later.
-   */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    const args = ['gateway', 'run', '--force']
+    const args = ['gateway', 'run', '--port', String(this.gatewayPort)]
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
@@ -847,6 +875,7 @@ export class OpenClawService extends BaseService {
       // switch, scoped to the gateway process we spawn.
       env: {
         ...env,
+        OPENCLAW_STATE_DIR: openclawConfigDir(),
         OPENCLAW_CONFIG_PATH: openclawConfigPath(),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },
@@ -854,6 +883,7 @@ export class OpenClawService extends BaseService {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
+    this.gatewayProcess = proc
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
@@ -861,15 +891,19 @@ export class OpenClawService extends BaseService {
     let stdoutOutput = ''
     let stderrOutput = ''
     proc.stdout?.on('data', (data) => {
-      stdoutOutput += data.toString()
+      stdoutOutput = (stdoutOutput + data.toString()).slice(-OPENCLAW_DIAGNOSTIC_LIMIT)
     })
     proc.stderr?.on('data', (data) => {
-      stderrOutput += data.toString()
+      stderrOutput = (stderrOutput + data.toString()).slice(-OPENCLAW_DIAGNOSTIC_LIMIT)
     })
     proc.on('error', (err) => {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
+      if (this.gatewayProcess === proc) {
+        this.gatewayProcess = undefined
+        if (this.gatewayStatus === 'running') this.setGatewayStatus(code ? 'error' : 'stopped')
+      }
       // Capture output from both streams for diagnostics
       const combinedOutput = [stdoutOutput.trim(), stderrOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(-5).join('\n')
@@ -920,83 +954,37 @@ export class OpenClawService extends BaseService {
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
-  /**
-   * Stop the OpenClaw Gateway.
-   * Kills all openclaw processes to ensure clean shutdown.
-   */
   public async stopGateway(): Promise<OperationResult> {
-    const transitionBefore = this.gatewayTransitionId
+    return this.operationMutex.runExclusive(async () => {
+      this.webUiRequested = false
+      if (this.gatewayLeases.size) return { success: false, message: t('openclaw.errors.sessions_active') }
+      return this.stopOwnedGateway()
+    })
+  }
+
+  private async stopOwnedGateway(): Promise<OperationResult> {
+    const child = this.gatewayProcess
+    if (!child) {
+      if (await this.checkPortOpen(this.gatewayPort))
+        return { success: false, message: t('openclaw.errors.external_gateway') }
+      this.setGatewayStatus('stopped', { force: true })
+      return { success: true }
+    }
     try {
-      this.killAllOpenClawProcesses()
-
-      const stillRunning = await this.waitForGatewayStop()
-      if (stillRunning) {
-        this.setGatewayStatus('error')
-        return { success: false, message: 'Failed to stop gateway' }
+      await terminateProcessTree(child, false, 'OpenClaw Gateway')
+      if (!(await waitForProcessExit(child, 3000))) {
+        await terminateProcessTree(child, true, 'OpenClaw Gateway')
+        if (!(await waitForProcessExit(child, 1000))) throw new Error('OpenClaw Gateway did not exit')
       }
-
-      this.setGatewayStatus('stopped')
-      // A no-op stop (already stopped) still confirms the terminal state to the renderer.
-      if (this.gatewayTransitionId === transitionBefore) this.setGatewayStatus('stopped', { force: true })
-      logger.info('Gateway stopped')
+      if (this.gatewayProcess === child) this.gatewayProcess = undefined
+      this.setGatewayStatus('stopped', { force: true })
       return { success: true }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to stop gateway:', error as Error)
       this.setGatewayStatus('error')
-      return { success: false, message: errorMessage }
+      const message = sanitizeOpenClawDiagnostic(error instanceof Error ? error.message : String(error))
+      logger.error('Failed to stop owned gateway', new Error(message))
+      return { success: false, message }
     }
-  }
-
-  /**
-   * Kill all openclaw processes by finding processes on the gateway port.
-   * This works reliably on Windows where process name may show as bun.exe.
-   */
-  private killAllOpenClawProcesses(): void {
-    const currentPid = process.pid
-    try {
-      if (isWin) {
-        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, { encoding: 'utf-8' })
-        const pids = new Set<string>()
-        for (const line of output.split('\n')) {
-          const match = line.trim().match(/LISTENING\s+(\d+)/)
-          if (match && Number(match[1]) !== currentPid) {
-            pids.add(match[1])
-          }
-        }
-        for (const pid of pids) {
-          try {
-            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
-            logger.info(`Killed process ${pid} on port ${this.gatewayPort}`)
-          } catch {
-            // ignore
-          }
-        }
-      } else {
-        execSync('pkill -9 openclaw', { stdio: 'ignore' })
-        logger.info('Killed all openclaw processes')
-      }
-    } catch {
-      logger.debug('No openclaw processes to kill')
-    }
-  }
-
-  /**
-   * Wait for gateway to actually stop, with retries.
-   * Returns true if gateway is still running after all retries.
-   */
-  private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
-    for (let i = 0; i < maxRetries; i++) {
-      const stillRunning = await this.checkPortOpen(this.gatewayPort)
-      if (!stillRunning) {
-        return false
-      }
-      if (i < maxRetries - 1) {
-        logger.debug(`Gateway still running after stop, retrying check (${i + 1}/${maxRetries})...`)
-        await new Promise((r) => setTimeout(r, intervalMs))
-      }
-    }
-    return true
   }
 
   /**
@@ -1115,21 +1103,19 @@ export class OpenClawService extends BaseService {
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
   public async syncConfig(uniqueModelId: UniqueModelId, port?: number): Promise<OperationResult> {
-    try {
-      // Apply the caller's gateway port before writing openclaw.json so the config's
-      // gateway.port matches the port startGateway() will bind and health-check. Without
-      // this, a custom port is written as the stale in-memory port (default 18790) because
-      // sync runs before startGateway(port), so the gateway binds the wrong port on launch.
-      if (port !== undefined) {
-        this.gatewayPort = port
+    return this.operationMutex.runExclusive(async () => {
+      try {
+        if (port !== undefined && port !== this.gatewayPort && this.gatewayStatus === 'running')
+          return { success: false, message: t('openclaw.errors.sessions_active') }
+        if (port !== undefined) this.gatewayPort = port
+        const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
+        return await this.writeProviderConfig(provider, primaryModel)
+      } catch (error) {
+        const message = sanitizeOpenClawDiagnostic(error instanceof Error ? error.message : String(error))
+        logger.error('Failed to resolve OpenClaw sync config', new Error(message))
+        return { success: false, message }
       }
-      const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
-      return await this.syncProviderConfig(provider, primaryModel)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to resolve OpenClaw sync config:', error as Error)
-      return { success: false, message: errorMessage }
-    }
+    })
   }
 
   private async resolveSyncConfig(
@@ -1317,6 +1303,10 @@ export class OpenClawService extends BaseService {
   }
 
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
+    return this.operationMutex.runExclusive(() => this.writeProviderConfig(provider, primaryModel))
+  }
+
+  private async writeProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       const runtime = await this.resolveOpenClawRuntime()
       const configSchema = await this.assertSchemaCapability(runtime)
@@ -1447,8 +1437,8 @@ export class OpenClawService extends BaseService {
       config.gateway.port = this.gatewayPort
       // Auto-generate auth token if not already set. Publish it in memory only after
       // the candidate is valid and the formal config write succeeds.
-      const token = this.gatewayAuthToken || this.generateAuthToken()
-      config.gateway.auth = { token }
+      const token = config.gateway.auth?.token || this.gatewayAuthToken || this.generateAuthToken()
+      config.gateway.auth = { ...config.gateway.auth, token }
 
       // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
       // BinaryManager installed and version-tracks; the hint has no env kill switch

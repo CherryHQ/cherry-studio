@@ -9,6 +9,7 @@ sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
   - src/main/services/codeCli/CodeCliService.ts
   - src/main/services/deepSeekHarness
+  - src/main/services/OpenClawService.ts
   - src/main/features/apiGateway/proxyStream.ts
   - src/renderer/pages/code/components/LocalAgentDirectory.tsx
   - src/renderer/pages/code/CodeCliPage.tsx
@@ -24,8 +25,33 @@ The Code Mate launchpad and sidebar shortcuts open Settings → Agent Services,
 the sole manager for installation, model selection and CLI configuration.
 Legacy `/app/code` links and saved tabs redirect to settings, preserve the selected
 Agent, and reuse the existing settings tab.
-OpenClaw remains a CLI-only tool with the grouped model list and program layout;
-it does not expose a Cherry chat toggle or an unsupported terminal action.
+OpenClaw connects through `openclaw acp` to its local Gateway and uses the shared
+enable, archive and chat controls. It retains its Code Mate model list, native
+configuration entry and WebUI actions. Selecting a model synchronizes the native
+default immediately; a failed write rolls back the Cherry selection. Chat follows
+that default because the bridge does not expose ACP model selection.
+
+ACP connections share a Gateway lease. The last connection stops a Gateway started
+for chat unless the WebUI was explicitly opened. Healthy external Gateways are
+reused and never terminated by Cherry. Stopping an owned Gateway targets its child
+process tree only; active chat leases defer WebUI shutdown. New sessions use
+isolated bridge keys and persist the selected working directory and native resume
+ID. Explicit Gateway URLs or native state/config overrides bypass automatic local
+Gateway management. Gateway credentials are passed through the child environment,
+not process arguments. Native database migration failures show a localized
+`openclaw doctor --fix` instruction; Cherry does not run that repair automatically.
+
+OpenClaw 2026.10.2 advertises `session/resume` but does not resolve a bridge-created
+UUID from its persisted ledger after process restart. Cherry prefers its official
+`session/load` when available, preserving the UUID and suppressing replayed output
+already stored by Cherry. Failed loads retain history and never create a replacement
+session. The missing UUID lookup in upstream `resumeSession` remains an OpenClaw
+limitation.
+
+The installed OpenClaw bridge determines support for tools, approvals, session
+controls and resume. Per-session MCP injection, client filesystem and terminal
+callbacks are not supported by the bridge. Native Gateway/Agent configuration
+continues to own those capabilities.
 DeepSeek Harness connects through `dsh --profile acp` and uses the shared enable,
 archive and chat controls. It retains its Code Mate model list, configuration dialog
 and WebUI actions. New ACP connections apply the selected Code Mate model using

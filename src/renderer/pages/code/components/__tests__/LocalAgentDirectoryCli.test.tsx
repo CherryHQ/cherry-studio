@@ -35,14 +35,15 @@ beforeEach(() => {
   )
 })
 
-it('combines CLI configuration with a single local agent entry and preserves CLI-only tools', async () => {
+it('combines CLI configuration with a single ACP entry', async () => {
   const cliContent = (tool: string) => <div data-testid="cli-content">{tool}</div>
   const { rerender } = render(<LocalAgentDirectory renderCli={cliContent} />)
   expect(screen.getAllByRole('button', { name: /^Claude Code ·/ })).toHaveLength(1)
   expect(screen.queryByRole('button', { name: '模型服务商' })).not.toBeInTheDocument()
   expect(screen.queryByTestId('cli-content')).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'OpenClaw' }))
-  await waitFor(() => expect(screen.getByTestId('cli-content')).toHaveTextContent('openclaw'))
+  await userEvent.click(screen.getByRole('button', { name: /^OpenClaw ·/ }))
+  await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('OpenClaw'))
+  expect(screen.queryByTestId('cli-content')).not.toBeInTheDocument()
   navigation.search = { id: 'codex' }
   rerender(<LocalAgentDirectory renderCli={cliContent} />)
   await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
@@ -82,6 +83,7 @@ it('offers terminal-only CLI access without requiring a Code Mate provider or an
 
 it('offers installation before terminal actions for an absent agent', async () => {
   navigation.search = { id: 'goose' }
+  vi.mocked(ipcApi.request).mockResolvedValue([{ presetId: 'goose', source: 'none' }] as never)
   render(<LocalAgentDirectory />)
   expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()
@@ -118,6 +120,7 @@ it.each([
     async (route) =>
       (route === 'ai.local_agents.detect'
         ? [
+            { presetId: 'openclaw', source: 'system', path: '/usr/local/bin/openclaw' },
             { presetId: 'codex', source: 'system', path: '/usr/local/bin/codex' },
             { presetId: 'copilot', source: 'system', path: '/usr/local/bin/copilot' }
           ]
@@ -160,14 +163,17 @@ it('places popular CLI-only and ACP agents together in the default order', async
   })
 })
 
-it('opens existing DeepSeek links as one ACP entry and preserves its saved order', async () => {
-  navigation.search = { id: 'cli:deepseek-harness' }
-  mockPreferenceState.set('feature.code_cli.agent_order', ['cli:deepseek-harness', 'claude'])
+it.each([
+  ['deepseek-harness', 'DeepSeek Harness'],
+  ['openclaw', 'OpenClaw']
+])('opens existing %s links as one ACP entry and preserves its saved order', async (id, name) => {
+  navigation.search = { id: `cli:${id}` }
+  mockPreferenceState.set('feature.code_cli.agent_order', [`cli:${id}`, 'claude'])
   vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
   render(<LocalAgentDirectory renderCli={() => null} />)
-  expect(await screen.findByRole('heading', { name: 'DeepSeek Harness' })).toBeVisible()
+  expect(await screen.findByRole('heading', { name })).toBeVisible()
   expect(screen.getByRole('switch')).not.toBeChecked()
   const rows = within(screen.getByRole('complementary')).getAllByRole('button', { name: / · |^OpenClaw$/ })
-  expect(rows[0]).toHaveAccessibleName(/^DeepSeek Harness ·/)
-  expect(rows.filter((row) => row.getAttribute('aria-label')?.startsWith('DeepSeek Harness'))).toHaveLength(1)
+  expect(rows[0].getAttribute('aria-label')?.split(' · ')[0]).toBe(name)
+  expect(rows.filter((row) => row.getAttribute('aria-label')?.startsWith(name))).toHaveLength(1)
 })

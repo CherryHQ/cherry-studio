@@ -95,7 +95,7 @@ const DEFAULT_AGENT_ORDER = new Map(
     'cursor',
     'opencode',
     'copilot',
-    'cli:openclaw',
+    'openclaw',
     'deepseek-harness',
     'pi-acp',
     'hermes',
@@ -153,7 +153,7 @@ export function LocalAgentDirectory({
   const search = useSearch({ strict: false }) as { id?: string; tool?: CodeCli }
   const navigate = useNavigate()
   const requestedId =
-    (search.id === 'cli:deepseek-harness' ? 'deepseek-harness' : search.id) ??
+    (search.id === 'cli:deepseek-harness' || search.id === 'cli:openclaw' ? search.id.slice(4) : search.id) ??
     (search.tool &&
       (LOCAL_AGENT_PRESETS.find((preset) => codeCliForLocalAgent(preset.id) === search.tool)?.id ??
         `cli:${search.tool}`))
@@ -239,7 +239,7 @@ export function LocalAgentDirectory({
       ? 2
       : Number(installedIds.has(entry.id) || !!entry.agent?.configuration?.localRuntime?.executableOverride)
   const orderIndex = new Map(
-    agentOrder.map((id, index) => [id === 'cli:deepseek-harness' ? 'deepseek-harness' : id, index])
+    agentOrder.map((id, index) => [id === 'cli:deepseek-harness' || id === 'cli:openclaw' ? id.slice(4) : id, index])
   )
   const entries = [
     ...LOCAL_AGENT_PRESETS.map((preset) => ({
@@ -374,7 +374,9 @@ export function LocalAgentDirectory({
                         ? t('settings.provider.not_checked')
                         : detection?.path
                           ? t('local_agents.detected')
-                          : t('local_agents.not_installed')
+                          : detection
+                            ? t('local_agents.not_installed')
+                            : t('settings.provider.not_checked')
                   const row = (
                     <div className="group relative">
                       <Button
@@ -532,6 +534,7 @@ export function LocalAgentDetails({
   const version = useLocalAgentVersion(initial.executableOverride ? undefined : preset?.id, detection?.path)
   const [openingChat, setOpeningChat] = useState(false)
   const available = !!(detection?.path || initial.executableOverride)
+  const installationUnknown = !!preset && !detection && !initial.executableOverride
   const busy = installing || busyAction !== undefined || openingChat
   const chatDisabledReason = busy
     ? t('local_agents.chat_busy')
@@ -810,6 +813,9 @@ export function LocalAgentDetails({
           else if (configuration.presetId === 'hermes') {
             const stopped = await ipcApi.request('hermes_dashboard.stop')
             if (!stopped.success) throw new Error(stopped.message)
+          } else if (configuration.presetId === 'openclaw') {
+            const stopped = await ipcApi.request('openclaw.stop_gateway')
+            if (!stopped.success) throw new Error(stopped.message)
           } else if (configuration.presetId === 'deepseek-harness') {
             const stopped = await ipcApi.request('deepseek_harness.stop')
             if (!stopped.success) throw new Error(stopped.message)
@@ -1002,7 +1008,7 @@ export function LocalAgentDetails({
                         </span>
                       </Tooltip>
                     </>
-                  ) : preset ? (
+                  ) : preset && !installationUnknown ? (
                     <Button
                       size="sm"
                       className="h-8 shrink-0 rounded-lg border border-transparent text-xs shadow-none"
@@ -1073,7 +1079,7 @@ export function LocalAgentDetails({
                                 : t('local_agents.check_failed')}
                             {connection.status === 'ready' &&
                               connection.version &&
-                              ` · ${/^v/i.test(connection.version) ? connection.version : `v${connection.version}`}`}
+                              ` · ${/^\d/.test(connection.version) ? `v${connection.version}` : connection.version}`}
                           </span>
                         ) : (
                           <Badge
@@ -1083,7 +1089,9 @@ export function LocalAgentDetails({
                               ? t('settings.provider.not_checked')
                               : detection?.path
                                 ? t('local_agents.detected')
-                                : t('local_agents.not_installed')}
+                                : installationUnknown
+                                  ? t('settings.provider.not_checked')
+                                  : t('local_agents.not_installed')}
                           </Badge>
                         )}
                       </span>

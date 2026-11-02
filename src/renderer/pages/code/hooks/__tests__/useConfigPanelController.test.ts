@@ -72,19 +72,22 @@ describe('useConfigPanelController', () => {
     mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
   })
 
-  it('keeps the previous selection when directly applying a new model fails', async () => {
-    mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'p2::new', writePrimaryModel: true })
-    mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('write failed'))
-    const options = baseOptions()
-    const { result } = renderHook(() => useConfigPanelController(options))
-    let saved: boolean | undefined
-    await act(async () => {
-      saved = await result.current.selectModel({ id: 'p2' } as Provider, 'p2::new')
-    })
-    expect(saved).toBe(false)
-    expect(options.setCurrentProvider).not.toHaveBeenCalled()
-    expect(options.deleteProviderConfig).toHaveBeenCalledWith('p2')
-  })
+  it.each([CodeCli.CLAUDE_CODE, CodeCli.OPENCLAW])(
+    'keeps the previous %s selection when applying a new model fails',
+    async (selectedCliTool) => {
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'p2::new', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('write failed'))
+      const options = { ...baseOptions(), selectedCliTool }
+      const { result } = renderHook(() => useConfigPanelController(options))
+      let saved: boolean | undefined
+      await act(async () => {
+        saved = await result.current.selectModel({ id: 'p2' } as Provider, 'p2::new')
+      })
+      expect(saved).toBe(false)
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(options.deleteProviderConfig).toHaveBeenCalledWith('p2')
+    }
+  )
 
   describe('onToggleCurrent in-flight guard', () => {
     // Regression: writeCliConfigDraft / clearCliConfig write multiple files sequentially with no

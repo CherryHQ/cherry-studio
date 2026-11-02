@@ -79,7 +79,7 @@
     },
     {
       "path": "docs/dev/references/ai/local-agent-runtime.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/main/features/apiGateway/proxyStream.ts","src/main/services/codeCli/CodeCliService.ts","src/main/services/deepSeekHarness","src/renderer/pages/code/CodeCliPage.tsx","src/renderer/pages/code/components/LocalAgentDirectory.tsx","src/shared/ai/agentSessionCost.ts","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts","src/shared/ai/localAgentUsage.ts"]
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/main/features/apiGateway/proxyStream.ts","src/main/services/OpenClawService.ts","src/main/services/codeCli/CodeCliService.ts","src/main/services/deepSeekHarness","src/renderer/pages/code/CodeCliPage.tsx","src/renderer/pages/code/components/LocalAgentDirectory.tsx","src/shared/ai/agentSessionCost.ts","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts","src/shared/ai/localAgentUsage.ts"]
     },
     {
       "path": "docs/dev/references/ai/local-models.md",

@@ -123,12 +123,20 @@ export function useOpenClawGatewayController({
 
   const handleOpenDashboard = useCallback(async () => {
     try {
+      setLaunching(true)
+      const result = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
+      if (!result.success) {
+        toast.error(result.message)
+        return
+      }
       await openDashboard()
     } catch (err) {
       logger.error('Failed to open OpenClaw dashboard:', err as Error)
       toast.error(t('code.launch.error'))
+    } finally {
+      setLaunching(false)
     }
-  }, [openDashboard, t])
+  }, [gatewayPort, openDashboard, t])
 
   return {
     launching,
