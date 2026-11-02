@@ -24,18 +24,26 @@ repos:
         files: '\.(json|yml|yaml|css|html)$'
         pass_filenames: true
 
+      # Staged-content pairing is a pre-commit gate only. At other hook types
+      # (post-checkout, post-merge) nothing is staged, and always_run would
+      # invoke pnpm in fresh worktrees that lack node_modules, stalling the
+      # whole git worktree add (observed ~178s idle in prek hook runs).
       - id: bilingual-pairing-staged
         name: Bilingual pairing (staged content)
         language: system
         entry: pnpm docs:check-pairing --cached
         files: '^(\.agents/notes/|CONTRIBUTING(?:\.i18n\.yaml|(?:\.zh)?\.md)$|docs/i18n/)'
+        stages: [pre-commit]
         always_run: true
         pass_filenames: false
 
       - id: post-checkout-install
         name: pnpm install after checkout
         language: system
-        entry: bash -c 'if [ "$PRE_COMMIT_FROM_REF" != "$PRE_COMMIT_TO_REF" ] && git diff --name-only "$PRE_COMMIT_FROM_REF" "$PRE_COMMIT_TO_REF" -- "**/package.json" pnpm-lock.yaml | grep -q .; then echo "Dependencies changed, running pnpm install..."; pnpm install; else echo "No dependency changes, skipping pnpm install."; fi'
+        # A null from-ref means an initial checkout (git worktree add, clone).
+        # Skip the install there so worktree creation is not blocked on pnpm
+        # from inside a git hook; provisioning happens after the checkout.
+        entry: bash -c 'if [ "$PRE_COMMIT_FROM_REF" = "0000000000000000000000000000000000000000" ]; then echo "Fresh worktree or initial checkout, skipping pnpm install."; elif [ "$PRE_COMMIT_FROM_REF" != "$PRE_COMMIT_TO_REF" ] && git diff --name-only "$PRE_COMMIT_FROM_REF" "$PRE_COMMIT_TO_REF" -- "**/package.json" pnpm-lock.yaml | grep -q .; then echo "Dependencies changed, running pnpm install..."; pnpm install; else echo "No dependency changes, skipping pnpm install."; fi'
         stages: [post-checkout]
         always_run: true
         pass_filenames: false

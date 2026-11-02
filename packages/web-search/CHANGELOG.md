@@ -1,5 +1,27 @@
 # @cherrystudio/web-search
 
+## 0.4.0
+
+### Minor Changes
+
+- [#22599](https://github.com/CherryHQ/cherry-studio/pull/22599) [`b8e6bca`](https://github.com/CherryHQ/cherry-studio/commit/b8e6bca0423b618819b8082204db0f4b6b798b70) Thanks [@sgan0420](https://github.com/sgan0420)! - Add the SearchApi provider for Google keyword search with bearer API key authentication.
+
+## 0.3.1
+
+### Patch Changes
+
+- [#22793](https://github.com/CherryHQ/cherry-studio/pull/22793) [`1cd6601`](https://github.com/CherryHQ/cherry-studio/commit/1cd6601053084d2b50296a7cd929138657679b23) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Report attributable Querit page crawl failures as provider/page_fetch_failed, preserving request-error precedence and status-less content compatibility.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#22343](https://github.com/CherryHQ/cherry-studio/pull/22343) [`4844b32`](https://github.com/CherryHQ/cherry-studio/commit/4844b32d0aa306a75c82bfaa8d243325e7f1325e) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add the Tencent Yuanbao Search provider with service API key authentication, ranked search results, result-count and domain-exclusion parameters, and provider error handling.
+
+### Patch Changes
+
+- [#22102](https://github.com/CherryHQ/cherry-studio/pull/22102) [`c1eaadc`](https://github.com/CherryHQ/cherry-studio/commit/c1eaadc3e46cf193aeacca344625fcd0972cae65) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Set Crawl4AI Cloud as the default URL fetch endpoint while preserving self-hosted overrides.
+
 ## 0.2.0
 
 ### Minor Changes

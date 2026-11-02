@@ -9,6 +9,8 @@ export interface PreviewHost {
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
   failDocument?: (error: unknown) => void
+  /** Retained presentation may outlive the document operations that produced it. */
+  isCurrentDocument?: () => boolean
 }
 
 export const PreviewHostContext = createContext<PreviewHost>({})

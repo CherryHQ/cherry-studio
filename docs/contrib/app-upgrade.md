@@ -64,3 +64,5 @@ Both old and new version blockmap URLs must remain available through the existin
 ## Check Lifecycle
 
 Manual checks are available in development and packaged, non-portable builds. Portable builds do not perform update checks. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress continue to reach the main window through IpcApi.
+
+The main process compares a `not_available` result's feed target with the installed version. When the two differ — a withdrawn or stale feed naming an older target, or a staged rollout not yet offered — the result is treated as withheld rather than current: the main process logs both versions, and a manual check offers the GitHub Releases download instead of the up-to-date message. Only `isCurrent` is sent to the renderer. A prerelease install is treated as current unless the feed advertises a newer version; missing or unparseable feed versions are treated as current. Background checks stay silent.

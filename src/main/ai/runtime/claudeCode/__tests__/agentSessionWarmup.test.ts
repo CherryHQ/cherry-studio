@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
@@ -341,6 +342,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('defaults the gateway sub-agent to the captured connection model instead of the agent latest model', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'openai::gpt-captured')
+
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect(env).toMatchObject({
+        ANTHROPIC_MODEL: 'openai:gpt-captured-api',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'openai:gpt-captured-api'
+      })
+    }
+  })
+
   it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
     // The settings builder force-enables ToolSearch for every agent; the route must undo that for
     // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
@@ -612,6 +634,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
     })
+    expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
+    expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
     expect(request?.usageCapture).toEqual({
       owner: 'agent-sdk',
@@ -630,6 +654,16 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ]
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it.each(['', 'sonnet', 'provider:model'])('preserves the direct-route sub-agent pin %j', async (pin) => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: pin } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect(env).toMatchObject({ ANTHROPIC_MODEL: 'claude-sonnet', CLAUDE_CODE_SUBAGENT_MODEL: pin })
+    }
   })
 
   it('keeps app attribution on direct SDK requests for a canonical registry provider', async () => {
@@ -865,6 +899,137 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('appends [1m] on the gateway route for a >=1M third-party Anthropic model', async () => {
+    // Anthropic-protocol proxy with a declared 1M window; a plan model on another provider forces the
+    // gateway branch, which used to drop the suffix and cap the CLI's local budget at 200K.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'loveapi::claude-opus-5-5',
+      planModel: 'openai::gpt-plan'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
+      providerId === 'loveapi'
+        ? {
+            id: 'loveapi',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://loveapi.example.com' } }
+          }
+        : {
+            id: providerId,
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'claude-opus-5-5'
+        ? { id: modelId, apiModelId: modelId, contextWindow: 1_000_000 }
+        : { id: modelId, apiModelId: `${modelId}-api` }
+    )
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.sdkModelId).toBe('loveapi:claude-opus-5-5[1m]')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'loveapi:claude-opus-5-5[1m]',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'loveapi:claude-opus-5-5[1m]',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'loveapi:claude-opus-5-5[1m]'
+    })
+    expect(request?.settings.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
+    expect(request?.options.env).toMatchObject({
+      CLAUDE_CODE_SUBAGENT_MODEL: 'loveapi:claude-opus-5-5[1m]',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api'
+    })
+  })
+
+  it('keeps the gateway route unsuffixed on the first-party Anthropic endpoint', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'anthropic::claude-opus-5-5',
+      planModel: 'openai::gpt-plan'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
+      providerId === 'anthropic'
+        ? {
+            id: 'anthropic',
+            presetProviderId: 'anthropic',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+          }
+        : {
+            id: providerId,
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'claude-opus-5-5'
+        ? { id: modelId, apiModelId: modelId, contextWindow: 1_000_000 }
+        : { id: modelId, apiModelId: `${modelId}-api` }
+    )
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.sdkModelId).toBe('anthropic:claude-opus-5-5')
+    expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:23333')
+  })
+
+  it('logs which background slot forced a direct-eligible primary onto the gateway', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'loveapi::claude-opus-5-5',
+      planModel: 'openai::gpt-plan'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
+      providerId === 'loveapi'
+        ? {
+            id: 'loveapi',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://loveapi.example.com' } }
+          }
+        : {
+            id: providerId,
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude Code route degraded to the internal gateway by a background model slot',
+      expect.objectContaining({
+        sessionId: 'session-1',
+        primaryProviderId: 'loveapi',
+        primaryModelId: 'claude-opus-5-5',
+        slots: [
+          expect.objectContaining({
+            slot: 'sonnet',
+            providerId: 'openai',
+            modelId: 'gpt-plan',
+            reasons: ['cross-provider', 'non-anthropic-endpoint']
+          })
+        ]
+      })
+    )
+  })
+
+  it('omits the degradation log when the primary itself needs the gateway', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
   it('injects the Ollama dummy token for direct Anthropic routing when no API key is configured', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:14b' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -967,7 +1132,57 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('x-cherry-agent-session-id: session-1')
     expect(request?.options.env?.API_TIMEOUT_MS).toBe('1800000')
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect(env).toMatchObject({
+        ANTHROPIC_MODEL: 'openai:gpt-main-api',
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'openai:gpt-main-api',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'openai:gpt-main-api'
+      })
+      expect(env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL_FORCE')
+    }
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it.each([
+    ['', 'openai:gpt-main-api'],
+    [' \t ', 'openai:gpt-main-api'],
+    ['other:sub-api', 'other:sub-api'],
+    ['openrouter:anthropic/claude:beta', 'openrouter:anthropic/claude:beta'],
+    [' sonnet ', ' sonnet '],
+    ['claude-sonnet-4-6-code', 'claude-sonnet-4-6-code']
+  ])('resolves the gateway sub-agent pin %j to %j', async (pin, expected) => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'openai::gpt-main',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+      id: providerId,
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+    }))
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.buildSessionSettings.mockResolvedValue({
+      env: { CLAUDE_CODE_SUBAGENT_MODEL: pin, CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect(env).toMatchObject({
+        ANTHROPIC_MODEL: 'openai:gpt-main-api',
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'openai:gpt-main-api',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
+        CLAUDE_CODE_SUBAGENT_MODEL: expected,
+        CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
+      })
+    }
   })
 
   it('preserves explicit timeout controls for local API gateway routes', async () => {
@@ -1107,6 +1322,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'sonnet-api'
     })
+    expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
+    expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
@@ -1126,6 +1343,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         }
       ]
     })
+  })
+
+  it.each(['', 'sonnet', 'provider:model'])('preserves the external-cli sub-agent pin %j', async (pin) => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'claude-code::sonnet',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+      id: providerId,
+      ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {}),
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    }))
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: pin } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect(env).toMatchObject({ ANTHROPIC_MODEL: 'sonnet-api', CLAUDE_CODE_SUBAGENT_MODEL: pin })
+    }
   })
 
   it('passes Claude Code Fast to the SDK settings builder', async () => {

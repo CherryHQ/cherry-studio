@@ -4053,6 +4053,33 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.listClaimedResumeTokens()).toEqual(new Set())
   })
 
+  it('keeps a resume token claimed after the close deadline until native teardown completes', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const teardown = createDeferred<void>()
+      const entry = getEntry(service)
+      entry.lastResumeToken = 'resume-timeout'
+      entry.connection = { close: () => teardown.promise, send: vi.fn(), events: [] }
+
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_001)
+      await closing
+
+      expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-timeout']))
+      expect(service.hasBusySessions()).toBe(true)
+
+      teardown.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(service.listClaimedResumeTokens()).toEqual(new Set())
+      expect((service as any).failedClosures.has('session-1')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('waits for a pending connection attempt when synchronous close cleanup falls back', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

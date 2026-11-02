@@ -33,7 +33,7 @@ describe('fileProcessingHandlers', () => {
       processorId: 'tesseract'
     } as In<'file_processing.start_job'>
     const snapshot = { id: 'job-1' }
-    fileProcessingService.startJob.mockResolvedValue(snapshot)
+    fileProcessingService.startJob.mockResolvedValue({ id: 'job-1', snapshot, finished: new Promise(() => {}) })
 
     const result = await fileProcessingHandlers['file_processing.start_job'](input, ctx)
 

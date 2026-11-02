@@ -55,8 +55,8 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { AsyncEventQueue } from '@shared/utils/async'
 
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,

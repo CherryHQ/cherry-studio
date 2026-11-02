@@ -21,7 +21,7 @@ const MACOS_DEFAULT_APPLICATION_SCRIPT = [
   '  const applicationURL = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL(fileURL)',
   '  if (!applicationURL) return ""',
   '  const name = $.NSFileManager.defaultManager.displayNameAtPath(applicationURL.path)',
-  '  return ObjC.unwrap(name)',
+  '  return JSON.stringify({ name: ObjC.unwrap(name), path: ObjC.unwrap(applicationURL.path) })',
   '}'
 ].join('\n')
 
@@ -46,26 +46,57 @@ const WINDOWS_DEFAULT_APPLICATION_SCRIPT = [
 
 export interface DefaultApplicationInfo {
   name: string
+  /** Main-process-only application identity; never exposed on ExternalOpenTarget. */
+  path?: string
   iconDataUrl?: string
 }
 
 export async function resolveDefaultApplication(targetPath: AbsoluteFilePath): Promise<DefaultApplicationInfo | null> {
   try {
-    const name = await resolveDefaultApplicationName(targetPath)
-    if (!name) return null
+    const metadata = await resolveDefaultApplicationMetadata(targetPath)
+    if (!metadata) return null
 
-    const iconDataUrl = await resolveDefaultApplicationIcon(targetPath)
-    return { name, ...(iconDataUrl ? { iconDataUrl } : {}) }
+    const iconDataUrl =
+      (metadata.path ? await resolveDefaultApplicationIcon(metadata.path) : undefined) ??
+      (await resolveDefaultApplicationIcon(targetPath))
+    return { ...metadata, ...(iconDataUrl ? { iconDataUrl } : {}) }
   } catch (error) {
     logger.debug('Failed to resolve the system default application', error as Error)
     return null
   }
 }
 
-async function resolveDefaultApplicationName(targetPath: AbsoluteFilePath): Promise<string | null> {
+async function resolveDefaultApplicationMetadata(
+  targetPath: AbsoluteFilePath
+): Promise<Omit<DefaultApplicationInfo, 'iconDataUrl'> | null> {
   if (isMac) {
-    return execute('/usr/bin/osascript', ['-l', 'JavaScript', '-e', MACOS_DEFAULT_APPLICATION_SCRIPT, targetPath])
+    const output = await execute('/usr/bin/osascript', [
+      '-l',
+      'JavaScript',
+      '-e',
+      MACOS_DEFAULT_APPLICATION_SCRIPT,
+      targetPath
+    ])
+    if (!output) return null
+    const metadata: unknown = JSON.parse(output)
+    if (!metadata || typeof metadata !== 'object' || !('name' in metadata)) return null
+    const { name } = metadata
+    if (typeof name !== 'string' || !name.trim()) return null
+    const applicationPath = 'path' in metadata ? metadata.path : undefined
+    return {
+      name,
+      ...(typeof applicationPath === 'string' &&
+      path.posix.isAbsolute(applicationPath) &&
+      !applicationPath.includes('\0')
+        ? { path: applicationPath }
+        : {})
+    }
   }
+  const name = await resolveDefaultApplicationName(targetPath)
+  return name ? { name } : null
+}
+
+async function resolveDefaultApplicationName(targetPath: AbsoluteFilePath): Promise<string | null> {
   if (isWin) {
     const extension = path.extname(targetPath)
     if (!extension) return null
@@ -105,9 +136,9 @@ function createWindowsLookupCommand(extension: string): string {
   return Buffer.from(script, 'utf16le').toString('base64')
 }
 
-async function resolveDefaultApplicationIcon(targetPath: AbsoluteFilePath): Promise<string | undefined> {
+async function resolveDefaultApplicationIcon(subjectPath: string): Promise<string | undefined> {
   try {
-    const icon = await app.getFileIcon(targetPath, { size: 'normal' })
+    const icon = await app.getFileIcon(subjectPath, { size: 'normal' })
     return icon.isEmpty() ? undefined : icon.toDataURL()
   } catch {
     return undefined
@@ -150,6 +181,6 @@ async function execute(command: string, args: string[]): Promise<string | null> 
     timeout: LOOKUP_TIMEOUT_MS,
     windowsHide: true
   })
-  const value = stdout.replaceAll('\0', '').trim()
+  const value = (isMac ? stdout : stdout.replaceAll('\0', '')).trim()
   return value || null
 }

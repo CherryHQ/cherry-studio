@@ -106,7 +106,7 @@ function getLaunchSpec(
       '--',
       '--inspect',
       '--sourcemap',
-      '--remote-debugging-port=9222',
+      `--remote-debugging-port=${CDP_PORT}`,
       '--disable-backgrounding-occluded-windows'
     ]
     if (locale) args.push(`--lang=${locale}`)

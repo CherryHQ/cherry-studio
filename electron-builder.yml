@@ -199,78 +199,82 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.7 - Voice, Cloud, and Model Updates
+    Cherry Studio 2.1.8 - Editing, Voice, and Integration Updates
 
     ✨ New Features
-    - [Voice] Add Kokoro Chinese-English TTS with 103 voices for Windows x64, Linux and macOS, and Qwen3-TTS for Apple Silicon. Download models from Settings > Local Models before first use.
-    - [Voice] Show live audio spectra in speech playback and dictation controls. Restore the microphone after empty dictation.
-    - [Voice] Add local FunASR speech transcription on Windows, Linux and macOS.
-    - [Cherry Cloud] Add subscription plan and quota usage visibility to the Global edition, with limited-time-free and exhausted-quota descriptions for managed models.
-    - [Cherry Cloud] Add a compact anchored sidebar account menu. Avatar and nickname open Personal Information settings; Appearance and Login stay in the menu.
-    - [Cherry Cloud] Preserve login during temporary connection or refresh failures.
-    - [Automation] Orchestrate Browser and Computer Use through persistent JavaScript with clearer execution feedback.
-    - [Knowledge Base] Drag knowledge bases between groups and reorder groups; cycle item columns through ascending, descending and default ordering.
-    - [Image] Add GPT-Image-2 aspect ratio presets for 16:9, 9:16, 16:10, and 4K output.
-    - [Models] Add Gemini 4 Argon support with thinking levels and automatic long-output continuation.
-    - [Models] Add Muse Spark Open model recognition with multimodal capabilities and reasoning controls.
-    - [Search] Add DuckDuckGo as a free keyword web search provider. No API key required.
-    - [Tools] Tool results now preview image links and display clickable web links.
-    - [Errors] Show actionable error notifications with readable diagnoses, expandable details, and recovery actions for conversations, provider checks, and MCP failures.
-    - [Chat] Queued follow-up messages start collapsed. Click the header to expand or collapse.
-    - [Chat] Hover over conversations to see full name, activity time, and workspace details.
-    - [Notes] Search code-block languages by name.
+    - [File Editing] Isolate drafts across notes, skills and artifacts, retain failed edits for retry, and support up to 8 MiB text editing and previews.
+    - [Language] Add Italian (it-IT) UI support with full translations and emoji picker.
+    - [Voice] Hold the mouse button in a text input to start dictation, release to transcribe.
+    - [Voice] Streaming speech synthesis with real-time audio playback.
+    - [Web Search] Add Tencent Yuanbao Search as a built-in provider.
+    - [Scheduled Tasks] Create and manage scheduled tasks through an agent chat with an interactive task card.
+    - [Screenshot] Copy the capture to clipboard while keeping the overlay open.
+    - [Selection] Select text anywhere to automatically copy it and show a quick-quote toolbar.
+    - [Composer] File and link tokens align with the text line, show per-type file icons, and load favicons while editing.
+    - [RTF] Preview Rich Text Format files as formatted documents.
+    - [Feishu] Configure whether the bot only replies to @mentions in group chats.
+    - [Remote Access] Set a custom hostname, IP or port for pairing invitations.
+    - [Assistant] Remember the “Also archive related topics” choice for future archives.
 
     🐛 Bug Fixes
-    - [Attachments] Fix unrecognized-extension text files (e.g., .lrmx) not being read as text.
-    - [OCR] Identify which OCR path failed when sending images to non-vision models, with guidance for each failure type.
-    - [Window] Fix main window closing on Windows/Linux hiding the window when the tray icon is unavailable, leaving no way to restore or quit.
-    - [Messages] Preserve disclosure state and follow streamed reasoning in message display.
-    - [Composer] Automatically follow prompt text direction; keep leading-dot file names; accept any file type on the agent surface.
-    - [Files] Add file context menu actions; align file links and icons with inline text.
-    - [MCP] Connect to remote MCP servers that reject the version probe with 5xx errors; confirm health before reconnects.
-    - [Models] Accept null Gemini model list pagination tokens; improve Gemini model discovery and metadata refresh.
-    - [Tray] Use a stable Windows tray GUID for portable installs.
-    - [Voice] Fixed read-aloud skipping text in code blocks and inline code.
-    - [Agents] Allow users to turn off onboarding by declining setup.
-    - [Translation] Keep idle dictation and copy buttons beside the input text without adding an extra toolbar row.
-    - [Computer Use] Fixed missing automation tool output for Claude agents and added structured accessibility-tree pagination to prevent oversized observations from being omitted.
-    - [Settings] Restore settings scrollbars and consistent layouts, clarify Computer Use permission actions, and fix clipped content, MCP tab order and unnecessary Usage heatmap overflow.
+    - [Notes] Fix note content being overwritten when switching between cached notes.
+    - [Skills] Show localized error messages when a ZIP or folder is missing SKILL.md, without leaking temporary paths.
+    - [Chat] Expand long user messages by default; keep follow-up queues independent of read receipts.
+    - [Proxy] Match short wildcard IP bypass rules like 192.168.* on Windows.
+    - [Claude Code] Keep the 1M context budget when routing through the internal gateway.
+    - [Tab Bar] Closing the last tab opens the Launchpad instead of quitting the app.
+    - [File Preview] Preserve reading state when refreshing files; fix line spacing for Word documents.
+    - [Sidebar] Selected entries use neutral filled icons in both light and dark themes.
+    - [Chat Layout] Isolate list-group expansion state per window.
+    - [Paintings] Cap loading grid density to prevent performance issues.
+    - [MCP] Keep literal # characters in saved headers and environment values.
+    - [Knowledge] Ship a baseline sqlite-vec build for Linux x64.
+    - [Voice] Add diagnostics for operation failures and stream timeouts.
+    - [Agent Session] Continue the target workspace when creating across agents; surface compaction failures.
+    - [Messages] Drop historical tool parts with incompatible replay inputs.
+    - [Virtual List] Hand sticky headers over at the pinned stack bottom.
+    - [Notes] Fixed an issue where dismissing the "note changed on disk" conflict dialog left the editor session stuck, failing all later note renames, deletions, and moves with misleading errors.
+
+    🔒 Security
+    - [Electron] Upgrade to 44.9.3 for certificate security fixes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.7 - 语音、云服务与模型更新
+    Cherry Studio 2.1.8 - 编辑、语音与集成更新
 
     ✨ 新功能
-    - [语音] 添加 Kokoro 中英文语音合成，支持 103 种音色，适用于 Windows x64、Linux 和 macOS；Apple Silicon 用户可使用 Qwen3-TTS。首次使用前需从设置 > 本地模型下载模型。
-    - [语音] 语音播放和听写控件中显示实时音频频谱。空听写后恢复麦克风。
-    - [语音] 在 Windows、Linux 和 macOS 上添加本地 FunASR 语音转写。
-    - [Cherry Cloud] 为全球版添加订阅计划和配额用量显示，并为托管模型显示限时免费和配额耗尽提示。
-    - [Cherry Cloud] 添加紧凑的侧边栏账户菜单。头像和昵称打开个人信息设置；外观和登录保留在菜单中。
-    - [Cherry Cloud] 在临时连接或刷新失败期间保持登录状态。
-    - [自动化] 通过持久化 JavaScript 编排浏览器和计算机操作，执行反馈更清晰。
-    - [知识库] 在分组间拖拽知识库并重新排序分组；循环切换项目的升序、降序和默认排序。
-    - [图像] 添加 GPT-Image-2 的 16:9、9:16、16:10 和 4K 宽高比预设。
-    - [模型] 添加 Gemini 4 Argon 支持，包含思考级别和自动长输出续写。
-    - [模型] 添加 Muse Spark Open 模型识别，支持多模态能力和推理控制。
-    - [搜索] 添加 DuckDuckGo 作为免费的网页搜索提供商。无需 API 密钥。
-    - [工具] 工具结果现在可以预览图像链接并显示可点击的网页链接。
-    - [错误] 显示可操作的错误通知，包含可读的诊断、可展开的详情，以及对话、提供商检查和 MCP 失败的恢复操作。
-    - [对话] 排队的后续消息现在默认折叠。点击标题栏展开或折叠。
-    - [对话] 悬停对话可查看完整名称、活动时间和工作区详情。
-    - [笔记] 按名称搜索代码块语言。
+    - [文件编辑] 隔离笔记、技能和工件的草稿，保留保存失败的编辑以便重试，支持最大 8 MiB 的文本编辑与预览。
+    - [语言] 添加意大利语 (it-IT) 界面支持，包含完整翻译和表情选择器。
+    - [语音] 在文本输入中按住鼠标按钮开始听写，松开后转写。
+    - [语音] 流式语音合成与实时音频播放。
+    - [网页搜索] 添加腾讯元宝搜索作为内置提供商。
+    - [定时任务] 通过智能体对话创建和管理定时任务，并在聊天中显示交互式任务卡片。
+    - [截图] 复制截图到剪贴板，同时保持截图覆盖层开启。
+    - [选区] 选中任意文本即可自动复制并显示快速引用工具栏。
+    - [输入框] 文件和链接标记与文本行对齐，显示按类型的文件图标，编辑时加载网站图标。
+    - [RTF] 将富文本格式文件预览为格式化文档。
+    - [飞书] 配置群聊中的机器人是否仅在@提及时回复。
+    - [远程访问] 为配对邀请设置自定义主机名、IP 或端口。
+    - [助手] 记住归档时”同时归档相关话题”的选择。
 
     🐛 问题修复
-    - [附件] 修复无法识别扩展名的文本文件（如 .lrmx）无法作为文本读取的问题。
-    - [OCR] 向非视觉模型发送图像时，识别哪个 OCR 路径失败，并为每种失败类型提供指引。
-    - [窗口] 修复 Windows/Linux 上关闭主窗口时，当托盘图标不可用时会隐藏窗口且无法恢复或退出的问题。
-    - [消息] 保持消息显示的展开状态并跟踪流式推理。
-    - [输入框] 自动跟随提示文本方向；保留以点开头的文件名；在代理界面接受任意文件类型。
-    - [文件] 添加文件上下文菜单操作；对齐文件链接和图标与内联文本。
-    - [MCP] 连接拒绝版本探测并返回 5xx 错误的远程 MCP 服务器；重连前确认健康状态。
-    - [模型] 接受空的 Gemini 模型列表分页标记；改进 Gemini 模型发现和元数据刷新。
-    - [托盘] 为便携版安装使用稳定的 Windows 托盘 GUID。
-    - [语音] 修复朗读跳过代码块及行内代码中文字的问题。
-    - [智能体] 支持回复“不需要”或“跳过”关闭初始化引导。
-    - [翻译] 修复听写和复制按钮额外占据一行的问题，空闲时保持在输入文字右侧。
-    - [电脑操作] 修复 Claude 智能体自动化工具输出丢失的问题，并通过结构化辅助功能树分页避免大型观察结果被整份省略。
-    - [设置] 修复设置页滚动条和布局，优化电脑操作权限说明，并修复内容截断、MCP 标签顺序及用量热力图的多余横向溢出。
+    - [笔记] 修复在已缓存的笔记之间切换时内容被覆盖的问题。
+    - [技能] 当 ZIP 或文件夹缺少 SKILL.md 时显示本地化错误提示，不再泄露临时路径。
+    - [对话] 默认展开较长的用户消息；后续消息队列独立于已读回执。
+    - [代理] 匹配 Windows 上的短通配符 IP 绕过规则（如 192.168.*）。
+    - [Claude Code] 通过内部网关路由时保持 1M 上下文预算。
+    - [标签栏] 关闭最后一个标签页时打开启动台而非退出应用。
+    - [文件预览] 刷新文件时保持阅读状态；修复 Word 文档的行间距。
+    - [侧边栏] 选中的项目在浅色和深色主题中使用中性的填充图标。
+    - [对话布局] 按窗口隔离列表组展开状态。
+    - [绘画] 限制加载网格密度以防止性能问题。
+    - [MCP] 在保存的标头和环境值中保留 # 字符。
+    - [知识库] 为 Linux x64 提供基准 sqlite-vec 构建。
+    - [语音] 为操作失败和流超时添加诊断信息。
+    - [智能体会话] 跨智能体创建时继续目标工作区；显示压缩失败。
+    - [消息] 丢弃历史工具部件中不兼容的重放输入。
+    - [虚拟列表] 在固定堆栈底部移交粘性标题。
+    - [笔记] 修复关闭“笔记已在磁盘上更改”冲突对话框后编辑会话卡住，导致后续笔记重命名、删除和移动失败并显示误导性错误的问题。
+
+    🔒 安全
+    - [Electron] 升级到 44.9.3 以修复证书安全问题。
     <!--LANG:END-->

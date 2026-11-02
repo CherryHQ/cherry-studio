@@ -7,6 +7,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -709,7 +710,7 @@ describe('AgentChat artifact pane', () => {
     conversationBootstrap: createConversationBootstrap()
   })
   const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
-    render(<AgentChat {...activeSessionProps()} {...props} />)
+    render(<AgentChat {...activeSessionProps()} {...props} />, { wrapper: FileEditSessionProvider })
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
     props: Partial<ComponentProps<typeof AgentChat>> = {}

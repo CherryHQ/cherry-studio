@@ -2,6 +2,8 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as SharedAsync from '@shared/utils/async'
+
 import GraphvizPreview from '../GraphvizPreview'
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   renderFunction: undefined as ((content: string, container: HTMLDivElement) => Promise<void>) | undefined
 }))
 
-vi.mock('@renderer/utils/asyncInitializer', () => ({
+vi.mock('@shared/utils/async', async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedAsync>()),
   AsyncInitializer: class {
     constructor() {
       return { get: mocks.getViz }

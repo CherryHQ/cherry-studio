@@ -56,6 +56,11 @@ content, control, and events all travel inside the authenticated encrypted chann
 This also avoids leaking history through a TLS-terminating relay. No remotely
 callable authorization-administration or arbitrary file-path API is exposed.
 
+The hostname, port and WS/WSS scheme are configurable under the architecture's
+[custom endpoint contract](../api-gateway/remote-agent-access.md#custom-connection-addresses-and-ports).
+They select reachability only; the route, identity proof, authorization and
+JSON-RPC methods are unchanged when an endpoint changes.
+
 Connection progression:
 
 ```text

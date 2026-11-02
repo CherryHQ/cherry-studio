@@ -1,0 +1,345 @@
+diff --git a/dist/editor/editor.d.ts b/dist/editor/editor.d.ts
+index 8055c09b642caddcf411182dad3313866b02d15c..5ad3c861103e8023d8b202d6285b95da77305508 100644
+--- a/dist/editor/editor.d.ts
++++ b/dist/editor/editor.d.ts
+@@ -32,6 +32,8 @@ interface SyncDiffRenderViewProps<LAnnotation> extends SyncRenderViewBaseProps {
+ type SyncRenderViewProps<EType extends EditorType, LAnnotation> = EType extends 'file' ? SyncFileRenderViewProps<LAnnotation> : SyncDiffRenderViewProps<LAnnotation>;
+ type EditorComponent<EType extends EditorType, LAnnotation, Caret> = EType extends 'file' ? File<LAnnotation, Caret> : FileDiff<LAnnotation, Caret>;
+ interface EditorOptions<EType extends EditorType, LAnnotation, Caret> {
++  /** Keep document selection, copying and navigation without allowing edits. */
++  readOnly?: boolean;
+   /** The maximum number of entries to keep in the undo stack. */
+   historyMaxEntries?: number;
+   /**
+diff --git a/dist/editor/editor.js b/dist/editor/editor.js
+index bf17cea32f39ee60ff7520b17f44d99a8e7e98aa..4b8b052d4c6522177e9620bd9a187d301886d220 100644
+--- a/dist/editor/editor.js
++++ b/dist/editor/editor.js
+@@ -69,6 +69,7 @@ const MAX_EDIT_PREDICTION_RESPONSE_BYTES = 131072;
+ const editPredictionTextEncoder = new TextEncoder();
+ const SELECTION_ACTION_POPOVER_PLACEMENT_KEY = "selection-action";
+ const MULTI_SELECTION_CLIPBOARD_TYPE = "application/vnd.pierre.diffs-selections+json";
++const READ_ONLY_COMMANDS = new Set(["selectAll", "simplifySelection", "moveCursorToDocStart", "moveCursorToDocEnd", "expandSelectionDocStart", "expandSelectionDocEnd", "openSearchPanel", "openSearchReplacePanel", "findNextMatch"]);
+ var Editor = class {
+ 	type;
+ 	#options;
+@@ -191,10 +192,19 @@ var Editor = class {
+ 	setOptions(options) {
+ 		const previousRenderCaret = this.#options.renderCaret;
+ 		const previousEditPrediction = this.#options.editPrediction;
++		const wasReadOnly = this.#options.readOnly === true;
+ 		this.#options = {
+ 			...this.#options,
+ 			...options
+ 		};
++		if (this.#contentElement != null) {
++			this.#contentElement.contentEditable = this.#options.readOnly ? "false" : "true";
++			this.#contentElement.ariaReadOnly = String(this.#options.readOnly === true);
++		}
++		if (!wasReadOnly && this.#options.readOnly) {
++			this.#cancelEditPrediction(true);
++			this.#searchPanel?.close();
++		}
+ 		if (previousRenderCaret !== this.#options.renderCaret) {
+ 			this.#caretElements?.forEach((element) => element.remove());
+ 			this.#caretElements = void 0;
+@@ -325,6 +335,7 @@ var Editor = class {
+ 	* are remapped during replay and the text edit still joins the undo timeline.
+ 	*/
+ 	applyEdits(edits, updateHistory = true) {
++		if (this.#options.readOnly) return;
+ 		const textDocument = this.#editSession?.document;
+ 		if (textDocument == null) throw new Error("Editor.applyEdits: Editor is not attached");
+ 		const wasFocused = this.#contentHasFocus;
+@@ -342,10 +353,12 @@ var Editor = class {
+ 	}
+ 	/** Whether there is an edit to undo. */
+ 	get canUndo() {
++		if (this.#options.readOnly) return false;
+ 		return (this.#editSession ?? this.#initialState)?.document?.canUndo ?? false;
+ 	}
+ 	/** Whether there is an undone edit to redo. */
+ 	get canRedo() {
++		if (this.#options.readOnly) return false;
+ 		return (this.#editSession ?? this.#initialState)?.document?.canRedo ?? false;
+ 	}
+ 	/** Undo the last edit. Does nothing when there is nothing to undo. */
+@@ -739,7 +752,9 @@ var Editor = class {
+ 		if (this.#contentElement !== contentEl) {
+ 			this.#gutterElement = gutterEl;
+ 			this.#contentElement = extend(contentEl, {
+-				contentEditable: "true",
++				contentEditable: this.#options.readOnly ? "false" : "true",
++				ariaReadOnly: String(this.#options.readOnly === true),
++				tabIndex: 0,
+ 				role: "textbox",
+ 				ariaMultiLine: "true",
+ 				autocapitalize: "off",
+@@ -975,6 +990,9 @@ var Editor = class {
+ 				const shadowRoot = this.#fileContainer?.shadowRoot;
+ 				if (this.#shouldIgnoreSelectionChange || this.#suppressNativeSelectionSync || shadowRoot == null || !this.#contentHasFocus) return;
+ 				if (this.#selections !== void 0 && this.#selections.length > 1 && !this.#isContentMouseDown) return;
++				const primary = this.#selections?.at(-1);
++				const anchor = primary?.direction === -1 ? primary.end : primary?.start;
++				if (!this.#isContentMouseDown && anchor != null && this.#getLineElement(anchor.line) === void 0) return;
+ 				const selectionRaw = document.getSelection();
+ 				if (selectionRaw == null) return;
+ 				let composedRange;
+@@ -1001,6 +1019,14 @@ var Editor = class {
+ 				if (this.#reservedSelections !== void 0) this.#updateSelections([...this.#reservedSelections.filter((reservedSelection) => !selectionIntersects(reservedSelection, selection)), selection]);
+ 				else this.#updateSelections([selection]);
+ 			}, { passive: true }),
++			addEventListener(document, "pointermove", (event) => {
++				const anchor = this.#selectionStart;
++				if (!this.#isContentMouseDown || anchor == null || this.#altColumnDrag != null || this.#getLineElement(anchor.start.line) !== void 0) return;
++				const focus = this.#selectionAtPointer(event);
++				if (focus == null) return;
++				this.#suppressNativeSelectionSync = true;
++				this.#updateSelections([extendSelection(anchor, focus)]);
++			}, { passive: true }),
+ 			addEventListener(document, "pointerup", finishMouseSelection, { passive: true }),
+ 			addEventListener(document, "pointercancel", finishMouseSelection, { passive: true }),
+ 			addEventListener(document, "keydown", (e) => {
+@@ -1015,6 +1041,13 @@ var Editor = class {
+ 			}, { passive: true })
+ 		];
+ 	}
++	#selectionAtPointer(event) {
++		const shadowRoot = this.#fileContainer?.shadowRoot;
++		if (shadowRoot == null) return;
++		const caret = document.caretPositionFromPoint?.(event.clientX, event.clientY, { shadowRoots: [shadowRoot] });
++		if (caret == null || !this.#contentElement?.contains(caret.offsetNode)) return;
++		return convertSelection({ startContainer: caret.offsetNode, startOffset: caret.offset, endContainer: caret.offsetNode, endOffset: caret.offset });
++	}
+ 	#resetSelectionGesture() {
+ 		this.#selectEventDisposes?.forEach((dispose) => dispose());
+ 		this.#selectEventDisposes = void 0;
+@@ -1069,6 +1102,18 @@ var Editor = class {
+ 				}
+ 				this.#setDeletedTextSelectionActive(false);
+ 				this.#markerRenderer?.removePopover();
++				const primary = this.#selections?.at(-1);
++				const anchor = primary?.direction === -1 ? primary.end : primary?.start;
++				if (e.button === 0 && e.shiftKey && primary != null && anchor != null && this.#getLineElement(anchor.line) === void 0) {
++					const focus = this.#selectionAtPointer(e);
++					if (focus != null) {
++						e.preventDefault();
++						this.#suppressNativeSelectionSync = true;
++						this.#updateSelections([extendSelection(primary, focus)]);
++						this.#focus();
++						return;
++					}
++				}
+ 				const selectEventDisposes = [];
+ 				if (isSafari() && this.#lineAnnotations !== void 0 && this.#lineAnnotations.length > 0) {
+ 					const annotationDisposes = [...contentEl.querySelectorAll("[data-line-annotation]")].map((el) => [addEventListener(el, "mouseenter", () => {
+@@ -1114,7 +1159,7 @@ var Editor = class {
+ 					}
+ 					this.#shiftKeyPressed = true;
+ 				}
+-			}, { passive: true }),
++			}, { passive: false }),
+ 			addEventListener(contentEl, "keydown", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+ 				this.#canMountSelectionAction = true;
+@@ -1130,6 +1175,7 @@ var Editor = class {
+ 					e.preventDefault();
+ 					return;
+ 				}
++				if (this.#options.readOnly && e.key === "Tab") return;
+ 				const command = resolveEditorCommandFromKeyboardEvent(e, this.#options.keymap);
+ 				if (command !== void 0) {
+ 					e.preventDefault();
+@@ -1161,6 +1207,10 @@ var Editor = class {
+ 						e.preventDefault();
+ 						return;
+ 					}
++					if (this.#options.readOnly) {
++						e.preventDefault();
++						return;
++					}
+ 					if (this.#options.clipboard !== void 0) {
+ 						e.preventDefault();
+ 						queueRender(this.#handleCustomPasteEvent);
+@@ -1185,6 +1235,7 @@ var Editor = class {
+ 			addEventListener(contentEl, "cut", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+ 				e.preventDefault();
++				if (this.#options.readOnly) return;
+ 				if (this.#isDeletedTextSelectionActive()) e.clipboardData?.setData("text", this.#deletedTextForClipboard());
+ 				else {
+ 					const selectionTexts = this.#getSelectionClipboardTexts();
+@@ -1194,6 +1245,7 @@ var Editor = class {
+ 			addEventListener(contentEl, "paste", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+ 				e.preventDefault();
++				if (this.#options.readOnly) return;
+ 				const clipboardData = e.clipboardData;
+ 				const textDocument = this.#editSession?.document;
+ 				if (clipboardData === null || textDocument === void 0) return;
+@@ -1210,6 +1262,10 @@ var Editor = class {
+ 			}),
+ 			addEventListener(contentEl, "beforeinput", (e) => {
+ 				if (!targetIsContentElement(e)) return;
++				if (this.#options.readOnly) {
++					e.preventDefault();
++					return;
++				}
+ 				if (e.inputType === "insertCompositionText") {
+ 					this.#cancelEditPrediction(true);
+ 					return;
+@@ -1217,9 +1273,20 @@ var Editor = class {
+ 				e.preventDefault();
+ 				this.#handleInput(e.inputType, e.data);
+ 			}),
++			addEventListener(contentEl, "dragover", (e) => {
++				if (!targetIsContentElement(e) || this.#options.readOnly || !e.dataTransfer?.types.includes("text/plain")) return;
++				e.preventDefault();
++				e.dataTransfer.dropEffect = "copy";
++			}),
+ 			addEventListener(contentEl, "drop", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+ 				e.preventDefault();
++				if (this.#options.readOnly) return;
++				const text = e.dataTransfer?.getData("text/plain");
++				const textDocument = this.#editSession?.document;
++				const selection = this.#selectionAtPointer(e);
++				if (!text || textDocument == null || selection == null) return;
++				this.#replaceSelectionText(textDocument.normalizeEol(text), [selection], true);
+ 			}),
+ 			addEventListener(contentEl, "compositionstart", (e) => {
+ 				if (!targetIsContentElement(e)) return;
+@@ -1317,6 +1384,7 @@ var Editor = class {
+ 		this.#computeContentOffset(contentEl);
+ 	}
+ 	#handleCustomPasteEvent = async () => {
++		if (this.#options.readOnly) return;
+ 		const clipboard = this.#options.clipboard;
+ 		if (clipboard !== void 0) {
+ 			let text = await clipboard.readText();
+@@ -1345,6 +1413,7 @@ var Editor = class {
+ 		if (this.#isDiff && this.#diffSyle === "split" && this.#isWrap) return this.#contentOffset;
+ 	}
+ 	#runCommand(command) {
++		if (this.#options.readOnly && !READ_ONLY_COMMANDS.has(command)) return;
+ 		const textDocument = this.#editSession?.document;
+ 		if (textDocument == null) return;
+ 		switch (command) {
+@@ -1913,6 +1982,7 @@ var Editor = class {
+ 		if (this.#options.__debug === true) console.log(`[diffs/editor] re-render in: ${round(performance.now() - t2)}ms,`, `tokenize in: ${round(t2 - t)}ms (${dirtyLines.size} dirty lines)`);
+ 	}
+ 	#handleInput(inputType, data) {
++		if (this.#options.readOnly) return;
+ 		switch (inputType) {
+ 			case "insertText": {
+ 				const text = data ?? "";
+@@ -2278,6 +2348,7 @@ var Editor = class {
+ 		if (this.#themeSelectionRefreshFrame !== void 0) return;
+ 		this.#themeSelectionRefreshFrame = requestAnimationFrame(() => {
+ 			this.#themeSelectionRefreshFrame = void 0;
++			this.#fileInstance?.onThemeChange();
+ 			if (this.#selections !== void 0 || this.#matches !== void 0 || this.#markerRenderer !== void 0) this.#updateSelections(this.#selections ?? []);
+ 		});
+ 	}
+@@ -2552,6 +2623,7 @@ var Editor = class {
+ 	}
+ 	#scheduleEditPrediction() {
+ 		this.#cancelEditPrediction(true);
++		if (this.#options.readOnly) return;
+ 		const selection = this.#selections?.[0];
+ 		if (this.#options.editPrediction === void 0 || this.#editSession?.document === void 0 || this.#editSession?.fileInfo === void 0 || this.#selections?.length !== 1 || selection === void 0 || !isCollapsedSelection(selection)) return;
+ 		const document = this.#editSession?.document;
+@@ -2676,6 +2748,7 @@ var Editor = class {
+ 		this.#editPredictionHistory = recordEditPrediction(this.#editPredictionHistory, path, textDocument, transaction, source);
+ 	}
+ 	#acceptEditPrediction() {
++		if (this.#options.readOnly) return;
+ 		const prediction = this.#editPrediction;
+ 		const textDocument = this.#editSession?.document;
+ 		const selection = this.#selections?.[0];
+@@ -3194,6 +3267,7 @@ var Editor = class {
+ 		this.#selectionAction.reposition(left, anchorTop, this.#getGutterWidth(), placeAbove, isSelectionVisible, viewport);
+ 	}
+ 	#openSearchPanel(mode) {
++		if (this.#options.readOnly) mode = "find";
+ 		if (this.#searchPanel !== void 0) {
+ 			this.#searchPanel.setMode(mode);
+ 			return;
+@@ -3232,10 +3306,11 @@ var Editor = class {
+ 			containerElement: preElement,
+ 			defaultQuery,
+ 			mode,
++			readOnly: this.#options.readOnly,
+ 			initialMatch,
+ 			scrollToMatch,
+ 			applyReplace: (edits) => {
+-				if (edits.length === 0) return;
++				if (this.#options.readOnly || edits.length === 0) return;
+ 				const change = textDocument.applyEdits(edits.map((edit) => ({
+ 					range: {
+ 						start: textDocument.positionAt(edit.start),
+@@ -3333,6 +3408,7 @@ var Editor = class {
+ 		this.#applyChange(change, nextSelections, this.#applyChangeToLineAnnotations(change));
+ 	}
+ 	#replaceSelectionText(text, selections = this.#selections, undoBoundary = false, textOrder = "selection") {
++		if (this.#options.readOnly) return;
+ 		if (selections === void 0) return;
+ 		const textDocument = this.#editSession?.document;
+ 		const primarySelection = selections.at(-1);
+@@ -3423,7 +3499,7 @@ var Editor = class {
+ 				} else shouldUpdateBuffer = true;
+ 			}
+ 		}
+-		if (this.#isRendering && this.#tokenizer != null && this.#contentElement != null) this.#rerender(change, newLineAnnotations, renderRange, shouldUpdateBuffer);
++		if (this.#isRendering && this.#tokenizer != null && this.#contentElement != null && (renderRange == null || change.startLine < renderRange.startingLine + renderRange.totalLines)) this.#rerender(change, newLineAnnotations, renderRange, shouldUpdateBuffer);
+ 		else if (textDocument != null) {
+ 			this.#applySuspendedDocumentChange?.(textDocument, newLineAnnotations);
+ 			if (newLineAnnotations != null) this.#lineAnnotations = newLineAnnotations;
+diff --git a/dist/editor/searchPanel.d.ts b/dist/editor/searchPanel.d.ts
+index 9542849786b98a7b11f98894847a2f53a9aac113..618679aa0e671ca983ace31dcc0ede22a995a8e0 100644
+--- a/dist/editor/searchPanel.d.ts
++++ b/dist/editor/searchPanel.d.ts
+@@ -11,6 +11,7 @@ interface SearchParams {
+   regex: boolean;
+ }
+ interface SearchPanelOptions {
++  readOnly?: boolean;
+   textDocument: TextDocument;
+   containerElement: HTMLElement;
+   defaultQuery: string;
+diff --git a/dist/editor/searchPanel.js b/dist/editor/searchPanel.js
+index df1ba637c2f7834f21f087eba7a416c802f4ac68..af6d8f20b5458b40e81c4b677f715d2c3de5d546 100644
+--- a/dist/editor/searchPanel.js
++++ b/dist/editor/searchPanel.js
+@@ -278,6 +278,7 @@ var SearchPanelWidget = class {
+ 			]
+ 		});
+ 		const applyMode = (next) => {
++			if (options.readOnly) next = "find";
+ 			gridElement.dataset.mode = next;
+ 			this.#inputElement.focus();
+ 			this.#inputElement.select();
+diff --git a/dist/react/utils/useFileDiffInstance.js b/dist/react/utils/useFileDiffInstance.js
+index 4c31cf5025d726a55d07d4cada9d4ba5510998b4..04711616c4f9c5af0e211f4817537ad2ac5db9a4 100644
+--- a/dist/react/utils/useFileDiffInstance.js
++++ b/dist/react/utils/useFileDiffInstance.js
+@@ -117,6 +117,7 @@ function useFileDiffInstance({ fileDiff, oldFile, newFile, options, editorOption
+ 		});
+ 		const forceRender = !areOptionsEqual(instance.options, newOptions);
+ 		instance.setOptions(newOptions);
++		instance.editor?.setOptions(editorOptions ?? {});
+ 		if (!edit) {
+ 			pendingAttachRef.current = null;
+ 			if (disposeEditorRef.current != null) {
+diff --git a/dist/react/utils/useFileInstance.js b/dist/react/utils/useFileInstance.js
+index 462974687d8fd2cd6e03fdeabbd4551020cd8737..0a6932c3ec5e21c3c13772b9c07e8cc6c4d8455d 100644
+--- a/dist/react/utils/useFileInstance.js
++++ b/dist/react/utils/useFileInstance.js
+@@ -95,6 +95,7 @@ function useFileInstance({ file, options, editorOptions, editStateKey, lineAnnot
+ 		});
+ 		const forceRender = !areOptionsEqual(instance.options, newOptions);
+ 		instance.setOptions(newOptions);
++		instance.editor?.setOptions(editorOptions ?? {});
+ 		if (!edit && disposeEditorRef.current != null) {
+ 			const { current: disposeEditor } = disposeEditorRef;
+ 			disposeEditorRef.current = null;

@@ -534,6 +534,427 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('settles a fixed-size embedded iframe without further surface style mutations', async () => {
+    // a fixed-size embedded iframe alternately selected incompatible content extents and never settled
+    render(
+      <HtmlArtifactView
+        html='<iframe src="https://example.invalid/x" height="450"></iframe>'
+        title="Preview"
+        kind="fragment"
+      />
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const body = iframe.contentDocument?.body
+    if (!body) throw new Error('Expected iframe body')
+    const frameDocument = body.ownerDocument
+    body.style.margin = '8px'
+    body.style.padding = '0'
+    body.style.border = '0'
+    const nestedFrame = frameDocument.createElement('iframe')
+    body.replaceChildren(nestedFrame)
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 460 })
+    Object.defineProperty(frameDocument.documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => Math.max(475, iframe.clientHeight)
+    })
+    Object.defineProperty(frameDocument, 'scrollingElement', {
+      configurable: true,
+      value: frameDocument.documentElement
+    })
+    vi.spyOn(body, 'getBoundingClientRect').mockReturnValue({
+      top: 8,
+      height: 459.5,
+      bottom: 467.5,
+      width: 100
+    } as DOMRect)
+    vi.spyOn(nestedFrame, 'getBoundingClientRect').mockReturnValue({
+      top: 8,
+      height: 454,
+      bottom: 462,
+      width: 100
+    } as DOMRect)
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 462, height: 454, width: 100 }) as DOMRect
+    })
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '475px' })
+
+    let styleMutations = 0
+    const observer = new MutationObserver((records) => {
+      styleMutations += records.length
+    })
+    observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+
+    try {
+      for (let round = 0; round < 5; round += 1) {
+        await act(async () => {
+          fireEvent.load(iframe)
+        })
+        expect(surface).toHaveStyle({ height: '475px' })
+        for (const callback of [...mocks.resizeObserverCallbacks]) {
+          await act(async () => callback([], {} as ResizeObserver))
+          expect(surface).toHaveStyle({ height: '475px' })
+        }
+        expect(styleMutations + observer.takeRecords().length).toBe(0)
+      }
+    } finally {
+      observer.disconnect()
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      } else {
+        Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+          configurable: true,
+          value: originalRangeGetBoundingClientRect
+        })
+      }
+    }
+  })
+
+  it('settles viewport-driven body geometry without further surface style mutations', async () => {
+    // A viewport-height body with bottom padding must not grow the preview on every measurement.
+    render(
+      <HtmlArtifactView
+        html='<style>body{min-height:100vh;margin:0;padding-bottom:1px}</style><div style="height:20px">x</div>'
+        title="Preview"
+      />
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.cssText = 'min-height:100vh;margin:0;padding-bottom:1px'
+    const child = frameDocument.createElement('div')
+    child.textContent = 'x'
+    child.style.height = '20px'
+    body.replaceChildren(child)
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    vi.spyOn(body, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: iframe.clientHeight + 1, height: iframe.clientHeight + 1, width: 100 }) as DOMRect
+    )
+    vi.spyOn(child, 'getBoundingClientRect').mockReturnValue({ bottom: 20, height: 20, width: 100 } as DOMRect)
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 23, height: 20, width: 100 }) as DOMRect
+    })
+
+    let styleMutations = 0
+    const observer = new MutationObserver((records) => {
+      styleMutations += records.length
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.load(iframe)
+      })
+      expect(surface).toHaveStyle({ height: '24px' })
+      observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+
+      for (let round = 0; round < 10; round += 1) {
+        await act(async () => {
+          fireEvent.load(iframe)
+        })
+        expect(surface).toHaveStyle({ height: '24px' })
+        for (const callback of [...mocks.resizeObserverCallbacks]) {
+          await act(async () => callback([], {} as ResizeObserver))
+          expect(surface).toHaveStyle({ height: '24px' })
+        }
+        expect(styleMutations + observer.takeRecords().length).toBe(0)
+      }
+    } finally {
+      observer.disconnect()
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      } else {
+        Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+          configurable: true,
+          value: originalRangeGetBoundingClientRect
+        })
+      }
+    }
+  })
+
+  it('rejects a body filling the frame without further surface style mutations', async () => {
+    // A body filling the frame must not feed its bottom margin back into the next measurement.
+    render(
+      <HtmlArtifactView
+        html='<style>body{min-height:100vh;margin:0 0 1px}</style><div style="height:20px">x</div>'
+        title="Preview"
+      />
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.cssText = 'min-height:100vh;margin:0 0 1px'
+    const child = frameDocument.createElement('div')
+    child.textContent = 'x'
+    child.style.height = '20px'
+    body.replaceChildren(child)
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    vi.spyOn(body, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: iframe.clientHeight, height: iframe.clientHeight, width: 100 }) as DOMRect
+    )
+    vi.spyOn(child, 'getBoundingClientRect').mockReturnValue({ bottom: 20, height: 20, width: 100 } as DOMRect)
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 23, height: 20, width: 100 }) as DOMRect
+    })
+
+    let styleMutations = 0
+    const observer = new MutationObserver((records) => {
+      styleMutations += records.length
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.load(iframe)
+      })
+      const firstHeight = surface.style.height
+      observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+
+      for (let round = 0; round < 10; round += 1) {
+        await act(async () => {
+          fireEvent.load(iframe)
+        })
+        expect(surface.style.height).toBe(firstHeight)
+        for (const callback of [...mocks.resizeObserverCallbacks]) {
+          await act(async () => callback([], {} as ResizeObserver))
+          expect(surface.style.height).toBe(firstHeight)
+        }
+        expect(styleMutations + observer.takeRecords().length).toBe(0)
+      }
+    } finally {
+      observer.disconnect()
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      } else {
+        Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+          configurable: true,
+          value: originalRangeGetBoundingClientRect
+        })
+      }
+    }
+  })
+
+  it('rejects a body below the frame without further surface style mutations', async () => {
+    // A body below the frame must not feed its bottom margin back into the next measurement.
+    render(
+      <HtmlArtifactView
+        html='<style>body{min-height:99vh;margin:0 0 1px}</style><div style="height:20px">x</div>'
+        title="Preview"
+      />
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.cssText = 'min-height:99vh;margin:0 0 1px'
+    const child = frameDocument.createElement('div')
+    child.textContent = 'x'
+    child.style.height = '20px'
+    body.replaceChildren(child)
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    vi.spyOn(body, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: iframe.clientHeight * 0.99, height: iframe.clientHeight * 0.99, width: 100 }) as DOMRect
+    )
+    vi.spyOn(child, 'getBoundingClientRect').mockReturnValue({ bottom: 20, height: 20, width: 100 } as DOMRect)
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 23, height: 20, width: 100 }) as DOMRect
+    })
+
+    let styleMutations = 0
+    const observer = new MutationObserver((records) => {
+      styleMutations += records.length
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.load(iframe)
+      })
+      const firstHeight = surface.style.height
+      observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+
+      for (let round = 0; round < 10; round += 1) {
+        await act(async () => {
+          fireEvent.load(iframe)
+        })
+        expect(surface.style.height).toBe(firstHeight)
+        for (const callback of [...mocks.resizeObserverCallbacks]) {
+          await act(async () => callback([], {} as ResizeObserver))
+          expect(surface.style.height).toBe(firstHeight)
+        }
+        expect(styleMutations + observer.takeRecords().length).toBe(0)
+      }
+    } finally {
+      observer.disconnect()
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      } else {
+        Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+          configurable: true,
+          value: originalRangeGetBoundingClientRect
+        })
+      }
+    }
+  })
+
+  it('drops a remembered overflow extent when the content shrinks', () => {
+    // Remembering an overflow extent must not pin the surface after a real content shrink.
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '0'
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    let sweep = 470
+    let overflowing = true
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 0 })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => (overflowing ? 475 : iframe.clientHeight)
+    })
+    vi.spyOn(content, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: sweep, height: sweep, width: 100 }) as DOMRect
+    )
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '475px' })
+
+    overflowing = false
+    const observer = new MutationObserver(() => {})
+    observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+    try {
+      act(() => {
+        for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+      })
+      expect(surface).toHaveStyle({ height: '475px' })
+      expect(observer.takeRecords()).toHaveLength(0)
+    } finally {
+      observer.disconnect()
+    }
+
+    sweep = 100
+    act(() => {
+      for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+    })
+    expect(surface).toHaveStyle({ height: '100px' })
+  })
+
+  it('drops a remembered overflow extent when the sweep shrinks inside the former gap band', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '0'
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    let sweep = 310
+    let overflowing = true
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 0 })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => (overflowing ? 316 : iframe.clientHeight)
+    })
+    vi.spyOn(content, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: sweep, height: sweep, width: 100 }) as DOMRect
+    )
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '316px' })
+
+    overflowing = false
+    act(() => {
+      for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+    })
+    expect(surface).toHaveStyle({ height: '316px' })
+
+    sweep = 306
+    act(() => {
+      for (const callback of [...mocks.resizeObserverCallbacks]) callback([], {} as ResizeObserver)
+    })
+    expect(surface).toHaveStyle({ height: '306px' })
+  })
+
   it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {
     render(<HtmlArtifactView html="<main><p>Page</p></main>" title="Preview" />)
 

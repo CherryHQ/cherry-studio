@@ -14,6 +14,18 @@ describe('classifyErrorCategory HTTP 400', () => {
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
   })
+
+  // An upstream that rejects the REQUEST body ("Failed to parse request body" — #22164)
+  // must not be reported as a bad AI response: that sends users off switching models for
+  // a request-side failure, and hides the provider-settings recovery action.
+  it.each([
+    'Failed to parse request body',
+    'API Error: 400 {"error":{"message":"Failed to parse request body"}}',
+    'We could not parse the JSON body of your request.',
+    'request failed to parse'
+  ])('classifies a request-body rejection as a request failure: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
 })
 
 // Transport failures from #19926 must reach a recovery category (network /
@@ -154,6 +166,23 @@ describe('classifyErrorCategory provider response protocol', () => {
   it.each(phrases)('classifies %s as parse case-insensitively', (text) => {
     expect(classifyErrorCategory({ text })).toBe('parse')
     expect(classifyErrorCategory({ text: `Provider: ${text.toUpperCase()} Details` })).toBe('parse')
+  })
+
+  // "failed to parse" stays a response-side signal; only when the wording names the REQUEST
+  // does it become a request-side failure (#22164).
+  it.each([
+    'failed to parse response body',
+    'Failed to parse the response',
+    'failed to parse output',
+    'failed to parse the stream',
+    'Failed to parse video SSE event'
+  ])('classifies a response-side parse failure as parse: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('parse')
+  })
+
+  it('keeps a request-body parse failure out of the parse diagnosis', () => {
+    expect(classifyErrorCategory({ text: 'Failed to parse request body' })).toBe('unknown')
+    expect(classifyErrorCategory({ status: 400, text: 'Failed to parse request body' })).toBe('bad_request')
   })
 
   it.each([

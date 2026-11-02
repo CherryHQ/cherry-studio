@@ -1,3 +1,4 @@
+import type { ModelPricing } from '../schemas/model'
 import type { ProviderReasoningFormat } from '../schemas/provider'
 import { fixedSamplingParameterSupport } from './parameterSupports'
 import type { Provider } from './types'
@@ -5,6 +6,23 @@ import { openaiCompatible, type ProviderServerToolConfig } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
+const K31_EFFORT_WIRE = modeWire('reasoningEffort', { auto: EFFORT, effort: EFFORT }, { autoEffort: 'max' })
+
+// https://platform.kimi.com/docs/pricing/chat (default 5-minute cache writes).
+const K31_CN_PRICING: Record<string, ModelPricing> = {
+  'kimi-k3.1-pro': {
+    input: { currency: 'CNY', perMillionTokens: 13 },
+    output: { currency: 'CNY', perMillionTokens: 68 },
+    cacheRead: { currency: 'CNY', perMillionTokens: 1.3 },
+    cacheWrite: { currency: 'CNY', perMillionTokens: 13 }
+  },
+  'kimi-k3.1-pro-highspeed': {
+    input: { currency: 'CNY', perMillionTokens: 26 },
+    output: { currency: 'CNY', perMillionTokens: 136 },
+    cacheRead: { currency: 'CNY', perMillionTokens: 1.3 },
+    cacheWrite: { currency: 'CNY', perMillionTokens: 26 }
+  }
+}
 
 // Shared with moonshot-global: the international endpoint speaks the same API.
 export const moonshotReasoningFormat: ProviderReasoningFormat = {
@@ -31,6 +49,16 @@ export const moonshotServerTools: ProviderServerToolConfig[] = [
 ]
 
 export const moonshotOverrides = [
+  ...['kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed'].map<NonNullable<Provider['overrides']>[number]>((modelId) => ({
+    modelId,
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+    reasoningContracts: {
+      'openai-chat-completions': { wire: K31_EFFORT_WIRE },
+      'anthropic-messages': {
+        wire: modeWire('effort', { auto: EFFORT, effort: EFFORT }, { autoEffort: 'max' })
+      }
+    }
+  })),
   // Moonshot fixes temperature and top_p (0.95) for these models and rejects other
   // values with HTTP 400; omitting the non-configurable parameters uses the server defaults.
   { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
@@ -65,5 +93,8 @@ export default openaiCompatible({
     models: 'https://platform.moonshot.cn/docs/',
     official: 'https://www.moonshot.cn/'
   },
-  overrides: moonshotOverrides
+  overrides: moonshotOverrides.map((override) => {
+    const pricing = override.modelId ? K31_CN_PRICING[override.modelId] : undefined
+    return pricing ? { ...override, pricing } : override
+  })
 })

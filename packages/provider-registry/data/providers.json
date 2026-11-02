@@ -288,7 +288,53 @@
           "adapterFamily": "openai",
           "baseUrl": "https://api.deepseek.com",
           "reasoningFormat": {
-            "type": "openai-responses"
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "high",
+                  "low": "low",
+                  "medium": "high",
+                  "minimal": "low",
+                  "xhigh": "max"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "effortMap": {
+                  "low": "low",
+                  "medium": "high",
+                  "minimal": "low",
+                  "xhigh": "max"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
           }
         }
       },
@@ -2726,5 +2772,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1b44511badb438e6"
+  "version": "afa17e5976dcef2e"
 }

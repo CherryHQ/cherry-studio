@@ -180,6 +180,28 @@ const imageAttachment = (id: string): ComposerAttachment => ({
 /** Edit-only: an `edit` mode and no `generate` mode ⇒ an image is mandatory. */
 const editOnlySupport = { modes: { edit: { supports: {} } } }
 
+describe('PaintingComposer params entry point', () => {
+  beforeEach(() => {
+    mockUseImageGenerationSupport.mockReset()
+    // A model with no registry parameter fields: the popover would hold only the timeout.
+    mockUseImageGenerationSupport.mockReturnValue(undefined)
+  })
+
+  it('stays reachable for a fieldless model whose transport applies the timeout', () => {
+    renderComposer({
+      painting: makePainting({ providerId: 'modelscope', model: 'AI-ModelScope/stable-diffusion-xl-base-1.0' })
+    })
+
+    expect(screen.getByLabelText('common.settings')).toBeInTheDocument()
+  })
+
+  it('stays hidden for a fieldless model whose transport ignores the timeout', () => {
+    renderComposer({ painting: makePainting({ providerId: 'dmxapi', model: 'doubao-seedream-5.0-lite' }) })
+
+    expect(screen.queryByLabelText('common.settings')).not.toBeInTheDocument()
+  })
+})
+
 describe('PaintingComposer', () => {
   beforeEach(() => {
     captured.surfaceProps = undefined

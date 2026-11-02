@@ -27,8 +27,27 @@ vi.mock('@data/dataApiDataChange', () => ({
 
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
-import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
+import {
+  type MessageData,
+  type MessageRole,
+  toContentRole,
+  TREE_OFF_PATH_DEPTH_LIMIT
+} from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+
+function treeRow(topicId: string, id: string, parentId: string | null, order: number) {
+  return {
+    id,
+    parentId,
+    topicId,
+    role: order % 2 === 0 ? ('user' as const) : ('assistant' as const),
+    data: mainText(id),
+    status: 'success' as const,
+    siblingsGroupId: 0,
+    createdAt: 100 + order,
+    updatedAt: 100 + order
+  }
+}
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -1152,6 +1171,42 @@ describe('MessageService', () => {
         code: ErrorCode.NOT_FOUND
       })
     })
+
+    it('pages older history through nextCursor and rejects a cursor off the active path', async () => {
+      const message = (id: string, parentId: string | null, createdAt: number) => ({
+        id,
+        parentId,
+        topicId: 'topic-paged',
+        role: 'user' as const,
+        data: mainText(id),
+        status: 'success' as const,
+        siblingsGroupId: 0,
+        createdAt,
+        updatedAt: createdAt
+      })
+      await dbh.db.insert(topicTable).values({ id: 'topic-paged', activeNodeId: 'c5', orderKey: 'paged' })
+      await dbh.db
+        .insert(messageTable)
+        .values(
+          withRoot('topic-paged', [
+            message('c1', null, 100),
+            message('c2', 'c1', 200),
+            message('c3', 'c2', 300),
+            message('c4', 'c3', 400),
+            message('c5', 'c4', 500),
+            message('side', 'c3', 600)
+          ])
+        )
+      const page = (cursor?: string) => {
+        const result = messageService.getBranchMessages('topic-paged', { limit: 2, cursor, includeSiblings: false })
+        return { ids: result.items.map((item) => item.message.id), nextCursor: result.nextCursor }
+      }
+
+      expect(page()).toEqual({ ids: ['c4', 'c5'], nextCursor: 'c4' })
+      expect(page('c4')).toEqual({ ids: ['c2', 'c3'], nextCursor: 'c2' })
+      expect(page('c2')).toEqual({ ids: ['c1'], nextCursor: undefined })
+      expect(() => page('side')).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+    })
   })
 
   describe('search', () => {
@@ -1664,7 +1719,7 @@ describe('MessageService', () => {
     it('returns tree nodes with correct parentId and groups multi-model siblings', async () => {
       await seedMultiModelTree()
 
-      const result = messageService.getTree('topic-1', { depth: -1 })
+      const result = messageService.getTree('topic-1')
 
       expect(result.activeNodeId).toBe('m-follow')
 
@@ -1702,7 +1757,7 @@ describe('MessageService', () => {
         ])
       )
 
-      const result = messageService.getTree('topic-preview', { depth: -1 })
+      const result = messageService.getTree('topic-preview')
 
       expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
     })
@@ -1725,7 +1780,7 @@ describe('MessageService', () => {
         ])
       )
 
-      const result = messageService.getTree('topic-clear', { depth: -1 })
+      const result = messageService.getTree('topic-clear')
 
       expect(result.nodes.find((node) => node.id === 'clear-1')?.isContextBoundary).toBe(true)
     })
@@ -1781,7 +1836,7 @@ describe('MessageService', () => {
         ])
       )
 
-      const result = messageService.getTree('topic-multi-root', { depth: -1 })
+      const result = messageService.getTree('topic-multi-root')
 
       expect(result.siblingsGroups).toHaveLength(0)
       expect(result.nodes.map((node) => [node.id, node.parentId])).toEqual([
@@ -1791,6 +1846,107 @@ describe('MessageService', () => {
         ['a-second', 'u-second']
       ])
       expect(result.activeNodeId).toBe('a-second')
+    })
+
+    it('returns every node of a topic larger than the SQLite bound-variable limit', async () => {
+      const count = 33_000
+      const rows = withRoot(
+        'topic-large',
+        Array.from({ length: count }, (_, i) => ({
+          id: `m-${i}`,
+          parentId: null,
+          topicId: 'topic-large',
+          role: 'user' as const,
+          data: mainText(`message ${i}`),
+          status: 'success' as const,
+          siblingsGroupId: 0,
+          createdAt: 100 + i,
+          updatedAt: 100 + i
+        }))
+      )
+      await dbh.db.insert(topicTable).values({ id: 'topic-large', activeNodeId: `m-${count - 1}`, orderKey: 'large' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+
+      const result = messageService.getTree('topic-large')
+
+      expect(result.nodes).toHaveLength(count)
+      expect(result.activeNodeId).toBe(`m-${count - 1}`)
+    })
+
+    it('returns a linear conversation deeper than the JS call stack in path order', async () => {
+      const count = 20_000
+      const rows = withRoot(
+        'topic-deep',
+        Array.from({ length: count }, (_, i) => ({
+          id: `d-${i}`,
+          parentId: i === 0 ? null : `d-${i - 1}`,
+          topicId: 'topic-deep',
+          role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
+          data: mainText(`message ${i}`),
+          status: 'success' as const,
+          siblingsGroupId: 0,
+          createdAt: 100 + i,
+          updatedAt: 100 + i
+        }))
+      )
+      await dbh.db.insert(topicTable).values({ id: 'topic-deep', activeNodeId: `d-${count - 1}`, orderKey: 'deep' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+
+      const result = messageService.getTree('topic-deep')
+
+      expect(result.nodes.map((node) => node.id)).toEqual(Array.from({ length: count }, (_, i) => `d-${i}`))
+    })
+
+    it('stops an off-path branch at TREE_OFF_PATH_DEPTH_LIMIT levels', async () => {
+      const chainLength = TREE_OFF_PATH_DEPTH_LIMIT + 500
+      const rows = withRoot('topic-off-path', [
+        treeRow('topic-off-path', 'u0', null, 0),
+        treeRow('topic-off-path', 'a0', 'u0', 1),
+        ...Array.from({ length: chainLength }, (_, i) =>
+          treeRow('topic-off-path', `x${i}`, i === 0 ? 'u0' : `x${i - 1}`, 2 + i)
+        )
+      ])
+      await dbh.db.insert(topicTable).values({ id: 'topic-off-path', activeNodeId: 'a0', orderKey: 'off-path' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+
+      const ids = new Set(messageService.getTree('topic-off-path').nodes.map((node) => node.id))
+
+      expect(ids.has('a0')).toBe(true)
+      // u0 is level 0, so x(n) sits at level n + 1.
+      expect(ids.has(`x${TREE_OFF_PATH_DEPTH_LIMIT - 2}`)).toBe(true)
+      expect(ids.has(`x${TREE_OFF_PATH_DEPTH_LIMIT - 1}`)).toBe(false)
+      expect(ids.size).toBe(2 + TREE_OFF_PATH_DEPTH_LIMIT - 1)
+    })
+
+    it('keeps an active path past the depth limit whole, with its direct children only', async () => {
+      const pathLength = TREE_OFF_PATH_DEPTH_LIMIT + 500
+      const sideParent = `p${TREE_OFF_PATH_DEPTH_LIMIT + 100}`
+      const rows = withRoot('topic-deep-active', [
+        ...Array.from({ length: pathLength }, (_, i) =>
+          treeRow('topic-deep-active', `p${i}`, i === 0 ? null : `p${i - 1}`, i)
+        ),
+        treeRow('topic-deep-active', 'side', sideParent, pathLength),
+        treeRow('topic-deep-active', 'side-child', 'side', pathLength + 1)
+      ])
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-deep-active', activeNodeId: `p${pathLength - 1}`, orderKey: 'deep-active' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+
+      const ids = new Set(messageService.getTree('topic-deep-active').nodes.map((node) => node.id))
+
+      expect(ids.has(`p${pathLength - 1}`)).toBe(true)
+      expect(ids.has('side')).toBe(true)
+      expect(ids.has('side-child')).toBe(false)
+      expect(ids.size).toBe(pathLength + 1)
     })
   })
 
@@ -1826,8 +1982,8 @@ describe('MessageService', () => {
         data: mainText('foreign'),
         status: 'success'
       })
-      const originalTree = messageService.getTree('topic-parent', { depth: -1 })
-      const foreignTree = messageService.getTree('topic-foreign', { depth: -1 })
+      const originalTree = messageService.getTree('topic-parent')
+      const foreignTree = messageService.getTree('topic-foreign')
       const before = messageService.getById(message.id)
       const parentId = kind === 'message' ? foreignMessage.id : foreignRootId
 
@@ -1835,8 +1991,8 @@ describe('MessageService', () => {
         expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
       )
       expect(messageService.getById(message.id)).toEqual(before)
-      expect(messageService.getTree('topic-parent', { depth: -1 })).toEqual(originalTree)
-      expect(messageService.getTree('topic-foreign', { depth: -1 })).toEqual(foreignTree)
+      expect(messageService.getTree('topic-parent')).toEqual(originalTree)
+      expect(messageService.getTree('topic-foreign')).toEqual(foreignTree)
       messageService.clearTopicMessages('topic-foreign')
       expect(messageService.getById(message.id)).toEqual(before)
     })
@@ -2185,7 +2341,7 @@ describe('MessageService', () => {
       expect(branch.items[0].siblingsGroup?.map((message) => message.id)).toEqual(['u-root'])
 
       // The first-turn group's parentId is the topic's virtual root (never re-nulled).
-      const tree = messageService.getTree('topic-root-sibling', { depth: -1 })
+      const tree = messageService.getTree('topic-root-sibling')
       expect(tree.siblingsGroups).toHaveLength(1)
       expect(tree.siblingsGroups[0].parentId).toBe(virtualRootId)
       expect(tree.siblingsGroups[0].nodes.map((node) => node.id)).toEqual(['u-root', sibling.id])
@@ -2236,7 +2392,7 @@ describe('MessageService', () => {
       })
       await dbh.db.update(topicTable).set({ activeNodeId: 'a-edited' }).where(eq(topicTable.id, 'topic-root-flow'))
 
-      const tree = messageService.getTree('topic-root-flow', { depth: -1 })
+      const tree = messageService.getTree('topic-root-flow')
 
       expect(tree.activeNodeId).toBe('a-edited')
       expect(tree.siblingsGroups).toHaveLength(1)
@@ -2320,6 +2476,36 @@ describe('MessageService', () => {
       expect(path[1].siblingsGroupId).toBe(1)
       expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
       expect(path[2].parentId).toBe('m-a2')
+    })
+
+    it('loads a path longer than the SQLite bound-variable limit', async () => {
+      const count = 33_000
+      const rows = withRoot(
+        'topic-long-path',
+        Array.from({ length: count }, (_, i) => ({
+          id: `p-${i}`,
+          parentId: i === 0 ? null : `p-${i - 1}`,
+          topicId: 'topic-long-path',
+          role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
+          data: mainText(`message ${i}`),
+          status: 'success' as const,
+          siblingsGroupId: 0,
+          createdAt: 100 + i,
+          updatedAt: 100 + i
+        }))
+      )
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-long-path', activeNodeId: `p-${count - 1}`, orderKey: 'long-path' })
+      for (let i = 0; i < rows.length; i += 500) {
+        await dbh.db.insert(messageTable).values(rows.slice(i, i + 500))
+      }
+      const expectedIds = Array.from({ length: count }, (_, i) => `p-${i}`)
+
+      expect(messageService.getPathToNode(`p-${count - 1}`).map((m) => m.id)).toEqual(expectedIds)
+      expect(
+        messageService.getBranchMessages('topic-long-path', { limit: 3 }).items.map((item) => item.message.id)
+      ).toEqual(expectedIds.slice(-3))
     })
   })
 
@@ -2971,7 +3157,7 @@ describe('MessageService', () => {
 
     it('getTree returns the virtual-root id', async () => {
       await seedMultiModelTree()
-      const tree = messageService.getTree('topic-1', { depth: -1 })
+      const tree = messageService.getTree('topic-1')
       expect(tree.rootId).toBe('vroot-topic-1')
     })
   })
@@ -2984,19 +3170,6 @@ describe('MessageService', () => {
       let err: unknown
       try {
         messageService.createSibling(virtualRootId, mainText('x'))
-      } catch (e) {
-        err = e
-      }
-      expect(err).toMatchObject({
-        code: ErrorCode.INVALID_OPERATION
-      })
-    })
-
-    it('getTree rejects an explicit rootId that is the virtual root', async () => {
-      await seedMultiModelTree()
-      let err: unknown
-      try {
-        messageService.getTree('topic-1', { rootId: virtualRootId })
       } catch (e) {
         err = e
       }
@@ -3092,7 +3265,7 @@ describe('MessageService', () => {
     it('surfaces first-turn nodes with parentId set to the virtual root, which is not itself a node', async () => {
       await seedMultiModelTree()
 
-      const result = messageService.getTree('topic-1', { depth: -1 })
+      const result = messageService.getTree('topic-1')
 
       // m-root hangs off vroot-topic-1, and the response keeps that real parent.
       const rootNode = result.nodes.find((n) => n.id === 'm-root')
@@ -3130,7 +3303,7 @@ describe('MessageService', () => {
         ])
       )
 
-      const result = messageService.getTree('topic-first-group', { depth: -1 })
+      const result = messageService.getTree('topic-first-group')
 
       expect(result.siblingsGroups).toHaveLength(1)
       expect(result.siblingsGroups[0].parentId).toBe('vroot-topic-first-group')
@@ -3306,9 +3479,9 @@ describe('MessageService', () => {
       it('fills the existing empty user row and creates its placeholder atomically', async () => {
         const { prompt, awaitingInput } = await seedAwaitingInputBranch('topic-1')
 
-        expect(
-          messageService.getTree('topic-1', { depth: -1 }).nodes.find((node) => node.id === awaitingInput.id)
-        ).toMatchObject({ isAwaitingInput: true })
+        expect(messageService.getTree('topic-1').nodes.find((node) => node.id === awaitingInput.id)).toMatchObject({
+          isAwaitingInput: true
+        })
 
         const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
           topicId: 'topic-1',

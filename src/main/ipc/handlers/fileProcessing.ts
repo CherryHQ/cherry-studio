@@ -11,7 +11,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  */
 export const fileProcessingHandlers: IpcHandlersFor<typeof fileProcessingRequestSchemas> = {
   'file_processing.start_job': async (input) =>
-    application.get('FileProcessingService').startJob({ ...input, file: input.file }),
+    (await application.get('FileProcessingService').startJob({ ...input, file: input.file })).snapshot,
   'file_processing.list_available_processors': async () =>
     application.get('FileProcessingService').listAvailableProcessors(),
   'file_processing.open_mineru.check_connectivity': async () =>

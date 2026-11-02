@@ -128,6 +128,15 @@ describe('AgentJobsService', () => {
     map.clear()
   }
 
+  /** Full effect set one task-change broadcast must carry for every window to converge. */
+  const taskProjectionEffects = (taskId: string) => [
+    { endpoint: '/agent-tasks', kind: 'projection', entityIds: [taskId] },
+    { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [taskId] },
+    { endpoint: '/agent-tasks/:taskId', entityIds: [taskId] },
+    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [taskId] },
+    { endpoint: '/agent-workspaces', kind: 'membership' }
+  ]
+
   beforeAll(async () => {
     BaseService.resetInstances()
     scheduler = new SchedulerService()
@@ -482,6 +491,17 @@ describe('AgentJobsService', () => {
       expect(getIntervalEntry(task.id)).toBe(originalEntry)
     })
 
+    it('broadcasts the projection after a pure rename — IM/MCP edits have no renderer invalidation to fall back on', () => {
+      const task = service.createTask(AGENT_ID, form)
+      notifyDataApiDataChangeMock.mockClear()
+
+      const updated = service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+
+      expect(updated?.name).toBe('renamed')
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(taskProjectionEffects(task.id))
+    })
+
     it('refuses to repoint an existing task at the reserved heartbeat prompt', () => {
       const task = service.createTask(AGENT_ID, form)
 
@@ -783,6 +803,101 @@ describe('AgentJobsService', () => {
       const resumed = service.resumeTask(AGENT_ID, task.id)
       expect(resumed?.enabled).toBe(true)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+    })
+
+    it('broadcasts the projection on a real pause and resume', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      notifyDataApiDataChangeMock.mockClear()
+
+      await service.pauseTask(AGENT_ID, task.id)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(taskProjectionEffects(task.id))
+
+      notifyDataApiDataChangeMock.mockClear()
+      service.resumeTask(AGENT_ID, task.id)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(taskProjectionEffects(task.id))
+    })
+
+    it('the state-aware no-ops stay silent — nothing changed, nothing to refetch', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      notifyDataApiDataChangeMock.mockClear()
+
+      service.resumeTask(AGENT_ID, task.id) // already enabled
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+
+      await service.pauseTask(AGENT_ID, task.id) // the first pause is real
+      notifyDataApiDataChangeMock.mockClear()
+      await service.pauseTask(AGENT_ID, task.id) // already paused
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('broadcasts when the enable committed but re-arming threw, stays silent when the write itself failed', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      await service.pauseTask(AGENT_ID, task.id) // reach the disabled state resume operates on
+      notifyDataApiDataChangeMock.mockClear()
+
+      // Inject at the real scheduling entry: resumeJobScheduleById commits the
+      // enable, then armSchedule → registerSchedule throws — the committed
+      // enable must still be broadcast before the error propagates.
+      const registerSpy = vi.spyOn(scheduler, 'registerSchedule').mockImplementation(() => {
+        throw new Error('register failed')
+      })
+      expect(() => service.resumeTask(AGENT_ID, task.id)).toThrow('register failed')
+      expect(jobScheduleService.getById(task.id)?.enabled).toBe(true)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(taskProjectionEffects(task.id))
+      registerSpy.mockRestore()
+
+      // The retry reaches the state-aware no-op: no re-registration, no new broadcast.
+      const retryRegisterSpy = vi.spyOn(scheduler, 'registerSchedule')
+      expect(service.resumeTask(AGENT_ID, task.id)?.enabled).toBe(true)
+      expect(retryRegisterSpy).not.toHaveBeenCalled()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+      retryRegisterSpy.mockRestore()
+
+      await service.pauseTask(AGENT_ID, task.id) // back to disabled for the write-failure branch
+      notifyDataApiDataChangeMock.mockClear()
+
+      const writeSpy = vi.spyOn(jobScheduleService, 'setEnabled').mockImplementation(() => {
+        throw new Error('db write failed')
+      })
+      expect(() => service.resumeTask(AGENT_ID, task.id)).toThrow('db write failed')
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      writeSpy.mockRestore()
+    })
+
+    it('keeps the original error and stays silent when the classification read itself fails', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      await service.pauseTask(AGENT_ID, task.id)
+      notifyDataApiDataChangeMock.mockClear()
+
+      const originalRegisterError = new Error('register failed')
+      const registerSpy = vi.spyOn(scheduler, 'registerSchedule').mockImplementation(() => {
+        throw originalRegisterError
+      })
+      // getById serves the entry read and JobManager's post-commit read; fail
+      // only the catch's classification read — the third call.
+      const realGetById = jobScheduleService.getById.bind(jobScheduleService)
+      const getByIdSpy = vi
+        .spyOn(jobScheduleService, 'getById')
+        .mockImplementationOnce(realGetById)
+        .mockImplementationOnce(realGetById)
+        .mockImplementation(() => {
+          throw new Error('classification read failed')
+        })
+
+      let caught: unknown
+      try {
+        service.resumeTask(AGENT_ID, task.id)
+      } catch (error) {
+        caught = error
+      }
+
+      expect(caught).toBe(originalRegisterError)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      registerSpy.mockRestore()
+      getByIdSpy.mockRestore()
     })
 
     it('a repeated pause is a state-aware no-op that never reaches the DB', async () => {

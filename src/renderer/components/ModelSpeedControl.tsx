@@ -193,6 +193,7 @@ export function ModelSpeedControl({
   if (!supportsReasoning && !supportsServiceTier && !supportsFast) return null
 
   const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
+  const supportsDisableThinking = sliderEfforts.includes('none')
   const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
 
   // A model swap reconciles in an effect owned by the caller. During that one render, preserve
@@ -266,6 +267,17 @@ export function ModelSpeedControl({
                     aria-pressed={false}
                     onClick={() => onReasoningEffortChange('default')}>
                     {t(EFFORT_LABEL_KEYS.default)}
+                  </Button>
+                ) : null}
+                {supportsDisableThinking && effectiveReasoningEffort !== 'none' ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                    aria-pressed={false}
+                    onClick={() => onReasoningEffortChange('none')}>
+                    {t(EFFORT_LABEL_KEYS.none)}
                   </Button>
                 ) : null}
                 {supportsFast ? (

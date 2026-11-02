@@ -9,7 +9,6 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   BaseService,
   DependsOn,
@@ -40,6 +39,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'

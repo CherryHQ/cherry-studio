@@ -172,6 +172,8 @@ vi.mock('@cherrystudio/ui', async () => {
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
+  const { createCodeHighlightPlugin } =
+    await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -186,6 +188,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const FormFieldNameContext = React.createContext(undefined)
   return {
     BarVisualizer,
+    createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
     Markdown: ({ children }) => React.createElement('div', null, children),

@@ -43,6 +43,7 @@ import {
   type SiblingsGroup,
   toContentRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
+  TREE_OFF_PATH_DEPTH_LIMIT,
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
@@ -125,7 +126,7 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  * Raw SQL via `db.all(sql\`...\`)` returns snake_case columns and CANNOT be
  * passed here directly. See docs/references/data/database-patterns.md →
  * "Raw SQL Queries & Recursive CTEs" for the recommended CTE-for-IDs +
- * ORM-for-rows pattern used by getTree, getBranchMessages, getPathToNode.
+ * ORM-for-rows pattern used by getBranchMessages, getPathToNode.
  *
  * Also handles JSON columns: ORM returns parsed objects; the parseJson
  * helper covers any legacy code path that still hands in JSON strings.
@@ -419,216 +420,72 @@ export class MessageService {
   }
 
   /**
-   * Get tree structure for visualization
-   *
-   * Optimized to avoid loading all messages:
-   * 1. Uses CTE to get active path (single query)
-   * 2. Uses CTE to get tree nodes within depth limit (single query)
-   * 3. Fetches additional nodes for active path if beyond depth limit
+   * Get the topic's whole message tree for the flow canvas
    */
-  getTree(topicId: string, options: { rootId?: string; nodeId?: string; depth?: number } = {}): TreeResponse {
+  getTree(topicId: string): TreeResponse {
     const db = application.get('DbService').getDb()
-    const { depth = 1 } = options
-
-    // Get topic to verify existence and get activeNodeId
     const topic = this.getActiveTopicTx(db, topicId)
+    const activeNodeId = topic.activeNodeId
 
-    const activeNodeId = options.nodeId || topic.activeNodeId
-
-    // Build active path via CTE (single query)
-    const activePath = new Set<string>()
-    if (activeNodeId) {
-      const pathRows = db.all<{ id: string; parent_id: string | null }>(sql`
-        WITH RECURSIVE path AS (
-          SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
-          UNION ALL
-          SELECT m.id, m.parent_id FROM message m
-          INNER JOIN path p ON m.id = p.parent_id
-          WHERE m.deleted_at IS NULL
-        )
-        SELECT id, parent_id FROM path
-      `)
-      pathRows.forEach((r) => {
-        activePath.add(r.id)
-      })
-    }
-
-    // The virtual root (the single parentId-null row) is structural and never
-    // rendered. Drop it from the active path; its children — the first-turn
-    // messages — are the logical roots of the flow canvas.
-    const [rootRow] = db
-      .select({ id: messageTable.id })
+    const rows = db
+      .select()
       .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
-      .limit(1)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .orderBy(asc(messageTable.createdAt), asc(messageTable.id))
       .all()
-    const virtualRootId = rootRow?.id ?? null
-    if (virtualRootId) {
-      activePath.delete(virtualRootId)
+
+    const messagesById = new Map<string, Message>()
+    const childrenMap = new Map<string, string[]>()
+    let virtualRootId: string | null = null
+
+    for (const row of rows) {
+      // The virtual root (the single parentId-null row) is structural and never rendered;
+      // its children — the first-turn messages — are the logical roots of the flow canvas.
+      if (row.parentId === null) {
+        virtualRootId = row.id
+        continue
+      }
+      const message = rowToMessage(row)
+      messagesById.set(message.id, message)
+
+      const siblings = childrenMap.get(row.parentId)
+      if (siblings) {
+        siblings.push(message.id)
+      } else {
+        childrenMap.set(row.parentId, [message.id])
+      }
     }
 
-    // Without an explicit root, the flow canvas is a topic-level view: every
-    // first-turn message (child of the virtual root) starts its own tree.
-    const explicitRootId = options.rootId
-    // The virtual root is never a renderable tree node; using it as an explicit root
-    // would feed it to messageToTreeNode (which throws on a parentless node).
-    if (explicitRootId && explicitRootId === virtualRootId) {
-      throw DataApiErrorFactory.invalidOperation('get tree', 'rootId cannot be the virtual root')
-    }
-    const rootIds = explicitRootId
-      ? [explicitRootId]
-      : virtualRootId
-        ? db
-            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
-            .from(messageTable)
-            .where(
-              and(
-                eq(messageTable.topicId, topicId),
-                eq(messageTable.parentId, virtualRootId),
-                isNull(messageTable.deletedAt)
-              )
-            )
-            .all()
-            .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-            .map((row) => row.id)
-        : []
-
+    const rootIds = virtualRootId ? (childrenMap.get(virtualRootId) ?? []) : []
     if (rootIds.length === 0) {
       return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
     }
 
-    // Get tree with depth limit via CTE
-    // Use a large depth for unlimited (-1)
-    const maxDepth = depth === -1 ? 999 : depth
-
-    // Recursive CTE returns ID + depth only (single-word columns are
-    // casing-safe). Full rows are fetched via ORM below for camelCase mapping.
-    // See docs/references/data/database-patterns.md.
-    const treeDepthRows = db.all<{ id: string; tree_depth: number }>(sql`
-      WITH RECURSIVE tree AS (
-        SELECT id, 0 as tree_depth FROM message
-        WHERE id IN (${sql.join(
-          rootIds.map((id) => sql`${id}`),
-          sql`, `
-        )}) AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.id, t.tree_depth + 1 FROM message m
-        INNER JOIN tree t ON m.parent_id = t.id
-        WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
-      )
-      SELECT id, tree_depth FROM tree
-    `)
-
-    const depthByCteId = new Map(treeDepthRows.map((r) => [r.id, r.tree_depth]))
-    const baseTreeRows =
-      treeDepthRows.length === 0
-        ? []
-        : db
-            .select()
-            .from(messageTable)
-            .where(
-              inArray(
-                messageTable.id,
-                treeDepthRows.map((r) => r.id)
-              )
-            )
-            .all()
-
-    const treeRows: Array<typeof messageTable.$inferSelect & { treeDepth: number }> = baseTreeRows.map((r) => ({
-      ...r,
-      treeDepth: depthByCteId.get(r.id)!
-    }))
-
-    // Also fetch active path nodes that might be beyond depth limit
-    const treeNodeIds = new Set(treeRows.map((r) => r.id))
-    const missingActivePathIds = [...activePath].filter((id) => !treeNodeIds.has(id))
-
-    if (missingActivePathIds.length > 0) {
-      const additionalRows = db
-        .select()
-        .from(messageTable)
-        .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
-        .all()
-      for (const row of additionalRows) {
-        treeRows.push({ ...row, treeDepth: maxDepth + 1 })
-        treeNodeIds.add(row.id)
-      }
+    const activePath = new Set<string>()
+    let pathNodeId = activeNodeId
+    while (pathNodeId && !activePath.has(pathNodeId)) {
+      const pathMessage = messagesById.get(pathNodeId)
+      if (!pathMessage) break
+      activePath.add(pathNodeId)
+      pathNodeId = pathMessage.parentId
     }
 
-    // Also need children of active path nodes for proper tree building
-    // Get all children of active path nodes that we haven't loaded yet
-    const activePathArray = [...activePath]
-    if (activePathArray.length > 0 && treeNodeIds.size > 0) {
-      const childrenRows = db
-        .select()
-        .from(messageTable)
-        .where(
-          and(
-            inArray(messageTable.parentId, activePathArray),
-            isNull(messageTable.deletedAt),
-            sql`${messageTable.id} NOT IN (${sql.join(
-              [...treeNodeIds].map((id) => sql`${id}`),
-              sql`, `
-            )})`
-          )
-        )
-        .all()
-
-      for (const row of childrenRows) {
-        if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
-          treeNodeIds.add(row.id)
-        }
-      }
-    } else if (activePathArray.length > 0) {
-      // No tree nodes loaded yet, just get all children of active path
-      const childrenRows = db
-        .select()
-        .from(messageTable)
-        .where(and(inArray(messageTable.parentId, activePathArray), isNull(messageTable.deletedAt)))
-        .all()
-
-      for (const row of childrenRows) {
-        if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
-          treeNodeIds.add(row.id)
-        }
-      }
-    }
-
-    if (treeRows.length === 0) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
-    }
-
-    // Build maps for tree processing
-    const messagesById = new Map<string, Message>()
-    const childrenMap = new Map<string, string[]>()
-
-    for (const row of treeRows) {
-      const message = rowToMessage(row)
-      // First-turn messages keep their real parent — the topic's virtual root. The
-      // virtual root itself is never a tree node (rootIds are its children), so no
-      // tree node / sibling group has a null parent; the canvas skips edges to the
-      // (unrendered) virtual root.
-      messagesById.set(message.id, message)
-
-      const parentId = message.parentId || 'root'
-      if (!childrenMap.has(parentId)) {
-        childrenMap.set(parentId, [])
-      }
-      childrenMap.get(parentId)!.push(message.id)
-    }
-
-    // Collect nodes based on depth
     const resultNodes: TreeNode[] = []
     const siblingsGroups: SiblingsGroup[] = []
     const visitedGroups = new Set<string>()
-    const childrenKeyFor = (parentId: string | null) => parentId ?? 'root'
-    const groupKeyFor = (parentId: string | null, siblingsGroupId: number) => `${parentId ?? 'root'}-${siblingsGroupId}`
 
-    const collectNodes = (nodeId: string, currentDepth: number, isOnActivePath: boolean) => {
+    // Explicit stack, not recursion: a linear chat is one tree level per message, deeper
+    // than the JS call stack. Children are pushed reversed to keep pre-order output.
+    const pending: Array<[nodeId: string, depth: number]> = rootIds.map((id): [string, number] => [id, 0]).reverse()
+    while (pending.length > 0) {
+      const [nodeId, depth] = pending.pop()!
       const message = messagesById.get(nodeId)
-      if (!message) return
+      if (!message) continue
+      const isReturned =
+        depth < TREE_OFF_PATH_DEPTH_LIMIT ||
+        activePath.has(nodeId) ||
+        (message.parentId !== null && activePath.has(message.parentId))
+      if (!isReturned) continue
 
       const children = childrenMap.get(nodeId) || []
       const hasChildren = children.length > 0
@@ -640,12 +497,12 @@ export class MessageService {
       // The `parentId !== null` guard narrows it without a non-null assertion.
       if (siblingsGroupId !== 0 && message.parentId !== null) {
         const groupParentId = message.parentId
-        const groupKey = groupKeyFor(groupParentId, siblingsGroupId)
+        const groupKey = `${groupParentId}-${siblingsGroupId}`
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(childrenKeyFor(groupParentId)) || []
+          const parentChildren = childrenMap.get(groupParentId) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
             .filter((m) => m && m.siblingsGroupId === siblingsGroupId)
@@ -672,20 +529,9 @@ export class MessageService {
         resultNodes.push(messageToTreeNode(message, hasChildren))
       }
 
-      // Recurse to children
-      const shouldExpand = isOnActivePath || (depth === -1 ? true : currentDepth < depth)
-      if (shouldExpand) {
-        for (const childId of children) {
-          const childOnPath = activePath.has(childId)
-          collectNodes(childId, isOnActivePath ? 0 : currentDepth + 1, childOnPath)
-        }
+      for (let i = children.length - 1; i >= 0; i--) {
+        pending.push([children[i], depth + 1])
       }
-    }
-
-    // Start from the logical roots — the virtual root's children (first-turn messages).
-    // Each is an independent subtree the flow canvas collects.
-    for (const startRootId of rootIds) {
-      collectNodes(startRootId, 0, activePath.has(startRootId))
     }
 
     return {
@@ -740,27 +586,27 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId, rootId }
     }
 
-    const fullPath = this.getPathRowsToNodeTx(db, nodeId, { topicId })
+    const pathIds = this.getPathIdsToNodeTx(db, nodeId, { topicId })
 
-    // Apply pagination
+    // Apply pagination on ids; only the returned page loads full rows.
     let startIndex = 0
-    let endIndex = fullPath.length
+    let endIndex = pathIds.length
 
     if (cursor) {
-      const cursorIndex = fullPath.findIndex((m) => m.id === cursor)
+      const cursorIndex = pathIds.indexOf(cursor)
       if (cursorIndex === -1) {
         throw DataApiErrorFactory.notFound('Message (cursor)', cursor)
       }
       startIndex = Math.max(0, cursorIndex - limit)
       endIndex = cursorIndex
     } else {
-      startIndex = Math.max(0, fullPath.length - limit)
+      startIndex = Math.max(0, pathIds.length - limit)
     }
 
-    const paginatedPath = fullPath.slice(startIndex, endIndex)
+    const paginatedPath = this.getRowsInOrderTx(db, pathIds.slice(startIndex, endIndex))
 
     // Calculate nextCursor: if there are more historical messages
-    const nextCursor = startIndex > 0 ? fullPath[startIndex].id : undefined
+    const nextCursor = startIndex > 0 ? pathIds[startIndex] : undefined
 
     // Build result with optional siblings
     const result: BranchMessage[] = []
@@ -1952,7 +1798,7 @@ export class MessageService {
           message.role === 'assistant' &&
           message.siblingsGroupId !== 0 &&
           topic.activeNodeId !== null &&
-          this.getPathRowsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).some((row) => row.id === id)
+          this.getPathIdsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).includes(id)
         const group = isContextReply
           ? tx
               .select({ id: messageTable.id })
@@ -2235,10 +2081,15 @@ export class MessageService {
    * the same-topic message-tree invariant.
    */
   getPathRowsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): MessageRow[] {
-    // Recursive CTE collects ancestor IDs (single-column, casing-safe);
-    // full rows fetched via ORM for camelCase mapping.
-    const ancestorIdRows = options.topicId
-      ? tx.all<{ id: string }>(sql`
+    return this.getRowsInOrderTx(tx, this.getPathIdsToNodeTx(tx, nodeId, options))
+  }
+
+  /** Root -> node path ids, without loading message rows. Same scoping as `getPathRowsToNodeTx`. */
+  private getPathIdsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): string[] {
+    // Raw CTE rows keep snake_case `parent_id`; they only feed this id walk, never rowToMessage.
+    // Rows come back in node → root order.
+    const ancestorRows = options.topicId
+      ? tx.all<{ id: string; parent_id: string | null }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message
             WHERE id = ${nodeId} AND topic_id = ${options.topicId} AND deleted_at IS NULL
@@ -2247,9 +2098,9 @@ export class MessageService {
             INNER JOIN ancestors a ON m.id = a.parent_id
             WHERE m.topic_id = ${options.topicId} AND m.deleted_at IS NULL
           )
-          SELECT id FROM ancestors
+          SELECT id, parent_id FROM ancestors
         `)
-      : tx.all<{ id: string }>(sql`
+      : tx.all<{ id: string; parent_id: string | null }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
             UNION ALL
@@ -2257,28 +2108,38 @@ export class MessageService {
             INNER JOIN ancestors a ON m.id = a.parent_id
             WHERE m.deleted_at IS NULL
           )
-          SELECT id FROM ancestors
+          SELECT id, parent_id FROM ancestors
         `)
 
-    if (ancestorIdRows.length === 0) {
+    if (ancestorRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
-
-    const ancestorIds = ancestorIdRows.map((r) => r.id)
-    const whereClause = options.topicId
-      ? and(inArray(messageTable.id, ancestorIds), eq(messageTable.topicId, options.topicId))
-      : inArray(messageTable.id, ancestorIds)
-    const ancestorRows = tx.select().from(messageTable).where(whereClause).all()
-
-    // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
-    const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
-    const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
     // root → node order, with the structural virtual root (the only parentId-null
     // row) dropped: content paths start at the first-turn message, not the
     // content-less root.
-    const chain = ordered.reverse()
-    return chain[0]?.parentId === null ? chain.slice(1) : chain
+    const ids: string[] = []
+    for (let i = ancestorRows.length - 1; i >= 0; i--) {
+      if (ancestorRows[i].parent_id !== null) ids.push(ancestorRows[i].id)
+    }
+    return ids
+  }
+
+  /** Full rows for `ids`, returned in `ids` order. */
+  private getRowsInOrderTx(tx: DbOrTx, ids: string[]): MessageRow[] {
+    const rowsById = new Map<string, MessageRow>()
+    for (let offset = 0; offset < ids.length; offset += SQLITE_INARRAY_CHUNK) {
+      const chunk = ids.slice(offset, offset + SQLITE_INARRAY_CHUNK)
+      // No topic_id predicate: callers pass ids that are already topic-scoped, and adding one
+      // makes SQLite scan the topic index once per chunk instead of looking ids up by key.
+      for (const row of tx.select().from(messageTable).where(inArray(messageTable.id, chunk)).all()) {
+        rowsById.set(row.id, row)
+      }
+    }
+    return ids.flatMap((id) => {
+      const row = rowsById.get(id)
+      return row ? [row] : []
+    })
   }
 
   /**
@@ -2400,14 +2261,15 @@ export class MessageService {
         SELECT id, created_at FROM message
           WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.id, m.created_at FROM message m
-          INNER JOIN subtree s ON m.parent_id = s.id
-          WHERE m.topic_id = ${topicId} AND m.deleted_at IS NULL
+        -- Without ANALYZE stats the planner picks message_topic_created_idx and rescans the topic per row;
+        -- unary + on topic_id forces message_parent_id_idx, CROSS JOIN pins subtree as the outer loop.
+        SELECT m.id, m.created_at FROM subtree s
+          CROSS JOIN message m ON m.parent_id = s.id AND +m.topic_id = ${topicId} AND m.deleted_at IS NULL
       )
       SELECT s.id FROM subtree s
       WHERE NOT EXISTS (
         SELECT 1 FROM message c
-        WHERE c.parent_id = s.id AND c.topic_id = ${topicId} AND c.deleted_at IS NULL
+        WHERE c.parent_id = s.id AND +c.topic_id = ${topicId} AND c.deleted_at IS NULL
       )
       ORDER BY s.created_at DESC
       LIMIT 1

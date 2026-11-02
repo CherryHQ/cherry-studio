@@ -3,7 +3,11 @@ import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
-import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
+import {
+  DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS,
+  isBuiltinWebFetchAvailable,
+  matchesPreset
+} from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
@@ -72,21 +76,16 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
   return {}
 }
 
-/**
- * Bailian splits built-in web search by endpoint. The Responses `{ type: 'web_search' }` tool is served
- * for the Qwen3.x line only — "Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、qwen3-max"
- * (help.aliyun.com/zh/model-studio/web-search). The `qwen-plus` / `qwen-flash` / character aliases and the
- * hosted third-party models search through Chat Completions' `enable_search` instead (see
- * `getWebSearchParams`), so emitting the tool for them yields a provider error or an empty result.
- *
- * Those aliases are ordered chat-first in the registry, so this only guards a manual endpoint override.
- */
+// Bailian Responses search covers Qwen3.x and the hosted SKUs in the shared Responses-only declaration.
+// Qwen aliases outside Qwen3.x keep Chat search; see DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.
 function servesResponsesWebSearch(model: Model): boolean {
-  // Key off the shared wire-id resolution: `apiModelId` alone is optional on the
-  // runtime Model, and reading it directly made this silently return false — the
-  // route still picked the server side, so the request went out with no search
-  // tool AND no client tools.
-  return /^qwen3[.-]/.test(getRawModelId(model))
+  // Use shared wire-id resolution: runtime Model.apiModelId is optional; reading it directly can
+  // return false while the route stays `server`, leaving the request with neither server nor client tools.
+  const rawId = getRawModelId(model)
+  return (
+    /^qwen3[.-]/.test(rawId) ||
+    DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
+  )
 }
 
 /**

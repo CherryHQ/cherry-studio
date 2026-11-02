@@ -377,7 +377,7 @@ registerToolbarAction({
   id: 'read-aloud',
   commandId: 'message.readAloud',
   label: ({ t }) => t('chat.message.read_aloud.label'),
-  icon: <Volume2 className="size-4.5" />,
+  icon: <Volume2 className="size-4.5" strokeWidth={1.75} />,
   availability: ({ isAssistantMessage, isProcessing, message, messageParts }) => {
     const visible = isAssistantMessage && message.status === 'success' && !isProcessing && hasTextParts(messageParts)
     return { visible, enabled: visible }

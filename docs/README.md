@@ -151,6 +151,7 @@
 | [File Reference](./references/file/README.md) | Entry point for current FileManager, directory-tree, cleanup, watcher, and directory-search references |
 | [File Module Architecture](./references/file/architecture.md) | Current file-domain boundaries, shared types, renderer transports, and business-reference ownership |
 | [Directory Tree Architecture](./references/file/directory-tree.md) | Live directory-tree snapshots, watcher mutations, IpcApi ownership, and renderer mirror lifecycle |
+| [File Editing Sessions](./references/file/file-editing.md) | Independent file editing drafts, conditional persistence, revalidation, and retained draft recovery |
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |

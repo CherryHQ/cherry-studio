@@ -106,6 +106,11 @@ describe('file preview registry', () => {
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
   })
 
+  it.each(['rtf', 'RTF'])('routes .%s to rich document preview instead of source fallback', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('rtf')
+    expect(canProduceSelectionReference(`/tmp/report.${extension}`)).toBe(false)
+  })
+
   it('registers the PowerPoint plugin', () => {
     const extension = 'pptx'
     expect(resolveExtensionPlugin(`/tmp/slides.${extension}`, filePreviewRegistry)?.id).toBe('powerpoint')

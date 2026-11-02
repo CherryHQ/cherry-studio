@@ -1,7 +1,5 @@
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 
@@ -47,8 +45,6 @@ function createCheckPayload(
     baseId: 'kb-1',
     itemId: FILE_ITEM_ID,
     fileProcessingJobId: 'fp-job-1',
-    pollRound: 0,
-    firstScheduledAt: Date.now(),
     processedRelativePath: PROCESSED_RELATIVE_PATH,
     ...overrides
   }
@@ -90,122 +86,6 @@ describe('check-file-processing-result job handler', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
 
-  it('reschedules delayed polling while file processing is active', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    const firstScheduledAt = Date.now()
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 2,
-        firstScheduledAt
-      })
-    )
-    await handler.execute(ctx)
-
-    expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
-      pollRound: 3,
-      firstScheduledAt,
-      parentJobId: 'job-1',
-      processedRelativePath: PROCESSED_RELATIVE_PATH
-    })
-    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
-    expect(ctx.reportProgress).toHaveBeenCalledWith(0, { stage: 'waiting', pollRound: 3 })
-  })
-
-  it('keeps polling follow-ups attached to the original workflow parent', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    const firstScheduledAt = Date.now()
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          pollRound: 2,
-          firstScheduledAt
-        }),
-        'check-job-2',
-        'reindex-job'
-      )
-    )
-
-    expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
-      pollRound: 3,
-      firstScheduledAt,
-      parentJobId: 'reindex-job',
-      processedRelativePath: PROCESSED_RELATIVE_PATH
-    })
-  })
-
-  it('mirrors file-processing progress while polling', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-    MockMainCacheServiceUtils.setSharedCacheValue(`${JOB_PROGRESS_KEY_PREFIX}fp-job-1`, {
-      progress: 42,
-      detail: { stage: 'polling' }
-    })
-
-    const firstScheduledAt = Date.now()
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 2,
-        firstScheduledAt
-      })
-    )
-    await handler.execute(ctx)
-
-    expect(ctx.reportProgress).toHaveBeenCalledWith(42, {
-      stage: 'waiting',
-      pollRound: 3,
-      fileProcessingJobId: 'fp-job-1',
-      fileProcessing: {
-        progress: 42,
-        detail: { stage: 'polling' }
-      }
-    })
-    // The mirror is what the data-source row's percentage reads — the job-level
-    // progress above never reaches the renderer.
-    expect(
-      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-    ).toBe(42)
-  })
-
-  it('publishes no mirrored percentage when the processor reports no progress', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    await handler.execute(createCtx(createCheckPayload()))
-
-    expect(
-      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-    ).toBeUndefined()
-  })
-
-  it('marks the item failed when file processing exceeds the wait limit', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-
-    const ctx = createCtx(
-      createCheckPayload({
-        pollRound: 360,
-        firstScheduledAt: Date.now() - 30 * 60 * 1000
-      })
-    )
-    await handler.execute(ctx)
-
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
-      error: 'File processing job fp-job-1 did not finish within 30 minutes'
-    })
-    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-timeout')
-    expect(ingestionService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
-    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
-  })
-
   it('stores the processed artifact relative path and schedules indexing on completion', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
@@ -223,85 +103,10 @@ describe('check-file-processing-result job handler', () => {
 
     expect(knowledgeItemUpdateIndexedRelativePathMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_RELATIVE_PATH)
     expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
-    expect(ingestionService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
   })
 
-  it('clears the mirrored percentage when file processing completes', async () => {
-    // The row keeps showing 'processing' until its next poll observes the indexing job's
-    // 'reading' flip, so a lingering mirror would display a stale percentage in that window.
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(
-      createFileProcessingJobSnapshot({
-        status: 'completed',
-        output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
-        }
-      })
-    )
-    MockMainCacheServiceUtils.setSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`, 42)
-
-    await handler.execute(createCtx(createCheckPayload()))
-
-    expect(
-      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-    ).toBeUndefined()
-  })
-
-  it('clears the mirrored percentage when the item is marked failed', async () => {
-    // A failed item can be reindexed into a fresh chain that restarts at 0 — a
-    // lingering mirror from this run would read as the new run's progress.
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-    MockMainCacheServiceUtils.setSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`, 42)
-
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          pollRound: 360,
-          firstScheduledAt: Date.now() - 30 * 60 * 1000
-        })
-      )
-    )
-
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
-      error: 'File processing job fp-job-1 did not finish within 30 minutes'
-    })
-    expect(
-      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-    ).toBeUndefined()
-  })
-
-  it('lets an abandoned mirror self-collect via TTL', async () => {
-    // Polling refreshes the mirror every round; the TTL is the only mechanism
-    // that retires it if the chain ever dies without a terminal round.
-    vi.useFakeTimers()
-    try {
-      const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-      knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-      getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
-      MockMainCacheServiceUtils.setSharedCacheValue(`${JOB_PROGRESS_KEY_PREFIX}fp-job-1`, {
-        progress: 42,
-        detail: { stage: 'polling' }
-      })
-
-      await handler.execute(createCtx(createCheckPayload()))
-      expect(
-        MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-      ).toBe(42)
-
-      vi.advanceTimersByTime(60_001)
-      expect(
-        MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-      ).toBeUndefined()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('schedules indexing under the original workflow parent after polling completion', async () => {
+  it('schedules indexing under the original workflow parent once file processing completes', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     getJobMock.mockResolvedValue(
@@ -509,29 +314,6 @@ describe('check-file-processing-result job handler', () => {
     })
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'check failed' })
-  })
-
-  it('onSettled clears the mirrored percentage when the check job fails', async () => {
-    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
-    MockMainCacheServiceUtils.setSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`, 42)
-
-    await handler.onSettled?.({
-      jobId: 'job-1',
-      type: 'knowledge.check-file-processing-result',
-      scheduleId: null,
-      parentId: null,
-      status: 'failed',
-      input: createCheckPayload(),
-      error: { code: 'FAILED', message: 'check failed', retryable: false },
-      attempt: 3,
-      metadata: {}
-    })
-
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'check failed' })
-    expect(
-      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
-    ).toBeUndefined()
   })
 
   it('onSettled falls back to the terminal status when a failed job has no error message', async () => {

@@ -72,6 +72,15 @@ describe('ProxyBypassRuleMatcher', () => {
     expect(isByPass('http://[fefe:13::abc]')).toBe(true)
   })
 
+  it('matches wildcard IPs with fewer than four octets, as in Windows proxy exceptions', () => {
+    updateByPassRules(['192.168.*', '10.*'])
+
+    expect(isByPass('http://192.168.1.10:11434')).toBe(true)
+    expect(isByPass('http://10.0.0.5')).toBe(true)
+    expect(isByPass('http://192.169.1.1')).toBe(false)
+    expect(isByPass('http://110.0.0.5')).toBe(false)
+  })
+
   it('matches unbracketed IPv6 literals as addresses, not as host:port pairs', () => {
     updateByPassRules(['::1'])
     expect(isByPass('http://[::1]')).toBe(true)

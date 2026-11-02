@@ -13,7 +13,7 @@ import type { CapturedVoiceTarget } from '@renderer/services/voice'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeCodeTheme: 'one-light' }),
   useCmTheme: () => 'light'
 }))
 

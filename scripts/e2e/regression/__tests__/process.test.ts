@@ -80,3 +80,33 @@ it('refuses a runner launched from a different checkout even when it also uses d
   execFileSync.mockReturnValue('node /tmp/other-checkout/node_modules/dotenv-cli/cli.js')
   expect(() => assertOwnedProcess(owner, owner.runnerPid, 'runner')).toThrow('Refusing to terminate stale runner')
 })
+
+it('takes the CDP and inspector ports from the environment when given', async () => {
+  vi.resetModules()
+  process.env.CHERRY_CDP_PORT = '19333'
+  process.env.CHERRY_INSPECTOR_PORT = '19334'
+  try {
+    const mod = await import('../process')
+    expect(mod.CDP_PORT).toBe(19333)
+    expect(mod.MAIN_INSPECTOR_PORT).toBe(19334)
+  } finally {
+    delete process.env.CHERRY_CDP_PORT
+    delete process.env.CHERRY_INSPECTOR_PORT
+    vi.resetModules()
+  }
+})
+
+it('falls back to the default ports when the environment value is not a usable port', async () => {
+  vi.resetModules()
+  process.env.CHERRY_CDP_PORT = 'not-a-port'
+  process.env.CHERRY_INSPECTOR_PORT = '0'
+  try {
+    const mod = await import('../process')
+    expect(mod.CDP_PORT).toBe(9222)
+    expect(mod.MAIN_INSPECTOR_PORT).toBe(9229)
+  } finally {
+    delete process.env.CHERRY_CDP_PORT
+    delete process.env.CHERRY_INSPECTOR_PORT
+    vi.resetModules()
+  }
+})

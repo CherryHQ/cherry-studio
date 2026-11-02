@@ -14,6 +14,7 @@ import {
   getLowerBaseModelName,
   getProviderDisplayNameById,
   isEmoji,
+  normalizeGeneratedNoteName,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName,
   truncateText
@@ -451,5 +452,60 @@ describe('naming', () => {
       expect(result.length).toBeLessThanOrEqual(50)
       expect(result.length).toBeGreaterThanOrEqual(15)
     })
+  })
+})
+
+// Catch title extraction failures, illegal stems, and cuts inside a grapheme.
+describe('normalizeGeneratedNoteName', () => {
+  it.each([
+    ['Roadmap', 'Roadmap'],
+    ['# .NET Performance', 'NET Performance'],
+    ['## .. Deep dive', 'Deep dive'],
+    ['**.NET Core**', 'NET Core'],
+    ['.NET Performance', 'NET Performance'],
+    ['# .NET Performance\n\nbody paragraph', 'NET Performance'],
+    ['.. hidden', 'hidden'],
+    ['# **Roadmap** [Plan](https://example.test/a/b)\n\nLater paragraph', 'Roadmap Plan'],
+    ['```markdown\n# Roadmap\n```', 'Roadmap'],
+    ['~~~md\n# Roadmap\n~~~', 'Roadmap'],
+    ['A/B: C', 'A_B_ C'],
+    ['Research | Notes', 'Research _ Notes'],
+    ['"Roadmap.MD"', 'Roadmap'],
+    ['Roadmap.md.md', 'Roadmap'],
+    ['Roadmap.md .md .md', 'Roadmap'],
+    ['Alpha\t\u00a0Beta', 'Alpha Beta'],
+    ...['\r', '\n', '\u2028', '\u2029', '\u0085'].map((boundary) => [`Alpha${boundary}Beta`, 'Alpha']),
+    ['a'.repeat(37), 'a'.repeat(37)],
+    ['a'.repeat(38), 'a'.repeat(37)],
+    ['a'.repeat(3000), 'a'.repeat(37)],
+    ['中'.repeat(38), '中'.repeat(37)],
+    ['a'.repeat(36) + '😀', 'a'.repeat(36)],
+    ['a'.repeat(35) + 'e\u0301', 'a'.repeat(35) + 'e\u0301'],
+    ['a'.repeat(36) + 'e\u0301', 'a'.repeat(36)],
+    ['a'.repeat(35) + '👩‍💻', 'a'.repeat(35)],
+    ['a'.repeat(34) + '.mdMore', 'a'.repeat(34)],
+    ['a'.repeat(36) + '.More', 'a'.repeat(36)],
+    ...['', '  \t', '###', '...', '.md', '///', 'CON', '+'].map((text) => [text, null]),
+    ['| A | B |\n| --- | :---: |\n| x | y |', null],
+    ['A | B\n--- | ---\nx | y', null],
+    ['| A |\n| - |\n| x |', null],
+    ['Research | Notes\n- | -', 'Research _ Notes'],
+    ['A | B\n--- | ---\nx', null],
+    ['A | B\n--- | ---\nx\n# Roadmap', 'Roadmap'],
+    ['```markdown\nA | B\n--- | ---\nx\n```', null],
+    ['# Roadmap\n\n| A | B |\n| --- | --- |\n| x | y |', 'Roadmap'],
+    ['A | B\n--- | ---\nx | y\n\n# Roadmap', 'Roadmap'],
+    ['###\n...\n# Roadmap', 'Roadmap']
+  ])('normalizes %j to %j', (text, expected) => {
+    expect(normalizeGeneratedNoteName(text!)).toBe(expected)
+  })
+
+  it('never returns a hidden stem for Markdown-wrapped dot-prefixed titles', () => {
+    const titles = ['# .NET Performance', '## .. Deep dive', '**.NET Core**', '  > .NET Performance', '- .NET Core']
+
+    for (const text of titles) {
+      const name = normalizeGeneratedNoteName(text)
+      expect(name === null || !name.startsWith('.'), `Hidden note stem for ${JSON.stringify(text)}`).toBe(true)
+    }
   })
 })

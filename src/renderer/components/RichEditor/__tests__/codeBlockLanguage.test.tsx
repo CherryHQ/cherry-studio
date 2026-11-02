@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
 
 vi.mock('@renderer/components/Preview/MermaidPreview', () => ({ default: () => null }))

@@ -112,7 +112,12 @@ beforeEach(async () => {
     signature: 'captured-a'
   } as unknown as PiConnectionSnapshot
   mocks.capture.mockImplementation(async () => snapshot)
-  mocks.resolveInjection.mockResolvedValue({ providerName: 'provider', api: 'openai-completions', modelId: 'model' })
+  mocks.resolveInjection.mockResolvedValue({
+    providerName: 'provider',
+    api: 'openai-completions',
+    modelId: 'model',
+    suppressReasoningSummary: false
+  })
   mocks.buildPrompt.mockResolvedValue({ base: { kind: 'native' } })
   mocks.createAgentSession.mockResolvedValue({
     session: {

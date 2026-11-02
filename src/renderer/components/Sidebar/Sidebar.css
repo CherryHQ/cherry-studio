@@ -38,14 +38,14 @@
 }
 
 .sidebar-action[data-active='true'] {
-  border: 0.5px solid var(--border-subtle);
+  border-color: transparent;
   outline: none;
   box-shadow: none;
 }
 
 .sidebar-action[data-active='true'] [data-slot='sidebar-entry-icon'],
 .sidebar-action[data-active='true'] [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
-  color: var(--primary);
+  color: var(--sidebar-foreground);
 }
 
 .sidebar-action:focus-visible {

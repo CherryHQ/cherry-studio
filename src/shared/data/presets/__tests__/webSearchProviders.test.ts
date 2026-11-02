@@ -187,3 +187,20 @@ describe('web search provider schemas', () => {
     expect(overridesResult.success).toBe(false)
   })
 })
+
+it('accepts saved Yuanbao credentials and exposes only keyword search', () => {
+  expect(
+    WebSearchProviderOverridesSchema.safeParse({
+      yuanbao: { apiKeys: ['key'], capabilities: { searchKeywords: { apiHost: 'https://proxy.example' } } }
+    }).success
+  ).toBe(true)
+  const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((item) => item.id === 'yuanbao')
+  expect(preset?.capabilities).toEqual([
+    {
+      feature: 'searchKeywords',
+      requiresApiHost: true,
+      requiresApiKey: true,
+      apiHost: 'https://api.wsa.cloud.tencent.com'
+    }
+  ])
+})

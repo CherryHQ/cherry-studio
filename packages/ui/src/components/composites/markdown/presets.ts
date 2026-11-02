@@ -8,13 +8,12 @@
  */
 
 import { cjk, type CjkPlugin } from '@streamdown/cjk'
-import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import type { PluginConfig } from 'streamdown'
 import type { Pluggable } from 'unified'
 
-import { rehypeStreamingMath } from './plugins'
+import { createCodeHighlightPlugin, rehypeStreamingMath } from './plugins'
 
 export interface WithMathOptions {
   singleDollar?: boolean
@@ -38,9 +37,9 @@ const cjkWithLiteralTildes: CjkPlugin = (() => {
   }
 })()
 
-/** Code (Shiki highlighting) + CJK line-break tweaks. */
+/** Code (Highlights highlighting) + CJK line-break tweaks. */
 export const defaultMarkdownPlugins: PluginConfig = {
-  code,
+  code: createCodeHighlightPlugin(),
   cjk: cjkWithLiteralTildes
 }
 

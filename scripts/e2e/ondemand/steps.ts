@@ -72,7 +72,7 @@ export function createScenarioContext(
               await expect(page.getByText(step.text).first()).toBeVisible({ timeout: step.timeout ?? 15_000 })
               break
             case 'expectVisible':
-              await expect(page.locator(step.selector)).toBeVisible({ timeout: step.timeout ?? 15_000 })
+              await expect(page.locator(step.selector).first()).toBeVisible({ timeout: step.timeout ?? 15_000 })
               break
             case 'screenshot':
               await screenshot(step.name)

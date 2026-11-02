@@ -115,14 +115,15 @@ describe('Dialog primitive', () => {
     expect(content).toHaveClass(
       'data-[state=open]:animation-duration-[260ms]',
       'data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-      'data-[state=open]:zoom-in-99',
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:animation-duration-[200ms]',
       'data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
-      'data-[state=closed]:zoom-out-99',
       'data-[state=closed]:slide-out-to-bottom-4',
       'motion-reduce:animate-none'
     )
+    // Scaling the whole content layer re-rasterizes it every frame; large emoji lists lose most frames.
+    expect(content).not.toHaveClass('data-[state=open]:zoom-in-99')
+    expect(content).not.toHaveClass('data-[state=closed]:zoom-out-99')
   })
 
   it('supports fade-scale motion without directional translation for alerts and confirmations', () => {
@@ -136,12 +137,9 @@ describe('Dialog primitive', () => {
 
     const content = document.querySelector('[data-slot="dialog-content"]')
 
-    expect(content).toHaveClass(
-      'data-[state=open]:fade-in-0',
-      'data-[state=open]:zoom-in-99',
-      'data-[state=closed]:fade-out-0',
-      'data-[state=closed]:zoom-out-99'
-    )
+    expect(content).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
+    expect(content).not.toHaveClass('data-[state=open]:zoom-in-99')
+    expect(content).not.toHaveClass('data-[state=closed]:zoom-out-99')
     expect(content).not.toHaveClass(
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:slide-out-to-bottom-4'

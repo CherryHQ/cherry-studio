@@ -225,8 +225,7 @@ describe('TopicBranchPanel', () => {
     expect(screen.getByText('1 chat.message.flow.nodes')).toBeInTheDocument()
     expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
       enabled: true,
-      params: { topicId: 'topic-1' },
-      query: { depth: -1 }
+      params: { topicId: 'topic-1' }
     })
   })
 
@@ -235,8 +234,7 @@ describe('TopicBranchPanel', () => {
 
     expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
       enabled: false,
-      params: { topicId: 'topic-1' },
-      query: { depth: -1 }
+      params: { topicId: 'topic-1' }
     })
   })
 

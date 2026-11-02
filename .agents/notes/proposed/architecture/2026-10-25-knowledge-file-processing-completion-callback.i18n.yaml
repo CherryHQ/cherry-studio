@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-25-knowledge-file-processing-completion-callback.md
+2026-10-25-knowledge-file-processing-completion-callback.md: 612e75572ca304e818cb9fe0492fcca968407430
+2026-10-25-knowledge-file-processing-completion-callback.zh.md: baf7d615f75530ac6dd959e89737767e4d72bab2
