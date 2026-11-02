@@ -32,6 +32,8 @@ export interface PaintingGenerateErrorOptions {
   message?: string
   presentation?: 'modal' | 'toast'
   severity?: 'error' | 'warning'
+  /** Original structured failure. A stack is copied only when this value already has one. */
+  cause?: unknown
 }
 
 export class PaintingGenerateError extends Error {
@@ -45,6 +47,7 @@ export class PaintingGenerateError extends Error {
     this.code = code
     this.presentation = options.presentation || 'modal'
     this.severity = options.severity || 'error'
+    if (options.cause !== undefined) this.cause = options.cause
   }
 }
 
@@ -61,7 +64,7 @@ export function normalizePaintingGenerateError(error: unknown): Error {
   }
 
   if (error instanceof Error) {
-    return createPaintingGenerateError('REMOTE_ERROR', { message: error.message })
+    return createPaintingGenerateError('REMOTE_ERROR', { message: error.message, cause: error })
   }
 
   return createPaintingGenerateError('GENERATE_FAILED')

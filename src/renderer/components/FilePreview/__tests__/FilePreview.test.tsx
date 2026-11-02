@@ -45,6 +45,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ) : null}
     </div>
   ),
+  Button: MockCherrystudioUI.Button,
   ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 

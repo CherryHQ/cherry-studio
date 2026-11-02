@@ -16,6 +16,7 @@ import {
   TabsTrigger
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('RichEditorImageUploader')
@@ -148,7 +149,18 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               }}
               onError={(err) => {
                 logger.error('Dropzone validation failed:', err)
-                toast.error(err.message || t('richEditor.imageUploader.invalidType'))
+                const message = err instanceof Error ? err.message : ''
+                const custom =
+                  message === t('richEditor.imageUploader.invalidType') ||
+                  message === t('richEditor.imageUploader.tooLarge')
+                if (custom) {
+                  toast.error(message)
+                  return
+                }
+                toastAppError(t('richEditor.imageUploader.invalidType'), err, {
+                  source: 'richEditor.image',
+                  operation: 'richEditor.image.validate'
+                })
               }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
               <div className="flex flex-col items-center justify-center gap-2 text-center">
