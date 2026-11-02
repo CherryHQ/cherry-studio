@@ -206,6 +206,13 @@ describe('detectDestructiveAssistantCommand', () => {
     ['echo ok; <# c #> del victim.txt', 'permanent Windows file deletion'],
     ['<##> del victim.txt', 'permanent Windows file deletion'],
     ['<# a #> <# b #> rd victimdir', 'permanent Windows file deletion'],
+    // A quoted delimiter inside a command-prefixed value stays inert; the deletion after it runs.
+    ['@{a=Write-Output "}"; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a=Write-Output "("; b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a=Write-Output ";"; b=del victim.txt}', 'permanent Windows file deletion'],
+    // A backtick-escaped quote is literal text, never a string boundary; the deletion after
+    // the refused segment still executes.
+    ['@{a=x""`"; b="}"; c=del x}', 'permanent Windows file deletion'],
     ['echo "@{result = del victim.txt}"', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],

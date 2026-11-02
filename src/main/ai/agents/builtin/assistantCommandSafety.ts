@@ -522,7 +522,7 @@ function commentGapDeletion(s: string): boolean {
   const n = s.length
   const commentEndAtStart = new Int32Array(n + 1).fill(-1)
   let count = 0
-  for (let i = 0; i + 1 < n; ) {
+  for (let i = 0; i + 1 < n;) {
     if (s[i] === '<' && s[i + 1] === '#') {
       let j = i + 2
       while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
@@ -594,16 +594,7 @@ function commentGapDeletion(s: string): boolean {
 
 function hashtableValueDeletion(s: string): boolean {
   const n = s.length
-  interface TableFrame {
-    expect: 'key' | 'eq' | 'valueStart' | 'skip'
-    brace: number
-    paren: number
-    escaped?: boolean
-  }
   const stack: TableFrame[] = []
-  // O(1) next-same-quote tables: a closed quoted value segment is located with one
-  // lookup (first close, no escape pairing), so quoted-value handling never rescans and
-  // the pass stays linear.
   const nextDQuote = new Int32Array(n + 1)
   const nextSQuote = new Int32Array(n + 1)
   nextDQuote[n] = n
@@ -641,7 +632,7 @@ function hashtableValueDeletion(s: string): boolean {
   while (i < n) {
     const c = s[i]
     const top = stack[stack.length - 1]
-    if (top === undefined) {
+    if (top === void 0) {
       if (c === '@' && i + 1 < n && s[i + 1] === '{') {
         stack.push({ expect: 'key', brace: 0, paren: 0 })
         i += 2
@@ -661,6 +652,7 @@ function hashtableValueDeletion(s: string): boolean {
       if (c === '"' || c === "'") {
         const q = c
         let j = i + 1
+        let closed = false
         while (j < n) {
           if (s[j] === q) {
             if (j + 1 < n && s[j + 1] === q) {
@@ -668,9 +660,15 @@ function hashtableValueDeletion(s: string): boolean {
               continue
             }
             j++
+            closed = true
             break
           }
           j++
+        }
+        if (!closed) {
+          stack.pop()
+          i++
+          continue
         }
         top.expect = 'eq'
         i = j
@@ -687,7 +685,13 @@ function hashtableValueDeletion(s: string): boolean {
         let j = i + 1
         if (j < n && s[j] === '{') {
           while (j < n && s[j] !== '}') j++
-          if (j < n) j++
+          if (j < n) {
+            j++
+          } else {
+            stack.pop()
+            i++
+            continue
+          }
         } else {
           while (j < n && (isScanWord(s[j]) || s[j] === '?' || s[j] === ':')) j++
         }
@@ -695,7 +699,6 @@ function hashtableValueDeletion(s: string): boolean {
         i = j
         continue
       }
-      // Unrecognized key form: stop tracking this table (documented conservative gap).
       stack.pop()
       i++
       continue
@@ -726,46 +729,36 @@ function hashtableValueDeletion(s: string): boolean {
         continue
       }
       if (c === '"' || c === "'") {
-        // A closed quoted string followed by an entry boundary (`;`, `}`, whitespace or
-        // end of input) is one opaque value segment: swallow it whole so separators or
-        // braces inside it cannot split the entry (`@{a=";"; b=del x}` still reaches
-        // `b`). The first non-glue content character keeps the anchor check, so
-        // `@{a="del x"}` denies with the assignment family's quote-blind parity. Glued
-        // content after the closing quote and unterminated quotes fall back to the
-        // quote-blind glue skip.
         const close = c === '"' ? nextDQuote[i + 1] : nextSQuote[i + 1]
         if (close < n) {
-          // Double-quoted strings interpolate: a `$` or escape backtick before the
-          // candidate close means it is not the segment end (a `$(...)` subexpression
-          // can hold the quote that closes an inner string, and `` `" `` escapes the
-          // close), so those values stay on the quote-blind path. Single-quoted
-          // strings are literal; their doubled-quote escape resolves through the
-          // glued-content fallback below.
           let interpolates = false
-          if (c === '"') {
-            for (let k = i + 1; k < close; k++) {
-              const kc = s[k]
-              if (kc === '$' || kc === '`') {
-                interpolates = true
-                break
-              }
+          let holdsTable = false
+          for (let k = i + 1; k < close; k++) {
+            const kc = s[k]
+            if (c === '"' && (kc === '$' || kc === '`')) {
+              interpolates = true
+              break
+            }
+            if (kc === '@' && s[k + 1] === '{') {
+              holdsTable = true
+              break
             }
           }
           if (interpolates) {
-            // The value still started as a double-quoted string, so backtick
-            // escapes keep their meaning while its pipeline is skipped.
             top.escaped = true
+            top.quotesBlind = true
+          } else if (holdsTable) {
+            top.quotesBlind = true
           } else {
-            const after = close + 1 >= n ? '' : s[close + 1]
-            if (after === '' || after === ';' || after === '}' || SCAN_WS.test(after)) {
-              let g = i + 1
-              while (g < close && (SCAN_WS.test(s[g]) || s[g] === '"' || s[g] === "'")) g++
-              if (g < close && tokenAt(g)) return true
-              top.expect = 'skip'
-              i = close + 1
-              continue
-            }
+            let g = i + 1
+            while (g < close && (SCAN_WS.test(s[g]) || s[g] === '"' || s[g] === "'")) g++
+            if (g < close && tokenAt(g)) return true
+            top.expect = 'skip'
+            i = close + 1
+            continue
           }
+        } else {
+          top.quotesBlind = true
         }
         i++
         continue
@@ -774,9 +767,39 @@ function hashtableValueDeletion(s: string): boolean {
       top.expect = 'skip'
       continue
     }
-    // skip: consume the value pipeline until the next entry separator at this level.
-    if (top.escaped === true && c === '`' && i + 1 < n) {
+    // A backtick escapes the next character in argument-mode bare text and inside an
+    // expandable string, so an escaped quote or separator is literal text, never a boundary.
+    // Skip the pair when scanning bare text (not quote-blind) or when the blindness came from
+    // an interpolated value start (escaped set) - both keep the frame aligned with the real
+    // parse, where the deletion behind the escape still runs. When blindness came from a
+    // refused mid-value segment (escaped unset) the backtick keeps its plain-character
+    // alignment: hiding an escaped `; there would let the quoted `}` behind it pop the frame
+    // early (parse-only PowerShell 7.4.6 differential over the 242,760-case matrix: the
+    // execution-shaped D->A families were exactly these three shapes).
+    if (c === '`' && i + 1 < n && (top.escaped === true || top.quotesBlind !== true)) {
       i += 2
+      continue
+    }
+    if (c === '"' || c === "'") {
+      if (top.quotesBlind !== true) {
+        const close = c === '"' ? nextDQuote[i + 1] : nextSQuote[i + 1]
+        if (close < n) {
+          let opaque = true
+          for (let k = i + 1; k < close; k++) {
+            const kc = s[k]
+            if ((kc === '@' && s[k + 1] === '{') || (c === '"' && (kc === '$' || kc === '`'))) {
+              opaque = false
+              break
+            }
+          }
+          if (opaque) {
+            i = close + 1
+            continue
+          }
+        }
+        top.quotesBlind = true
+      }
+      i++
       continue
     }
     if (c === '@' && i + 1 < n && s[i + 1] === '{') {
@@ -807,6 +830,8 @@ function hashtableValueDeletion(s: string): boolean {
     }
     if ((c === ';' || c === '\n' || c === '\r') && top.brace === 0 && top.paren === 0) {
       top.expect = 'key'
+      top.quotesBlind = void 0
+      top.escaped = void 0
       i++
       continue
     }
