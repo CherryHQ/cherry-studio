@@ -31,6 +31,23 @@ describe('parseFileLinkHref', () => {
   })
 
   it.each([
+    ['parenthesis + TAB', '%28%09%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['parenthesis + LF', '%28%0A%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['parenthesis + CR', '%28%0D%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['parenthesis + NBSP', '%28%C2%A0%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['parenthesis + space', '%28%20%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['backtick + TAB', '%60%09%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['bracket + quote + TAB', '%5B%22%09%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['parenthesis + TAB + forward slashes', '%28%09%2F%2Fattacker.example/share/notes.txt']
+  ])('rejects punctuation + whitespace UNC href (%s) unless network targets are explicitly allowed', (_name, href) => {
+    expect(parseFileLinkHref(href)).toBeNull()
+    const decodedHref = decodeURIComponent(href)
+    expect(parseFileLinkHref(decodedHref)).toBeNull()
+    expect(parseFileLinkHref(decodedHref, { allowNetworkTargets: true })).toBe(decodedHref)
+    expect(parseFileLinkHref(href, { allowNetworkTargets: true })).toBe(decodedHref)
+  })
+
+  it.each([
     // strips hash / query, decodes percent-encoding, keeps single-segment names
     ['./README.md#安装', './README.md'],
     ['./Meeting%20Notes.md', './Meeting Notes.md'],
