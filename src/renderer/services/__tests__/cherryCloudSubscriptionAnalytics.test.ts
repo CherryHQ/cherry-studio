@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   recordSubscribeClick,
-  timeSinceSubscribeClick,
+  subscribeClickAttribution,
   trackSubscriptionEntryView,
   trackSubscriptionEvent
 } from '../cherryCloudSubscriptionAnalytics'
@@ -36,18 +36,19 @@ describe('cherryCloudSubscriptionAnalytics', () => {
     expect(() => trackSubscriptionEvent({ event: 'subscription_manage_click' })).not.toThrow()
   })
 
-  it('buckets the time since the last Subscribe click for activation attribution', () => {
+  it('attributes an activation to the last Subscribe click, keeping its flow only within a day', () => {
     vi.useFakeTimers()
-    expect(timeSinceSubscribeClick()).toBe('none')
+    expect(subscribeClickAttribution()).toEqual({ sinceClick: 'none' })
 
     recordSubscribeClick()
+    const flowId = recordSubscribeClick()
     vi.advanceTimersByTime(4 * 60_000)
-    expect(timeSinceSubscribeClick()).toBe('under_5m')
+    expect(subscribeClickAttribution()).toEqual({ sinceClick: 'under_5m', flowId })
     vi.advanceTimersByTime(20 * 60_000)
-    expect(timeSinceSubscribeClick()).toBe('under_30m')
+    expect(subscribeClickAttribution()).toEqual({ sinceClick: 'under_30m', flowId })
     vi.advanceTimersByTime(3 * 60 * 60_000)
-    expect(timeSinceSubscribeClick()).toBe('under_24h')
+    expect(subscribeClickAttribution()).toEqual({ sinceClick: 'under_24h', flowId })
     vi.advanceTimersByTime(24 * 60 * 60_000)
-    expect(timeSinceSubscribeClick()).toBe('over_24h')
+    expect(subscribeClickAttribution()).toEqual({ sinceClick: 'over_24h' })
   })
 })

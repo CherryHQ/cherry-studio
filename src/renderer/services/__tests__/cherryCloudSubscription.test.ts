@@ -38,8 +38,12 @@ beforeEach(() => {
 const tracked = () =>
   request.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track').map(([, event]) => event)
 
-const portalOpened = () =>
-  request.mock.calls.some(([route, url]) => route === 'system.shell.open_external_website' && url === PORTAL)
+const portalUrls = () =>
+  request.mock.calls
+    .filter(([route]) => route === 'system.shell.open_external_website')
+    .map(([, url]) => new URL(url as string))
+    .filter((url) => `${url.origin}${url.pathname}` === PORTAL)
+const portalOpened = () => portalUrls().length > 0
 
 describe('startCherryCloudSubscription', () => {
   it('opens the portal for a signed-in account and dismisses the subscribe prompt', async () => {
@@ -50,15 +54,32 @@ describe('startCherryCloudSubscription', () => {
     expect(portalOpened()).toBe(true)
     expect(request).not.toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
     expect(cacheService.getPersist('ui.cherry_cloud.subscribe_prompt_seen')).toBe(true)
+    const flowId = portalUrls()[0].searchParams.get('flow_id')
+    expect(Object.fromEntries(portalUrls()[0].searchParams)).toEqual({
+      entry: 'desktop',
+      entry_source: 'selector_locked_row',
+      flow_id: expect.stringMatching(/^[0-9a-f-]{36}$/)
+    })
     expect(tracked()).toEqual([
       {
         event: 'subscription_entry_click',
         source: 'selector_locked_row',
+        flowId,
         signedIn: true,
         modelId: 'cherryai-subscription::kimi-k2'
       },
-      { event: 'subscription_portal_open', source: 'selector_locked_row', result: 'success' }
+      { event: 'subscription_portal_open', source: 'selector_locked_row', flowId, result: 'success' }
     ])
+  })
+
+  it('starts a new flow for every Subscribe click', async () => {
+    status = signedIn
+
+    await startCherryCloudSubscription('settings')
+    await startCherryCloudSubscription('settings')
+
+    const [first, second] = portalUrls().map((url) => url.searchParams.get('flow_id'))
+    expect(first).not.toBe(second)
   })
 
   it('signs in first and opens the portal only once the session arrives', async () => {
@@ -72,11 +93,12 @@ describe('startCherryCloudSubscription', () => {
     publishStatus(signedIn)
 
     await vi.waitFor(() => expect(portalOpened()).toBe(true))
+    const flowId = portalUrls()[0].searchParams.get('flow_id')
     await vi.waitFor(() =>
       expect(tracked()).toEqual([
-        { event: 'subscription_entry_click', source: 'account_panel', signedIn: false },
-        { event: 'subscription_sign_in_result', result: 'success' },
-        { event: 'subscription_portal_open', source: 'account_panel', result: 'success' }
+        { event: 'subscription_entry_click', source: 'account_panel', flowId, signedIn: false },
+        { event: 'subscription_sign_in_result', flowId, result: 'success' },
+        { event: 'subscription_portal_open', source: 'account_panel', flowId, result: 'success' }
       ])
     )
   })
@@ -115,6 +137,7 @@ describe('startCherryCloudSubscription', () => {
     expect(portalOpened()).toBe(false)
     expect(tracked()).toContainEqual({
       event: 'subscription_sign_in_result',
+      flowId: expect.any(String),
       result: 'failed',
       reason: 'upgrade_required'
     })
@@ -132,7 +155,12 @@ describe('startCherryCloudSubscription', () => {
     await startCherryCloudSubscription('settings')
 
     expect(toast.error).toHaveBeenCalledWith(i18n.t('settings.subscription.open_portal_failed'))
-    expect(tracked()).toContainEqual({ event: 'subscription_portal_open', source: 'settings', result: 'failed' })
+    expect(tracked()).toContainEqual({
+      event: 'subscription_portal_open',
+      source: 'settings',
+      flowId: expect.any(String),
+      result: 'failed'
+    })
   })
 
   it('does not open the portal when sign-in is abandoned', async () => {
@@ -144,7 +172,11 @@ describe('startCherryCloudSubscription', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(portalOpened()).toBe(false)
-    expect(tracked()).toContainEqual({ event: 'subscription_sign_in_result', result: 'cancelled' })
+    expect(tracked()).toContainEqual({
+      event: 'subscription_sign_in_result',
+      flowId: expect.any(String),
+      result: 'cancelled'
+    })
     expect(tracked().some((event) => (event as { event: string }).event === 'subscription_portal_open')).toBe(false)
   })
 })

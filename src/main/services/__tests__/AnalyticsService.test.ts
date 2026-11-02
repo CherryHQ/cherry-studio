@@ -154,7 +154,16 @@ describe('AnalyticsService data collection preference', () => {
     expect(posthog.capture).toHaveBeenCalledWith({
       distinctId: 'test-client-id',
       event: 'subscription_entry_view',
-      properties: expect.objectContaining({ source: 'settings', app_edition: 'global', $process_person_profile: false })
+      properties: expect.objectContaining({
+        source: 'settings',
+        app_edition: 'global',
+        producer: 'client',
+        surface: 'desktop',
+        region: 'global',
+        environment: 'development',
+        test: true,
+        $process_person_profile: false
+      })
     })
 
     // While the revoked client is still shutting down, nothing new may be captured.

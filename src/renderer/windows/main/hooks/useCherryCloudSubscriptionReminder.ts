@@ -5,7 +5,7 @@ import { useSWRConfig } from 'swr'
 import { CHERRY_CLOUD_AVAILABILITY_KEY } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useIpcOn } from '@renderer/ipc'
-import { timeSinceSubscribeClick, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
+import { subscribeClickAttribution, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { toast } from '@renderer/services/toast'
 
 // A plans change this soon after main's notification-driven refresh came from that notification.
@@ -67,7 +67,7 @@ export function useCherryCloudSubscriptionReminder(): void {
           Date.now() - notificationRefreshAtRef.current < NOTIFICATION_REFRESH_WINDOW_MS
             ? 'notification'
             : 'focus_refresh',
-        sinceClick: timeSinceSubscribeClick()
+        ...subscribeClickAttribution()
       })
       toast.success(t('settings.subscription.activated', { plan: activePaid.plan.display_name }))
     }

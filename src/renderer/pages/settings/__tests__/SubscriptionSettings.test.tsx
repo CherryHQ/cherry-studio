@@ -107,7 +107,7 @@ describe('SubscriptionSettings', () => {
 
       expect(requestMock).toHaveBeenCalledWith(
         'system.shell.open_external_website',
-        'https://cloud.cherryai.com.cn/account/faq'
+        'https://cloud.cherryai.com.cn/account/faq?entry=desktop'
       )
     }
   )
@@ -115,7 +115,7 @@ describe('SubscriptionSettings', () => {
   it('reports the usage view, Manage subscription, and FAQ clicks of a subscribed account', async () => {
     requestMock.mockImplementation((route: string) => {
       if (route === 'cherry_cloud.account_plans.get') return Promise.resolve(paidPlans('Plus'))
-      if (route === 'cherry_cloud.api_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
+      if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
       return Promise.resolve()
     })
     renderSettings()
@@ -149,7 +149,9 @@ describe('SubscriptionSettings', () => {
 
     expect(requestMock).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://cloud.cherryai.com/account/plans'
+      expect.stringMatching(
+        /^https:\/\/accounts\.cherryai\.com\/account\/plans\?entry=desktop&entry_source=settings&flow_id=/
+      )
     )
   })
 

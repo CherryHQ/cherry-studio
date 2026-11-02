@@ -211,6 +211,13 @@ export class AnalyticsService extends BaseService implements Activatable {
         app_version: app.getVersion(),
         app_edition: getAppEdition(),
         os: process.platform,
+        // Same envelope as the subscription web page and server events in the shared project.
+        producer: 'client',
+        surface: 'desktop',
+        region: getAppEdition(),
+        environment: import.meta.env.DEV ? 'development' : 'production',
+        test: import.meta.env.DEV,
+        schema_version: 1,
         $process_person_profile: false
       }
     })

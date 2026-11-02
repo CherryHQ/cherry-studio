@@ -19,21 +19,24 @@ export function trackSubscriptionEntryView(source: SubscriptionEntrySource): voi
   trackSubscriptionEvent({ event: 'subscription_entry_view', source })
 }
 
-let lastSubscribeClickAt: number | null = null
+type ActivationEvent = Extract<CherryCloudAnalyticsEvent, { event: 'subscription_activated' }>
 
-export function recordSubscribeClick(): void {
-  lastSubscribeClickAt = Date.now()
+let lastSubscribeClick: { at: number; flowId: string } | null = null
+
+/** Starts a subscription flow and returns its id. */
+export function recordSubscribeClick(): string {
+  lastSubscribeClick = { at: Date.now(), flowId: crypto.randomUUID() }
+  return lastSubscribeClick.flowId
 }
 
-/** Coarse time since the last Subscribe click, so activations can be attributed without exact timing. */
-export function timeSinceSubscribeClick(): Extract<
-  CherryCloudAnalyticsEvent,
-  { event: 'subscription_activated' }
->['sinceClick'] {
-  if (lastSubscribeClickAt === null) return 'none'
-  const minutes = (Date.now() - lastSubscribeClickAt) / 60_000
-  if (minutes < 5) return 'under_5m'
-  if (minutes < 30) return 'under_30m'
-  if (minutes < 24 * 60) return 'under_24h'
-  return 'over_24h'
+/**
+ * Attributes an activation to the last Subscribe click: a coarse time since it, plus its flow id when the click
+ * was within a day.
+ */
+export function subscribeClickAttribution(): Pick<ActivationEvent, 'sinceClick' | 'flowId'> {
+  if (lastSubscribeClick === null) return { sinceClick: 'none' }
+  const minutes = (Date.now() - lastSubscribeClick.at) / 60_000
+  if (minutes >= 24 * 60) return { sinceClick: 'over_24h' }
+  const sinceClick = minutes < 5 ? 'under_5m' : minutes < 30 ? 'under_30m' : 'under_24h'
+  return { sinceClick, flowId: lastSubscribeClick.flowId }
 }

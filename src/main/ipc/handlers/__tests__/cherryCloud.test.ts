@@ -43,12 +43,19 @@ describe('cherryCloudHandlers', () => {
 
   it('reports a subscription event with snake_case fields for the analytics backend', async () => {
     await cherryCloudHandlers['cherry_cloud.analytics.track'](
-      { event: 'subscription_entry_click', source: 'selector_locked_row', signedIn: true, modelId: 'kimi-k2' },
+      {
+        event: 'subscription_entry_click',
+        source: 'selector_locked_row',
+        flowId: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
+        signedIn: true,
+        modelId: 'kimi-k2'
+      },
       { senderId: 'w1' }
     )
 
     expect(analytics.trackEvent).toHaveBeenCalledWith('subscription_entry_click', {
       source: 'selector_locked_row',
+      flow_id: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
       signed_in: true,
       model_id: 'kimi-k2'
     })

@@ -125,7 +125,7 @@ export function SubscriptionSettings() {
               onClick={() => {
                 if (!paidPlan) return void startCherryCloudSubscription('settings')
                 trackSubscriptionEvent({ event: 'subscription_manage_click' })
-                void openCherryCloudAccountPortal()
+                void openCherryCloudAccountPortal({ entrySource: 'manage' })
               }}>
               {paidPlan ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
               <ExternalLink />

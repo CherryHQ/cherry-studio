@@ -126,6 +126,8 @@ const subscriptionEntrySourceSchema = z.enum([
   'avatar_dot'
 ])
 const quotaModelTypeSchema = z.enum(['free', 'paid'])
+// One id per Subscribe click, also handed to the account portal so web and server events of the same purchase can be joined.
+const subscriptionFlowIdSchema = z.uuid()
 
 /** Allow-listed, anonymous subscription usage insights; none carries an account identifier or a price. */
 export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
@@ -133,24 +135,28 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   z.strictObject({
     event: z.literal('subscription_entry_click'),
     source: subscriptionEntrySourceSchema,
+    flowId: subscriptionFlowIdSchema,
     signedIn: z.boolean(),
     modelId: z.string().max(200).optional()
   }),
   z.strictObject({
     event: z.literal('subscription_sign_in_result'),
+    flowId: subscriptionFlowIdSchema,
     result: z.enum(['success', 'failed', 'cancelled']),
     reason: z.enum(['upgrade_required', 'service_unavailable', 'other']).optional()
   }),
   z.strictObject({
     event: z.literal('subscription_portal_open'),
     source: subscriptionEntrySourceSchema,
+    flowId: subscriptionFlowIdSchema,
     result: z.enum(['success', 'failed'])
   }),
   z.strictObject({
     event: z.literal('subscription_activated'),
     planName: z.string().max(100),
     detectedBy: z.enum(['focus_refresh', 'notification']),
-    sinceClick: z.enum(['under_5m', 'under_30m', 'under_24h', 'over_24h', 'none'])
+    sinceClick: z.enum(['under_5m', 'under_30m', 'under_24h', 'over_24h', 'none']),
+    flowId: subscriptionFlowIdSchema.optional()
   }),
   z.strictObject({
     event: z.literal('subscription_quota_exhausted_view'),
