@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
         openArtifactFile?: (path: string) => void | Promise<void>
         openPath?: (path: string) => void | Promise<void>
         isDirectory?: (path: string) => Promise<boolean>
+        notifyError?: (message: string) => void
       }
 }))
 
@@ -61,5 +62,45 @@ describe('ChatMarkdown adapter', () => {
     await user.click(screen.getByRole('link', { name: 'Docs' }))
     expect(openPath).toHaveBeenCalledWith('./docs')
     expect(openArtifactFile).not.toHaveBeenCalled()
+  })
+
+  it('opens file links through openPath without navigating when no preview is available', async () => {
+    const openPath = vi.fn()
+    const notifyError = vi.fn()
+    mocks.actions = { openPath, isDirectory: async () => false, notifyError }
+    render(<ChatMarkdown block={{ id: 'part', content: '[Notes](/home/user/notes.md)', status: 'success' }} />)
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+
+    fireEvent(screen.getByRole('link', { name: 'Notes' }), click)
+
+    expect(click.defaultPrevented).toBe(true)
+    await waitFor(() => expect(openPath).toHaveBeenCalledWith('/home/user/notes.md'))
+    expect(notifyError).not.toHaveBeenCalled()
+  })
+
+  it('prefers the artifact preview for file links when both openers are available', async () => {
+    const user = userEvent.setup()
+    const openArtifactFile = vi.fn()
+    const openPath = vi.fn()
+    mocks.actions = { openArtifactFile, openPath, isDirectory: async () => false }
+    render(<ChatMarkdown block={{ id: 'part', content: '[Notes](/home/user/notes.md)', status: 'success' }} />)
+
+    await user.click(screen.getByRole('link', { name: 'Notes' }))
+
+    expect(openArtifactFile).toHaveBeenCalledWith('/home/user/notes.md')
+    expect(openPath).not.toHaveBeenCalled()
+  })
+
+  it('reports file opening failures without navigating when only openPath is available', async () => {
+    const openPath = vi.fn().mockRejectedValue(new Error('boom'))
+    const notifyError = vi.fn()
+    mocks.actions = { openPath, isDirectory: async () => false, notifyError }
+    render(<ChatMarkdown block={{ id: 'part', content: '[Notes](/home/user/notes.md)', status: 'success' }} />)
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+
+    fireEvent(screen.getByRole('link', { name: 'Notes' }), click)
+
+    expect(click.defaultPrevented).toBe(true)
+    await waitFor(() => expect(notifyError).toHaveBeenCalledExactlyOnceWith('chat.input.tools.open_file_error'))
   })
 })

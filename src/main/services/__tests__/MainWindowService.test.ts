@@ -474,6 +474,75 @@ describe('MainWindowService', () => {
     }
   })
 
+  describe('blocked local file links in the main window', () => {
+    beforeEach(() => {
+      prefValues['app.language'] = 'en-US'
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+      ;(svc as any).setupWebContentsHandlers(win)
+    })
+
+    afterEach(() => {
+      delete prefValues['app.language']
+    })
+
+    it('immediately denies an existing local file URL and explains how to open it', async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'blocked-file-link-'))
+      try {
+        const file = path.join(directory, 'notes.md')
+        await writeFile(file, '# Notes')
+        const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+
+        expect(popup({ url: pathToFileURL(file).href })).toEqual({ action: 'deny' })
+        expect(dialog.showMessageBox).toHaveBeenCalledExactlyOnceWith(win, {
+          type: 'info',
+          message: 'This link points to a local file.',
+          detail:
+            'Cherry Studio does not open local files from links. Open the file from your file manager or the file preview instead.',
+          buttons: ['OK'],
+          noLink: true
+        })
+        expect(shell.openPath).not.toHaveBeenCalled()
+        expect(shell.openExternal).not.toHaveBeenCalled()
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it('denies a remote executable file URL with the same local file explanation', () => {
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+
+      expect(popup({ url: 'file://attacker/share/payload.exe' })).toEqual({ action: 'deny' })
+      expect(dialog.showMessageBox).toHaveBeenCalledExactlyOnceWith(win, {
+        type: 'info',
+        message: 'This link points to a local file.',
+        detail:
+          'Cherry Studio does not open local files from links. Open the file from your file manager or the file preview instead.',
+        buttons: ['OK'],
+        noLink: true
+      })
+      expect(shell.openPath).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('denies a javascript URL without mislabeling it as a local file link', () => {
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+
+      expect(popup({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(shell.openPath).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('denies a malformed URL without throwing or showing a local file dialog', () => {
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+
+      expect(popup({ url: 'not a url' })).toEqual({ action: 'deny' })
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(shell.openPath).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+  })
+
   describe('website links', () => {
     it('waits for explicit confirmation before dispatching the normalized application URL', async () => {
       let confirm!: (value: Electron.MessageBoxReturnValue) => void

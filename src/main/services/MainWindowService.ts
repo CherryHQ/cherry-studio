@@ -716,6 +716,17 @@ export class MainWindowService extends BaseService {
         void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
+        if (/^file:/i.test(url) && !mainWindow.isDestroyed()) {
+          void dialog
+            .showMessageBox(mainWindow, {
+              type: 'info',
+              message: t('dialog.local_file_link_blocked.message'),
+              detail: t('dialog.local_file_link_blocked.detail'),
+              buttons: [t('dialog.local_file_link_blocked.ok')],
+              noLink: true
+            })
+            .catch((error) => logger.warn('Failed to show blocked local file link dialog', { error }))
+        }
       }
 
       return { action: 'deny' }

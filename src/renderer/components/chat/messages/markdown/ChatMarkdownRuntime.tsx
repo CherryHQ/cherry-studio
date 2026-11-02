@@ -57,11 +57,10 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
     [components]
   )
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
-  // Relative markdown links are workspace files only when the host has the
-  // workspace-aware artifact opener. Other chat surfaces retain link hardening.
+  // Host openers keep local file links from falling through to browser navigation.
   const openFilePath = useMemo(
     () =>
-      actions?.openArtifactFile
+      actions?.openArtifactFile || actions?.openPath
         ? (path: string) =>
             openFileTarget(path, {
               openArtifactFile: actions.openArtifactFile,
