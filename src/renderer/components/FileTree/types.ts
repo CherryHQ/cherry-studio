@@ -80,8 +80,6 @@ export interface FileTreeProps {
   onSearchKeywordChange?: (keyword: string) => void
   /** Placeholder for the search input. */
   searchPlaceholder?: string
-  /** Optional trailing toolbar rendered on the search row. */
-  searchToolbar?: React.ReactNode
   /** Accessible label for the search clear button. */
   searchClearLabel?: string
 
