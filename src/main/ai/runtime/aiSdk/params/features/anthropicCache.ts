@@ -154,14 +154,17 @@ type Holder = { providerOptions?: unknown }
 type HolderPath = (string | number)[]
 
 function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<string>): LanguageModelV3CallOptions {
-  const holders: { path: HolderPath; key: string }[] = []
-  const inspect = (value: unknown, path: HolderPath) => {
+  const holders: { path: HolderPath; key: string; rank: number }[] = []
+  const inspect = (value: unknown, path: HolderPath): boolean => {
     const anthropic = (
       (value as Holder).providerOptions as
-        | { anthropic?: { cacheControl?: unknown; cache_control?: unknown } }
+        | { anthropic?: { cacheControl?: { ttl?: string }; cache_control?: { ttl?: string } } }
         | undefined
     )?.anthropic
-    if (anthropic?.cacheControl ?? anthropic?.cache_control) holders.push({ path, key: path.join('.') })
+    const marker = anthropic?.cacheControl ?? anthropic?.cache_control
+    if (!marker) return false
+    holders.push({ path, key: path.join('.'), rank: marker.ttl === '1h' ? 1 : 0 })
+    return true
   }
   const toolIndexes = (params.tools ?? [])
     .map((_, i) => i)
@@ -172,25 +175,37 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
     })
   for (const i of toolIndexes) inspect(params.tools![i], ['tools', i])
   params.prompt.forEach((message, i) => {
-    inspect(message, ['prompt', i])
-    if (typeof message.content === 'string') return
+    const messagePath: HolderPath = ['prompt', i]
+    if (message.role === 'system') {
+      inspect(message, messagePath)
+      return
+    }
     message.content.forEach((part, j) => {
-      const path: HolderPath = ['prompt', i, 'content', j]
-      inspect(part, path)
-      if (part.type !== 'tool-result') return
-      inspect(part.output, [...path, 'output'])
-      if (part.output.type === 'content') {
-        part.output.value.forEach((item, k) => inspect(item, [...path, 'output', 'value', k]))
+      if (part.type === 'tool-approval-response') return
+      const path: HolderPath = [...messagePath, 'content', j]
+      if (inspect(part, path)) return
+      if (message.role === 'tool' && part.type === 'tool-result') {
+        const outputPath = [...path, 'output']
+        if ('providerOptions' in part.output) {
+          if (inspect(part.output, outputPath)) return
+        } else if (part.output.type === 'content') {
+          const index = part.output.value.findIndex((item) => item.providerOptions != null)
+          if (index !== -1 && inspect(part.output.value[index], [...outputPath, 'value', index])) return
+        }
       }
+      if (j === message.content.length - 1) inspect(message, messagePath)
     })
   })
-  if (holders.length <= MAX_CACHE_BREAKPOINTS) return params
   let remaining = MAX_CACHE_BREAKPOINTS - holders.filter(({ key }) => selected.has(key)).length
+  let rank = 1
+  const lastLongSelection = holders.findLastIndex((holder) => selected.has(holder.key) && holder.rank === 1)
   let result: unknown = params
-  for (const { path, key } of holders) {
-    if (selected.has(key)) continue
-    if (remaining > 0) {
-      remaining--
+  for (const [index, holder] of holders.entries()) {
+    const { path, key } = holder
+    const invalidOrder = !selected.has(key) && (holder.rank > rank || (holder.rank === 0 && index < lastLongSelection))
+    if (selected.has(key) || (!invalidOrder && remaining > 0)) {
+      if (!selected.has(key)) remaining--
+      rank = holder.rank
       continue
     }
     const remove = (node: unknown, depth: number): unknown => {
@@ -211,7 +226,8 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
     }
     result = remove(result, 0)
   }
-  return result as LanguageModelV3CallOptions
+  // Removing a higher-precedence hint can expose a previously shadowed fallback.
+  return result === params ? params : clampCacheMarkers(result as LanguageModelV3CallOptions, selected)
 }
 
 export async function transformAnthropicCacheParams(
@@ -286,7 +302,11 @@ export async function transformAnthropicCacheParams(
     }
   }
 
-  return clampCacheMarkers({ ...params, prompt: messages, tools }, selected)
+  const toolsReordered = tools?.some((tool, i) => tool !== params.tools?.[i])
+  return clampCacheMarkers(
+    selected.size === 0 && !toolsReordered ? params : { ...params, prompt: messages, tools },
+    selected
+  )
 }
 
 function anthropicCacheMiddleware(provider: Provider, assistant: Assistant | undefined): LanguageModelMiddleware {
