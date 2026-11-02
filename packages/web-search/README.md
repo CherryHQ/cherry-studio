@@ -34,7 +34,7 @@ input against one provider, without implicit retries. Results contain `providerI
 | --- | --- |
 | Root | Client, validation, errors, provider vocabulary, and public types |
 | `/catalog` | Immutable remote provider metadata and per-capability public endpoints |
-| `/providers/<id>` | One protocol module: zhipu, tavily, searxng, exa, exa-mcp, bocha, querit, jina, firecrawl, crawl4ai, parallel, serply, yuanbao, deepseek, searchapi |
+| `/providers/<id>` | One protocol module: zhipu, tavily, searxng, exa, exa-mcp, bocha, querit, jina, firecrawl, crawl4ai, parallel, serply, yuanbao, deepseek, searchapi, desearch |
 | `/tools/config` | Pure endpoint override merging; explicit empty overrides stay empty |
 | `/tools/url-filter` | Optional URL-rule filtering with diagnostics returned to the caller |
 | `/tools/content` | Optional token/character slicing; the application allocates total budgets |

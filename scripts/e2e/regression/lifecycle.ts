@@ -161,6 +161,7 @@ function getLaunchSpec(
       process.execPath,
       join(targetRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
       '--',
+      // Honours CHERRY_INSPECTOR_PORT so parallel checkouts do not share a port.
       `--inspect=${MAIN_INSPECTOR_PORT}`,
       '--sourcemap',
       `--remote-debugging-port=${CDP_PORT}`,
@@ -220,12 +221,13 @@ export async function launchApp(
   if (existsSync(paths.appRecord)) await stopOwnedApp(paths)
   assertNoLaunchFailure(paths)
   if (findCdpPid(options.platform)) throw new Error(`CDP port ${CDP_PORT} is already owned by another process`)
-  const inspectorPid = findListeningPid(options.platform, MAIN_INSPECTOR_PORT)
-  if (inspectorPid) {
+  // A foreign listener here would only surface later as a failing inspector check.
+  const inspectorOwner = findListeningPid(options.platform, MAIN_INSPECTOR_PORT)
+  if (inspectorOwner)
     throw new Error(
-      `Main-process inspector port ${MAIN_INSPECTOR_PORT} is still held by pid ${inspectorPid}; the previous instance did not exit`
+      `Inspector port ${MAIN_INSPECTOR_PORT} is already owned by process ${inspectorOwner}; ` +
+        'stop it or set CHERRY_INSPECTOR_PORT to a free port'
     )
-  }
   const targetRoot = resolve(options.targetRoot)
   const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey, options.locale)
   const logFd = openSync(spec.logPath, 'a', 0o600)

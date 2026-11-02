@@ -141,6 +141,30 @@ it('starts Windows installers with both owned inspector and renderer CDP ports',
   }
 })
 
+it('refuses to launch when another process owns the inspector port', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-owned-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  execFileSync.mockImplementation((file: string, args: string[]) =>
+    file === 'lsof' && args[1] === '-iTCP:9229' ? '9999' : ''
+  )
+  try {
+    await expect(
+      launchApp(paths, {
+        mode: 'branch',
+        platform: 'macos',
+        profile: 'clean',
+        targetRoot: directory,
+        runKey: 'inspector-owned'
+      })
+    ).rejects.toThrow('Inspector port 9229 is already owned by process 9999')
+    expect(spawn).not.toHaveBeenCalled()
+  } finally {
+    vi.restoreAllMocks()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 it('retains launch ownership and both errors so cleanup can retry after the runner exits', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-failure-'))
   const paths = getRunPaths(directory)
@@ -307,23 +331,6 @@ it.each([
     }
   }
 )
-
-it('rejects an occupied main-process inspector before spawning', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-guard-'))
-  const paths = getRunPaths(directory)
-  ensureRunDirectories(paths)
-  execFileSync.mockImplementation((_file: string, args: string[]) =>
-    args.some((arg) => arg.includes('9229')) ? '43000' : ''
-  )
-  try {
-    await expect(
-      launchApp(paths, { mode: 'branch', platform: 'macos', profile: 'clean', targetRoot: directory, runKey: 'test' })
-    ).rejects.toThrow('Main-process inspector port 9229 is still held by pid 43000; the previous instance did not exit')
-    expect(spawn).not.toHaveBeenCalled()
-  } finally {
-    rmSync(directory, { recursive: true, force: true })
-  }
-})
 
 it('blocks a recorded recovery failure and clears a failure recorded during a successful launch', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-marker-'))

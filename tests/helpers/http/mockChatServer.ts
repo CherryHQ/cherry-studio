@@ -10,6 +10,8 @@ const chatRequestSchema = z.looseObject({
 })
 
 export interface MockChatRequest {
+  readonly url: string
+  readonly method: string
   readonly body: z.infer<typeof chatRequestSchema>
   /** Resolves when the response closes, including client cancellation. */
   readonly closed: Promise<void>
@@ -37,7 +39,13 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, id: string): MockChatRequest {
+function createChatRequest(
+  body: MockChatRequest['body'],
+  res: ServerResponse,
+  id: string,
+  url: string,
+  method: string
+): MockChatRequest {
   const metadata = { id, model: body.model, created: Math.floor(Date.now() / 1000) }
   const closed = new Promise<void>((resolve) => res.once('close', resolve))
 
@@ -59,6 +67,8 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
   }
 
   return {
+    url,
+    method,
     body,
     closed,
     sendText(text) {
@@ -97,7 +107,7 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
 }
 
 /** Real loopback OpenAI-compatible HTTP server shared by Node tests and Electron E2E. */
-export async function startMockChatServer(): Promise<MockChatServer> {
+export async function startMockChatServer(options: { rejectOwnStore?: boolean } = {}): Promise<MockChatServer> {
   const modelId = 'mock-chat'
   const requests: MockChatRequest[] = []
   /** Requests that reached the server but not the chat route, for diagnosing wrong base URLs. */
@@ -124,16 +134,44 @@ export async function startMockChatServer(): Promise<MockChatServer> {
       for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
       const body = chatRequestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
       if (closing || res.destroyed) return
-      const request = createChatRequest(body, res, `chatcmpl-mock-${++requestId}`)
+      const rejected = options.rejectOwnStore && Object.hasOwn(body, 'store')
+      let request: MockChatRequest
+      if (rejected) {
+        const closed = new Promise<void>((resolve) => res.once('close', resolve))
+        const rejectStream = () => {
+          throw new Error('Mock chat request was rejected before a response stream was opened')
+        }
+        request = {
+          url: req.url!,
+          method: req.method!,
+          body,
+          closed,
+          sendText: rejectStream,
+          complete: rejectStream,
+          fail: rejectStream,
+          disconnect: () => res.destroy()
+        }
+        sendJson(res, 400, {
+          error: {
+            message:
+              "fixture: [{'type': 'extra_forbidden', 'loc': ('body', 'store'), 'msg': 'Extra inputs are not permitted', 'input': false}]",
+            type: 'invalid_request_error'
+          }
+        })
+      } else {
+        request = createChatRequest(body, res, `chatcmpl-mock-${++requestId}`, req.url!, req.method!)
+      }
       const waiter = waiters.values().next().value
       if (waiter) {
         waiter.resolve(request)
       } else {
         requests.push(request)
-        void request.closed.then(() => {
-          const index = requests.indexOf(request)
-          if (index !== -1) requests.splice(index, 1)
-        })
+        if (!rejected) {
+          void request.closed.then(() => {
+            const index = requests.indexOf(request)
+            if (index !== -1) requests.splice(index, 1)
+          })
+        }
       }
     }
     void receive().catch(() => {

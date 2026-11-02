@@ -69,6 +69,33 @@ it('blocks sending through preparation and download, shows progress, then restor
   expect(screen.getByRole('textbox')).toHaveValue('My draft edited')
 })
 
+it('never flashes the checking state when the runtime answers ready at once', async () => {
+  vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: state('ready') })
+  render(<AgentComposerSlot {...props} />)
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('shows the checking state once the runtime has not answered for 200ms, blocking sending meanwhile', () => {
+  vi.useFakeTimers()
+  try {
+    vi.mocked(window.api.ipcApi.request).mockImplementation(() => new Promise(() => {}))
+    render(<AgentComposerSlot {...props} />)
+    act(() => {
+      vi.advanceTimersByTime(199)
+    })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 it('keeps failures blocked and retries explicitly; switching runtime restores its composer', async () => {
   const { rerender } = render(<AgentComposerSlot {...props} />)
   await screen.findByRole('progressbar')

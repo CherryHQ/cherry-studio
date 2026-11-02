@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { ipcApi } from '@renderer/ipc'
 import { restoreRecycleBinItems, showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
@@ -18,7 +19,6 @@ import type {
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -27,7 +27,7 @@ import type { Group } from '@shared/data/types/group'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { useAgentMutations } from './agentAdapter'
-import { useAssistantMutations } from './assistantAdapter'
+import { useDuplicateAssistantMutation } from './assistantAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
 type ResourceCreateWizardKind = 'assistant' | 'agent'
@@ -37,6 +37,7 @@ const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
 const logger = loggerService.withContext('useResourceCatalogController')
 
 interface ResourceCatalogControllerOptions {
+  onConfirmArchiveAgentSessions?: (agentName: string, action: () => Promise<void>) => Promise<boolean>
   onOpenSkill?: (skill: InstalledSkill) => void
   onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
 }
@@ -67,7 +68,7 @@ export function useResourceCatalogController(
   options: ResourceCatalogControllerOptions = {}
 ) {
   const { t } = useTranslation()
-  const { onLaunchSkill, onOpenSkill } = options
+  const { onConfirmArchiveAgentSessions, onLaunchSkill, onOpenSkill } = options
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -103,7 +104,8 @@ export function useResourceCatalogController(
     setActiveGroupId(null)
   }, [resourceType])
 
-  const { createAssistant, duplicateAssistant } = useAssistantMutations()
+  const { createAssistant } = useAssistantMutations()
+  const { duplicateAssistant } = useDuplicateAssistantMutation()
   const { createAgent } = useAgentMutations()
   const { groups } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
@@ -234,7 +236,11 @@ export function useResourceCatalogController(
   )
 
   const refreshProtectedAgentResources = useCallback(async () => {
-    const outcomes = await Promise.allSettled(['/agents', '/agents/*', '/agent-sessions'].map((key) => invalidate(key)))
+    const outcomes = await Promise.allSettled(
+      ['/agents', '/agents/*', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+        invalidate(key)
+      )
+    )
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
         logger.warn('Failed to refresh protected Agent resources after deleting Sessions', { err: outcome.reason })
@@ -278,7 +284,7 @@ export function useResourceCatalogController(
           resourceId: resource.id,
           error
         })
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+        throw error
       } finally {
         deletingProtectedAgentRef.current = null
       }
@@ -289,12 +295,12 @@ export function useResourceCatalogController(
   const handleDelete = useCallback(
     (resource: ResourceItem) => {
       if (resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)) {
-        void handleDeleteProtectedAgentSessions(resource)
+        void onConfirmArchiveAgentSessions?.(resource.name, () => handleDeleteProtectedAgentSessions(resource))
         return
       }
       setDeleteConfirm(resource)
     },
-    [handleDeleteProtectedAgentSessions]
+    [handleDeleteProtectedAgentSessions, onConfirmArchiveAgentSessions]
   )
 
   return {

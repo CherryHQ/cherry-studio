@@ -278,7 +278,7 @@ ASR 适配器将厂商 delta、累计文本或分段结果转换为完整 revisi
 
 #### Main 与 Renderer
 
-首版沿用 IpcApi 的定向事件和带确认请求，不新增原生通道或 preload 专用语音桥。仓库的 [IPC escape hatch 规则](../../../../docs/references/ipc/ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out) 不允许仅以高频为由将 Main → Renderer 数据绕出 IpcApi。
+首版沿用 IpcApi 的定向事件和带确认请求，不新增原生通道或 preload 专用语音桥。仓库的 [IPC escape hatch 规则](../../../../docs/dev/references/ipc/ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out) 不允许仅以高频为由将 Main → Renderer 数据绕出 IpcApi。
 
 拟新增路由如下，均经过现有 sender 校验与 `VoiceSessionService` 的所有权检查：
 
@@ -355,7 +355,7 @@ ASR 在音频线程采集、在 Renderer 普通线程聚合批次，按 Main 接
 | `src/preload/ipc.ts` | 首版保持通用桥，无语音专用分支 |
 | `packages/aiCore/src/core/runtime/voice.ts` | 保留现有无 Electron 的完整结果 API；由适配器调用，不搬入会话、IPC 或模型安装 |
 
-新增 Main 文件使用具名文件导入，不为 `ai/voice` 仓促增加聚合 barrel；Renderer 继续使用已有 `services/voice/index.ts`，只公开消费者需要的服务和类型，播放、采集与工作线程保持私有。`localModel/index.ts` 只按实际外部消费者补充必要导出；不从外部深导入它的 protocol。规则依据 [命名规范](../../../../docs/references/architecture/naming-conventions.md#64-barrel--index-files)。
+新增 Main 文件使用具名文件导入，不为 `ai/voice` 仓促增加聚合 barrel；Renderer 继续使用已有 `services/voice/index.ts`，只公开消费者需要的服务和类型，播放、采集与工作线程保持私有。`localModel/index.ts` 只按实际外部消费者补充必要导出；不从外部深导入它的 protocol。规则依据 [命名规范](../../../../docs/dev/references/architecture/naming-conventions.md#64-barrel--index-files)。
 
 aiCore 不是应用服务的依赖容器。首版统一接口放 Main，是因为会话与本地执行适配的当前消费者在 Main；将来若桌面和移动端真正共用执行协议，再提取纯运行时契约到独立包。不能让 `packages/aiCore` 反向导入 `src/shared`、`@application` 或 Cherry 的模型安装服务。
 
@@ -368,7 +368,7 @@ aiCore 不是应用服务的依赖容器。首版统一接口放 Main，是因�
 | C 连续 ASR | PCM 采集、连续输入、MLX ASR 适配、文本修订 | 输入有界且无静默丢帧；中间结果可修订；尾部正确 flush；最终仅插入一次；焦点切换不误写；取消后无旧结果 |
 | D 增量文本及其他后端 | LLM 稳定正文输入，按真实模型选择 Sherpa 在线或 VAD 分段适配 | 文本输入结束与音频结束分离；不读 reasoning；无重复提交；新后端无需修改业务消费者的引擎分支 |
 
-ASR 批次需要补齐模型包、JS API 和原生运行时版本匹配。fork 的 [Qwen3-ASR 流接口](https://github.com/CherryHQ/mlx-node/blob/f4c21043f557965345b527bc04179ad26d08378f/packages/asr/README.md) 提供滚动输入与文本修订，但当前 TTS 打包成功不等于 ASR 的交付链已验证。多模型改造继续遵循 [Local Models](../../../../docs/references/ai/local-models.md) 的安装和共享运行时边界，不能将默认 capability 映射当成用户本次选择。
+ASR 批次需要补齐模型包、JS API 和原生运行时版本匹配。fork 的 [Qwen3-ASR 流接口](https://github.com/CherryHQ/mlx-node/blob/f4c21043f557965345b527bc04179ad26d08378f/packages/asr/README.md) 提供滚动输入与文本修订，但当前 TTS 打包成功不等于 ASR 的交付链已验证。多模型改造继续遵循 [Local Models](../../../../docs/dev/references/ai/local-models.md) 的安装和共享运行时边界，不能将默认 capability 映射当成用户本次选择。
 
 每批先用 `pnpm check --plan` 查看影响范围，再选显式测试文件；不执行无过滤的全仓库测试。现有回归入口包括：
 
@@ -378,7 +378,7 @@ ASR 批次需要补齐模型包、JS API 和原生运行时版本匹配。fork �
 - Renderer：`src/renderer/services/voice/__tests__/{VoiceService,SpeechPlaybackService,DictationService,AutoReadService,VoiceTargetManager}.test.ts`，加 PCM 输出和采集的新测试。
 - aiCore：迁移完整结果包装时执行 `packages/aiCore/src/core/runtime/__tests__/voice.test.ts`；移走原 `AiService.voice.test.ts` 中仍有效的契约断言。
 
-新测试必须能捕获实际失效：容量越界、重复样本、尾音丢失、暂停误超时、停止后复活、卸载竞争、最终文本重复插入或跨窗口越权。Frontend 测试遵循 [前端测试指南](../../../../docs/references/testing/frontend-testing.md)，依赖替身遵循 [统一 mock 规则](../../../../tests/__mocks__/README.md)。
+新测试必须能捕获实际失效：容量越界、重复样本、尾音丢失、暂停误超时、停止后复活、卸载竞争、最终文本重复插入或跨窗口越权。Frontend 测试遵循 [前端测试指南](../../../../docs/dev/references/testing/frontend-testing.md)，依赖替身遵循 [统一 mock 规则](../../../../tests/__mocks__/README.md)。
 
 真实 Electron 验证单独记录首次可听延迟、源帧与消费帧连续性、欠载次数、峰值队列占用、暂停稳定性、冷/热启动和取消后重新执行；覆盖开发与打包资源路径。历史首块 PCM 数据只证明引擎输出，不替代扬声器首音、流式播放或 ASR 实机验收。
 
@@ -509,7 +509,7 @@ MLX ASR 完整识别可以在统一完整结果执行后独立推进。它将模
 
 保持普通 request/event 行为，单独评审 core 协议变更；与 TTS 流式播放原型联合验证。
 
-有界进程流当前实现使用主进程与子进程共享的请求级 `StreamChannel`，由仅主进程使用的 `StreamRequest` 管理结果与关闭所有权，`streamFrame.ts` 负责有界标量元数据和字节视图编码。不增加生命周期服务或语音依赖。每个方向显式指定容量；协议版本 2 会拒绝旧 bundle。[消费者参考](../../../../docs/references/utility-process/README.md#bounded-request-streams) 维护已交付 API。
+有界进程流当前实现使用主进程与子进程共享的请求级 `StreamChannel`，由仅主进程使用的 `StreamRequest` 管理结果与关闭所有权，`streamFrame.ts` 负责有界标量元数据和字节视图编码。不增加生命周期服务或语音依赖。每个方向显式指定容量；协议版本 2 会拒绝旧 bundle。[消费者参考](../../../../docs/dev/references/utility-process/README.md#bounded-request-streams) 维护已交付 API。
 
 #### 接口与协议设计
 
@@ -758,7 +758,7 @@ LLM 生成不会因为语音消费慢而停止。朗读文本 backlog 必须有�
 `VoiceTextInput` 拥有 Main 输入握手，`VoiceSessionService` 拥有执行与输入生命周期。
 没有新增生命周期服务或同阶段依赖。Qwen3 复用锁定原生包的增量文本输入和分段能力。
 共享 operation 类型区分 text 与 text-stream 输入，完整输入 adapter 不会误收异步输入。
-传输预算和公开行为记录在[本地模型](../../../../docs/references/ai/local-models.md)。
+传输预算和公开行为记录在[本地模型](../../../../docs/dev/references/ai/local-models.md)。
 
 聚焦测试覆盖稳定 Markdown 边界、排除 reasoning、重复快照、EOF 尾段排空、累计超限、
 能力查询期间取消、晚到更新、owner/request 身份和三个生产入口回调。这些入口测试使用
@@ -785,7 +785,7 @@ Agent 和快捷助手各自由真实提供商驱动的验收仍待完成，因�
 
 实施前运行 `pnpm install`，再用 `pnpm check --plan` 查看影响范围；根据上述用例选择 `pnpm test:main <完整测试文件路径...>`、`pnpm test:renderer <完整测试文件路径...>` 等命令。类型改动运行受影响项目的 typecheck，格式和 lint 只覆盖改动文件，不自动执行无过滤的全仓库测试。新增 schema、IPC 事件和 utility contract 同时检查生产者与消费者的编译类型。
 
-仅更新本笔记时，运行 `pnpm docs:index`、`pnpm docs:check` 与 `git diff --check`。仓库 Oxfmt 忽略 Markdown，另检查末尾换行、行尾空白和 fenced block 闭合；无需运行 Vitest。生成的 `docs/README.md` 只通过索引脚本更新。
+仅更新本笔记时，运行 `pnpm docs:index`、`pnpm docs:check` 与 `git diff --check`。仓库 Oxfmt 忽略 Markdown，另检查末尾换行、行尾空白和 fenced block 闭合；无需运行 Vitest。生成的 `docs/dev/README.md` 只通过索引脚本更新。
 
 ### Apple 系统 TTS 流式扩展
 

@@ -332,7 +332,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       data-composer-presentation="regular"
       onPointerDownCapture={markVoiceTargetCurrent}
       onFocusCapture={markVoiceTargetCurrent}
-      className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm ${
+      className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-composer-surface pt-2 shadow-sm ${
         belowControls ? 'mb-0.5' : 'mb-3'
       }`}>
       {props.topContent}
