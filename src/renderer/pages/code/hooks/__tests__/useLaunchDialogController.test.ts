@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
@@ -140,6 +141,49 @@ describe('useLaunchDialogController', () => {
     expect(mocks.requestMock).toHaveBeenCalledWith(
       'code_cli.run',
       expect.objectContaining({ mode: 'normal', terminal: 'iterm2' })
+    )
+  })
+
+  it('keeps the launch dialog open and the raw CLI error when launch fails', async () => {
+    mocks.requestMock.mockResolvedValue({ message: 'terminal missing', success: false })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        currentProviderConfig: null,
+        directory: '/tmp/project',
+        enabledProvider: undefined,
+        isModelsLoading: false,
+        isOwnLoginSelected: false,
+        modelById: new Map(),
+        gatewayModelsById: new Map(),
+        selectedCliTool: CodeCli.QODER_CLI,
+        selectedTerminal: 'terminal',
+        selectFolder: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        toolName: 'Qoder',
+        upsertProviderConfig: vi.fn()
+      })
+    )
+
+    act(() => result.current.openLaunchDialog())
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ cliTool: CodeCli.QODER_CLI, directory: '/tmp/project', mode: 'own-login' })
+    )
+    expect(result.current.launchDialogProps.open).toBe(true)
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: expect.objectContaining({ message: 'terminal missing' }),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({ message: 'terminal missing', operation: 'code_cli.run' }),
+          localizedErrorMessage: 'code.launch.error'
+        }),
+        title: 'code.launch.error'
+      })
     )
   })
 
@@ -404,6 +448,102 @@ describe('useLaunchDialogController', () => {
       'code_cli.run',
       expect.objectContaining({ mode: 'own-login', terminal: 'terminal' })
     )
+  })
+
+  it('keeps a thrown provider-less launch rejection and allows another launch', async () => {
+    const failure = new Error('cli ipc rejected')
+    mocks.requestMock.mockRejectedValueOnce(failure)
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        currentProviderConfig: null,
+        directory: '/tmp/project',
+        enabledProvider: undefined,
+        isModelsLoading: false,
+        isOwnLoginSelected: false,
+        modelById: new Map(),
+        gatewayModelsById: new Map(),
+        selectedCliTool: CodeCli.QODER_CLI,
+        selectedTerminal: 'terminal',
+        selectFolder: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        toolName: 'Qoder',
+        upsertProviderConfig: vi.fn()
+      })
+    )
+
+    act(() => result.current.openLaunchDialog())
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(result.current.launchDialogProps.open).toBe(true)
+    expect(result.current.launching).toBe(false)
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'cli ipc rejected',
+            operation: 'code_cli.run',
+            source: 'code.launch'
+          }),
+          localizedErrorMessage: 'code.launch.error'
+        }),
+        title: 'code.launch.error'
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+    expect(result.current.launchDialogProps.open).toBe(false)
+  })
+
+  it('keeps a thrown provider launch rejection on the same launch snapshot', async () => {
+    const failure = new Error('provider cli rejected')
+    mocks.requestMock.mockRejectedValueOnce(failure)
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.CLAUDE_CODE,
+        toolName: 'Claude Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(result.current.launching).toBe(false)
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        title: 'code.launch.error',
+        data: expect.objectContaining({
+          localizedErrorMessage: 'code.launch.error',
+          errorContext: expect.objectContaining({
+            message: 'provider cli rejected',
+            operation: 'code_cli.run',
+            source: 'code.launch'
+          })
+        })
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('code.launch.error')
   })
 
   // Reviewer: launch previously ran the CLI without re-checking the gateway, so a stopped

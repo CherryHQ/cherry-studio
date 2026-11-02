@@ -15,8 +15,8 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { LocalModelDownloadProgress } from '@renderer/components/LocalModelDownloadProgress'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
 export interface LocalModelDownloadParams {
@@ -41,13 +41,16 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => 
       // download() resolves true once the model is on disk and false when the user
       // cancels it — which is already exactly this dialog's answer.
       resolve(await download())
-    } catch {
-      // Stay open so the user can retry without re-opening the dropdown; the cause is
-      // already logged by the main-process download service.
-      toast.error(t('settings.dependencies.localModels.notice.downloadFailed'))
+    } catch (error) {
+      // Stay open so the user can retry. The notice stays the localized wrapper.
+      toastAppError(t('settings.dependencies.localModels.notice.downloadFailed'), error, {
+        operation: 'local_model.download',
+        recordId: id,
+        source: 'local_model'
+      })
       setFailed(true)
     }
-  }, [download, resolve, t])
+  }, [download, id, resolve, t])
 
   const handleCancel = useCallback(() => {
     if (!downloading) {

@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -85,20 +85,31 @@ export function useOpenClawGatewayController({
         port: gatewayPort
       })
       if (!syncResult.success) {
-        toast.error(syncResult.message)
+        const detail = syncResult.message?.trim()
+        toastAppError(t('code.apply_failed'), detail ? new Error(detail) : syncResult, {
+          source: 'code.openclaw',
+          operation: 'openclaw.sync_config'
+        })
         return
       }
 
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
-        toast.error(startResult.message)
+        const detail = startResult.message?.trim()
+        toastAppError(t('code.launch.error'), detail ? new Error(detail) : startResult, {
+          source: 'code.openclaw',
+          operation: 'openclaw.start_gateway'
+        })
         return
       }
 
       await openDashboard()
     } catch (err) {
       logger.error('Failed to launch OpenClaw dashboard:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), err, {
+        source: 'code.openclaw',
+        operation: 'openclaw.start_gateway'
+      })
     } finally {
       setLaunching(false)
     }
@@ -109,12 +120,19 @@ export function useOpenClawGatewayController({
       setStopping(true)
       const result = await ipcApi.request('openclaw.stop_gateway')
       if (!result.success) {
-        toast.error(result.message)
+        const detail = result.message?.trim()
+        toastAppError(t('code.stop_failed'), detail ? new Error(detail) : result, {
+          source: 'code.openclaw',
+          operation: 'openclaw.stop_gateway'
+        })
         return
       }
     } catch (err) {
       logger.error('Failed to stop OpenClaw gateway:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.stop_failed'), err, {
+        source: 'code.openclaw',
+        operation: 'openclaw.stop_gateway'
+      })
     } finally {
       setStopping(false)
     }
@@ -125,7 +143,10 @@ export function useOpenClawGatewayController({
       await openDashboard()
     } catch (err) {
       logger.error('Failed to open OpenClaw dashboard:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), err, {
+        source: 'code.openclaw',
+        operation: 'openclaw.get_dashboard_url'
+      })
     }
   }, [openDashboard, t])
 

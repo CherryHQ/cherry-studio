@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { toast } from '@renderer/services/toast'
 
 /**
@@ -116,6 +117,13 @@ export const BinaryInstallErrorDialog: FC<{
           {lastError.current.message}
         </pre>
         <DialogFooter>
+          <ErrorDetailAction
+            error={lastError.current}
+            message={lastError.current.message}
+            operation={lastError.current.action === 'remove' ? 'binary.remove' : 'binary.install'}
+            recordId={lastError.current.name}
+            source="settings.dependencies"
+          />
           <Button variant="outline" onClick={copyError}>
             {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             {copied ? t('common.copied') : t('common.copy')}

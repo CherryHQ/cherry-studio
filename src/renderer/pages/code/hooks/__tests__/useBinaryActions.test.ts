@@ -101,7 +101,56 @@ describe('useBinaryActions', () => {
     expect(removed).toBe(false)
     // A Code CLI is fixed — never a definition-only follow-up request.
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
-    expect(toast.error).toHaveBeenCalledWith('Cannot remove claude while installed tools depend on it: gemini')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          message: 'Cannot remove claude while installed tools depend on it: gemini'
+        }),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'Cannot remove claude while installed tools depend on it: gemini',
+            operation: 'binary.remove_tool'
+          }),
+          localizedErrorMessage: 'settings.dependencies.uninstallFailed'
+        }),
+        title: 'settings.dependencies.uninstallFailed'
+      })
+    )
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps a thrown remove rejection and allows the same removal to be retried', async () => {
+    const failure = new Error('remove ipc rejected')
+    ipcRequestMock.mockRejectedValueOnce(failure).mockResolvedValueOnce({ status: 'removed' })
+    const { result } = renderHook(() => useBinaryActions())
+
+    let removed = true
+    await act(async () => {
+      removed = await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    expect(removed).toBe(false)
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'remove ipc rejected',
+            operation: 'binary.remove_tool',
+            source: 'code.dependencies'
+          }),
+          localizedErrorMessage: 'settings.dependencies.uninstallFailed'
+        }),
+        title: 'settings.dependencies.uninstallFailed'
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('settings.dependencies.uninstallFailed')
+
+    await act(async () => {
+      removed = await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    expect(removed).toBe(true)
+    expect(toast.success).toHaveBeenCalledWith('settings.dependencies.uninstallSuccess')
   })
 })

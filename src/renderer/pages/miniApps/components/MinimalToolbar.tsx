@@ -35,6 +35,7 @@ import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import { isDev } from '@renderer/utils/platform'
@@ -117,11 +118,10 @@ const MinimalToolbar: FC<Props> = ({
       const e = toDataApiError(err)
       if (isDataApiError(e)) {
         logger.error('togglePin failed', { code: e.code, message: e.message })
-        toast.error(e.message || t(fallbackKey))
       } else {
         logger.error('togglePin failed', err as Error)
-        toast.error(t(fallbackKey))
       }
+      toastAppError(t(fallbackKey), e, { source: 'miniApp', operation: fallbackKey })
     })
   }, [app.appId, isPinned, updateAppStatus, t])
 
