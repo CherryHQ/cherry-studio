@@ -1,4 +1,9 @@
+import { execFile } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { readFileSync } from 'node:fs'
+import { createServer, request as httpRequest } from 'node:http'
+import { promisify } from 'node:util'
+import vm from 'node:vm'
 
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -341,6 +346,119 @@ describe('MainNetworkDevtoolsService helpers', () => {
       expect(captured?.text).not.toContain('leak-marker')
     }
   })
+
+  it('assembles thousands of sensitive replacements without repeated whole-body copies', () => {
+    const fields = Array.from({ length: 8000 }, (_, i) => `"token${i}":0`).join(',')
+    const body = `{"id":9007199254740993,${fields}}`
+    const originalSlice = String.prototype.slice
+    let slicedCharacters = 0
+    const sliceSpy = vi.spyOn(String.prototype, 'slice').mockImplementation(function (this: string, start, end) {
+      const result = originalSlice.call(this, start, end)
+      slicedCharacters += result.length
+      if (slicedCharacters > body.length * 10) throw new Error('redaction exceeded linear copy budget')
+      return result
+    })
+    let captured: ReturnType<typeof captureRequestBody>
+    try {
+      captured = captureRequestBody(body, 'application/json')
+    } finally {
+      sliceSpy.mockRestore()
+    }
+    // Measures copied characters rather than a loaded-CI wall-clock threshold.
+    expect(slicedCharacters).toBeLessThan(body.length * 10)
+    expect(captured).toMatchObject({ replayable: false })
+    expect(captured?.text?.match(/<redacted>/g)).toHaveLength(8000)
+  })
+
+  it('preserves split multibyte UTF-8 and rejects invalid streamed Node request bytes', async () => {
+    for (const chunks of [
+      [Buffer.from([0xe2]), Buffer.from([0x82, 0xac])],
+      [Buffer.from([0x80]), Buffer.from([0xff])]
+    ]) {
+      BaseService.resetInstances()
+      const service = new MainNetworkDevtoolsService()
+      const state = service as unknown as {
+        events: MainNetworkDevtoolsEvent[]
+        wrapHttpMethod: (original: (...args: unknown[]) => unknown, source: 'http') => (...args: unknown[]) => unknown
+      }
+      const request = createMockClientRequest()
+      state.wrapHttpMethod(() => request, 'http')('http://example.test', { method: 'POST' })
+      request.write(chunks[0])
+      request.end(chunks[1])
+      await Promise.resolve()
+      if (chunks[0][0] === 0xe2) {
+        expect(state.events[0].requestBody).toMatchObject({ text: '€', replayable: true })
+      } else {
+        expect(state.events[0].requestBody).toMatchObject({ replayable: false })
+        expect(state.events[0].requestBody?.text).toBeUndefined()
+      }
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'replays split UTF-8 Node writes byte-for-byte against a disposable local server',
+    async () => {
+      const received: Buffer[] = []
+      const server = createServer((req, res) => {
+        const chunks: Buffer[] = []
+        req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+        req.on('end', () => {
+          received.push(Buffer.concat(chunks))
+          res.end('ok')
+        })
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address() as { port: number }
+      try {
+        for (const chunks of [
+          [
+            Buffer.concat([Buffer.from('{"prompt":"'), Buffer.from([0xe2])]),
+            Buffer.concat([Buffer.from([0x82, 0xac]), Buffer.from('"}')])
+          ],
+          [Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('plain text')],
+          [Buffer.from([0xef]), Buffer.concat([Buffer.from([0xbb, 0xbf]), Buffer.from('split BOM')])],
+          [Buffer.from([0xef]), Buffer.from([0xbb, 0xbf])]
+        ]) {
+          BaseService.resetInstances()
+          const service = new MainNetworkDevtoolsService()
+          const state = service as unknown as {
+            events: MainNetworkDevtoolsEvent[]
+            wrapHttpMethod: (
+              original: (...args: unknown[]) => unknown,
+              source: 'http'
+            ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+          }
+          const wrapped = state.wrapHttpMethod(httpRequest as (...args: unknown[]) => unknown, 'http')
+          const req = wrapped(`http://127.0.0.1:${address.port}/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          const completed = new Promise<void>((resolve, reject) => {
+            req.on('response', (res) => {
+              res.resume()
+              res.on('end', resolve)
+            })
+            req.on('error', reject)
+          })
+          req.write(chunks[0])
+          req.end(chunks[1])
+          await completed
+          const event = state.events[0]
+          expect(event.requestBody).toMatchObject({ text: Buffer.concat(chunks).toString('utf8'), replayable: true })
+          const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+          vm.createContext(sandbox)
+          vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+          const command = sandbox.buildCurlCommand?.(event)
+          expect(command).toBeDefined()
+          await promisify(execFile)('/bin/sh', ['-c', command as string], { timeout: 5000 })
+          expect(received.at(-1)).toEqual(received.at(-2))
+          expect(received.at(-1)).toEqual(Buffer.concat(chunks))
+        }
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
 
   it('never marks invalid UTF-8 byte bodies as replayable', () => {
     const bytes = Uint8Array.from([0x80, 0xff, 0x41])

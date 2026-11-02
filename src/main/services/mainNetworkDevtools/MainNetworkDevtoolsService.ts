@@ -762,6 +762,20 @@ function createBodyAccumulator(contentType?: string, requestHeaders?: Record<str
   let size = 0
   let truncated = false
   let note: string | undefined
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+  let byteSize = 0
+  let decodingFailed = false
+  const appendBytes = (bytes: Uint8Array) => {
+    byteSize += bytes.byteLength
+    if (decodingFailed) return
+    try {
+      appendText(decoder.decode(bytes, { stream: true }))
+    } catch {
+      decodingFailed = true
+      text = ''
+      note = 'Request body is not valid UTF-8 and cannot be replayed from capture.'
+    }
+  }
 
   const appendText = (value: string) => {
     size += value.length
@@ -785,25 +799,35 @@ function createBodyAccumulator(contentType?: string, requestHeaders?: Record<str
       }
 
       if (typeof chunk === 'string') {
-        appendText(chunk)
+        appendBytes(Buffer.from(chunk, typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'))
         return
       }
       if (Buffer.isBuffer(chunk)) {
-        appendText(chunk.toString(typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'))
+        appendBytes(chunk)
         return
       }
       if (chunk instanceof ArrayBuffer) {
-        appendText(new TextDecoder().decode(chunk))
+        appendBytes(new Uint8Array(chunk))
         return
       }
       if (ArrayBuffer.isView(chunk)) {
-        appendText(new TextDecoder().decode(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)))
+        appendBytes(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength))
         return
       }
 
       appendText(String(chunk))
     },
     toBody(): MainNetworkDevtoolsBody | undefined {
+      if (!decodingFailed) {
+        try {
+          appendText(decoder.decode())
+        } catch {
+          decodingFailed = true
+          text = ''
+          note = 'Request body is not valid UTF-8 and cannot be replayed from capture.'
+        }
+      }
+      if (decodingFailed) return { contentType, size: byteSize, replayable: false, note }
       if (!text && size === 0 && !note) return undefined
       if (note && !text) return { contentType, size, note }
       return applyContentEncodingReplayConstraint(
@@ -1028,11 +1052,14 @@ function redactJsonSensitiveValuesInText(text: string): string {
 
   if (replacements.length === 0) return text
 
-  let output = text
-  for (const { start, end, replacement } of replacements.reverse()) {
-    output = output.slice(0, start) + replacement + output.slice(end)
+  const parts: string[] = []
+  let cursor = 0
+  for (const { start, end, replacement } of replacements) {
+    parts.push(text.slice(cursor, start), replacement)
+    cursor = end
   }
-  return output
+  parts.push(text.slice(cursor))
+  return parts.join('')
 }
 
 function applyContentEncodingReplayConstraint(
