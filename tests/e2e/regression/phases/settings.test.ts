@@ -23,7 +23,7 @@ import { startMockUpdateServer } from '../../../helpers/http/mockUpdateServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
-import { selectSidebarApp, dismissOnboarding } from '../helpers/navigation'
+import { selectSidebarApp, dismissOnboarding, openHelpMenu } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { inspectStartup } from '../helpers/startupInspection'
 import { revealVirtualized } from '../helpers/virtualList'
@@ -1403,7 +1403,7 @@ test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {
     }
 
     await selectSidebarApp(page, 'Chat')
-    await page.getByRole('button', { name: 'Help', exact: true }).click()
+    await openHelpMenu(page)
     await page.getByText('System diagnostics', { exact: true }).click()
     await page
       .getByRole('dialog', { name: 'System diagnostics', exact: true })
@@ -1510,7 +1510,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
   })
   await test.step('System diagnostics exports the last 24 hours', async () => {
     await closeSettings(page)
-    await page.getByRole('button', { name: 'Help', exact: true }).click()
+    await openHelpMenu(page)
     await page.getByText('System diagnostics', { exact: true }).click()
     const doctor = page.getByRole('dialog', { name: 'System diagnostics', exact: true })
     await doctor.getByRole('button', { name: 'More', exact: true }).click()
