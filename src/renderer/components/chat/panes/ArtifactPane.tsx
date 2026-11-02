@@ -397,6 +397,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const overlayFilePath = overlaySelection?.filePath
   const previewWorkspacePath = overlayWorkspacePath ?? (hasInvalidWorkspacePath ? undefined : workspacePath)
   const previewFilePath = overlayFilePath ?? selectedFile
+  const previewAbsolutePath = overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined
   const previewKey = `${previewWorkspacePath ?? ''}\0${previewFilePath ?? ''}`
   // Narrow panes cover the tree with the open file; the header toggle reveals it until another file opens.
   const [treeRevealedFor, setTreeRevealedFor] = useState<string | null>(null)
@@ -465,6 +466,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     if (pickerActive) return
     setSelectionReference(null)
   }, [pickerActive])
+
+  useEffect(() => {
+    if (!model.fileContentVersion || model.fileContentVersion.path !== previewAbsolutePath || editMode === 'edit')
+      return
+    setKnownFileSizeBytes(undefined)
+    setContentRefreshToken((value) => value + 1)
+  }, [model.fileContentVersion, previewAbsolutePath, editMode])
 
   // Successful writes return an exact byte size through the edit session.
   // Invalidate the separate metadata gate whenever that size changes so a
