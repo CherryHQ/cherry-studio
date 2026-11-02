@@ -24,6 +24,8 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
 import {
+  allocatePiBackend,
+  reconcileDurableBackend,
   confirmPiContext,
   createDurableBackend,
   createDurableContext,
@@ -34,7 +36,7 @@ import {
   openNativeContext,
   openPiBackend
 } from '../nativeContext'
-import { observeNativeThread, reconcileDurableMessage } from '../nativeSubmission'
+import { observeNativeThread, readNativeSubmission, reconcileDurableMessage } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -73,7 +75,7 @@ describe('native context storage and reconciliation', () => {
     return id
   }
   async function pi() {
-    const backend = contexts.allocateBackend('pi')
+    const backend = allocatePiBackend()
     const faux = fauxProvider({ tokensPerSecond: 10000 })
     const modelRuntime = await ModelRuntime.create({
       credentials: new InMemoryCredentialStore(),
@@ -207,12 +209,28 @@ describe('native context storage and reconciliation', () => {
     })
     cleanup.push(() => observer.stop())
     const id = message()
-    vi.spyOn(messages, 'prepareSubmission').mockImplementationOnce(() => {
+    vi.spyOn(messages, 'prepareSubmissionTx').mockImplementationOnce(() => {
       throw new Error('DB write failed')
     })
     await expect(observer.submit(id, created.context.id, 'reject')).rejects.toThrow('DB write failed')
     expect(faux.state.callCount).toBe(0)
     expect(messages.hasSubmission(sessionId, id)).toBe(false)
+  })
+
+  it('leaves an unsupported draft editable without recording or dispatching a native submission', async () => {
+    const { backend, runtime, options, faux } = await pi()
+    const created = await createPiContext(sessionId, backend.id, runtime, options)
+    const observer = await observeNativeThread(sessionId, confirmed(created.result), (error) => {
+      throw error
+    })
+    cleanup.push(() => observer.stop())
+    const id = message()
+    messages.updateSessionMessage(sessionId, id, { data: { parts: [] } })
+    await expect(observer.submit(id, created.context.id, 'reject')).rejects.toThrow('requires message content')
+    expect(messages.hasSubmission(sessionId, id)).toBe(false)
+    expect(faux.state.callCount).toBe(0)
+    messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'corrected' }] } })
+    expect(messages.getSessionMessage(sessionId, id).data.parts).toEqual([{ type: 'text', text: 'corrected' }])
   })
 
   it.each(['read', 'write'] as const)(
@@ -278,7 +296,7 @@ describe('native context storage and reconciliation', () => {
     const result = confirmed(await reconcileDurableMessage(sessionId, id, restored))
     expect(result).toMatchObject({ found: true, input: { outcome: 'completed' } })
     const repeated = await restored.input.submit({
-      ...messages.readSubmission(sessionId, id).draft,
+      ...readNativeSubmission(sessionId, id).draft,
       deduplicationKey: id
     })
     expect(repeated.status).toBe('acknowledged')
@@ -347,7 +365,7 @@ describe('native context storage and reconciliation', () => {
     expect(intent.nativeThreadId).toBeNull()
     await expect(openNativeContext(intent.id, runtime)).rejects.toThrow('unbound')
     await runtime.shutdown()
-    const storage = await openDurableStorage(backend.id)
+    const storage = await openDurableStorage(contexts.backend(backend.id))
     try {
       expect((await storage.scanConversations({}, 10, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(1)
     } finally {
@@ -365,18 +383,18 @@ describe('native context storage and reconciliation', () => {
     }
     copyFileSync(path(right.id), path(left.id))
     const before = readFileSync(path(left.id))
-    await expect(openDurableStorage(left.id)).rejects.toThrow('identity')
+    await expect(openDurableStorage(contexts.backend(left.id))).rejects.toThrow('identity')
     expect(readFileSync(path(left.id))).toEqual(before)
     writeFileSync(path(left.id), '')
-    await expect(openDurableStorage(left.id)).rejects.toThrow()
+    await expect(openDurableStorage(contexts.backend(left.id))).rejects.toThrow()
     expect(readFileSync(path(left.id))).toHaveLength(0)
     const unmarked = await openNodeSqliteStorage(path(left.id))
     await unmarked.close(BACKGROUND_CONTEXT)
     const unmarkedBytes = readFileSync(path(left.id))
-    await expect(openDurableStorage(left.id)).rejects.toThrow('identity')
+    await expect(openDurableStorage(contexts.backend(left.id))).rejects.toThrow('identity')
     expect(readFileSync(path(left.id))).toEqual(unmarkedBytes)
     rmSync(path(left.id))
-    await expect(openDurableStorage(left.id)).rejects.toThrow()
+    await expect(openDurableStorage(contexts.backend(left.id))).rejects.toThrow()
     expect(existsSync(path(left.id))).toBe(false)
   })
 
@@ -388,8 +406,11 @@ describe('native context storage and reconciliation', () => {
     const row = dbh.sqlite.prepare('SELECT id FROM agent_runtime_backend').get() as { id: string }
     spy.mockRestore()
     expect(contexts.backend(row.id).state).toBe('creating')
-    const storage = await openDurableStorage(row.id)
+    const storage = await openDurableStorage(contexts.backend(row.id))
     await storage.close(BACKGROUND_CONTEXT)
+    expect(contexts.backend(row.id).state).toBe('creating')
+    const recovered = await reconcileDurableBackend(row.id)
+    await recovered.close(BACKGROUND_CONTEXT)
     expect(contexts.backend(row.id).state).toBe('bound')
   })
 })

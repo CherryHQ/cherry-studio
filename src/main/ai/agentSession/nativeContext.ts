@@ -18,6 +18,7 @@ import {
   type PiDurableRuntime,
   type PiDurableRuntimeOptions
 } from '@cherrystudio/agent-runtime-pi-durable'
+import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 
 const nativeContext = BACKGROUND_CONTEXT
@@ -25,19 +26,23 @@ const backendDocument = defineDoc({
   kind: 'cherry.runtime-backend',
   version: 1,
   scope: 'session',
+  checkpointWhen: () => false,
   initial: () => ({ backendId: '' })
 })
 
-function durablePath(backendId: string): string {
-  const backend = contexts.backend(backendId)
+function durablePath(backend: AgentRuntimeBackendRow): string {
   if (backend.locator.kind !== 'pi-durable') throw new Error('Backend is not Pi Durable')
   return application.getPath('feature.agents.durable.stores', backend.locator.fileName)
 }
 
 /** Explicit creation only. A partial creation is reconciled by opening, never recreated. */
 export async function createDurableBackend() {
-  const backend = contexts.allocateBackend('pi-durable')
-  const path = durablePath(backend.id)
+  const backend = application
+    .get('DbService')
+    .withWriteTx((tx) =>
+      contexts.ensureBackendTx(tx, { version: 1, kind: 'pi-durable', fileName: `${uuid()}.sqlite` }, 'creating')
+    )
+  const path = durablePath(backend)
   mkdirSync(dirname(path), { recursive: true })
   closeSync(openSync(path, 'wx'))
   const storage = await openNodeSqliteStorage(path)
@@ -54,8 +59,8 @@ export async function createDurableBackend() {
   return contexts.backend(backend.id)
 }
 
-export async function openDurableStorage(backendId: string): Promise<Storage> {
-  const path = durablePath(backendId)
+export async function openDurableStorage(backend: AgentRuntimeBackendRow): Promise<Storage> {
+  const path = durablePath(backend)
   const uri = pathToFileURL(path)
   uri.searchParams.set('mode', 'rw')
   const storage = await SqliteStorage.openExisting(new NodeSqliteDatabase(new DatabaseSync(uri, { timeout: 5000 })))
@@ -69,9 +74,8 @@ export async function openDurableStorage(backendId: string): Promise<Storage> {
       nativeContext
     )
     const doc = marker && (await storage.document(marker.id, 'current', nativeContext))
-    if (doc?.version !== 1 || doc.value.backendId !== backendId)
+    if (doc?.version !== 1 || doc.value.backendId !== backend.id)
       throw new Error('Native backend identity does not match')
-    contexts.bindBackend(backendId)
     return storage
   } catch (error) {
     await storage.close(nativeContext)
@@ -79,12 +83,31 @@ export async function openDurableStorage(backendId: string): Promise<Storage> {
   }
 }
 
-export function openDurableBackend(backendId: string, harness: PiDurableRuntimeOptions['harness']) {
+export async function reconcileDurableBackend(backendId: string): Promise<Storage> {
+  const backend = contexts.backend(backendId)
+  const storage = await openDurableStorage(backend)
+  try {
+    if (backend.state === 'creating') contexts.bindBackend(backend.id)
+    return storage
+  } catch (error) {
+    await storage.close(nativeContext)
+    throw error
+  }
+}
+
+export async function openDurableBackend(backendId: string, harness: PiDurableRuntimeOptions['harness']) {
+  const storage = await reconcileDurableBackend(backendId)
   return createPiDurableRuntime({
     backendId: runtimeId(backendId),
-    openStorage: () => openDurableStorage(backendId),
+    openStorage: async () => storage,
     harness
   })
+}
+
+export function allocatePiBackend() {
+  return application
+    .get('DbService')
+    .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
 }
 
 export function loadPiSession(backendId: string, nativeId: string, cwd?: string): SessionManager {

@@ -5,7 +5,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, o
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
-import { runtimeId, type BusyPolicy, type InputDraft, type InputState, type Thread } from '@cherrystudio/agent-runtime'
+import { runtimeId, type BusyPolicy, type InputState, type Thread } from '@cherrystudio/agent-runtime'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
@@ -302,16 +302,6 @@ function submissionHash(row: SessionMessageRow): string {
   return createHash('sha256').update(JSON.stringify(row.data.parts)).digest('hex')
 }
 
-function submissionText(row: SessionMessageRow): string {
-  if (!row.data.parts?.length) throw new Error('Native submission requires message content')
-  return row.data.parts
-    .map((part) => {
-      if (part.type !== 'text') throw new Error('Native submission currently requires text-only message content')
-      return part.text
-    })
-    .join('\n')
-}
-
 export class AgentSessionMessageService {
   readWorkspaceRelocationHistory(workspaceId: string) {
     return application
@@ -367,31 +357,44 @@ export class AgentSessionMessageService {
     return Boolean(this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId)?.submission)
   }
 
-  prepareSubmission(sessionId: string, messageId: string, contextId: string, whenBusy: BusyPolicy): InputDraft {
-    return application.get('DbService').withWriteTx((tx) => {
-      this.assertActiveSession(tx, sessionId)
-      const row = this.findExistingMessageRow(tx, sessionId, messageId)
-      if (!row || row.role !== 'user') throw new Error('Submission requires a retained user message')
-      const context = tx.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.id, contextId)).get()
-      if (!context || context.sessionId !== sessionId)
-        throw new Error('Submission context does not belong to this session')
-      if (row.submission) throw new Error('Message already submitted; reconcile it or create a new message')
-      const text = submissionText(row)
-      tx.update(sessionMessagesTable)
-        .set({
-          submission: { contextId, whenBusy, contentHash: submissionHash(row), facts: [] }
-        })
-        .where(eq(sessionMessagesTable.id, messageId))
-        .run()
-      return { inputId: runtimeId(messageId), text, whenBusy }
-    })
+  prepareSubmission(sessionId: string, messageId: string, contextId: string, whenBusy: BusyPolicy): SessionMessageRow {
+    return application
+      .get('DbService')
+      .withWriteTx((tx) => this.prepareSubmissionTx(tx, sessionId, messageId, contextId, whenBusy))
   }
 
-  readSubmission(
+  prepareSubmissionTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    contextId: string,
+    whenBusy: BusyPolicy
+  ): SessionMessageRow {
+    this.assertActiveSession(tx, sessionId)
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row || row.role !== 'user') throw new Error('Submission requires a retained user message')
+    const context = tx.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.id, contextId)).get()
+    if (!context || context.sessionId !== sessionId)
+      throw new Error('Submission context does not belong to this session')
+    if (row.submission) throw new Error('Message already submitted; reconcile it or create a new message')
+    tx.update(sessionMessagesTable)
+      .set({
+        submission: { contextId, whenBusy, contentHash: submissionHash(row), facts: [] }
+      })
+      .where(eq(sessionMessagesTable.id, messageId))
+      .run()
+    return row
+  }
+
+  readSubmission(sessionId: string, messageId: string) {
+    return this.readSubmissionTx(application.get('DbService').getDb(), sessionId, messageId)
+  }
+
+  readSubmissionTx(
+    db: DbOrTx,
     sessionId: string,
     messageId: string
-  ): { submission: AgentSubmission; draft: InputDraft; thread: Thread } {
-    const db = application.get('DbService').getDb()
+  ): { submission: AgentSubmission; message: SessionMessageRow; thread: Thread } {
     const row = this.findExistingMessageRow(db, sessionId, messageId)
     if (!row?.submission || row.submission.contentHash !== submissionHash(row)) {
       throw new Error('Original submitted message is unavailable or changed')
@@ -405,7 +408,7 @@ export class AgentSessionMessageService {
     if (!context || context.sessionId !== sessionId || !nativeId) throw new Error('Native input target is unresolved')
     return {
       submission: row.submission,
-      draft: { inputId: runtimeId(messageId), text: submissionText(row), whenBusy: row.submission.whenBusy },
+      message: row,
       thread: { backendId: runtimeId(context.backendId), id: runtimeId(nativeId) }
     }
   }
@@ -417,7 +420,7 @@ export class AgentSessionMessageService {
     input: InputState,
     responseMessageId?: string
   ): void {
-    const { submission, thread } = this.readSubmission(sessionId, messageId)
+    const { submission, thread } = this.readSubmissionTx(tx, sessionId, messageId)
     if (input.inputId !== undefined && input.inputId !== messageId) throw new Error('Input identity does not match')
     if (
       input.nativeInput &&

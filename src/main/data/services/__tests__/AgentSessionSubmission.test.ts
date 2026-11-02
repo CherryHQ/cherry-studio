@@ -26,7 +26,9 @@ describe('message-owned native submission', () => {
       .values({ id: workspaceId, name: 'Work', path: '/test', type: 'user', orderKey: 'a0' })
       .run()
     dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Session', orderKey: 'a0' }).run()
-    const backend = contexts.allocateBackend('pi')
+    const backend = application
+      .get('DbService')
+      .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
     const context = contexts.allocateContext(sessionId, backend.id, 'native-session')
     contexts.bindContext(context.id, 'native-session')
     contextId = context.id
@@ -39,7 +41,7 @@ describe('message-owned native submission', () => {
 
   it('keeps admission unknown despite display success and rejects reusing or changing a submitted message', () => {
     const draft = messages.prepareSubmission(sessionId, messageId, contextId, 'reject')
-    expect(draft).toEqual({ inputId: messageId, text: 'original', whenBusy: 'reject' })
+    expect(draft.data.parts).toEqual([{ type: 'text', text: 'original' }])
     expect(messages.readSubmission(sessionId, messageId).submission.facts).toEqual([])
     expect(messages.getSessionMessage(sessionId, messageId).status).toBe('success')
     expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('submission')
@@ -54,7 +56,9 @@ describe('message-owned native submission', () => {
         message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text: 'edited' }] } }
       })
     ).toThrow()
-    expect(messages.readSubmission(sessionId, messageId).draft.text).toBe('original')
+    expect(messages.readSubmission(sessionId, messageId).message.data.parts).toEqual([
+      { type: 'text', text: 'original' }
+    ])
   })
 
   it('preserves terminal evidence across a late receipt and allows two inputs to share one response', () => {

@@ -422,6 +422,10 @@ For response association, persist a product response-message ID once projection 
 
 Keep `AgentSessionDeliveryService`'s cross-session business delivery separate from native input admission. Its existing `delivery*` columns continue to serve that workflow. A delivery can link to an input when dispatched, but `accepted` delivery, native acknowledgement, and answered input are different facts. Do not repurpose those columns as the universal runtime journal.
 
+Harness-specific backend reuse, native identity allocation, locator construction and branch preparation belong to the Main runtime integration. Data services retain versioned locator validation, ownership, uniqueness and immutable bindings; they accept the decided values rather than selecting a harness strategy. The runtime owner composes synchronous `*Tx` operations so deciding and reserving a branch remain atomic. Every indirect read uses that same transaction.
+
+Strict storage loaders open and validate native resources without writing Cherry association records. The runtime coordinator explicitly confirms a verified binding and closes acquired resources if that commit fails. Message services capture retained content and submission facts; runtime integration builds the native draft in the same synchronous transaction so unsupported content rolls back admission capture. Recovery queries do not reconstruct an input from mutable runtime configuration.
+
 ##### Writes, errors and partial success
 
 Use [DbService.withWriteTx](../../../../src/main/data/db/DbService.ts) only for synchronous database work. Data services compose `*Tx` writes; the lifecycle coordinator performs harness/file operations outside those transactions and retains their Promises after a window stops waiting. A data API endpoint must not hide native execution inside a database mutation.
@@ -558,6 +562,8 @@ The [evidence note](../testing/2026-10-17-agent-harness-evidence.md) distinguish
 - AC10 — A fresh Pi runtime restores a child's parent owner and relationship before continued input, preserves native stop/reporting policy, and never upgrades an unowned historical child into a writable root. (verification: unit — persistent Pi parent/child reopening tests)
 - AC11 — A forced process death followed by fresh-process Durable reopening preserves input identity and native ownership; passive reconciliation starts no model/tool work, and permitted resume respects Harness scope without an extra host report. (verification: unit — Durable worker-process crash integration tests)
 - AC12 — Root and child desktop flows preserve product authorization, model/tool boundaries, single usage accounting, delivery finalization, and documented stop/recovery behavior. Editing retains the old branch and selects the new one; browsing executes no native work, and continuing either branch resolves the correct checkpoint/binding. (verification: Electron — Pi and Durable host integration scenarios)
+
+- AC19 — Harness policy stays in Main runtime integration; database-only preparation preserves uniqueness and rollback, strict storage opening does not confirm Cherry bindings, and explicit reconciliation repairs the original identity without dispatching uncertain input. (verification: unit — native context and message-submission fixtures, branch-publication and driver tests)
 
 ## Risks
 

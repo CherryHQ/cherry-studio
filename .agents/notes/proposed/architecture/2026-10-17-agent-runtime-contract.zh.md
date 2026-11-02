@@ -422,6 +422,10 @@ P1 不新增 `agent_session_input` 或 `agent_session_input_attempt`。[当前�
 
 `AgentSessionDeliveryService` 的跨会话业务投递继续与原生输入接纳分开。既有 `delivery*` 字段仍服务于该流程。投递在派发时可以关联输入，但业务投递 `accepted`、原生确认接纳和输入获得回答是不同事实，不把这些字段改成通用 Runtime 日志。
 
+各 harness 的 backend 复用、原生身份分配、定位信息构造和分支准备由 Main 运行时集成层负责。数据服务保留版本化定位信息校验、归属关系、唯一性和绑定不可变约束，接收已确定的值，不选择 harness 策略。运行时所有者组合同步 `*Tx` 操作，使分支决策和预留保持原子性；所有间接读取也使用同一个事务。
+
+严格存储加载器只打开并校验原生资源，不写入 Cherry 关联记录。运行时协调层显式确认经过验证的绑定；若提交失败，则关闭已取得的资源。消息服务记录保留的内容和提交事实；运行时集成层在同一个同步事务中组装原生草稿，使不支持的内容能够回滚提交记录。恢复查询不根据可变的运行时配置重新构造输入。
+
 ##### 写入、错误与部分成功
 
 [DbService.withWriteTx](../../../../src/main/data/db/DbService.ts)只执行同步数据库操作。数据服务组合 `*Tx` 写入；生命周期协调者在事务外执行 harness／文件操作，并在窗口停止等待后继续持有其 Promise。DataApi 端点不能把原生执行藏进数据库 mutation。
@@ -558,6 +562,8 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 - AC10 — 新 Pi Runtime 在继续输入前恢复 child 的父所有者与关系，保留原生停止/报告政策，绝不把失去所有者的历史 child 升级为可写 root。 (verification: unit — 持久 Pi 父子会话重开测试)
 - AC11 — 强制进程退出后用新进程重开 Durable，保留输入身份与原生所有权；被动对账不执行模型/工具，允许的 resume 遵循 Harness 作用域，宿主不额外报告结果。 (verification: unit — Durable worker 进程崩溃集成测试)
 - AC12 — Root 与 child 桌面流程保留产品授权、模型/工具边界、单次用量记账、投递终态，以及约定的停止/恢复行为。编辑保留旧分支并选中新分支，浏览不调用原生执行，各分支续写解析正确 checkpoint/绑定。 (verification: Electron — Pi 与 Durable 宿主接入场景)
+
+- AC19 — Harness 策略位于 Main 运行时集成层；仅数据库准备保持唯一性和回滚能力，严格存储打开不确认 Cherry 绑定，显式核对恢复原身份且不派发结果未知的输入。 (verification: unit — 原生上下文与消息提交 fixture、分支发布及 driver 测试)
 
 ## Risks
 
