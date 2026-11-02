@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "重置应用数据",
   "dialog.diagnostic_bundle.title": "保存诊断包",
   "dialog.diagnostic_bundle.zip_filter": "ZIP 压缩包",
+  "dialog.external_link.message": "是否在外部应用中打开此链接？",
+  "dialog.external_link.open": "打开应用",
   "dialog.html_files": "HTML 文件",
   "dialog.migration_database_unavailable.detail": "请检查数据存储位置是否可用且可写，并确保磁盘有足够的可用空间，然后重试。",
   "dialog.migration_database_unavailable.message": "Cherry Studio 无法访问本地数据库。",

@@ -62,6 +62,8 @@ const RESOURCE_CARD_ROW_ESTIMATE_PX = 92
 
 interface Props {
   resources: ResourceItem[]
+  /** True when a catalog-level filter hides otherwise available resources. */
+  hasHiddenResources?: boolean
   isLoading?: boolean
   activeResourceType: ResourceType
   search: string
@@ -212,6 +214,7 @@ function SkillAddActions({
 
 export const ResourceGrid: FC<Props> = ({
   resources,
+  hasHiddenResources = false,
   isLoading = false,
   activeResourceType,
   search,
@@ -240,6 +243,7 @@ export const ResourceGrid: FC<Props> = ({
   allowColumnToggle = false
 }) => {
   const { t } = useTranslation()
+  const hasNoMatches = Boolean(search) || hasHiddenResources
   const isSettings = variant === 'settings'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
@@ -419,19 +423,24 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
-        {toolbarFooter || (isSettings && allowColumnToggle) ? (
+        {toolbarFooter || (isSettings && (toolbarLeading || allowColumnToggle)) ? (
           <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle">
             {toolbarFooter}
-            {isSettings && allowColumnToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={layoutLabel}
-                title={layoutLabel}
-                disabled={responsiveColumnCount < 2}
-                onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
-                {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
-              </Button>
+            {isSettings && (toolbarLeading || allowColumnToggle) && (
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                {toolbarLeading}
+                {allowColumnToggle && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={layoutLabel}
+                    title={layoutLabel}
+                    disabled={responsiveColumnCount < 2}
+                    onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
+                    {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         ) : null}
@@ -558,10 +567,10 @@ export const ResourceGrid: FC<Props> = ({
             <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
           ) : resources.length === 0 ? (
             <EmptyState
-              preset={search ? 'no-result' : 'no-resource'}
-              title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+              preset={hasNoMatches ? 'no-result' : 'no-resource'}
+              title={hasNoMatches ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
               description={
-                search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
+                hasNoMatches ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
               }
               className="py-20"
             />

@@ -742,3 +742,19 @@ describe('AiSdkToAnthropicSse', () => {
     })
   })
 })
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToAnthropicSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)

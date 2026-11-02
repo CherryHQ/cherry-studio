@@ -118,6 +118,8 @@
   "dialog.data_reset.title": "Repor os dados da aplicação",
   "dialog.diagnostic_bundle.title": "Guardar pacote de diagnóstico",
   "dialog.diagnostic_bundle.zip_filter": "Ficheiro ZIP",
+  "dialog.external_link.message": "Abrir esta ligação numa aplicação externa?",
+  "dialog.external_link.open": "Abrir aplicação",
   "dialog.html_files": "Ficheiros HTML",
   "dialog.migration_database_unavailable.detail": "Verifique se a localização dos dados está disponível e permite escrita e se o disco tem espaço livre suficiente. Em seguida, tente novamente.",
   "dialog.migration_database_unavailable.message": "O Cherry Studio não conseguiu aceder à base de dados local.",

@@ -74,6 +74,7 @@ import {
   OmlxModelStatusResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
+  PoeModelsResponseSchema,
   TogetherModelsResponseSchema,
   TokenDanceModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
@@ -980,6 +981,49 @@ async function listOpenAICompatibleModels(
   )
 }
 
+function resolvePoeChatEndpointTypes(
+  supportedEndpoints: readonly string[] | undefined,
+  registryEndpointTypes?: readonly EndpointType[]
+): EndpointType[] | undefined {
+  if (!supportedEndpoints?.length) {
+    return registryEndpointTypes?.length ? [...registryEndpointTypes] : [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  }
+
+  const chatPaths = [
+    ['/v1/messages', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+    ['/v1/responses', ENDPOINT_TYPE.OPENAI_RESPONSES],
+    ['/v1/chat/completions', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  ] as const
+  const declared = chatPaths.filter(([path]) => supportedEndpoints.includes(path)).map(([, endpoint]) => endpoint)
+  if (!declared.length) return undefined
+
+  const preferred = registryEndpointTypes?.filter((endpoint) => declared.some((type) => type === endpoint))
+  return preferred?.length ? [...new Set(preferred)] : declared
+}
+
+const poeFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.poe),
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `${formatApiHost(getBaseUrl(provider))}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: PoeModelsResponseSchema,
+      abortSignal: signal
+    })
+    warnSkippedOpenAIModelEntries(provider.id, response)
+    return listing(
+      dedup(response.data, (m) => m.id).map((m) => {
+        const { registryOverride } = providerRegistryService.resolveModel(provider, m.id)
+        return toModel(m.id, provider, {
+          name: m.name || m.id,
+          ownedBy: m.owned_by,
+          endpointTypes: resolvePoeChatEndpointTypes(m.supported_endpoints, registryOverride?.endpointTypes)
+        })
+      })
+    )
+  }
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
@@ -1169,6 +1213,7 @@ const fetchers: ModelFetcher[] = [
   jinaFetcher,
   huggingFaceFetcher,
   openAIFetcher,
+  poeFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 

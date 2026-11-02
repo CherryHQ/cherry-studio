@@ -131,7 +131,9 @@ export function useAssistantMutations() {
         options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
         { assistantId: id, deleteTopics }
       )
-      await invalidate(deleteTopics ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics'] : ASSISTANTS_REFRESH_KEYS)
+      await invalidate(
+        deleteTopics ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics'] : [...ASSISTANTS_REFRESH_KEYS, '/pins']
+      )
       logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
       return result
     },
