@@ -62,6 +62,13 @@ export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: Markdown
     event.preventDefault()
     event.stopPropagation()
     target.scrollIntoView({ block: 'start' })
+    // The capture handler replaces FootnoteLink's own click, so the focus transfer that handler
+    // performs has to happen here too — otherwise the note scrolls into view with focus left
+    // behind on the reference.
+    if (anchor?.hasAttribute('data-footnote-ref') || anchor?.hasAttribute('data-footnote-backref')) {
+      if (target.tagName !== 'A') target.tabIndex = -1
+      target.focus({ preventScroll: true })
+    }
   }
 
   // The viewer owns the scroll here: its virtualizer measures its own scroller, so an unbounded

@@ -259,5 +259,7 @@ describe('MarkdownChunkPreview', () => {
 
     expect(scrolled).toHaveLength(1)
     expect(scrolled[0].closest('.markdown')).toBe(ownChunk)
+    // The click's focus transfer moves to the note's reference, as FootnoteLink does on its own.
+    expect(document.activeElement).toBe(scrolled[0])
   })
 })
