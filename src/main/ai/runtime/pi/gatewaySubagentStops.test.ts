@@ -1,7 +1,6 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
-import type { TestModel } from '@test-helpers/piGateway'
 import { createTestSession, finish, lastAssistant, MODEL, gatewayModel, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
@@ -32,6 +31,108 @@ function delegate(child: (lastRole: string) => LanguageModelV3StreamPart[]) {
 }
 
 describe('subagent stops', () => {
+  it('observes startup replies before any child request and includes their usage', async () => {
+    const startupDone = Promise.withResolvers<void>()
+    const replies: string[] = []
+    let requestsAtCallback = -1
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-A')) return [...textParts('task', 'REPORT-A'), finish('stop', 20, 5)]
+      if (userText.includes('STARTUP')) return [...textParts('startup', 'READY'), finish('stop', 10, 5)]
+      return lastRole === 'user'
+        ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
+        : [...textParts('done', 'Done'), finish('stop')]
+    })
+    const host = recordingSubagentPort(() => ({
+      onSessionCreated(session) {
+        requestsAtCallback = calls.filter((call) => call.userText.includes('STARTUP')).length
+        session.subscribe((event) => {
+          if (event.type === 'message_end' && event.message.role === 'assistant') {
+            replies.push(event.message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''))
+          }
+        })
+      },
+      extensionFactories: [
+        (pi) => {
+          pi.on('agent_end', () => startupDone.resolve())
+          pi.on('session_start', async () => {
+            pi.sendUserMessage('STARTUP')
+            await startupDone.promise
+            await new Promise<void>((resolve) => setImmediate(resolve))
+          })
+        }
+      ]
+    }))
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    await session.prompt('Delegate')
+
+    expect(requestsAtCallback).toBe(0)
+    expect(replies).toEqual(['READY', 'REPORT-A'])
+    expect(toolResultOf(session, 'call_a').usage?.totalTokens).toBe(44)
+  })
+
+  it('aborts startup work without waiting for session_start and disposes the late child', async () => {
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const shutdown = Promise.withResolvers<void>()
+    let startupSignal: AbortSignal | undefined
+    const waitTool = defineTool({
+      name: 'wait',
+      label: 'Wait',
+      description: 'Wait for cancellation',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        startupSignal = signal
+        started.resolve()
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) resolve()
+          else signal?.addEventListener('abort', () => resolve(), { once: true })
+        })
+        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
+      }
+    })
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('STARTUP')) return [toolCallPart('startup_wait', 'wait'), finish('tool-calls')]
+      return lastRole === 'user'
+        ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
+        : [...textParts('done', 'Done'), finish('stop')]
+    })
+    const host = recordingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('session_start', async () => {
+            pi.sendUserMessage('STARTUP')
+            await release.promise
+            pi.sendUserMessage('LATE-STARTUP')
+          })
+          pi.on('session_shutdown', () => shutdown.resolve())
+        }
+      ]
+    }))
+    const { session } = await createTestSession({
+      port: gatewayModel(model).upstream,
+      tools: [waitTool],
+      subagents: host.port
+    })
+    const turn = session.prompt('Delegate')
+    try {
+      await started.promise
+      await Promise.race([
+        Promise.all([session.abort(), turn]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('startup blocked cancellation')), 1_000))
+      ])
+      expect(startupSignal?.aborted).toBe(true)
+      expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
+    } finally {
+      release.resolve()
+      await session.abort()
+      await turn
+    }
+    await shutdown.promise
+    expect(
+      calls.filter((call) => call.userText.includes('TASK-A') || call.userText.includes('LATE-STARTUP'))
+    ).toHaveLength(0)
+  })
+
   it('reports a failed subagent as an error with its partial output and usage', async () => {
     const { model } = delegate((lastRole) =>
       lastRole === 'user'
@@ -314,7 +415,7 @@ describe('subagent stops', () => {
         ...MODEL,
         promptCache: { short: 11 },
         cost: { input: 10_000, output: 0, cacheRead: 0, cacheWrite: 0 }
-      } as TestModel,
+      },
       tools: [buildTool, noteTool],
       subagents: recordingSubagentPort().port
     })

@@ -176,7 +176,7 @@ export const fileRequestSchemas = {
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
   // `activate` releases the buffered mutations once the renderer mirror is listening.
-  // See docs/references/file/directory-tree.md.
+  // See docs/dev/references/file/directory-tree.md.
   'file.tree.create': defineRoute({
     input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
     // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —

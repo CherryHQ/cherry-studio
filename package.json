@@ -131,7 +131,11 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "ui:contract:query": "tsx scripts/uiContract/query.ts",
-    "update:languages": "tsx scripts/update-languages.ts"
+    "update:languages": "tsx scripts/update-languages.ts",
+    "website-docs:build": "node scripts/websiteDocs/render.mjs build",
+    "website-docs:check": "node scripts/websiteDocs/render.mjs check",
+    "website-docs:dev": "node scripts/websiteDocs/render.mjs dev",
+    "website-docs:sync": "node scripts/websiteDocs/sync.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.284",
