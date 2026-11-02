@@ -32,7 +32,7 @@ Initial overlay consumption waits for attach to resolve. Pending events temporar
 
 ## Verification
 
-This note records the chunk-replay repair on the lower stack layer. Desktop views now use the shared message projection described in [Execution Overlay](../../../../docs/references/ai/execution-overlay.md); the obsolete renderer chunk subscriber and its tests have been removed from the upper layer. The checks below are historical evidence for that repair.
+This note records the chunk-replay repair on the lower stack layer. Desktop views now use the shared message projection described in [Execution Overlay](../../../../docs/dev/references/ai/execution-overlay.md); the obsolete renderer chunk subscriber and its tests have been removed from the upper layer. The checks below are historical evidence for that repair.
 
 - Regression — `TopicStreamSubscription.test.ts`: live/replay overlap before registration, during attach, and after replay; late attachment; identical new deltas; terminal events during attach.
 - Regression — `AiStreamManager.test.ts`: replay cutoffs and pending-delta flush across repeated attachment preserve existing consumers' output.

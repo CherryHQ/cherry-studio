@@ -32,7 +32,7 @@ Renderer 在 attach 等待期间按顺序暂存实时块和终止事件。Attach
 
 ## 验证
 
-本文记录下层栈中的 chunk 重放修复。桌面视图现在使用[执行投影](../../../../docs/references/ai/execution-overlay.md)中的共享消息投影；上层已移除旧 Renderer chunk 订阅器及其测试。以下检查保留为该修复的历史证据。
+本文记录下层栈中的 chunk 重放修复。桌面视图现在使用[执行投影](../../../../docs/dev/references/ai/execution-overlay.md)中的共享消息投影；上层已移除旧 Renderer chunk 订阅器及其测试。以下检查保留为该修复的历史证据。
 
 - Regression — `TopicStreamSubscription.test.ts`：注册前、attach 期间及重放之后的实时与重放重叠；中途订阅；内容相同的新增量；attach 期间的终止事件。
 - Regression — `AiStreamManager.test.ts`：重复 attach 时的重放截止位置及待发送增量刷新，保留现有消费者的输出。
