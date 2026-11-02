@@ -81,15 +81,23 @@ const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGE
 // token followed by whitespace is refused here on purpose: that token anchors its own start
 // scan, and consuming it as an argument would restart an overlapping suffix scan once per
 // embedded `start` anchor (quadratic on `echo "start /b" "start /b" ...` and on
-// `echo "a start /b" "a start /b" ...`). The check covers content starting with the token
-// and content where it follows any non-word character; titles that are exactly `start` (no
-// trailing whitespace) still consume: their inner anchor cannot fire, so refusing them would
-// lose the deny on `start "start" del x`. Denies dropped here are restored by the linear
-// scanner below, which walks every command-position start anchor with untempered arguments.
+// `echo "a start /b" "a start /b" ...`). The temper is a lazy content scan with a
+// fixed-width unicode-aware boundary lookbehind and NO nested quantifiers: each content
+// position costs O(1), so one anchor pays O(unit length) and a glue-heavy title
+// (`echo start "@@@...x"`) stays linear. (The earlier form - greedy prefix backtracking
+// against an unbounded glue run, both classes matching `@` - was quadratic per anchor on
+// that family, and simply bounding the prefix instead lets each anchor consume the rest of
+// the suffix, which is quadratic again on `start "...65+... start /b"` repeated.) Glue
+// characters are non-word, so the lookbehind alone covers decorated tokens; a start glued
+// to a word (`restart` / `mystart`) keeps consuming as argument text, preserving the deny
+// on `start "restart job" del x`. The check covers content starting with the token and
+// content where it follows any non-word character; titles that are exactly `start` (no
+// trailing whitespace) still consume: their inner anchor cannot fire, so refusing them
+// would lose the deny on `start "start" del x`. Denies dropped here are restored by the
+// linear scanner below, which walks every command-position start anchor with untempered
+// arguments.
 const CMD_START_ARGS =
-  String.raw`(?:\s+"(?!(?:[^"\r\n]*[^\w\u0080-\uffff])?[@` +
-  '`' +
-  String.raw`"']*start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
+  String.raw`(?:\s+"(?![^"\r\n]*?(?<![\w\u0080-\uffff])start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|\/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
   '`' +
   String.raw`]*start\b)[^\s;&|/"(){}]+)+`
 const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["']?(?:del|erase|rd)\b)`

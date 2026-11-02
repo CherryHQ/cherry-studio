@@ -722,6 +722,26 @@ describe('detectDestructiveAssistantCommand', () => {
     // Spaced parenthesized content stays uncovered, matching the instance-side convention.
     expect(detectDestructiveAssistantCommand('[Console]::( "Title" ) = del victim.txt')).toBeUndefined()
   })
+
+  it('keeps quoted-start temper denies linear with word-glued titles intact (Path A v28)', () => {
+    // Embedded command-position start inside a quoted argument still anchors its own scan.
+    expect(detectDestructiveAssistantCommand('start "aa start /b" foo del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('start "' + 'a'.repeat(100) + ' start /b" foo del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // A start glued to a word inside a title is argument text, not a command: the outer chain
+    // still consumes it and the deletion tail denies.
+    expect(detectDestructiveAssistantCommand('start "restart job" del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('start "abstart /b" del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    // Titles that are exactly `start` (no trailing whitespace) still consume as arguments.
+    expect(detectDestructiveAssistantCommand('start "start" del victim.txt')).toBe('permanent Windows file deletion')
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
