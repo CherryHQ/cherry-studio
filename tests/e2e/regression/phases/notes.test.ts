@@ -170,7 +170,10 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
   await rm(directory, { recursive: true, force: true })
   await mkdir(notesDirectory, { recursive: true })
   const source = join(directory, 'sample-note.md')
-  await writeFile(source, `${await readFile(app.fixturesPath('documents/sample-note.md'), 'utf8')}\nMP-75 single import\n`)
+  await writeFile(
+    source,
+    `${await readFile(app.fixturesPath('documents/sample-note.md'), 'utf8')}\nMP-75 single import\n`
+  )
   const vault = app.fixturesPath('imports/obsidian-vault')
   const readMarkdown = async (directory: string): Promise<{ path: string; content: string }[]> => {
     const files: { path: string; content: string }[] = []
