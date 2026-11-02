@@ -1,3 +1,5 @@
+import { CLAUDE_TOOL_DEFS } from './claudecode/toolRegistry'
+
 export type PiBuiltinToolCategory = 'file' | 'shell' | 'search'
 export type PiToolPermissionClass = 'read' | 'edit' | 'shell' | 'meta'
 
@@ -36,6 +38,40 @@ export const PI_BUILTIN_TOOLS = [
 export function normalizePiDisabledToolId(name: string): string {
   if (name === 'tool_exec') return PI_TOOL_EXEC_TOOL_NAME
   return PI_NATIVE_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
+}
+
+type PiDependencyToolRef = { name: string; serverName: string; serverId: string }
+
+const TOOL_DEFS_BY_LOWER_NAME = new Map(CLAUDE_TOOL_DEFS.map((def) => [def.name.toLowerCase(), def]))
+
+/**
+ * Pi's policy layer only resolves direct identifiers and aliases, so a tool that declares a
+ * static dependency (a second shell door) would survive disabling that dependency. Walk the
+ * registry's `dependsOn` graph with the same case-insensitive builtin matching Pi applies.
+ */
+export function isPiToolDisabledByDependency(
+  runtimeName: string,
+  disabled: ReadonlySet<string>,
+  resolveMcpTool?: (name: string) => PiDependencyToolRef | undefined,
+  seen: ReadonlySet<string> = new Set()
+): boolean {
+  const key = runtimeName.toLowerCase()
+  if (seen.has(key)) return false
+  const tool = resolveMcpTool?.(runtimeName)
+  const def =
+    TOOL_DEFS_BY_LOWER_NAME.get(key) ??
+    (tool
+      ? (TOOL_DEFS_BY_LOWER_NAME.get(`mcp__${tool.serverName}__${tool.name}`.toLowerCase()) ??
+        TOOL_DEFS_BY_LOWER_NAME.get(`mcp__${tool.serverId}__${tool.name}`.toLowerCase()))
+      : undefined)
+  if (!def?.dependsOn?.length) return false
+  const nextSeen = new Set(seen).add(key)
+  return def.dependsOn.some(
+    (dependency) =>
+      disabled.has(dependency) ||
+      disabled.has(dependency.toLowerCase()) ||
+      isPiToolDisabledByDependency(dependency, disabled, resolveMcpTool, nextSeen)
+  )
 }
 
 export const PI_BUILTIN_TOOL_CATEGORIES = [
