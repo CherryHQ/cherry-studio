@@ -13,11 +13,11 @@ import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
 
-// Public, write-only project key of the PostHog project that receives product events, like the Sentry DSN.
+// Public, write-only key of the PostHog project that keeps usage insights, like the Sentry DSN.
 const POSTHOG_PROJECT_KEY = ''
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 
-// Development builds send product events only to a project set through MAIN_VITE_POSTHOG_KEY.
+// Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
   const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
   if (override) return override
@@ -193,8 +193,8 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   /**
-   * Reports a product event to PostHog under the anonymous client id, without a person profile; dropped
-   * unless data collection is consented under the current policy and a project key is configured.
+   * Records a usage insight in PostHog under the anonymous client id, without a person profile; dropped unless
+   * data collection is consented under the current policy and a project key is configured.
    */
   public trackEvent(eventType: string, data: Record<string, string | number | boolean>): void {
     if (!this.isActivated || !this.desiredEnabled || !this.posthog) return

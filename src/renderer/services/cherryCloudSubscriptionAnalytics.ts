@@ -12,7 +12,7 @@ async function send(event: CherryCloudAnalyticsEvent): Promise<void> {
 
 const viewedSources = new Set<SubscriptionEntrySource>()
 
-/** Reports a Subscribe entry the first time it is shown in this window. */
+/** Records a Subscribe entry the first time it is shown in this window. */
 export function trackSubscriptionEntryView(source: SubscriptionEntrySource): void {
   if (viewedSources.has(source)) return
   viewedSources.add(source)

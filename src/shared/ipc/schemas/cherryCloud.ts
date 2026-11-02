@@ -127,7 +127,7 @@ const subscriptionEntrySourceSchema = z.enum([
 ])
 const quotaModelTypeSchema = z.enum(['free', 'paid'])
 
-/** Allow-listed subscription funnel events; none carries an account identifier or a price. */
+/** Allow-listed, anonymous subscription usage insights; none carries an account identifier or a price. */
 export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   z.strictObject({ event: z.literal('subscription_entry_view'), source: subscriptionEntrySourceSchema }),
   z.strictObject({
