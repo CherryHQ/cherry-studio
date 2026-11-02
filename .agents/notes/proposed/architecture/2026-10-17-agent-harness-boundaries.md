@@ -90,7 +90,7 @@ Current Pi uses native `SessionManager` for files and branches, with an in-memor
 
 Pi Durable is a separate execution system, not a persistence switch on coding-agent. Both adapters depend on the common package and do not depend on each other. Pi's session owns request retries; the native HTTP client and internal gateway do not add retries or execute Pi's tools. Native compaction, verifier context, and child continuation use native messages and managers, not reconstruction from public display items.
 
-The desktop services still use their existing runtime path. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](https://github.com/CherryHQ/cherry-studio/pull/21607) and [background subagent note](https://github.com/CherryHQ/cherry-studio/pull/21693) own the Pi-specific decisions.
+The desktop services still use their existing runtime path. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](../feature/2026-10-11-agent-runtime-goal.md) and [background subagent note](https://github.com/CherryHQ/cherry-studio/pull/21693) own the Pi-specific decisions.
 
 ### Use native Pi providers through the internal gateway
 

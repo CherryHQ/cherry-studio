@@ -90,7 +90,7 @@ Native harness facts -> adapter normalization -> host Lane/history projection ->
 
 Pi Durable 是独立执行系统，不是 coding-agent 的持久化开关。两个适配器依赖公共包，互不依赖。Pi session 决定请求重试；原生 HTTP 客户端和内部网关不叠加重试，网关不执行 Pi 的工具。原生压缩、验证器上下文和 child 续接使用原生消息与 manager，不从公共展示 Item 重建。
 
-桌面服务仍使用既有 Runtime 路径。[Runtime 契约](2026-10-17-agent-runtime-contract.md) 记录已实现的访问协议及其限制；[Harness 证据文档](../testing/2026-10-17-agent-harness-evidence.md) 区分五类原生样本、历史探针、源码覆盖与剩余验收。[Goal 文档](https://github.com/CherryHQ/cherry-studio/pull/21607) 和[后台子智能体文档](https://github.com/CherryHQ/cherry-studio/pull/21693) 分别维护 Pi 专用决策。
+桌面服务仍使用既有 Runtime 路径。[Runtime 契约](2026-10-17-agent-runtime-contract.md) 记录已实现的访问协议及其限制；[Harness 证据文档](../testing/2026-10-17-agent-harness-evidence.md) 区分五类原生样本、历史探针、源码覆盖与剩余验收。[Goal 文档](../feature/2026-10-11-agent-runtime-goal.md) 和[后台子智能体文档](https://github.com/CherryHQ/cherry-studio/pull/21693) 分别维护 Pi 专用决策。
 
 ### 通过内部网关使用原生 Pi provider
 

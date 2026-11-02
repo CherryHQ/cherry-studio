@@ -210,6 +210,7 @@ async function run(
   limit: RequestLimit
 ): Promise<AgentToolResult<SubagentDetails>> {
   let session: AgentSession | undefined
+  let firstEntry = 0
   let unsubscribe: (() => void) | undefined
   let stopped: 'aborted' | 'limit_reached' | undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
@@ -236,6 +237,7 @@ async function run(
       const creating = createSession((created) => {
         signal?.throwIfAborted()
         session = created
+        firstEntry = session.sessionManager.getEntryCount()
         unsubscribe = session.subscribe((event) => {
           if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
           // Pi clears an idle abort when a run starts; repeat it once startup work becomes live.
@@ -261,7 +263,12 @@ async function run(
     await child?.dispose()
   }
 
-  const usage = replies.reduce((sum, reply) => addUsage(sum, reply.usage), zeroUsage())
+  const compactionUsage =
+    session?.sessionManager
+      .getEntries()
+      .slice(firstEntry)
+      .flatMap((entry) => (entry.type === 'compaction' && entry.usage ? [entry.usage] : [])) ?? []
+  const usage = [...replies.map((reply) => reply.usage), ...compactionUsage].reduce(addUsage, zeroUsage())
   const last = replies.at(-1)
   const outcome = error === undefined ? outcomeOf(last, stopped) : (stopped ?? 'failed')
   const details = { ...base, outcome }
