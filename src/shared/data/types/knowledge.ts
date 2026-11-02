@@ -716,6 +716,21 @@ const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   data: RuntimeUrlItemDataSchema
 })
 
+// Restore-only: persisted URL records predate strict add-time validation and the
+// persisted schema (UrlItemDataSchema) accepts any non-empty string, so a base can
+// legitimately hold a value the add surface now rejects. Restore carries existing
+// records verbatim instead of re-imposing add-time rules on data the user already
+// saved - otherwise one malformed record aborts restoring the whole base, healthy
+// sources included.
+const RestoreRuntimeUrlItemDataSchema = RuntimeUrlItemDataSchema.extend({
+  url: z.string().trim().min(1).describe('URL to read and index.')
+})
+
+export const KnowledgeRestoreUrlItemInputSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: RestoreRuntimeUrlItemDataSchema
+})
+
 // Runtime note add carries only the caller-supplied content; `relativePath` is
 // written lazily by main on first index (see ensureSnapshot), never by raw
 // caller input, so it is omitted from the add surface.
