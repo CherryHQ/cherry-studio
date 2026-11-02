@@ -125,14 +125,14 @@ describe('background subagent delivery', () => {
     const { model, calls } = routedModel(({ userText, lastText, lastRole }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
       if (lastText === 'Check A and keep working')
-        return [subagentCall('call_a', BG_A), toolCallPart('wait_1', 'wait_here'), finish('tool-calls')]
+        return assistantReply([subagentCall('call_a', BG_A), toolCallPart('wait_1', 'wait_here')], 'toolUse')
       return reply(lastRole === 'tool' ? 'Kept working.' : 'Noted.')
     })
     const replaceDraft: ExtensionFactory = (pi) => {
       pi.on('agent_before_settle', (event) => ({ entries: commit ? event.entries : [], continue: false }))
     }
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [waitHere],
       subagents: recordingSubagentPort().port,
       extensionFactories: [replaceDraft],
