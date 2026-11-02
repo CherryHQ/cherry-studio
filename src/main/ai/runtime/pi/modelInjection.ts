@@ -35,7 +35,13 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
-import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
+import {
+  isCherryAIProvider,
+  isLoginBasedProvider,
+  isSystemProvider,
+  matchesPreset,
+  resolveEndpointDialect
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -455,10 +461,10 @@ function buildThinkingLevelMap(model: Model): PiChatModelConfig['thinkingLevelMa
   return map
 }
 
-function targetsGoogleGenerativeLanguage(baseUrl: string): boolean {
+function targetsHostname(baseUrl: string, hostname: string): boolean {
   const url = URL.parse(baseUrl)
   if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) return false
-  return url.hostname.toLowerCase().replace(/\.$/, '') === 'generativelanguage.googleapis.com'
+  return url.hostname.toLowerCase().replace(/\.$/, '') === hostname
 }
 
 function buildPiModelConfig(
@@ -481,8 +487,16 @@ function buildPiModelConfig(
     api === 'anthropic-messages'
       ? projectPiReasoningCompat(providerRegistryService.resolveReasoningProfile(provider, model, endpointType))
       : {}
+  const custom =
+    !isSystemProvider(provider) &&
+    !isCherryAIProvider(provider) &&
+    !providerRegistryService.isRegistryProvider(provider.id)
+  const omitStore =
+    api === 'openai-completions' &&
+    (targetsHostname(baseUrl, 'generativelanguage.googleapis.com') ||
+      (custom && !targetsHostname(baseUrl, 'api.openai.com')))
   const compat = {
-    ...(api === 'openai-completions' && targetsGoogleGenerativeLanguage(baseUrl) ? { supportsStore: false } : {}),
+    ...(omitStore ? { supportsStore: false } : {}),
     // Cherry's endpoint capability overrides pi's URL-based developer-role inference.
     ...(api === 'openai-completions' || api === 'openai-responses'
       ? { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole }
