@@ -1,6 +1,7 @@
 import { memo, useImperativeHandle } from 'react'
 
 import { useImageTools } from '@renderer/components/ActionTools'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 
 import ImageToolbar from './ImageToolbar'
@@ -14,6 +15,7 @@ interface ImagePreviewLayoutProps {
   source: string
   loading?: boolean
   error?: string | null
+  cause?: unknown | null
   enableToolbar?: boolean
   enableDrag?: boolean
   enableWheelZoom?: boolean
@@ -29,6 +31,7 @@ const ImagePreviewLayout = ({
   source,
   loading,
   error,
+  cause,
   enableToolbar,
   enableDrag = true,
   enableWheelZoom = true,
@@ -62,6 +65,11 @@ const ImagePreviewLayout = ({
         </div>
       )}
       {error && <PreviewError>{error}</PreviewError>}
+      {error && cause != null && (
+        <div className="flex justify-center p-2">
+          <ErrorDetailAction error={cause} message={error} source="preview" operation="preview.render" />
+        </div>
+      )}
       {children}
       {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} enablePanZoom={enablePanZoom} />}
     </PreviewContainer>

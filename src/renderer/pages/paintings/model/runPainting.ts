@@ -78,7 +78,7 @@ export async function runPainting(
         throw createPaintingGenerateError('REQ_ERROR_TOKEN')
       }
       if (detail) {
-        throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })
+        throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail), cause: error })
       }
       throw normalizePaintingGenerateError(error)
     }

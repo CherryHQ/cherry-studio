@@ -182,5 +182,7 @@ describe('NotesEditor empty state', () => {
     )
 
     expect(screen.getByText('Failed to load note')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
+    expect(screen.queryByText('read failed')).not.toBeInTheDocument()
   })
 })
