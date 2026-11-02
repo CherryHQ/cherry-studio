@@ -189,6 +189,8 @@ job/step 时间戳，发布摘要与 JSON artifact，仅比较任务范围、run
 
 本方案仍需实现评审和测量。上述实现授权覆盖验证工具和 CI；package 边界调整、工具链替换和缓存实验仍不属于本 stack。
 
+[CI 准备阶段后续方案](2026-11-02-ci-setup-and-critical-path.md)提出基于测量的调度和缓存调整；保留本提案的清单、门禁和原生 ABI 契约。
+
 ## References
 
 - [pnpm filtering](https://pnpm.io/filtering) 与[递归执行](https://pnpm.io/cli/recursive)：package/依赖选择及并发。需按仓库固定的 pnpm 12.6.0 验证语义，当前在线文档也包含更新版本行为。

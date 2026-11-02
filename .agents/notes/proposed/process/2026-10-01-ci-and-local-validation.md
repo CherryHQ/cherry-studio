@@ -190,6 +190,8 @@ Overly narrow dependency mappings can miss regressions. Cross-file lint rules an
 
 This proposal requires implementation review and measurement. The implementation authorization above covers validation tooling and CI; package-boundary changes, toolchain replacements, and caching experiments remain outside this stack.
 
+The [CI preparation follow-up](2026-11-02-ci-setup-and-critical-path.md) proposes measured changes to scheduling and caching; it preserves this proposal's inventory, gate and native ABI contracts.
+
 ## References
 
 - [pnpm filtering](https://pnpm.io/filtering) and [recursive execution](https://pnpm.io/cli/recursive): package/dependency selection and concurrency. Validate semantics against the repository's pinned pnpm 12.6.0; current documentation also describes newer versions.
