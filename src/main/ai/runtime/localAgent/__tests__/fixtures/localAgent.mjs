@@ -1,4 +1,5 @@
 import { appendFileSync, writeFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
 const protocol = process.argv[2]
@@ -518,11 +519,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           sessionId: 'native-session',
           command:
             scenario === 'terminal-command'
-              ? `"${process.execPath}" -e 'process.stdout.write("command result")'`
+              ? 'echo command result'
               : scenario === 'terminal-missing'
                 ? 'missing-fixture-executable'
                 : scenario === 'terminal-path'
-                  ? `${cwd}/node with spaces`
+                  ? join(cwd, `node with spaces${extname(process.execPath)}`)
                   : process.execPath,
           ...(scenario === 'terminal-command' || scenario === 'terminal-missing'
             ? {}
@@ -827,7 +828,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
               id: 'tool',
               type,
               ...(type === 'fileChange'
-                ? { changes: [{ path: `${cwd}/example.txt`, kind: { type: 'add' }, diff: 'review this content' }] }
+                ? { changes: [{ path: join(cwd, 'example.txt'), kind: { type: 'add' }, diff: 'review this content' }] }
                 : { command: 'echo fixture', cwd })
             }
           }

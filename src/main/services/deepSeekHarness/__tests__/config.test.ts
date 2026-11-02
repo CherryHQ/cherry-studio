@@ -31,7 +31,7 @@ vi.mock('@main/utils/file', async () => {
         mocks.failSettingsWrite = false
         throw new Error('injected settings write failure')
       }
-      if (mocks.failHeadlessWrite && String(args[0]).includes('profiles/headless')) {
+      if (mocks.failHeadlessWrite && String(args[0]).includes(nodePath.default.join('profiles', 'headless'))) {
         mocks.failHeadlessWrite = false
         throw new Error('injected headless write failure')
       }

@@ -43,8 +43,8 @@ vi.mock('@application', async () => {
       getToolSnapshots: async () => ({
         [state.name]: {
           name: state.name,
-          availability: fs.existsSync(`${state.root}/${state.name}`)
-            ? { source: 'system', path: `${state.root}/${state.name}` }
+          availability: fs.existsSync(path.join(state.root, state.name))
+            ? { source: 'system', path: path.join(state.root, state.name) }
             : state.existing
               ? { source: 'mise', path: state.existing }
               : { source: 'none' }
@@ -105,8 +105,8 @@ describe('local agent system installation', () => {
     state.china = false
     state.registry = 'https://registry.npmjs.org/'
     state.env = {}
-    vi.mocked(application.getPath).mockImplementation((key) =>
-      key === 'sys.home' ? state.root : path.join(state.root, 'cherry')
+    vi.mocked(application.getPath).mockImplementation((key, filename) =>
+      path.join(key === 'sys.home' ? state.root : path.join(state.root, key), ...(filename ? [filename] : []))
     )
     await writeFile(
       state.manager,
@@ -355,7 +355,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   })
 
   it('blocks package managers configured to write to Cherry-managed directories', async () => {
-    state.target = path.join(state.root, 'cherry', 'npm')
+    state.target = path.join(application.getPath('feature.binary.data'), 'npm')
     expect(await new LocalAgentInstallService().install('kilo')).toMatchObject({
       ok: false,
       reason: 'managed_runtime'

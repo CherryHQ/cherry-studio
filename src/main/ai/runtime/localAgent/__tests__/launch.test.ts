@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type * as Platform from '@main/core/platform'
+import type * as ShellEnv from '@main/utils/shellEnv'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -33,7 +34,8 @@ vi.mock('@application', async () => {
     CodeCliService: { openTerminal: inventory.openTerminal, readConfigFiles: inventory.readConfigFiles }
   })
 })
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnv>()),
   getRawShellEnv: async () => ({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home' })
 }))
 

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
+import type * as ShellEnv from '@main/utils/shellEnv'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
@@ -23,7 +24,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({ FileManager: managedFiles })
 })
 
-vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: async () => ({ ...process.env }) }))
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnv>()),
+  getRawShellEnv: async () => ({ ...process.env })
+}))
 
 const fixture = fileURLToPath(new URL('./fixtures/localAgent.mjs', import.meta.url))
 const input = { message: { data: { parts: [{ type: 'text', text: 'hello' }] } } } as AgentRuntimeUserInput
@@ -170,7 +174,7 @@ describe('local protocol processes', () => {
   })
 
   it('times out pending authentication and releases its owned process', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const timers = vi.spyOn(globalThis, 'setTimeout')
     const service = new LocalAgentAuthService()
     const outcome = expect(
       service.authenticate(
@@ -189,12 +193,14 @@ describe('local protocol processes', () => {
       await vi.waitFor(async () =>
         expect((await readWire()).some((request) => request.method === 'authenticate')).toBe(true)
       )
-      await vi.advanceTimersByTimeAsync(300000)
+      const deadline = timers.mock.calls.find(([, delay]) => delay === 300000)
+      expect(deadline).toBeDefined()
+      deadline![0]()
       await outcome
       const pid = Number(await readFile(path.join(cwd, 'wire.jsonl.pid'), 'utf8'))
       expect(() => process.kill(pid, 0)).toThrow()
     } finally {
-      vi.useRealTimers()
+      timers.mockRestore()
       await service.cancel('timeout-test')
     }
   })
@@ -1124,7 +1130,8 @@ describe('local protocol processes', () => {
     ['terminal-missing', 'missing-fixture-executable', 1]
   ])('executes %s with the approved command semantics and useful diagnostics', async (scenario, expected, exitCode) => {
     const { connection, events, text } = create('acp', scenario)
-    if (scenario === 'terminal-path') await symlink(process.execPath, path.join(cwd, 'node with spaces'))
+    if (scenario === 'terminal-path')
+      await symlink(process.execPath, path.join(cwd, `node with spaces${path.extname(process.execPath)}`))
     await connection.start(cwd)
     const sending = connection.send(input)
     const approval = await waitForApproval(events)
@@ -1403,8 +1410,8 @@ describe('local protocol processes', () => {
       const sending = connection.send(input)
       const approval = await waitForApproval(events)
       if (kind === 'wait') toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
-      await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
       await sending
+      await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
       expect(toolApprovalRegistry.hasSession('session')).toBe(false)
       expect(toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })).toBeUndefined()
       const response = JSON.parse(text())
