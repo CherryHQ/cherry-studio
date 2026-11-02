@@ -100,12 +100,12 @@ function NotificationItem({
           aria-label={task ? undefined : record.title}
           aria-describedby={record.readAt === null ? unreadDescriptionId : undefined}
           aria-expanded={expandable ? expanded : undefined}
-          className="block h-auto w-full min-w-0 whitespace-normal px-0 py-2 text-left"
+          className="block h-auto w-full min-w-0 whitespace-normal px-3 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
           <span className="relative mb-1 flex min-h-5 min-w-0 items-center gap-2 pr-8 font-medium">
             {record.readAt === null && (
-              <span className="absolute -left-2.5 top-2 size-1.5 rounded-full bg-primary">
+              <span className="absolute -left-5 top-2 size-1.5 rounded-full bg-primary">
                 <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
                   {t('notification.center.unread')}
                 </span>
@@ -153,7 +153,7 @@ function NotificationItem({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="absolute right-0 top-3.5"
+            className="absolute right-2 top-3 text-muted-foreground"
             aria-label={t('notification.center.dismiss')}
             loading={dismissing}
             onClick={() =>
@@ -409,7 +409,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               <PanelLeftClose className="size-4" />
             </Button>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-4">
+          <Scrollbar className="min-h-0 flex-1 px-3">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}
