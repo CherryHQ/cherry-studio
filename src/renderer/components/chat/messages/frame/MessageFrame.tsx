@@ -353,7 +353,7 @@ const UserBubbleMessage = ({
 }) => {
   const messageParts = useMessageParts(message.id)
   const { openFile, previewFile, previewInputFile } = useMessageListActions()
-  const hoistNonImageFiles = !previewInputFile && !!(previewFile || openFile)
+  const hoistNonImageFiles = !!(previewInputFile || previewFile || openFile)
   const attachments = getHoistedAttachments(messageParts, message.id, hoistNonImageFiles)
 
   return (
@@ -373,6 +373,7 @@ const UserBubbleMessage = ({
               <MessageAttachments
                 key={file.key}
                 handle={file.handle}
+                inputFilePreview={file.inputFilePreview}
                 name={file.name}
                 ext={file.ext}
                 createdAt={message.createdAt}

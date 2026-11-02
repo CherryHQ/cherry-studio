@@ -1,4 +1,6 @@
 import type * as FsPromises from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
@@ -50,7 +52,11 @@ import {
   transformMessage
 } from '../ChatMappings'
 
-const MIGRATION_FILES_DIR = '/mock/migration-userdata/Data/Files'
+// A real host-absolute directory: the promotion path runs the joined file
+// path through AbsoluteFilePathSchema, which rejects a drive-less backslash
+// path — exactly what path.join turns a POSIX-style fixture dir into on
+// Windows. The fs writes themselves are stubbed below.
+const MIGRATION_FILES_DIR = path.join(os.tmpdir(), 'chat-mappings-migration-files', 'Data', 'Files')
 
 /** Helper: create a minimal OldMessage stub */
 function msg(id: string, role: 'user' | 'assistant' = 'assistant', extra: Partial<OldMessage> = {}): OldMessage {
@@ -612,7 +618,11 @@ describe('transformBlocksToParts', () => {
 
       expect(parts).toHaveLength(1)
       const part = parts[0] as FileUIPart
-      expect(part.url).toMatch(/^file:\/\/\/mock\/migration-userdata\/Data\/Files\/.+\.png$/)
+      // The promoted url mirrors the legacy `file://${path}` shape (v1 wrote
+      // the same naive concatenation, consumers accept it on every host), so
+      // assert against the platform-joined dir rather than a normalized URL.
+      expect(part.url.startsWith(`file://${MIGRATION_FILES_DIR}`)).toBe(true)
+      expect(part.url.endsWith('.png')).toBe(true)
       expect(part.mediaType).toBe('image/png')
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       expect(fileEntryId).toBeTruthy()

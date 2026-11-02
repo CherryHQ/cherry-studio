@@ -66,6 +66,8 @@ interface ExecutionOverlayView {
   liveAssistants: CherryUIMessage[]
 }
 
+type UpdateListener = (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
+
 type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
@@ -115,6 +117,7 @@ interface Entry {
   lastCommitAt: number
   listeners: Set<() => void>
   finishListeners: Set<FinishListener>
+  updateListeners: Set<UpdateListener>
   lastActiveAt: number
   /** Set when refCount hits 0. The next syncExecutions reconciles: snapshots
    *  whose execution is no longer active are dropped, because the terminal
@@ -364,6 +367,13 @@ export class ExecutionStreamOverlayService {
     return this.#entries.get(topicId)?.view ?? EMPTY_VIEW
   }
 
+  onUpdate(topicId: string, listener: UpdateListener): () => void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return () => {}
+    entry.updateListeners.add(listener)
+    return () => entry.updateListeners.delete(listener)
+  }
+
   onFinish(topicId: string, listener: FinishListener): () => void {
     const entry = this.#entries.get(topicId)
     if (!entry) return () => {}
@@ -454,6 +464,7 @@ export class ExecutionStreamOverlayService {
       lastCommitAt: 0,
       listeners: new Set(),
       finishListeners: new Set(),
+      updateListeners: new Set(),
       lastActiveAt: Date.now(),
       needsRemountReconcile: false
     }
@@ -608,6 +619,13 @@ export class ExecutionStreamOverlayService {
           const sharedParts = shareSettledPartReferences(last?.parts, snapshot.parts)
           const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
           last = nextSnapshot
+          for (const listener of [...entry.updateListeners]) {
+            try {
+              listener(executionId, { attemptId, message: nextSnapshot })
+            } catch (err) {
+              logger.warn('update listener threw', { topicId, executionId, err })
+            }
+          }
           this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)
         }
       } catch (err) {

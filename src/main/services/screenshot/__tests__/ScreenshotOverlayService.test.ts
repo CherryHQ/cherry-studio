@@ -1266,6 +1266,19 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('results', () => {
+    it('copies the result to the clipboard and keeps the session open', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+
+      await service.copy({ pngBytes: PNG_BYTES })
+
+      expect(electron.nativeImage.createFromBuffer).toHaveBeenCalledWith(Buffer.from(PNG_BYTES))
+      const [[items]] = electron.clipboard.write.mock.calls
+      expect(Object.keys(items[0].data)).toEqual(['image/png'])
+      expect(new Uint8Array(await items[0].data['image/png'].arrayBuffer())).toEqual(PNG_BYTES)
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+    })
+
     it('copies the result to the clipboard and ends the session', async () => {
       singleDisplaySetup()
       await service.startCapture()

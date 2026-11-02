@@ -2,6 +2,10 @@
 
 This directory contains end-to-end (E2E) tests for the Cherry Studio Electron application using Playwright.
 
+## On-demand QA
+
+The [on-demand controller](../../scripts/e2e/ondemand/README.md) dispatches one JSON plan or reviewed code scenario to a selected Windows/macOS runner. It uses its own versioned result and does not require registration in the regression manifest. See [on-demand scenarios](ondemand/README.md) for the JSON smoke and scenario ownership.
+
 ## Critical-path regression
 
 Cross-platform validation of development branches and release installers uses a separate
@@ -83,7 +87,7 @@ for phase execution and configuration. Do not use the smoke suite's launch fixtu
 
 ## Writing E2E tests
 
-Test design and review follow the [Frontend Testing Guidelines](../../docs/references/testing/frontend-testing.md).
+Test design and review follow the [Frontend Testing Guidelines](../../docs/dev/references/testing/frontend-testing.md).
 
 ### Smoke suite
 
@@ -91,7 +95,7 @@ The smoke suite uses the following Electron E2E infrastructure:
 
 - Import fixtures and assertions from `smoke/fixtures/electron.fixture.ts`: `test`, `expect`, `electronApp`, and `mainWindow`.
 - Use `smoke/utils/uiLocator.ts` to locate stable application boundaries defined in the
-  [UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md).
+  [UI Semantic Contract](../../docs/dev/references/components/ui-semantic-contract.md).
 - Refer to `playwright.config.ts` in the repository root for runtime settings.
 
 ### Critical-path regression suite

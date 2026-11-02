@@ -114,3 +114,34 @@ export type NativeRequest =
   | { operation: 'install_asr_assets'; locale: string; confirmDownload: true }
   | { operation: 'transcribe'; locale: string; inputPath: string }
   | { operation: 'synthesize'; voiceId: string; text: string; outputPath: string; speed: number }
+
+export interface NativeSpeechStreamRequest {
+  operation: 'synthesize_stream'
+  voiceId: string
+  text: string
+  speed: number
+}
+
+export const speechStreamFrameSchema = z.union([
+  z.strictObject({
+    type: z.literal('format'),
+    sampleRate: z.number().int().min(8000).max(192000),
+    channels: z.union([z.literal(1), z.literal(2)])
+  }),
+  z.strictObject({ type: z.literal('pcm'), startFrame: z.number().int().nonnegative(), data: z.string() }),
+  z.strictObject({ type: z.literal('end'), frames: z.number().int().positive() }),
+  z.strictObject({
+    ok: z.literal(false),
+    error: z.strictObject({ code: z.enum(systemSpeechErrorCodes), message: z.string() })
+  })
+])
+
+export interface NativeSpeechStream {
+  readonly output: Promise<{
+    format: { sampleRate: number; channels: 1 | 2 }
+    chunks: AsyncIterable<{ startFrame: number; samples: Float32Array }>
+  }>
+  readonly completed: Promise<void>
+  readonly closed: Promise<void>
+  cancel(): Promise<void>
+}

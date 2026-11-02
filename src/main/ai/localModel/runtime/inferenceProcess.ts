@@ -3,7 +3,8 @@ import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityPro
 import type {
   UtilityProcessContract,
   UtilityProcessDefinition,
-  UtilityProcessMethod
+  UtilityProcessMethod,
+  UtilityProcessStreamMethod
 } from '@main/core/utilityProcess/types'
 
 import type { AsrSegment, AsrTranscribePayload } from '../capabilities/asr/protocol'
@@ -30,6 +31,18 @@ export type OcrInferenceContract = {
 export type AsrInferenceContract = {
   methods: {
     transcribe: UtilityProcessMethod<AsrTranscribePayload, { text: string; segments: AsrSegment[] }>
+  }
+  streams: {
+    transcribe: UtilityProcessStreamMethod<
+      { modelDir: string; sampleRate: number },
+      { metadata: { startFrame: number }; payload: Uint8Array },
+      {
+        metadata:
+          | { type: 'ready' }
+          | { type: 'revision'; revision: number; text: string; provisionalStart: number; final: boolean }
+      },
+      { text: string }
+    >
   }
 }
 

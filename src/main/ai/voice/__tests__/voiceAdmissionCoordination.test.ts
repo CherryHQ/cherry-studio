@@ -18,6 +18,7 @@ import { voiceRequestSchemas, type VoiceSessionEvent } from '@shared/ipc/schemas
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import type * as LocalAdapters from '../localAdapters'
+import type * as AppleAdapter from '../localAdapters/apple'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
@@ -32,6 +33,18 @@ const native = vi.hoisted(() => ({
 
 vi.hoisted(() => {
   Object.assign(globalThis, { window: new EventTarget() })
+})
+
+vi.mock('../localAdapters/apple', async (importOriginal) => {
+  const actual = await importOriginal<typeof AppleAdapter>()
+  const { speechFixture } = await import('./voiceExecutionFixtures')
+  return {
+    ...actual,
+    appleSpeechDefinition: {
+      ...actual.appleSpeechDefinition,
+      speechOperations: [speechFixture(actual.appleSpeechDefinition.id, native.speech)]
+    }
+  }
 })
 
 vi.mock('../localAdapters', async (importOriginal) => {
@@ -209,7 +222,6 @@ describe('voice admission coordination through the renderer coordinators', () =>
     vi.mocked(application.get).mockImplementation(((name: string) => {
       if (name === 'VoiceSessionService') return rootService
       if (name === 'MediaProtocolService') return media
-      if (name === 'AiService') return { generateSpeech: native.speech, transcribe: vi.fn() }
       if (name === 'UtilityProcessManager') return { register: vi.fn() }
       if (name === 'IpcApiService') return runtime
       if (name === 'WindowManager')
@@ -265,7 +277,7 @@ describe('voice admission coordination through the renderer coordinators', () =>
   function createPlayback(voiceOwner = owner()) {
     const listeners = new Set<(event: VoiceSessionEvent) => void>()
     clientListeners.push(listeners)
-    const ipc = {
+    const ipc: NonNullable<NonNullable<ConstructorParameters<typeof VoiceService>[0]>['ipc']> = {
       request: async <R extends keyof typeof voiceRequestSchemas>(
         route: R,
         ...args: InputFor<R> extends void ? [] : [input: InputFor<R>]
@@ -273,10 +285,12 @@ describe('voice admission coordination through the renderer coordinators', () =>
         const parsed = voiceRequestSchemas[route].input.parse(args[0]) as InputFor<R>
         return voiceHandlers[route](parsed, { senderId: voiceOwner.windowId })
       },
-      on: (_event: 'ai.voice.session_event', callback: (payload: VoiceSessionEvent) => void): (() => void) => {
-        listeners.add(callback)
+      on: (event, callback) => {
+        if (event !== 'ai.voice.session_event') return () => undefined
+        const listener = callback as (payload: VoiceSessionEvent) => void
+        listeners.add(listener)
         return () => {
-          listeners.delete(callback)
+          listeners.delete(listener)
         }
       }
     }

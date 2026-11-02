@@ -52,7 +52,10 @@ export function validateWebSearchCall(call: WebSearchCall): readonly WebSearchVa
     if (call.config.engines?.length && call.providerId !== 'searxng') {
       add('option_unsupported', ['config', 'engines'], 'Only SearXNG supports engines')
     }
-    if (call.config.excludeDomains?.length && !['bocha', 'querit'].includes(call.providerId)) {
+    if (call.config.useDefaultResultCount !== undefined && call.providerId !== 'yuanbao') {
+      add('option_unsupported', ['config', 'useDefaultResultCount'], 'Only Yuanbao supports the default result count')
+    }
+    if (call.config.excludeDomains?.length && !['bocha', 'querit', 'yuanbao'].includes(call.providerId)) {
       add('option_unsupported', ['config', 'excludeDomains'], 'This provider does not support domain exclusions')
     }
   } else if (call.config.maxCharacters !== undefined) {

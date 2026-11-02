@@ -1,5 +1,9 @@
 import { join } from 'node:path'
 
+import type { DeleteAssistantResult } from '@shared/data/api/schemas/assistants'
+import { AssistantSchema } from '@shared/data/types/assistant'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { validateFileEvidence } from '../../../scripts/e2e/regression/fileEvidence'
 import { saveNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
@@ -18,18 +22,48 @@ test(...caseDefinition('M-01'), async ({ app, mainWindow: _mainWindow }) => {
   await ensureCherryInSignedIn(app, page)
   await addCherryInModel(page, app.config.cherryIn.chatModel)
   await closeSettings(page)
-  await selectSidebarApp(page, 'Chat')
-  const chatView = page.locator('[data-ui~="chat.view"]:visible')
-  await chatView.getByRole('listbox').getByRole('button', { name: 'Cherry Assistant', exact: true }).click()
-  await chatView.getByRole('button', { name: 'New Chat', exact: true }).last().click()
-  await selectChatModel(page, app.config.cherryIn.chatModel)
-  await sendChatMarker(page, 'Reply with exactly CHERRYIN_CHAT_PASS and nothing else.', 'CHERRYIN_CHAT_PASS', false)
+  const assistantName = app.resourceName(`CherryIN chat ${Date.now()}`)
+  const created = await page.evaluate(
+    (name) =>
+      window.api.dataApi.request({
+        id: 'cherryin-chat-assistant-create',
+        method: 'POST',
+        path: '/assistants',
+        body: { name }
+      }),
+    assistantName
+  )
+  expect(created.status, `Chat assistant creation failed: ${JSON.stringify(created)}`).toBe(201)
+  const assistantId = AssistantSchema.parse(created.data).id
+  try {
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const chatView = page.locator('[data-ui~="chat.view"]:visible')
+    await chatView.getByRole('listbox').getByRole('button', { name: assistantName, exact: true }).click()
+    await chatView.getByRole('button', { name: 'New Chat', exact: true }).last().click()
+    await selectChatModel(page, app.config.cherryIn.chatModel)
+    await sendChatMarker(page, 'Reply with exactly CHERRYIN_CHAT_PASS and nothing else.', 'CHERRYIN_CHAT_PASS', false)
 
-  page = await app.restart('authenticated')
-  await dismissOnboarding(page)
-  await openSettingsSection(page, 'Model Provider')
-  await page.getByTestId('provider-list-item-cherryin').click()
-  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible({ timeout: 60_000 })
+    page = await app.restart('authenticated')
+    await dismissOnboarding(page)
+    await openSettingsSection(page, 'Model Provider')
+    await page.getByTestId('provider-list-item-cherryin').click()
+    await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible({ timeout: 60_000 })
+  } finally {
+    page = await app.mainWindow()
+    await page.evaluate(async (assistantId) => {
+      try {
+        const removed = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+          assistantId,
+          deleteTopics: true
+        })) as IpcResult<DeleteAssistantResult>
+        if (!removed.ok || !removed.data.deleted)
+          throw new Error(`Permanent deletion failed: ${JSON.stringify(removed)}`)
+      } catch (error) {
+        throw new Error(`CherryIN Chat assistant cleanup failed for ${assistantId}: ${String(error)}`)
+      }
+    }, assistantId)
+  }
 })
 
 async function generateAndSaveImage(

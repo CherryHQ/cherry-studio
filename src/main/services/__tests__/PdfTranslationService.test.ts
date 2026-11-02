@@ -914,9 +914,9 @@ describe('PdfTranslationService', () => {
       ['NO_PROXY', '127.0.0.1', '127.0.0.1'],
       ['no_proxy', '127.0.0.1', '127.0.0.1'],
       ['shell', '127.0.0.1', '127.0.0.1'],
-      ['NO_PROXY', '::', '::1'],
-      ['no_proxy', '::', '::1'],
-      ['shell', '::', '::1']
+      ['NO_PROXY', '[::1]', '::1'],
+      ['no_proxy', '[::1]', '::1'],
+      ['shell', '[::1]', '::1']
     ])('normalizes exact IPv6 bypass entries from %s for gateway %s', async (source, gatewayHost, gatewayBypass) => {
       const bypass = 'localhost,127.0.0.1,::1,[::1],[2001:db8::1],2001:db8::1,example.com,.internal,*.local,127.*'
       const proxyUrl = 'http://127.0.0.1:7890'
@@ -929,7 +929,11 @@ describe('PdfTranslationService', () => {
       } else {
         vi.stubEnv(source, bypass)
       }
-      apiGateway.getCurrentConfig.mockReturnValue({ host: gatewayHost, port: 23333 })
+      apiGateway.createScopedCredential.mockResolvedValue({
+        baseUrl: `http://${gatewayHost}:23333`,
+        apiKey: 'cs-sk-test',
+        dispose: disposeCredential
+      })
 
       const env = await spawnedEnv()
 

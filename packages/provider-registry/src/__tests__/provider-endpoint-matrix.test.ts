@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { splitOverrideWireId } from '../../scripts/canonicalize'
+import { providerModelEntries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 
 /**
@@ -17,12 +17,10 @@ const provider = (providerId: string) => {
   return result
 }
 
-// Look up by the CANONICAL key the catalog ships: source authors `modelId` as the served id
-// (`qwen3.7-max`), and generation splits it into key + `apiModelId` (see splitOverrideWireId).
+// Look up by the CANONICAL key the catalog ships: source authors the served `apiModelId`
+// (`qwen3.7-max`), and generation derives the key (see deriveOverrideModelId).
 const endpointsOf = (providerId: string, modelId: string): string[] | undefined => {
-  const entry = provider(providerId)
-    .overrides?.map((o) => splitOverrideWireId(o))
-    .find((o) => o.modelId === modelId)
+  const entry = providerModelEntries(provider(providerId)).find((o) => o.modelId === modelId)
   if (!entry) throw new Error(`Missing override: ${providerId}/${modelId}`)
   return entry.endpointTypes
 }
@@ -46,9 +44,8 @@ describe('dashscope (Bailian) endpoint matrix', () => {
     }
   )
 
-  // These search via Chat's `enable_search` (the Responses web_search tool is Qwen3.x-only), so
-  // Chat leads — but Responses stays reachable. See `servesResponsesWebSearch` in
-  // src/main/ai/utils/websearch.ts.
+  // These Qwen aliases search via Chat's `enable_search`, so Chat leads while Responses stays selectable.
+  // See `servesResponsesWebSearch` in src/main/ai/utils/websearch.ts.
   it.each(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])(
     'orders Chat Completions first for %s, whose built-in search is Chat-only',
     (modelId) => {
@@ -56,8 +53,13 @@ describe('dashscope (Bailian) endpoint matrix', () => {
     }
   )
 
+  it.each(['glm-5-2', 'kimi-k3'])('keeps inherited endpoint selection for %s', (modelId) => {
+    expect(endpointsOf('dashscope', modelId)).toBeUndefined()
+    expect(provider('dashscope').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+
   it('never pins any dashscope model to a single endpoint', () => {
-    const singlePinned = (provider('dashscope').overrides ?? [])
+    const singlePinned = providerModelEntries(provider('dashscope'))
       .filter((o) => o.endpointTypes?.length === 1)
       .map((o) => `${o.modelId}:${o.endpointTypes?.join()}`)
     expect(singlePinned).toEqual([])
@@ -66,7 +68,7 @@ describe('dashscope (Bailian) endpoint matrix', () => {
 
 describe('deepseek endpoint matrix', () => {
   it('serves the official Responses endpoint through the OpenAI adapter', () => {
-    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
+    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toMatchObject({
       adapterFamily: 'openai',
       baseUrl: 'https://api.deepseek.com',
       reasoningFormat: { type: 'openai-responses' }
@@ -95,8 +97,16 @@ describe('deepseek endpoint matrix', () => {
     }
   )
 
+  it.each(['deepseek-v4-flash'])('prefers Responses for %s while keeping Chat Completions selectable', (modelId) => {
+    expect(endpointsOf('deepseek', modelId)).toEqual(['openai-responses', 'openai-chat-completions'])
+  })
+
   it('lists only the current official DeepSeek model IDs', () => {
-    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+    expect(providerModelEntries(provider('deepseek')).map(({ modelId }) => modelId)).toEqual([
+      'deepseek-flash',
+      'deepseek-v4-flash',
+      'deepseek-v4-pro'
+    ])
   })
 })
 

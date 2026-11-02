@@ -1,4 +1,15 @@
-import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import {
+  Blocks,
+  Boxes,
+  FileText,
+  Folder,
+  Link2,
+  MessageSquareText,
+  MessagesSquare,
+  TextQuote,
+  ToolCase,
+  X
+} from 'lucide-react'
 import { MousePointer2 } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -15,7 +26,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -40,6 +51,35 @@ import { type FileTokenPresentation, getFileTokenPresentation } from './fileToke
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
+
+// Keep chip geometry em-based and baseline-aligned so tokens follow prose size.
+// Selection uses an inset ring so it does not change the line height.
+const composerChipClassName = cn(
+  'group/composer-token mx-0.5 inline-flex max-w-[calc(100%_-_0.25rem)] items-baseline gap-1',
+  'rounded-xs bg-muted px-1.5',
+  'font-medium text-foreground transition-colors select-none',
+  'group-focus-visible:ring-1 group-focus-visible:ring-ring group-focus-visible:ring-inset'
+)
+
+// `translate-y` (/not `vertical-align`) nudges the glyph optically below the baseline: inside the
+// flex line the icon box sits on the baseline, which would read as a superscript for 1em icons.
+const composerChipIconBoxClassName =
+  'text-muted-foreground inline-flex size-[0.9em] shrink-0 translate-y-[0.1em] items-center justify-center'
+const composerChipIconClassName = 'size-full shrink-0 text-current'
+// A token may carry its own icon node (the agent file/folder mentions pass 16px glyphs), which would
+// overflow the 0.9em slot; the wrapper pins the provided glyph to the slot without touching the
+// remove button's own icon, which is a sibling of this wrapper.
+const composerChipProvidedIconClassName =
+  'inline-flex size-full items-center justify-center [&>svg]:size-full [&>img]:size-full'
+const composerChipLabelClassName = 'max-w-full min-w-0 truncate break-normal whitespace-nowrap! leading-[inherit]'
+const composerChipRemoveButtonClassName =
+  '-inset-0.5 size-auto rounded-xs bg-transparent text-foreground hover:text-foreground focus-visible:text-foreground dark:text-foreground'
+const composerChipRemoveIconClassName = 'size-[1em]'
+
+// 链接 chip 的图标槽：站点图标填满 1em（图片和 FallbackFavicon 自带的方块兜底都交给子选择器撑满）
+const composerLinkFaviconClassName =
+  'inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-xs [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!'
+
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
@@ -63,6 +103,12 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   messagePart: <Blocks className={tokenIconClassName} />
 }
 
+/** Glyphs a producer can name in a token's persisted `icon`; any other value (an emoji) renders as text. */
+const namedTokenIcons: Record<string, ReactNode> = {
+  comment: <MessageSquareText className={tokenIconClassName} />,
+  quote: <TextQuote className={tokenIconClassName} />
+}
+
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
   event.preventDefault()
   event.stopPropagation()
@@ -77,7 +123,6 @@ export interface ComposerTokenProps {
     token: ChatTokenView
   ) => void | Promise<void>
   onFilePreviewActivate?: ComposerInputFilePreviewAction
-  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -132,13 +177,17 @@ function InlineTokenRemoveButton({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       aria-label={label}
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none absolute inset-0 size-auto min-h-0 border-0 bg-transparent p-0 text-[length:inherit] leading-none text-current opacity-0 transition-opacity dark:text-current',
+        'hover:bg-transparent hover:text-current focus-visible:bg-transparent focus-visible:text-current',
+        'focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -148,7 +197,7 @@ function InlineTokenRemoveButton({
       onClick={handleRemove}
       onKeyDown={(event) => event.stopPropagation()}>
       <X className={cn(tokenRemoveIconClassName, iconClassName)} aria-hidden />
-    </button>
+    </Button>
   )
 }
 
@@ -175,7 +224,10 @@ function InlineTokenIconSlot({
   // collapsing and to keep the button keyboard-focusable.
   return (
     <span className={cn('relative inline-flex shrink-0', slotClassName)}>
-      <span className="inline-flex shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
+      {/* The icon wrapper must own a size too: every glyph inside fills "100% of its parent", so
+          without it the box stays auto-sized and the glyph falls back to its intrinsic size (a
+          lucide icon defaults to 24px, which is what made the folder token look oversized). */}
+      <span className="inline-flex size-full shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
         {icon}
       </span>
       <InlineTokenRemoveButton
@@ -186,28 +238,6 @@ function InlineTokenIconSlot({
       />
     </span>
   )
-}
-
-function FileTokenImageIcon({ previewUrl, fallbackIcon }: { previewUrl?: string; fallbackIcon: ReactNode }) {
-  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
-  if (!previewUrl || previewUrl === failedPreviewUrl) return fallbackIcon
-
-  return (
-    <img
-      src={previewUrl}
-      alt=""
-      aria-hidden
-      draggable={false}
-      className="block size-4.5! shrink-0 object-cover"
-      data-file-token-icon-thumbnail=""
-      onError={() => setFailedPreviewUrl(previewUrl)}
-    />
-  )
-}
-
-function isSvgFile(file: ComposerAttachment | undefined, label: string) {
-  const extension = file?.ext || label.match(/\.[^.]+$/)?.[0] || ''
-  return extension.replace(/^\./, '').toLowerCase() === 'svg'
 }
 
 function renderActiveComposerTokenElement({
@@ -232,7 +262,7 @@ function renderActiveComposerTokenElement({
   return (
     <Element
       className={cn(
-        'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
+        'group/composer-token mx-0.5 inline-flex items-baseline gap-1 align-baseline leading-[inherit] select-none',
         maxWidthClassName,
         colorClassName,
         readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
@@ -243,9 +273,9 @@ function renderActiveComposerTokenElement({
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}
       {...interactionProps}>
-      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
-          icon={token.icon ? token.icon : icon}
+          icon={token.icon ? (typeof token.icon === 'string' && namedTokenIcons[token.icon]) || token.icon : icon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           removeButtonClassName="size-[1em] rounded-[4px]"
@@ -297,14 +327,12 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     ...props,
     colorClassName: 'text-link',
     className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
-    icon: props.readOnly ? (
-      <span
-        className="inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-[4px] [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!"
-        data-composer-link-favicon="">
-        <Favicon hostname={link.hostname} alt="" />
+    // 编辑态也和只读态一样显示站点图标；拿不到图标时退回链接字形（而不是首字母方块），
+    // 这样编辑中的链接和已发送消息里的链接长得一样。
+    icon: (
+      <span className={composerLinkFaviconClassName} data-composer-link-favicon="">
+        <Favicon hostname={link.hostname} alt="" fallback={tokenIconByKind.link} />
       </span>
-    ) : (
-      tokenIconByKind.link
     ),
     children: <span className="min-w-0 truncate">{link.label}</span>,
     hideNativeTitle: true,
@@ -394,7 +422,7 @@ function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?
         {path}
       </span>
       {sizeLabel && (
-        <span className="shrink-0 text-neutral-300" data-token-size="">
+        <span className="shrink-0" data-token-size="">
           {sizeLabel}
         </span>
       )}
@@ -434,12 +462,12 @@ function PastedTextTokenPreviewCard({
   return (
     <div className="w-80 overflow-hidden text-left">
       <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
-        <pre className="m-0 whitespace-pre-wrap break-words p-3 font-[inherit] text-popover-foreground text-xs leading-5">
+        <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
       </Scrollbar>
       {secondaryAction && (
-        <div className="flex justify-end border-border-subtle border-t p-2" data-file-token-actions="">
+        <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}
         </div>
       )}
@@ -493,7 +521,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        className="bg-muted px-5 py-4 text-center text-sm text-muted-foreground"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -503,11 +531,7 @@ function FileTokenPreviewCard({
   return (
     <div className="w-72 overflow-hidden text-left">
       <div className={tokenPreviewHeaderClassName}>
-        <span
-          className={cn(
-            'inline-flex size-12 items-center justify-center rounded-xl bg-background',
-            presentation.iconClassName
-          )}>
+        <span className="inline-flex size-12 items-center justify-center rounded-xl bg-background text-muted-foreground">
           {presentation.previewIcon}
         </span>
       </div>
@@ -516,9 +540,9 @@ function FileTokenPreviewCard({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
           data-file-token-actions={hasActions ? '' : undefined}>
           <div className="flex h-6 min-w-0 items-center">
-            <span className="truncate font-semibold text-popover-foreground text-sm leading-5">{label}</span>
+            <span className="truncate text-sm leading-5 font-semibold text-popover-foreground">{label}</span>
           </div>
-          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground">
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
@@ -795,7 +819,6 @@ const ComposerTokenActivationTrigger = function ComposerTokenActivationTrigger({
 
 export function FileComposerToken(props: FileComposerTokenProps) {
   const {
-    imageIconPreview = false,
     onFilePreviewActivate,
     onReadOnlyFilePreviewActivate,
     onRemove,
@@ -886,24 +909,17 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     [canOpenFilePreview, openFilePreview]
   )
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
-  const shouldUseNeutralImageIcon = imageIconPreview && presentation.variant === 'image'
-  const tokenIcon = token.icon ? (
-    token.icon
-  ) : shouldUseNeutralImageIcon && !isSvgFile(file, label) ? (
-    <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
-  ) : (
-    presentation.icon
-  )
+  const tokenIcon = token.icon ?? presentation.icon
 
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[1.4] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:border-primary',
-        (readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
+        composerChipClassName,
+        'rounded-md font-normal',
+        (readOnly || canOpenFilePreview) &&
+          'focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
         (canOpenFilePreview || readOnlyFilePreviewActivation) && 'cursor-pointer',
-        presentation.containerClassName,
-        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.selected && 'ring-1 ring-border-selected ring-inset',
         props.className
       )}
       title={readOnly || shouldShowPathTooltip ? undefined : title}
@@ -915,26 +931,17 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       onClick={tokenIsDirectPreviewButton ? handleFilePreviewClick : undefined}
       onKeyDown={tokenIsDirectPreviewButton ? handleFilePreviewKeyDown : undefined}
       onMouseDown={props.onMouseDown}>
-      <span
-        className={cn(
-          'inline-flex size-4.5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border-0 leading-none',
-          shouldUseNeutralImageIcon ? 'bg-accent text-muted-foreground' : presentation.iconClassName
-        )}
-        data-file-token-icon={presentation.variant}>
+      <span className={composerChipIconBoxClassName} data-file-token-icon={presentation.variant}>
         <InlineTokenIconSlot
           icon={tokenIcon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName="size-full rounded-[5px] bg-muted text-foreground"
-          removeIconClassName="size-3"
+          removeButtonClassName={composerChipRemoveButtonClassName}
+          removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
-      {props.children ?? (
-        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
-          {label}
-        </span>
-      )}
+      {props.children ?? <span className={cn(composerChipLabelClassName, props.maxWidthClassName)}>{label}</span>}
     </span>
   )
   const activatedChipElement =
@@ -1010,31 +1017,36 @@ export function FolderComposerToken(props: ComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:border-primary',
-        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
-        'border-border bg-background hover:bg-accent',
-        props.selected && 'border-primary ring-1 ring-primary/40',
+        composerChipClassName,
+        props.readOnly &&
+          'focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
+        props.selected && 'ring-1 ring-border-selected ring-inset',
         props.className
       )}
       title={path ? undefined : title}
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
-      <span
-        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent text-muted-foreground leading-none"
-        data-folder-token-icon="">
+      <span className={composerChipIconBoxClassName} data-folder-token-icon="">
+        {/* The slot must carry the size: the default glyph and the provided-icon wrapper both fill
+            "100% of the slot", which without it resolves against an auto-sized box and falls back to
+            the glyph's own 24px lucide default. */}
         <InlineTokenIconSlot
-          icon={props.token.icon ? props.token.icon : <Folder className={tokenIconClassName} aria-hidden />}
+          icon={
+            props.token.icon ? (
+              <span className={composerChipProvidedIconClassName}>{props.token.icon}</span>
+            ) : (
+              <Folder className={composerChipIconClassName} aria-hidden />
+            )
+          }
           removeLabel={removeLabel}
           onRemove={props.onRemove}
-          removeButtonClassName="size-full rounded-[5px]"
-          removeIconClassName="size-3"
+          slotClassName="size-full items-center justify-center"
+          removeButtonClassName={composerChipRemoveButtonClassName}
+          removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
       {props.children ?? (
-        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
-          {props.token.label}
-        </span>
+        <span className={cn(composerChipLabelClassName, props.maxWidthClassName)}>{props.token.label}</span>
       )}
     </span>
   )
