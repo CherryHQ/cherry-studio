@@ -9,6 +9,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { restoreRecycleBinItems, showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -171,7 +172,11 @@ export function useResourceCatalogController(
           await duplicateAssistant(resource.raw)
           refetch()
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
+          toastAppError(t('library.duplicate_assistant_failed'), error, {
+            source: 'resource',
+            operation: 'assistant.duplicate',
+            recordId: resource.id
+          })
         }
       }
     },
@@ -196,7 +201,11 @@ export function useResourceCatalogController(
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
+        toastAppError(t('library.export_assistant_failed'), error, {
+          source: 'resource',
+          operation: 'assistant.export',
+          recordId: assistant.id
+        })
       }
     },
     [groupById, t]

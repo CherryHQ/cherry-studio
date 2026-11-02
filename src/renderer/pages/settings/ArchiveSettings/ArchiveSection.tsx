@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { toast } from '@renderer/services/toast'
 import type { ArchiveDomain } from '@shared/data/api/schemas/archives'
 
@@ -227,6 +228,12 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       ) : error ? (
         <div className="flex items-center gap-2">
           <span className="text-sm text-destructive">{t('settings.data.trash.error.load')}</span>
+          <ErrorDetailAction
+            error={error}
+            message={t('settings.data.trash.error.load')}
+            source="settings.archive"
+            operation="archive.load"
+          />
           <Button variant="outline" size="sm" onClick={onRetry}>
             {t('common.retry')}
           </Button>

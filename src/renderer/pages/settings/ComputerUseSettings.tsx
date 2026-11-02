@@ -6,6 +6,7 @@ import useSWRMutation from 'swr/mutation'
 import { Button, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingDescription,
   SettingDivider,
@@ -27,7 +28,7 @@ export function ComputerUseSettings() {
   const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
   const [globalInput, setGlobalInput] = usePreference('app.computer_use.agent_control.global_input')
   const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(false)
+  const [saveError, setSaveError] = useState<unknown>(null)
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     PERMISSION_KEY,
     () => ipcApi.request(PERMISSION_KEY),
@@ -78,11 +79,11 @@ export function ComputerUseSettings() {
             aria-describedby="computer-use-control-help"
             onCheckedChange={async (value) => {
               setSaving(true)
-              setSaveError(false)
+              setSaveError(null)
               try {
                 await setEnabled(value)
               } catch (cause) {
-                setSaveError(true)
+                setSaveError(cause)
                 logger.warn('Failed to change desktop control permission', cause as Error)
               } finally {
                 setSaving(false)
@@ -90,9 +91,15 @@ export function ComputerUseSettings() {
             }}
           />
         </SettingRow>
-        {saveError && (
-          <p role="alert" className="mt-2 text-error text-sm">
-            {t('settings.computerUse.controlError')}
+        {saveError != null && (
+          <p role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-error text-sm">
+            <span>{t('settings.computerUse.controlError')}</span>
+            <ErrorDetailAction
+              error={saveError}
+              message={t('settings.computerUse.controlError')}
+              operation="computer_use.preference"
+              source="settings.computerUse"
+            />
           </p>
         )}
         {isLinux && enabled && (
@@ -173,8 +180,14 @@ export function ComputerUseSettings() {
         )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {(error || requestError) && (
-            <p role="alert" className="text-error text-sm">
-              {t('settings.computerUse.error')}
+            <p role="alert" className="flex flex-wrap items-center gap-2 text-error text-sm">
+              <span>{t('settings.computerUse.error')}</span>
+              <ErrorDetailAction
+                error={requestError ?? error}
+                message={t('settings.computerUse.error')}
+                operation={requestError ? 'computer_use.request_permissions' : 'computer_use.get_permission_status'}
+                source="settings.computerUse"
+              />
             </p>
           )}
           <Button
