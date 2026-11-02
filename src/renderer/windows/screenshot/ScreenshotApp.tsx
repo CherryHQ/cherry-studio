@@ -1,6 +1,9 @@
 import type { FC } from 'react'
 import { useEffect } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
 
+import { loggerService } from '@logger'
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
@@ -23,10 +26,42 @@ function ScreenshotRuntime(): null {
  * would be an opaque full-screen panel with no way out, so the only useful thing a fatal
  * render error can do is get the overlay off the user's screen.
  */
-function DismissOnFatalError(): null {
+/** Hand the fault to main and release the overlay before any native support dialog. */
+export async function dismissScreenshotFault(error: unknown): Promise<void> {
+  const logger = loggerService.withContext('ScreenshotApp')
+  const message = error instanceof Error ? error.message : String(error)
+  const context = {
+    id: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    source: 'screenshotWindow',
+    operation: 'react.render',
+    message,
+    ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
+  }
+  let handoffFailed = false
+  try {
+    await ipcApi.request('app.error.handoff', context)
+  } catch (handoffError) {
+    handoffFailed = true
+    logger.error('Failed to hand off a screenshot error', handoffError as Error)
+  }
+  try {
+    await ipcApi.request('screenshot.cancel')
+  } catch (cancelError) {
+    logger.error('Failed to dismiss the screenshot overlay', cancelError as Error)
+  }
+  if (!handoffFailed) return
+  try {
+    await ipcApi.request('app.error.degraded', context)
+  } catch (degradedError) {
+    logger.error('Failed to present a screenshot error locally', degradedError as Error)
+  }
+}
+
+function DismissOnFatalError({ error }: FallbackProps): null {
   useEffect(() => {
-    void ipcApi.request('screenshot.cancel')
-  }, [])
+    void dismissScreenshotFault(error)
+  }, [error])
   return null
 }
 
@@ -36,6 +71,7 @@ const ScreenshotApp: FC = () => {
     // during render falls back instead of white-screening.
     <ErrorBoundary fallbackComponent={DismissOnFatalError}>
       <ThemeProvider>
+        <AppErrorRuntime mode="handoff" />
         <ScreenshotRuntime />
         <CaptureOverlay />
       </ThemeProvider>

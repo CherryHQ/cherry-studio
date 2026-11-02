@@ -1,7 +1,9 @@
 import { CircleCheck, Loader2, XCircle } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { UserDataRelocationIpcChannels, type UserDataRelocationSupportLink } from '@shared/types/userDataRelocation'
 
 import { useRelocationProgress } from './hooks/useRelocationProgress'
 
@@ -16,9 +18,9 @@ const RelocationApp = () => {
         <h1 className="text-sm font-medium text-foreground">{t('relocation.title')}</h1>
       </header>
 
-      <main className="flex min-h-0 flex-1 justify-center px-8 py-6 [-webkit-app-region:no-drag]">
-        <div className="flex h-full w-full max-w-[420px] flex-col">
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
+      <main className="flex min-h-0 flex-1 justify-center overflow-y-auto px-8 py-6 [-webkit-app-region:no-drag]">
+        <div className="flex min-h-full w-full max-w-[420px] flex-col">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
             {!progress && <Spinner label={t('relocation.preparing')} />}
             {stage === 'preparing' && <Spinner label={t('relocation.preparing')} />}
             {stage === 'copying' && progress && (
@@ -99,21 +101,59 @@ const Failure = ({
   buttonLabel: string
   error?: string
   onRestart: () => void
-}) => (
-  <div className="flex w-full flex-col items-center gap-3 text-center">
-    <XCircle className="text-destructive" size={40} />
-    <h2 className="text-base font-semibold text-foreground">{title}</h2>
-    <p className="text-sm text-muted-foreground">{description}</p>
-    {error && (
-      <pre className="max-h-24 w-full overflow-auto rounded border border-border bg-background-subtle px-3 py-2 text-left text-xs break-words whitespace-pre-wrap text-foreground-tertiary">
-        {error}
-      </pre>
-    )}
-    <Button onClick={onRestart} className="mt-2 w-full">
-      {buttonLabel}
-    </Button>
-  </div>
-)
+}) => {
+  const { t } = useTranslation()
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
+  const openSupportLink = (purpose: UserDataRelocationSupportLink) => {
+    void window.electron.ipcRenderer.invoke(UserDataRelocationIpcChannels.OpenSupportLink, purpose).then(
+      (opened: unknown) => {
+        setLinkError(opened === true ? null : t('relocation.support.open_failed'))
+      },
+      () => {
+        setLinkError(t('relocation.support.open_failed'))
+      }
+    )
+  }
+  return (
+    <div className="flex w-full flex-col items-center gap-3 text-center">
+      <XCircle className="text-destructive" size={40} />
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      <p className="text-sm text-muted-foreground">{description}</p>
+      {error && (
+        <pre className="max-h-24 w-full overflow-auto rounded border border-border bg-background-subtle px-3 py-2 text-left text-xs break-words whitespace-pre-wrap text-foreground-tertiary">
+          {error}
+        </pre>
+      )}
+      <p className="text-xs text-muted-foreground">{t('relocation.support.analysis_unavailable')}</p>
+      {linkError ? <p className="text-xs text-destructive">{linkError}</p> : null}
+      {copyError ? <p className="text-xs text-destructive">{copyError}</p> : null}
+      <div className="flex w-full flex-wrap justify-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (!error) return
+            void navigator.clipboard.writeText(error).then(
+              () => setCopyError(null),
+              () => setCopyError(t('relocation.support.copy_failed'))
+            )
+          }}>
+          {t('relocation.support.copy')}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => openSupportLink('feedback')}>
+          {t('relocation.support.feedback')}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => openSupportLink('releases')}>
+          {t('relocation.support.releases')}
+        </Button>
+      </div>
+      <Button onClick={onRestart} className="mt-2 w-full">
+        {buttonLabel}
+      </Button>
+    </div>
+  )
+}
 
 const Completion = ({
   title,
