@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "Geçersiz bir veri biçimi döndürüldü",
   "error.chat.insufficient_balance": "Bakiye yüklemek için <provider>{{provider}}</provider> sağlayıcısına gidin.",
   "error.chat.no_api_key": "API anahtarı yapılandırılmamış. API anahtarı almak için <provider>{{provider}}</provider> sağlayıcısına gidin.",
+  "error.chat.provider_sign_in_required": "Model sağlayıcıları ayarlarında {{provider}} hesabına yeniden giriş yapıp tekrar deneyin.",
   "error.chat.quota_exceeded": "Günlük {{quota}} ücretsiz kota tükendi. Kullanmaya devam etmek için <provider>{{provider}}</provider> sağlayıcısına giderek bir API anahtarı alın ve yapılandırın.",
   "error.chat.response": "Bir şeyler ters gitti. Ayarlar > Sağlayıcılar bölümünde API anahtarının ayarlanıp ayarlanmadığını kontrol edin.",
   "error.claude_code_exit.code": "Claude Code beklenmedik şekilde kapandı (kod {{code}}). Tanılama referansı: {{reference}}",

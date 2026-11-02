@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "S-a returnat un format de date invalid",
   "error.chat.insufficient_balance": "Te rugăm să mergi la <provider>{{provider}}</provider> pentru a reîncărca.",
   "error.chat.no_api_key": "Nu ai configurat o cheie API. Te rugăm să mergi la <provider>{{provider}}</provider> pentru a obține o cheie API.",
+  "error.chat.provider_sign_in_required": "Autentificați-vă din nou la {{provider}} în Furnizori de modele, apoi reîncercați.",
   "error.chat.quota_exceeded": "Cota ta gratuită zilnică {{quota}} a fost epuizată. Te rugăm să mergi la <provider>{{provider}}</provider> pentru a obține o cheie API și configurează cheia API pentru a continua utilizarea.",
   "error.chat.response": "Ceva nu a mers bine. Te rugăm să verifici dacă ai setat cheia API în Setări > Furnizori",
   "error.claude_code_exit.code": "Claude Code s-a închis neașteptat (cod {{code}}). Referință diagnostic: {{reference}}",

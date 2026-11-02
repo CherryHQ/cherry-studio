@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "Dữ liệu trả về có định dạng không hợp lệ",
   "error.chat.insufficient_balance": "Vui lòng đến <provider>{{provider}}</provider> để nạp tiền.",
   "error.chat.no_api_key": "Bạn chưa cấu hình khóa API. Vui lòng truy cập <provider>{{provider}}</provider> để lấy khóa API.",
+  "error.chat.provider_sign_in_required": "Đăng nhập lại vào {{provider}} trong phần Nhà cung cấp mô hình, rồi thử lại.",
   "error.chat.quota_exceeded": "Hạn mức miễn phí hàng ngày của bạn là {{quota}} đã cạn kiệt. Vui lòng truy cập <provider>{{provider}}</provider> để lấy khóa API và cấu hình khóa API để tiếp tục sử dụng.",
   "error.chat.response": "Đã xảy ra lỗi. Vui lòng kiểm tra xem bạn đã đặt khóa API của mình trong Cài đặt > Nhà cung cấp chưa.",
   "error.claude_code_exit.code": "Claude Code đã thoát đột ngột (mã {{code}}). Mã tham chiếu chẩn đoán: {{reference}}",

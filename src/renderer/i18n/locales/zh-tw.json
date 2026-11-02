@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "回傳了無效的資料格式",
   "error.chat.insufficient_balance": "請前往 <provider>{{provider}}</provider> 儲值。",
   "error.chat.no_api_key": "尚未設定 API 金鑰，請前往 <provider>{{provider}}</provider> 取得 API 金鑰。",
+  "error.chat.provider_sign_in_required": "請在模型服務中重新登入 {{provider}} 後重試。",
   "error.chat.quota_exceeded": "您今日的 {{quota}} 免費額度已用盡，請前往 <provider>{{provider}}</provider> 取得並設定 API 金鑰後繼續使用。",
   "error.chat.response": "發生錯誤。請確認是否已在「設定 > 供應商」設定 API 金鑰。",
   "error.claude_code_exit.code": "Claude Code 意外結束（代碼 {{code}}）。診斷參考號：{{reference}}",

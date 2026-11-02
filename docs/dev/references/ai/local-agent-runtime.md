@@ -288,6 +288,11 @@ Unknown tool results use generic cards. Missing token/cost/model data is not
 invented. Images and model controls use connected capabilities; native slash
 commands populate the existing command menu.
 
+Gateway sign-in failures retain the upstream provider identity through ACP error
+wrapping. The chat shows localized sign-in guidance and opens that provider's
+model settings, rather than the local Agent's login page. Raw diagnostics remain
+available in error details.
+
 ACP `usage_update.cost` is a cumulative native-session snapshot. The usage details
 show its original currency and latest reported amount, including an explicit zero;
 missing costs stay hidden and tiny positive costs are not rounded to zero. Updates

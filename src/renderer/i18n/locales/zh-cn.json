@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "返回了无效的数据格式",
   "error.chat.insufficient_balance": "请前往 <provider>{{provider}}</provider> 充值",
   "error.chat.no_api_key": "您未配置 API 密钥，请前往 <provider>{{provider}}</provider> 获取API密钥",
+  "error.chat.provider_sign_in_required": "请在模型服务中重新登录 {{provider}} 后重试。",
   "error.chat.quota_exceeded": "您今日的 {{quota}} 免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取并配置 API 密钥后继续使用",
   "error.chat.response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥",
   "error.claude_code_exit.code": "Claude Code 意外退出（代码 {{code}}）。诊断参考号：{{reference}}",

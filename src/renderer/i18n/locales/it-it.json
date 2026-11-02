@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "Il formato dei dati restituiti non è valido",
   "error.chat.insufficient_balance": "Vai su <provider>{{provider}}</provider> per ricaricare il credito.",
   "error.chat.no_api_key": "Non hai configurato una chiave API. Vai su <provider>{{provider}}</provider> per ottenerne una.",
+  "error.chat.provider_sign_in_required": "Accedi di nuovo a {{provider}} in Fornitori di modelli, quindi riprova.",
   "error.chat.quota_exceeded": "Hai esaurito la quota gratuita giornaliera di {{quota}}. Vai su <provider>{{provider}}</provider> per ottenere e configurare una chiave API e continuare a usare il servizio.",
   "error.chat.response": "Si è verificato un errore. Verifica di aver impostato la chiave API in Impostazioni > Fornitori",
   "error.claude_code_exit.code": "Claude Code si è chiuso in modo imprevisto (codice {{code}}). Riferimento diagnostico: {{reference}}",

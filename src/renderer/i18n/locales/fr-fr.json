@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "a renvoyé un format de données invalide",
   "error.chat.insufficient_balance": "Veuillez vous rendre sur <provider>{{provider}}</provider> pour recharger.",
   "error.chat.no_api_key": "Vous n'avez pas configuré de clé API. Veuillez vous rendre sur <provider>{{provider}}</provider> pour obtenir une clé API.",
+  "error.chat.provider_sign_in_required": "Reconnectez-vous à {{provider}} dans les fournisseurs de modèles, puis réessayez.",
   "error.chat.quota_exceeded": "Votre quota gratuit quotidien de {{quota}} tokens a été épuisé. Veuillez vous rendre sur <provider>{{provider}}</provider> pour obtenir une clé API et configurer la clé API pour continuer à utiliser.",
   "error.chat.response": "Une erreur s'est produite, si l'API n'est pas configurée, veuillez aller dans Paramètres > Fournisseurs de modèles pour configurer la clé",
   "error.claude_code_exit.code": "Claude Code s'est arrêté de manière inattendue (code {{code}}). Référence de diagnostic : {{reference}}",

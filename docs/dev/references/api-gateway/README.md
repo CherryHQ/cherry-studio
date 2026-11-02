@@ -517,6 +517,11 @@ token is hashed and looked up only by the local guard on
 
 ## Error handling
 
+OAuth-only providers without an access token return HTTP 401 with sign-in guidance,
+including after a rejected refresh has disabled the provider. A disabled provider
+with saved credentials still follows the ordinary availability check. Providers
+that also support API keys keep their existing authentication path.
+
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
 request **path**, so every endpoint speaks its caller's dialect:
 

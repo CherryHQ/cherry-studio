@@ -53,6 +53,38 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it.each([
+    makeError({
+      message:
+        'Internal error: Authentication required for provider "openai-codex". Sign in again in provider settings.'
+    }),
+    makeError({
+      message: 'Unauthorized',
+      statusCode: 401,
+      responseBody: JSON.stringify({ error: { message: 'Authentication required for provider "openai-codex".' } })
+    }),
+    makeRetryError({
+      lastError: makeApiCallAttempt({
+        message: 'Authentication required for provider "openai-codex".',
+        statusCode: 401
+      }),
+      errors: []
+    })
+  ])('recovers the upstream provider from wrapped authentication errors: %s', (error) => {
+    expect(classifyError(error, 'local-agent:opencode')).toEqual({
+      category: 'auth',
+      i18nKey: 'error.chat.provider_sign_in_required',
+      navTarget: '/settings/provider?id=openai-codex'
+    })
+  })
+
+  it('does not replace a later server failure with an earlier sign-in error', () => {
+    const error = makeCopiedRetry('Service Unavailable', [
+      makeApiCallAttempt({ statusCode: 401, message: 'Authentication required for provider "openai-codex".' }),
+      makeApiCallAttempt({ statusCode: 503, message: 'Service Unavailable' })
+    ])
+    expect(classifyError(error, 'openai-codex')).toMatchObject({ category: 'server', navTarget: null })
+  })
   const groqBody = `service_tier auto is not available for this org. You can check your plan at
 [Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
 required service tier.`

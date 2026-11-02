@@ -14,7 +14,8 @@ import {
   classifyError,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
-  getLocalModelResolutionFailure
+  getLocalModelResolutionFailure,
+  getProviderAuthenticationFailure
 } from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -38,6 +39,8 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+
+  if (getProviderAuthenticationFailure(error)) return null
 
   const claudeCodeExit = getClaudeCodeExitInfo(error)
   if (claudeCodeExit) {
@@ -126,7 +129,8 @@ const MessageErrorInfo: React.FC<{
   const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
   const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
 
-  const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
+  const authentication = getProviderAuthenticationFailure(error)
+  const providerId = authentication?.providerId ?? getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a

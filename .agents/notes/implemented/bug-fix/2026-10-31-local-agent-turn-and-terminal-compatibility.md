@@ -16,6 +16,8 @@ Keep terminal argument arrays literal. Only a whitespace-containing command with
 
 Retain textual ACP error details without forwarding arbitrary response data; redact secrets and preserve the protocol error code. Add localized configuration guidance for missing models or keys. Reject a saved model absent from a non-empty catalog before requesting a model change, without silently replacing it. OpenClaw startup errors retain the diagnostic tail, prioritizing stderr over startup stdout.
 
+Preserve missing or rejected OAuth credentials as HTTP 401 errors with the upstream provider identity. The gateway applies the same sign-in error after credential loss disables an OAuth-only provider; mixed API-key/OAuth providers keep their existing path. ACP error wrappers retain an identifiable sign-in message, allowing localized chat guidance to open the upstream provider settings. Transient refresh failures remain retriable without clearing credentials.
+
 On POSIX, an `EPERM` while signalling a process group waits briefly for the owned child to exit; only confirmed exit suppresses the error. A live child still reports permission failure.
 
 ## Alternatives considered
@@ -34,3 +36,4 @@ A whole terminal command can execute shell syntax already shown for approval; th
 - Regression — Claude tests hold iterator cleanup open and verify that completion waits, then immediately send the next turn.
 - Regression — ACP subprocess tests cover shell commands, literal metacharacters, spaced executable paths, spawn diagnostics, stale model rejection and redacted nested failures.
 - Regression — OpenClaw tests place the maintenance error after startup noise and verify that it survives.
+- Regression — OAuth, gateway and message tests cover rejected refreshes, disabled unsigned-in providers, HTTP error envelopes, ACP wrapping and navigation to the upstream provider.

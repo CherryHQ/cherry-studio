@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "無効なデータ形式が返されました",
   "error.chat.insufficient_balance": "<provider>{{provider}}</provider>でチャージしてください。",
   "error.chat.no_api_key": "APIキーが設定されていません。<provider>{{provider}}</provider>でAPIキーを取得してください。",
+  "error.chat.provider_sign_in_required": "モデルプロバイダーで {{provider}} に再ログインしてから、もう一度お試しください。",
   "error.chat.quota_exceeded": "本日の無料利用枠 {{quota}} を使い切りました。<provider>{{provider}}</provider> で API キーを取得して設定すると、引き続き利用できます。",
   "error.chat.response": "エラーが発生しました。APIキーが設定されていない場合は、設定 > プロバイダーでキーを設定してください",
   "error.claude_code_exit.code": "Claude Code が予期せず終了しました（コード {{code}}）。診断参照: {{reference}}",

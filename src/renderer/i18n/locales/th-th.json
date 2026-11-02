@@ -1412,6 +1412,7 @@
   "error.chat.chunk.non_json": "ส่งคืนรูปแบบข้อมูลที่ไม่ถูกต้อง",
   "error.chat.insufficient_balance": "กรุณาไปที่ <provider>{{provider}}</provider> เพื่อเติมเงิน",
   "error.chat.no_api_key": "คุณยังไม่ได้กำหนดค่า API Key กรุณาไปที่ <provider>{{provider}}</provider> เพื่อรับ API Key",
+  "error.chat.provider_sign_in_required": "เข้าสู่ระบบ {{provider}} อีกครั้งในการตั้งค่าผู้ให้บริการโมเดล แล้วลองใหม่",
   "error.chat.quota_exceeded": "โควต้าฟรีรายวัน {{quota}} ของคุณหมดแล้ว กรุณาไปที่ <provider>{{provider}}</provider> เพื่อรับ API Key และกำหนดค่าเพื่อใช้งานต่อ",
   "error.chat.response": "มีบางอย่างผิดพลาด กรุณาตรวจสอบว่าคุณได้ตั้งค่า API Key ในการตั้งค่า > ผู้ให้บริการ",
   "error.claude_code_exit.code": "Claude Code ออกโดยไม่คาดคิด (รหัส {{code}}) เอกสารอ้างอิง: {{reference}}",

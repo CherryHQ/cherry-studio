@@ -90,6 +90,26 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('shows localized sign-in guidance and opens the upstream provider instead of the local agent', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.chat.provider_sign_in_required', '请在模型服务中重新登录 {{provider}} 后重试。')
+    const diagnostic =
+      'Internal error: Authentication required for provider "openai-codex". Sign in again in provider settings.'
+    render(
+      <ErrorBlock
+        partId="auth-error"
+        error={{ name: 'Error', message: diagnostic, stack: null }}
+        message={{ ...message, model: { ...message.model!, provider: 'local-agent:opencode' } }}
+      />
+    )
+    expect(screen.getByText('请在模型服务中重新登录 openai-codex 后重试。')).toBeInTheDocument()
+    expect(screen.queryByText(diagnostic)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai-codex')
+  })
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
