@@ -1,7 +1,20 @@
-import type { ScanRule } from '../types'
+import { SCAN_LEVELS, type ScanRule } from '../types'
 
 /** Model-provider API failures: credentials, quota, throttling, endpoints, request shape. */
+export const providerCredentialExposedRule: ScanRule = {
+  id: 'provider-credential-exposed',
+  domain: 'provider',
+  attribution: 'app-bug',
+  devMessage:
+    'A credential-shaped value appears in an application log; rotate it and review the log contents before sharing the bundle.',
+  levels: SCAN_LEVELS,
+  anchors: [
+    /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b|\bAKIA[0-9A-Z]{16}\b|\bghp_[A-Za-z0-9]{36,}\b|\bBearer\s+[A-Za-z0-9_.~+/=-]{20,}|-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----|(?:api[_-]?keys?|authorization|access[_-]?token|client[_-]?secret|secret[_-]?key)\s*["']?\s*[:=]\s*["']?(?:Bearer\s+)?[A-Za-z0-9_~+/.=-]{20,}/i
+  ]
+}
+
 export const providerRules: readonly ScanRule[] = [
+  providerCredentialExposedRule,
   {
     id: 'provider-auth-rejected',
     domain: 'provider',

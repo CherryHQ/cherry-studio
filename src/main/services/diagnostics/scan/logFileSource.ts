@@ -1,24 +1,29 @@
+import { createReadStream } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { createInterface } from 'node:readline'
 
 import { openReadableFileSnapshot } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { LOG_NAME, logMayOverlapRange, parseLogTimestampString, readRawLines } from '../sourceCollector'
+import type { StagedSource } from '../types'
 import type { DiagnosticTimeRange } from '../types'
-import type { ErrorLogScan, LogRecord, ScanLevel } from './types'
+import { providerCredentialExposedRule } from './rules/provider'
+import { SCAN_LEVELS, type ErrorLogScan, type LogRecord, type ScanLevel } from './types'
 
 /**
- * Upper bound on records held in memory for one scan — roughly 14MB at observed log sizes
- * (~700 bytes per record). Message, stack and detail are each capped below so that a single
- * pathological line, valid up to the 16MiB raw-line limit, cannot blow that past a bound.
+ * Upper bound on records held in memory for one scan. Credential matches retain only a bounded
+ * pattern prefix so large log lines cannot multiply into unbounded diagnostic state.
  */
 export const MAX_SCAN_RECORDS = 20_000
+const STAGED_APP_LOG_NAME = /^logs\/app\.\d{4}-\d{2}-\d{2}\.log(?:\.\d+)?$/
+const MAX_CREDENTIAL_MATCH_CHARS = 256
 const MAX_DETAIL_CHARS = 8 * 1024
 /** Comfortably above the longest stack seen in the reference corpus (2.8K), so anchors survive. */
 const MAX_TEXT_CHARS = 4 * 1024
 
-const SCAN_LEVELS: readonly ScanLevel[] = ['error', 'warn']
+const ERROR_LOG_LEVELS: readonly ScanLevel[] = ['error', 'warn']
 const KNOWN_KEYS = new Set(['timestamp', 'level', 'message', 'module', 'process', 'window', 'stack'])
 // The request we sent and the full response object: never diagnostic, and serializing them puts
 // conversation text and `x-ratelimit-*` headers in front of the anchors. `responseBody` stays.
@@ -67,7 +72,7 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
   if (typeof value.timestamp !== 'string' || typeof value.message !== 'string') return undefined
   const timestampMs = parseLogTimestampString(value.timestamp)
   if (timestampMs === undefined) return undefined
-  if (!SCAN_LEVELS.includes(value.level as ScanLevel)) return undefined
+  if (!ERROR_LOG_LEVELS.includes(value.level as ScanLevel)) return undefined
 
   const rest: Record<string, unknown> = {}
   for (const [key, entry] of Object.entries(value)) {
@@ -190,4 +195,53 @@ export async function collectErrorLogRecords(
   const records = truncated ? [...ring.slice(oldest), ...ring.slice(0, oldest)] : ring
   signal?.throwIfAborted()
   return { records, unparsedLineCount, skippedFileCount, truncated }
+}
+
+export async function collectCredentialLogRecords(
+  sources: readonly StagedSource[]
+): Promise<{ records: LogRecord[]; scannedRecordCount: number; truncated: boolean }> {
+  const records: LogRecord[] = []
+  let scannedRecordCount = 0
+  let truncated = false
+
+  for (const source of sources) {
+    if (source.kind !== 'logs' || !STAGED_APP_LOG_NAME.test(source.archiveName)) continue
+
+    let lineNumber = 0
+    const lines = createInterface({ input: createReadStream(source.path), crlfDelay: Infinity })
+    for await (const line of lines) {
+      lineNumber++
+      let value: Record<string, unknown>
+      try {
+        const parsed: unknown = JSON.parse(line)
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) continue
+        value = parsed as Record<string, unknown>
+      } catch {
+        continue
+      }
+
+      const timestampMs = typeof value.timestamp === 'string' ? parseLogTimestampString(value.timestamp) : undefined
+      const level = value.level
+      if (timestampMs === undefined || typeof level !== 'string' || !SCAN_LEVELS.includes(level as ScanLevel)) continue
+      scannedRecordCount++
+      const credentialMatch = providerCredentialExposedRule.anchors
+        .map((anchor) => anchor.exec(line)?.[0])
+        .find((match): match is string => match !== undefined)
+      if (!credentialMatch) continue
+      if (records.length === MAX_SCAN_RECORDS) {
+        truncated = true
+        continue
+      }
+
+      records.push({
+        timestampMs,
+        level: level as ScanLevel,
+        message: 'Credential-shaped value detected in application log',
+        detail: credentialMatch.slice(0, MAX_CREDENTIAL_MATCH_CHARS),
+        source: { file: source.archiveName, line: lineNumber }
+      })
+    }
+  }
+
+  return { records, scannedRecordCount, truncated }
 }
