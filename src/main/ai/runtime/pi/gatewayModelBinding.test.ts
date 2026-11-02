@@ -2,9 +2,10 @@ import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 
 import { normalizeContext } from '@earendil-works/pi-ai'
-import { expect, it, onTestFinished, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
@@ -21,6 +22,21 @@ vi.mock('@application', async () => {
     }
   }
   return mockApplicationFactory(overrides)
+})
+
+beforeEach(() => {
+  const getPath = vi.mocked(application.getPath).getMockImplementation()!
+  vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
+    key === 'feature.provider_registry.data' && filename
+      ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+      : getPath(key, filename)
+  )
+  providerRegistryService.clearCache()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  providerRegistryService.clearCache()
 })
 
 it('uses the internal gateway, wire model route and session attribution with a native provider', async () => {
@@ -115,15 +131,6 @@ it('uses the internal gateway, wire model route and session attribution with a n
 
 // A direct-provider replay workaround must not invent a thinking signature from a gateway message ID.
 it('replays a tool-only CherryIN gateway response without a fabricated thinking block', async () => {
-  const getPath = vi.mocked(application.getPath).getMockImplementation()!
-  const path = vi
-    .spyOn(application, 'getPath')
-    .mockImplementation((key, filename) =>
-      key === 'feature.provider_registry.data' && filename
-        ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
-        : getPath(key, filename)
-    )
-  onTestFinished(() => path.mockRestore())
   let body: { messages: Array<{ role: string; content: unknown[] }> } | undefined
   const server = createServer(async (req, res) => {
     let raw = ''

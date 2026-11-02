@@ -650,7 +650,7 @@ describe('desktop Pi root connection', () => {
     })
     await expect(connect()).rejects.toThrow('configuration changed')
   })
-  it('orders the steer boundary and preserves the two native response associations', async () => {
+  it('orders steer before final input outcomes and preserves both response associations', async () => {
     const release = holdResponse('before steer')
     let reserved = false
     input.onSteerInjected = () => {
@@ -676,6 +676,7 @@ describe('desktop Pi root connection', () => {
       ...new Map(nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
     ]
     expect(responses.map((response) => response.inputId).sort()).toEqual([first.id, followup.id].sort())
+    expect(responses.map((response) => response.outcome)).toEqual(['completed', 'completed'])
     expect(new Set(responses.map((response) => response.response?.id)).size).toBe(2)
   })
 
