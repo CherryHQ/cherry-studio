@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Generated at: 2026-11-02T09:05:30.000Z
+ * Total icons: 167
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -42,6 +42,7 @@ export { ComposioIcon as Composio } from './composio'
 export { CozeIcon as Coze } from './coze'
 export { DangbeiIcon as Dangbei } from './dangbei'
 export { DashscopeIcon as Dashscope } from './dashscope'
+export { DeapiIcon as Deapi } from './deapi/deapi'
 export { DatabricksIcon as Databricks } from './databricks'
 export { DeepcogitoIcon as Deepcogito } from './deepcogito'
 export { DeepseekIcon as Deepseek } from './deepseek'

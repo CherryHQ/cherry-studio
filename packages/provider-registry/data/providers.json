@@ -2754,6 +2754,34 @@
       "name": "ComfyUI"
     },
     {
+      "availableInEditions": ["global"],
+      "description": "deAPI - AI model provider",
+      "endpointConfigs": {
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://oai.deapi.ai/v1"
+        },
+        "openai-image-edit": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://oai.deapi.ai/v1"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://oai.deapi.ai/v1"
+        }
+      },
+      "id": "deapi",
+      "metadata": {
+        "website": {
+          "apiKey": "https://app.deapi.ai/register",
+          "docs": "https://docs.deapi.ai/openai-compatibility",
+          "models": "https://docs.deapi.ai/models",
+          "official": "https://deapi.ai"
+        }
+      },
+      "name": "deAPI"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xiaomi MiMo - AI model provider",
@@ -2844,5 +2872,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e1952ef3858002a8"
+  "version": "1422be0ed8705479"
 }

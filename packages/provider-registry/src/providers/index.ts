@@ -14,6 +14,7 @@ import p_claude_code from './claude-code'
 import p_comfyui from './comfyui'
 import p_copilot from './copilot'
 import p_dashscope from './dashscope'
+import p_deapi from './deapi'
 import p_deepseek from './deepseek'
 import p_dmxapi from './dmxapi'
 import p_doubao from './doubao'
@@ -133,6 +134,7 @@ export const PROVIDERS: Provider[] = [
   p_gateway,
   p_cerebras,
   p_comfyui,
+  p_deapi,
   p_mimo,
   p_zai,
   p_minimax_global

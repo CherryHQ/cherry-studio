@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "e1952ef3858002a8",
-    "count": 67,
+    "version": "2767372e1da9ac74",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -758,6 +758,10 @@
       {
         "id": "comfyui",
         "name": "ComfyUI"
+      },
+      {
+        "id": "deapi",
+        "name": "deAPI"
       },
       {
         "id": "mimo",
