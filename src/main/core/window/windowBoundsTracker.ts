@@ -1,8 +1,9 @@
-import type { BrowserWindow, Rectangle } from 'electron'
+import type { BrowserWindow, Display, Rectangle } from 'electron'
 import { screen } from 'electron'
 
 import { application } from '@application'
 import type { WindowOptions, WindowType } from '@main/core/window/types'
+import { clampWindowBounds } from '@main/core/window/windowGeometry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 
 /**
@@ -61,18 +62,6 @@ function isFullyInside(rect: Rectangle, area: Rectangle): boolean {
 }
 
 /**
- * Fit `rect` into `area`: shrink the size to fit when it is larger than the
- * work area, then clamp the origin so the whole rect stays on-screen.
- */
-function clampInto(rect: Rectangle, area: Rectangle): Rectangle {
-  const width = Math.min(rect.width, area.width)
-  const height = Math.min(rect.height, area.height)
-  const x = Math.min(Math.max(rect.x, area.x), area.x + area.width - width)
-  const y = Math.min(Math.max(rect.y, area.y), area.y + area.height - height)
-  return { x, y, width, height }
-}
-
-/**
  * Read the persisted geometry for a window type, validated. Returns `undefined`
  * when nothing is saved OR the stored record is corrupt/partial — so every
  * consumer (restore, and `peekWindowBounds`) gets a usable value or nothing,
@@ -93,18 +82,19 @@ export function peekSavedState(type: WindowType): WindowBoundsState | undefined 
  * clamped into that display's work area otherwise (so a removed/resized monitor
  * never leaves the window off-screen). Never falls back to the primary display.
  */
-export function injectSavedBounds(type: WindowType, config: WindowOptions): void {
+export function injectSavedBounds(type: WindowType, config: WindowOptions): Display | undefined {
   const saved = peekSavedState(type)
   if (!saved) return
 
   const target = screen.getDisplayMatching(saved.displayBounds)
   const rect: Rectangle = { x: saved.x, y: saved.y, width: saved.width, height: saved.height }
-  const placed = isFullyInside(rect, target.workArea) ? rect : clampInto(rect, target.workArea)
+  const placed = isFullyInside(rect, target.workArea) ? rect : clampWindowBounds(rect, target.workArea)
 
   config.x = placed.x
   config.y = placed.y
   config.width = placed.width
   config.height = placed.height
+  return target
 }
 
 /**

@@ -51,6 +51,16 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 
 **Runtime toggle.** [`wm.setRememberBounds(type, enabled)`](./window-manager-api-reference.md#bounds-persistence) overrides the registry flag at runtime and is orthogonal to it — it can disable a flag-on type or enable a type that declares no flag. Switching it off also drops the saved record immediately, so the next open uses the registry default. Fullscreen is neither persisted nor restored.
 
+### Work-area fitting
+
+`fitToWorkArea` is also a per-type metadata flag — a sibling of `showMode` / `lifecycle` / `rememberBounds`, **not** part of the three configuration layers. Currently only Main declares it.
+
+Before construction, WindowManager applies merge → `injectSavedBounds` → fit → `new BrowserWindow`. Fitting constrains the options' `width/height/x/y` and `minWidth/minHeight` to the target display's **workArea**: the display matched during restore, or `screen.getPrimaryDisplay()` when no saved bounds were restored. Each minimum becomes `min(declared value, workArea dimension)`, and all four edges of the resulting rectangle stay inside the workArea. When the workArea already accommodates the options, every field stays unchanged, including omitted `x/y`.
+
+Main's 960 DIP minimum width can exceed the available width on a narrow display (for example, a portrait 2.5K display at 175% scaling is approximately 914 DIP wide). Native minimum-size enforcement then pushes the window beyond the screen, taking the Window Controls Overlay close button off-screen ([Issue #22792](https://github.com/CherryHQ/cherry-studio/issues/22792)).
+
+The engine only calls geometry functions; it does not branch on window type. MainWindowService constrains runtime `main.set_minimum_size` / `reset_minimum_size` operations with the same geometry rules. `fitToWorkArea` leaves `rememberBounds` saving/restoring semantics unchanged and adds no persistence.
+
 ---
 
 ## WM Does Not Know "Pin"
