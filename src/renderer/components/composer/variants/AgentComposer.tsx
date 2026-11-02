@@ -58,6 +58,7 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -136,7 +137,6 @@ import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBase
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
-import { useLatest } from './shared/useLatest'
 import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('AgentComposer')

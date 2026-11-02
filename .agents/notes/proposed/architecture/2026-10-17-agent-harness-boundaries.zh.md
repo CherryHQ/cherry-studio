@@ -63,7 +63,7 @@ Native harness facts -> adapter normalization -> host Lane/history projection ->
 
 流式累积跟随内容身份，不跟随组件挂载或父轮切换。保存展示 parts 不会保存流解析器状态；重连需要快照衔接和明确的缺口。仅把现有 background flow 改名为 Lane，不能消除它对父消息的依赖。宿主投影可以由主进程或独立服务保存并跨越窗口生命周期；新的公共包没有实现该服务。
 
-观察输出与向父模型交付结果是不同路径。Harness 已负责交付时，宿主不能因观察到完成再注入一份结果。对于宿主创建的跨 harness 委派，明确的编排所有者管理关系和结果交接，各 harness 负责自身执行。产品会话间的消息投递本身不能建立这种所有权。[子智能体控制方案](https://github.com/CherryHQ/cherry-studio/pull/21578) 负责记录后续可选输入与委派控制。
+观察输出与向父模型交付结果是不同路径。Harness 已负责交付时，宿主不能因观察到完成再注入一份结果。对于宿主创建的跨 harness 委派，明确的编排所有者管理关系和结果交接，各 harness 负责自身执行。产品会话间的消息投递本身不能建立这种所有权。[子智能体控制方案](2026-10-18-agent-runtime-subagent-control.md) 负责记录后续可选输入与委派控制。
 
 ### 分开原生存储与产品存储
 
@@ -90,7 +90,7 @@ Native harness facts -> adapter normalization -> host Lane/history projection ->
 
 Pi Durable 是独立执行系统，不是 coding-agent 的持久化开关。两个适配器依赖公共包，互不依赖。Pi session 决定请求重试；原生 HTTP 客户端和内部网关不叠加重试，网关不执行 Pi 的工具。原生压缩、验证器上下文和 child 续接使用原生消息与 manager，不从公共展示 Item 重建。
 
-桌面服务仍使用既有 Runtime 路径。[Runtime 契约](2026-10-17-agent-runtime-contract.md) 记录已实现的访问协议及其限制；[Harness 证据文档](../testing/2026-10-17-agent-harness-evidence.md) 区分五类原生样本、历史探针、源码覆盖与剩余验收。[Goal 文档](https://github.com/CherryHQ/cherry-studio/pull/21607) 和[后台子智能体文档](https://github.com/CherryHQ/cherry-studio/pull/21693) 分别维护 Pi 专用决策。
+桌面服务仍使用既有 Runtime 路径。[Runtime 契约](2026-10-17-agent-runtime-contract.md) 记录已实现的访问协议及其限制；[Harness 证据文档](../testing/2026-10-17-agent-harness-evidence.md) 区分五类原生样本、历史探针、源码覆盖与剩余验收。[Goal 文档](../feature/2026-10-11-agent-runtime-goal.md) 和[后台子智能体文档](https://github.com/CherryHQ/cherry-studio/pull/21693) 分别维护 Pi 专用决策。
 
 ### 通过内部网关使用原生 Pi provider
 
