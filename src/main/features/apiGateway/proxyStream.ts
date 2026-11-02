@@ -231,7 +231,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams, targetEndpointType)
+  const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
