@@ -132,6 +132,11 @@ describe('detectDestructiveAssistantCommand', () => {
     ['& (Get-Command -Name del) victim.txt', 'permanent Windows file deletion'],
     ['pwsh -NoProfile -Command "& (Get-Command -Name del) victim.txt"', 'permanent Windows file deletion'],
     ['& (Get-Command -CommandType Alias -Name erase) victim.txt', 'permanent Windows file deletion'],
+    // Colon parameter binding: `-Name:del` is equivalent to `-Name del` (the parameter name
+    // and value can be separated by a space or a colon), so the lookup keeps the deny.
+    ['& (Get-Command -Name:del) victim.txt', 'permanent Windows file deletion'],
+    ['& (Get-Command -Name:erase) victim.txt', 'permanent Windows file deletion'],
+    ['& (gcm -Name:rd) victimdir', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
