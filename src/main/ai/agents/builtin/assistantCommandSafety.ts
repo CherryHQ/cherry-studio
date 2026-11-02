@@ -323,7 +323,7 @@ function longGlueStartDeletion(s: string): boolean {
 }
 
 const SCAN_VALUE_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
-// Linear scanner for the Get-Command/gcm lookup family: `Get-Command -Name del`,
+// Linear scanner for the Get-Command/gcm and Get-Alias/gal lookup families: `Get-Command -Name del`,
 // `Get-Command -Name:del`, `& (Get-Command -ErrorAction:Stop del) x`,
 // `& (gcm -CommandType:Alias -Name:del) x` and `Get-Command -ListImported:$true del`
 // all resolve `del`/`erase`/`rd` to the destructive command, which runs when the lookup
@@ -332,7 +332,11 @@ const SCAN_VALUE_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
 // spelling over-denies conservatively, matching the pre-narrowing guard. A flag run of
 // any length and values of any length stay covered - unlike a bounded regex run there is
 // no cap boundary - and per-position memoization keeps repeated `gcm -x ` adversaries
-// O(n) total instead of one overlapping suffix rescan per occurrence. The token itself
+// O(n) total instead of one overlapping suffix rescan per occurrence. Precomputed
+// gap/value-end tables keep every good() step O(1), so overlapping colon-glued anchors
+// (`gcm:gcm:...`) that never memo-hit stay O(n) total as well (round-26 review finding).
+// Get-Alias/gal resolve an alias to its target command, so `gal del` and
+// `Get-Alias -Name erase` deny through the same walk (round-26 review finding). The token itself
 // must follow the regex's following boundary, so `-Name delivery` / `-Name erased`
 // stay allowed and the comma-joined list form stays a documented open gap.
 function getCommandLookupDeletion(s: string): boolean {
@@ -367,6 +371,21 @@ function getCommandLookupDeletion(s: string): boolean {
   // lands on the deletion token. Every transition consumes at least one character and
   // each position is resolved once, so the whole walk stays O(n).
   const memo = new Map<number, boolean>()
+  // O(1) stepping tables: they precompute the same indices the gap/value loops found
+  // character by character, so verdicts are unchanged. Overlapping colon-glued anchors
+  // (`gcm:gcm:...`) never memo-hit, so without these the per-step rescans go quadratic.
+  const skipGap = new Int32Array(n + 1)
+  skipGap[n] = n
+  for (let i = n - 1; i >= 0; i--) {
+    const c = s[i]
+    skipGap[i] = SCAN_WS.test(c) || SCAN_GAP.has(c) || c === ':' ? skipGap[i + 1] : i
+  }
+  const valueEnd = new Int32Array(n + 1)
+  valueEnd[n] = n
+  for (let i = n - 1; i >= 0; i--) {
+    const c = s[i]
+    valueEnd[i] = SCAN_WS.test(c) || SCAN_VALUE_SEP.has(c) ? i : valueEnd[i + 1]
+  }
   function good(e0: number): boolean {
     let cur = e0
     const path: number[] = []
@@ -377,8 +396,7 @@ function getCommandLookupDeletion(s: string): boolean {
         return m
       }
       path.push(cur)
-      let j = cur
-      while (j < n && (SCAN_WS.test(s[j]) || SCAN_GAP.has(s[j]) || s[j] === ':')) j++
+      const j = skipGap[cur]
       if (j === cur || j >= n) {
         for (const p of path) memo.set(p, false)
         return false
@@ -400,19 +418,16 @@ function getCommandLookupDeletion(s: string): boolean {
           // space-bound form's token-first rule, and the colon's gap mirrors the main
           // walk so quoted names (`-Name:"del"`, `-Name:'del'`) keep the deny. Fallback
           // value consumption still starts at the original position.
-          let g = k
-          while (g < n && (SCAN_WS.test(s[g]) || SCAN_GAP.has(s[g]) || s[g] === ':')) g++
+          const g = skipGap[k]
           if (g < n && tokenAt(g)) {
             for (const p of path) memo.set(p, true)
             return true
           }
-          while (k < n && !SCAN_WS.test(s[k]) && !SCAN_VALUE_SEP.has(s[k])) k++
+          k = valueEnd[k]
         }
         cur = k
       } else if (!SCAN_VALUE_SEP.has(s[j])) {
-        let k = j
-        while (k < n && !SCAN_WS.test(s[k]) && !SCAN_VALUE_SEP.has(s[k])) k++
-        cur = k
+        cur = valueEnd[j]
       } else {
         for (const p of path) memo.set(p, false)
         return false
@@ -422,7 +437,9 @@ function getCommandLookupDeletion(s: string): boolean {
   for (let a = 0; a + 3 <= n; a++) {
     let wlen = 0
     if (scanWordAt(s, a, 'get-command')) wlen = 11
+    else if (scanWordAt(s, a, 'get-alias')) wlen = 9
     else if (scanWordAt(s, a, 'gcm')) wlen = 3
+    else if (scanWordAt(s, a, 'gal')) wlen = 3
     else continue
     if (a > 0 && isScanWord(s[a - 1])) continue
     if (a + wlen < n && isScanWord(s[a + wlen])) continue

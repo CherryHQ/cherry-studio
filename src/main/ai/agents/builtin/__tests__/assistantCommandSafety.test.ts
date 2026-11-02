@@ -154,6 +154,15 @@ describe('detectDestructiveAssistantCommand', () => {
     ['& (Get-Command -Name:"del") victim.txt', 'permanent Windows file deletion'],
     ["& (Get-Command -Name:'erase') victim.txt", 'permanent Windows file deletion'],
     ['& (gcm -All -Name:"rd") victimdir', 'permanent Windows file deletion'],
+    // Alias lookups resolve the alias to its destructive target: `gal del` /
+    // `Get-Alias -Name erase` invoke Remove-Item through the call operator, so they deny
+    // through the same scanner walk (round-26 review finding). The listing-only spelling
+    // over-denies conservatively, matching the pre-narrowing guard.
+    ['& (Get-Alias del) victim.txt', 'permanent Windows file deletion'],
+    ['& (gal del) victim.txt', 'permanent Windows file deletion'],
+    ['& (Get-Alias -Name erase) victim.txt', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '& (Get-Alias del) victim.txt'", 'permanent Windows file deletion'],
+    ['& (Get-Alias -Name:"rd") victimdir', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
@@ -208,7 +217,9 @@ describe('detectDestructiveAssistantCommand', () => {
     'npm test > output.log 2>&1',
     'echo "use 2>nul to hide errors when you delete files"',
     'echo "$x == 5 compares, not assigns"',
-    'ls modelo'
+    'ls modelo',
+    '& (gal delivery) victim.txt',
+    '& (Get-Alias -Name delx) victim.txt'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
@@ -267,6 +278,18 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('& (Get-Command -ErrorAction:Stop del) victim.txt)')).toBe(
       'permanent Windows file deletion'
     )
+  })
+
+  it('stays linear on overlapping colon-glued lookup anchors (round-26 review finding)', () => {
+    // Every `gcm:` repeat is an anchor whose walk never memo-hits: quadratic without O(1)
+    // stepping (measured ~17s at 64KB pre-fix); linear is a few ms. 2s is generous CI headroom.
+    const probe = 'echo "' + 'gcm:'.repeat(24_000) + 'x"'
+    expect(probe.length).toBeGreaterThan(64_000)
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(probe)).toBeUndefined()
+    expect(performance.now() - start).toBeLessThan(2000)
+    // The alias lookup family still detects after the stepping change.
+    expect(detectDestructiveAssistantCommand('& (gal del) victim.txt')).toBe('permanent Windows file deletion')
   })
 
   it('blocks redirection targets of any length (no fixed cap)', () => {
