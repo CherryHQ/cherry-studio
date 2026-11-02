@@ -294,7 +294,7 @@ const fileNavigationMocks = vi.hoisted(() => ({
   request: null as null | ((transition: () => void) => void)
 }))
 
-vi.mock('../AgentRightPane', () => ({
+vi.mock('../../AgentRightPane', () => ({
   useOptionalAgentFileNavigation: () => fileNavigationMocks.request
 }))
 
