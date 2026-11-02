@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
-  listModels: vi.fn((): Model[] => []),
+  listModels: vi.fn<(query: { providerId?: string; enabled?: boolean }) => Model[]>(() => []),
   resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -1153,7 +1153,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         isEnabled: true,
         capabilities: [],
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-      }) as Model
+      }) as unknown as Model
     const primary = row('copilot', 'claude-opus-5.5')
     const plan = row('copilot', 'claude-sonnet-4.6')
     const small = row('copilot', 'claude-haiku-4.5')
@@ -1167,9 +1167,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) =>
       rows.find((model) => model.providerId === providerId && model.apiModelId === modelId)
     )
-    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
-      rows.filter((model) => model.providerId === providerId)
-    )
+    mocks.listModels.mockImplementation(({ providerId }) => rows.filter((model) => model.providerId === providerId))
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: primary.id, planModel: plan.id, smallModel: small.id })
     mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: 'custom:explicit' } })
 
@@ -1205,13 +1203,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       isEnabled: true,
       capabilities: [],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    } as Model
+    } as unknown as Model
     const sibling = {
       ...model,
       id: 'copilot::claude-opus-5-5',
       apiModelId: 'claude-opus-5-5',
       capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION]
-    }
+    } as unknown as Model
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: model.id })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'copilot',
