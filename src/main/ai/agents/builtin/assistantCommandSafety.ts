@@ -381,7 +381,11 @@ function blankBlockComments(s: string): string {
 // stay allowed and the comma-joined list form stays a documented open gap. A block
 // comment between a flag and its name (`-Name <# ; #> del`) still binds the name
 // (round-30 review finding); the call site re-runs this walk on the comment-blanked
-// copy and unions the verdicts, so the copy can only add denies.
+// copy and unions the verdicts, so the copy can only add denies. The parameter dash
+// itself may be an en dash, em dash or horizontal bar: PowerShell forms a
+// CommandParameterAst for exactly `-` U+002D, U+2013, U+2014 and U+2015 (round-31 review
+// finding; pwsh 7.4.6 parse probes - U+2010/U+2011/U+2012/U+2212 stay bareword text), so
+// `& (Get-Command –Name:del) victim.txt` binds and invokes `del`.
 function getCommandLookupDeletion(s: string): boolean {
   const n = s.length
   const tailOk = (i: number): boolean => {
@@ -414,6 +418,8 @@ function getCommandLookupDeletion(s: string): boolean {
   // lands on the deletion token. Every transition consumes at least one character and
   // each position is resolved once, so the whole walk stays O(n).
   const memo = new Map<number, boolean>()
+  // Accepted parameter prefixes (see the family comment): exactly these four characters.
+  const PS_PARAM_DASH = new Set(['-', '–', '—', '―'])
   // O(1) stepping tables: they precompute the same indices the gap/value loops found
   // character by character, so verdicts are unchanged. Overlapping colon-glued anchors
   // (`gcm:gcm:...`) never memo-hit, so without these the per-step rescans go quadratic.
@@ -448,7 +454,7 @@ function getCommandLookupDeletion(s: string): boolean {
         for (const p of path) memo.set(p, true)
         return true
       }
-      if (s[j] === '-') {
+      if (PS_PARAM_DASH.has(s[j])) {
         let k = j + 1
         while (k < n && ((s[k] >= 'a' && s[k] <= 'z') || (s[k] >= 'A' && s[k] <= 'Z'))) k++
         if (k === j + 1) {
@@ -689,11 +695,100 @@ function hashtableValueDeletion(s: string): boolean {
   const stack: TableFrame[] = []
   const nextDQuote = new Int32Array(n + 1)
   const nextSQuote = new Int32Array(n + 1)
+  const nextRBrace = new Int32Array(n + 1)
   nextDQuote[n] = n
   nextSQuote[n] = n
+  nextRBrace[n] = n
   for (let k = n - 1; k >= 0; k--) {
     nextDQuote[k] = s[k] === '"' ? k : nextDQuote[k + 1]
     nextSQuote[k] = s[k] === "'" ? k : nextSQuote[k + 1]
+    nextRBrace[k] = s[k] === '}' ? k : nextRBrace[k + 1]
+  }
+  // Lazily built once: quote/comment opacity (mirroring the alias family's string and
+  // comment rules exactly) plus a matching-close table over non-opaque positions.
+  // Expression keys (`@{(1+1) = ...}`, `@{[string]1 = ...}`, round-31 review finding) look
+  // up their close in O(1) instead of rescanning the suffix per key.
+  // Per-candidate quoted-key close memo: quote pairing is positional, so a failed walk
+  // from one start says nothing about a later start whose first candidate pairs
+  // differently (a fake `@{` inside a string or comment must not poison a later real
+  // key). The walk from a given first-candidate position is deterministic, so memoizing
+  // per candidate position is sound and stays O(n) total: every candidate position is
+  // resolved once. -2 unresolved, -1 no close, otherwise the close position.
+  const dquoteKeyClose = new Int32Array(n).fill(-2)
+  const squoteKeyClose = new Int32Array(n).fill(-2)
+  const resolveKeyQuoteClose = (start: number, q: '"' | "'"): number => {
+    const next = q === '"' ? nextDQuote : nextSQuote
+    const memo = q === '"' ? dquoteKeyClose : squoteKeyClose
+    const path: number[] = []
+    let j = next[start]
+    while (j < n && memo[j] === -2) {
+      path.push(j)
+      if (s[j + 1] === q) {
+        j = next[j + 2]
+      } else {
+        break
+      }
+    }
+    const result = j < n ? (memo[j] === -2 ? j : memo[j]) : -1
+    for (const pos of path) memo[pos] = result
+    return result
+  }
+  let exprTables: { matchClose: Int32Array } | undefined
+  const getExprTables = (): { matchClose: Int32Array } => {
+    if (exprTables !== undefined) return exprTables
+    const opaque = new Uint8Array(n)
+    for (let k = 0; k < n;) {
+      const c = s[k]
+      if (c === '"' || c === "'") {
+        const q = c
+        k++
+        while (k < n) {
+          if (s[k] === q) {
+            if (k + 1 < n && s[k + 1] === q) {
+              k += 2
+              continue
+            }
+            k++
+            break
+          }
+          if (q === '"' && s[k] === '`' && k + 1 < n) {
+            k += 2
+            continue
+          }
+          opaque[k] = 1
+          k++
+        }
+        continue
+      }
+      if (c === '<' && k + 1 < n && s[k + 1] === '#') {
+        let j = k + 2
+        while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+        const end = j + 1 < n ? j + 2 : n
+        for (let m = k; m < end; m++) opaque[m] = 1
+        k = end
+        continue
+      }
+      if (c === '`' && k + 1 < n) {
+        k += 2
+        continue
+      }
+      k++
+    }
+    const matchClose = new Int32Array(n).fill(-1)
+    const open: number[] = []
+    for (let k = 0; k < n; k++) {
+      if (opaque[k]) continue
+      const c = s[k]
+      if (c === '(' || c === '[') open.push(k)
+      else if (c === ')' || c === ']') {
+        const openIdx = open.pop()
+        if (openIdx !== undefined && ((c === ')' && s[openIdx] === '(') || (c === ']' && s[openIdx] === '['))) {
+          matchClose[openIdx] = k
+        }
+      }
+    }
+    exprTables = { matchClose }
+    return exprTables
   }
   const tokenAt = (i: number): boolean => {
     for (const w of ['erase', 'del', 'rd']) {
@@ -743,27 +838,17 @@ function hashtableValueDeletion(s: string): boolean {
       }
       if (c === '"' || c === "'") {
         const q = c
-        let j = i + 1
-        let closed = false
-        while (j < n) {
-          if (s[j] === q) {
-            if (j + 1 < n && s[j + 1] === q) {
-              j += 2
-              continue
-            }
-            j++
-            closed = true
-            break
-          }
-          j++
-        }
-        if (!closed) {
+        // Same closes as the character loop, resolved through the per-candidate memo:
+        // a doubled pair defers to the next candidate, a lone quote is the close. O(1)
+        // amortized per key, no per-key suffix rescan.
+        const close = resolveKeyQuoteClose(i + 1, q)
+        if (close < 0) {
           stack.pop()
           i++
           continue
         }
         top.expect = 'eq'
-        i = j
+        i = close + 1
         continue
       }
       if (isKeyChar(c) || c === '?') {
@@ -776,9 +861,9 @@ function hashtableValueDeletion(s: string): boolean {
       if (c === '$') {
         let j = i + 1
         if (j < n && s[j] === '{') {
-          while (j < n && s[j] !== '}') j++
-          if (j < n) {
-            j++
+          const close = nextRBrace[j]
+          if (close < n) {
+            j = close + 1
           } else {
             stack.pop()
             i++
@@ -786,6 +871,53 @@ function hashtableValueDeletion(s: string): boolean {
           }
         } else {
           while (j < n && (isKeyChar(s[j]) || s[j] === '?' || s[j] === ':')) j++
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      // Expression keys: `@{(1+1) = ...}` and `@{[string]1 = ...}` are valid keys whose
+      // values execute (round-31 review finding; pwsh 7.4.6 parse-only: ParenExpressionAst
+      // and ConvertExpressionAst keys with an execution-shaped del value). The close comes
+      // from the precomputed match table, so an unterminated group abandons the table in
+      // O(1) instead of rescanning the suffix per key.
+      if (c === '(') {
+        const close = getExprTables().matchClose[i]
+        if (close < 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        top.expect = 'eq'
+        i = close + 1
+        continue
+      }
+      if (c === '[') {
+        const close = getExprTables().matchClose[i]
+        if (close < 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        let j = close + 1
+        // One converted token may follow the type literal: a quoted string (doubling
+        // honored) or a bare run of key characters and dots (`[string]1`, `[int]'x'`).
+        if (j < n && (s[j] === '"' || s[j] === "'")) {
+          const q = s[j]
+          j++
+          while (j < n) {
+            if (s[j] === q) {
+              if (j + 1 < n && s[j + 1] === q) {
+                j += 2
+                continue
+              }
+              j++
+              break
+            }
+            j++
+          }
+        } else {
+          while (j < n && (isKeyChar(s[j]) || s[j] === '.')) j++
         }
         top.expect = 'eq'
         i = j
