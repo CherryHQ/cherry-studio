@@ -57,6 +57,10 @@ describe('parseFileLinkHref', () => {
     ['%09%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
     ['%0A%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
     ['%C2%A0%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%28%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%22%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%5B%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%60%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
     ['%5C%2F%5C%2Fattacker.example%5Cshare%5Cnotes.txt'],
     ['%2F%5Cattacker.example%5Cshare%5Cnotes.txt'],
     [String.raw`\\attacker.example\share\notes.txt`], // literal UNC: leading "\\" is a network root

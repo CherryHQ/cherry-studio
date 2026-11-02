@@ -81,7 +81,7 @@ export function parseFileLinkHref(
   }
 
   if (!path || path.startsWith('//')) return null // protocol-relative → external
-  if (!options.allowNetworkTargets && /^[\\/]{2}/.test(path.trim())) return null // UNC: fs.stat can trigger SMB auth
+  if (!options.allowNetworkTargets && /^[\\/]{2}/.test(normalizeInlineFilePath(path))) return null // UNC: fs.stat can trigger SMB auth
   if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
   return path
 }
