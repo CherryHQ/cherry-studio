@@ -66,6 +66,13 @@ export class McpSkillService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.registerDisposable(
+      application.get('McpCatalogService').onSkillsObserved((entries) => {
+        for (const session of this.sessions.values()) {
+          for (const entry of entries) this.observe(session, entry)
+        }
+      })
+    )
+    this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates }) => {
         if (updates.mcps === undefined) return
         for (const session of this.sessions.values()) {
@@ -229,7 +236,6 @@ export class McpSkillService extends BaseService {
             .listSkills(serverId, AbortSignal.any([session.abort.signal, ...(signal ? [signal] : [])]))
           this.server(session, serverId)
           session.abort.signal.throwIfAborted()
-          for (const entry of entries) this.observe(session, entry)
           return { serverId, skills: entries }
         } catch (error) {
           return { serverId, skills: [], error: error instanceof Error ? error.message : String(error) }

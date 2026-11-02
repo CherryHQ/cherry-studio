@@ -650,6 +650,42 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
   })
 
+  it.each(['picker', 'session'] as const)(
+    'invalidates persisted skills and pending execution approval on %s catalog replacement',
+    async (source) => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      const approval = skills.toolApproval(sessionId, 'Bash', { command: 'echo report' }, 'default')!
+      const discover = () =>
+        source === 'picker' ? application.get('McpCatalogService').listSkills(serverId) : skills.list(sessionId)
+
+      await discover()
+      expect(approval.signal.aborted).toBe(false)
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
+
+      fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+      fixture.refresh()
+      const other = mcpServerService.create({
+        name: 'Unrelated origin',
+        type: 'streamableHttp',
+        baseUrl: 'http://127.0.0.1:3/mcp',
+        isActive: true
+      })
+      await application.get('McpCatalogService').listSkills(other.id)
+      expect(approval.signal.aborted).toBe(false)
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
+      await discover()
+
+      expect(approval.signal.aborted).toBe(true)
+      expect(() => approval.approve()).toThrow()
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+      skills.closeSession(sessionId)
+      skills.openSession(sessionId, agentId)
+      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+      await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+    }
+  )
+
   it('rejects initial-load approval after its origin changes without any protocol lookup', () => {
     const approval = skills.toolApproval(sessionId, 'mcp__skills__load_mcp_skill', {
       server_id: serverId,

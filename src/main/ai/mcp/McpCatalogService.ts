@@ -9,6 +9,7 @@ import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
+import type { McpSkillEntry } from '@shared/types/mcpSkills'
 
 import { buildMcpToolWireId } from './mcpToolId'
 
@@ -47,6 +48,9 @@ export class McpCatalogService extends BaseService {
   private readonly _onToolsCacheUpdated = new Emitter<{ serverId: string }>()
   readonly onToolsCacheUpdated: Event<{ serverId: string }> = this._onToolsCacheUpdated.event
 
+  private readonly _onSkillsObserved = new Emitter<readonly McpSkillEntry[]>()
+  readonly onSkillsObserved = this._onSkillsObserved.event
+
   protected async onInit(): Promise<void> {
     this.prewarmCancelled = false
     this.registerDisposable(
@@ -61,8 +65,10 @@ export class McpCatalogService extends BaseService {
     )
   }
 
-  public listSkills(serverId: string, signal?: AbortSignal) {
-    return application.get('McpRuntimeService').listSkills(serverId, signal)
+  public async listSkills(serverId: string, signal?: AbortSignal) {
+    const entries = await application.get('McpRuntimeService').listSkills(serverId, signal)
+    this._onSkillsObserved.fire(entries)
+    return entries
   }
 
   protected async onReady(): Promise<void> {
@@ -75,6 +81,7 @@ export class McpCatalogService extends BaseService {
 
   protected async onDestroy(): Promise<void> {
     this._onToolsCacheUpdated.dispose()
+    this._onSkillsObserved.dispose()
   }
 
   private getServerById(serverId: string): McpServer {
