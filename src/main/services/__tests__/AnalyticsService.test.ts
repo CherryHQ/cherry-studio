@@ -12,7 +12,6 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
  */
 
 const {
-  mockTrack,
   mockTrackAppLaunch,
   mockTrackTokenUsage,
   mockTrackAppUpdate,
@@ -21,7 +20,6 @@ const {
   MockAnalyticsClient,
   captured
 } = vi.hoisted(() => {
-  const track = vi.fn()
   const trackAppLaunch = vi.fn()
   const trackTokenUsage = vi.fn()
   const trackAppUpdate = vi.fn()
@@ -29,7 +27,6 @@ const {
   const getQueueSize = vi.fn(() => 0)
   const clientOptions: { fetch?: typeof fetch } = {}
   return {
-    mockTrack: track,
     mockTrackAppLaunch: trackAppLaunch,
     mockTrackTokenUsage: trackTokenUsage,
     mockTrackAppUpdate: trackAppUpdate,
@@ -37,13 +34,9 @@ const {
     mockGetQueueSize: getQueueSize,
     MockAnalyticsClient: vi.fn(function AnalyticsClientMock(
       options: AnalyticsClientOptions
-    ): Pick<
-      AnalyticsClient,
-      'track' | 'trackAppLaunch' | 'trackTokenUsage' | 'trackAppUpdate' | 'destroy' | 'getQueueSize'
-    > {
+    ): Pick<AnalyticsClient, 'trackAppLaunch' | 'trackTokenUsage' | 'trackAppUpdate' | 'destroy' | 'getQueueSize'> {
       clientOptions.fetch = options?.fetch
       return {
-        track,
         trackAppLaunch,
         trackTokenUsage,
         trackAppUpdate,
@@ -58,6 +51,19 @@ const {
     }
   }
 })
+
+const posthog = vi.hoisted(() => ({
+  capture: vi.fn(),
+  shutdown: vi.fn(async () => undefined),
+  constructor: vi.fn()
+}))
+
+vi.mock('posthog-node', () => ({
+  PostHog: vi.fn(function PostHogMock(key: string, options: unknown) {
+    posthog.constructor(key, options)
+    return { capture: posthog.capture, shutdown: posthog.shutdown }
+  })
+}))
 
 vi.mock('@cherrystudio/analytics-client', () => ({
   AnalyticsClient: MockAnalyticsClient
@@ -96,6 +102,10 @@ function changePreference(key: string, value: boolean | string): void {
 
 beforeEach(() => {
   BaseService.resetInstances()
+  vi.unstubAllEnvs()
+  posthog.capture.mockClear()
+  posthog.shutdown.mockClear()
+  posthog.constructor.mockClear()
   vi.mocked(getAppEdition).mockReturnValue('global')
   for (const key of Object.keys(captured.prefHandlers)) {
     delete captured.prefHandlers[key]
@@ -103,7 +113,6 @@ beforeEach(() => {
   captured.preferenceValues['app.privacy.data_collection.enabled'] = true
   captured.preferenceValues['app.privacy.policy_version'] = LATEST_PRIVACY_POLICY_VERSION
   destroyResolvers = []
-  mockTrack.mockReset()
   mockTrackAppLaunch.mockReset()
   mockTrackTokenUsage.mockReset()
   mockTrackAppUpdate.mockReset()
@@ -130,20 +139,48 @@ describe('AnalyticsService data collection preference', () => {
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
   })
 
-  it('reports product events only while data collection is consented', async () => {
+  it('sends product events to PostHog anonymously, and only while data collection is consented', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
     const service = new AnalyticsService()
     await service._doInit()
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
 
     service.trackEvent('subscription_entry_view', { source: 'settings' })
-    expect(mockTrack).toHaveBeenCalledWith('subscription_entry_view', { source: 'settings' })
 
+    expect(posthog.constructor).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({ host: 'https://us.i.posthog.com', disableGeoip: true })
+    )
+    expect(posthog.capture).toHaveBeenCalledWith({
+      distinctId: 'test-client-id',
+      event: 'subscription_entry_view',
+      properties: expect.objectContaining({ source: 'settings', app_edition: 'global', $process_person_profile: false })
+    })
+
+    // While the revoked client is still shutting down, nothing new may be captured.
+    let finishShutdown = () => {}
+    posthog.shutdown.mockImplementationOnce(
+      () => new Promise<undefined>((resolve) => (finishShutdown = () => resolve(undefined)))
+    )
     changePreference('app.privacy.data_collection.enabled', false)
-    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
-    mockTrack.mockClear()
+    await vi.waitFor(() => expect(posthog.shutdown).toHaveBeenCalledWith(1_000))
+    posthog.capture.mockClear()
     service.trackEvent('subscription_entry_view', { source: 'settings' })
 
-    expect(mockTrack).not.toHaveBeenCalled()
+    expect(posthog.capture).not.toHaveBeenCalled()
+    finishShutdown()
+  })
+
+  it('sends no product events from a development build without a PostHog key', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+    expect(posthog.constructor).not.toHaveBeenCalled()
+    expect(posthog.capture).not.toHaveBeenCalled()
   })
 
   it('activates after the latest privacy policy is accepted', async () => {

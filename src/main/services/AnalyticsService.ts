@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import type { PostHog } from 'posthog-node'
 
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
@@ -11,6 +12,17 @@ import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
+
+// Public, write-only project key of the PostHog project that receives product events, like the Sentry DSN.
+const POSTHOG_PROJECT_KEY = ''
+const POSTHOG_HOST = 'https://us.i.posthog.com'
+
+// Development builds send product events only to a project set through MAIN_VITE_POSTHOG_KEY.
+function resolvePostHogKey(): string {
+  const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
+  if (override) return override
+  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEY
+}
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
 class ConsentRevokedError extends Error {
@@ -38,6 +50,7 @@ function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSign
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
+  private posthog: PostHog | null = null
   private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
   /** Latest desired running state — requires both data collection and current policy consent. */
@@ -124,6 +137,17 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
+    const posthogKey = resolvePostHogKey()
+    if (posthogKey) {
+      const { PostHog } = await import('posthog-node')
+      this.posthog = new PostHog(posthogKey, {
+        host: POSTHOG_HOST,
+        disableGeoip: true,
+        enableExceptionAutocapture: false,
+        fetch: (url, options) => revokedFetch(url, options)
+      })
+    }
+
     if (!this.hasTrackedAppLaunch) {
       this.client.trackAppLaunch({
         version: app.getVersion(),
@@ -136,6 +160,14 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
+    if (this.posthog) {
+      // After a revocation the shared revoke signal fails every request, so the queue is dropped
+      // without waiting out PostHog's retries.
+      const revoked = !this.desiredEnabled
+      if (revoked) this.revokeController?.abort()
+      await this.posthog.shutdown(revoked ? 1_000 : undefined)
+      this.posthog = null
+    }
     if (this.client) {
       if (!this.desiredEnabled) {
         this.revokeController?.abort()
@@ -160,10 +192,23 @@ export class AnalyticsService extends BaseService implements Activatable {
     this.client!.trackTokenUsage(data)
   }
 
-  /** Reports a product event; dropped unless data collection is consented under the current policy. */
+  /**
+   * Reports a product event to PostHog under the anonymous client id, without a person profile; dropped
+   * unless data collection is consented under the current policy and a project key is configured.
+   */
   public trackEvent(eventType: string, data: Record<string, string | number | boolean>): void {
-    if (!this.isActivated || !this.desiredEnabled) return
-    this.client!.track(eventType, data)
+    if (!this.isActivated || !this.desiredEnabled || !this.posthog) return
+    this.posthog.capture({
+      distinctId: getClientId(),
+      event: eventType,
+      properties: {
+        ...data,
+        app_version: app.getVersion(),
+        app_edition: getAppEdition(),
+        os: process.platform,
+        $process_person_profile: false
+      }
+    })
   }
 
   public async trackAppUpdate(): Promise<void> {
