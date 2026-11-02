@@ -14,7 +14,7 @@ import { APP_NAME } from '@shared/utils/constants'
 const logger = loggerService.withContext('AnalyticsService')
 
 // Public, write-only key of the PostHog project that keeps usage insights, like the Sentry DSN.
-const POSTHOG_PROJECT_KEY = ''
+const POSTHOG_PROJECT_KEY = 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
