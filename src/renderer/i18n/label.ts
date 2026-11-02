@@ -31,6 +31,7 @@ const providerKeyMap = {
   burncloud: 'provider.burncloud',
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
+  'cheaper-inference': 'provider.cheaper-inference',
   'claude-code': 'provider.claude-code',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',

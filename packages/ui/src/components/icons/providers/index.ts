@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Generated at: 2026-11-02T05:47:27.927Z
+ * Total icons: 167
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -33,6 +33,7 @@ export { BurncloudIcon as Burncloud } from './burncloud'
 export { BytedanceIcon as Bytedance } from './bytedance'
 export { CephalonIcon as Cephalon } from './cephalon'
 export { CerebrasIcon as Cerebras } from './cerebras'
+export { CheaperInferenceIcon as CheaperInference } from './cheaper-inference/cheaper-inference'
 export { CherryinIcon as Cherryin } from './cherryin'
 export { ClaudeCodeIcon as ClaudeCode } from './claude-code'
 export { CloudflareIcon as Cloudflare } from './cloudflare'

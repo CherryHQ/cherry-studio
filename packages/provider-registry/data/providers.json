@@ -719,6 +719,30 @@
       ]
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Cheaper Inference - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.cheaperinference.com/v1",
+          "modelsApiUrls": {
+            "default": "https://api.cheaperinference.com/v1/models?type=text&streaming=true"
+          }
+        }
+      },
+      "id": "cheaper-inference",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.cheaperinference.com/dashboard",
+          "docs": "https://www.cheaperinference.com/docs",
+          "models": "https://www.cheaperinference.com/models",
+          "official": "https://www.cheaperinference.com"
+        }
+      },
+      "name": "Cheaper Inference"
+    },
+    {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
       "description": "Ollama - AI model provider",
@@ -2844,5 +2868,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e1952ef3858002a8"
+  "version": "711c7c02162fb2a7"
 }

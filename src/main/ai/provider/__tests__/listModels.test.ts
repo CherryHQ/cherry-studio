@@ -129,6 +129,35 @@ function makeGeminiProvider() {
 }
 
 describe('listModels — default grouping', () => {
+  it.each([
+    [
+      'https://api.cheaperinference.com/v1/models?type=text&streaming=true',
+      'https://api.cheaperinference.com/v1/models?type=text&streaming=true'
+    ],
+    [undefined, 'https://api.cheaperinference.com/v1/models']
+  ])('preserves the OpenAI-compatible model-list URL %s and authenticates it', async (modelsUrl, expectedUrl) => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'deepseek-v4-flash' }] } })
+    const provider = makeProvider({
+      id: 'cheaper-inference',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.cheaperinference.com/v1',
+          ...(modelsUrl ? { modelsApiUrls: { default: modelsUrl } } : {})
+        }
+      }
+    })
+
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: expectedUrl,
+        headers: expect.objectContaining({ authorization: 'Bearer AIza-secret-key' })
+      })
+    )
+    expect(models.map((model) => model.apiModelId)).toEqual(['deepseek-v4-flash'])
+  })
+
   it('surfaces strict listing errors without writing provider error details to logs', async () => {
     const apiKey = 'sk-should-not-reach-logs'
     const provider = makeProvider({

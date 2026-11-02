@@ -9,6 +9,7 @@ import p_baichuan from './baichuan'
 import p_baidu_cloud from './baidu-cloud'
 import p_burncloud from './burncloud'
 import p_cerebras from './cerebras'
+import p_cheaper_inference from './cheaper-inference'
 import p_cherryin from './cherryin'
 import p_claude_code from './claude-code'
 import p_comfyui from './comfyui'
@@ -87,6 +88,7 @@ export const PROVIDERS: Provider[] = [
   p_ppio,
   p_qiniu,
   p_openrouter,
+  p_cheaper_inference,
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
