@@ -2,6 +2,7 @@ import type { ErrorComponentProps } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
 
@@ -24,6 +25,7 @@ export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
+        <ErrorDetailAction error={error} source="router" operation="route.render" />
         <ErrorFallbackCopyButton error={error} />
         <Button size="sm" onClick={() => reset()}>
           {t('common.retry')}
