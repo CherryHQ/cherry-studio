@@ -67,6 +67,7 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  LlamayModelsResponseSchema,
   LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
@@ -1162,6 +1163,39 @@ const lmStudioFetcher: ModelFetcher = {
   }
 }
 
+// `/v1/models` lists every file in llamay's store with what it can be asked for.
+// The generic mapper keeps them all as chat models, so a base model or a vision
+// projector could be picked for a conversation the server refuses. Keep what
+// chats, list encoders as embedding models, and leave out the rest: a
+// completion-only model has no chat lane here, and an empty list means the
+// server cannot run the file at all.
+const llamayFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.llamay),
+  fetch: async (provider, signal) => {
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))
+    const response = await getFromApi({
+      url: `${root}/v1/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: LlamayModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response.data, (m) => m.id)
+        // A server older than the capabilities field lists only what it serves.
+        .filter((m) => !m.capabilities || m.capabilities.includes('chat') || m.capabilities.includes('embeddings'))
+        .map((m) => {
+          const embedding = !!m.capabilities && !m.capabilities.includes('chat')
+          return toModel(m.id, provider, {
+            ownedBy: m.owned_by,
+            ...(embedding
+              ? { endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS], capabilities: [MODEL_CAPABILITY.EMBEDDING] }
+              : {})
+          })
+        })
+    )
+  }
+}
+
 // ── Ollama probe ──
 
 /** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
@@ -1197,6 +1231,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   lmStudioFetcher,
+  llamayFetcher,
   omlxFetcher,
   geminiFetcher,
   vertexFetcher,

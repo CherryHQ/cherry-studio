@@ -911,6 +911,34 @@
       "name": "LiteLLM"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "llamay - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:11435"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:11435",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "llamay",
+      "metadata": {
+        "website": {
+          "docs": "https://llamay.com/docs/",
+          "models": "https://huggingface.co/models?library=gguf",
+          "official": "https://llamay.com/"
+        }
+      },
+      "name": "llamay"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
@@ -2844,5 +2872,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e1952ef3858002a8"
+  "version": "3890564839b31f05"
 }
