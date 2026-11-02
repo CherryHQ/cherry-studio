@@ -10,6 +10,10 @@ import type {
   InstalledSkill,
   LocalSkill,
   SkillCatalogEntry,
+  SkillImportInput,
+  SkillImportOutcome,
+  SkillImportPolicy,
+  SkillImportPreview,
   SkillResult,
   SkillSearchResult,
   SystemSkillCandidate
@@ -459,5 +463,22 @@ export function useSkillInstall() {
     [installingCounts]
   )
 
-  return { installingKey, isInstalling, install, installFromZip, installFromDirectory }
+  const previewImport = useCallback(
+    (items: SkillImportInput[], policy: SkillImportPolicy): Promise<SkillImportPreview> =>
+      ipcApi.request('skill.import.preview', { items, policy }),
+    []
+  )
+
+  const applyImport = useCallback(
+    async (items: SkillImportInput[], policy: SkillImportPolicy, revision: string): Promise<SkillImportOutcome[]> => {
+      const outcomes = await ipcApi.request('skill.import.apply', { items, policy, revision })
+      if (outcomes.some((item) => item.status === 'installed' || item.status === 'updated')) {
+        await refreshSkillsBestEffort(invalidate)
+      }
+      return outcomes
+    },
+    [invalidate]
+  )
+
+  return { installingKey, isInstalling, install, installFromZip, installFromDirectory, previewImport, applyImport }
 }

@@ -4,6 +4,8 @@ import path from 'node:path'
 import { _electron as electron } from '@playwright/test'
 import AdmZip from 'adm-zip'
 
+import type { IpcResult } from '../../../src/shared/ipc/errors/IpcError'
+import type { SkillCatalogEntry } from '../../../src/shared/types/skill'
 import { expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend<{ isolatedProfile: string }>({
@@ -107,21 +109,22 @@ test('local skill import reports complete Chinese failures and installs valid ZI
     await expect(results).toHaveCount(0, { timeout: 15_000 })
   }
   const pick = async (name: string, button: string) => {
-    const errorRow = results.getByTitle(/^技能安装失败：/)
-    const previousError = (await errorRow.count()) ? await errorRow.elementHandle({ timeout: 15_000 }) : null
-    try {
-      await electronApp.evaluate(
-        ({ dialog }, filePath) => {
-          dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] })
-        },
-        path.join(fixtureRoot, name)
-      )
-      await dialog.getByRole('button', { name: button, exact: true }).first().click({ timeout: 15_000 })
-      // A repeated selection must replace the previous result before its identical text can pass.
-      await previousError?.waitForElementState('hidden', { timeout: 15_000 })
-    } finally {
-      await previousError?.dispose()
+    // Each selection now owns one review/apply session; dismiss it before picking again.
+    if (await results.count()) {
+      const close = dialog.getByRole('button', { name: '关闭', exact: true })
+      if (await close.count()) await close.click({ timeout: 15_000 })
+      else await dialog.getByRole('button', { name: '取消', exact: true }).click({ timeout: 15_000 })
+      await expect(dialog).toBeHidden({ timeout: 15_000 })
+      await openImport()
     }
+    await electronApp.evaluate(
+      ({ dialog }, filePath) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] })
+      },
+      path.join(fixtureRoot, name)
+    )
+    await dialog.getByRole('button', { name: button, exact: true }).first().click({ timeout: 15_000 })
+    await expect(dialog.getByRole('button', { name: /^应用（写入 / })).toBeEnabled({ timeout: 15_000 })
   }
   const assertFailure = async (name: string, reason: string) => {
     const fullMessage = `技能安装失败：${name}: ${reason}`
@@ -143,10 +146,27 @@ test('local skill import reports complete Chinese failures and installs valid ZI
     await expect(page.getByRole('status').filter({ hasText: /^技能已安装：/ })).toHaveCount(0, { timeout: 15_000 })
   }
   const assertSuccess = async (name: string, evidenceName: string) => {
-    const message = `技能已安装：${name}`
-    const toast = page.getByRole('status').filter({ hasText: message })
+    await dialog.getByRole('button', { name: '应用（写入 1 项）', exact: true }).click({ timeout: 15_000 })
+    const message = '导入完成：写入 1 项，跳过 0 项，阻止或失败 0 项。'
+    const toast = page.getByRole('status').filter({ hasText: message }).last()
     await expect(toast).toHaveText(message, { timeout: 15_000 })
+    await expect(results).toContainText('已导入', { timeout: 15_000 })
+    await expect
+      .poll(
+        async () => {
+          const skills = await page.evaluate(async () => {
+            const result = (await window.api.ipcApi.request('skill.list_catalog', {})) as IpcResult<SkillCatalogEntry[]>
+            if (!result.ok) throw new Error(result.error.message)
+            return result.data
+          })
+          return skills.some((skill) => skill.name === name)
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(true)
     await screenshot(evidenceName)
+    await expect(dialog).toBeVisible({ timeout: 15_000 })
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click({ timeout: 15_000 })
     await expect(dialog).toBeHidden({ timeout: 15_000 })
   }
 
@@ -185,6 +205,9 @@ test('local skill import reports complete Chinese failures and installs valid ZI
 
     await openImport()
     await pick('no-skill.zip', '从 ZIP 文件安装')
+    await assertFailure('no-skill.zip', zhZip)
+    await dialog.getByRole('button', { name: '应用（写入 0 项）', exact: true }).click({ timeout: 15_000 })
+    await expect(dialog.getByRole('button', { name: '关闭', exact: true })).toBeVisible({ timeout: 15_000 })
     await assertFailure('no-skill.zip', zhZip)
     await screenshot('skill-import-missing-zh')
     await pick('no-skill.zip', '从 ZIP 文件安装')
