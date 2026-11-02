@@ -40,6 +40,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -157,6 +158,7 @@ type SaveAgentSessionMessageParams = {
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   localSessionCost?: AgentSessionCostSnapshot
+  localTurnUsage?: LocalAgentTurnUsage
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
     deliveryStatus?: AgentSessionDeliveryStatus
@@ -469,6 +471,7 @@ export class AgentSessionMessageService {
     for (const row of rows) {
       const data = { ...row.data }
       delete data.localSessionCost
+      delete data.localTurnUsage
       tx.insert(sessionMessagesTable)
         .values({
           id: row.id,
@@ -899,6 +902,7 @@ export class AgentSessionMessageService {
       .run()
     if (result.changes > 0) {
       notifyDataApiDataChange([
+        { endpoint: '/ai-usage-records/local', kind: 'membership' },
         { endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId } },
         { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
       ])
@@ -919,6 +923,8 @@ export class AgentSessionMessageService {
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      delete mergedData.localTurnUsage
+      if (existing.data.localTurnUsage) mergedData.localTurnUsage = existing.data.localTurnUsage
       delete mergedData.localSessionCost
       if (existing.data.localSessionCost) mergedData.localSessionCost = existing.data.localSessionCost
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
@@ -1164,6 +1170,9 @@ export class AgentSessionMessageService {
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
     const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    delete data.localTurnUsage
+    if (params.localTurnUsage ?? existingRow?.data.localTurnUsage)
+      data.localTurnUsage = params.localTurnUsage ?? existingRow?.data.localTurnUsage
     delete data.localSessionCost
     const sessionCost = params.localSessionCost ?? existingRow?.data.localSessionCost
     if (sessionCost) data.localSessionCost = sessionCost
@@ -1300,6 +1309,9 @@ export class AgentSessionMessageService {
     }
     if (publishDataChange) {
       notifyDataApiDataChange([
+        ...(params.localTurnUsage || params.localSessionCost
+          ? [{ endpoint: '/ai-usage-records/local' as const, kind: 'membership' as const }]
+          : []),
         ...(params.localSessionCost
           ? [
               {

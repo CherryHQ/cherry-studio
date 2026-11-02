@@ -292,7 +292,24 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.isInternalRequest(headers(second.apiKey))).toBe(true)
   })
 
-  it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
+  it('binds concurrent native credentials to their own session and revokes attribution on close', async () => {
+    const service = new ApiGatewayService()
+    await startInternalGateway(service)
+    const first = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+    const second = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-2' })
+    const headers = (apiKey: string) =>
+      new Headers({ 'x-api-key': apiKey, ...service.getAgentSessionUsageHeaders('spoofed') })
+    expect(service.getAgentSessionId(headers(first.apiKey))).toBe('session-1')
+    expect(service.getAgentSessionId(headers(second.apiKey))).toBe('session-2')
+    expect(service.resolveAgentSessionUsage(headers(first.apiKey))?.agentSessionId).toBe('session-1')
+    first.dispose()
+    expect(service.getAgentSessionId(headers(first.apiKey))).toBeUndefined()
+    expect(service.isInternalRequest(headers(first.apiKey))).toBe(false)
+    expect(service.getAgentSessionId(headers(second.apiKey))).toBe('session-2')
+    second.dispose()
+  })
+
+  it('ignores session headers on unbound scoped and public credentials', async () => {
     const service = new ApiGatewayService()
     const internal = await startInternalGateway(service)
     const scoped = await service.createScopedCredential(CHAT_SCOPE)

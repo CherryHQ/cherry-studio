@@ -7,6 +7,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { createDurationFormatter } from '@renderer/utils/time'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 
 import type { MessageListItem } from '../types'
@@ -170,6 +171,35 @@ function formatCost(cost: number, currencyFormatter: Intl.NumberFormat): string 
   return currencyFormatter.format(cost)
 }
 
+function NativeTurnUsage({ summary }: { summary: LocalAgentTurnUsage }) {
+  const { t, i18n } = useTranslation()
+  return (
+    <section className="space-y-2 p-3 text-xs" data-testid="native-turn-usage">
+      <h3 className="font-medium">{t('settings.usage.local.turn')}</h3>
+      <dl className="grid grid-cols-3 gap-2">
+        {(
+          [
+            ['inputTokens', 'settings.usage.local.inputTokens'],
+            ['outputTokens', 'settings.usage.local.outputTokens'],
+            ['totalTokens', 'settings.usage.local.totalTokens'],
+            ['noCacheTokens', 'chat.message.token_details.uncached'],
+            ['cacheReadTokens', 'chat.message.token_details.cache_read'],
+            ['cacheWriteTokens', 'chat.message.token_details.cache_write'],
+            ['reasoningTokens', 'chat.message.token_details.reasoning']
+          ] as const
+        ).map(([key, label]) =>
+          summary.usage[key] !== undefined ? (
+            <DetailMetric key={key} label={t(label)} value={summary.usage[key].toLocaleString(i18n.resolvedLanguage)} />
+          ) : null
+        )}
+      </dl>
+      <p className="text-muted-foreground">
+        {t(summary.correlation === 'gateway' ? 'settings.usage.local.correlated' : 'settings.usage.local.unknown')}
+      </p>
+    </section>
+  )
+}
+
 const MessageTokenDetailsCard = ({
   message,
   records = [],
@@ -206,7 +236,7 @@ const MessageTokenDetailsCard = ({
   )
 
   if (!stats) {
-    return null
+    return message.localTurnUsage ? <NativeTurnUsage summary={message.localTurnUsage} /> : null
   }
 
   const { inputTokens, outputTokens } = getMessageTokenUsage(stats)
@@ -317,6 +347,7 @@ const MessageTokenDetailsCard = ({
 
   return (
     <div className="text-popover-foreground">
+      {message.localTurnUsage ? <NativeTurnUsage summary={message.localTurnUsage} /> : null}
       <header className="flex min-w-0 items-center gap-2.5 p-3">
         {model ? (
           <ModelAvatar

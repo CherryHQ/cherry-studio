@@ -16,6 +16,7 @@ import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import { AgentSessionCostSnapshotSchema, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { LocalAgentTurnUsageSchema, type LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -161,6 +162,7 @@ export interface MessageData {
   modelSelection?: 'default' | 'explicit'
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
+  localTurnUsage?: LocalAgentTurnUsage
   /** Main-authored cumulative native-session cost, independent of per-message usage statistics. */
   localSessionCost?: AgentSessionCostSnapshot
 }
@@ -202,6 +204,7 @@ export interface CherryUIMessageMetadata {
   status?: MessageStatus
   /** Main-authoritative request controls frozen with the persisted assistant row. */
   turnOptions?: AssistantTurnOptions
+  localTurnUsage?: LocalAgentTurnUsage
   /**
    * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
    * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
@@ -415,6 +418,7 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
   if (v.localSessionCost !== undefined && !AgentSessionCostSnapshotSchema.safeParse(v.localSessionCost).success)
     return false
+  if (v.localTurnUsage !== undefined && !LocalAgentTurnUsageSchema.safeParse(v.localTurnUsage).success) return false
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false

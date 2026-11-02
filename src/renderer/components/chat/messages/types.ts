@@ -11,6 +11,7 @@ import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -233,6 +234,7 @@ export interface MessageListItem {
   messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean
+  localTurnUsage?: LocalAgentTurnUsage
   stats?: MessageStats
   delivery?: AgentSessionDelivery
   turnOrigin?: AutonomousTurnOrigin

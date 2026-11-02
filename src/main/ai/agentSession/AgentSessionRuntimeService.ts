@@ -58,6 +58,7 @@ import {
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import { getProviderModelId } from '@shared/ai/executionIdentity'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -205,6 +206,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  localTurnUsage?: LocalAgentTurnUsage
   forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -1973,6 +1975,17 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'tool-approval-request':
         this.handleToolApprovalRequest(entry, event.request)
         break
+      case 'local-turn-usage': {
+        const turn = this.liveTurn(entry)
+        if (turn) {
+          turn.localTurnUsage = event.summary
+          this.deliverRuntimeChunk(entry, {
+            type: 'message-metadata',
+            messageMetadata: { localTurnUsage: event.summary }
+          })
+        }
+        break
+      }
       case 'usage':
         this.recordRuntimeUsage(entry, event.invocation)
         break
@@ -3489,6 +3502,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId: getProviderModelId(modelId),
         runtimeResumeToken: () => entry.lastResumeToken,
+        localTurnUsage: () => currentTurn.localTurnUsage,
         localSessionCost: () =>
           application.get('CacheService').getShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId)) ?? undefined,
         messageSnapshot: () => {

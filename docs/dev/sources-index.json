@@ -47,7 +47,7 @@
     },
     {
       "path": "docs/dev/references/ai/ai-usage-records.md",
-      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/usagePricing.ts"]
+      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/renderer/pages/settings/UsageSettings","src/shared/ai/localAgentUsage.ts","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/usagePricing.ts"]
     },
     {
       "path": "docs/dev/references/ai/browser-use-design.md",
@@ -79,7 +79,7 @@
     },
     {
       "path": "docs/dev/references/ai/local-agent-runtime.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/main/features/apiGateway/proxyStream.ts","src/renderer/components/localAgent/LocalAgentDirectory.tsx","src/renderer/pages/code/CodeCliPage.tsx","src/shared/ai/agentSessionCost.ts","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts"]
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/main/features/apiGateway/proxyStream.ts","src/renderer/components/localAgent/LocalAgentDirectory.tsx","src/renderer/pages/code/CodeCliPage.tsx","src/shared/ai/agentSessionCost.ts","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts","src/shared/ai/localAgentUsage.ts"]
     },
     {
       "path": "docs/dev/references/ai/local-models.md",

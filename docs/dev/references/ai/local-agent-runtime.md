@@ -1,6 +1,7 @@
 ---
 description: Local CLI agent configuration, native model ownership, protocol drivers, installation reuse, and compatibility verification
 sources:
+  - src/shared/ai/localAgentUsage.ts
   - src/shared/ai/localAgent.ts
   - src/shared/ai/agentSessionCost.ts
   - src/shared/ai/executionIdentity.ts
@@ -292,6 +293,14 @@ Gateway sign-in failures retain the upstream provider identity through ACP error
 wrapping. The chat shows localized sign-in guidance and opens that provider's
 model settings, rather than the local Agent's login page. Raw diagnostics remain
 available in error details.
+
+ACP `session/prompt.usage` is stored as a typed, Main-authored
+`agent_session_message.data.localTurnUsage` turn summary. It does not create a
+synthetic invocation. Message details and Settings > Usage display it separately
+from provider calls, including historical synthetic local summaries. Main strips
+renderer-authored values and forks drop the original turn's observation. See
+[AI Usage Records](./ai-usage-records.md#local-agent-observations) for gateway
+correlation and counting boundaries.
 
 ACP `usage_update.cost` is a cumulative native-session snapshot. The usage details
 show its original currency and latest reported amount, including an explicit zero;

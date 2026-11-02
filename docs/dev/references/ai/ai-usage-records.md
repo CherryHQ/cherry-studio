@@ -1,6 +1,7 @@
 ---
 description: Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection
 sources:
+  - src/shared/ai/localAgentUsage.ts
   - src/main/data/db/schemas/aiUsageRecord.ts
   - src/main/data/services/AiUsageRecordService.ts
   - src/main/ai/utils/usageCapture.ts
@@ -8,6 +9,7 @@ sources:
   - src/shared/data/types/providerBilling.ts
   - src/shared/utils/providerBilling.ts
   - src/shared/utils/usagePricing.ts
+  - src/renderer/pages/settings/UsageSettings
   - src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx
 ---
 
@@ -58,6 +60,33 @@ invoices remain authoritative.
   - `GET /ai-usage-records`
   - `GET /ai-usage-records/stats`
   - `GET /ai-usage-records/timeline`
+
+## Local Agent observations
+
+`GET /ai-usage-records/local` reads date-bounded, cursor-paginated observations
+from existing message JSON and historical synthetic local records. It does not
+create invocation records or change the SQLite schema.
+
+- ACP prompt usage is Main-authored `MessageData.localTurnUsage`: a native session
+  ID, optional actual model identity, report time, attribution status and reported
+  token counters. It is a turn summary, not a provider request count. Missing
+  summaries remain unknown; explicit reported zero remains zero.
+- Provider list, statistics and timeline exclude historical `local-agent:*`
+  synthetic records. Those records remain immutable and appear separately as
+  legacy turn summaries. Existing message projections are not rewritten.
+- Native session costs use the latest reported snapshot per Agent/native session
+  within the selected report window. They retain their original currency, may
+  include activity before that window and are not period spending or invocation
+  cost deltas. No mixed-currency total is produced.
+- Settings > Usage and message details present the separate observation scopes.
+  Native summaries are never added to provider-token or billing totals.
+
+OpenCode and Kilo gateway connections can bind requests through a temporary
+process-local configuration overlay. A scoped internal credential fixes the
+Cherry session, generation endpoint and wire model; connection disposal revokes
+it. The native global configuration is unchanged. Modified endpoints/credentials,
+unsupported SDK routes and other Agents retain unknown request attribution.
+A connected gateway does not imply that every native request is observable.
 
 ## Invariants and ownership
 

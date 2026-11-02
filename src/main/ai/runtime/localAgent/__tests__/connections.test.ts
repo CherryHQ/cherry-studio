@@ -735,7 +735,7 @@ describe('local protocol processes', () => {
     await connection.send(input)
     await connection.close()
     await drained
-    const invocations = events.flatMap((event) => (event.type === 'usage' ? [event.invocation] : []))
+    const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
     expect(invocations).toHaveLength(2)
     expect(invocations[0].usage).toEqual({
       inputTokens: 150,
@@ -747,10 +747,8 @@ describe('local protocol processes', () => {
       cacheWriteTokens: 10
     })
     expect(invocations[1].usage).toEqual({ inputTokens: 3, outputTokens: 2, totalTokens: 5, noCacheTokens: 3 })
-    expect(invocations[0].requestId).not.toBe(invocations[1].requestId)
-    expect(
-      invocations.every((invocation) => invocation.messageAssociation === 'current-turn' && !invocation.metrics)
-    ).toBe(true)
+    expect(invocations.every((summary) => summary.nativeSessionId && summary.correlation === 'unknown')).toBe(true)
+    expect(events.filter((event) => event.type === 'usage')).toEqual([])
   })
 
   it('does not invent usage when the agent omits it', async () => {
@@ -759,7 +757,11 @@ describe('local protocol processes', () => {
     await connection.send(input)
     await connection.close()
     await drained
-    expect(events.filter((event) => event.type === 'usage' || event.type === 'context-usage')).toEqual([])
+    expect(
+      events.filter(
+        (event) => event.type === 'usage' || event.type === 'context-usage' || event.type === 'local-turn-usage'
+      )
+    ).toEqual([])
   })
 
   // Enumeration must not infer, apply a stale saved model, or create a Codex thread.

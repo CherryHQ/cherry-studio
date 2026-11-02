@@ -35,10 +35,12 @@ import {
   type ElicitationContent
 } from '@shared/ai/elicitation'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
+import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
-import type { AgentRuntimeUserInput, AgentSessionUsageCapture } from '../types'
+import type { AgentRuntimeUserInput } from '../types'
 import { acpError } from './acpError'
 import { registerCursorExtension } from './cursorExtension'
+import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
@@ -59,18 +61,11 @@ type Terminal = {
 }
 
 export class AcpConnection extends LocalConnection {
+  private gatewayLease?: { dispose: () => void }
   private defaultModel?: string
   private stderr = ''
   private promptCapabilities: PromptCapabilities = {}
   private messageId?: string
-  readonly usageCapture: AgentSessionUsageCapture = {
-    owner: 'agent-sdk',
-    credentialReceipt: { attribution: 'auth', method: 'external-cli' },
-    providerId: `local-agent:${this.config.presetId ?? this.agentId}`,
-    providerName: null,
-    source: { type: 'agent', id: this.agentId, name: null, icon: null },
-    frozenModels: []
-  }
   private process?: ChildProcess
   private connection?: ClientConnection
   private nativeId?: string
@@ -104,6 +99,7 @@ export class AcpConnection extends LocalConnection {
   }
   private async startConnection(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
+    if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.defaultModel = this.config.nativeModel ?? launch.nativeModel
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
@@ -761,30 +757,29 @@ export class AcpConnection extends LocalConnection {
     this.begin()
     try {
       if (!this.connection || !this.nativeId) throw new Error('ACP session is not connected')
-      const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? 'unknown'
+      const model = this.localSessionInfo.activeModel?.id ?? null
       const response = await this.connection.agent.request<PromptResponse>('session/prompt', {
         sessionId: this.nativeId,
         prompt
       })
       const usage = response.usage
       if (usage) {
-        this.events.push({
-          type: 'usage',
-          invocation: {
-            requestId: `acp:${randomUUID()}`,
-            model,
-            messageAssociation: 'current-turn',
-            usage: {
-              inputTokens: usage.inputTokens + (usage.cachedReadTokens ?? 0) + (usage.cachedWriteTokens ?? 0),
-              outputTokens: usage.outputTokens + (usage.thoughtTokens ?? 0),
-              totalTokens: usage.totalTokens,
-              noCacheTokens: usage.inputTokens,
-              ...(usage.thoughtTokens != null ? { reasoningTokens: usage.thoughtTokens } : {}),
-              ...(usage.cachedReadTokens != null ? { cacheReadTokens: usage.cachedReadTokens } : {}),
-              ...(usage.cachedWriteTokens != null ? { cacheWriteTokens: usage.cachedWriteTokens } : {})
-            }
+        const summary = LocalAgentTurnUsageSchema.safeParse({
+          nativeSessionId: this.nativeId,
+          model,
+          reportedAt: Date.now(),
+          correlation: this.gatewayLease ? 'gateway' : 'unknown',
+          usage: {
+            inputTokens: usage.inputTokens + (usage.cachedReadTokens ?? 0) + (usage.cachedWriteTokens ?? 0),
+            outputTokens: usage.outputTokens + (usage.thoughtTokens ?? 0),
+            totalTokens: usage.totalTokens,
+            noCacheTokens: usage.inputTokens,
+            ...(usage.thoughtTokens != null ? { reasoningTokens: usage.thoughtTokens } : {}),
+            ...(usage.cachedReadTokens != null ? { cacheReadTokens: usage.cachedReadTokens } : {}),
+            ...(usage.cachedWriteTokens != null ? { cacheWriteTokens: usage.cachedWriteTokens } : {})
           }
         })
+        if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
       }
       if (!this.localSessionInfo.protocolInfo?.verified.includes('prompt'))
         this.localSessionInfo.protocolInfo?.verified.push('prompt')
@@ -823,6 +818,8 @@ export class AcpConnection extends LocalConnection {
   }
   protected override dispose() {
     this.clearCompaction()
+    this.gatewayLease?.dispose()
+    this.gatewayLease = undefined
     super.dispose()
   }
   protected async stop() {

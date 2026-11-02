@@ -12,6 +12,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -29,6 +30,7 @@ export interface AgentSessionMessageBackendOptions {
   messageSnapshot?: () => MessageSnapshot | undefined
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
+  localTurnUsage?: () => LocalAgentTurnUsage | undefined
   localSessionCost?: () => AgentSessionCostSnapshot | undefined
   forkAnchor?: () => RuntimeForkAnchor | undefined
   /** Post-success hook — typically session auto-rename. */
@@ -63,6 +65,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
           sessionId: this.opts.sessionId,
           runtimeAnchor,
           localSessionCost: this.opts.localSessionCost?.(),
+          localTurnUsage: this.opts.localTurnUsage?.(),
           ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
           ...(runtimeStats ? { runtimeStats } : {}),
           message: {

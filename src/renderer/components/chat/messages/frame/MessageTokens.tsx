@@ -151,11 +151,8 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
     [i18n.resolvedLanguage]
   )
 
-  if (!stats) {
-    return null
-  }
-
-  const totalTokens = getMessageTokenUsage(stats).totalTokens
+  const totalTokens =
+    (stats ? getMessageTokenUsage(stats).totalTokens : undefined) ?? message.localTurnUsage?.usage.totalTokens
   if (totalTokens === undefined) return null
 
   const tokenLabel = t('chat.message.token_details.tokens', {
@@ -168,7 +165,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (message.role === 'assistant') {
-    const tokensPerSecond = getMessageModelTokensPerSecond(stats)
+    const tokensPerSecond = stats ? getMessageModelTokensPerSecond(stats) : undefined
     const throughputLabel =
       tokensPerSecond === undefined
         ? undefined

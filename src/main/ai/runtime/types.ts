@@ -12,6 +12,7 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -157,6 +158,7 @@ export type AgentRuntimeEvent =
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
   | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
+  | { type: 'local-turn-usage'; summary: LocalAgentTurnUsage }
   | { type: 'session-cost'; snapshot: AgentSessionCostSnapshot }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.

@@ -26,6 +26,8 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import { AiUsageRecordStatsQuerySchema } from '@shared/data/api/schemas/aiUsageRecords'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -153,6 +155,121 @@ describe('AgentSessionMessageService', () => {
       )
     expect(agentSessionMessageService.getSessionCost('fork')).toBeNull()
     expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+  })
+
+  it('keeps native turn summaries separate from provider calls and legacy aggregates, without rewriting history', async () => {
+    const summary: LocalAgentTurnUsage = {
+      nativeSessionId: 'native',
+      model: 'native-model',
+      reportedAt: 100,
+      correlation: 'gateway',
+      usage: { inputTokens: 700, outputTokens: 300, totalTokens: 1000 }
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      localTurnUsage: summary,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        data: { parts: [] },
+        messageSnapshot: { id: 'local', name: 'Local' }
+      }
+    })
+    for (let n = 0; n < 4; n++) {
+      aiUsageRecordService.recordInvocation({
+        requestId: `native-request-${n}`,
+        context: createAiUsageCaptureContext({
+          providerId: n === 3 ? 'local-agent:old' : 'provider',
+          providerName: 'Provider',
+          modelId: 'api-model',
+          modelName: 'API model',
+          credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+          source: { type: 'agent', id: 'local', name: 'Local', icon: null },
+          messageRef: { kind: 'agent-session', id: ASSISTANT_MESSAGE_ID }
+        }),
+        modality: 'language',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        completedAt: 100
+      })
+    }
+    const before = dbh.db.select().from(aiUsageRecordTable).all()
+    const stats = aiUsageRecordService.stats(
+      AiUsageRecordStatsQuerySchema.parse({ from: 90, to: 110, groupBy: 'model', metric: 'tokens', currency: 'USD' })
+    )
+    expect(stats.totals).toMatchObject({ requestCount: 3, totalTokens: 45 })
+    expect(aiUsageRecordService.list({ limit: 100 }).items).toHaveLength(3)
+    const query = { from: 90, to: 110, scope: 'turn' as const, limit: 1 }
+    const first = aiUsageRecordService.listLocalUsage(query)
+    const second = aiUsageRecordService.listLocalUsage({ ...query, cursor: first.nextCursor })
+    expect(first.nextCursor).toBeDefined()
+    expect(second.nextCursor).toBeUndefined()
+    const items = [...first.items, ...second.items]
+    expect(items.find((row) => row.scope === 'turn')).toMatchObject({ summary, agentName: 'Local' })
+    expect(items.find((row) => row.scope === 'legacy-turn')).toMatchObject({ legacyTokens: 15, summary: null })
+    expect(aiUsageRecordService.listLocalUsage({ ...query, from: 101 })).toEqual({ items: [], nextCursor: undefined })
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual(before)
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [], localTurnUsage: { ...summary, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } } }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.localTurnUsage).toEqual(
+      summary
+    )
+    await seedSession({ id: 'native-fork', name: 'Fork', orderKey: 'a1' })
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .get()!
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.insertForkMessagesTx(tx, 'native-fork', [{ ...source, id: FILE_ENTRY_ID }])
+      )
+    expect(
+      agentSessionMessageService.getSessionMessage('native-fork', FILE_ENTRY_ID).data.localTurnUsage
+    ).toBeUndefined()
+  })
+
+  it('reads the latest native cumulative cost as a snapshot, retaining zero, unknown and currency changes', () => {
+    for (const [id, reportedAt, cost] of [
+      [ASSISTANT_MESSAGE_ID, 100, { amount: 4, currency: 'EUR' }],
+      [FILE_ENTRY_ID, 101, { amount: 0, currency: 'JPY' }]
+    ] as const) {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        localSessionCost: { nativeSessionId: 'native', reportedAt, cost },
+        message: { id, role: 'assistant', data: { parts: [] } }
+      })
+    }
+    const query = { from: 90, to: 110, scope: 'session-cost' as const, limit: 25 }
+    expect(aiUsageRecordService.listLocalUsage(query).items.map((item) => item.cost)).toEqual([
+      { amount: 0, currency: 'JPY' }
+    ])
+    agentSessionMessageService.saveSessionCost(SESSION_ID, { nativeSessionId: 'native', reportedAt: 102, cost: null })
+    expect(aiUsageRecordService.listLocalUsage(query).items.map((item) => item.cost)).toEqual([null])
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+    agentSessionMessageService.saveMessages({
+      sessionId: SESSION_ID,
+      messages: [
+        {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          data: {
+            parts: [],
+            localTurnUsage: {
+              nativeSessionId: 'forged',
+              model: null,
+              reportedAt: 100,
+              correlation: 'unknown',
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+            }
+          }
+        }
+      ]
+    })
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.localTurnUsage
+    ).toBeUndefined()
   })
 
   it('reports message existence per session', async () => {
