@@ -379,10 +379,6 @@ export const REDUX_STORE_MAPPINGS = {
       "targetKey": "data.export.markdown.show_model_provider"
     },
     {
-      "originalKey": "thoughtAutoCollapse",
-      "targetKey": "chat.message.thought.auto_collapse"
-    },
-    {
       "originalKey": "notionExportReasoning",
       "targetKey": "data.integration.notion.export_reasoning"
     },

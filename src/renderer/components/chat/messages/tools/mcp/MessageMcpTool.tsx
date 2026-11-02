@@ -39,10 +39,10 @@ const MAX_ARG_ARRAY_ITEMS = 24
 const logger = loggerService.withContext('MessageTools')
 
 const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
-  const [activeKeys, setActiveKeys] = useState<string[]>([])
+  const { id, tool, status, response, partialArguments } = toolResponse
+  const { messageFont, fontSize, toolDensity } = useMessageRenderConfig()
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useMessageRenderConfig()
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
   const actions = useOptionalMessageListActions()
@@ -51,14 +51,16 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const subscribeToolProgress = actions?.subscribeToolProgress
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
 
-  // Use the unified approval hook
-  const { id, tool, status, response, partialArguments } = toolResponse
   const approval = useToolApproval(toolResponse, tool)
   const autoApproved = isToolAutoApproved?.(tool) ?? false
   const isDone = status === 'done'
   const isError = status === 'error'
   const isStreaming = status === 'streaming'
   const willAwaitApproval = approval.isWaiting || (!autoApproved && status === 'invoking')
+  // Detailed density keeps the completed arguments and response visible instead
+  // of folding them back when the call settles.
+  const keepsResultVisible = toolDensity === 'detailed' && (isDone || isError)
+  const [activeKeys, setActiveKeys] = useState<string[]>(() => (keepsResultVisible ? [id] : []))
 
   useEffect(() => {
     const unsubscribe = subscribeToolProgress?.(id, setProgress)
@@ -68,16 +70,16 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
     }
   }, [id, subscribeToolProgress])
 
-  // Auto-expand when streaming, auto-collapse when done
+  // Auto-expand when streaming, auto-collapse when done (detailed keeps it open)
   useEffect(() => {
     if (isStreaming) {
       // Expand when streaming starts
       setActiveKeys((prev) => (prev.includes(id) ? prev : [...prev, id]))
-    } else if (isDone || isError) {
+    } else if ((isDone || isError) && toolDensity !== 'detailed') {
       // Collapse when streaming ends
       setActiveKeys((prev) => prev.filter((key) => key !== id))
     }
-  }, [isStreaming, isDone, isError, id])
+  }, [isDone, isError, isStreaming, id, toolDensity])
 
   if (approval.isWaiting) {
     return null

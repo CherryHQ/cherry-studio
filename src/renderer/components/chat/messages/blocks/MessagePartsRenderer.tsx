@@ -1401,7 +1401,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   message: MessageListItem
   renderOptions: RenderGroupedEntryOptions
 }) {
-  const { thoughtAutoCollapse } = useMessageRenderConfig()
+  const { thoughtAutoCollapse, toolDensity } = useMessageRenderConfig()
+  const { t } = useTranslation()
   const projectedLiveItems = useMemo(
     () =>
       isActive
@@ -1472,23 +1473,15 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
   const completedHistoryEntries = completedLayout.historyEntries
 
+  // Only the compact group reaches this: inside the wrapper every step stays a
+  // collapsed disclosure while the wrapper itself collapses to one summary line.
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
-      ? renderNestedHistory(
-          completedHistoryEntries,
-          message,
-          collapseHistory
-            ? {
-                ...completedRenderOptions,
-                reasoningDisplay: 'content',
-                toolDisplay: 'disclosure'
-              }
-            : {
-                ...completedRenderOptions,
-                reasoningDisplay: 'disclosure',
-                toolDisplay: 'content'
-              }
-        )
+      ? renderNestedHistory(completedHistoryEntries, message, {
+          ...completedRenderOptions,
+          reasoningDisplay: 'content',
+          toolDisplay: 'disclosure'
+        })
       : null
   const completedResult = groupPartEntries(completedLayout.resultEntries).map((entry) => {
     const firstEntry = Array.isArray(entry) ? entry[0] : entry
@@ -1510,9 +1503,49 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   if (!hasVisibleCompletedHistory) return <>{completedResult}</>
 
   if (!collapseHistory) {
+    // Compact keeps the collapsible group wrapper. Balanced and detailed render
+    // the history flat: detailed inlines each step's full content, while balanced
+    // gives every step its own collapsed disclosure — adjacent steps are not
+    // clustered into runs, so reasoning → tool → reasoning expands independently.
+    const detailedOptions: RenderGroupedEntryOptions = {
+      ...completedRenderOptions,
+      reasoningDisplay: 'disclosure',
+      toolDisplay: 'content'
+    }
+    if (toolDensity !== 'balanced') {
+      return (
+        <>
+          {renderNestedHistory(completedHistoryEntries, message, detailedOptions)}
+          {completedResult}
+        </>
+      )
+    }
     return (
       <>
-        {renderCompletedHistory(true)}
+        {completedHistoryEntries.map((entry) => {
+          const part = entry.part
+          const isAskUserPrompt = isToolUIPart(part) && isAskUserQuestionToolName(getToolName(part))
+          const isToolStep = (isToolUIPart(part) || (part.type as string) === 'dynamic-tool') && !isAskUserPrompt
+          const key = `balanced-step-${message.id}-${entry.index}`
+
+          if (!isToolStep) {
+            return (
+              <React.Fragment key={key}>{renderGroupedEntry(entry, message, false, detailedOptions)}</React.Fragment>
+            )
+          }
+
+          // Each tool step is its own collapsible disclosure — renderNestedHistory's
+          // run clustering would have folded it together with adjacent reasoning.
+          const toolItems = buildToolRenderItems([entry], message.id, true)
+          if (toolItems.length === 0) return null
+          return (
+            <React.Fragment key={key}>
+              <AnimatedBlockWrapper enableAnimation={false} animation="fade">
+                <ToolBlockGroup items={toolItems} />
+              </AnimatedBlockWrapper>
+            </React.Fragment>
+          )
+        })}
         {completedResult}
       </>
     )
@@ -1553,6 +1586,11 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         outcome={completedHasError ? 'error' : 'success'}
         defaultExpanded={
           !thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))
+        }
+        summary={
+          toolDensity === 'compact' && !completedHasError && completedToolItems.length > 0
+            ? t('message.tools.groupHeader', { count: completedToolItems.length })
+            : undefined
         }
         message={message}
         toolItems={completedToolItems}>

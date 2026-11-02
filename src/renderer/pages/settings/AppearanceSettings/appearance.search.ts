@@ -121,10 +121,10 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['serif', 'serif font', 'message font', '字体', '衬线']
   },
   {
-    anchorId: 'thought-auto-collapse',
-    titleKey: 'chat.settings.thought_auto_collapse.label',
+    anchorId: 'tool-density',
+    titleKey: 'chat.settings.tool_density.label',
     groupKey: messagesGroup,
-    aliases: ['thinking', '思维链']
+    aliases: ['thinking', 'tool calls', 'density', 'compact', '思维链', '工具调用', '密度']
   },
   {
     anchorId: 'user-message-default-expanded',

@@ -99,6 +99,20 @@ function transformV1CustomCss(sources: Record<string, unknown>): TransformResult
   }
 }
 
+/**
+ * v1's thought auto-collapse boolean becomes the tool-call density enum.
+ * `false` meant "show the full process" → `detailed`; every other state
+ * (including unset) maps to `compact`, which preserves the shipped default
+ * look exactly. The v2-era stored row of the retired boolean key is folded
+ * by MessageToolDensityUpgradeSeeder.
+ */
+function transformThoughtDensity(sources: Record<string, unknown>): TransformResult {
+  const thoughtAutoCollapse = sources.thoughtAutoCollapse
+  if (thoughtAutoCollapse === undefined || thoughtAutoCollapse === null) return {}
+
+  return { 'chat.message.density': thoughtAutoCollapse === false ? 'detailed' : 'compact' }
+}
+
 // ============================================================================
 // Complex Mappings Configuration
 // ============================================================================
@@ -137,6 +151,17 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['chat.context_settings.max_messages'],
     transform: transformDefaultAssistantContextCount
+  },
+
+  // v1 thought auto-collapse boolean → tool-call density enum
+  {
+    id: 'thought_density_migrate',
+    description: 'Convert the v1 thought auto-collapse boolean into the tool-call density enum',
+    sources: {
+      thoughtAutoCollapse: { source: 'redux', category: 'settings', key: 'thoughtAutoCollapse' }
+    },
+    targetKeys: ['chat.message.density'],
+    transform: transformThoughtDensity
   },
 
   // WebSearch default provider normalization

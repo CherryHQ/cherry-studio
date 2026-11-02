@@ -1733,9 +1733,9 @@
           "originalKey": "thoughtAutoCollapse",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
+          "status": "deleted",
           "category": "preferences",
-          "targetKey": "chat.message.thought.auto_collapse"
+          "targetKey": "chat.message.density"
         },
         {
           "originalKey": "notionExportReasoning",

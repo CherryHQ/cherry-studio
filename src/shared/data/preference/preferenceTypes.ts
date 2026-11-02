@@ -183,6 +183,14 @@ export type ChatMessageStyle = 'plain' | 'bubble'
 
 export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 
+/**
+ * How much of an assistant's process (thinking and tool calls) a completed
+ * message shows. One control drives both render paths:
+ * `compact`/`balanced` collapse the process into a summary, `detailed` inlines
+ * everything expanded.
+ */
+export type ToolCallDensity = 'compact' | 'balanced' | 'detailed'
+
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'

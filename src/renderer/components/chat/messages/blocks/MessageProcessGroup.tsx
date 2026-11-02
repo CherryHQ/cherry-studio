@@ -24,6 +24,8 @@ type Props = BaseProps &
         phase: 'completed'
         outcome: 'success' | 'error'
         defaultExpanded?: boolean
+        /** Overrides the derived Processed/Error label (compact density summarizes the call count). */
+        summary?: React.ReactNode
       }
   )
 
@@ -139,7 +141,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   }
 
   const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
-  const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+  const summary = props.summary ?? (props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed'))
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )

@@ -445,4 +445,24 @@ describe('ComplexPreferenceMappings', () => {
       expect(transform()({})).toEqual({})
     })
   })
+
+  describe('thought_density_migrate', () => {
+    const transform = () => COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'thought_density_migrate')!.transform
+
+    it('converts the v1 auto-collapse boolean into the density enum', () => {
+      const mapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'thought_density_migrate')
+      expect(mapping?.targetKeys).toEqual(['chat.message.density'])
+
+      // false meant "show the full process"; every other state maps to compact,
+      // which preserves the shipped default look exactly.
+      expect(transform()({ thoughtAutoCollapse: false })).toEqual({ 'chat.message.density': 'detailed' })
+      expect(transform()({ thoughtAutoCollapse: true })).toEqual({ 'chat.message.density': 'compact' })
+    })
+
+    it('leaves the density default for an untouched v1 setting', () => {
+      expect(transform()({ thoughtAutoCollapse: undefined })).toEqual({})
+      expect(transform()({ thoughtAutoCollapse: null })).toEqual({})
+      expect(transform()({})).toEqual({})
+    })
+  })
 })
