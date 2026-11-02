@@ -1,5 +1,9 @@
 import type { Usage } from '@earendil-works/pi-ai'
-import type { AgentBeforeSettleEvent, AgentBeforeSettleEventResult } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentBeforeSettleEvent,
+  AgentBeforeSettleEventResult,
+  SessionEntry
+} from '@earendil-works/pi-coding-agent'
 
 import { type ToolOutputOffload, offloadText } from './offload'
 import type { SubagentOutcome, SubagentStopper } from './subagent'
@@ -49,6 +53,8 @@ export interface NotificationMessage {
 
 /** What delivery needs from the parent session. */
 export interface DeliveryHost {
+  /** Committed entries of the parent session. */
+  getBranch(): readonly SessionEntry[]
   /** `pi.sendMessage(message, { triggerTurn: true })`. */
   startTurn(message: NotificationMessage): void
   /** The parent runs nothing and compacts nothing. */
@@ -182,6 +188,7 @@ export function renderNotification(items: readonly PendingDelivery[], runningBac
  */
 export class SubagentDelivery {
   private queue: PendingDelivery[] = []
+  private settleDraft?: NotificationMessage
   /** Host prompts and compactions in flight: Pi reports idle until it starts their run (or compaction). */
   private holds = 0
   /** After the user stops a turn, nothing starts on its own until a new run starts. */
@@ -211,6 +218,7 @@ export class SubagentDelivery {
 
   /** `agent_before_settle`: the run goes on with the notification instead of settling. */
   beforeSettle(event: AgentBeforeSettleEvent): AgentBeforeSettleEventResult | undefined {
+    this.confirmSettleDraft()
     // A request the host aborted through its own signal settles here, not as an aborted run.
     if (event.outcome === 'aborted') this.suppressed = true
     if (event.outcome !== 'completed') return undefined
@@ -218,10 +226,12 @@ export class SubagentDelivery {
     if (event.context.pendingMessages.some((message) => message.role === 'user')) return undefined
     // Quiet items are no reason to go on; they ride with the next run's start or a waking item.
     if (!this.queue.some((item) => item.wake)) return undefined
-    return { entries: [...event.entries, { type: 'custom_message', ...this.take() }], continue: true }
+    this.settleDraft = renderNotification(this.queue, this.host.runningBackground())
+    return { entries: [...event.entries, { type: 'custom_message', ...this.settleDraft }], continue: true }
   }
 
   settled(aborted: boolean): void {
+    this.confirmSettleDraft()
     const userStop = aborted && (this.userAbort || !this.runtimeAbort)
     this.runtimeAbort = false
     this.userAbort = false
@@ -244,6 +254,7 @@ export class SubagentDelivery {
    * everything queued rides with it, and results may start runs again.
    */
   beforeAgentStart(): { message: NotificationMessage } | undefined {
+    this.confirmSettleDraft()
     this.suppressed = false
     return this.queue.length === 0 ? undefined : { message: this.take() }
   }
@@ -268,6 +279,25 @@ export class SubagentDelivery {
     if (this.closed || this.holds > 0 || this.suppressed || !this.host.isIdle()) return
     if (!this.queue.some((item) => item.wake)) return
     this.host.startTurn(this.take())
+  }
+
+  private confirmSettleDraft(): void {
+    if (!this.settleDraft) return
+    const key = (item: { sessionId: string; run: number }) => `${item.sessionId}:${item.run}`
+    const attempted = new Set(this.settleDraft.details.subagents.map(key))
+    const committed = new Set(
+      this.host
+        .getBranch()
+        .flatMap((entry) =>
+          entry.type === 'custom_message' && entry.customType === SUBAGENT_NOTIFICATION_TYPE
+            ? (entry.details as SubagentNotificationDetails).subagents.map(key)
+            : []
+        )
+    )
+    this.queue = this.queue.filter((item) => !committed.has(key(item)))
+    // A later handler vetoed delivery; retry with the next run instead of waking the parent again.
+    for (const item of this.queue) if (attempted.has(key(item))) item.wake = false
+    this.settleDraft = undefined
   }
 
   private take(): NotificationMessage {

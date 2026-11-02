@@ -376,6 +376,7 @@ export function createSubagentExtension({
         })
     })
     const delivery = new SubagentDelivery({
+      getBranch: () => parentSession.getBranch(),
       startTurn: (message) => pi.sendMessage(message, { triggerTurn: true }),
       isIdle: () => ctx?.isIdle() ?? false,
       runningBackground: () => registry.runningBackground().length

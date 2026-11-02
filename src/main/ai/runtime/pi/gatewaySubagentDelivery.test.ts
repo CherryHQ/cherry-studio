@@ -118,6 +118,42 @@ describe('background subagent delivery', () => {
     expect(parent.events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
   })
 
+  // A later settle handler can discard a notification draft; only committed reports may leave the queue.
+  it.each([false, true])('retries an uncommitted report without reopening (committed: %s)', async (commit) => {
+    const held = gate()
+    const parent = hostStore()
+    const waitHere = waitingTool(async () => {
+      held.open()
+      await waitFor(() => finishedCount(parent.entries) === 1)
+    })
+    const { model, calls } = routedModel(({ userText, lastText, lastRole }) => {
+      if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
+      if (lastText === 'Check A and keep working')
+        return [subagentCall('call_a', BG_A), toolCallPart('wait_1', 'wait_here'), finish('tool-calls')]
+      return reply(lastRole === 'tool' ? 'Kept working.' : 'Noted.')
+    })
+    const replaceDraft: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', (event) => ({ entries: commit ? event.entries : [], continue: false }))
+    }
+    const runtime = await createTestSession({
+      port: gatewayModel(model).upstream,
+      tools: [waitHere],
+      subagents: recordingSubagentPort().port,
+      extensionFactories: [replaceDraft],
+      onEvent: parent.onEvent
+    })
+
+    await runtime.prompt('Check A and keep working')
+    expect(notifications(parent.entries)).toHaveLength(commit ? 1 : 0)
+    expect(parentCalls(calls)).toHaveLength(2)
+
+    await runtime.prompt('Continue')
+    expect(notifications(parent.entries)).toHaveLength(1)
+    expect(parentCalls(calls).at(-1)!.userText).toContain('REPORT-A')
+    await runtime.prompt('Anything else?')
+    expect(notifications(parent.entries)).toHaveLength(1)
+  })
+
   // Breaks when the notification is delivered ahead of a message the user queued during the turn.
   it("answers the user's queued message before the result", async () => {
     const held = gate()
