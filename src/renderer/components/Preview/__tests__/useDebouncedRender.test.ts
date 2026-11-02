@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
+
 import { useDebouncedRender } from '../hooks/useDebouncedRender'
 
 describe('useDebouncedRender', () => {
@@ -48,6 +50,7 @@ describe('useDebouncedRender', () => {
     })
 
     expect(result.current.error).toBe('Invalid diagram')
+    expect(result.current.cause).toEqual(expect.objectContaining({ message: 'Invalid diagram' }))
     expect(result.current.isLoading).toBe(false)
 
     act(() => {
@@ -59,6 +62,22 @@ describe('useDebouncedRender', () => {
 
     expect(result.current.error).toBeNull()
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('shows a translated fallback for a non-error failure and keeps the raw value', async () => {
+    const renderFunction = vi.fn().mockRejectedValueOnce('renderer crashed')
+    const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))
+    result.current.containerRef.current = document.createElement('div')
+
+    act(() => {
+      result.current.triggerRender('broken')
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+
+    expect(result.current.error).toBe(i18n.t('preview.render.unknown'))
+    expect(result.current.cause).toBe('renderer crashed')
   })
 
   it('cancels pending renders', async () => {

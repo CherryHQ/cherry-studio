@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { popup } from '@renderer/services/popup'
@@ -198,11 +199,22 @@ function warnMutationFailures(
   return true
 }
 
+function failureText(failed: ReadonlyArray<{ error: string }>): string {
+  return failed
+    .map((item) => item.error.trim())
+    .filter((item) => item.length > 0)
+    .join('\n')
+}
+
 function reportImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }, message: string): void {
   if (result.failed.length > 0) {
     logger.warn('file import partially failed', { failed: result.failed })
-    toast.error(message)
+    toastAppError(message, failureText(result.failed), { source: 'files', operation: 'file.import' })
   }
+}
+
+function singleRecordId(failed: ReadonlyArray<{ id: string }>): string | undefined {
+  return failed.length === 1 ? failed[0].id : undefined
 }
 
 function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
@@ -437,7 +449,11 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
               const normalized = error instanceof Error ? error : new Error(String(error))
               logger.error('Failed to open image preview', normalized)
-              toast.error(t('files.preview.error'))
+              toastAppError(t('files.preview.error'), normalized, {
+                source: 'files',
+                operation: 'file.preview',
+                recordId: file.id
+              })
             })
             return
           }
@@ -451,7 +467,11 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           if (requestRef.current !== requestToken) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           logger.error('Failed to open file preview', normalized)
-          toast.error(t('files.preview.error'))
+          toastAppError(t('files.preview.error'), normalized, {
+            source: 'files',
+            operation: 'file.preview',
+            recordId: file.id
+          })
         })
     },
     [onEntryIdChange, t]
@@ -482,7 +502,11 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         if (openRequestTokenRef.current !== requestToken) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         logger.error('Failed to reveal file entry', normalized)
-        toast.error(previewErrorMessage)
+        toastAppError(previewErrorMessage, normalized, {
+          source: 'files',
+          operation: 'file.preview',
+          ...(entryId ? { recordId: entryId } : {})
+        })
         onEntryIdChange?.()
       })
 
@@ -513,7 +537,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to import files', error as Error)
-        toast.error(t('files.error.import_failed'))
+        toastAppError(t('files.error.import_failed'), error, { source: 'files', operation: 'file.import' })
       }
     },
     [refetchFiles, t]
@@ -533,7 +557,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       await handleImportPaths(paths)
     } catch (error) {
       logger.error('Failed to select files for import', error as Error)
-      toast.error(t('files.error.import_failed'))
+      toastAppError(t('files.error.import_failed'), error, { source: 'files', operation: 'file.select' })
     }
   }, [handleImportPaths, t])
 
@@ -653,11 +677,17 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       if (alreadyTrashedIds.size > 0) toast.info(t('recycle_bin.already_moved'))
 
       if (trashFailed || removeFailed) {
-        toast.error(
-          t(
-            requestFailed && completedIds.size === 0 ? 'files.error.delete_failed' : 'files.error.delete_partial_failed'
-          )
+        const deleteMessage = t(
+          requestFailed && completedIds.size === 0 ? 'files.error.delete_failed' : 'files.error.delete_partial_failed'
         )
+        const failed = [...effectiveTrashResult.failed, ...removeResult.failed]
+        const recordId = singleRecordId(failed)
+        const caught = trashResult.cause ?? removeResult.cause
+        toastAppError(deleteMessage, caught ?? failureText(failed), {
+          source: 'files',
+          operation: 'file.delete',
+          ...(recordId ? { recordId } : {})
+        })
       }
       if (requestFailed) {
         logger.error('Failed to delete files', new Error('One or more file mutation requests failed'))
@@ -735,7 +765,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           if (confirmed) await performDelete(new Set(targets.map((file) => file.id)))
         } catch (error) {
           logger.error('Failed to delete files', error as Error)
-          toast.error(t('files.error.delete_failed'))
+          toastAppError(t('files.error.delete_failed'), error, { source: 'files', operation: 'file.delete' })
         } finally {
           deleteRequestPendingRef.current = false
           setDeleteRequestPending(false)
@@ -774,7 +804,11 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to rename file', error as Error)
-        toast.error(t('files.error.rename_failed'))
+        toastAppError(t('files.error.rename_failed'), error, {
+          source: 'files',
+          operation: 'file.rename',
+          recordId: id
+        })
         setRenamingId(null)
       }
     },

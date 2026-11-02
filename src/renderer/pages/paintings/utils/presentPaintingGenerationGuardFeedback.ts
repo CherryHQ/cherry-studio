@@ -1,4 +1,5 @@
 import i18n from '@renderer/i18n/resolver'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -33,7 +34,12 @@ export async function presentPaintingGenerationGuardFeedback(
     return
   }
   if (reason === 'catalog_error') {
-    toast.error(error?.message || i18n.t('paintings.req_error_model'))
+    const summary = i18n.t('paintings.req_error_model')
+    toastAppError(summary, error, {
+      source: 'paintings',
+      operation: 'painting.catalog',
+      ...(providerId ? { providerId } : {})
+    })
     return
   }
   if (reason === 'model_unavailable') {
