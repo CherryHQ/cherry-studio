@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -115,13 +116,20 @@ export function useLaunchDialogController({
           terminal: effectiveTerminal
         })
         if (!runResult.success) {
-          toast.error(runResult.message)
+          const detail = runResult.message?.trim()
+          toastAppError(t('code.launch.error'), detail ? new Error(detail) : runResult, {
+            source: 'code.launch',
+            operation: 'code_cli.run'
+          })
           return
         }
         setLaunchOpen(false)
       } catch (err) {
         logger.error('Failed to launch CLI tool:', err as Error)
-        toast.error(t('code.launch.error'))
+        toastAppError(t('code.launch.error'), err, {
+          source: 'code.launch',
+          operation: 'code_cli.run'
+        })
       } finally {
         setLaunching(false)
       }
@@ -230,13 +238,20 @@ export function useLaunchDialogController({
         terminal: effectiveTerminal
       })
       if (!runResult.success) {
-        toast.error(runResult.message)
+        const detail = runResult.message?.trim()
+        toastAppError(t('code.launch.error'), detail ? new Error(detail) : runResult, {
+          source: 'code.launch',
+          operation: 'code_cli.run'
+        })
       } else {
         setLaunchOpen(false)
       }
     } catch (err) {
       logger.error('Failed to launch CLI tool:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), err, {
+        source: 'code.launch',
+        operation: 'code_cli.run'
+      })
     } finally {
       setLaunching(false)
     }

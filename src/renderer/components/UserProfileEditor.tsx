@@ -18,6 +18,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
@@ -68,8 +69,11 @@ export function UserProfileEditor() {
       await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toastAppError(t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 
@@ -78,8 +82,11 @@ export function UserProfileEditor() {
       await ipcApi.request('profile.set_avatar', { kind: 'default' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toastAppError(t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 
@@ -95,8 +102,14 @@ export function UserProfileEditor() {
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      // Image processing already throws a localized retry message. IPC failures do not.
+      const processed =
+        error instanceof Error && error.message === t('message.error.image_process_failed') ? error.message : undefined
+      toastAppError(processed ?? t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 

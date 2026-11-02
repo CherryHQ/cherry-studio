@@ -2,6 +2,7 @@ import { resetToastMocks } from '@test-mocks/renderer/toast'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -65,8 +66,21 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.hide(mocks.miniApps[0]))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Internal error: hide failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'Internal error: hide failed' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'Internal error: hide failed',
+              operation: 'miniApp.hide_failed'
+            }),
+            localizedErrorMessage: i18n.t('miniApp.hide_failed')
+          }),
+          title: i18n.t('miniApp.hide_failed')
+        })
+      )
     })
+    expect(mocks.updateAppStatus).toHaveBeenCalledWith('a', 'disabled')
   })
 
   it('show flips a single row to enabled via updateAppStatus', () => {

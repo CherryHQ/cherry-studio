@@ -15,11 +15,12 @@ import {
   InputGroupButton,
   InputGroupInput
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 
 import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
@@ -93,7 +94,20 @@ export const InstallMiniAppPicker: FC<{ open?: boolean; onClose: () => void }> =
           </InputGroup>
         </Field>
 
-        {error && <Alert type="error" message={t(error.key, error.params)} />}
+        {error && (
+          <Alert
+            type="error"
+            message={t(error.key, error.params)}
+            action={
+              <ErrorDetailAction
+                error={error.cause ?? error}
+                message={t(error.key, error.params)}
+                source="miniapp"
+                operation="miniapp.install"
+              />
+            }
+          />
+        )}
       </div>
 
       <DialogFooter>
@@ -147,7 +161,10 @@ const InstallMiniAppPanel: FC<{ builtinAppId: string; open?: boolean; onClose?: 
 
   useEffect(() => {
     if (!error) return
-    toast.error(t(error.key, error.params))
+    toastAppError(t(error.key, error.params), error.cause, {
+      source: 'miniapp',
+      operation: 'miniapp.install.preview_builtin'
+    })
     done()
   }, [done, error, t])
 
