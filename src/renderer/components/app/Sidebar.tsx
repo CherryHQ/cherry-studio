@@ -303,8 +303,8 @@ export default function Sidebar({
     renderUserTrigger: renderSidebarUserTrigger,
     actions: (footerLayout: SidebarVisibleLayout) => (
       <>
-        {showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout)}
         {layout !== 'hidden' && <NotificationCenterButton className={footerLayout === 'full' ? 'ml-1' : ''} />}
+        {showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout)}
       </>
     ),
     onEntriesReorder: handleReorder
