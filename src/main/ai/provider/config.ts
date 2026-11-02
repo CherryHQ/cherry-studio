@@ -340,6 +340,12 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
+        if (isGenerateImageModel(ctx.model)) {
+          config.providerSettings = {
+            ...config.providerSettings,
+            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+          }
+        }
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
@@ -941,6 +947,9 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      ...(isGenerateImageModel(ctx.model) && {
+        imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+      }),
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
