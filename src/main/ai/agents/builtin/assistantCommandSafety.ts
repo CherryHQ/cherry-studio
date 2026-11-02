@@ -448,6 +448,181 @@ function getCommandLookupDeletion(s: string): boolean {
   return false
 }
 
+// Linear scanner for the hashtable-literal value family (round-27 review findings): every
+// entry value in `@{key = <pipeline>}` executes when the literal evaluates, so
+// `@{result = del victim.txt}` deletes, and nested tables (`@{a=@{b=del x}}`) run their
+// values too. The assignment anchors in the regex family only recognize `$`-rooted or
+// parenthesized targets, so bare and quoted hashtable keys never anchored the value. This
+// scanner is a single forward pass: a frame stack tracks each open table's entry state
+// (key, `=`, value start, value skip), every transition consumes at least one character
+// and no position is revisited, so deeply nested or densely keyed adversaries stay O(n).
+// It is quote-blind like the regex family (a quoted `"del"` value denies, matching the
+// `$x = "del"` assignment stance and the pre-narrowing guard); quoted entry separators or
+// braces inside values, dotted bare keys and malformed entries stay documented best-effort
+// gaps. The deletion token keeps the regex's following boundary, so `@{result = delivery}`
+// stays allowed.
+function hashtableValueDeletion(s: string): boolean {
+  const n = s.length
+  interface TableFrame {
+    expect: 'key' | 'eq' | 'valueStart' | 'skip'
+    brace: number
+    paren: number
+  }
+  const stack: TableFrame[] = []
+  const tokenAt = (i: number): boolean => {
+    for (const w of ['erase', 'del', 'rd']) {
+      if (scanWordAt(s, i, w)) {
+        const e = i + w.length
+        if (e >= n || !isScanWord(s[e])) {
+          if (e >= n) return true
+          const c = s[e]
+          return (
+            SCAN_WS.test(c) ||
+            c === '"' ||
+            c === "'" ||
+            c === '(' ||
+            c === ')' ||
+            c === '>' ||
+            c === '<' ||
+            c === ';' ||
+            c === '|' ||
+            c === '}' ||
+            c === '&'
+          )
+        }
+      }
+    }
+    return false
+  }
+  let i = 0
+  while (i < n) {
+    const c = s[i]
+    const top = stack[stack.length - 1]
+    if (top === undefined) {
+      if (c === '@' && i + 1 < n && s[i + 1] === '{') {
+        stack.push({ expect: 'key', brace: 0, paren: 0 })
+        i += 2
+      } else i++
+      continue
+    }
+    if (top.expect === 'key') {
+      if (SCAN_WS.test(c) || c === ';') {
+        i++
+        continue
+      }
+      if (c === '}') {
+        stack.pop()
+        i++
+        continue
+      }
+      if (c === '"' || c === "'") {
+        const q = c
+        let j = i + 1
+        while (j < n) {
+          if (s[j] === q) {
+            if (j + 1 < n && s[j + 1] === q) {
+              j += 2
+              continue
+            }
+            j++
+            break
+          }
+          j++
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      if (isScanWord(c) || c === '?') {
+        let j = i + 1
+        while (j < n && (isScanWord(s[j]) || s[j] === '?')) j++
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      if (c === '$') {
+        let j = i + 1
+        if (j < n && s[j] === '{') {
+          while (j < n && s[j] !== '}') j++
+          if (j < n) j++
+        } else {
+          while (j < n && (isScanWord(s[j]) || s[j] === '?' || s[j] === ':')) j++
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      // Unrecognized key form: stop tracking this table (documented conservative gap).
+      stack.pop()
+      i++
+      continue
+    }
+    if (top.expect === 'eq') {
+      if (SCAN_WS.test(c)) {
+        i++
+        continue
+      }
+      if (c === '=' && (i + 1 >= n || s[i + 1] !== '=')) {
+        top.expect = 'valueStart'
+        i++
+        continue
+      }
+      stack.pop()
+      i++
+      continue
+    }
+    if (top.expect === 'valueStart') {
+      if (c === '@' && i + 1 < n && s[i + 1] === '{') {
+        top.expect = 'skip'
+        stack.push({ expect: 'key', brace: 0, paren: 0 })
+        i += 2
+        continue
+      }
+      if (SCAN_WS.test(c) || c === '"' || c === "'" || c === '@') {
+        i++
+        continue
+      }
+      if (tokenAt(i)) return true
+      top.expect = 'skip'
+      continue
+    }
+    // skip: consume the value pipeline until the next entry separator at this level.
+    if (c === '@' && i + 1 < n && s[i + 1] === '{') {
+      stack.push({ expect: 'key', brace: 0, paren: 0 })
+      i += 2
+      continue
+    }
+    if (c === '(') {
+      top.paren++
+      i++
+      continue
+    }
+    if (c === ')' && top.paren > 0) {
+      top.paren--
+      i++
+      continue
+    }
+    if (c === '{') {
+      top.brace++
+      i++
+      continue
+    }
+    if (c === '}') {
+      if (top.brace > 0) top.brace--
+      else stack.pop()
+      i++
+      continue
+    }
+    if ((c === ';' || c === '\n' || c === '\r') && top.brace === 0 && top.paren === 0) {
+      top.expect = 'key'
+      i++
+      continue
+    }
+    i++
+  }
+  return false
+}
+
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
     reason: 'permanent file deletion',
@@ -506,7 +681,7 @@ export function detectDestructiveAssistantCommand(command: string): string | und
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
   return (
     DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason ??
-    (longGlueStartDeletion(normalized) || getCommandLookupDeletion(normalized)
+    (longGlueStartDeletion(normalized) || getCommandLookupDeletion(normalized) || hashtableValueDeletion(normalized)
       ? 'permanent Windows file deletion'
       : undefined)
   )

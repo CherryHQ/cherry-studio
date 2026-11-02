@@ -163,6 +163,22 @@ describe('detectDestructiveAssistantCommand', () => {
     ['& (Get-Alias -Name erase) victim.txt', 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command '& (Get-Alias del) victim.txt'", 'permanent Windows file deletion'],
     ['& (Get-Alias -Name:"rd") victimdir', 'permanent Windows file deletion'],
+    // Hashtable entry values execute when the literal evaluates: `@{result = del x}`
+    // runs the pipeline assigned to the key. Bare and quoted keys anchor through the
+    // scanner; `$`-rooted keys already deny through the assignment family. The scanner
+    // is quote-blind like that family, so a quoted value denies too (matching
+    // `$x = "del"`) (round-27 review finding).
+    ['@{result = del victim.txt}', 'permanent Windows file deletion'],
+    ['@{result=del victim.txt}', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command '@{result = del victim.txt}'", 'permanent Windows file deletion'],
+    ['@{result = erase victim.txt}', 'permanent Windows file deletion'],
+    ['@{r = rd victimdir}', 'permanent Windows file deletion'],
+    ['@{a=1; result = del victim.txt}', 'permanent Windows file deletion'],
+    ['@{a=@{b=del victim.txt}}', 'permanent Windows file deletion'],
+    ["@{ 'my key' = del victim.txt }", 'permanent Windows file deletion'],
+    ['@{a=(1;2); b=del victim.txt}', 'permanent Windows file deletion'],
+    ['@{result = "del"}', 'permanent Windows file deletion'],
+    ['echo "@{result = del victim.txt}"', 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
@@ -219,7 +235,10 @@ describe('detectDestructiveAssistantCommand', () => {
     'echo "$x == 5 compares, not assigns"',
     'ls modelo',
     '& (gal delivery) victim.txt',
-    '& (Get-Alias -Name delx) victim.txt'
+    '& (Get-Alias -Name delx) victim.txt',
+    '@{result = delivery}',
+    '@{result = delx}',
+    '@{}'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
@@ -290,6 +309,21 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(performance.now() - start).toBeLessThan(2000)
     // The alias lookup family still detects after the stepping change.
     expect(detectDestructiveAssistantCommand('& (gal del) victim.txt')).toBe('permanent Windows file deletion')
+  })
+
+  it('stays linear on nested and densely keyed hashtable literals (round-27 review finding)', () => {
+    // A per-anchor rescan of nested interiors would be quadratic; the frame-stack pass
+    // visits each position once.
+    const nested = '@{a='.repeat(20_000) + '1' + '}'.repeat(20_000)
+    const start = performance.now()
+    expect(detectDestructiveAssistantCommand(nested)).toBeUndefined()
+    expect(performance.now() - start).toBeLessThan(2000)
+    const dense = '@{' + 'k=1;'.repeat(50_000) + '}'
+    const start2 = performance.now()
+    expect(detectDestructiveAssistantCommand(dense)).toBeUndefined()
+    expect(performance.now() - start2).toBeLessThan(2000)
+    // The hashtable value family still detects after the pass.
+    expect(detectDestructiveAssistantCommand('@{result = del victim.txt}')).toBe('permanent Windows file deletion')
   })
 
   it('blocks redirection targets of any length (no fixed cap)', () => {
