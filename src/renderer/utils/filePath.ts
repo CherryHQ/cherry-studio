@@ -77,7 +77,8 @@ export function parseFileLinkHref(href: string | undefined): string | null {
     path = rawPath // keep raw path on malformed percent-encoding
   }
 
-  if (!path || path.startsWith('//')) return null // protocol-relative → external
+  // UNC / protocol-relative are external: fs.stat on a network path can trigger SMB authentication.
+  if (!path || /^[\\/]{2}/.test(path)) return null
   if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
   return path
 }

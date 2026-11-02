@@ -45,6 +45,11 @@ describe('parseFileLinkHref', () => {
     ['//cdn.example.com/x.md'], // protocol-relative
     ['https%3A%2F%2Fexample.com%2Fpage.md'], // encoded external https
     ['%2F%2Fcdn.example.com%2Fx.md'], // encoded protocol-relative
+    ['%5C%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    ['%5C%2F%5C%2Fattacker.example%5Cshare%5Cnotes.txt'],
+    ['%2F%5Cattacker.example%5Cshare%5Cnotes.txt'],
+    [String.raw`\\attacker.example\share\notes.txt`], // literal UNC: leading "\\" is a network root
+    ['%5C%5C%3F%5CUNC%5Cattacker.example%5Cshare%5Cnotes.txt'],
     ['javascript%3Aalert(1)'], // encoded unsafe scheme
     ['#section'], // in-page anchor
     ['file:///C:/Users/Alice/README.md'],
