@@ -33,7 +33,7 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 import { application } from '@application'
 import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { loggerService } from '@logger'
-import { listLiveDetachedBackgroundTasks } from '@main/ai/agents/backgroundTaskActions'
+import { listLiveDetachedBackgroundTasks, pauseDetachedTaskAdmission } from '@main/ai/agents/backgroundTaskActions'
 import { WindowType } from '@main/core/window/types'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
@@ -958,6 +958,10 @@ class BackupManager {
         // protect it — the task is not the write — so the restore is refused while one is live,
         // the way every other unsatisfied precondition here is refused: before the journal is
         // committed, so nothing is staged and the write holds are released.
+        // A start admitted before this point can still be awaiting its log, with no record for the
+        // inventory below; keep admission closed through staging so it cannot spawn a worker whose
+        // control path promotion erases.
+        writerHolds.push(await pauseDetachedTaskAdmission())
         const liveTasks = await listLiveDetachedBackgroundTasks().catch((error: unknown) => {
           // A failed inventory is not a confirmed-empty one: promotion deletes every task record,
           // so this refuses exactly like a confirmed live task instead of assuming there is none.

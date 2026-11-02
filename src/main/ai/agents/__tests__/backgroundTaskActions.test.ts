@@ -62,6 +62,7 @@ import { agentService } from '@data/services/AgentService'
 import {
   DetachedTasksBusyError,
   listAgentBackgroundTasks,
+  pauseDetachedTaskAdmission,
   purgeAgentBackgroundTasks,
   startAgentBackgroundTask,
   stopAgentBackgroundTask,
@@ -242,6 +243,23 @@ describe('withDetachedTasksStopped', () => {
     await expect(
       startAgentBackgroundTask({ agentId: 'agent-1', storageDir, command: 'echo hi', cwd: storageDir })
     ).rejects.toThrow(/Agent agent-1 not found/)
+  })
+
+  it('keeps admission closed until the returned hold is disposed', async () => {
+    const hold = await pauseDetachedTaskAdmission()
+    try {
+      // A restore inventories detached tasks before staging; a start that slipped in earlier must
+      // not spawn after that inventory read empty.
+      await expect(
+        startAgentBackgroundTask({ agentId: 'agent-1', storageDir, command: 'echo hi', cwd: storageDir })
+      ).rejects.toThrow(/data reset is stopping/)
+    } finally {
+      hold.dispose()
+    }
+    await expect(
+      startAgentBackgroundTask({ agentId: 'agent-1', storageDir, command: 'echo hi', cwd: storageDir })
+    ).rejects.toThrow(/Agent agent-1 not found/)
+    hold.dispose() // idempotent
   })
 })
 

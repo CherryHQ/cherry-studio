@@ -336,7 +336,8 @@ const { mockLiveDetachedTasks } = vi.hoisted(() => ({
 }))
 
 vi.mock('@main/ai/agents/backgroundTaskActions', () => ({
-  listLiveDetachedBackgroundTasks: mockLiveDetachedTasks
+  listLiveDetachedBackgroundTasks: mockLiveDetachedTasks,
+  pauseDetachedTaskAdmission: async () => ({ dispose: () => undefined })
 }))
 
 // Import after mocks

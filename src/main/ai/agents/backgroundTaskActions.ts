@@ -91,17 +91,38 @@ export async function stopAllDetachedBackgroundTasks(): Promise<void> {
 }
 
 /**
+ * Closes admission and waits out starts already admitted — they may still be opening their log, so
+ * their records do not exist for an inventory yet. Dispose the returned hold to reopen admission.
+ */
+export async function pauseDetachedTaskAdmission(): Promise<{ dispose(): void }> {
+  if (backgroundTaskAdmissionClosed) throw new DetachedTasksBusyError('Background tasks are already being stopped')
+  backgroundTaskAdmissionClosed = true
+  try {
+    await drainAdmittedStarts()
+  } catch (error) {
+    backgroundTaskAdmissionClosed = false
+    throw error
+  }
+  let released = false
+  return {
+    dispose() {
+      if (released) return
+      released = true
+      backgroundTaskAdmissionClosed = false
+    }
+  }
+}
+
+/**
  * Closes admission and stops every detached task before running `commit`, which is where a Data
  * Reset stages its marker and shuts down. A task that cannot be stopped and verified raises
  * {@link DetachedTasksBusyError} so staging is refused instead of erasing its control path.
  */
 export async function withDetachedTasksStopped<T>(commit: () => Promise<T>): Promise<T> {
-  if (backgroundTaskAdmissionClosed) throw new DetachedTasksBusyError('Background tasks are already being stopped')
-  backgroundTaskAdmissionClosed = true
+  // Before inventorying: a start admitted just before admission closed may still be awaiting its
+  // log, so its record does not exist yet and the sweep would find nothing to stop.
+  const hold = await pauseDetachedTaskAdmission()
   try {
-    // Before inventorying: a start admitted just before admission closed may still be awaiting its
-    // log, so its record does not exist yet and the sweep would find nothing to stop.
-    await drainAdmittedStarts()
     try {
       await stopAllDetachedBackgroundTasks()
     } catch (error) {
@@ -111,7 +132,7 @@ export async function withDetachedTasksStopped<T>(commit: () => Promise<T>): Pro
     }
     return await commit()
   } finally {
-    backgroundTaskAdmissionClosed = false
+    hold.dispose()
   }
 }
 
