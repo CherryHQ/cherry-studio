@@ -1137,7 +1137,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   )
   const pane = (
     <ArtifactPaneView
-      headerVariant="pane"
       paneTitle={scope.filesTitle}
       paneActions={<RightPanelHeaderControls canMaximize />}
       workspacePath={state.workspacePath}
@@ -1148,7 +1147,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onRetainFileTab={actions.retainFileTab}
       onAttachPathToContext={attachPathToContext}
       onPreviewClose={actions.closeFilePreview}
-      enableFileSearch
       fileSession={state.fileSession}
       editMode={state.previewFileSelection?.readOnly ? 'preview' : state.editMode}
       onEditModeChange={actions.setFileEditMode}
