@@ -128,7 +128,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
   const cliDirectories = ['.claude', '.codex', '.config', '.hermes', join('AppData', 'Local')].map((name) =>
     join(homeDirectory, name)
   )
-  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories]) mkdirSync(directory, { recursive: true })
+  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories])
+    mkdirSync(directory, { recursive: true })
   if (process.platform === 'win32') {
     for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
   }

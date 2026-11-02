@@ -51,7 +51,9 @@ export async function feishuChannelSettings(app: RegressionApp, initialPage: Pag
     // when it really is not there.
     const settingsRoot = page.locator('[data-ui~="settings.navigation"]')
     if (!(await settingsRoot.isVisible())) {
-      await expect(settingsRoot).toBeVisible({ timeout: 15_000 }).catch(() => undefined)
+      await expect(settingsRoot)
+        .toBeVisible({ timeout: 15_000 })
+        .catch(() => undefined)
     }
     if (!(await settingsRoot.isVisible())) {
       await selectSidebarApp(page, '设置')
