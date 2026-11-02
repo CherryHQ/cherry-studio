@@ -104,6 +104,17 @@ describe('detectDestructiveAssistantCommand', () => {
     ['start the job and del the files', 'permanent Windows file deletion'],
     ["pwsh -NoProfile -Command '$null = del victim.txt'", 'permanent Windows file deletion'],
     ['$out = erase victim.txt', 'permanent Windows file deletion'],
+    // Bare deletion token closed by an executable terminator: the target arrives from pipeline
+    // input, so `del`/`erase`/`rd` followed by `;`, `|`, or `}` keeps the enforced deny.
+    ['Get-Item victim.txt | del; Write-Output done', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | del| Out-Null', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | del}', 'permanent Windows file deletion'],
+    ['del; Write-Output done', 'permanent Windows file deletion'],
+    ['del| Out-Null', 'permanent Windows file deletion'],
+    ['del}', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | erase; Write-Output done', 'permanent Windows file deletion'],
+    ['Get-Item victim.txt | rd| Out-Null', 'permanent Windows file deletion'],
+    ["pwsh -NoProfile -Command 'Get-Item victim.txt | del; Write-Output done'", 'permanent Windows file deletion'],
     ['echo ok\ndel victim.txt', 'permanent Windows file deletion'],
     ['echo ok \n del victim.txt', 'permanent Windows file deletion'],
     ['echo ok\r\n\r\ndel victim.txt', 'permanent Windows file deletion'],
