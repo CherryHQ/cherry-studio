@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 import type { McpServerInstructions } from '@shared/types/mcp'
 
@@ -12,13 +13,13 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
   const { t } = useTranslation()
   const [instructions, setInstructions] = useState<McpServerInstructions>()
   const [loading, setLoading] = useState(true)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<unknown>(null)
   const [revision, setRevision] = useState(0)
 
   useEffect(() => {
     let current = true
     setLoading(true)
-    setFailed(false)
+    setFailure(null)
     setInstructions(undefined)
     void ipcApi.request('mcp.server.get_instructions', { serverId }).then(
       (result) => {
@@ -30,7 +31,7 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
       (error) => {
         logger.warn('Failed to read MCP instructions', { serverId, error })
         if (current) {
-          setFailed(true)
+          setFailure(error)
           setLoading(false)
         }
       }
@@ -50,8 +51,12 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
       </div>
       {loading ? (
         <Spinner text={t('common.loading')} />
-      ) : failed ? (
-        <Alert type="error" message={t('common.error')} />
+      ) : failure ? (
+        <Alert
+          type="error"
+          message={t('common.error')}
+          action={<ErrorDetailAction error={failure} source="mcp" operation="mcp.instructions" recordId={serverId} />}
+        />
       ) : instructions ? (
         <>
           <p className="text-sm text-muted-foreground">

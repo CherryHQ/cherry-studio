@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingDescription,
   SettingDivider,
@@ -58,7 +59,7 @@ export function BrowserSettings() {
   const [customUrlDraft, setCustomUrlDraft] = useState(typeof customUrl === 'string' ? customUrl : '')
   const customUrlSaving = useRef(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(false)
+  const [failure, setFailure] = useState<{ error: unknown; operation: string } | null>(null)
   const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
 
   useEffect(() => {
@@ -70,11 +71,11 @@ export function BrowserSettings() {
     if (customUrlSaving.current || value === customUrl) return
     customUrlSaving.current = true
     setSaving(true)
-    setError(false)
+    setFailure(null)
     try {
       await setCustomUrl(value)
-    } catch {
-      setError(true)
+    } catch (caught) {
+      setFailure({ error: caught, operation: 'browser.start_page.custom_url' })
     } finally {
       customUrlSaving.current = false
       setSaving(false)
@@ -104,11 +105,11 @@ export function BrowserSettings() {
             disabled={saving}
             onCheckedChange={async (value) => {
               setSaving(true)
-              setError(false)
+              setFailure(null)
               try {
                 await setEnabled(value)
-              } catch {
-                setError(true)
+              } catch (caught) {
+                setFailure({ error: caught, operation: 'browser.agent_control' })
               } finally {
                 setSaving(false)
               }
@@ -134,11 +135,11 @@ export function BrowserSettings() {
             disabled={saving}
             onCheckedChange={async (value) => {
               setSaving(true)
-              setError(false)
+              setFailure(null)
               try {
                 await setAutoOpenPanel(value)
-              } catch {
-                setError(true)
+              } catch (caught) {
+                setFailure({ error: caught, operation: 'browser.auto_open_panel' })
               } finally {
                 setSaving(false)
               }
@@ -164,11 +165,11 @@ export function BrowserSettings() {
             disabled={saving}
             onCheckedChange={async (value) => {
               setSaving(true)
-              setError(false)
+              setFailure(null)
               try {
                 await setOpenLinks(value)
-              } catch {
-                setError(true)
+              } catch (caught) {
+                setFailure({ error: caught, operation: 'browser.open_links' })
               } finally {
                 setSaving(false)
               }
@@ -187,14 +188,14 @@ export function BrowserSettings() {
             disabled={saving}
             onValueChange={async (value) => {
               setSaving(true)
-              setError(false)
+              setFailure(null)
               try {
                 await setStartPageMode(value as BrowserStartPageMode)
                 if (startPageMode === 'last' && value !== 'last') {
                   cacheService.setPersist('ui.browser.last_urls', {})
                 }
-              } catch {
-                setError(true)
+              } catch (caught) {
+                setFailure({ error: caught, operation: 'browser.start_page.mode' })
               } finally {
                 setSaving(false)
               }
@@ -230,10 +231,18 @@ export function BrowserSettings() {
             </div>
           )}
         </SettingRow>
-        {error && (
-          <p role="alert" className="mt-2 text-error text-sm">
-            {t('settings.browser.error')}
-          </p>
+        {failure && (
+          <div className="mt-2 flex items-center gap-2">
+            <p role="alert" className="text-error text-sm">
+              {t('settings.browser.error')}
+            </p>
+            <ErrorDetailAction
+              error={failure.error}
+              message={t('settings.browser.error')}
+              source="settings.browser"
+              operation={failure.operation}
+            />
+          </div>
         )}
       </SettingGroup>
       <SettingGroup>

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -193,12 +194,20 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
             message={t('settings.prompts.errors.loadFailed')}
             description={error.message}
             action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void Promise.all([refetchAllPrompts(), refetchBoundPrompts()])}>
-                {t('common.retry')}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void Promise.all([refetchAllPrompts(), refetchBoundPrompts()])}>
+                  {t('common.retry')}
+                </Button>
+                <ErrorDetailAction
+                  error={error}
+                  message={error.message}
+                  source="settings.prompts"
+                  operation="prompt.bindings"
+                />
+              </div>
             }
             className="rounded-md px-4 py-3 shadow-none"
           />
