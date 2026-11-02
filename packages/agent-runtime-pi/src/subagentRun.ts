@@ -234,6 +234,7 @@ export async function openChild(input: {
       .then((created) => {
         if (signal?.aborted) return created.dispose()
         child = created
+        return undefined
       })
     await Promise.race([creating, cancelled])
     signal?.throwIfAborted()
@@ -372,8 +373,7 @@ export async function runSubagent(
     if (signal.aborted) stop('aborted')
     else if (!stopped && 'prompt' in start)
       await session.prompt(start.prompt, { expandPromptTemplates: false, source: 'extension' })
-    else if (!stopped && 'message' in start)
-      await runMessages(child, [{ text: start.message, inputId: start.inputId }])
+    else if (!stopped && 'message' in start) await runMessages(child, [{ text: start.message, inputId: start.inputId }])
     // Messages that came while the run settled start the next run on the same session.
     while (!stopped && inbox.hasPending()) await runMessages(child, inbox.take())
   } catch (thrown) {
