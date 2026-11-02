@@ -27,7 +27,7 @@ export function cleanMarkdownContent(text: string): string {
   cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1') // 替换链接为纯文本
   cleaned = cleaned.replace(/https?:\/\/\S+/g, '') // 移除URL
   cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ') // 替换分隔符为空格
-  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '') // 移除特殊字符
+  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_]+/g, '') // 移除特殊字符
   cleaned = cleaned.replace(/\s+/g, ' ').trim() // 规范化空白
   return cleaned
 }

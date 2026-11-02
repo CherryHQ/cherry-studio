@@ -657,6 +657,7 @@ const AgentChatSessionCenter = ({
       sessionMessagesEnabled={sessionMessagesEnabled}
       agentId={agentId}
       sessionId={runtime.sessionId}
+      workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}

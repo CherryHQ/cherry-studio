@@ -41,6 +41,21 @@ function probeNameBehavior(directory: string): PathNameBehavior {
 }
 
 class AgentWorkspaceStorageService {
+  private readonly blockedRelocations = new Set<string>()
+
+  blockRelocation(workspacePath: string): void {
+    this.blockedRelocations.add(path.resolve(workspacePath))
+  }
+
+  isRelocationBlocked(workspacePath: string): boolean {
+    return this.blockedRelocations.has(path.resolve(workspacePath))
+  }
+
+  completeRelocation(oldPath: string, newPath: string): void {
+    this.blockedRelocations.delete(path.resolve(oldPath))
+    this.blockedRelocations.delete(path.resolve(newPath))
+  }
+
   private readonly reservations = new Set<{ paths: readonly string[]; overlaps: (candidate: string) => boolean }>()
 
   registerWorkspace(workspacePath: string, options: { name?: string } = {}) {

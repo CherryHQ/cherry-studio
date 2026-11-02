@@ -105,6 +105,17 @@ describe('useAssistantMutationsById', () => {
     })
   })
 
+  it('updates the assistant the hook was created for', async () => {
+    importTriggerMock.mockResolvedValue(createAssistant({ id: 'assistant-1' }))
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await result.current.updateAssistant({ name: 'Renamed' })
+    })
+
+    expect(importTriggerMock).toHaveBeenCalledWith({ params: { id: 'assistant-1' }, body: { name: 'Renamed' } })
+  })
+
   it('passes the parent cascade option to the Assistant archive command', async () => {
     ipcRequestMock.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
     const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
@@ -118,5 +129,16 @@ describe('useAssistantMutationsById', () => {
       deleteTopics: true
     })
     expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
+  })
+
+  it('refreshes pins when the assistant is archived and its topics are kept', async () => {
+    ipcRequestMock.mockResolvedValue({ deleted: true })
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await result.current.deleteAssistant()
+    })
+
+    expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins'])
   })
 })

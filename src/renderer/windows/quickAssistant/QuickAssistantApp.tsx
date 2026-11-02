@@ -11,6 +11,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 
 import QuickAssistantView from './QuickAssistantView'
 
@@ -20,6 +21,7 @@ import QuickAssistantView from './QuickAssistantView'
 // hosts are explicit siblings in the App JSX below.
 function QuickAssistantRuntime(): null {
   useLanguageSync()
+  useWebSearchFallbackNotice()
   useAutoReadPreferenceSync()
   useCustomCss()
 

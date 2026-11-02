@@ -94,7 +94,7 @@ describe('ModelSelector kept-mounted measurements', () => {
             return [{ blockSize: height(target), inlineSize: 400 }]
           }
         }))
-        observer.callback(entries as ResizeObserverEntry[], observer as unknown as ResizeObserver)
+        observer.callback(entries as unknown as ResizeObserverEntry[], observer as unknown as ResizeObserver)
       }
     })
 

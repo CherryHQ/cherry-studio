@@ -15,7 +15,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 export interface AiTransportOptions {
   /** Layered on top of provider-aware app attribution + `provider.settings.extraHeaders`; caller wins on conflict. */
   headers?: Record<string, string | undefined>
-  /** Idle-chunk timeout (ms) for streaming flows; resets per chunk. Falls back to `DEFAULT_TIMEOUT` (30 min). */
+  /** Idle-chunk timeout (ms); resets per chunk. Chat execution defaults to `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min). */
   timeout?: number
   /** AI SDK transparent-retry override. Defaults to 0 — retries can duplicate stream state in tool loops. */
   maxRetries?: number
