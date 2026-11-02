@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
-import { DEEPSEEK_HARNESS_ICON, DEEPSEEK_HARNESS_URL, LAUNCHPAD_APP_ICONS } from '@renderer/utils/launchpadApps'
+import { LAUNCHPAD_APP_ICONS } from '@renderer/utils/launchpadApps'
 import { getSidebarMenuPath } from '@renderer/utils/sidebar'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -21,17 +21,9 @@ export function useLaunchpadCatalog(pinned: MiniApp[]) {
       }),
     [orderedAppIds, provider, t]
   )
-  const shortcuts = [
-    {
-      id: 'deepseek-harness',
-      url: DEEPSEEK_HARNESS_URL,
-      label: t('launchpad.deepseek_harness_shortcut'),
-      iconSrc: DEEPSEEK_HARNESS_ICON
-    }
-  ]
   const miniApps = useMemo(
     () => [...pinned].sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0)),
     [pinned]
   )
-  return { apps, shortcuts, miniApps, reorderApps }
+  return { apps, miniApps, reorderApps }
 }

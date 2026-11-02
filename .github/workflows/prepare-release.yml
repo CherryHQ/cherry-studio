@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 
@@ -194,6 +194,9 @@ jobs:
             git apply "$RELEASE_PATCH"
           fi
 
+      - name: Format prepared release metadata
+        run: pnpm exec oxfmt --write package.json electron-builder.yml
+
       - name: Sync release history from prepared release notes
         shell: bash
         env:
@@ -239,7 +242,7 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 

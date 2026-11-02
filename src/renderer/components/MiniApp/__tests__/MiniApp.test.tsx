@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
+  IndicatorLight: () => <div data-testid="indicator-light" />,
   // The hover text is rendered inline so a case can read what the dot means.
   Tooltip: ({ children, content, isDisabled }: { children: ReactNode; content?: ReactNode; isDisabled?: boolean }) => (
     <div>
@@ -83,10 +84,6 @@ vi.mock('@renderer/components/command', () => ({
 
 vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app }: { app: MiniAppType }) => <div data-testid={`mini-app-icon-${app.appId}`} />
-}))
-
-vi.mock('@renderer/components/IndicatorLight', () => ({
-  default: () => <div data-testid="indicator-light" />
 }))
 
 vi.mock('@renderer/components/MarqueeText', () => ({

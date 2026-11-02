@@ -11,8 +11,7 @@ const HOME_URLS = { agent: '/app/agents', assistant: '/app/chat' } as const
 export function useMinimalNavigation() {
   const [mode] = usePreference('ui.mode')
   const { tabs, activeTabId, setActiveTab, openTab, closeTabs, updateTab } = useTabs()
-  const [, setSplitOpen] = useCache('mini_app.split_open')
-  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const [, setSplit] = useCache('mini_app.split')
   const enabled = mode === 'minimal'
   const [homeKind, setHomeKind] = useState<MinimalHomeKind>('agent')
   const [homeTabIds, setHomeTabIds] = useState(() => ({
@@ -64,21 +63,9 @@ export function useMinimalNavigation() {
         homeId
       )
       setActiveTab(homeId)
-      setSplitOpen(false)
-      setSplitMiniAppId('')
+      setSplit(null)
     }
-  }, [
-    closeTabs,
-    enabled,
-    openTab,
-    returnHome,
-    setActiveTab,
-    setSplitMiniAppId,
-    setSplitOpen,
-    switchHome,
-    tabs,
-    updateTab
-  ])
+  }, [closeTabs, enabled, openTab, returnHome, setActiveTab, setSplit, switchHome, tabs, updateTab])
 
   const openFeature = useCallback(
     (url: string) => {

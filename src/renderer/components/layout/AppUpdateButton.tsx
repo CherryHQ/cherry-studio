@@ -10,10 +10,10 @@ const logger = loggerService.withContext('AppUpdateButton')
 
 export function AppUpdateButton({
   className,
-  tooltipPlacement = 'bottom'
+  placement = 'bottom'
 }: {
   className?: string
-  tooltipPlacement?: TooltipProps['placement']
+  placement?: TooltipProps['placement']
 }) {
   const { t } = useTranslation()
   const { appUpdateState } = useAppUpdateState()
@@ -29,7 +29,7 @@ export function AppUpdateButton({
   const updateLabel = t('settings.about.updateAvailable', { version: releaseInfo.version })
 
   return (
-    <Tooltip content={updateLabel} placement={tooltipPlacement} delay={800}>
+    <Tooltip content={updateLabel} placement={placement} delay={800}>
       <Button
         type="button"
         variant="ghost"
@@ -37,7 +37,7 @@ export function AppUpdateButton({
         aria-label={updateLabel}
         onClick={handleUpdateClick}
         className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] transition-colors hover:bg-accent',
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent',
           className
         )}>
         <CircleArrowUp className="lucide-custom size-[18px] text-success" strokeWidth={1.8} />

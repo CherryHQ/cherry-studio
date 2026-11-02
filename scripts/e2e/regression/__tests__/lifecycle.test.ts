@@ -105,7 +105,9 @@ describe('owned application lifecycle', () => {
         return alive.has(electronPid) || cdpChecks === 2 ? String(electronPid) : ''
       }
       if (script.includes('CommandLine')) {
-        return script.includes(String(electronPid)) ? targetRoot : 'pnpm exec dotenv -- electron-vite'
+        return script.includes(String(electronPid))
+          ? targetRoot
+          : `node ${join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')}`
       }
       if (script.includes('ParentProcessId')) return script.includes(String(electronPid)) ? String(runnerPid) : '1'
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
@@ -123,7 +125,8 @@ describe('owned application lifecycle', () => {
         ['/PID', String(runnerPid), '/T', '/F'],
         expect.anything()
       )
-      expect(cdpChecks).toBe(3)
+      expect([...alive]).toEqual([])
+      expect(cdpChecks).toBeGreaterThan(2)
     } finally {
       rmSync(directory, { force: true, recursive: true })
     }
@@ -175,7 +178,9 @@ describe('owned application lifecycle', () => {
       if (script.includes('Get-NetTCPConnection'))
         return alive.has(currentElectronPid) ? String(currentElectronPid) : ''
       if (script.includes('CommandLine')) {
-        return script.includes(String(currentElectronPid)) ? targetRoot : 'pnpm exec dotenv -- electron-vite'
+        return script.includes(String(currentElectronPid))
+          ? targetRoot
+          : `node ${join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')}`
       }
       if (script.includes('ParentProcessId'))
         return script.includes(String(currentElectronPid)) ? String(currentParentPid) : '1'

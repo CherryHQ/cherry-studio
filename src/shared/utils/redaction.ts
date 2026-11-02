@@ -29,7 +29,9 @@ const MAX_STRING = 300
 
 /**
  * Deep redaction of nested objects for logging/diagnostics: sensitive keys by
- * name, long strings truncated, circular graphs short-circuited.
+ * name, long strings truncated, circular graphs short-circuited. A reference
+ * shared by several parents is not circular, so it is redacted at every
+ * occurrence rather than reported as `[Circular]`.
  */
 export function redactDeep(value: unknown): unknown {
   const redact = (val: any, seen: WeakSet<object>): any => {
@@ -40,12 +42,20 @@ export function redactDeep(value: unknown): unknown {
     if (typeof val !== 'object') return val
     if (seen.has(val)) return '[Circular]'
     seen.add(val)
-    if (Array.isArray(val)) return val.map((v) => redact(v, seen))
-    const out: Record<string, any> = {}
-    for (const [k, v] of Object.entries(val)) {
-      out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
+    let result: any
+    if (Array.isArray(val)) {
+      result = val.map((v) => redact(v, seen))
+    } else {
+      const out: Record<string, any> = {}
+      for (const [k, v] of Object.entries(val)) {
+        out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
+      }
+      result = out
     }
-    return out
+    // Only ancestors are circular. Removing the node on the way out keeps a
+    // shared (DAG) reference redacted on every occurrence instead of misreported.
+    seen.delete(val)
+    return result
   }
   return redact(value, new WeakSet())
 }
@@ -153,6 +163,33 @@ export function redactSecretText(text: string, extraKeys: readonly string[] = []
     .replace(URL_USERINFO_PATTERN, `$1${REDACTED}@`)
     .replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`)
     .replace(withExtras, `$1"${REDACTED}"`)
+}
+
+/** Well-known credential shapes that carry no key name, e.g. a bare `sk-…` inside an error body. */
+export const SECRET_TOKEN_PATTERNS: ReadonlyArray<{ name: string; re: RegExp }> = [
+  {
+    name: 'pem-private-key',
+    re: /-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----/g
+  },
+  { name: 'aws-access-key', re: /\bAKIA[0-9A-Z]{16}\b/g },
+  { name: 'aws-secret-key', re: /(?<=aws_secret_access_key\s*[=:]\s*)[A-Za-z0-9/+=]{40}/gi },
+  { name: 'bearer-token', re: /Bearer\s+[A-Za-z0-9_\-.~+/]+=*(?:\s|$)/g },
+  {
+    name: 'key-value-secret',
+    re: /(?:api[_-]?key|api[_-]?secret|secret[_-]?key|password|passwd|token|access[_-]?token|client[_-]?secret)\s*[=:]\s*['"]?([^\s'"]{16,})['"]?/gi
+  },
+  { name: 'github-pat', re: /\bghp_[A-Za-z0-9]{36,}\b/g },
+  { name: 'anthropic-key', re: /\bsk-ant-[A-Za-z0-9_-]{20,}\b/g },
+  { name: 'openai-key', re: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/g },
+  // Mixed case required so uniform strings are not mistaken for SSH key content.
+  {
+    name: 'ssh-key-content',
+    re: /\bAAAA(?=[A-Za-z0-9+/]*[a-z])(?=[A-Za-z0-9+/]*[A-Z])(?=[A-Za-z0-9+/]*[0-9])[A-Za-z0-9+/]{100,}={0,2}\b/g
+  }
+]
+
+export function redactSecretTokens(text: string, replacement: string = REDACTED): string {
+  return SECRET_TOKEN_PATTERNS.reduce((result, { re }) => result.replace(re, replacement), text)
 }
 
 /** Redact an exact runtime-known secret literal wherever it occurs. */

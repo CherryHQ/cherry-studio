@@ -5,7 +5,7 @@ import { normalizeSourceFile } from './semanticId'
 import { transformHtml, transformJsx } from './transform'
 import type { UiNodeDescriptor } from './types'
 
-const SOURCE_ROOTS = ['src/renderer', 'packages/ui/src']
+const SOURCE_ROOTS = ['src/renderer', 'packages/ui/src', 'packages/file-preview/src']
 const EXCLUDED_DIRECTORIES = new Set(['__snapshots__', '__tests__', 'coverage', 'dist', 'node_modules', 'out'])
 const EXCLUDED_FILE_PATTERNS = [/\.gen\.[jt]sx?$/, /\.(?:spec|test|stories)\.[jt]sx?$/]
 

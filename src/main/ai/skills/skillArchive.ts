@@ -11,6 +11,8 @@ import {
   assertZipEntriesWithin
 } from '@main/utils/zipSafety'
 
+import { SkillImportError } from './SkillImportError'
+
 /**
  * Handling for an untrusted skill tree on disk, however it arrived — an extracted ZIP or a shallow
  * clone. Owns the extraction ceilings and every containment check that decides which directory in
@@ -33,10 +35,10 @@ export const MAX_ARCHIVE_ENTRIES = 50_000
 export async function validateZipFile(zipFilePath: string): Promise<void> {
   const stats = await fs.promises.stat(zipFilePath)
   if (!stats.isFile()) {
-    throw new Error(`Not a file: ${zipFilePath}`)
+    throw new SkillImportError('INVALID_ZIP_FILE', `Not a file: ${zipFilePath}`)
   }
   if (!zipFilePath.toLowerCase().endsWith('.zip')) {
-    throw new Error(`Not a ZIP file: ${zipFilePath}`)
+    throw new SkillImportError('INVALID_ZIP_FILE', `Not a ZIP file: ${zipFilePath}`)
   }
 }
 
@@ -195,7 +197,7 @@ export async function resolveSkillDirectory(
   const rootSkill = await findSkillMdPath(repoDir)
   if (rootSkill) return validateRepositorySkillDirectory(repoDir, repoDir, rootSkill)
 
-  throw new Error(`No skill directory found in ${repoDir}`)
+  throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No skill directory found in ${repoDir}`)
 }
 
 export async function validateRepositorySkillDirectory(
@@ -213,7 +215,7 @@ export async function validateRepositorySkillDirectory(
   }
 
   const skillMdPath = knownSkillMdPath ?? (await findSkillMdPath(skillRealPath))
-  if (!skillMdPath) throw new Error(`No SKILL.md found in ${skillDir}`)
+  if (!skillMdPath) throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No SKILL.md found in ${skillDir}`)
   const skillMdRealPath = await fs.promises.realpath(skillMdPath)
   const relativeDescriptorPath = path.relative(repoRealPath, skillMdRealPath)
   if (isOutsidePath(relativeDescriptorPath)) {

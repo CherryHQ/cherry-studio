@@ -1,7 +1,6 @@
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
-import dshIcon from '@renderer/assets/images/apps/launchpad-dsh.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
 import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
@@ -21,6 +20,3 @@ export const LAUNCHPAD_APP_ICONS: Record<SidebarAppId, string> = {
   code_tools: codeToolsIcon,
   notes: notesIcon
 }
-
-export const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
-export const DEEPSEEK_HARNESS_ICON = dshIcon

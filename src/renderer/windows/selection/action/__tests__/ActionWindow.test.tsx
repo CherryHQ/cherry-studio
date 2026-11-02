@@ -1,27 +1,35 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { ReadTextAloudInput } from '@renderer/services/voice/manualPlayback'
+import type { SelectionActionSession } from '@shared/types/selection'
 
 import ActionWindow from '../ActionWindow'
 
-const { actionState, generalMounts, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
+const { actionState, ipcRequest, opacityPreference, platform, readAloud, dismissalListeners } = vi.hoisted(() => ({
   actionState: {
     value: {
       id: 'test-action',
       name: 'Test action',
       icon: 'test-icon',
-      isBuiltIn: false
-    } as SelectionActionItem
+      isBuiltIn: false,
+      sessionId: 'session-1'
+    } as SelectionActionSession
   },
-  generalMounts: { count: 0 },
   ipcRequest: vi.fn(),
   opacityPreference: { value: 100 },
-  platform: { isMac: false }
+  platform: { isMac: false },
+  readAloud: vi.fn<(input: ReadTextAloudInput) => Promise<void>>(async () => undefined),
+  dismissalListeners: new Set<(payload: { sessionId: string }) => void>()
 }))
+
+vi.mock('@renderer/services/voice', () => ({
+  readTextAloud: readAloud
+}))
+
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 vi.mock('@renderer/components/selection/SelectionActionIcon', () => ({
   default: ({ size }: { size: number }) => <span data-testid="action-icon" data-size={size} />
@@ -52,9 +60,20 @@ vi.mock('@renderer/hooks/useWindowInitData', () => ({
   useWindowInitData: () => actionState.value
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipcRequest }
-}))
+vi.mock('@renderer/ipc', async () => {
+  const { useEffect } = await import('react')
+  return {
+    ipcApi: { request: ipcRequest },
+    useIpcOn: (_event: string, listener: (payload: { sessionId: string }) => void) => {
+      useEffect(() => {
+        dismissalListeners.add(listener)
+        return () => {
+          dismissalListeners.delete(listener)
+        }
+      }, [listener])
+    }
+  }
+})
 
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
@@ -62,14 +81,13 @@ vi.mock('@renderer/utils/platform', () => ({
   }
 }))
 
-vi.mock('../components/ActionGeneral', () => {
-  const MockActionGeneral = () => {
-    useEffect(() => {
-      generalMounts.count += 1
-    }, [])
-    return null
+vi.mock('../components/ActionGeneral', async () => {
+  const { ResultReadAloudButton } = await import('../components/ResultReadAloudButton')
+  return {
+    default: ({ sourceEntityId }: { sourceEntityId: string }) => (
+      <ResultReadAloudButton text="generated result" sourceEntityId={sourceEntityId} />
+    )
   }
-  return { default: MockActionGeneral }
 })
 vi.mock('../components/ActionTranslate', () => ({ default: () => null }))
 
@@ -79,22 +97,34 @@ describe('ActionWindow surface', () => {
       id: 'test-action',
       name: 'Test action',
       icon: 'test-icon',
-      isBuiltIn: false
-    } as SelectionActionItem
+      isBuiltIn: false,
+      sessionId: 'session-1'
+    } as SelectionActionSession
     opacityPreference.value = 100
     platform.isMac = false
-    generalMounts.count = 0
+    readAloud.mockClear()
     HTMLElement.prototype.scrollTo = vi.fn()
   })
 
-  it('remounts the chat subtree on reuse so the previous selection is not carried over', async () => {
-    const { rerender } = render(<ActionWindow />)
-    await waitFor(() => expect(generalMounts.count).toBe(1))
+  it('cancels the hidden or replaced session without cancelling a later pooled session', async () => {
+    actionState.value = { ...actionState.value, selectedText: 'PRIVATE_SELECTION_1' }
+    const view = render(<ActionWindow />)
+    fireEvent.click(screen.getByRole('button', { name: 'selection.action.voice.read_result' }))
+    const first = readAloud.mock.calls.at(-1)![0].signal!
+    expect(first.aborted).toBe(false)
+    act(() => dismissalListeners.forEach((listener) => listener({ sessionId: 'session-1' })))
+    expect(first.aborted).toBe(true)
 
-    actionState.value = { ...actionState.value, selectedText: 'next selection' }
-    rerender(<ActionWindow />)
+    actionState.value = { ...actionState.value, selectedText: 'PRIVATE_SELECTION_2', sessionId: 'session-2' }
+    view.rerender(<ActionWindow />)
+    fireEvent.click(screen.getByRole('button', { name: 'selection.action.voice.read_result' }))
+    const second = readAloud.mock.calls.at(-1)![0].signal!
+    act(() => dismissalListeners.forEach((listener) => listener({ sessionId: 'session-1' })))
+    expect(second.aborted).toBe(false)
 
-    await waitFor(() => expect(generalMounts.count).toBe(2))
+    actionState.value = { ...actionState.value, sessionId: 'session-3' }
+    view.rerender(<ActionWindow />)
+    expect(second.aborted).toBe(true)
   })
 
   it('uses an opaque popover surface at 100% window opacity', () => {

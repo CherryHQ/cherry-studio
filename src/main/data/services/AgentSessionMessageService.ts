@@ -64,6 +64,7 @@ import {
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
+import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -223,7 +224,7 @@ function replaceAgentSessionMessageFileRefsTx(
     ...new Set(
       (data.parts ?? [])
         .filter((part) => part.type === 'file')
-        .map((part) => readCherryMeta(part)?.fileEntryId)
+        .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
         .filter((id): id is string => Boolean(id))
     )
   ]
@@ -295,6 +296,56 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
 }
 
 export class AgentSessionMessageService {
+  readWorkspaceRelocationHistory(workspaceId: string) {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        messageId: sessionMessagesTable.id,
+        sessionId: sessionTable.id,
+        runtime: agentTable.type,
+        role: sessionMessagesTable.role,
+        status: sessionMessagesTable.status,
+        userText: sql<
+          string | null
+        >`case when ${sessionMessagesTable.role} = 'user' then ${sessionMessagesTable.searchableText} end`,
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        resumeToken: sessionMessagesTable.runtimeResumeToken,
+        checkpoint: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint')`
+      })
+      .from(sessionTable)
+      .leftJoin(sessionMessagesTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
+      .leftJoin(agentTable, eq(agentTable.id, sessionTable.agentId))
+      .where(eq(sessionTable.workspaceId, workspaceId))
+      .all()
+  }
+
+  relocateCheckpointsTx(
+    tx: DbOrTx,
+    workspaceId: string,
+    checkpoints: readonly { messageId: string; checkpoint: RuntimeForkCheckpoint }[]
+  ): void {
+    for (const { messageId, checkpoint } of checkpoints) {
+      const result = tx
+        .update(sessionMessagesTable)
+        .set({
+          data: sql`json_set(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint', json(${JSON.stringify(checkpoint)}))`,
+          updatedAt: sessionMessagesTable.updatedAt
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, messageId),
+            inArray(
+              sessionMessagesTable.sessionId,
+              tx.select({ id: sessionTable.id }).from(sessionTable).where(eq(sessionTable.workspaceId, workspaceId))
+            )
+          )
+        )
+        .run()
+      if (result.changes !== 1) throw new Error('Session message changed during relocation')
+    }
+  }
+
   readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
     this.assertActiveSession(tx, sessionId)
     const source = tx
@@ -995,6 +1046,31 @@ export class AgentSessionMessageService {
       .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
     return new Set(rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])))
+  }
+
+  listRuntimeResumeTokensBySession(sessionIds: readonly string[]): Map<string, Set<string>> {
+    const tokensBySession = new Map<string, Set<string>>()
+    if (sessionIds.length === 0) return tokensBySession
+
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .selectDistinct({
+        sessionId: sessionMessagesTable.sessionId,
+        runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
+      })
+      .from(sessionMessagesTable)
+      .where(
+        and(inArray(sessionMessagesTable.sessionId, sessionIds), isNotNull(sessionMessagesTable.runtimeResumeToken))
+      )
+      .all()
+    for (const { sessionId, runtimeResumeToken } of rows) {
+      if (!runtimeResumeToken) continue
+      const tokens = tokensBySession.get(sessionId) ?? new Set<string>()
+      tokens.add(runtimeResumeToken)
+      tokensBySession.set(sessionId, tokens)
+    }
+    return tokensBySession
   }
 
   // ── Persistence methods ──────────────────────────────────────────

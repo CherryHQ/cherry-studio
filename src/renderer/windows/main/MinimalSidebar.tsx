@@ -126,10 +126,10 @@ export function MinimalSidebarFooter() {
             className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1 text-muted-foreground! hover:text-foreground! focus-visible:text-foreground!"
             aria-label={name}
             onClick={() => UserPopup.show()}>
-            <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" ring={false} />
+            <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" />
             <span className="truncate text-sm">{name}</span>
           </Button>
-          <AppUpdateButton className="size-[30px] rounded-md [&_svg]:size-4" tooltipPlacement="top" />
+          <AppUpdateButton className="size-[30px] rounded-md [&_svg]:size-4" placement="top" />
           <Tooltip content={t('settings.title')} placement="top" delay={800}>
             <Button
               variant="ghost"
@@ -141,7 +141,7 @@ export function MinimalSidebarFooter() {
             </Button>
           </Tooltip>
           <HelpMenu
-            layout="icon"
+            iconOnly
             triggerClassName="size-[30px] rounded-md [&_svg]:size-4"
             tooltipPlacement="top"
             onFeedbackClick={() => {

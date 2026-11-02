@@ -110,12 +110,11 @@ const PURGE_DOMAINS: ReadonlyArray<{
  * Hard-deletes trashed rows whose retention window has expired, then reclaims
  * orphaned disk artifacts (file blobs + agent directories).
  *
- * Recovery 'singleton': after a restart only the newest non-terminal purge
- * survives — one full sweep covers everything an older queued run would have
- * done.
+ * Recovery 'retry' retains each unfinished request and its deletion scope.
+ * Runs remain serial: a scheduled purge cannot replace an empty-all request.
  */
 export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
-  recovery: 'singleton',
+  recovery: 'retry',
   defaultConcurrency: 1,
   async execute(ctx) {
     const emptyAll = ctx.input?.emptyAll === true

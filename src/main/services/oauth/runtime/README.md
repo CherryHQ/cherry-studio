@@ -25,7 +25,7 @@ create a leaky mega-abstraction:
 
 | Flow | Where | Why separate |
 | --- | --- | --- |
-| MCP remote servers | `src/main/ai/mcp/oauth/` | SDK-driven (`@modelcontextprotocol/sdk` `OAuthClientProvider`) + dynamic client registration (RFC 7591); control is inverted — the SDK drives, we implement an interface. Storage is per-server-URL JSON files. |
+| MCP remote servers | `src/main/ai/mcp/oauth/` | SDK-driven (`@modelcontextprotocol/client` `OAuthClientProvider`) + dynamic client registration (RFC 7591); control is inverted — the SDK drives, we implement an interface. Storage is per-server-URL JSON files. |
 | GitHub Copilot | `src/main/services/CopilotService.ts` | Device flow (RFC 8628) — no redirect/callback; encrypted-file storage. |
 | Nutstore | `src/main/services/nutstore/` | Proprietary SSO with custom encryption — not standard OAuth. |
 | Feishu / WeChat | `src/main/ai/channels/adapters/` | Proprietary device/binary protocols — not OAuth. |
@@ -83,7 +83,7 @@ provider also touches:
 3. **Settings UI** — an entry in `providerSpecificSettingsRegistry.tsx`. Loopback
    providers reuse the shared `LoginOauthPanel` (pass `i18nNs`, `showAccountId`);
    CherryIN retains its bespoke panel for API keys and balance.
-4. **i18n** — `settings.provider.<ns>.*` keys; complete every locale and validation step in the [i18n workflow](../../../../../docs/references/i18n/README.md#translation-completion-in-pull-requests).
+4. **i18n** — `settings.provider.<ns>.*` keys; complete every locale and validation step in the [i18n workflow](../../../../../docs/dev/references/i18n/README.md#translation-completion-in-pull-requests).
 5. **Chat runtime** — `src/main/ai/provider/config.ts` (`buildXxxConfig` /
    `buildXxxFetch`) + per-provider request shaping. This is a *separate axis*
    from OAuth (every upstream API differs) and cannot be made config-only.

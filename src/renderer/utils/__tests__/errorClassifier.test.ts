@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
 
-import { classifyError } from '../errorClassifier'
+import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
+import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
@@ -19,7 +20,93 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
   })
 }
 
+/** Serialized API call attempt. Status may be numeric or a numeric string, matching `classifyError`. */
+function makeApiCallAttempt(overrides: Partial<SerializedError> = {}): SerializedError {
+  return {
+    name: 'AI_APICallError',
+    message: null,
+    stack: null,
+    cause: null,
+    url: '',
+    requestBodyValues: null,
+    statusCode: null,
+    responseHeaders: null,
+    responseBody: null,
+    isRetryable: true,
+    data: null,
+    ...overrides
+  }
+}
+
+/** ai-retry copies the terminal phrase onto a status-less RetryError and keeps lastError plus errors. */
+function makeCopiedRetry(
+  phrase: string,
+  attempts: SerializedError[],
+  wrapper: Partial<SerializedError> = {}
+): SerializedError {
+  return makeRetryError({
+    message: `Failed after ${attempts.length} attempts. Last error: ${phrase}`,
+    lastError: attempts[attempts.length - 1],
+    errors: attempts,
+    ...wrapper
+  })
+}
+
 describe('classifyError', () => {
+  const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+  it.each([
+    makeError({ message: groqBody, statusCode: 400 }),
+    makeError({
+      message: 'Bad Request',
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { message: groqBody } }),
+      data: { error: { message: groqBody } }
+    }),
+    makeCopiedRetry(groqBody, [
+      makeApiCallAttempt({ statusCode: 400, responseBody: JSON.stringify({ error: { message: groqBody } }) })
+    ])
+  ])('routes a Groq tier refusal to permission recovery: %s', (error) => {
+    expect(classifyError(error, 'groq')).toMatchObject({
+      category: 'permission',
+      i18nKey: 'error.diagnosis.permission',
+      navTarget: '/settings/provider?id=groq'
+    })
+  })
+
+  it('uses the parse diagnosis for a serialized unresolved tool call', () => {
+    expect(
+      classifyError(
+        makeError({
+          name: 'AI_InvalidResponseDataError',
+          message: "Expected 'function.name' to be a string."
+        }),
+        'custom'
+      )
+    ).toMatchObject({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+  })
+
+  it.each([
+    [new Error('OpenAI API key is missing. Pass it using the apiKey parameter.'), 'auth'],
+    [
+      Object.assign(new Error('Forbidden'), {
+        statusCode: 403,
+        responseBody: '{"error":{"message":"insufficient_user_quota"}}'
+      }),
+      'quota'
+    ],
+    [Object.assign(new Error('Too many requests'), { status: 429 }), 'rate_limit'],
+    [{ name: 'Error', message: 'Process exited', stack: null, claudeCodeExitCategory: 'proxy' }, 'proxy'],
+    ['net::ERR_INTERNET_DISCONNECTED', 'network'],
+    ['Unexplained failure', 'unknown']
+  ] as const)('preserves the diagnosis when a thrown value enters a toast (%s)', (error, category) => {
+    expect(classifyError(serializeToastError(error)).category).toBe(category)
+  })
   it.each([
     ['auth', '/settings/provider?id=anthropic'],
     ['model', '/settings/provider?id=anthropic'],
@@ -60,7 +147,7 @@ describe('classifyError', () => {
     expect(result.category).toBe('unknown')
   })
 
-  // Wrapped errors — RetryError itself carries no status, the cause does.
+  // Wrapped errors — RetryError itself carries no status; the terminal lastError does.
   it.each([
     [401, 'auth'],
     [429, 'rate_limit'],
@@ -112,6 +199,137 @@ describe('classifyError', () => {
     expect(result.category).toBe('rate_limit')
   })
 
+  // Copied terminal phrase must not hide a structured HTTP 5xx on lastError.
+  it.each(['unauthorized', 'insufficient_balance', 'too many requests', 'model_not_found', 'fetch failed'])(
+    'classifies a retry wrapper that copied "%s" as server when the terminal attempt is HTTP 503',
+    (phrase) => {
+      const error = makeCopiedRetry(phrase, [
+        makeApiCallAttempt({ statusCode: 401, providerErrorCategory: 'auth', message: 'unauthorized' }),
+        makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' }),
+        makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: phrase })
+      ])
+
+      expect(classifyError(error, 'openai')).toMatchObject({
+        category: 'server',
+        i18nKey: 'error.diagnosis.server',
+        navTarget: null
+      })
+    }
+  )
+
+  it('reads a string terminal status the same way as a numeric 503', () => {
+    const byStatusCode = makeCopiedRetry('unauthorized', [
+      makeApiCallAttempt({ statusCode: '503', message: 'unauthorized' })
+    ])
+    const byStatus = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ status: '503', message: 'unauthorized' })])
+
+    expect(classifyError(byStatusCode).category).toBe('server')
+    expect(classifyError(byStatus).category).toBe('server')
+  })
+
+  it.each([
+    [500, 'server'],
+    [599, 'server'],
+    [499, 'auth'],
+    [600, 'auth']
+  ] as const)('treats terminal HTTP %i as %s when the wrapper only copied "unauthorized"', (statusCode, category) => {
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode, message: 'unauthorized' })])
+
+    expect(classifyError(error).category).toBe(category)
+  })
+
+  it('does not let an earlier HTTP 503 override a terminal 401 or 429', () => {
+    const terminalUnauthorized = makeCopiedRetry('rate limit exceeded', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'Service Unavailable' }),
+      makeApiCallAttempt({ statusCode: 401, providerErrorCategory: 'auth', message: 'unauthorized' })
+    ])
+    const terminalRateLimit = makeCopiedRetry('too many requests', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'Service Unavailable' }),
+      makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' })
+    ])
+
+    expect(classifyError(terminalUnauthorized).category).toBe('rate_limit')
+    expect(classifyError(terminalRateLimit).category).toBe('rate_limit')
+  })
+
+  it('keeps outer status, provider category, Claude category, and finishReason ahead of a terminal 503', () => {
+    const terminalServer = [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'unauthorized' })
+    ]
+
+    expect(
+      classifyError(makeCopiedRetry('too many requests', terminalServer, { statusCode: 401 }), 'openai')
+    ).toMatchObject({
+      category: 'auth',
+      navTarget: '/settings/provider?id=openai'
+    })
+    expect(classifyError(makeCopiedRetry('too many requests', terminalServer, { status: '403' })).category).toBe(
+      'permission'
+    )
+    expect(
+      classifyError(makeCopiedRetry('unauthorized', terminalServer, { providerErrorCategory: 'quota' })).category
+    ).toBe('quota')
+    expect(
+      classifyError(makeCopiedRetry('unauthorized', terminalServer, { claudeCodeExitCategory: 'mcp' })).category
+    ).toBe('mcp')
+    expect(
+      classifyError(makeCopiedRetry('blocked by safety', terminalServer, { finishReason: 'SAFETY' })).category
+    ).toBe('content')
+  })
+
+  it('keeps an outer HTTP 503 ahead of a terminal 401 and a copied unauthorized phrase', () => {
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode: 401, message: 'unauthorized' })], {
+      statusCode: 503
+    })
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it('lets a terminal HTTP 503 outrank message-only safety text', () => {
+    const error = makeCopiedRetry('blocked by safety', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'blocked by safety' })
+    ])
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it('keeps message-only MCP, OCR, and transport categories without a terminal HTTP 5xx', () => {
+    expect(
+      classifyError(
+        makeCopiedRetry('MCP error: service unavailable', [
+          makeApiCallAttempt({ message: 'MCP error: service unavailable' })
+        ])
+      ).category
+    ).toBe('mcp')
+    expect(
+      classifyError(
+        makeCopiedRetry('OCR service unavailable', [makeApiCallAttempt({ message: 'OCR service unavailable' })])
+      ).category
+    ).toBe('ocr')
+    expect(
+      classifyError(makeCopiedRetry('fetch failed', [makeApiCallAttempt({ message: 'fetch failed' })])).category
+    ).toBe('network')
+    expect(
+      classifyError(
+        makeCopiedRetry('net::ERR_PROXY_CONNECTION_FAILED', [
+          makeApiCallAttempt({ message: 'net::ERR_PROXY_CONNECTION_FAILED' })
+        ])
+      ).category
+    ).toBe('proxy')
+  })
+
+  it('lets a terminal HTTP 503 outrank a copied MCP phrase', () => {
+    const error = makeCopiedRetry('MCP error: service unavailable', [
+      makeApiCallAttempt({
+        statusCode: 503,
+        providerErrorCategory: 'server',
+        message: 'MCP error: service unavailable'
+      })
+    ])
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
   it.each([
     ['direct', makeError({ statusCode: 400 })],
     [
@@ -133,6 +351,19 @@ describe('classifyError', () => {
     const result = classifyError(makeError({ statusCode: 400 }), 'gateway&fallback#beta')
 
     expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
+  })
+
+  // The provider rejected the request body (#22164). That is a request-side failure, so it
+  // must not be diagnosed as "AI returned an invalid response, retry or switch model".
+  it('diagnoses a rejected request body as a request failure, not invalid AI content', () => {
+    const result = classifyError(
+      makeError({ statusCode: 400, message: 'Failed to parse request body', responseBody: 'Bad Request' }),
+      'openai'
+    )
+
+    expect(result.category).toBe('bad_request')
+    expect(result.i18nKey).toBe('error.diagnosis.bad_request')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   // Auth
@@ -198,6 +429,23 @@ describe('classifyError', () => {
     expect(result.category).toBe('permission')
   })
 
+  // An OCR-fallback failure must not be re-owned by the chat provider: even when the
+  // failing OCR processor's diagnostic carries auth-flavored tokens, the error text is
+  // the generic non-vision headline, so recovery never points at provider settings (#20343).
+  it('keeps an app-owned non-vision OCR error out of the provider auth routing', () => {
+    const result = classifyError(
+      makeError({
+        name: 'NonVisionImageOcrError',
+        i18nKey: 'image_unreadable_for_non_vision_model',
+        message:
+          "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+      }),
+      'anthropic'
+    )
+    expect(result.category).not.toBe('auth')
+    expect(result.navTarget).toBeNull()
+  })
+
   // Model
   it('classifies 404 as model', () => {
     const result = classifyError(makeError({ statusCode: 404 }))
@@ -209,11 +457,41 @@ describe('classifyError', () => {
     expect(result.category).toBe('model')
   })
 
+  it('classifies a stale assistant model resolution failure as model', () => {
+    const result = classifyError(
+      makeError({ message: 'Cannot resolve modelId: not in request and assistant has no model' })
+    )
+
+    expect(result.category).toBe('model')
+  })
+
   it('classifies a missing configured model id as model', () => {
     const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
 
     expect(result.category).toBe('model')
     expect(result.i18nKey).toBe('error.diagnosis.model')
+  })
+
+  // #22571: main rejects a stale assistant-bound model before calling the provider. Falling through
+  // to the unknown-text fallback labelled it `bad_request` ("check your request parameters").
+  it.each([
+    ['Cannot resolve modelId: not in request and assistant has no model'],
+    ['Cannot resolve providerId: not in request and assistant has no model']
+  ])('classifies the local model resolution failure %s as model', (message) => {
+    const result = classifyError(makeError({ message }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+    expect(result.navTarget).toBe('/settings/provider')
+  })
+
+  // Format 4: DataApiErrorFactory.notFound('Model', 'provider/model')
+  it('classifies DataApiError notFound for model as model with extracted id', () => {
+    const result = classifyError(makeError({ message: "Model with id 'ollama/qwen2.5-14b-instruct' not found" }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Rate limit
@@ -286,6 +564,25 @@ describe('classifyError', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
     expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('offers network recovery for the embedded runtime connection code', () => {
+    expect(classifyError(makeError({ message: 'API Error: Unable to connect to API (ConnectionRefused)' }))).toEqual({
+      category: 'network',
+      i18nKey: 'error.diagnosis.network',
+      navTarget: '/settings/general'
+    })
+  })
+
+  it('does not infer a network failure from explanatory connection prose in provider data', () => {
+    const result = classifyError(
+      makeError({
+        responseBody: 'The provider explains how to open a connection.',
+        data: { detail: 'The guide discusses connection refused errors.' }
+      })
+    )
+
+    expect(result.category).toBe('unknown')
   })
 
   it('classifies timeout as network', () => {
@@ -391,6 +688,16 @@ describe('classifyError', () => {
 
   it('classifies 503 as server', () => {
     const result = classifyError(makeError({ statusCode: 503 }))
+    expect(result.category).toBe('server')
+  })
+
+  it('classifies a 503 with a transport-looking message as server', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'fetch failed' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('keeps a provider 503 server classification ahead of feature text', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'MCP error: service unavailable' }))
     expect(result.category).toBe('server')
   })
 
@@ -515,5 +822,32 @@ describe('classifyError', () => {
   it('prioritizes finishReason over status code', () => {
     const result = classifyError(makeError({ finishReason: 'content-filter', statusCode: 500 }))
     expect(result.category).toBe('content')
+  })
+})
+
+describe('getLocalModelResolutionFailure', () => {
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('does not invent an identifier for %s', (message) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual({})
+    expect(classifyError(makeError({ message }), 'openai')).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider?id=openai'
+    })
+  })
+
+  it.each([
+    ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
+    ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
+    ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
+    ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
+  ])('preserves identifiers supplied by %s', (message, expected) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual(expected)
+  })
+
+  it('does not mistake a provider response for a local resolution failure', () => {
+    expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
   })
 })

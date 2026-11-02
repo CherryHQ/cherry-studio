@@ -40,7 +40,7 @@ on:
       - "scripts/publishRegistryCatalog.js"
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
-      - "packages/provider-registry/src/registry-loader.ts"
+      - "packages/provider-registry/src/catalog.ts"
   release:
     types: [published]
   workflow_dispatch:
@@ -77,15 +77,15 @@ jobs:
           # Publishing to the matching v{N} dir is what keeps old apps on a
           # schema they can parse — see the constant's doc comment.
           VER=$(grep -oE 'REGISTRY_SCHEMA_VERSION = [0-9]+' \
-            main/packages/provider-registry/src/registry-loader.ts | grep -oE '[0-9]+' | head -n1)
+            main/packages/provider-registry/src/catalog.ts | grep -oE '[0-9]+' | head -n1)
           if [ -z "$VER" ]; then
-            echo "Could not resolve REGISTRY_SCHEMA_VERSION from registry-loader.ts" >&2
+            echo "Could not resolve REGISTRY_SCHEMA_VERSION from catalog.ts" >&2
             exit 1
           fi
           MIN_APP_VERSION=$(grep -oE "REGISTRY_MIN_APP_VERSION = '[^']+'" \
-            main/packages/provider-registry/src/registry-loader.ts | cut -d"'" -f2 | head -n1)
+            main/packages/provider-registry/src/catalog.ts | cut -d"'" -f2 | head -n1)
           if [ -z "$MIN_APP_VERSION" ]; then
-            echo "Could not resolve REGISTRY_MIN_APP_VERSION from registry-loader.ts" >&2
+            echo "Could not resolve REGISTRY_MIN_APP_VERSION from catalog.ts" >&2
             exit 1
           fi
           echo "version=$VER" >> "$GITHUB_OUTPUT"

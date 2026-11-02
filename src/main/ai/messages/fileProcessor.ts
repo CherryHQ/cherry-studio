@@ -99,7 +99,35 @@ async function fileUrlToDataUrl(fileUrl: string) {
  */
 export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
   const materialized = await materializeInner(part)
-  return materialized === null ? null : sanitizeFilePartMediaType(materialized)
+  if (materialized === null) return null
+  const normalized = sanitizeFilePartMediaType(materialized)
+  // Validate only locally available formats in this contract. Do not fetch
+  // remote URLs or reject other formats merely because this decoder lacks them.
+  if (!/^image\/(?:png|jpeg|webp|gif)$/i.test(normalized.mediaType) || !normalized.url.startsWith('data:'))
+    return normalized
+  try {
+    const comma = normalized.url.indexOf(',')
+    if (comma < 0) return null
+    const header = normalized.url.slice(0, comma)
+    const payload = normalized.url.slice(comma + 1)
+    const bytes = /;base64$/i.test(header)
+      ? Buffer.from(payload, 'base64')
+      : Buffer.from(
+          payload.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))),
+          'binary'
+        )
+    const sharp = (await import('sharp')).default
+    // Metadata/magic alone accepts truncated pixel data. Strict decode also
+    // rejects malformed-but-displayable files; persisted attachments stay intact.
+    await sharp(bytes, { failOn: 'error', limitInputPixels: 100_000_000 }).stats()
+    return normalized
+  } catch {
+    logger.warn('Unreadable image attachment; using the existing file failure note', {
+      filename: normalized.filename,
+      mediaType: normalized.mediaType
+    })
+    return null
+  }
 }
 
 async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {

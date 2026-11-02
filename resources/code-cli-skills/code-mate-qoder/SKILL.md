@@ -1,6 +1,6 @@
 ---
 name: code-mate-qoder
-description: Runs the Code Mate Qoder CN CLI non-interactively with structured output. Use when the user asks to delegate a bounded coding task to Qoder.
+description: Run the Qoder CLI non-interactively with structured output. Use when the user asks to delegate a coding task to Qoder.
 ---
 
 # Qoder CN CLI

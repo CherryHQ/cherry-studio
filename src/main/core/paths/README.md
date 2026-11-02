@@ -25,7 +25,7 @@ application.getPath('invalid.key')
 | `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) and dev-profile isolation — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
 | `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
 
-**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
+**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/dev/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
 
 ## Top-Level Namespaces
 
@@ -47,7 +47,7 @@ explicit cleanup. `external.*` → Cherry MUST NOT delete.
 Format: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/` (enforced by ESLint `data-schema-key/valid-key`)
 
 - At least 2 segments separated by `.`, each starts with a letter
-- Multi-word segments: `snake_case` (e.g. `crash_dumps`, `lan_transfer`)
+- Multi-word segments: `snake_case` (e.g. `crash_dumps`, `pdf_translation`)
 
 ### File vs Directory
 

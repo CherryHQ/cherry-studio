@@ -94,6 +94,39 @@ describe('AiSdkToGeminiSse (streaming)', () => {
     })
   })
 
+  it('reports cached prompt tokens via cachedContentTokenCount without changing the totals', () => {
+    const frames = run([
+      textDelta('x'),
+      finish('stop', {
+        stats: {
+          inputTokens: 30,
+          outputTokens: 20,
+          inputTokenDetails: { cacheReadTokens: 10 },
+          outputTokenDetails: { reasoningTokens: 5 }
+        }
+      })
+    ])
+    expect(frames[frames.length - 1].usageMetadata).toEqual({
+      promptTokenCount: 30,
+      candidatesTokenCount: 15,
+      totalTokenCount: 50,
+      thoughtsTokenCount: 5,
+      cachedContentTokenCount: 10
+    })
+  })
+
+  it('omits cachedContentTokenCount when no cache reads are projected', () => {
+    const frames = run([
+      textDelta('x'),
+      finish('stop', { stats: { inputTokens: 10, outputTokens: 20, inputTokenDetails: { cacheReadTokens: 0 } } })
+    ])
+    expect(frames[frames.length - 1].usageMetadata).toEqual({
+      promptTokenCount: 10,
+      candidatesTokenCount: 20,
+      totalTokenCount: 30
+    })
+  })
+
   it('throws on an error chunk so the stream surfaces a failure', () => {
     const adapter = new AiSdkToGeminiSse({ model: 'deepseek:deepseek-chat' })
     expect(() => adapter.transformChunk({ type: 'error', errorText: 'boom' })).toThrow('boom')
@@ -152,3 +185,19 @@ describe('GeminiSseFormatter', () => {
     expect(formatter.formatDone()).toBe('')
   })
 })
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)

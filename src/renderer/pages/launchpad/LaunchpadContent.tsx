@@ -42,7 +42,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
     reorderMiniAppsByStatus
   } = useMiniApps()
   const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
-  const { apps, shortcuts: fixedShortcuts, miniApps: sortedMiniApps, reorderApps } = useLaunchpadCatalog(pinned)
+  const { apps, miniApps: sortedMiniApps, reorderApps } = useLaunchpadCatalog(pinned)
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
@@ -73,8 +73,8 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
     },
     [pinned, t, setPinned, miniAppFavoriteIdSet]
   )
-  const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
-    draggedItemIdRef.current = String(event.active.id)
+  const handleSortableDragStart = useCallback((event: { activeId: string | number }) => {
+    draggedItemIdRef.current = String(event.activeId)
     suppressClickUntilRef.current = Date.now() + 500
   }, [])
 
@@ -237,19 +237,6 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
                   renderItem={(item) => renderAppMenuItem(item)}
                 />
               )}
-              {fixedShortcuts.map((item) => (
-                <Button
-                  variant="ghost"
-                  key={item.id}
-                  type="button"
-                  onClick={() => onOpen(item.url)}
-                  className={`${itemClassName} group flex h-auto cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 hover:bg-transparent focus-visible:scale-105 focus-visible:bg-transparent active:scale-95`}>
-                  <LaunchpadAppIcon src={item.iconSrc} size={compact ? 40 : 50} />
-                  <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-                    {item.label}
-                  </span>
-                </Button>
-              ))}
             </div>
           </section>
 

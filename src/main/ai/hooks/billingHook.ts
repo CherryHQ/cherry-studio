@@ -72,10 +72,13 @@ function recordLanguageInvocation(
   })
 }
 
-export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): LanguageModelMiddleware {
+export type AiUsageCaptureSource = AiUsageCaptureContext | (() => AiUsageCaptureContext)
+
+export function createLanguageUsageMiddleware(source: AiUsageCaptureSource): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
+      const context = typeof source === 'function' ? source() : source
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
       const result = await doGenerate()
@@ -89,6 +92,7 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
       return result
     },
     wrapStream: async ({ doStream }) => {
+      const context = typeof source === 'function' ? source() : source
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
       const result = await doStream()
@@ -144,7 +148,7 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
   }
 }
 
-export function createAiUsagePlugin(context: AiUsageCaptureContext): AiPlugin {
+export function createAiUsagePlugin(context: AiUsageCaptureSource): AiPlugin {
   const middleware = createLanguageUsageMiddleware(context)
   return definePlugin({
     name: 'ai-usage-capture',

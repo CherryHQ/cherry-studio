@@ -16,13 +16,13 @@ import {
   DropdownMenuTrigger,
   Kbd,
   RowFlex,
+  Scrollbar,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingGroup, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,

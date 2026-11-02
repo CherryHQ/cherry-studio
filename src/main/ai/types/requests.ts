@@ -4,6 +4,7 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 /**
@@ -14,7 +15,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 export interface AiTransportOptions {
   /** Layered on top of provider-aware app attribution + `provider.settings.extraHeaders`; caller wins on conflict. */
   headers?: Record<string, string | undefined>
-  /** Idle-chunk timeout (ms) for streaming flows; resets per chunk. Falls back to `DEFAULT_TIMEOUT` (30 min). */
+  /** Idle-chunk timeout (ms); resets per chunk. Chat execution defaults to `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min). */
   timeout?: number
   /** AI SDK transparent-retry override. Defaults to 0 — retries can duplicate stream state in tool loops. */
   maxRetries?: number
@@ -99,6 +100,10 @@ export interface AiChatRequest extends AiRequest {
   contextOwner?: ContextOwner
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
+  /** In-process caller identity used only for targeted embedded MCP authorization. */
+  interactionWindowId?: WindowId
+  /** In-process safety switch for MCP sampling; prevents tool recursion. */
+  disableTools?: boolean
 }
 
 /**

@@ -219,8 +219,7 @@ describe('minimal navigation', () => {
     expect(capture.current?.tabs.filter((tab) => tab.url.startsWith('/app/chat'))).toHaveLength(1)
   })
   it('keeps the Agent home on exiting from Chat, including closing pinned and mini-app tabs', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'example')
+    MockUseCacheUtils.setCacheValue('mini_app.split', { appId: 'example' })
     MockUsePreferenceUtils.setPreferenceValue('ui.mode', 'minimal')
     const { result, rerender } = renderHook(useMinimalNavigation)
     act(() =>
@@ -237,8 +236,7 @@ describe('minimal navigation', () => {
     rerender()
     expect(capture.current?.tabs).toEqual([initialTabs[1]])
     expect(capture.current?.activeTabId).toBe('agent')
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split')).toBeNull()
     act(() => result.current.openFeature('/app/notes'))
     rerender()
     expect(capture.current?.tabs).toHaveLength(2)
