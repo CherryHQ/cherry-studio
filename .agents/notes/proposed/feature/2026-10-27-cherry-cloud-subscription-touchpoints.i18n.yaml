@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-27-cherry-cloud-subscription-touchpoints.md
-2026-10-27-cherry-cloud-subscription-touchpoints.md: 2e845bcfbd2ad97dee7f24324a4621d57f61acc9
-2026-10-27-cherry-cloud-subscription-touchpoints.zh.md: c846e56f59bdcd37480a6df80255f639b8b917e7
+2026-10-27-cherry-cloud-subscription-touchpoints.md: cf7716be3805fcc3c71346e7b480a57a26455817
+2026-10-27-cherry-cloud-subscription-touchpoints.zh.md: 220ed569dd1a7bf14fd54aaca043bec381014396
