@@ -647,6 +647,46 @@ describe('detectDestructiveAssistantCommand', () => {
     expect(detectDestructiveAssistantCommand('$a[0] = del victim.txt')).toBe('permanent Windows file deletion')
   })
 
+  it('denies parenthesized assignment targets (round-21 review findings)', () => {
+    // PowerShell accepts parenthesized roots with member, index or static continuations as
+    // assignment LHS; the shipped main guard denies every del-token form of them.
+    expect(detectDestructiveAssistantCommand('$h = @{}; ($h).result = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('($h).result = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('($a)[0] = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('([Console])::Title = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand("pwsh -NoProfile -Command '($h).result = del victim.txt'")).toBe(
+      'permanent Windows file deletion'
+    )
+    // One extra nesting level is covered; deeper parenthesization is a documented best-effort gap.
+    expect(detectDestructiveAssistantCommand('(($h)).result = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('((($h))).result = del victim.txt')).toBeUndefined()
+    // Static chains and scoped variables inside parentheses, and chains after them.
+    expect(detectDestructiveAssistantCommand('([Console]::Title) = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('($global:t)::x = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('($h).t::Title = del victim.txt')).toBe('permanent Windows file deletion')
+    // The parenthesized branch must not start right after a `.`: the documented computed-member
+    // gap `$h.($x)` keeps its shipped allow behavior instead of matching its inner `($x)`.
+    expect(detectDestructiveAssistantCommand('$h.($x) = del victim.txt')).toBeUndefined()
+    // Bare parenthesized variables are valid assignment targets per the official PowerShell
+    // 7.6.9 parser (ParseInput AST, parse-only) and deny.
+    expect(detectDestructiveAssistantCommand('($h) = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('($5) = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('(($h)) = del victim.txt')).toBe('permanent Windows file deletion')
+    // Pinned behavior: the whitespace-separated dot form is a parse error in official
+    // PowerShell 7.6.9, so its denial here is conservative noise, not coverage of a valid form.
+    expect(detectDestructiveAssistantCommand('$h . ($x) = del victim.txt')).toBe('permanent Windows file deletion')
+    // Valid-assignment misses kept as documented best-effort gaps: continuations after an inner
+    // parenthesized group, and three or more parenthesization levels (pinned above).
+    expect(detectDestructiveAssistantCommand('(($h).x).y = del victim.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('(($a)[0]).x = del victim.txt')).toBeUndefined()
+  })
+
   it('denies scoped and property-rooted static-member assignment chains (round-20 review findings)', () => {
     // Scope-qualified variables and property chains followed by `::Type = <verb>` are real PowerShell
     // assignment targets (the variable carries a typed object; the static call runs the verb's argument

@@ -9,6 +9,32 @@ interface DestructiveCommandPattern {
 // legitimately contain whitespace, so matching is unchanged on real input.
 const PS_IDENTIFIER_CHARS = String.raw`\w\u0080-\u009f\u00a1-\u167f\u1681-\u1fff\u200b-\u2027\u202a-\u202e\u2030-\u205e\u2060-\u2fff\u3001-\ufefe\uff00-\uffff`
 
+// Parenthesized assignment targets (round-21 review findings): PowerShell accepts `($h).result`,
+// `($a)[0]`, `([Console])::Title` and one deeper nesting level as assignment LHS, and the shipped
+// main guard denies every del-token form of them. The fragments below mirror the member/variable/
+// index pieces used by the main alternation so the parenthesized branch stays byte-aligned with it.
+// Deliberate bounds (grounded against the official PowerShell 7.6.9
+// Parser.ParseInput AST, parse-only): bare parenthesized variables are valid assignment targets
+// and deny (`($h)`, `($5)`, `(($h))`); nesting stops at two parenthesization levels, and a
+// continuation after an inner parenthesized group (`(($h).x).y`, `(($a)[0]).x`) plus command
+// roots stay allow even though they parse as valid assignments - documented best-effort gaps.
+// The branch also refuses to start right after a `.`, so the documented computed-member gap
+// `$h.($x) = ...` keeps its shipped allow behavior instead of matching its inner `($x)`.
+const PS_QUOTED_DOUBLE = String.raw`"[^"\r\n]*(?:""[^"\r\n]*)*"`
+const PS_QUOTED_SINGLE = String.raw`'[^'\r\n]*(?:''[^'\r\n]*)*'`
+const PS_STATIC_MEMBER = String.raw`(?:[${PS_IDENTIFIER_CHARS}]+|${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE}|\(\s*(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})\s*\))`
+const PS_DOT_MEMBER = String.raw`(?:[${PS_IDENTIFIER_CHARS}]+|(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})|\(\s*(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})\s*\))`
+const PS_VARIABLE = String.raw`\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?`
+const PS_BRACED_VARIABLE = String.raw`\$\{[^{}\r\n]*\}`
+const PS_INDEX_SEGMENT = String.raw`\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\]`
+const PS_TYPE_LITERAL = String.raw`\[[^\[\]\r\n]+\]`
+const PS_TYPE_STATIC_CHAIN = String.raw`${PS_TYPE_LITERAL}(?:\s*::\s*${PS_STATIC_MEMBER})+`
+const PS_TARGET_SEGMENT = String.raw`(?:\s*\.\s*${PS_DOT_MEMBER}|${PS_INDEX_SEGMENT})`
+const PS_PAREN_INNER = String.raw`${PS_TYPE_STATIC_CHAIN}|${PS_TYPE_LITERAL}|(?:${PS_VARIABLE}|${PS_BRACED_VARIABLE})${PS_TARGET_SEGMENT}*(?:\s*::\s*${PS_STATIC_MEMBER})*`
+const PS_PAREN_TARGET_L1 = String.raw`\(\s*(?:${PS_PAREN_INNER})\s*\)`
+const PS_PAREN_TARGET_L2 = String.raw`\(\s*(?:${PS_PAREN_TARGET_L1}|${PS_PAREN_INNER})\s*\)`
+const PS_PAREN_TARGET = String.raw`(?<!\.)(?:${PS_PAREN_TARGET_L2}|${PS_PAREN_TARGET_L1})${PS_TARGET_SEGMENT}*(?:\s*::\s*${PS_STATIC_MEMBER})*`
+
 const SHELL_ARGUMENT_PATTERN = String.raw`(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|]+)`
 const GIT_GLOBAL_OPTION_PATTERN = String.raw`(?:(?:-C|-c|--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)\s+${SHELL_ARGUMENT_PATTERN}|(?:--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env|--list-cmds|--attr-source)=${SHELL_ARGUMENT_PATTERN}|-p|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs|--no-literal-pathspecs|--glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks|--no-lazy-fetch|--no-advice)`
 const GIT_DESTRUCTIVE_COMMAND_PATTERN = new RegExp(
@@ -150,7 +176,7 @@ const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
     '`' +
     String.raw`@][@` +
     '`' +
-    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+)(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
+    String.raw`"']{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*'|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')|\(\s*(?:"[^"\r\n]*(?:""[^"\r\n]*)*"|'[^'\r\n]*(?:''[^'\r\n]*)*')\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["']|@)*))\1(?:del|erase|rd)(?=\s|$|["'(]|>>?|<)`,
   'i'
 )
 
