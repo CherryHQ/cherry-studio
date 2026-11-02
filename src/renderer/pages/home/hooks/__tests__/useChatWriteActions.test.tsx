@@ -21,7 +21,10 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
@@ -94,6 +97,20 @@ function renderActions(
     seedReservedMessages
   }
 }
+
+describe('useChatWriteActions — unpersisted branch', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('warns with a translated message when the active message is not persisted yet', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.setActiveNodeTrigger).mockRejectedValueOnce(new DataApiError(ErrorCode.NOT_FOUND, 'missing', 404))
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
+
+    await actions.setActiveNode('u1')
+
+    expect(toast.warning).toHaveBeenCalledWith(i18n.t('message.error.still_syncing'))
+  })
+})
 
 describe('useChatWriteActions — pause', () => {
   beforeEach(() => vi.clearAllMocks())
