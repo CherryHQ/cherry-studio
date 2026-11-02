@@ -64,6 +64,9 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   // Responses-endpoint models only; the openai extension's factory emits the bare tool shape.
   doubao: { 'web-search': factories('openai') },
   deepseek: { 'web-search': factories('openai') },
+  // Token Plan serves bare `{type:'web_search'}` on Responses through the OpenAI extension factory,
+  // like doubao/deepseek.
+  'qwen-token-plan': { 'web-search': factories('openai') },
   // web-search: enable_search body params (getWebSearchParams). url-context (web_extractor): chat upgrades
   // search_strategy to `agent_max` (provider-options), Responses appends the `web_extractor` tool via a
   // custom-fetch body transform (appendDashScopeWebExtractor) — the openai adapter drops unknown tool ids.

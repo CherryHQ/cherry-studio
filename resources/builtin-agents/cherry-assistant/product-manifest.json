@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "e1952ef3858002a8",
-    "count": 67,
+    "version": "44ba44d27f2395f2",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -662,6 +662,10 @@
       {
         "id": "qwencloud",
         "name": "QwenCloud"
+      },
+      {
+        "id": "qwen-token-plan",
+        "name": "Qwen Token Plan"
       },
       {
         "id": "stepfun",

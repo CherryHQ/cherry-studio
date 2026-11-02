@@ -70,6 +70,7 @@ const providerKeyMap = {
   ph8: 'provider.ph8',
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
+  'qwen-token-plan': 'provider.qwen-token-plan',
   qwencloud: 'provider.qwencloud',
   qwenlm: 'provider.qwenlm',
   'radeon-cloud': 'provider.radeon-cloud',

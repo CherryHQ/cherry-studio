@@ -265,3 +265,184 @@ describe('aionly NewAPI relay endpoints (#21168)', () => {
     expect(withBaseUrl).toEqual(['openai-chat-completions'])
   })
 })
+
+/**
+ * Token Plan is a separate subscription on its own Beijing host with `sk-sp-` keys; every row keeps
+ * Anthropic Messages so an Agent turn resolves the endpoint without a manual edit.
+ */
+describe('qwen-token-plan endpoint matrix', () => {
+  it('declares the three subscription-host endpoints', () => {
+    expect(provider('qwen-token-plan').endpointConfigs).toEqual({
+      'anthropic-messages': {
+        adapterFamily: 'anthropic',
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+        reasoningFormat: { type: 'anthropic', wire: expect.any(Object) }
+      },
+      'openai-chat-completions': {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/',
+        reasoningFormat: { type: 'openai-chat' }
+      },
+      'openai-responses': {
+        adapterFamily: 'openai',
+        baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/',
+        reasoningFormat: { type: 'openai-responses' }
+      }
+    })
+  })
+
+  it('defaults chat to Chat Completions', () => {
+    expect(provider('qwen-token-plan').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+
+  it('keeps GLM-5.3 thinking enabled with only high and max effort', () => {
+    const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.modelId === 'glm-5-3')
+    const contract = entry?.reasoningContracts?.['openai-chat-completions']
+
+    expect(contract?.support).toEqual({
+      controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }],
+      defaultEffort: 'high',
+      supportedEfforts: ['high', 'max']
+    })
+    expect(contract?.wire).toEqual({
+      effort: {
+        operations: [
+          { target: 'enable_thinking', value: { source: 'literal', value: true } },
+          { target: 'reasoning_effort', value: { source: 'effort' } }
+        ]
+      }
+    })
+    expect(contract?.wire).not.toHaveProperty('off')
+  })
+
+  it('keeps the Anthropic Messages toggle enabled by default on the fifteen switchable rows', () => {
+    const format = provider('qwen-token-plan').endpointConfigs?.['anthropic-messages']?.reasoningFormat
+
+    expect(format).toEqual({
+      type: 'anthropic',
+      wire: {
+        off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
+        auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
+        effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
+      }
+    })
+    const entries = providerModelEntries(provider('qwen-token-plan')).filter(
+      (o) =>
+        o.endpointTypes?.includes('anthropic-messages') &&
+        !['kimi-k2.7-code', 'MiniMax-M2.5', 'glm-5.3'].includes(o.apiModelId ?? '')
+    )
+    expect(entries).toHaveLength(15)
+    for (const entry of entries) {
+      expect(entry.reasoningContracts?.['anthropic-messages'], entry.apiModelId).toEqual({
+        support: { controls: [{ kind: 'toggle', default: true }] },
+        wire: format?.wire
+      })
+    }
+  })
+
+  it.each(['kimi-k2.7-code', 'MiniMax-M2.5'])(
+    'keeps Anthropic Messages thinking always on without user controls for %s',
+    (apiModelId) => {
+      const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.apiModelId === apiModelId)
+      const contract = entry?.reasoningContracts?.['anthropic-messages']
+
+      expect(contract?.support).toEqual({ controls: [] })
+      expect(contract?.wire).not.toHaveProperty('off')
+      expect(Object.keys(contract?.wire ?? {}).sort()).toEqual(['auto', 'default', 'effort'])
+      for (const mode of ['default', 'auto', 'effort'] as const) {
+        expect(contract?.wire?.[mode]).toEqual({
+          operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }]
+        })
+      }
+      expect(entry?.reasoningContracts).not.toHaveProperty('openai-chat-completions')
+    }
+  )
+
+  it('keeps GLM-5.3 Messages thinking always on while preserving the Chat effort ladder', () => {
+    const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.apiModelId === 'glm-5.3')
+    const contract = entry?.reasoningContracts?.['anthropic-messages']
+
+    expect(contract?.support).toEqual({ controls: [] })
+    expect(contract?.wire).not.toHaveProperty('off')
+    expect(Object.keys(contract?.wire ?? {}).sort()).toEqual(['auto', 'default', 'effort'])
+    for (const mode of ['default', 'auto', 'effort'] as const) {
+      expect(contract?.wire?.[mode]).toEqual({
+        operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }]
+      })
+    }
+    expect(entry?.reasoningContracts?.['openai-chat-completions']?.support).toEqual({
+      controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }],
+      defaultEffort: 'high',
+      supportedEfforts: ['high', 'max']
+    })
+  })
+
+  it('gives every row declaring Anthropic Messages an explicit reasoning contract', () => {
+    const offenders = providerModelEntries(provider('qwen-token-plan'))
+      .filter((o) => o.endpointTypes?.includes('anthropic-messages') && !o.reasoningContracts?.['anthropic-messages'])
+      .map((o) => o.apiModelId)
+    expect(offenders).toEqual([])
+  })
+
+  it('offers only web search on the six Responses models', () => {
+    const modelIds = ['qwen3-8-max', 'qwen3-8-flash', 'qwen3-7-max', 'qwen3-7-plus', 'qwen3-6-plus', 'qwen3-6-flash']
+    expect(provider('qwen-token-plan').serverTools).toEqual([
+      {
+        id: 'web-search',
+        modelScope: 'model-dependent',
+        modelIds,
+        endpointTypes: ['openai-responses']
+      }
+    ])
+    const responsesModels = providerModelEntries(provider('qwen-token-plan'))
+      .filter((o) => o.endpointTypes?.includes('openai-responses'))
+      .map((o) => o.modelId)
+    expect(responsesModels.sort()).toEqual(modelIds.sort())
+  })
+
+  it.each(['kimi-k2-6', 'kimi-k2-5'])('explicitly toggles thinking from off by default for %s', (modelId) => {
+    const entry = providerModelEntries(provider('qwen-token-plan')).find((o) => o.modelId === modelId)
+
+    expect(entry?.reasoningContracts?.['openai-chat-completions']).toEqual({
+      support: { controls: [{ kind: 'toggle', default: false }] },
+      wire: {
+        off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+        auto: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: true } }] }
+      }
+    })
+  })
+
+  it.each(['qwen3-8-max', 'qwen3-8-flash', 'qwen3-7-max', 'qwen3-7-plus', 'qwen3-6-plus', 'qwen3-6-flash'])(
+    'serves %s on all three endpoints',
+    (modelId) => {
+      expect(endpointsOf('qwen-token-plan', modelId)).toEqual([
+        'openai-chat-completions',
+        'openai-responses',
+        'anthropic-messages'
+      ])
+    }
+  )
+
+  it.each([
+    'deepseek-v4-1-flash',
+    'deepseek-v4-pro',
+    'deepseek-v4-flash',
+    'kimi-k2-7-code',
+    'kimi-k2-6',
+    'kimi-k2-5',
+    'glm-5-3',
+    'glm-5-2',
+    'glm-5-1',
+    'glm-5',
+    'minimax-m2-5'
+  ])('keeps Chat Completions and Anthropic Messages selectable for %s', (modelId) => {
+    expect(endpointsOf('qwen-token-plan', modelId)).toEqual(['openai-chat-completions', 'anthropic-messages'])
+  })
+
+  it('declares Anthropic Messages on every row and never pins a single endpoint', () => {
+    const offenders = providerModelEntries(provider('qwen-token-plan'))
+      .filter((o) => o.endpointTypes?.length === 1 || !o.endpointTypes?.includes('anthropic-messages'))
+      .map((o) => `${o.modelId}:${o.endpointTypes?.join()}`)
+    expect(offenders).toEqual([])
+  })
+})

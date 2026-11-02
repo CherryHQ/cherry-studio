@@ -169,6 +169,10 @@ export function buildProviderBuiltinWebSearchConfig(
       if (provider && matchesPreset(provider, 'deepseek')) {
         return { openai: {} }
       }
+      // Token Plan documents only the bare web_search tool; OpenAI-only knobs are undocumented for this host.
+      if (provider && matchesPreset(provider, 'qwen-token-plan')) {
+        return { openai: {} }
+      }
       if (model && provider && matchesPreset(provider, 'dashscope')) {
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.

@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Total icons: 167
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -130,6 +130,7 @@ export { PulseIcon as Pulse } from './pulse'
 export { QiniuIcon as Qiniu } from './qiniu'
 export { QueritIcon as Querit } from './querit'
 export { QwenIcon as Qwen } from './qwen'
+export { QwenTokenPlanIcon as QwenTokenPlan } from './qwen-token-plan/qwen-token-plan'
 export { QwencloudIcon as Qwencloud } from './qwencloud/qwencloud'
 export { RadeonCloudIcon as RadeonCloud } from './radeon-cloud'
 export { RecraftIcon as Recraft } from './recraft'
