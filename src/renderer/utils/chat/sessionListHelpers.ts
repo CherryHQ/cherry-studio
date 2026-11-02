@@ -407,6 +407,62 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   })
 }
 
+export type SessionListViewOptions = {
+  agentById: ReadonlyMap<string, SessionDisplayAgent>
+  agentRankById: ReadonlyMap<string, number>
+  labels: SessionDisplayGroupLabels
+  mode: AgentSessionDisplayMode
+  now: SessionDisplaySortOptions['now']
+  /** `undefined` lists every agent; `null` lists nothing until an agent is chosen. */
+  visibleAgentId: string | null | undefined
+  workspaces: readonly WorkspaceDisplaySource[]
+  /** Group mode ranks the unlinked-agent bucket after the ungrouped-agent tail. */
+  unknownAgentGroupRank?: SessionDisplaySortOptions['unknownAgentGroupRank']
+}
+
+/** Builds the list as displayed, so rendering and event handlers cannot disagree on order. */
+export function deriveSessionListView<T extends SessionListItem>(
+  items: readonly T[],
+  {
+    agentById,
+    agentRankById,
+    labels,
+    mode,
+    now,
+    unknownAgentGroupRank,
+    visibleAgentId,
+    workspaces
+  }: SessionListViewOptions,
+  optimisticMove?: ResourceListItemReorderPayload | null
+) {
+  const workdirDisplay = createSessionWorkdirDisplayMaps(items, workspaces)
+  const sorted = sortSessionsForDisplayGroups(items, {
+    agentRankById,
+    mode,
+    now,
+    unknownAgentGroupRank,
+    workdirDisplay
+  })
+  const ordered = optimisticMove ? applyOptimisticSessionDisplayMove(sorted, optimisticMove) : sorted
+  const visibleItems =
+    visibleAgentId === undefined
+      ? ordered
+      : visibleAgentId
+        ? ordered.filter((session) => session.agentId === visibleAgentId)
+        : []
+  const hasAgentSection = mode === 'agent' && (agentById.size > 0 || visibleItems.some((session) => !session.pinned))
+  const groupBy = createSessionDisplayGroupResolver<T>({
+    agentById,
+    labels,
+    mode,
+    now,
+    pinnedAsSection: mode !== 'time' && (mode !== 'agent' || hasAgentSection),
+    workdirDisplay
+  })
+
+  return { groupBy, items: visibleItems, workdirDisplay }
+}
+
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
   return payload
 }

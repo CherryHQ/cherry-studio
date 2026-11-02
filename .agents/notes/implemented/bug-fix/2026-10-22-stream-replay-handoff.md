@@ -18,7 +18,7 @@ The renderer queues live chunks and terminal events while attach is pending. Att
 
 Terminal attach responses and rejected attach requests drain queued output before settling branches. A queued native terminal takes precedence over the attach fallback, so completion is reported once. A turn completed before any reader attaches settles directly from its queued events; disposal clears the queue.
 
-This metadata belongs to Cherry's ephemeral stream transport. It does not change harness interfaces, native sessions, or message persistence. See [Stream Manager](../../../../docs/references/ai/stream-manager.md) and [Execution Overlay](../../../../docs/references/ai/execution-overlay.md) for the current contract.
+This metadata belongs to Cherry's ephemeral stream transport. It does not change harness interfaces, native sessions, or message persistence. See [Stream Manager](../../../../docs/dev/references/ai/stream-manager.md) and [Execution Overlay](../../../../docs/dev/references/ai/execution-overlay.md) for the current contract.
 
 ## Alternatives considered
 

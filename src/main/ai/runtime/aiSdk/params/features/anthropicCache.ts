@@ -79,7 +79,7 @@ function withCacheProviderOptions<T extends { providerOptions?: unknown }>(
     providerOptions: {
       ...(value.providerOptions && typeof value.providerOptions === 'object' ? value.providerOptions : {}),
       anthropic: {
-        ...(value.providerOptions as { anthropic?: object } | undefined)?.anthropic,
+        ...((value as Holder).providerOptions as { anthropic?: object } | undefined)?.anthropic,
         cacheControl
       }
     }
@@ -150,6 +150,70 @@ function applyToolCacheMarker(
   return markedTools
 }
 
+type Holder = { providerOptions?: unknown }
+type HolderPath = (string | number)[]
+
+function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<string>): LanguageModelV3CallOptions {
+  const holders: { path: HolderPath; key: string }[] = []
+  const inspect = (value: unknown, path: HolderPath) => {
+    const anthropic = (
+      (value as Holder).providerOptions as
+        | { anthropic?: { cacheControl?: unknown; cache_control?: unknown } }
+        | undefined
+    )?.anthropic
+    if (anthropic?.cacheControl ?? anthropic?.cache_control) holders.push({ path, key: path.join('.') })
+  }
+  const toolIndexes = (params.tools ?? [])
+    .map((_, i) => i)
+    .sort((a, b) => {
+      const left = params.tools![a]
+      const right = params.tools![b]
+      return compareCacheKeys(isFunctionTool(left) ? left.name : left.id, isFunctionTool(right) ? right.name : right.id)
+    })
+  for (const i of toolIndexes) inspect(params.tools![i], ['tools', i])
+  params.prompt.forEach((message, i) => {
+    inspect(message, ['prompt', i])
+    if (typeof message.content === 'string') return
+    message.content.forEach((part, j) => {
+      const path: HolderPath = ['prompt', i, 'content', j]
+      inspect(part, path)
+      if (part.type !== 'tool-result') return
+      inspect(part.output, [...path, 'output'])
+      if (part.output.type === 'content') {
+        part.output.value.forEach((item, k) => inspect(item, [...path, 'output', 'value', k]))
+      }
+    })
+  })
+  if (holders.length <= MAX_CACHE_BREAKPOINTS) return params
+  let remaining = MAX_CACHE_BREAKPOINTS - holders.filter(({ key }) => selected.has(key)).length
+  let result: unknown = params
+  for (const { path, key } of holders) {
+    if (selected.has(key)) continue
+    if (remaining > 0) {
+      remaining--
+      continue
+    }
+    const remove = (node: unknown, depth: number): unknown => {
+      if (depth === path.length) {
+        const holder = node as { providerOptions: { anthropic: Record<string, unknown> } }
+        const anthropic = { ...holder.providerOptions.anthropic }
+        delete anthropic.cacheControl
+        delete anthropic.cache_control
+        return { ...holder, providerOptions: { ...holder.providerOptions, anthropic } }
+      }
+      const copy = Array.isArray(node) ? [...node] : { ...(node as Record<string, unknown>) }
+      const index = path[depth]
+      ;(copy as Record<string | number, unknown>)[index] = remove(
+        (node as Record<string | number, unknown>)[index],
+        depth + 1
+      )
+      return copy
+    }
+    result = remove(result, 0)
+  }
+  return result as LanguageModelV3CallOptions
+}
+
 export async function transformAnthropicCacheParams(
   params: LanguageModelV3CallOptions,
   provider: Provider,
@@ -157,7 +221,9 @@ export async function transformAnthropicCacheParams(
 ): Promise<LanguageModelV3CallOptions> {
   const settings = resolveAnthropicCacheSettings(provider)
   if (!settings.enabled) return params
-  if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
+  if (!Array.isArray(params.prompt)) return params
+  const selected = new Set<string>()
+  if (params.prompt.length === 0) return clampCacheMarkers(params, selected)
 
   const messages = [...params.prompt]
   const budget = createCacheBreakpointBudget()
@@ -173,6 +239,7 @@ export async function transformAnthropicCacheParams(
       systemPrefixTokens += estimateContentTokens(msg.content)
       if (msg.role === 'system' && systemPrefixTokens >= settings.tokenThreshold && budget.use()) {
         messages[i] = withCacheProviderOptions(msg, cacheControl)
+        selected.add(`prompt.${i}`)
         break
       }
     }
@@ -186,6 +253,8 @@ export async function transformAnthropicCacheParams(
     budget,
     cacheControl
   )
+
+  if (tools !== sortedTools) selected.add(`tools.${toolPrefix.markerIndex}`)
 
   if (settings.cacheLastNMessages > 0 && !volatileSystemPrompt) {
     const cumsumTokens: number[] = []
@@ -205,17 +274,19 @@ export async function transformAnthropicCacheParams(
 
       if (typeof msg.content === 'string') {
         messages[i] = withCacheProviderOptions(msg, cacheControl)
+        selected.add(`prompt.${i}`)
       } else {
         const newContent = [...msg.content]
         const lastIndex = newContent.length - 1
         newContent[lastIndex] = withCacheProviderOptions(newContent[lastIndex], cacheControl)
+        selected.add(`prompt.${i}.content.${lastIndex}`)
         messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
       }
       cachedCount++
     }
   }
 
-  return { ...params, prompt: messages, tools }
+  return clampCacheMarkers({ ...params, prompt: messages, tools }, selected)
 }
 
 function anthropicCacheMiddleware(provider: Provider, assistant: Assistant | undefined): LanguageModelMiddleware {

@@ -52,7 +52,6 @@ export function FileTree(props: FileTreeProps) {
     searchKeyword = '',
     onSearchKeywordChange,
     searchPlaceholder,
-    searchToolbar,
     searchClearLabel,
     emptyState
   } = props
@@ -148,7 +147,6 @@ export function FileTree(props: FileTreeProps) {
             </button>
           )}
         </div>
-        {searchToolbar}
       </div>
       <div className="min-h-0 flex-1">{accessibleTree}</div>
     </div>

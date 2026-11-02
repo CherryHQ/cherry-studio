@@ -11,6 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
+import { validateNotesDirectory } from '@main/services/notesDirectory'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -162,6 +163,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
+  'file.validate_notes_directory': async (path) => validateNotesDirectory(path),
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
       return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)

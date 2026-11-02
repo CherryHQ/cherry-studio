@@ -23,7 +23,7 @@ export class DurableProjection {
         coverage: 'current-view',
         messages: [],
         inputs: [],
-        delegations: [],
+        subagents: [],
         activity: { scope: 'foreground', state: 'unknown' }
       },
       report

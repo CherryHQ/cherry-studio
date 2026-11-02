@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
@@ -10,6 +10,7 @@ import {
   CDP_PORT,
   findCdpPid,
   findListeningPid,
+  findProcessGroupId,
   isAlive,
   isDescendant,
   MAIN_INSPECTOR_PORT,
@@ -89,6 +90,34 @@ async function waitForCdp(
   throw new Error(`Timed out waiting for Cherry Studio CDP: ${lastError}`)
 }
 
+/**
+ * Point HOME and the CLI credential directories used by the launched application into the run
+ * directory. CODE-01..03 configure CLI providers through the app, and those writes resolve against
+ * `sys.home`; without this they land in the machine owner's real `~/.codex` / `~/.claude`, which
+ * switches Codex to API-key mode and makes the real CLI log out and delete its credentials.
+ */
+function isolatedHomeEnv(paths: RunPaths, profile: TestProfile): NodeJS.ProcessEnv {
+  const home = join(paths.home, profile)
+  const codexHome = join(home, '.codex')
+  const claudeConfig = join(home, '.claude')
+  const xdgConfig = join(home, '.config')
+  const hermesHome = join(home, '.hermes')
+  const localAppData = join(home, 'AppData', 'Local')
+  for (const directory of [home, codexHome, claudeConfig, xdgConfig, hermesHome, localAppData]) {
+    mkdirSync(directory, { recursive: true })
+  }
+  return {
+    HOME: home,
+    USERPROFILE: home,
+    CODEX_HOME: codexHome,
+    CLAUDE_CONFIG_DIR: claudeConfig,
+    XDG_CONFIG_HOME: xdgConfig,
+    // Hermes CLI config resolves against HERMES_HOME (falling back to %LOCALAPPDATA%\hermes on Windows).
+    HERMES_HOME: hermesHome,
+    LOCALAPPDATA: localAppData
+  }
+}
+
 function getLaunchSpec(
   paths: RunPaths,
   mode: RunMode,
@@ -98,6 +127,7 @@ function getLaunchSpec(
   locale?: string
 ): Pick<AppRecord, 'args' | 'command' | 'cwd' | 'executablePath' | 'logPath'> & { environment: NodeJS.ProcessEnv } {
   const logPath = join(paths.logs, `electron-${profile}.log`)
+  const environment = { ...process.env, ...isolatedHomeEnv(paths, profile) }
   if (mode === 'branch') {
     const args = [
       join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
@@ -117,7 +147,7 @@ function getLaunchSpec(
       args,
       cwd: targetRoot,
       environment: {
-        ...process.env,
+        ...environment,
         CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
         CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
       },
@@ -136,7 +166,7 @@ function getLaunchSpec(
       ...(locale ? [`--lang=${locale}`] : [])
     ],
     cwd: dirname(installation.executablePath),
-    environment: { ...process.env },
+    environment,
     executablePath: installation.executablePath,
     logPath
   }
@@ -220,7 +250,7 @@ export async function launchApp(
   }
 }
 
-function readOwnedRecord(paths: RunPaths): LaunchRecord {
+export function readOwnedRecord(paths: RunPaths): LaunchRecord {
   const record = readJson<LaunchRecord>(paths.appRecord)
   if (record.schemaVersion !== 1 || record.ownership !== 'regression-driver' || record.policy !== 'ephemeral') {
     throw new Error('Refusing to control an unowned application record')
@@ -295,8 +325,36 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   }
 }
 
+/**
+ * Adopt the instance a packaged restore relaunched on its own. The replacement is not a
+ * descendant of the recorded runner, so cleanup has to be pointed at it explicitly.
+ */
+export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Promise<AppRecord> {
+  const record = readAppRecord(paths)
+  if (record.mode !== 'tag') throw new Error('Only a packaged launch relaunches itself')
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    const electronPid = findCdpPid(record.platform)
+    if (electronPid && electronPid !== record.electronPid && isAlive(electronPid)) {
+      const runnerPid = findProcessGroupId(electronPid, record.platform) ?? electronPid
+      const adopted: AppRecord = {
+        ...record,
+        runnerPid,
+        electronPid,
+        startedAt: new Date().toISOString(),
+        restartCount: record.restartCount + 1
+      }
+      assertOwnedProcess(adopted, electronPid, 'electron')
+      writeJson(paths.appRecord, adopted)
+      return readAppRecord(paths)
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
+  }
+  throw new Error('The relaunched application did not take over the CDP port')
+}
+
 export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
-  const current = readAppRecord(paths)
+  const current = readOwnedRecord(paths)
   await stopOwnedApp(paths)
   return launchApp(paths, {
     mode: current.mode,

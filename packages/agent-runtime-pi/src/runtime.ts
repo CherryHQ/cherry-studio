@@ -10,6 +10,7 @@ import {
   type OperationResult,
   type RuntimeError,
   type ThreadHandle,
+  type ThreadInput,
   type Thread,
   type ShutdownReceipt,
   type SubmitResult
@@ -25,14 +26,20 @@ export interface PiRuntimeOptions {
   onError?: (error: unknown) => void
 }
 export type PiSessionOptions = AgentRuntimeSessionOptions
+export interface PiThreadHandle extends ThreadHandle {
+  readonly input: ThreadInput
+}
 export interface PiRuntime extends AgentRuntime {
-  create(options: PiSessionOptions): Promise<OperationResult<ThreadHandle>>
+  create(options: PiSessionOptions): Promise<OperationResult<PiThreadHandle>>
+  open(ref: Thread): Promise<OperationResult<PiThreadHandle>>
 }
 interface Entry {
   ref: Thread
   projection: PiProjection
   session: AgentSession
   owner?: AgentRuntimeSession
+  /** For a subagent's session: the session that runs it, whose controls stop it. */
+  parentSession?: AgentRuntimeSession
   admission: Promise<void>
   pending: Set<Promise<void>>
 }
@@ -79,11 +86,58 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   async function build(config: PiSessionOptions): Promise<OperationResult<Entry>> {
     let entry: Entry | undefined
     try {
-      const owner = await createAgentRuntimeSession(config, (session) => {
-        entry = attach(session)
-      })
-      entry!.owner = owner
-      return { status: 'confirmed', value: entry! }
+      const subagents = config.subagents
+      const childRelations: Entry[] = []
+      let parent: Entry | undefined = undefined
+      const publishChild = (child: Entry) =>
+        parent?.projection.feed.publish({
+          type: 'subagent.upsert',
+          subagent: {
+            id: runtimeId(child.ref.id),
+            parent: parent.ref,
+            child: child.ref
+          }
+        })
+      const owner = await createAgentRuntimeSession(
+        {
+          ...config,
+          sessionManager: config.sessionManager,
+          subagents: subagents && {
+            ...subagents,
+            configure: async (child, signal) => {
+              const configured = await subagents.configure(child, signal)
+              return {
+                ...configured,
+                onSessionCreated: (session: AgentSession) => {
+                  configured.onSessionCreated?.(session)
+                  const entry = attach(session)
+                  entry.parentSession = parent?.owner
+                  entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
+                  if (!parent) childRelations.push(entry)
+                  publishChild(entry)
+                }
+              }
+            }
+          },
+          onEvent: (event) => {
+            try {
+              config.onEvent?.(event)
+            } catch (cause) {
+              report(cause)
+            }
+          }
+        },
+        (session) => {
+          entry = attach(session, undefined, Boolean(subagents))
+        }
+      )
+      parent = entry!
+      parent.owner = owner
+      for (const child of childRelations) {
+        child.parentSession = owner
+        publishChild(child)
+      }
+      return { status: 'confirmed', value: parent }
     } catch (cause) {
       if (entry) {
         live.delete(entry)
@@ -94,85 +148,106 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     }
   }
 
-  function access(entry: Entry): ThreadHandle {
+  function access(entry: Entry): PiThreadHandle {
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
     return {
       thread: entry.ref,
-      inputPolicies: entry.owner ? ['reject', 'steer', 'follow-up'] : [],
-      submit(input): Promise<SubmitResult> {
-        if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
-        if (!entry.owner)
-          return Promise.resolve({
-            status: 'unsupported',
-            inputId: input.inputId,
-            error: error('submit', 'managed-child')
-          })
-        if (!['reject', 'steer', 'follow-up'].includes(input.whenBusy))
-          return Promise.resolve({ status: 'unsupported', inputId: input.inputId, error: error('submit', 'policy') })
-        let resolve!: (value: SubmitResult) => void
-        const result = new Promise<SubmitResult>((done) => {
-          resolve = done
-        })
-        const attempt = entry.admission.then(async () => {
-          if (unavailable()) {
-            resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
-            return
-          }
-          let acknowledged = false
-          let release!: () => void
-          const admission = new Promise<void>((done) => {
-            release = done
-          })
-          const completion = entry
-            .owner!.prompt(input.text, {
-              ...(input.whenBusy !== 'reject' && {
-                streamingBehavior: input.whenBusy === 'follow-up' ? 'followUp' : 'steer'
-              }),
-              preflightResult: (disposition) => {
-                acknowledged = true
-                const facts: InputFact[] = [
-                  disposition === 'started'
-                    ? 'dispatch-started'
-                    : disposition === 'handled'
-                      ? 'locally-handled'
-                      : 'queued'
-                ]
-                entry.projection.feed.publish({ type: 'input.changed', input: { inputId: input.inputId, facts } })
-                resolve({ status: 'acknowledged', inputId: input.inputId, facts })
-                release()
-              }
-            })
-            .then(
-              () => {
-                if (!acknowledged)
-                  resolve({ status: 'unknown', inputId: input.inputId, error: error('submit', 'missing-receipt') })
-              },
-              (cause) => {
+      input: {
+        policies: entry.owner ? ['reject', 'steer', 'follow-up'] : ['steer'],
+        submit(input): Promise<SubmitResult> {
+          if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
+          if (!entry.owner) {
+            if (input.whenBusy !== 'steer')
+              return Promise.resolve({
+                status: 'unsupported',
+                inputId: input.inputId,
+                error: error('submit', 'policy')
+              })
+            const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
+              if (unavailable()) return { ...rejected('submit', 'closed'), inputId: input.inputId }
+              try {
+                const receipt = await entry.parentSession!.messageSubagent(entry.ref.id, input.text, {
+                  inputId: input.inputId
+                })
+                const facts: InputFact[] = receipt.continued ? ['dispatch-started'] : ['queued']
+                entry.projection.recordInput({ inputId: input.inputId, facts })
+                return { status: 'acknowledged', inputId: input.inputId, facts }
+              } catch (cause) {
                 report(cause)
-                if (!acknowledged) {
-                  const busy =
-                    cause instanceof Error &&
-                    cause.message ===
-                      "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message."
-                  resolve({
-                    status: busy ? 'rejected' : 'unknown',
-                    error: error('submit', busy ? 'busy' : 'native-error'),
-                    inputId: input.inputId
-                  })
-                } else entry.projection.feed.publish({ type: 'diagnostic', error: error('submit', 'native-error') })
+                return { status: 'unknown', inputId: input.inputId, error: error('submit', 'native-error') }
               }
-            )
-            .finally(() => {
-              release()
-              entry.pending.delete(completion)
             })
-          entry.pending.add(completion)
-          await admission
-        })
-        entry.admission = attempt.catch(report)
-        return result
+            entry.admission = attempt.then(() => {})
+            return attempt
+          }
+          if (!['reject', 'steer', 'follow-up'].includes(input.whenBusy))
+            return Promise.resolve({ status: 'unsupported', inputId: input.inputId, error: error('submit', 'policy') })
+          let resolve!: (value: SubmitResult) => void
+          const result = new Promise<SubmitResult>((done) => {
+            resolve = done
+          })
+          const attempt = entry.admission.then(async () => {
+            if (unavailable()) {
+              resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
+              return
+            }
+            let acknowledged = false
+            let release!: () => void
+            const admission = new Promise<void>((done) => {
+              release = done
+            })
+            const completion = entry
+              .owner!.prompt(input.text, {
+                inputId: input.inputId,
+                ...(input.whenBusy !== 'reject' && {
+                  streamingBehavior: input.whenBusy === 'follow-up' ? 'followUp' : 'steer'
+                }),
+                preflightResult: (disposition) => {
+                  acknowledged = true
+                  const facts: InputFact[] = [
+                    disposition === 'started'
+                      ? 'dispatch-started'
+                      : disposition === 'handled'
+                        ? 'locally-handled'
+                        : 'queued'
+                  ]
+                  entry.projection.recordInput({ inputId: input.inputId, facts })
+                  resolve({ status: 'acknowledged', inputId: input.inputId, facts })
+                  release()
+                }
+              })
+              .then(
+                () => {
+                  if (!acknowledged)
+                    resolve({ status: 'unknown', inputId: input.inputId, error: error('submit', 'missing-receipt') })
+                },
+                (cause) => {
+                  report(cause)
+                  if (!acknowledged) {
+                    const busy =
+                      cause instanceof Error &&
+                      cause.message ===
+                        "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message."
+                    resolve({
+                      status: busy ? 'rejected' : 'unknown',
+                      error: error('submit', busy ? 'busy' : 'native-error'),
+                      inputId: input.inputId
+                    })
+                  } else entry.projection.feed.publish({ type: 'diagnostic', error: error('submit', 'native-error') })
+                }
+              )
+              .finally(() => {
+                release()
+                entry.pending.delete(completion)
+              })
+            entry.pending.add(completion)
+            await admission
+          })
+          entry.admission = attempt.catch(report)
+          return result
+        }
       },
       async observe(sink) {
         if (unavailable()) return rejected('observe', 'closed')
@@ -189,7 +264,14 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       async interrupt(): Promise<OperationResult<InterruptReceipt>> {
         if (unavailable()) return rejected('interrupt', 'closed')
         try {
-          await (entry.owner ? entry.owner.abort() : entry.session.abort())
+          if (entry.owner) await entry.owner.abort()
+          else if (entry.parentSession) {
+            // The user's stop of a subagent (background spec §9): a background run stops through its
+            // parent; a foreground one is part of the parent's turn, which stops with it.
+            if (entry.parentSession.stopSubagent(entry.ref.id))
+              return { status: 'confirmed', value: { effect: 'requested' } }
+            if (entry.session.isStreaming) await entry.parentSession.abort()
+          } else await entry.session.abort()
           return { status: 'confirmed', value: { effect: 'native-scope-idle' } }
         } catch (cause) {
           report(cause)
@@ -249,7 +331,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         try {
           await Promise.all(entries.values())
           const owners = [...live].filter((entry) => entry.owner)
-          await Promise.all(owners.map((entry) => entry.admission))
+          await Promise.all([...live].map((entry) => entry.admission))
           await Promise.all(owners.map((entry) => entry.session.abort()))
           await Promise.all(owners.flatMap((entry) => [...entry.pending]))
           await Promise.all(owners.map((entry) => entry.owner!.dispose()))
