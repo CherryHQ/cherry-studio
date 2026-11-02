@@ -719,8 +719,30 @@ describe('detectDestructiveAssistantCommand', () => {
       'permanent Windows file deletion'
     )
     expect(detectDestructiveAssistantCommand('[A]::("a""b") = del victim.txt')).toBe('permanent Windows file deletion')
-    // Spaced parenthesized content stays uncovered, matching the instance-side convention.
-    expect(detectDestructiveAssistantCommand('[Console]::( "Title" ) = del victim.txt')).toBeUndefined()
+  })
+
+  it('denies whitespace-padded member assignment forms (round-18 review finding)', () => {
+    // Shipped main's broader guard denies whitespace around the member-access operators and
+    // inside the parentheses; earlier revisions of this PR (through v28) allowed them - a real
+    // regression versus main. Native execution of every padded form is unverified here; the
+    // deny direction conservatively matches main's behavior.
+    for (const cmd of [
+      '[Console]::( "Title" ) = del victim.txt',
+      '[Console]::( "Title") = del victim.txt',
+      '[Console]::("Title" ) = del victim.txt',
+      '[Console]:: ("Title") = del victim.txt',
+      '[Console] ::("Title") = del victim.txt',
+      '$h . result = del victim.txt',
+      '$h. result = del victim.txt'
+    ]) {
+      expect(detectDestructiveAssistantCommand(cmd)).toBe('permanent Windows file deletion')
+    }
+    // Boundary: bare automatic-variable name and unquoted static member access are denied on
+    // shipped main and on every revision of this PR by broader rules; kept here as documents.
+    expect(detectDestructiveAssistantCommand('$? = del victim.txt')).toBe('permanent Windows file deletion')
+    expect(detectDestructiveAssistantCommand('[Console]::"Title" = del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
   })
 
   it('keeps quoted-start temper denies linear with word-glued titles intact (Path A v28)', () => {
