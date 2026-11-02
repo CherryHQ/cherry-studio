@@ -550,20 +550,18 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 
 [证据文档](../testing/2026-10-17-agent-harness-evidence.md)区分当前适配器验证、历史探针和尚未执行的验收。包级验证不代表宿主接入已完成。
 
-- AC1 — 重复和并发打开共享原生所有者、校验身份，且从不通过新建替代缺失上下文。 (verification: unit — Pi 与 Pi Durable Runtime 测试)
+- AC1 — 重复和并发打开共享原生所有者、校验身份，且从不通过新建替代缺失上下文。Harness 策略位于 Main 运行时集成层，严格存储打开不确认 Cherry 绑定。 (verification: unit — Pi 与 Pi Durable Runtime、原生上下文及 driver 测试)
 - AC2 — 输入回执在 busy 策略、钩子、未知结果、迟到确认、去重及 release 竞争中保留原生接纳证据。 (verification: unit — 适配器接纳与宿主投递测试)
 - AC3 — 多观察者获得一致的来源身份和先快照后更新的有序交付；溢出、映射丢失、sink 失败和停止均明确且隔离。 (verification: unit — ThreadFeed 与适配器投影测试)
 - AC4 — 释放一个访问不会停止其他访问或原生工作；shutdown 关闭整个自有实例，不宣称删除历史或支持未经保证的执行恢复。 (verification: unit — 适配器生命周期与持久存储重开测试)
 - AC5 — Child 观察跨越父消息结束，托管 child 控制保留原生所有权，观察不会重复原生结果交付。 (verification: unit — 适配器 child 测试与宿主投影集成)
 - AC6 — 桌面调用方保留逻辑输入回执与归档，封闭被替换观察的写入，flush 未完成写入，并准确呈现原生中断和调度范围。 (verification: Electron — 产品会话 Runtime 集成)
 - AC7 — 相同或变换后的输入、批量 steering、本地命令失败、未送达输入、截断和迟到回执都保持有证据的归属，不按文本匹配，也不误报成功完成。 (verification: unit — 原生 Pi 关联探针与适配器/宿主输入测试)
-- AC8 — 已有数据的数据库迁移保留历史、ID 及依赖记录；树回填保留旧展示顺序，不补造接纳事实。已提交消息身份/内容及私有提交证据经受编辑、受保护删除及原生/DB 部分成功后仍保留，恢复不替换缺失上下文，也不盲目重试不确定输入。 (verification: unit — 使用生产 migration 与原生存储 fixture 的上下文/消息提交数据测试)
+- AC8 — 已有数据的数据库迁移保留历史、ID 及依赖记录；树回填保留旧展示顺序，不补造接纳事实。已提交消息身份/内容及私有提交证据经受编辑、受保护删除及原生/DB 部分成功后仍保留。仅数据库准备保持唯一性和回滚能力；显式核对恢复原身份，不替换缺失上下文，也不派发结果未知的输入。 (verification: unit — 生产 migration 下的上下文/消息提交测试、原生存储 fixture 及分支发布测试)
 - AC9 — Child 内容独立于父 assistant 行持久化；快照替换和旧观察写入不能删除归档、重复恢复的历史或覆盖更新视图。分支切换不改变已捕获输入/投影目标。 (verification: unit — 宿主 Thread 投影与归档持久化集成测试)
 - AC10 — 新 Pi Runtime 在继续输入前恢复 child 的父所有者与关系，保留原生停止/报告政策，绝不把失去所有者的历史 child 升级为可写 root。 (verification: unit — 持久 Pi 父子会话重开测试)
 - AC11 — 强制进程退出后用新进程重开 Durable，保留输入身份与原生所有权；被动对账不执行模型/工具，允许的 resume 遵循 Harness 作用域，宿主不额外报告结果。 (verification: unit — Durable worker 进程崩溃集成测试)
 - AC12 — Root 与 child 桌面流程保留产品授权、模型/工具边界、单次用量记账、投递终态，以及约定的停止/恢复行为。编辑保留旧分支并选中新分支，浏览不调用原生执行，各分支续写解析正确 checkpoint/绑定。 (verification: Electron — Pi 与 Durable 宿主接入场景)
-
-- AC19 — Harness 策略位于 Main 运行时集成层；仅数据库准备保持唯一性和回滚能力，严格存储打开不确认 Cherry 绑定，显式核对恢复原身份且不派发结果未知的输入。 (verification: unit — 原生上下文与消息提交 fixture、分支发布及 driver 测试)
 
 ## Risks
 
