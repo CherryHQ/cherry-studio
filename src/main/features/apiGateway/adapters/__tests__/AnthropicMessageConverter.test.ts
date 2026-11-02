@@ -2,6 +2,8 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+
 import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
 
@@ -341,6 +343,40 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
 })
 
 describe('AnthropicMessageConverter.toAiSdkTools', () => {
+  it('omits strict when the target endpoint is unknown', () => {
+    const input_schema = {
+      type: 'object' as const,
+      properties: { query: { type: 'string' } },
+      required: ['query']
+    }
+    const request = params({ tools: [{ name: 'lookup', description: 'Look up a value', input_schema }] })
+
+    for (const tools of [converter.toAiSdkTools(request), converter.toAiSdkTools(request, undefined)]) {
+      expect(tools).toBeDefined()
+      expect(Object.keys(tools!)).toEqual(['lookup'])
+      expect(tools!.lookup).not.toHaveProperty('strict')
+      expect(tools!.lookup.description).toBe('Look up a value')
+      expect(asSchema(tools!.lookup.inputSchema).jsonSchema).toMatchObject(input_schema)
+    }
+  })
+
+  it.each(
+    [
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ].map((endpoint) => ({ endpoint }))
+  )('does not inject strict for $endpoint', ({ endpoint }) => {
+    const tools = converter.toAiSdkTools(
+      params({ tools: [{ name: 'lookup', input_schema: { type: 'object', properties: {} } }] }),
+      endpoint
+    )
+
+    expect(tools).toBeDefined()
+    expect(Object.keys(tools!)).toEqual(['lookup'])
+    expect(tools!.lookup).not.toHaveProperty('strict')
+  })
+
   it('builds a ToolSet keyed by name and skips bash tools', () => {
     const tools = converter.toAiSdkTools(
       params({
@@ -401,7 +437,7 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
 
     const messages = converter.toUIMessages(request)
     const providerToolName = (messages[0].parts[0] as { toolName: string }).toolName
-    const tools = converter.toAiSdkTools(request)
+    const tools = converter.toAiSdkTools(request, ENDPOINT_TYPE.OPENAI_RESPONSES)
     const forwardedTool = tools?.[providerToolName]
 
     expect(providerToolName).not.toBe(clientToolName)
