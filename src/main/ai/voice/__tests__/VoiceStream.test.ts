@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { SpeechStreamEvent } from '@shared/ai/voice'
@@ -8,6 +9,41 @@ const identity = { sessionId: 'session', requestId: 'request', attemptId: 1 }
 const format = { sampleRate: 8000, channels: 1 }
 
 describe('PCM playback credits', () => {
+  it.each([
+    ['attachment', 15_000, false],
+    ['producer', 120_000, true],
+    ['retention', 900_000, true]
+  ] as const)('identifies the %s deadline without exposing PCM', async (stage, timeoutMs, attached) => {
+    vi.useFakeTimers()
+    mockMainLoggerService.warn.mockClear()
+    const stream = new VoiceStream(
+      identity,
+      format,
+      new AbortController().signal,
+      () => {},
+      () => {}
+    )
+    if (attached) stream.attach()
+    let relay: Promise<void> | undefined
+    try {
+      if (stage !== 'retention') {
+        relay = stream.relay(
+          { [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }) },
+          Promise.resolve()
+        )
+      }
+      const failure = relay && expect(relay).rejects.toMatchObject({ reason: 'timeout' })
+      await vi.advanceTimersByTimeAsync(timeoutMs)
+      await failure
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        ['Voice stream timed out', { ...identity, stage, timeoutMs, attached, sentFrames: 0, consumedFrames: 0 }]
+      ])
+    } finally {
+      stream.close()
+      vi.useRealTimers()
+    }
+  })
+
   it('does not pull before attachment and bounds queued PCM until actual consumption', async () => {
     const events: SpeechStreamEvent[] = []
     const stream = new VoiceStream(

@@ -32,6 +32,7 @@ describe('Agent fork publication', () => {
   let publishedFile: string
   let beforeForkResult: (input: RuntimeForkInput) => Promise<void>
   let invalidCheckpoint: boolean
+  let artifactSourceFor: (artifactDirectory: string) => string
   let previous: ReturnType<typeof runtimeDriverRegistry.getAgentSessionDriver>
 
   beforeEach(async () => {
@@ -40,6 +41,7 @@ describe('Agent fork publication', () => {
     publishedFile = path.join(directory, 'native', 'child.jsonl')
     beforeForkResult = async () => {}
     invalidCheckpoint = false
+    artifactSourceFor = (artifactDirectory) => path.join(artifactDirectory, 'native.jsonl')
     vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
       filename ? path.join(forkRoot, filename) : forkRoot
     )
@@ -79,7 +81,8 @@ describe('Agent fork publication', () => {
         throw new Error('Fork must not start a conversation')
       },
       async fork(input): Promise<RuntimeForkResult> {
-        const source = path.join(input.artifactDirectory, 'native.jsonl')
+        const source = artifactSourceFor(input.artifactDirectory)
+        await mkdir(path.dirname(source), { recursive: true })
         await writeFile(source, 'native child history')
         await beforeForkResult(input)
         return {
@@ -363,6 +366,15 @@ describe('Agent fork publication', () => {
     }
     const childId = await pending
     expect(agentSessionMessageService.getLastRuntimeResumeToken(childId)).toBe('native-child')
+  })
+
+  it('refuses to publish a runtime artifact from outside the fork artifact directory', async () => {
+    artifactSourceFor = (artifactDirectory) => path.join(`${artifactDirectory}-sibling`, 'native.jsonl')
+    await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow(
+      'Unowned SDK fork artifact'
+    )
+    expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rolls back published files if persisting their ownership fails, then allows retry', async () => {

@@ -112,6 +112,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Desearch as an API-key-authenticated keyword search provider', () => {
+    const desearch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'desearch')
+
+    expect(desearch).toBeDefined()
+    expect(desearch!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.desearch.ai'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
@@ -186,4 +200,21 @@ describe('web search provider schemas', () => {
     expect(idResult.success).toBe(false)
     expect(overridesResult.success).toBe(false)
   })
+})
+
+it('accepts saved Yuanbao credentials and exposes only keyword search', () => {
+  expect(
+    WebSearchProviderOverridesSchema.safeParse({
+      yuanbao: { apiKeys: ['key'], capabilities: { searchKeywords: { apiHost: 'https://proxy.example' } } }
+    }).success
+  ).toBe(true)
+  const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((item) => item.id === 'yuanbao')
+  expect(preset?.capabilities).toEqual([
+    {
+      feature: 'searchKeywords',
+      requiresApiHost: true,
+      requiresApiKey: true,
+      apiHost: 'https://api.wsa.cloud.tencent.com'
+    }
+  ])
 })

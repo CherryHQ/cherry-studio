@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
+import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { Sequencer } from '@shared/utils/async'
 
@@ -27,11 +28,6 @@ import { type AgentSessionForkResources, readForkResources, writeForkResources, 
 import { workspaceHasReferences } from './workspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
-
-function isInside(root: string, file: string): boolean {
-  const relative = path.relative(root, file)
-  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative)
-}
 
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
@@ -319,7 +315,8 @@ export class AgentSessionForkOperations {
     signal: AbortSignal
   ): Promise<void> {
     for (const artifact of artifacts) {
-      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
+      const relativeSource = path.relative(resources.artifactDirectory, artifact.source)
+      if (!relativeSource || isOutsidePath(relativeSource)) throw new Error('Unowned SDK fork artifact')
       await forkFileIdentity(artifact.source)
       await mkdir(path.dirname(artifact.target), { recursive: true })
       const owned = { ...artifact, identity: undefined as string | undefined }
@@ -337,7 +334,8 @@ export class AgentSessionForkOperations {
     if (path.resolve(resources.artifactDirectory) !== path.resolve(root, resources.operationId))
       throw new Error('Unowned fork directory')
     for (const artifact of resources.published) {
-      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned fork file')
+      const relativeSource = path.relative(resources.artifactDirectory, artifact.source)
+      if (!relativeSource || isOutsidePath(relativeSource)) throw new Error('Unowned fork file')
       try {
         const targetIdentity = await forkFileIdentity(artifact.target)
         if (targetIdentity !== (artifact.identity ?? (await forkFileIdentity(artifact.source))))

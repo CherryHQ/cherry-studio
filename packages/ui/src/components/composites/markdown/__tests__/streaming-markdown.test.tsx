@@ -147,3 +147,34 @@ describe('StreamingMarkdown', () => {
     expect(rendered).toEqual(['Third paragraph'])
   })
 })
+
+describe('additional link protocols', () => {
+  it('keeps an arriving mixed-case link clickable without changing its query', () => {
+    const { getByRole, rerender } = render(<StreamingMarkdown id="mixed-case-protocol">{'Opening'}</StreamingMarkdown>)
+    rerender(
+      <StreamingMarkdown
+        id="mixed-case-protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={['obsidian']}>
+        {'Opening\n\n[Note](Obsidian://open?vault=My%20Vault&file=Note)'}
+      </StreamingMarkdown>
+    )
+
+    const link = getByRole('link', { name: 'Note' })
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe('obsidian://open?vault=My%20Vault&file=Note')
+  })
+
+  it.each([false, true])('only preserves injected application links (injected: %s)', (injected) => {
+    const href = 'zotero://select/items/Note'
+    const { container } = render(
+      <StreamingMarkdown
+        id="protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={injected ? ['zotero'] : undefined}>
+        {`[Note](${href})`}
+      </StreamingMarkdown>
+    )
+    expect(container.querySelector('a')?.getAttribute('href') ?? null).toBe(injected ? href : null)
+  })
+})

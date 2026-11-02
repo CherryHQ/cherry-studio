@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,10 +5,10 @@ import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Folder } from 'lucide-react'
-import postcss from 'postcss'
-import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
+import { type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUI from '@cherrystudio/ui'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -48,7 +45,8 @@ vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   )
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { Button } = await importOriginal<typeof CherryUI>()
   const React = await import('react')
   const PopoverContext = React.createContext<{
     open: boolean
@@ -56,21 +54,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }>({ open: false, triggerRef: { current: null } })
 
   return {
-    Button: ({
-      children,
-      size: _size,
-      variant: _variant,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
-      void _size
-      void _variant
-
-      return (
-        <button type="button" {...props}>
-          {children}
-        </button>
-      )
-    },
+    Button,
     Scrollbar: ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => (
       <div {...props} className={className} data-testid="composer-token-scrollbar">
         {children}
@@ -465,15 +449,15 @@ describe('ComposerToken', () => {
     }
 
     try {
-      const first = render(<FileComposerToken token={token} imageIconPreview />)
-      expect(first.container.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'blob:first')
+      const first = render(<FileComposerToken token={token} />)
       await openFileTokenPopover(first.container)
       expect(screen.getByAltText('shot.png')).toHaveAttribute('src', 'blob:first')
       first.unmount()
       expect(revokeUrl).toHaveBeenCalledWith('blob:first')
 
-      const restored = render(<FileComposerToken token={token} imageIconPreview />)
-      expect(restored.container.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'blob:undo')
+      const restored = render(<FileComposerToken token={token} />)
+      await openFileTokenPopover(restored.container)
+      expect(screen.getByAltText('shot.png')).toHaveAttribute('src', 'blob:undo')
       expect(createUrl).toHaveBeenLastCalledWith(blob)
       await user.click(getFileTokenTrigger(restored.container))
       expect(imagePreviewShowMock).toHaveBeenCalledWith(blob)
@@ -485,12 +469,11 @@ describe('ComposerToken', () => {
     }
   })
 
-  it('renders input raster images as chips with a thumbnail in the icon slot', async () => {
+  it('uses a type icon for image chips while preserving preview and removal', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
     const { container } = render(
       <FileComposerToken
-        imageIconPreview
         selected
         onRemove={onRemove}
         removeLabel="删除"
@@ -511,16 +494,11 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'ring-border-selected')
-    expect(token).not.toHaveClass('h-6', 'align-middle', 'text-xs')
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
-    const thumbnail = iconSlot?.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement
-    expect(thumbnail).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
-    expect(thumbnail).toHaveAttribute('alt', '')
-    expect(thumbnail).toHaveAttribute('aria-hidden', 'true')
-    expect(thumbnail).toHaveAttribute('draggable', 'false')
+    expect(iconSlot?.querySelector('img')).toBeNull()
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:image')
 
     const removeButton = screen.getByRole('button', { name: '删除' })
 
@@ -534,13 +512,18 @@ describe('ComposerToken', () => {
     await user.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
     expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
+
+    onRemove.mockClear()
+    removeButton.focus()
+    await user.keyboard('{Enter}')
+    expect(onRemove).toHaveBeenCalledTimes(1)
+    expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
 
   it('activates a sent image preview from the keyboard instead of opening its hover card', () => {
     const onActivate = vi.fn()
     const { container } = render(
       <FileComposerToken
-        imageIconPreview
         readOnly
         onReadOnlyFilePreviewActivate={onActivate}
         readOnlyFilePreview={{ url: 'file:///tmp/avatar-preview.png', mediaType: 'image/png' }}
@@ -566,10 +549,9 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
   })
 
-  it('renders read-only image thumbnails through the generic composer token entry', () => {
+  it('uses a type icon for sent images through the generic composer token entry', () => {
     const { container } = render(
       <ComposerToken
-        imageIconPreview
         readOnly
         readOnlyFilePreview={{ url: 'file:///tmp/sent-image.png', mediaType: 'image/png' }}
         token={{ id: 'file:sent-image', kind: 'file', label: 'sent-image.png' }}
@@ -578,68 +560,13 @@ describe('ComposerToken', () => {
 
     const token = getRenderedFileToken(container)
     expect(token).toHaveTextContent('sent-image.png')
-    expect(token.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/sent-image.png')
-  })
-
-  it('keeps sent image thumbnails isolated from Markdown image presentation', () => {
-    const markdownCss = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/markdown.css'), 'utf8')
-    const richTextCss = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/richtext.css'), 'utf8')
-    const markdownImageRule = postcss
-      .parse(markdownCss)
-      .nodes.find((node) => node.type === 'rule' && node.selector.startsWith('.markdown img'))
-    const richTextImageRule = postcss
-      .parse(richTextCss)
-      .nodes.find((node) => node.type === 'rule' && node.selector.startsWith('.tiptap img'))
-    expect(markdownImageRule).toBeDefined()
-    expect(richTextImageRule).toBeDefined()
-
-    const markdownStyles = document.createElement('style')
-    markdownStyles.textContent = `${richTextImageRule!.toString()}\n${markdownImageRule!.toString()}`
-    document.head.append(markdownStyles)
-
-    const { container } = render(
-      <>
-        <div className="tiptap" data-testid="composer-context">
-          <ComposerToken
-            imageIconPreview
-            readOnly
-            readOnlyFilePreview={{ url: 'file:///tmp/draft-image.png', mediaType: 'image/png' }}
-            token={{ id: 'file:draft-image', kind: 'file', label: 'image.png' }}
-          />
-        </div>
-        <div className="markdown" data-testid="message-context">
-          <ComposerToken
-            imageIconPreview
-            readOnly
-            readOnlyFilePreview={{ url: 'file:///tmp/sent-image.png', mediaType: 'image/png' }}
-            token={{ id: 'file:sent-image', kind: 'file', label: 'image.png' }}
-          />
-        </div>
-      </>
-    )
-
-    const draftThumbnail = screen.getByTestId('composer-context').querySelector('[data-file-token-icon-thumbnail]')!
-    const sentThumbnail = screen.getByTestId('message-context').querySelector('[data-file-token-icon-thumbnail]')!
-    const comparedProperties = ['objectFit', 'margin', 'maxWidth', 'border', 'borderRadius', 'background'] as const
-
-    for (const property of comparedProperties) {
-      expect(getComputedStyle(sentThumbnail)[property]).toBe(getComputedStyle(draftThumbnail)[property])
-    }
-
-    // The chip tracks the surrounding font size (em-based, no fixed line box) instead of owning a
-    // hard-coded one, so the composer draft and the sent message agree in both contexts.
-    const [draftToken, sentToken] = container.querySelectorAll('[data-composer-token-kind="file"]')
-    for (const token of [draftToken, sentToken]) {
-      expect(token).toHaveClass('items-baseline', 'rounded-xs')
-      expect(token).not.toHaveClass('h-6', 'leading-[1.4]', 'text-xs')
-    }
-    markdownStyles.remove()
+    expect(token.querySelector('img')).toBeNull()
+    expect(token.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:image')
   })
 
   it('keeps the default image icon for SVG input files', () => {
     const { container } = render(
       <FileComposerToken
-        imageIconPreview
         token={{
           id: 'file:svg-icon',
           kind: 'file',
@@ -659,32 +586,6 @@ describe('ComposerToken', () => {
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
     const iconSlot = container.querySelector('[data-file-token-icon="image"]')
     expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:svg')
-  })
-
-  it('falls back to the default image icon when the icon thumbnail fails to load', () => {
-    const { container } = render(
-      <FileComposerToken
-        imageIconPreview
-        token={{
-          id: 'file:image-icon-preview',
-          kind: 'file',
-          label: 'avatar-preview.png',
-          payload: createFileMetadata({
-            name: 'avatar-preview.png',
-            origin_name: 'avatar-preview.png',
-            path: '/tmp/avatar-preview.png',
-            ext: '.png',
-            type: FILE_TYPE.IMAGE
-          })
-        }}
-      />
-    )
-
-    fireEvent.error(container.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement)
-    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
-    const iconSlot = container.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:image')
-    expect(getRenderedFileToken(container)).toHaveTextContent('avatar-preview.png')
   })
 
   it('renders the type glyph from the app-wide file icon mapping', () => {

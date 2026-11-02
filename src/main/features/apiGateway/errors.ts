@@ -127,7 +127,8 @@ function safeMessage(status: number | undefined, message: string | undefined): s
 
 function normalizeProviderError(error: unknown): { statusCode: number; message: string; type?: string } {
   const { status, message, type, name, code } = extractError(error)
-  if (status !== undefined) return { statusCode: status, message: safeMessage(status, message), type }
+  if (status !== undefined)
+    return { statusCode: status >= 200 && status < 300 ? 502 : status, message: safeMessage(status, message), type }
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||

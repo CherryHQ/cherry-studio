@@ -1,14 +1,22 @@
-import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
+export type SortableItemId = string | number
 
 /**
- * Props to spread onto a dedicated drag handle element so dnd-kit uses it as the
- * activator instead of the whole row. Only provided when the Sortable/ReorderableList
- * runs in `dragHandle` mode; the in-list row is then left non-interactive.
+ * Attach `ref` to a dedicated drag handle element so it becomes the activator instead
+ * of the whole row. Only provided when the Sortable/ReorderableList runs in `dragHandle`
+ * mode; the in-list row is then left non-interactive.
  */
 export interface SortableDragHandleProps {
-  ref: (element: HTMLElement | null) => void
-  attributes: DraggableAttributes
-  listeners: DraggableSyntheticListeners
+  ref: (element: Element | null) => void
+}
+
+export interface SortableAccessibility {
+  screenReaderInstructions?: { draggable: string }
+  announcements?: {
+    onDragStart: (event: { activeId: SortableItemId }) => string | undefined
+    onDragOver: (event: { activeId: SortableItemId; overId: SortableItemId | null }) => string | undefined
+    onDragEnd: (event: { activeId: SortableItemId }) => string | undefined
+    onDragCancel: (event: { activeId: SortableItemId }) => string | undefined
+  }
 }
 
 export type RenderItemType<T> = (

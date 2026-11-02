@@ -1,0 +1,59 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else." },
+      "response": { "content": "CUSTOM_PROVIDER_CHAT_PASS" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "In one sentence, what is two plus two?" },
+      "response": { "content": "Two plus two equals four. ASSISTANT_PROMPT_PASS" }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly TOPIC_ONE_PASS_31415 and nothing else." },
+      "response": { "content": "TOPIC_ONE_PASS_31415" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly TOPIC_TWO_PASS_27182 and nothing else." },
+      "response": { "content": "TOPIC_TWO_PASS_27182" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly TOPIC_RENAME_PASS_16180 and nothing else." },
+      "response": { "content": "TOPIC_RENAME_PASS_16180" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly MESSAGE_ACTION_PASS_27182 and nothing else." },
+      "response": { "content": "MESSAGE_ACTION_PASS_27182" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly QUICK_ASSISTANT_PASS and nothing else." },
+      "response": { "content": "QUICK_ASSISTANT_PASS" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "CherryStudio Neptune 27182 TRANSLATION_MARKER" },
+      "response": { "content": "CherryStudio Neptune 27182 TRANSLATION_MARKER" }
+    },
+    {
+      "match": { "userMessage": "PDF_TRANSLATION_MARKER_314159" },
+      "response": { "content": "PDF_TRANSLATION_MARKER_314159" }
+    },
+    {
+      "match": { "userMessage": "first line of the draft" },
+      "response": { "content": "DRAFT_REPLY_PASS" }
+    },
+    {
+      "match": { "userMessage": "Hello" },
+      "response": { "content": "Hi there! How can I help?" },
+      "opts": { "chunkSize": 8, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "markdown table please" },
+      "response": { "content": "# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```js\nconsole.log(1)\n```" }
+    }
+  ]
+}

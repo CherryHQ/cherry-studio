@@ -1,4 +1,15 @@
-import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import {
+  Blocks,
+  Boxes,
+  FileText,
+  Folder,
+  Link2,
+  MessageSquareText,
+  MessagesSquare,
+  TextQuote,
+  ToolCase,
+  X
+} from 'lucide-react'
 import { MousePointer2 } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -15,7 +26,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -41,30 +52,13 @@ import { type FileTokenPresentation, getFileTokenPresentation } from './fileToke
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 
-/**
- * Inline entity chips (file / folder) are words inside prose, not standalone controls,
- * so both share one geometry contract:
- *
- * - everything that must track the text is em-based. The composer font size comes from the
- *   `chat.message.font_size` preference (`--composer-editor-font-size`), while `h-6` / `text-xs` /
- *   `px-*` resolve against the root font size — a fixed chip drifts away from the paragraph as soon
- *   as the user scales the font up.
- * - `items-baseline` puts the label on the paragraph baseline by construction, instead of centring
- *   an oversized box (`align-middle`, which depends on the font's x-height) somewhere near it.
- * - the label inherits the paragraph line-height and the chip adds no vertical padding, margin or
- *   border: the chip box is then exactly the paragraph's line box, so a line holding a token stays as
- *   tall as a plain text line. `leading-none` would look tighter but clips the label's box to 1em,
- *   which cuts descenders (`g`, `y`, `p`) off inside `truncate`'s `overflow: hidden`.
- * - the surface is the neutral quiet fill with no resting border, so the chip reads as an entity
- *   rather than a button. Hover is expressed by the icon → remove swap, not by a fill change
- *   (`muted` and `accent` currently resolve to the same value); selection and focus use an inset ring,
- *   which draws without adding layout pixels.
- */
+// Keep chip geometry em-based and baseline-aligned so tokens follow prose size.
+// Selection uses an inset ring so it does not change the line height.
 const composerChipClassName = cn(
   'group/composer-token mx-0.5 inline-flex max-w-[calc(100%_-_0.25rem)] items-baseline gap-1',
   'rounded-xs bg-muted px-1.5',
-  'text-foreground font-medium select-none transition-colors',
-  'group-focus-visible:ring-1 group-focus-visible:ring-inset group-focus-visible:ring-ring'
+  'font-medium text-foreground transition-colors select-none',
+  'group-focus-visible:ring-1 group-focus-visible:ring-ring group-focus-visible:ring-inset'
 )
 
 // `translate-y` (/not `vertical-align`) nudges the glyph optically below the baseline: inside the
@@ -78,8 +72,9 @@ const composerChipIconClassName = 'size-full shrink-0 text-current'
 const composerChipProvidedIconClassName =
   'inline-flex size-full items-center justify-center [&>svg]:size-full [&>img]:size-full'
 const composerChipLabelClassName = 'max-w-full min-w-0 truncate break-normal whitespace-nowrap! leading-[inherit]'
-const composerChipRemoveButtonClassName = 'size-full rounded-xs bg-muted text-foreground'
-const composerChipRemoveIconClassName = 'size-[0.6em]'
+const composerChipRemoveButtonClassName =
+  '-inset-0.5 size-auto rounded-xs bg-transparent text-foreground hover:text-foreground focus-visible:text-foreground dark:text-foreground'
+const composerChipRemoveIconClassName = 'size-[1em]'
 
 // 链接 chip 的图标槽：站点图标填满 1em（图片和 FallbackFavicon 自带的方块兜底都交给子选择器撑满）
 const composerLinkFaviconClassName =
@@ -108,6 +103,12 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   messagePart: <Blocks className={tokenIconClassName} />
 }
 
+/** Glyphs a producer can name in a token's persisted `icon`; any other value (an emoji) renders as text. */
+const namedTokenIcons: Record<string, ReactNode> = {
+  comment: <MessageSquareText className={tokenIconClassName} />,
+  quote: <TextQuote className={tokenIconClassName} />
+}
+
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
   event.preventDefault()
   event.stopPropagation()
@@ -122,7 +123,6 @@ export interface ComposerTokenProps {
     token: ChatTokenView
   ) => void | Promise<void>
   onFilePreviewActivate?: ComposerInputFilePreviewAction
-  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -177,13 +177,17 @@ function InlineTokenRemoveButton({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       aria-label={label}
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none absolute inset-0 size-auto min-h-0 border-0 bg-transparent p-0 text-[length:inherit] leading-none text-current opacity-0 transition-opacity dark:text-current',
+        'hover:bg-transparent hover:text-current focus-visible:bg-transparent focus-visible:text-current',
+        'focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -193,7 +197,7 @@ function InlineTokenRemoveButton({
       onClick={handleRemove}
       onKeyDown={(event) => event.stopPropagation()}>
       <X className={cn(tokenRemoveIconClassName, iconClassName)} aria-hidden />
-    </button>
+    </Button>
   )
 }
 
@@ -236,28 +240,6 @@ function InlineTokenIconSlot({
   )
 }
 
-function FileTokenImageIcon({ previewUrl, fallbackIcon }: { previewUrl?: string; fallbackIcon: ReactNode }) {
-  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
-  if (!previewUrl || previewUrl === failedPreviewUrl) return fallbackIcon
-
-  return (
-    <img
-      src={previewUrl}
-      alt=""
-      aria-hidden
-      draggable={false}
-      className="block size-full shrink-0 rounded-xs object-cover"
-      data-file-token-icon-thumbnail=""
-      onError={() => setFailedPreviewUrl(previewUrl)}
-    />
-  )
-}
-
-function isSvgFile(file: ComposerAttachment | undefined, label: string) {
-  const extension = file?.ext || label.match(/\.[^.]+$/)?.[0] || ''
-  return extension.replace(/^\./, '').toLowerCase() === 'svg'
-}
-
 function renderActiveComposerTokenElement({
   token,
   readOnly = false,
@@ -280,7 +262,7 @@ function renderActiveComposerTokenElement({
   return (
     <Element
       className={cn(
-        'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
+        'group/composer-token mx-0.5 inline-flex items-baseline gap-1 align-baseline leading-[inherit] select-none',
         maxWidthClassName,
         colorClassName,
         readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
@@ -291,9 +273,9 @@ function renderActiveComposerTokenElement({
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}
       {...interactionProps}>
-      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
-          icon={token.icon ? token.icon : icon}
+          icon={token.icon ? (typeof token.icon === 'string' && namedTokenIcons[token.icon]) || token.icon : icon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           removeButtonClassName="size-[1em] rounded-[4px]"
@@ -480,12 +462,12 @@ function PastedTextTokenPreviewCard({
   return (
     <div className="w-80 overflow-hidden text-left">
       <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
-        <pre className="m-0 whitespace-pre-wrap break-words p-3 font-[inherit] text-popover-foreground text-xs leading-5">
+        <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
       </Scrollbar>
       {secondaryAction && (
-        <div className="flex justify-end border-border-subtle border-t p-2" data-file-token-actions="">
+        <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}
         </div>
       )}
@@ -539,7 +521,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        className="bg-muted px-5 py-4 text-center text-sm text-muted-foreground"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -549,7 +531,7 @@ function FileTokenPreviewCard({
   return (
     <div className="w-72 overflow-hidden text-left">
       <div className={tokenPreviewHeaderClassName}>
-        <span className="text-muted-foreground inline-flex size-12 items-center justify-center rounded-xl bg-background">
+        <span className="inline-flex size-12 items-center justify-center rounded-xl bg-background text-muted-foreground">
           {presentation.previewIcon}
         </span>
       </div>
@@ -558,9 +540,9 @@ function FileTokenPreviewCard({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
           data-file-token-actions={hasActions ? '' : undefined}>
           <div className="flex h-6 min-w-0 items-center">
-            <span className="truncate font-semibold text-popover-foreground text-sm leading-5">{label}</span>
+            <span className="truncate text-sm leading-5 font-semibold text-popover-foreground">{label}</span>
           </div>
-          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground">
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
@@ -837,7 +819,6 @@ const ComposerTokenActivationTrigger = function ComposerTokenActivationTrigger({
 
 export function FileComposerToken(props: FileComposerTokenProps) {
   const {
-    imageIconPreview = false,
     onFilePreviewActivate,
     onReadOnlyFilePreviewActivate,
     onRemove,
@@ -928,22 +909,15 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     [canOpenFilePreview, openFilePreview]
   )
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
-  const shouldRenderImageThumbnail = imageIconPreview && presentation.variant === 'image'
-  const tokenIcon = token.icon ? (
-    token.icon
-  ) : shouldRenderImageThumbnail && !isSvgFile(file, label) ? (
-    <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
-  ) : (
-    presentation.icon
-  )
+  const tokenIcon = token.icon ?? presentation.icon
 
   const chipElement = (
     <span
       className={cn(
         composerChipClassName,
-        'bg-transparent font-normal',
+        'rounded-md font-normal',
         (readOnly || canOpenFilePreview) &&
-          'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none',
+          'focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
         (canOpenFilePreview || readOnlyFilePreviewActivation) && 'cursor-pointer',
         props.selected && 'ring-1 ring-border-selected ring-inset',
         props.className
@@ -963,7 +937,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName={cn(composerChipRemoveButtonClassName, 'bg-transparent')}
+          removeButtonClassName={composerChipRemoveButtonClassName}
           removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
@@ -1045,7 +1019,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
       className={cn(
         composerChipClassName,
         props.readOnly &&
-          'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none',
+          'focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
         props.selected && 'ring-1 ring-border-selected ring-inset',
         props.className
       )}
