@@ -244,7 +244,7 @@ export class McpRuntimeService extends BaseService {
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
-  private readonly _onServerInvalidated = this.registerDisposable(new Emitter<string>())
+  private readonly _onServerInvalidated = new Emitter<string>()
   readonly onServerInvalidated = this._onServerInvalidated.event
   private readonly connectionGenerations = new Map<string, symbol>()
   private readonly _onCatalogChanged = new Emitter<{ serverId: string; kind: 'prompts' | 'resources' }>()
@@ -294,6 +294,7 @@ export class McpRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    this._onServerInvalidated.dispose()
     this._onCatalogChanged.dispose()
     this._onResourceUpdated.dispose()
   }

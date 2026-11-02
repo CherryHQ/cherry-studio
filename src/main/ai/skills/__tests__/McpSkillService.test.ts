@@ -806,6 +806,23 @@ describe('session MCP skills through real protocol and persistence', () => {
     await expect(skills.load(sessionId, serverId, 'skill://dynamic/reports/SKILL.md')).rejects.toThrow()
   })
 
+  it('invalidates loaded skills and cancels approvals after the runtime service restarts', async () => {
+    await skills._doStop()
+    await runtime._doStop()
+    await runtime._doInit()
+    await skills._doInit()
+    skills.openSession(sessionId, agentId)
+    await skills.load(sessionId, serverId, fixture.uri)
+    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+
+    await runtime.stopServer(serverId)
+
+    expect(approval.signal.aborted).toBe(true)
+    expect(() => approval.approve()).toThrow()
+    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+  })
+
   it('rejects calls after session closure', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
     const approval = skills.toolApproval(sessionId, 'Bash', {})!
