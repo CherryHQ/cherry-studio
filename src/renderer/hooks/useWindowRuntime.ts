@@ -5,11 +5,13 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
+import { useConversationTabTitleChangeSync } from '@renderer/hooks/tab'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -51,6 +53,7 @@ export function useWindowRuntime(): void {
 
   // Also used by the light windows, so these stay as their own reusable hooks.
   useLanguageSync()
+  useWebSearchFallbackNotice()
   useCustomCss()
 
   // dayjs locale — only the windows that render localized dates need it.
@@ -103,6 +106,8 @@ export function useWindowRuntime(): void {
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()
   useAgentSessionAutoRenameSync()
+  // Relabels tabs bound to a renamed conversation, whichever window renamed it.
+  useConversationTabTitleChangeSync()
 
   // Launcher-list convergence after IPC-side writes: exactly once per window,
   // and outside every `<Activity>`.

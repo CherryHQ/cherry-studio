@@ -160,6 +160,12 @@ mac:
     NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
     NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCalendarsUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsWriteOnlyAccessUsageDescription: Cherry Studio allows local MCP servers to create calendar events.
+    NSRemindersUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSRemindersFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSAppleEventsUsageDescription: Cherry Studio allows local MCP servers to control other applications using AppleScript.
   target:
     - target: dmg
     - target: zip
@@ -199,82 +205,50 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.8 - Editing, Voice, and Integration Updates
+    Cherry Studio 2.1.10 - File Comments, Touch Reorder, and Update Timeline
 
     ✨ New Features
-    - [File Editing] Isolate drafts across notes, skills and artifacts, retain failed edits for retry, and support up to 8 MiB text editing and previews.
-    - [Language] Add Italian (it-IT) UI support with full translations and emoji picker.
-    - [Voice] Hold the mouse button in a text input to start dictation, release to transcribe.
-    - [Voice] Streaming speech synthesis with real-time audio playback.
-    - [Web Search] Add Tencent Yuanbao Search as a built-in provider.
-    - [Scheduled Tasks] Create and manage scheduled tasks through an agent chat with an interactive task card.
-    - [Screenshot] Copy the capture to clipboard while keeping the overlay open.
-    - [Selection] Select text anywhere to automatically copy it and show a quick-quote toolbar.
-    - [Composer] File and link tokens align with the text line, show per-type file icons, and load favicons while editing.
-    - [RTF] Preview Rich Text Format files as formatted documents.
-    - [Feishu] Configure whether the bot only replies to @mentions in group chats.
-    - [Remote Access] Set a custom hostname, IP or port for pairing invitations.
-    - [Assistant] Remember the “Also archive related topics” choice for future archives.
+    - [Agent Files] Comment on files for the agent. In a text file, hover a line and click '+' (or drag across several lines) to write a comment. In Word, Excel, PDF and PowerPoint files, pick a part and click Comment. Each comment is added to the message as a chip with its location.
+    - [Updates] View skipped stable-version release notes in a collapsible timeline; single-version updates show their notes directly. Markdown footnote navigation now works correctly with backlinks.
+    - [Proxy] Test proxy connection in General Settings before saving, with support for PAC proxy/direct fallback reporting.
+    - [Touch] Reorder lists by pressing and holding a row. Buttons inside a row no longer start a drag. Selection Assistant settings now show enabled and disabled actions in one list separated by a divider.
 
     🐛 Bug Fixes
-    - [Notes] Fix note content being overwritten when switching between cached notes.
-    - [Skills] Show localized error messages when a ZIP or folder is missing SKILL.md, without leaking temporary paths.
-    - [Chat] Expand long user messages by default; keep follow-up queues independent of read receipts.
-    - [Proxy] Match short wildcard IP bypass rules like 192.168.* on Windows.
-    - [Claude Code] Keep the 1M context budget when routing through the internal gateway.
-    - [Tab Bar] Closing the last tab opens the Launchpad instead of quitting the app.
-    - [File Preview] Preserve reading state when refreshing files; fix line spacing for Word documents.
-    - [Sidebar] Selected entries use neutral filled icons in both light and dark themes.
-    - [Chat Layout] Isolate list-group expansion state per window.
-    - [Paintings] Cap loading grid density to prevent performance issues.
-    - [MCP] Keep literal # characters in saved headers and environment values.
-    - [Knowledge] Ship a baseline sqlite-vec build for Linux x64.
-    - [Voice] Add diagnostics for operation failures and stream timeouts.
-    - [Agent Session] Continue the target workspace when creating across agents; surface compaction failures.
-    - [Messages] Drop historical tool parts with incompatible replay inputs.
-    - [Virtual List] Hand sticky headers over at the pinned stack bottom.
-    - [Notes] Fixed an issue where dismissing the "note changed on disk" conflict dialog left the editor session stuck, failing all later note renames, deletions, and moves with misleading errors.
+    - [Chat] The message list no longer jumps back to the first message while scrolling a conversation that contains code blocks.
+    - [Agents] Existing conversations resume correctly after moving the data directory, preserving their history.
+    - [Local Dictation] Fix local speech recognition silently losing the second half of long utterances.
+    - [Streaming] Fix missing or duplicated response text when stream replay overlaps incoming output.
+    - [Composer] Option descriptions in question panels are no longer truncated.
+    - [Right Panel] The browser sidebar no longer opens unexpectedly when creating or switching Agent tasks.
+    - [Code Block] Diagram preview toolbars are no longer clipped. Mermaid, Graphviz, SVG, LaTeX, and ECharts previews blend into the message background.
+    - [Knowledge] File conversion progress starts from 0% and updates immediately instead of every 5 seconds.
+    - [Conversation List] Recent conversations no longer sort to the bottom after midnight.
+    - [MiMo] Fix MiMo models returning “Unsupported model” errors.
 
-    🔒 Security
-    - [Electron] Upgrade to 44.9.3 for certificate security fixes.
+    ⚡ Performance
+    - [Code Blocks] Reduce unnecessary rendering work while scrolling conversations with code blocks.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.8 - 编辑、语音与集成更新
+    Cherry Studio 2.1.10 - 文件评论、触控排序与更新时间轴
 
     ✨ 新功能
-    - [文件编辑] 隔离笔记、技能和工件的草稿，保留保存失败的编辑以便重试，支持最大 8 MiB 的文本编辑与预览。
-    - [语言] 添加意大利语 (it-IT) 界面支持，包含完整翻译和表情选择器。
-    - [语音] 在文本输入中按住鼠标按钮开始听写，松开后转写。
-    - [语音] 流式语音合成与实时音频播放。
-    - [网页搜索] 添加腾讯元宝搜索作为内置提供商。
-    - [定时任务] 通过智能体对话创建和管理定时任务，并在聊天中显示交互式任务卡片。
-    - [截图] 复制截图到剪贴板，同时保持截图覆盖层开启。
-    - [选区] 选中任意文本即可自动复制并显示快速引用工具栏。
-    - [输入框] 文件和链接标记与文本行对齐，显示按类型的文件图标，编辑时加载网站图标。
-    - [RTF] 将富文本格式文件预览为格式化文档。
-    - [飞书] 配置群聊中的机器人是否仅在@提及时回复。
-    - [远程访问] 为配对邀请设置自定义主机名、IP 或端口。
-    - [助手] 记住归档时”同时归档相关话题”的选择。
+    - [智能体文件] 为智能体评论文件。在文本文件中，悬停一行并点击 '+'（或拖动多行）来编写评论。在 Word、Excel、PDF 和 PowerPoint 文件中，选择部分后点击评论。每条评论作为带有位置的芯片添加到消息中。
+    - [更新] 通过可折叠时间轴查看跨越的稳定版本更新日志；仅一个版本时直接展示日志。Markdown 脚注跳转及返回现已正常工作。
+    - [代理] 在通用设置中保存前测试代理连接，支持 PAC 代理/直接回退报告。
+    - [触控] 按住行可重新排序列表。行内按钮不再触发拖动。选区助手设置现以分隔线分隔启用和禁用的操作。
 
     🐛 问题修复
-    - [笔记] 修复在已缓存的笔记之间切换时内容被覆盖的问题。
-    - [技能] 当 ZIP 或文件夹缺少 SKILL.md 时显示本地化错误提示，不再泄露临时路径。
-    - [对话] 默认展开较长的用户消息；后续消息队列独立于已读回执。
-    - [代理] 匹配 Windows 上的短通配符 IP 绕过规则（如 192.168.*）。
-    - [Claude Code] 通过内部网关路由时保持 1M 上下文预算。
-    - [标签栏] 关闭最后一个标签页时打开启动台而非退出应用。
-    - [文件预览] 刷新文件时保持阅读状态；修复 Word 文档的行间距。
-    - [侧边栏] 选中的项目在浅色和深色主题中使用中性的填充图标。
-    - [对话布局] 按窗口隔离列表组展开状态。
-    - [绘画] 限制加载网格密度以防止性能问题。
-    - [MCP] 在保存的标头和环境值中保留 # 字符。
-    - [知识库] 为 Linux x64 提供基准 sqlite-vec 构建。
-    - [语音] 为操作失败和流超时添加诊断信息。
-    - [智能体会话] 跨智能体创建时继续目标工作区；显示压缩失败。
-    - [消息] 丢弃历史工具部件中不兼容的重放输入。
-    - [虚拟列表] 在固定堆栈底部移交粘性标题。
-    - [笔记] 修复关闭“笔记已在磁盘上更改”冲突对话框后编辑会话卡住，导致后续笔记重命名、删除和移动失败并显示误导性错误的问题。
+    - [聊天] 滚动包含代码块的会话时，消息列表不再跳回第一条消息。
+    - [智能体] 移动数据目录后，现有对话可正确恢复并保留历史。
+    - [本地语音识别] 修复本地语音识别在长语音后半段静默丢失的问题。
+    - [流式传输] 修复流式回放与传入输出重叠时响应文本丢失或重复的问题。
+    - [编辑器] 问题面板中的选项描述不再被截断。
+    - [右侧面板] 创建或切换智能体任务时，浏览器侧边栏不再意外打开。
+    - [代码块] 图表预览工具栏不再被裁剪。Mermaid、Graphviz、SVG、LaTeX 和 ECharts 预览融入消息背景。
+    - [知识库] 文件转换进度从 0% 开始并即时更新，而非每 5 秒更新一次。
+    - [对话列表] 午夜后最近对话不再排到底部。
+    - [MiMo] 修复 MiMo 模型返回”不支持的模型”错误的问题。
 
-    🔒 安全
-    - [Electron] 升级到 44.9.3 以修复证书安全问题。
+    ⚡ 性能优化
+    - [代码块] 减少滚动包含代码块的会话时的不必要渲染工作。
     <!--LANG:END-->

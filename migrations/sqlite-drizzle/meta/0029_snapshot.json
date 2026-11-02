@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "56bc7d49-5aa7-4997-b212-f2ac0448135f",
+  "id": "fbdcebe7-a527-4ca9-94cd-c825f652f31b",
   "prevId": "e7952537-a5dd-47cb-a0e9-8246c1c27187",
   "tables": {
     "agent": {
@@ -3585,6 +3585,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "recovery": {
+          "name": "recovery",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -6057,13 +6064,6 @@
         },
         "notes": {
           "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_key_id": {
-          "name": "api_key_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

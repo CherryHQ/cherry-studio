@@ -180,6 +180,13 @@ export class WebSearchService extends BaseService {
         providerDriver: createWebSearchProvider(fallbackProvider, this.apiKeyRotationState)
       }
       const fallbackConfigurationError = this.getProviderConfigurationError(fallbackContext)
+      if (!fallbackConfigurationError) {
+        application.get('IpcApiService').broadcast('web_search.fallback', {
+          primaryProviderId: context.provider.id,
+          fallbackProviderId,
+          capability: context.capability
+        })
+      }
       const fallbackResults: PromiseSettledResult<WebSearchResponse>[] = fallbackConfigurationError
         ? fallbackContext.inputs.map(() => ({ status: 'rejected', reason: fallbackConfigurationError }))
         : await this.executeCapability(fallbackContext, httpOptions)

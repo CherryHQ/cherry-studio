@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeCopySourcesPayload } from '../jobTypes'
 import {
