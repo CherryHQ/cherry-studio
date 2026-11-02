@@ -1428,6 +1428,8 @@
   "error.claude_code_exit.code": "Claude Code wurde unerwartet beendet (Code {{code}}). Diagnosereferenz: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code wurde unerwartet gestoppt (Signal {{signal}}). Diagnosereferenz: {{reference}}",
   "error.claude_code_exit.start": "Claude Code konnte nicht gestartet werden. Diagnosereferenz: {{reference}}",
+  "error.claude_code_session_bus_missing": "Claude Code benötigt einen aktiven Linux-Sitzungsbus.",
+  "error.claude_code_session_bus_missing_detail": "Setze DBUS_SESSION_BUS_ADDRESS in der Desktop-Umgebung, über die Cherry Studio gestartet wird, und starte die App neu. Claude Code wurde nicht gestartet.",
   "error.content": "Inhalt",
   "error.data": "Daten",
   "error.detail": "Fehlerdetails",

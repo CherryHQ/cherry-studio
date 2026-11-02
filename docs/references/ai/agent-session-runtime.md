@@ -565,6 +565,12 @@ The query may come from `ClaudeCodeWarmQueryManager.consume(...)` if a
 prewarmed query is available. Otherwise the driver starts a new SDK
 query with `createClaudeQuery({ prompt: driverSdkInputQueue, options })`.
 
+On Linux, the final subprocess environment must contain a non-empty
+`DBUS_SESSION_BUS_ADDRESS`. If it does not, environment construction returns
+actionable setup guidance before the SDK query is created, so no Claude Code
+child is launched. This check does not probe whether a non-empty bus address
+is reachable.
+
 Starting a query (warm or cold) registers the agent's MCP servers and lists
 their tools. That listing is **cache-only** — it never connects to an upstream
 MCP server — so a dead or slow server cannot block startup. See

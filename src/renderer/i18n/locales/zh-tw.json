@@ -1428,6 +1428,8 @@
   "error.claude_code_exit.code": "Claude Code 意外結束（代碼 {{code}}）。診斷參考號：{{reference}}",
   "error.claude_code_exit.signal": "Claude Code 意外停止（訊號 {{signal}}）。診斷參考號：{{reference}}",
   "error.claude_code_exit.start": "Claude Code 無法啟動。診斷參考號：{{reference}}",
+  "error.claude_code_session_bus_missing": "Claude Code 需要可用的 Linux 工作階段匯流排。",
+  "error.claude_code_session_bus_missing_detail": "請在啟動 Cherry Studio 的桌面環境中設定 DBUS_SESSION_BUS_ADDRESS，然後重新啟動應用程式。Claude Code 尚未啟動。",
   "error.content": "內容",
   "error.data": "資料",
   "error.detail": "錯誤詳細資訊",

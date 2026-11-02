@@ -1428,6 +1428,8 @@
   "error.claude_code_exit.code": "Claude Code неожиданно завершил работу (код {{code}}). Ссылка на диагностику: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code был неожиданно остановлен (сигнал {{signal}}). Ссылка на диагностику: {{reference}}",
   "error.claude_code_exit.start": "Не удалось запустить Claude Code. Ссылка на диагностику: {{reference}}",
+  "error.claude_code_session_bus_missing": "Для Claude Code требуется активная шина сеанса Linux.",
+  "error.claude_code_session_bus_missing_detail": "Установите DBUS_SESSION_BUS_ADDRESS в среде рабочего стола, из которой запускается Cherry Studio, а затем перезапустите приложение. Claude Code не был запущен.",
   "error.content": "Содержание",
   "error.data": "данные",
   "error.detail": "Детали ошибки",

@@ -167,6 +167,32 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it('renders actionable Claude Code session-bus guidance without AI diagnosis', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing')
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing_detail')
+
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeSessionBusUnavailableError',
+          message: 'Claude Code requires an active Linux session bus',
+          stack: null,
+          i18nKey: 'claude_code_session_bus_missing',
+          detailI18nKey: 'claude_code_session_bus_missing_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing'])
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing_detail'])
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
     render(
       <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: 'boom', stack: null }} message={message} />

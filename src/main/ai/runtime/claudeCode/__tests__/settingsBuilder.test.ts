@@ -407,9 +407,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/flatpak/session-bus')
   })
 
-  it('does not invent a Linux desktop session bus when neither environment provides one', async () => {
+  it('uses the Linux desktop session bus from the login shell when the parent environment omits it', async () => {
     mocks.platform.isLinux = true
-    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.getShellEnv.mockResolvedValue({
+      PATH: '/usr/bin',
+      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/shell/session-bus'
+    })
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -421,8 +424,32 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
+    expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/shell/session-bus')
   })
+
+  it.each([undefined, '', '   '])(
+    'fails before starting Claude Code when the login shell session bus address is %j',
+    async (shellAddress) => {
+      mocks.platform.isLinux = true
+      mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: shellAddress })
+      vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+      await expect(
+        buildClaudeCodeSessionSettings(
+          {
+            id: 'session-1',
+            agentId: 'agent-1',
+            workspace: { type: 'user', path: '/workspace/project' }
+          } as never,
+          {} as never
+        )
+      ).rejects.toMatchObject({
+        name: 'ClaudeCodeSessionBusUnavailableError',
+        i18nKey: 'claude_code_session_bus_missing',
+        detailI18nKey: 'claude_code_session_bus_missing_detail'
+      })
+    }
+  )
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
     'captures %s duration through the live Agent runtime owner',
