@@ -1,7 +1,7 @@
 import type * as DndKitUtilities from '@dnd-kit/utilities'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Activity, type ComponentProps, type ReactNode } from 'react'
+import { Activity, type ComponentProps, type HTMLAttributes, type ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -83,7 +83,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         }
       }
 
-      if (asChild && React.isValidElement(children)) {
+      if (asChild && React.isValidElement<HTMLAttributes<HTMLElement>>(children)) {
         const childProps = children.props || {}
 
         // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
@@ -363,7 +363,7 @@ const stableReferences = vi.hoisted(() => ({
 }))
 
 const topicStreamStatusMocks = vi.hoisted(() => ({
-  useTopicStreamStatus: vi.fn(() => ({
+  useTopicStreamStatus: vi.fn<(topicId: string) => ReturnType<typeof createTopicStreamStatusMock>>(() => ({
     activeExecutions: [],
     awaitingApprovalAnchors: [],
     isFulfilled: false,
@@ -590,7 +590,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       mutate: vi.fn()
     }
   }),
-  useMutation: vi.fn((method: string, path: string, options?: { refresh?: unknown }) => {
+  useMutation: vi.fn((method: string, path: string, options?: { refresh?: string[] }) => {
     dataApiMocks.mutationOptions.set(`${method} ${path}`, options ?? {})
     return {
       trigger:
@@ -2023,7 +2023,7 @@ describe('Sessions', () => {
         createSession({
           id: 'session-a',
           agentId: 'agent-a',
-          workspaceId: null,
+          workspaceId: 'ws-/system/session-a',
           workspace: makeWorkspace('/system/session-a', { type: AGENT_WORKSPACE_TYPE.SYSTEM })
         })
       ]
@@ -2676,7 +2676,11 @@ describe('Sessions', () => {
 
   it('does not reserve an agent icon slot for a pinned session', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }]
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
     setupSessions({
       sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' })],
       pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
@@ -2691,7 +2695,11 @@ describe('Sessions', () => {
   it('does not reserve a leading slot for a pinned session when agent icons are hidden', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     preferenceMocks.values.set('agent.icon_type', 'none')
-    dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined
+    })
     setupSessions({
       sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' })],
       pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
