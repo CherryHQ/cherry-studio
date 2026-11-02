@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUi from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -96,7 +97,7 @@ vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => 
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  Avatar: (await importOriginal<typeof import('@cherrystudio/ui')>()).Avatar,
+  Avatar: (await importOriginal<typeof CherryUi>()).Avatar,
   BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>

@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentEntity } from '@shared/data/types/agent'
 
@@ -42,7 +43,8 @@ const info = {
   ]
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('zh-CN')
   vi.stubGlobal('crypto', webcrypto)
   HTMLElement.prototype.scrollIntoView = vi.fn()
   updateNativeModel.mockReset()
@@ -54,7 +56,7 @@ beforeEach(() => {
 describe('local agent model persistence', () => {
   it.each([
     ['cursor', 'Cursor CLI 当前不支持自定义服务商模型。'],
-    ['auggie', 'Cherry Studio 暂未适配此智能体的服务商模型。']
+    ['auggie', '暂未适配此智能体的服务商模型。']
   ])('explains model switching restrictions for %s without changing configuration', async (presetId, reason) => {
     const user = userEvent.setup()
     render(
@@ -75,7 +77,7 @@ describe('local agent model persistence', () => {
     expect(gateway).toBeDisabled()
     expect(screen.getByRole('option', { name: 'Second' })).toHaveAttribute('aria-disabled', 'true')
     await user.hover(native.parentElement!)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Cherry Studio 暂未适配此智能体的默认模型切换。')
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('暂未适配此智能体的默认模型切换。')
     await user.hover(gateway.parentElement!)
     expect(await screen.findByRole('tooltip', { name: reason })).toBeVisible()
     await user.keyboard('{ArrowDown}{Enter}')

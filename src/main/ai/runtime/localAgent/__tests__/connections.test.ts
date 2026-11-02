@@ -867,6 +867,7 @@ describe('local protocol processes', () => {
     expect(text()).toContain('## Plan')
     toolApprovalRegistry.dispatch(approval.request.approvalId, { approved })
     await sending
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
     expect(text()).toContain(`"outcome":{"outcome":"${approved ? 'accepted' : 'rejected'}"}`)
     expect(
       events.flatMap((event) =>
