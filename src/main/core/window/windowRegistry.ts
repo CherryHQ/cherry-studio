@@ -321,9 +321,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
       // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
-      // during window creation on macOS (app deactivation + Dock icon loss);
-      // MainWindowService's boot-time `app.dock?.show()` hack only masks that
-      // transform on the startup path, not on runtime re-creates.
+      // during window creation on macOS (app deactivation + Dock icon loss).
       visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
       // Quick window is a floating helper, not a primary surface — never touch the Dock.
       macShowInDock: false
@@ -503,6 +501,52 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // Full idle release: after 5 minutes of no action, trim the recycle
       // buffer down to the standby window. standbySize is preserved as a
       // permanent availability commitment.
+      inactivityTimeout: 300,
+      warmup: 'eager'
+    }
+  },
+
+  // Agent window for agent selection actions — pooled like the action window, but a hidden
+  // instance is still in use (collapsed), so only close returns it to the pool.
+  // Managed by SelectionAgentWindowService, which sizes it per layout and shows it.
+  [WindowType.SelectionAgent]: {
+    type: WindowType.SelectionAgent,
+    lifecycle: 'pooled',
+    htmlPath: 'windows/selection/agent/index.html',
+    showMode: 'manual',
+    windowOptions: {
+      width: 560,
+      height: 160,
+      frame: false,
+      transparent: true,
+      autoHideMenuBar: true,
+      hasShadow: false,
+      thickFrame: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          fullscreenable: false,
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 16, y: 16 }
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        devTools: true
+      }
+    },
+    behavior: {
+      macShowInDock: false
+    },
+    quirks: {
+      macRestoreFocusOnHide: true
+    },
+    poolConfig: {
+      standbySize: 1,
+      recycleMaxSize: 3,
+      decayInterval: 60,
       inactivityTimeout: 300,
       warmup: 'eager'
     }

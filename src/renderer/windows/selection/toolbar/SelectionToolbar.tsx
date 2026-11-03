@@ -1,13 +1,24 @@
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
+import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { parseSelectionActions } from '@renderer/utils/selectionAction'
-import { SELECTION_BUILTIN_ACTION_ID, type SearchSelectionAction, type SelectionAction } from '@shared/types/selection'
+import {
+  getSelectionActionAgent,
+  parseSelectionActions,
+  SELECTION_AGENT_ISSUE_LABEL_KEYS
+} from '@renderer/utils/selectionAction'
+import {
+  isAgentSelectionAction,
+  SELECTION_BUILTIN_ACTION_ID,
+  type SearchSelectionAction,
+  type SelectionAction
+} from '@shared/types/selection'
 
 const logger = loggerService.withContext('SelectionToolbar')
 
@@ -56,6 +67,21 @@ const SelectionToolbar: FC = () => {
     return parseSelectionActions(actionItems ?? []).filter((item) => item.enabled)
   }, [actionItems])
 
+  const agents = useSelectionAgents(
+    realActionItems.filter(isAgentSelectionAction).map((action) => action.agentId ?? null)
+  )
+  const { t } = useTranslation()
+  const unavailableReasons = useMemo(() => {
+    // Until agents load, leave every action usable rather than flash it disabled.
+    if (!agents) return undefined
+    const reasons: Record<string, string> = {}
+    for (const action of realActionItems) {
+      const issue = getSelectionActionAgent(action, agents)?.issue
+      if (issue) reasons[action.id] = t(SELECTION_AGENT_ISSUE_LABEL_KEYS[issue])
+    }
+    return reasons
+  }, [agents, realActionItems, t])
+
   const selectedText = useRef('')
   const programName = useRef('')
   // [macOS] only macOS has the fullscreen mode
@@ -81,10 +107,10 @@ const SelectionToolbar: FC = () => {
     }
   })
 
-  //make sure the toolbar size is updated when the compact mode/actionItems is changed
+  //make sure the toolbar size is updated when the compact mode/actionItems/availability is changed
   useEffect(() => {
     updateWindowSize(toolbarRef.current)
-  }, [isCompact, actionItems])
+  }, [isCompact, actionItems, unavailableReasons])
 
   /**
    * Check if text is a valid URI or file path
@@ -195,6 +221,7 @@ const SelectionToolbar: FC = () => {
       handleAction={handleAction}
       copyIconStatus={copyIconStatus}
       copyIconAnimation={copyIconAnimation}
+      unavailableReasons={unavailableReasons}
       draggable
     />
   )

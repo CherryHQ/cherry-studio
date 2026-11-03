@@ -7,6 +7,7 @@ import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceC
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getSelectionAgentIssue, SELECTION_AGENT_ISSUE_HINT_KEYS } from '@renderer/utils/selectionAction'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 interface SelectionAgentPickerProps {
@@ -17,25 +18,29 @@ interface SelectionAgentPickerProps {
 
 export const SelectionAgentPicker: FC<SelectionAgentPickerProps> = ({ value, onChange, invalid }) => {
   const { t } = useTranslation()
-  const { agents } = useAgents()
+  const { agents, isLoading } = useAgents()
   const agent = agents.find((candidate) => candidate.id === value)
+  const issue = value && !isLoading ? getSelectionAgentIssue(agent) : null
 
   return (
-    <AgentSelector
-      value={value}
-      onChange={onChange}
-      align="start"
-      mountStrategy="lazy-keep"
-      trigger={
-        <Button type="button" variant="outline" className="w-full justify-start" aria-invalid={invalid || undefined}>
-          {agent ? <span aria-hidden="true">{getAgentAvatarFromConfiguration(agent.configuration)}</span> : <Bot />}
-          <span className="min-w-0 flex-1 truncate text-left">
-            {agent?.name ?? t('selection.settings.user_modal.agent.hint')}
-          </span>
-          <ChevronDown />
-        </Button>
-      }
-    />
+    <>
+      <AgentSelector
+        value={value}
+        onChange={onChange}
+        align="start"
+        mountStrategy="lazy-keep"
+        trigger={
+          <Button type="button" variant="outline" className="w-full justify-start" aria-invalid={invalid || undefined}>
+            {agent ? <span aria-hidden="true">{getAgentAvatarFromConfiguration(agent.configuration)}</span> : <Bot />}
+            <span className="min-w-0 flex-1 truncate text-left">
+              {agent?.name ?? t('selection.settings.user_modal.agent.hint')}
+            </span>
+            <ChevronDown />
+          </Button>
+        }
+      />
+      {issue && <div className="text-warning text-xs">{t(SELECTION_AGENT_ISSUE_HINT_KEYS[issue])}</div>}
+    </>
   )
 }
 

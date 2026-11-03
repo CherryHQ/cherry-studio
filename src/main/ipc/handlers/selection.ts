@@ -28,5 +28,8 @@ export const selectionHandlers: IpcHandlersFor<typeof selectionRequestSchemas> =
     // an accepted no-op (see ipc-overview.md, "senderId: null semantics").
     if (ctx.senderId) application.get('WindowManager').behavior.setAlwaysOnTop(ctx.senderId, isPinned)
   },
+  'selection.resize_agent_window': async (layout, ctx) => {
+    if (ctx.senderId) application.get('SelectionAgentWindowService').resize(ctx.senderId, layout)
+  },
   'selection.get_linux_env_info': async () => application.get('SelectionService').getLinuxEnvInfo()
 }
