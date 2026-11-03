@@ -411,7 +411,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       key: (await import('@cherrystudio/agent-behavior')).callKeyOf(origin.parentToolCallId)
     })
     this.childOrigins.set(id, { parent, origin, toolCallId })
-    const childContext = contexts.child(parentContext.id, id, id, toolCallId, origin.description)
+    const childContext = contexts.child(parentContext.id, id, toolCallId, origin.description)
     const projection = new ChildThreadProjection(
       childContext,
       {
