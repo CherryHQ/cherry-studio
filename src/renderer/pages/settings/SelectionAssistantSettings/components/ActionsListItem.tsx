@@ -1,10 +1,10 @@
 import { Pencil, Settings2, Trash } from 'lucide-react'
-import { DynamicIcon } from 'lucide-react/dynamic'
 import type React from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
@@ -24,7 +24,7 @@ const ActionsListItem = memo(({ item, isLastEnabledItem, onEdit, onDelete, getSe
     <Item disabled={!isEnabled} className={isLastEnabledItem ? 'non-draggable' : ''}>
       <ItemLeft>
         <ItemIcon disabled={!isEnabled}>
-          <DynamicIcon name={item.icon as any} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />
+          <SelectionActionIcon name={item.icon} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />
         </ItemIcon>
         <ItemName disabled={!isEnabled}>{item.isBuiltIn ? t(item.name) : item.name}</ItemName>
         {item.id === 'search' && item.searchEngine && (
