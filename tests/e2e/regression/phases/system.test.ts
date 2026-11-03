@@ -745,11 +745,11 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
     for (const { name } of permissions) {
       const guide = settings.getByRole('button', { name: `管理${name}权限`, exact: true })
       const state = permissionStates.get(name)
-      if ((await guide.count()) === 0) {
-        // Settings only offer a guide while the permission is still missing.
-        expect(['已授权', '不可用'], `${name}: guide must be hidden only when nothing can be opened`).toContain(state)
+      if (state === '已授权' || state === '不可用') {
+        await expect(guide).toHaveCount(0)
         continue
       }
+      await expect(guide).toBeVisible()
       await expect(guide).toHaveText('打开授权引导')
       await guide.click()
       await expect

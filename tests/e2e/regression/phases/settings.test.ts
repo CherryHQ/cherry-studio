@@ -577,6 +577,9 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
     const send = page.locator('#setting-appearance-send-shortcuts').getByRole('combobox')
     const newline = page.locator('#setting-appearance-newline-shortcuts').getByRole('combobox')
     const steer = page.locator('#setting-appearance-steer-shortcuts').getByRole('combobox')
+    await expect(send).toHaveText(formatShortcutDisplay(['Enter'], process.platform === 'darwin'))
+    await expect(newline).toHaveText(formatShortcutDisplay(['Shift', 'Enter'], process.platform === 'darwin'))
+    await expect(steer).toHaveText(formatShortcutDisplay(['CommandOrControl', 'Enter'], process.platform === 'darwin'))
     await testInfo.attach('MP-107 original displayed bindings', {
       body: JSON.stringify({
         send: await send.innerText(),
