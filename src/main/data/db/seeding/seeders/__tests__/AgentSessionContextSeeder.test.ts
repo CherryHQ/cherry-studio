@@ -124,9 +124,9 @@ describe('AgentSessionContextSeeder', () => {
     message(id, { runtimeResumeToken: 'original-pi', data: { parts: [], nativeSessionId: 'edited-pi' } })
     const before = dbh.db.select().from(agentSessionMessageTable).all()
     dbh.sqlite.exec(`CREATE TRIGGER reject_context BEFORE INSERT ON agent_session_context
-      WHEN NEW.intended_thread_id = 'edited-pi' BEGIN SELECT RAISE(ABORT, 'context write failed'); END`)
+      WHEN NEW.native_thread_id = 'edited-pi' BEGIN SELECT RAISE(ABORT, 'context write failed'); END`)
     try {
-      expect(() => new SeedRunner(dbh.db).runAll(upgradeSeeders)).toThrow()
+      expect(() => new SeedRunner(dbh.db).runAll(upgradeSeeders)).toThrow('context write failed')
       expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual([])
       expect(dbh.db.select().from(agentSessionContextTable).all()).toEqual([])
       expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
