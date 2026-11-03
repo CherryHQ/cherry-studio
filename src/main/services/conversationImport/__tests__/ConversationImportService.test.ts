@@ -84,6 +84,117 @@ describe('local history atomic import', () => {
     )
     return { ...result, scan }
   }
+  it('imports Codex threads independently and rejects an index changed after preview', async () => {
+    const sourceRoot = path.join(root, 'source')
+    for (const id of ['one', 'two'])
+      await writeFile(
+        path.join(sourceRoot, 'rollout-' + id + '.jsonl'),
+        [
+          { type: 'session_meta', payload: { id, session_id: 'root', cli_version: '0.114.0' } },
+          {
+            type: 'response_item',
+            timestamp: '2026-01-01T00:00:00Z',
+            payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: id }] }
+          }
+        ]
+          .map((row) => JSON.stringify(row))
+          .join('\n')
+      )
+    const scan = await service.discover('window', 'codex', sourceRoot)
+    const before = counts()
+    const prepared = await service.preview(
+      'window',
+      scan.scanId,
+      'pi',
+      scan.candidates.map((c) => ({ ref: c.ref }))
+    )
+    expect(counts()).toEqual(before)
+    expect(prepared.items.every((item) => item.diagnostics.length === 0)).toBe(true)
+    const outcomes = await service.commit(
+      'window',
+      prepared.previewId,
+      prepared.items.map((item) => item.ref)
+    )
+    expect(outcomes.map((item) => item.status)).toEqual(['imported', 'imported'])
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionTable)
+        .all()
+        .map((row) => row.importMetadata?.originalSessionId)
+        .sort()
+    ).toEqual(['one', 'two'])
+    const next = await service.discover('window', 'codex', sourceRoot)
+    const preview = await service.preview(
+      'window',
+      next.scanId,
+      'pi',
+      next.candidates.map((c) => ({ ref: c.ref }))
+    )
+    await writeFile(path.join(sourceRoot, 'session_index.jsonl'), JSON.stringify({ id: 'one', thread_name: 'changed' }))
+    expect(
+      (
+        await service.commit(
+          'window',
+          preview.previewId,
+          preview.items.map((item) => item.ref)
+        )
+      ).every((item) => item.reason === 'source_changed')
+    ).toBe(true)
+  })
+  it('imports OpenCode from a read-only database snapshot and rechecks changed rows', async () => {
+    const sourceRoot = path.join(root, 'source')
+    const external = new Database(path.join(sourceRoot, 'opencode.db'))
+    try {
+      external.exec(
+        'CREATE TABLE session_v2 (id TEXT PRIMARY KEY, title TEXT, directory TEXT, version TEXT, revert TEXT, fork_session_id TEXT, fork_boundary TEXT); CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, data TEXT);'
+      )
+      external
+        .prepare('INSERT INTO session_v2 VALUES (?, ?, ?, ?, NULL, NULL, NULL)')
+        .run('external', 'OpenCode import', '', '2.2.5')
+      external
+        .prepare('INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?)')
+        .run('message', 'external', 'user', 0, 1767225600000, JSON.stringify({ text: 'original' }))
+      const scan = await service.discover('window', 'opencode', sourceRoot)
+      const before = counts()
+      const prepared = await service.preview(
+        'window',
+        scan.scanId,
+        'pi',
+        scan.candidates.map((c) => ({ ref: c.ref }))
+      )
+      expect(counts()).toEqual(before)
+      external.prepare('UPDATE session_message SET data = ?').run(JSON.stringify({ text: 'changed' }))
+      expect(
+        (
+          await service.commit(
+            'window',
+            prepared.previewId,
+            prepared.items.map((item) => item.ref)
+          )
+        )[0].reason
+      ).toBe('source_changed')
+      expect(counts()).toEqual(before)
+      const fresh = await service.discover('window', 'opencode', sourceRoot)
+      const accepted = await service.preview(
+        'window',
+        fresh.scanId,
+        'pi',
+        fresh.candidates.map((c) => ({ ref: c.ref }))
+      )
+      const [outcome] = await service.commit(
+        'window',
+        accepted.previewId,
+        accepted.items.map((item) => item.ref)
+      )
+      expect(outcome).toMatchObject({ status: 'imported', initialization: 'ready', agentId: 'pi' })
+      const stored = dbh.db.select().from(agentSessionMessageTable).all()
+      expect(stored[0].data.parts).toEqual([{ type: 'text', text: 'changed' }])
+      expect(stored[0].provenance?.source).toBe('opencode')
+    } finally {
+      external.close()
+    }
+  })
   it('renders already imported Claude tool results without rewriting stored history', async () => {
     await source()
     const prepared = await preview()
