@@ -32,7 +32,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { getModels, resolveGatewayModelAddress } from '../models'
+import { getModels, assertAgentGatewayModelAvailable, resolveGatewayModelAddress } from '../models'
 
 describe('api gateway model listing', () => {
   beforeEach(() => {
@@ -285,5 +285,90 @@ describe('api gateway model listing', () => {
         resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)
       ).resolves.toMatchObject({ model: cloudModel })
     })
+  })
+})
+
+// Regression for #20285: an enabled built-in Agent model resolves through the gateway,
+// while stale/disabled/unroutable rows fail with an actionable error.
+describe('built-in Hermes agent model availability (#20285)', () => {
+  const hermesModel = {
+    id: 'openai::hermes-agent',
+    providerId: 'openai',
+    apiModelId: 'hermes-agent',
+    ownedBy: 'OpenAI',
+    capabilities: [],
+    isEnabled: true
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
+    mocks.listProviders.mockReturnValue([{ id: 'openai', name: 'OpenAI', isEnabled: true }])
+    mocks.listModels.mockImplementation(() => [hermesModel])
+  })
+
+  it('resolves an enabled Hermes model through the gateway', async () => {
+    await expect(resolveGatewayModelAddress('openai:hermes-agent')).resolves.toMatchObject({
+      providerId: 'openai',
+      apiModelId: 'hermes-agent',
+      uniqueModelId: 'openai::hermes-agent'
+    })
+  })
+
+  it('lists an enabled Hermes model', async () => {
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:hermes-agent'])
+  })
+
+  it('rejects a Hermes model whose provider is disabled', async () => {
+    mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: false })
+
+    await expect(resolveGatewayModelAddress('openai:hermes-agent')).rejects.toThrow(
+      'not available through the API gateway'
+    )
+  })
+
+  it('rejects a Hermes model row that is missing or disabled', async () => {
+    mocks.listModels.mockReturnValue([])
+
+    await expect(resolveGatewayModelAddress('openai:hermes-agent')).rejects.toThrow(
+      'not available through the API gateway'
+    )
+  })
+
+  it('rejects a non-chat Hermes-shaped model', async () => {
+    mocks.listModels.mockReturnValue([{ ...hermesModel, capabilities: [MODEL_CAPABILITY.EMBEDDING] }])
+
+    await expect(resolveGatewayModelAddress('openai:hermes-agent')).rejects.toThrow(
+      'not available through the API gateway'
+    )
+  })
+
+  it('names the cause for a disabled provider or model', () => {
+    expect(() =>
+      assertAgentGatewayModelAvailable(
+        { id: 'openai', isEnabled: false } as never,
+        hermesModel as never,
+        'openai:hermes-agent'
+      )
+    ).toThrow('provider "openai" is disabled')
+    expect(() =>
+      assertAgentGatewayModelAvailable(
+        { id: 'openai', isEnabled: true } as never,
+        { ...hermesModel, isEnabled: false } as never,
+        'openai:hermes-agent'
+      )
+    ).toThrow('the model is disabled')
+  })
+
+  it('passes an enabled routable Hermes model', () => {
+    expect(() =>
+      assertAgentGatewayModelAvailable(
+        { id: 'openai', isEnabled: true } as never,
+        hermesModel as never,
+        'openai:hermes-agent'
+      )
+    ).not.toThrow()
   })
 })
