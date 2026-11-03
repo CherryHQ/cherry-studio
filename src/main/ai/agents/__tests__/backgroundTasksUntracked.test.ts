@@ -436,10 +436,14 @@ describe('a task whose record write fails', () => {
         expect(isPidAlive(pid)).toBe(true)
         expect(await listDetachedBackgroundTasks(storageDir)).toEqual([])
       } finally {
-        try {
-          process.kill(-pid, 'SIGKILL')
-        } catch {
-          // already reaped
+        // A start that failed before reporting a PID leaves `pid` zero; signalling group zero would
+        // hit the test worker itself.
+        if (pid > 0) {
+          try {
+            process.kill(-pid, 'SIGKILL')
+          } catch {
+            // already reaped
+          }
         }
       }
     }
