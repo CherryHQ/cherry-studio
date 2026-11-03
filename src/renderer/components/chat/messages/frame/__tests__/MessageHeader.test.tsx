@@ -82,7 +82,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
+const createMessage = (role: 'assistant' | 'user' | 'system' = 'assistant', extra: Record<string, unknown> = {}) =>
   ({
     id: 'message-1',
     role,
@@ -95,6 +95,12 @@ describe('MessageHeader', () => {
   beforeEach(() => {
     providerState.actions = {}
     providerState.selection = undefined
+  })
+
+  it('attributes historical system records to the system instead of the user', () => {
+    render(<MessageHeader message={createMessage('system')} />)
+    expect(screen.getByText('chat.message.system')).toBeInTheDocument()
+    expect(screen.queryByText('User')).not.toBeInTheDocument()
   })
 
   it('keeps content and footer in the same body column', () => {
