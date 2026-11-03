@@ -1733,6 +1733,7 @@
   "history.records.table.session": "งาน",
   "history.records.table.time": "เวลา",
   "history.records.title": "ประวัติการสนทนา",
+  "history_import.blocked": "ไม่สามารถนำเข้าการสนทนา {{count}} รายการได้ โปรดแก้ไขปัญหาด้านล่างแล้วลองอีกครั้ง",
   "history_import.branch": "เลือกแขนงบทสนทนา",
   "history_import.confirm": "นำเข้าการสนทนาที่เลือก",
   "history_import.default_location": "ตำแหน่งเริ่มต้นของแอป",

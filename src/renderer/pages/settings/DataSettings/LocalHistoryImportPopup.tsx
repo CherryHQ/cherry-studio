@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -71,6 +71,21 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [reviewItems, setReviewItems] = useState<ImportPreviewItem[]>([])
+  const firstProblem = useRef<HTMLElement>(null)
+  const errorNotice = useRef<HTMLParagraphElement>(null)
+  const blockedItems = reviewItems.filter((item) =>
+    item.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+  )
+  useEffect(() => {
+    if (results) return
+    if (blockedItems.length) {
+      firstProblem.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+      firstProblem.current?.focus({ preventScroll: true })
+    }
+  }, [reviewItems, results, blockedItems.length])
+  useEffect(() => {
+    if (error) errorNotice.current?.focus({ preventScroll: true })
+  }, [error])
   useEffect(
     () => () => {
       void ipcApi.request('conversation_import.cancel').catch(() => {})
@@ -157,13 +172,17 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
             {t('history_import.title')} · {t(sourceLabels[source])}
           </DialogTitle>
         </DialogHeader>
+        {!results && (error || blockedItems.length > 0) && (
+          <p
+            ref={errorNotice}
+            role="alert"
+            tabIndex={-1}
+            className="shrink-0 rounded-md border border-error-border bg-error-subtle p-3 text-sm text-error-subtle-foreground">
+            {error ? t('history_import.error') : t('history_import.blocked', { count: blockedItems.length })}
+          </p>
+        )}
         <div className="min-h-0 space-y-4 overflow-y-auto">
           <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
-          {error && (
-            <p role="alert" className="text-error">
-              {t('history_import.error')}
-            </p>
-          )}
           {!results && (
             <>
               <Label htmlFor="history-import-target">{t('history_import.target')}</Label>
@@ -317,7 +336,12 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                 </>
               )}
               {reviewItems.map((item) => (
-                <section key={item.ref} className="space-y-2 rounded-md border p-3">
+                <section
+                  key={item.ref}
+                  ref={item.ref === blockedItems[0]?.ref ? firstProblem : undefined}
+                  tabIndex={-1}
+                  aria-label={item.title}
+                  className="space-y-2 rounded-md border p-3 focus-visible:border-ring">
                   <p className="truncate font-medium" title={item.title}>
                     {item.title}
                   </p>

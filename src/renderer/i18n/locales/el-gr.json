@@ -1733,6 +1733,7 @@
   "history.records.table.session": "Εργασία",
   "history.records.table.time": "Χρόνος",
   "history.records.title": "Ιστορικό Συνομιλίας",
+  "history_import.blocked": "Δεν ήταν δυνατή η εισαγωγή {{count}} συνομιλιών. Επιλύστε τα παρακάτω προβλήματα και δοκιμάστε ξανά.",
   "history_import.branch": "Επιλογή κλάδου",
   "history_import.confirm": "Εισαγωγή επιλεγμένων συνομιλιών",
   "history_import.default_location": "Προεπιλεγμένη θέση εφαρμογής",

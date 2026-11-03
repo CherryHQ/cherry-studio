@@ -140,6 +140,8 @@ describe('local history import dialog', () => {
     await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
     await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
     await screen.findByText(enUS['history_import.problems.unsupported'])
+    expect(screen.getByRole('alert')).toHaveTextContent('1 conversations could not be imported')
+    expect(screen.getByRole('region', { name: 'Original task' })).toHaveFocus()
     expect(request.mock.calls.some(([route]) => route === 'conversation_import.commit')).toBe(false)
     blocked = false
     await user.click(screen.getByRole('combobox'))

@@ -1733,6 +1733,7 @@
   "history.records.table.session": "Tarea",
   "history.records.table.time": "Tiempo",
   "history.records.title": "Historial de conversación",
+  "history_import.blocked": "No se pudieron importar {{count}} conversaciones. Resuelve los problemas siguientes e inténtalo de nuevo.",
   "history_import.branch": "Elegir rama",
   "history_import.confirm": "Importar conversaciones seleccionadas",
   "history_import.default_location": "Ubicación predeterminada de la aplicación",
