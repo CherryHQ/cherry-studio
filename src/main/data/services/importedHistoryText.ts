@@ -1,5 +1,6 @@
 import { stripVTControlCharacters } from 'node:util'
 
+import type { HistorySource } from '@shared/data/types/conversationImport'
 import type { MessageData } from '@shared/data/types/message'
 
 function codeBlock(text: string, language = ''): string {
@@ -62,5 +63,45 @@ export function presentClaudeHistory(data: MessageData): MessageData {
     parts: data.parts?.map((part) =>
       part.type === 'text' || part.type === 'reasoning' ? { ...part, text: formatClaudeHistoryText(part.text) } : part
     )
+  }
+}
+
+/** Display-only completed tools; persisted text and native continuation history stay inert. */
+export function presentImportedTools(source: HistorySource, messageId: string, role: string, data: MessageData) {
+  if (role === 'user') return { role, data }
+  const parts = data.parts?.map((part, index) => {
+    if (part.type !== 'text') return part
+    const marker = /^\[Historical tool (call|result|activity)(?:: ([^\]\n]+))?\]\n+([\s\S]*)$/.exec(part.text)
+    if (!marker) return part
+    let name = marker[2] ?? marker[1]
+    let input: unknown = marker[1] === 'call' ? { input: marker[3] } : {}
+    let text = marker[1] === 'call' ? '' : marker[3]
+    if (marker[1] === 'activity' && source === 'opencode') {
+      try {
+        const tool = JSON.parse(marker[3])
+        if (tool.type !== 'tool') return part
+        name = typeof tool.tool === 'string' ? tool.tool : name
+        input = tool.state?.input ?? {}
+        text = typeof tool.state?.output === 'string' ? tool.state.output : JSON.stringify(tool.state ?? tool, null, 2)
+      } catch {
+        return part
+      }
+    }
+    return {
+      type: 'dynamic-tool' as const,
+      toolCallId: `history:${messageId}:${index}`,
+      toolName: 'historical_tool',
+      state: 'output-available' as const,
+      input,
+      output: { content: text ? [{ type: 'text', text }] : [] },
+      callProviderMetadata: {
+        cherry: { tool: { type: 'mcp', name, serverId: 'history-import', serverName: source } }
+      }
+    }
+  })
+  return {
+    role:
+      role === 'system' && parts?.length && parts.every((part) => part.type === 'dynamic-tool') ? 'assistant' : role,
+    data: { ...data, parts }
   }
 }

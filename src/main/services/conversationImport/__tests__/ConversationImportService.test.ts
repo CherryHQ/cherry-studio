@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionTable, AGENT_SESSION_IMPORT_STATEMENTS } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
@@ -103,9 +103,20 @@ describe('local history atomic import', () => {
         }
       ]
     }
-    dbh.db.update(agentSessionMessageTable).set({ data }).where(eq(agentSessionMessageTable.id, stored.id)).run()
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ data, role: 'system' })
+      .where(eq(agentSessionMessageTable.id, stored.id))
+      .run()
     const visible = agentSessionMessageService.getSessionMessage(outcome.sessionId!, stored.id)
-    expect(visible.data.parts).toEqual([{ type: 'text', text: expect.stringContaining('line one\nline two') }])
+    expect(visible.role).toBe('assistant')
+    expect(visible.data.parts).toEqual([
+      expect.objectContaining({
+        type: 'dynamic-tool',
+        state: 'output-available',
+        output: { content: [{ type: 'text', text: 'line one\nline two' }] }
+      })
+    ])
     expect(JSON.stringify(visible.data)).not.toContain('tool_use_id')
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, stored.id)).get()!.data
@@ -162,24 +173,53 @@ describe('local history atomic import', () => {
     ])
     expect(counts()).toEqual([1, 2, 1, 1])
   })
-  it('keeps the unique source identity in the recycle bin', async () => {
+  it('preserves archived copies and allows reimport and subsequent restoration after index upgrade', async () => {
     await source()
     const p = await preview()
     const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
-    dbh.db
-      .update(agentSessionTable)
-      .set({ deletedAt: Date.now() })
-      .where(eq(agentSessionTable.id, created.sessionId!))
-      .run()
-    const next = await preview()
-    expect(next.items[0].existing?.inTrash).toBe(true)
+    dbh.sqlite.exec(`DROP INDEX agent_session_import_active_identity_idx;
+      CREATE UNIQUE INDEX agent_session_import_identity_uniq ON agent_session (json_extract(import_metadata, '$.source'), json_extract(import_metadata, '$.originalSessionId'))`)
+    dbh.sqlite.exec(AGENT_SESSION_IMPORT_STATEMENTS.join(';'))
     const original = dbh.db.select().from(agentSessionTable).get()!
-    expect(() =>
+    const originalMessages = dbh.db.select().from(agentSessionMessageTable).all()
+    agentSessionService.delete(created.sessionId!)
+    const next = await preview('other')
+    expect(next.items[0].existing).toBeUndefined()
+    const [copy] = await service.commit('window', next.previewId, [next.items[0].ref])
+    expect(copy).toMatchObject({ status: 'imported', agentId: 'other' })
+    expect(copy.sessionId).not.toBe(created.sessionId)
+    const archived = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, created.sessionId!)).get()!
+    expect(archived.deletedAt).not.toBeNull()
+    expect(archived.importMetadata).toEqual(original.importMetadata)
+    expect(
       dbh.db
-        .insert(agentSessionTable)
-        .values({ ...original, id: 'duplicate' })
-        .run()
-    ).toThrow()
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, created.sessionId!))
+        .all()
+    ).toEqual(originalMessages)
+    expect(agentSessionService.restore(created.sessionId!).deletedAt).toBeUndefined()
+    expect(counts().slice(0, 2)).toEqual([2, 4])
+    const again = await preview()
+    expect((await service.commit('window', again.previewId, [again.items[0].ref]))[0].status).toBe('existing')
+    expect(counts().slice(0, 2)).toEqual([2, 4])
+  })
+  it('commits valid selections and retries blocked selections without losing or duplicating successes', async () => {
+    await source('valid')
+    await source('blocked', ['2099-01-01T00:00:00Z'])
+    const p = await preview()
+    const blocked = p.items.find((item) => item.diagnostics.some((d) => d.severity === 'error'))!
+    const outcomes = await service.commit(
+      'window',
+      p.previewId,
+      p.items.map((item) => item.ref)
+    )
+    expect(outcomes.map((item) => item.status).sort()).toEqual(['failed', 'imported'])
+    expect(counts().slice(0, 2)).toEqual([1, 2])
+    await source('blocked')
+    const retry = await service.preview('window', p.scan.scanId, 'pi', [{ ref: blocked.ref }])
+    expect((await service.commit('window', retry.previewId, [blocked.ref]))[0].status).toBe('imported')
+    expect(counts().slice(0, 2)).toEqual([2, 4])
   })
   it('rolls back all rows for a failed session', async () => {
     await source()
@@ -363,7 +403,7 @@ describe('local history atomic import', () => {
         data: { parts: [{ type: 'text', text: 'Existing history' }] }
       }
     })
-    dbh.sqlite.exec('DROP INDEX agent_session_import_identity_uniq')
+    dbh.sqlite.exec('DROP INDEX agent_session_import_active_identity_idx')
     dbh.sqlite.exec('ALTER TABLE agent_session DROP COLUMN import_metadata')
     dbh.sqlite.exec('ALTER TABLE agent_session_message DROP COLUMN provenance')
     replayMigration(dbh, '0030_agent_history_import')

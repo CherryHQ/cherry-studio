@@ -381,10 +381,13 @@ export class AgentSessionService {
       .from(sessionsTable)
       .where(
         and(
+          isNull(sessionsTable.deletedAt),
           sql`json_extract(${sessionsTable.importMetadata}, '$.source') = ${source}`,
           sql`json_extract(${sessionsTable.importMetadata}, '$.originalSessionId') = ${originalSessionId}`
         )
       )
+      .orderBy(asc(sessionsTable.id))
+      .limit(1)
       .get()
   }
 
