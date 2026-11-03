@@ -66,7 +66,7 @@ function fixture() {
     .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0' })
     .run()
   const parent = preparePiBranch('root')
-  const context = contexts.child(parent.id, 'child', 'child', 'spawn', 'Child')
+  const context = contexts.child(parent.id, 'child', 'spawn', 'Child')
   messages.saveMessagesTx(dbh.db, {
     sessionId: context.sessionId,
     parentId: context.anchorMessageId!,

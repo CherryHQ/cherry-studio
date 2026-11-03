@@ -623,7 +623,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             ? this.context!
             : this.childProjections.get(origin.parentThreadId)?.context
         if (!parentContext) throw new Error('Native child owner context is unavailable')
-        const context = contexts.child(parentContext.id, id, id, origin.parentToolCallId, origin.description)
+        const context = contexts.child(parentContext.id, id, origin.parentToolCallId, origin.description)
         const projection = new ChildThreadProjection(
           context,
           {

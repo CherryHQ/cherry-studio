@@ -87,6 +87,10 @@ models. Child output uses owner-scoped IPC attachment/control; it cannot open as
 an independent root. Parent trash/restore includes its child archives, hard deletion
 cascades their rows, and native-file retention includes their context identities.
 
+Each child archive is identified by `(parentContextId, nativeThreadId)` and inherits
+its backend from that parent context. The spawn tool-call ID records provenance;
+continuing the same native Thread reuses its archive.
+
 The appended migration classifies existing sessions only when retained job
 records identify heartbeat execution — the fire ran on a schedule whose
 template carries the heartbeat sentinel — and no retained job records identify

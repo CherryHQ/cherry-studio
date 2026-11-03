@@ -638,7 +638,7 @@ P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/Ch
 
 产品内容复用 `agent_session_message` 及其既有服务。首轮 child 归档采用独立 `agent_session` 容器和消息树根，仅沿用既有 `background` 分类使其不进入普通会话导航，不新增 `subagent` 会话类型。这是产品存储所有者，不是创建另一个原生 root、schedule 或跨会话投递。进入通用 session-open/input 路径前，先按 child 已保存的原生关系解析 Runtime 访问。不复制父消息前缀，也不把 child 节点合进父级普通选中路径。
 
-只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。Child 来源映射、移除记录、组合关系和断点保存在强类型的 `checkpointMapping.child` 命名空间中；投影写入保留 `checkpointMapping.fork`。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入使用消息上的 context 与原生输入身份，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
+只保存重开和展示消费的事实：child 归档身份 `(parentContextId, nativeThreadId)`、其所有权与工具调用来源，以及有证据的来源到产品映射/断点。Child 从父上下文继承 backend。运行时观察协议保留 `Subagent.id`；SDK 局部的 task 或 agent ID 留在适配器内，通过其原生 handle 恢复，不再成为第二套持久化归档身份。Child 来源映射、移除记录、组合关系和断点保存在强类型的 `checkpointMapping.child` 命名空间中；投影写入保留 `checkpointMapping.fork`。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入使用消息上的 context 与原生输入身份，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
 
 归档容器从其所有权关系继承产品访问权限，不能凭调用者提供的 ID 或 `type: background` 授权。查询、通用控制、搜索/导航和后台 GC 必须区分这种所有权与定时任务会话。父分支选择不能改变 child 写入目标；复制分支不能复制现有 child 的控制权。删除、备份和保留必须共同保护关系、归档及原生所有者。关系/GC 消费者审查是 P3-B 的生产门槛，不能假定既有 background 分类已经提供这些保证。
 

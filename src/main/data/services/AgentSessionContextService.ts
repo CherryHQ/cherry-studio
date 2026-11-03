@@ -24,25 +24,16 @@ const locatorSchema = z.discriminatedUnion('kind', [
 ])
 
 class AgentSessionContextService {
-  child(
-    parentContextId: string,
-    subagentId: string,
-    nativeThreadId: string,
-    toolCallId: string,
-    name: string
-  ): AgentSessionContextRow {
+  child(parentContextId: string, nativeThreadId: string, toolCallId: string, name: string): AgentSessionContextRow {
     return application.get('DbService').withWriteTx((tx) => {
       const parent = tx.select().from(contexts).where(eq(contexts.id, parentContextId)).get()
       if (!parent) throw new Error('Parent context is unavailable')
       const found = tx
         .select()
         .from(contexts)
-        .where(and(eq(contexts.parentContextId, parentContextId), eq(contexts.subagentId, subagentId)))
+        .where(and(eq(contexts.parentContextId, parentContextId), eq(contexts.nativeThreadId, nativeThreadId)))
         .get()
-      if (found) {
-        if (found.nativeThreadId !== nativeThreadId) throw new Error('Child identity changed')
-        return found
-      }
+      if (found) return found
       const parentSession = tx.select().from(sessions).where(eq(sessions.id, parent.sessionId)).get()!
       const sessionId = agentSessionService.createChildArchiveTx(
         tx,
@@ -54,7 +45,6 @@ class AgentSessionContextService {
         .values({
           sessionId,
           parentContextId,
-          subagentId,
           nativeThreadId,
           bindingState: 'bound',
           backendId: parent.backendId,

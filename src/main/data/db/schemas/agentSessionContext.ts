@@ -20,7 +20,6 @@ export const agentSessionContextTable = sqliteTable(
   {
     id: uuidPrimaryKey(),
     parentContextId: text().references((): AnySQLiteColumn => agentSessionContextTable.id, { onDelete: 'cascade' }),
-    subagentId: text(),
     spawnToolCallId: text(),
     sessionId: text()
       .notNull()
@@ -38,7 +37,7 @@ export const agentSessionContextTable = sqliteTable(
   },
   (t) => [
     index('agent_session_context_backend_idx').on(t.backendId),
-    uniqueIndex('agent_session_context_child_uniq').on(t.parentContextId, t.subagentId),
+    uniqueIndex('agent_session_context_child_uniq').on(t.parentContextId, t.nativeThreadId),
     uniqueIndex('agent_session_context_anchor_uniq').on(t.sessionId, t.anchorMessageId),
     uniqueIndex('agent_session_context_native_uniq').on(t.sessionId, t.backendId, t.nativeThreadId),
     check('agent_session_context_binding_state_check', sql`${t.bindingState} IN ('pending', 'bound')`),

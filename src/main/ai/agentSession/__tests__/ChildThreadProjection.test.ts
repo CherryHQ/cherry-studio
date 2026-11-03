@@ -33,7 +33,7 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
   const root = randomUUID()
   dbh.db.insert(agentSessionTable).values({ id: root, workspaceId, name: 'Root', orderKey: 'a0' }).run()
   const parent = preparePiBranch(root)
-  const context = contexts.child(parent.id, 'child', 'child', 'spawn', 'Child')
+  const context = contexts.child(parent.id, 'child', 'spawn', 'Child')
   const thread = { backendId: runtimeId<'backend'>(parent.backendId), id: runtimeId<'thread'>('child') }
   let sink!: ObservationSink
   const handle: ThreadHandle = {

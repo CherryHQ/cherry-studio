@@ -64,7 +64,7 @@ describe('child archive migration', () => {
     expect(messages.getSessionMessage(root, messageId).data.parts).toEqual([
       { type: 'text', text: 'Legacy child display' }
     ])
-    expect(contexts.context(contextId)).toMatchObject({ sessionId: root, parentContextId: null, subagentId: null })
+    expect(contexts.context(contextId)).toMatchObject({ sessionId: root, parentContextId: null })
     expect(dbh.db.select().from(agentSessionTable).all()).toMatchObject([{ id: root, ownerSessionId: null }])
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
@@ -83,17 +83,32 @@ describe('child archive ownership', () => {
     const root = uuid()
     dbh.db.insert(agentSessionTable).values({ id: root, workspaceId, name: 'Root', orderKey: 'a0' }).run()
     const parent = prepareContext(root)
-    const child = contexts.child(parent.id, 'native-child', 'native-child', 'spawn', 'Child')
+    const child = contexts.child(parent.id, 'native-child', 'spawn', 'Child')
     const messageId = uuid()
     messages.saveMessage({
       sessionId: child.sessionId,
       message: { id: messageId, role: 'assistant', data: { parts: [{ type: 'text', text: 'Child output' }] } }
     })
-    expect(contexts.child(parent.id, 'native-child', 'native-child', 'spawn', 'Child').id).toBe(child.id)
+    expect(contexts.child(parent.id, 'native-child', 'spawn', 'Child').id).toBe(child.id)
+    expect(contexts.child(parent.id, 'native-child', 'continuation', 'Child').sessionId).toBe(child.sessionId)
     expect(child.sessionId).not.toBe(root)
     expect(child.bindingState).toBe('bound')
     expect(() => sessions.assertIndependentSession(child.sessionId)).toThrow('native owner')
-    expect(() => contexts.child(parent.id, 'native-child', 'different', 'spawn', 'Child')).toThrow('identity')
+    const duplicateArchive = application
+      .get('DbService')
+      .withWriteTx((tx) => sessions.createChildArchiveTx(tx, root, 'Duplicate'))
+    expect(() =>
+      dbh.db
+        .insert(agentSessionContextTable)
+        .values({
+          sessionId: duplicateArchive,
+          backendId: parent.backendId,
+          parentContextId: parent.id,
+          nativeThreadId: child.nativeThreadId,
+          bindingState: 'bound'
+        })
+        .run()
+    ).toThrow(/UNIQUE constraint failed/)
     expect(messages.listAllRuntimeResumeTokens()).toContain('native-child')
     expect(messages.listRuntimeResumeTokensBySession([root]).get(root)).toEqual(
       new Set([parent.nativeThreadId, 'native-child'])
