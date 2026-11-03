@@ -454,6 +454,56 @@ describe('NotesPage print payloads', () => {
     )
   })
 
+  it('opens a requested saved note once its directory-tree entry arrives', async () => {
+    const onNoteOpened = vi.fn()
+    const { rerender } = render(<NotesPage notePath="/notes/Topic (1).md" onNoteOpened={onNoteOpened} />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+
+    mocks.projectedNodes = [
+      mocks.noteNode,
+      { ...mocks.noteNode, id: '/notes/Topic (1).md', externalPath: '/notes/Topic (1).md', name: 'Topic (1)' }
+    ]
+    mocks.treeVersion += 1
+    rerender(<NotesPage notePath="/notes/Topic (1).md" onNoteOpened={onNoteOpened} />)
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Topic (1).md'))
+    expect(onNoteOpened).toHaveBeenCalled()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+  })
+
+  it('does not open an arbitrary path outside the notes tree', async () => {
+    render(<NotesPage notePath="/outside/private.md" />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+  })
+
+  it('cancels an unavailable note request when the user selects a different note', async () => {
+    const user = userEvent.setup()
+    mocks.showWorkspace = true
+    const onNoteOpened = vi.fn()
+    render(<NotesPage notePath="/notes/missing.md" onNoteOpened={onNoteOpened} />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+    await user.click(screen.getByRole('button', { name: 'select current note' }))
+    expect(onNoteOpened).toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+  })
+
+  it('applies a new note request to an already mounted page after composition ends', async () => {
+    const { rerender } = await renderReadyNotesPage()
+    const editor = screen.getByTestId('notes-editor')
+    fireEvent.compositionStart(editor)
+    mocks.projectedNodes = [
+      mocks.noteNode,
+      { ...mocks.noteNode, id: '/notes/other.md', externalPath: '/notes/other.md', name: 'other' }
+    ]
+    mocks.treeVersion += 1
+    rerender(<NotesPage notePath="/notes/other.md" />)
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    fireEvent.compositionEnd(editor)
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md'))
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['notes.exportToPDF', 'print.export_pdf'],
     ['notes.print', 'print.print']

@@ -50,7 +50,7 @@ export type WarmupMode = 'eager' | 'lazy'
  * temporarily have `managed = in-use + standbySize` windows during bursts
  * where in-use exceeds `recycleMaxSize`; close paths converge back over time.
  *
- * See `docs/references/window-manager/window-manager-warmup-mechanics.md` for the
+ * See `docs/dev/references/window-manager/window-manager-warmup-mechanics.md` for the
  * full behavior matrix and scenario walk-throughs.
  */
 export interface PoolConfig {

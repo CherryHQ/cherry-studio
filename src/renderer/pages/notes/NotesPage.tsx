@@ -59,7 +59,12 @@ const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
 
 type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
 
-const NotesPage: FC = () => {
+interface NotesPageProps {
+  notePath?: string
+  onNoteOpened?: () => void
+}
+
+const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const editorRef = useRef<RichEditorRef>(null)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const { t } = useTranslation()
@@ -102,7 +107,7 @@ const NotesPage: FC = () => {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [showConflict, setShowConflict] = useState(false)
-  const composingRef = useRef(false)
+  const [isComposing, setIsComposing] = useState(false)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
@@ -128,10 +133,13 @@ const NotesPage: FC = () => {
     toast.error(t('notes.tree_load_failed'))
   }, [treeError, notesPath, treeId, t])
 
-  const requestFileTransition = useCallback((transition: () => void) => {
-    // Keep the editor mounted until the input method has committed its text.
-    if (!composingRef.current) transition()
-  }, [])
+  const requestFileTransition = useCallback(
+    (transition: () => void) => {
+      // Keep the editor mounted until the input method has committed its text.
+      if (!isComposing) transition()
+    },
+    [isComposing]
+  )
 
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
     return nodes.map((node) => {
@@ -570,19 +578,46 @@ const NotesPage: FC = () => {
   const handleSelectNode = useCallback(
     async (node: NotesTreeNode) => {
       if (node.type === 'file') {
-        if (node.externalPath === activeFilePath) return
+        if (node.externalPath === activeFilePath) {
+          if (notePath) onNoteOpened?.()
+          return
+        }
         // Switching the active path re-reads the file through the session.
         requestFileTransition(() => {
           setActiveFilePath(AbsoluteFilePathSchema.parse(node.externalPath))
           setSelectedFolderId(null)
+          if (notePath) onNoteOpened?.()
         })
       } else if (node.type === 'folder') {
         setSelectedFolderId(node.id)
         handleToggleExpanded(node.id)
       }
     },
-    [activeFilePath, handleToggleExpanded, requestFileTransition, setActiveFilePath]
+    [activeFilePath, handleToggleExpanded, requestFileTransition, setActiveFilePath, notePath, onNoteOpened]
   )
+
+  useEffect(() => {
+    if (!notePath || !hasProjectedTree || isTreeLoading || isComposing) return
+    const node = findNodeByPath(notesTree, normalizePathValue(notePath))
+    if (node?.type !== 'file') return
+    requestFileTransition(() => {
+      if (node.externalPath !== activeFilePath) {
+        setActiveFilePath(AbsoluteFilePathSchema.parse(node.externalPath))
+        setSelectedFolderId(null)
+      }
+      onNoteOpened?.()
+    })
+  }, [
+    notePath,
+    hasProjectedTree,
+    isTreeLoading,
+    isComposing,
+    notesTree,
+    activeFilePath,
+    requestFileTransition,
+    setActiveFilePath,
+    onNoteOpened
+  ])
 
   // 删除节点
   const handleDeleteNode = useCallback(
@@ -1037,10 +1072,10 @@ const NotesPage: FC = () => {
       data-ui="notes.view"
       id="notes-page"
       onCompositionStartCapture={() => {
-        composingRef.current = true
+        setIsComposing(true)
       }}
       onCompositionEndCapture={() => {
-        composingRef.current = false
+        setIsComposing(false)
       }}
       className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">

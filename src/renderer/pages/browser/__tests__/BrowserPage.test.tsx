@@ -41,6 +41,37 @@ function openBrowser(href: string) {
 }
 
 describe('Browser tab restoration', () => {
+  it('preserves the local HTML guest when fragment navigation is synchronized to the route', async () => {
+    const first = 'file:///tmp/report.html?view=all'
+    const view = openBrowser(`/app/browser?url=${encodeURIComponent(first)}`)
+    const guest = (await screen.findByTestId('webview-browser-guest')) as unknown as WebviewTag
+    let currentUrl = first
+    Object.assign(guest, {
+      getURL: () => currentUrl,
+      getTitle: () => 'Local report',
+      getWebContentsId: () => 42,
+      isLoading: () => false,
+      canGoBack: () => false,
+      canGoForward: () => false,
+      stopFindInPage: vi.fn()
+    })
+    act(() => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    const setAttribute = vi.spyOn(guest, 'setAttribute')
+
+    for (const hash of ['#section', '#other-section', '']) {
+      currentUrl = `${first}${hash}`
+      act(() => {
+        guest.dispatchEvent(Object.assign(new Event('did-navigate-in-page'), { url: currentUrl, isMainFrame: true }))
+      })
+      await waitFor(() => expect(view.router.state.location.search).toEqual({ url: currentUrl }))
+      // Replacing the native guest would discard the document's input, JS state and history.
+      expect(screen.getByTestId('webview-browser-guest')).toBe(guest)
+    }
+    expect(setAttribute.mock.calls.filter(([name]) => name === 'src')).toEqual([])
+  })
+
   it.each(['/app/browser', '/app/browser?url=', '/app/browser?url=%20%20', '/app/browser?url=about%3Ablank'])(
     'opens an empty browser page for %s',
     async (href) => {

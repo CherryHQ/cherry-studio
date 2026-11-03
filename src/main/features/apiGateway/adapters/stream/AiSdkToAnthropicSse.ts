@@ -154,9 +154,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       // === Tool Events ===
-      // Client tools resolve in one `tool-input-available` chunk (full input,
-      // no incremental input deltas to accumulate). Cache reasoning signatures
-      // off its providerMetadata, then frame the Anthropic tool_use block.
+      // Client runtimes validate object arguments and feed tool errors back to the model.
+      // Preserve provider signatures for the next native turn.
+      case 'tool-input-error':
       case 'tool-input-available': {
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata as Record<string, any> | undefined

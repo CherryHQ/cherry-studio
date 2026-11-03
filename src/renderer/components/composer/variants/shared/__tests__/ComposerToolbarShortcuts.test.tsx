@@ -69,9 +69,7 @@ vi.mock('@cherrystudio/ui', () => {
         mocks.committedCustomizeOrders.push(props.items.map((item: any) => item.id))
       }, [props.items])
       const rows = props.visibleItems ?? props.items
-      const dragHandleProps = props.dragHandle
-        ? { ref: () => {}, attributes: { role: 'button', tabIndex: 0 }, listeners: {} }
-        : undefined
+      const dragHandleProps = props.dragHandle ? { ref: () => {} } : undefined
       return React.createElement(
         React.Fragment,
         null,
