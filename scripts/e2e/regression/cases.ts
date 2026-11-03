@@ -436,6 +436,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MP-31',
+    title: 'Upload and parse document attachments',
+    tasks: ['chat-core'],
+    phase: 'chatCore',
+    capabilities: ['systemFilePicker']
+  },
+  {
     id: 'MP-32',
     title: 'Image attachments and multimodal understanding',
     tasks: ['chat-core'],

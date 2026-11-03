@@ -22,6 +22,7 @@ import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
 import { chatStreamingStopContinue } from '../scenarios/chatStreamingStopContinue'
 import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
+import { documentAttachments } from '../scenarios/documentAttachments'
 import { dragDropPasteAttachments } from '../scenarios/dragDropPasteAttachments'
 import { htmlArtifactPreview } from '../scenarios/htmlArtifactPreview'
 import { imageAttachments } from '../scenarios/imageAttachments'
@@ -827,6 +828,11 @@ test(...caseDefinition('MP-29'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-30'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(180_000)
   await manageChatContext(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-31'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(6 * 60_000)
+  await documentAttachments(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-32'), async ({ app, mainWindow }, testInfo) => {
