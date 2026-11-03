@@ -145,7 +145,8 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   z.strictObject({
     event: z.literal('subscription_sign_in_result'),
     flowId: subscriptionFlowIdSchema,
-    result: z.enum(['success', 'failed', 'cancelled']),
+    // `not_completed`: the browser sign-in ended without a session (closed, cancelled, expired, or rejected).
+    result: z.enum(['success', 'failed', 'not_completed']),
     reason: z.enum(['upgrade_required', 'service_unavailable', 'other']).optional()
   }),
   z.strictObject({

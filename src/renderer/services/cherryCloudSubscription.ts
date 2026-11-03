@@ -38,7 +38,7 @@ export async function startCherryCloudSubscription(
   const unsubscribe = ipcApi.on('cherry_cloud.status_changed', (next) => {
     if (next.phase === 'authorizing') return
     unsubscribe()
-    const result = next.phase === 'signed-in' ? 'success' : 'cancelled'
+    const result = next.phase === 'signed-in' ? 'success' : 'not_completed'
     trackSubscriptionEvent({ event: 'subscription_sign_in_result', flowId, result })
     if (result === 'success') void openPortal(source, flowId)
   })

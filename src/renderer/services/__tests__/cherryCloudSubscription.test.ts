@@ -175,7 +175,7 @@ describe('startCherryCloudSubscription', () => {
     expect(tracked()).toContainEqual({
       event: 'subscription_sign_in_result',
       flowId: expect.any(String),
-      result: 'cancelled'
+      result: 'not_completed'
     })
     expect(tracked().some((event) => (event as { event: string }).event === 'subscription_portal_open')).toBe(false)
   })
