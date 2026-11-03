@@ -8,7 +8,12 @@ import type { MessageData } from '@shared/data/types/message'
 import { discoverJsonl, readJsonl } from './files'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession } from './types'
 
-const Row = z.object({ timestamp: z.string().optional(), type: z.string(), payload: z.record(z.string(), z.unknown()) })
+const Row = z.object({
+  ordinal: z.number().int().nonnegative().optional(),
+  timestamp: z.string().optional(),
+  type: z.string(),
+  payload: z.record(z.string(), z.unknown())
+})
 const Meta = z
   .object({
     id: z.string().min(1),
@@ -133,8 +138,13 @@ export const codexAdapter: HistorySourceAdapter = {
     result.sourceVersion = meta.data.cli_version
     result.workingDirectory = meta.data.cwd
     if (!/^0\.\d+\.\d+(?:[-+].*)?$/.test(meta.data.cli_version)) diagnose('unsupported_version', undefined, 'error')
-    if ((meta.data.history_mode && meta.data.history_mode !== 'legacy') || meta.data.history_base != null)
+    if (
+      (meta.data.history_mode && !['legacy', 'paginated'].includes(meta.data.history_mode)) ||
+      meta.data.history_base != null
+    )
       diagnose('unsupported_history_layout', undefined, 'error')
+    if (meta.data.history_mode === 'paginated' && rows.some(({ row }, index) => row.ordinal !== index))
+      diagnose('unsupported_history_order', undefined, 'error')
     for (const entry of index?.lines ?? []) {
       try {
         const title = JSON.parse(entry.text)
@@ -170,7 +180,10 @@ export const codexAdapter: HistorySourceAdapter = {
         result.skippedRecords++
         continue
       }
-      if (item.encrypted_content) diagnose('unsupported_encrypted_history', line, 'error')
+      if (item.encrypted_content) {
+        diagnose('unsupported_encrypted_history', line, item.type === 'reasoning' ? 'warning' : 'error')
+        if (item.type === 'reasoning') result.downgradedParts++
+      }
       const parts: MessageData['parts'] = []
       let role: 'user' | 'assistant' | 'system' = 'system'
       if (item.type === 'message') {

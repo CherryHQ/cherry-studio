@@ -80,7 +80,11 @@ describe('Codex raw rollout contract', () => {
     [meta('thread', { history_base: { thread_id: 'parent', end_ordinal_exclusive: 4 } }), message('partial')],
     [meta(), row('compacted', { message: 'summary' }), message('partial')],
     [meta(), row('event_msg', { type: 'thread_rolled_back', num_turns: 1 }), message('partial')],
-    [meta(), row('response_item', { type: 'reasoning', encrypted_content: 'secret', summary: [] }), message('partial')]
+    [
+      meta(),
+      row('response_item', { type: 'message', role: 'assistant', encrypted_content: 'secret', content: [] }),
+      message('partial')
+    ]
   ])('rejects history that cannot be reconstructed instead of silently losing context (%#)', async (...rows) => {
     const p = await file('rollout-a.jsonl', rows)
     const result = await codexAdapter.read({ path: p }, signal())
@@ -120,5 +124,44 @@ describe('Codex raw rollout contract', () => {
     const [ref] = await discover()
     expect(ref.title).toBe('Explain this project')
     expect((await codexAdapter.read(ref, signal())).title).toBe('Explain this project')
+  })
+  it('imports a complete paginated rollout with contiguous source ordinals', async () => {
+    const rows = [
+      meta('thread', { history_mode: 'paginated', cli_version: '0.154.0-alpha.6.2' }),
+      message('question'),
+      message('answer', 'assistant')
+    ].map((entry, ordinal) => ({ ...entry, ordinal }))
+    const p = await file('rollout-paginated.jsonl', rows)
+    const result = await codexAdapter.read({ path: p }, signal())
+    expect(result.messages.map((m) => m.data.parts)).toEqual([
+      [{ type: 'text', text: 'question' }],
+      [{ type: 'text', text: 'answer' }]
+    ])
+    expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(false)
+  })
+  it('rejects a paginated fragment with missing ordinals', async () => {
+    const p = await file('rollout-fragment.jsonl', [
+      { ...meta('thread', { history_mode: 'paginated' }), ordinal: 0 },
+      { ...message('fragment'), ordinal: 2 }
+    ])
+    expect((await codexAdapter.read({ path: p }, signal())).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_history_order', severity: 'error' })
+    )
+  })
+  it('reports opaque reasoning as a downgrade while preserving visible conversation text', async () => {
+    const p = await file('rollout-reasoning.jsonl', [
+      meta(),
+      message('question'),
+      row('response_item', { type: 'reasoning', encrypted_content: 'opaque', summary: [] }),
+      message('answer', 'assistant')
+    ])
+    const result = await codexAdapter.read({ path: p }, signal())
+    expect(result.messages).toHaveLength(2)
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_encrypted_history', severity: 'warning' })
+    )
+    expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(false)
+    expect(result.downgradedParts).toBe(1)
+    expect(JSON.stringify(result.messages)).not.toContain('opaque')
   })
 })
