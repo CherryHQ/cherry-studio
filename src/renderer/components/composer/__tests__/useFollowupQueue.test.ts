@@ -663,3 +663,102 @@ describe('feature recovery on the current completion contract', () => {
     expect(result.current.items).toEqual([])
   })
 })
+
+describe('failed admission dismissal and retry pause ownership', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+  it.each(['remove', 'edit', 'message-edit'] as const)(
+    'does not auto-send the next draft after %s of a failed head',
+    async (mode) => {
+      cacheService.setCasual('followup-queue.s1', [item('a', 'first'), item('b', 'second')])
+      const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+      const { result, rerender } = renderHook(
+        ({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }),
+        { initialProps: { time: 100 } }
+      )
+      await act(async () => {})
+      expect(result.current.failedItemId).toBe('a')
+      await act(async () => {
+        if (mode === 'remove') result.current.removeId('a')
+        else
+          result.current.editItem('a', {
+            editingMessage: mode === 'message-edit',
+            getDraft: () => draft(''),
+            buildPayload: () => null,
+            hasFiles: false,
+            restore: vi.fn()
+          })
+      })
+      expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first'])
+      expect(result.current.items.map((i) => i.id)).toEqual(['b'])
+      expect(result.current.failedItemId).toBeNull()
+      await act(async () => rerender({ time: 200 }))
+      expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first', 'second'])
+    }
+  )
+  it.each(['pause', 'clear-and-pause'] as const)('retains a newer user %s when an old Retry succeeds', async (mode) => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'first')])
+    let finish!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      .mockResolvedValue(true)
+    const { result, rerender } = renderHook(
+      ({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }),
+      { initialProps: { time: 100 } }
+    )
+    await act(async () => {})
+    act(() => result.current.retryFailed())
+    act(() => {
+      if (mode === 'clear-and-pause') result.current.clear()
+      result.current.enqueue(draft('new'), payload('new'))
+      result.current.setPaused(true)
+    })
+    await act(async () => finish(true))
+    expect(result.current.paused).toBe(true)
+    await act(async () => rerender({ time: 200 }))
+    expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first', 'first'])
+    expect(result.current.items.map((i) => i.payload.text)).toEqual(['new'])
+  })
+})
+
+describe('retry admission recovery boundaries', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+  it.each(['false', 'reject'] as const)('reinstates failure controls when Retry returns %s', async (outcome) => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'first'), item('b', 'second')])
+    const onDrain = vi.fn().mockResolvedValueOnce(false)
+    if (outcome === 'reject') onDrain.mockRejectedValueOnce(new Error('retry failed'))
+    else onDrain.mockResolvedValueOnce(false)
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: 100, onDrain })
+    )
+    await act(async () => {})
+    await act(async () => result.current.retryFailed())
+    expect(result.current.failedItemId).toBe('a')
+    expect(result.current.paused).toBe(true)
+    expect(result.current.items.map((i) => i.id)).toEqual(['a', 'b'])
+    expect(onDrain).toHaveBeenCalledTimes(2)
+  })
+  it('persists a dismissed completion across remount without blocking the next completion', async () => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'first'), item('b', 'second')])
+    const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const mount = () =>
+      renderHook(({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }), {
+        initialProps: { time: 100 }
+      })
+    const first = mount()
+    await act(async () => {})
+    act(() => first.result.current.removeId('a'))
+    first.unmount()
+    const next = mount()
+    await act(async () => {})
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    await act(async () => next.rerender({ time: 200 }))
+    expect(onDrain).toHaveBeenCalledTimes(2)
+  })
+})

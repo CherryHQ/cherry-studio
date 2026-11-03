@@ -276,17 +276,34 @@ export function useFollowupQueue({
     },
     [persist, scopeKey]
   )
+  const dismissFailure = useCallback(
+    (id: string) => {
+      if (cacheService.getCasual(failedKeyFor(scopeKey)) !== id) return
+      // Removing/editing a failed draft is not Skip. Retire the observed completion before
+      // resuming so the effect cannot send its successor until another turn completes.
+      const completion = loadCompletion(scopeKey)
+      cacheService.setCasual(
+        drainedKeyFor(scopeKey),
+        {
+          ...completion,
+          completedAt: status === 'done' ? (lastCompletedAt ?? completion.completedAt) : completion.completedAt,
+          consumed: true
+        },
+        completion.pendingIds.length > 0 ? undefined : QUEUE_TTL
+      )
+      cacheService.setCasual(failedKeyFor(scopeKey), null)
+      setPaused(false)
+    },
+    [scopeKey, status, lastCompletedAt, setPaused]
+  )
   const removeId = useCallback(
     (id: string) => {
       if (takenRef.current?.scopeKey === scopeKey && takenRef.current.item.id === id) takenRef.current = null
       const current = loadQueue(scopeKey)
       if (current.some((item) => item.id === id)) persist(current.filter((item) => item.id !== id))
-      if (cacheService.getCasual(failedKeyFor(scopeKey)) === id) {
-        cacheService.setCasual(failedKeyFor(scopeKey), null)
-        setPaused(false)
-      }
+      dismissFailure(id)
     },
-    [persist, scopeKey, setPaused]
+    [persist, scopeKey, dismissFailure]
   )
 
   const releaseEdit = useCallback(() => {
@@ -332,14 +349,11 @@ export function useFollowupQueue({
         return !draft.text.trim() && !hasFiles ? { draft: taken.draft, payload: taken.payload } : null
       })
       if (incoming) {
-        if (cacheService.getCasual(failedKeyFor(scopeKey)) === incoming.id) {
-          cacheService.setCasual(failedKeyFor(scopeKey), null)
-          setPaused(false)
-        }
+        dismissFailure(incoming.id)
         restore(incoming)
       }
     },
-    [releaseEdit, removeId, scopeKey, takeForEdit, setPaused]
+    [releaseEdit, removeId, scopeKey, takeForEdit, dismissFailure]
   )
 
   const sendItem = useCallback(
@@ -355,6 +369,9 @@ export function useFollowupQueue({
         consumed: completedAt == null || completedAt === drained.completedAt ? drained.consumed : false,
         pendingIds: [...drained.pendingIds, id]
       })
+      // Release the failure pause at dispatch, but retain its row identity while pending
+      // so remounts keep the recovery controls locked. Settlement must not undo a newer Pause.
+      if (cacheService.getCasual(failedKeyFor(scopeKey)) === id) setPaused(false)
       const reportFailure = onDrainFailedRef.current
       let sent = false
       try {
@@ -364,7 +381,12 @@ export function useFollowupQueue({
           // Both rejected sends and explicit failures retain the draft for retry.
         }
         if (sent) {
-          removeId(id)
+          // Successful admission removes only its own row/failure marker. Unlike an explicit
+          // Remove/Edit, it must not change a pause chosen while this send was pending.
+          persist(loadQueue(scopeKey).filter((entry) => entry.id !== id))
+          if (cacheService.getCasual(failedKeyFor(scopeKey)) === id) {
+            cacheService.setCasual(failedKeyFor(scopeKey), null)
+          }
         } else if (loadQueue(scopeKey).some((entry) => entry.id === id)) {
           // A removed pending row has no draft to retry. Settlement below still
           // notifies the owner so its deferred completion can drain the next head.
@@ -389,7 +411,7 @@ export function useFollowupQueue({
         )
       }
     },
-    [scopeKey, removeId, setPaused]
+    [scopeKey, persist, setPaused]
   )
   const sendId = useCallback(
     (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
@@ -416,12 +438,7 @@ export function useFollowupQueue({
     retryFailed: () => {
       const id = cacheService.getCasual<string>(failedKeyFor(scopeKey))
       if (!id || loadCompletion(scopeKey).pendingIds.includes(id)) return
-      void sendId(id).then((sent) => {
-        if (sent) {
-          cacheService.setCasual(failedKeyFor(scopeKey), null)
-          setPaused(false)
-        }
-      })
+      void sendId(id)
     },
     skipFailed: () => {
       const id = cacheService.getCasual<string>(failedKeyFor(scopeKey))
