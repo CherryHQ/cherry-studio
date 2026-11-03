@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildScanReport, diagnose } from '../engine'
 import { SCAN_RULES } from '../rules/registry'
-import type { LogRecord, ScanRule } from '../types'
+import { SCAN_LEVELS, type LogRecord, type ScanRule } from '../types'
 
 function rule(overrides: Partial<ScanRule> & Pick<ScanRule, 'id'>): ScanRule {
   return {
@@ -59,11 +59,15 @@ describe('diagnose', () => {
 
   it('matches warn and error by default but honors an explicit levels gate', () => {
     expect(diagnose([record({ level: 'warn' })], { rules: [rule({ id: 'chat-any-level' })] })).toHaveLength(1)
+    expect(diagnose([record({ level: 'debug' })], { rules: [rule({ id: 'chat-any-level' })] })).toHaveLength(0)
 
     const errorOnly = [rule({ id: 'chat-error-only', levels: ['error'] })]
     // both directions: a gate that rejected every level would still pass the negative case alone
     expect(diagnose([record({ level: 'error' })], { rules: errorOnly })).toHaveLength(1)
     expect(diagnose([record({ level: 'warn' })], { rules: errorOnly })).toHaveLength(0)
+
+    const allLevels = [rule({ id: 'chat-all-levels', levels: SCAN_LEVELS })]
+    expect(diagnose([record({ level: 'debug' })], { rules: allLevels })).toHaveLength(1)
   })
 
   it('lets one record feed several rules and sorts findings by count then id', () => {

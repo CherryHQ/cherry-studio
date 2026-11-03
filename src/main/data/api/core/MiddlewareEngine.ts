@@ -92,9 +92,7 @@ export class MiddlewareEngine {
       priority: 10,
       execute: async (req: DataRequest, res: DataResponse, next: () => Promise<void>) => {
         logger.debug(`Incoming request: ${req.method} ${req.path}`, {
-          id: req.id,
-          params: req.params,
-          body: req.body
+          id: req.id
         })
 
         await next()
