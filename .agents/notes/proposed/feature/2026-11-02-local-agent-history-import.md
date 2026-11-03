@@ -25,7 +25,7 @@ Expose **Settings → Import external application data → Import local applicat
 
 Require the user to choose one existing Agent for each import batch. All selected source conversations become separate sessions under that Agent. Different sources may share a target Agent. Use its stable ID, not its name or the source name. The importer never creates an Agent or changes its name, instructions, model, permissions, or other configuration.
 
-List active Agents and show whether their runtimes support imported-history initialization. An unsupported target remains unavailable with an explanation. If no suitable Agent exists, ask the user to create or configure one through the normal Agent workflow, then return to import. A target in the recycle bin must be restored or replaced by another selection. Changing the target requires a new preview; a deleted target blocks the remaining import and never triggers automatic creation.
+First-version import targets are active Pi Agents only. List other Agents but disable unsupported runtimes with a reason. Never change an Agent's runtime. If no suitable target exists, guide normal Agent creation or configuration. A trashed target must be restored or replaced. Changing targets requires a fresh preview; deletion stops remaining imports without creating an Agent.
 
 ### Working-directory binding
 
@@ -56,9 +56,9 @@ Use `agent`, `agent_session`, `agent_session_message`, and `agent_workspace`. An
 | [AgentWorkspaceService](../../../../src/main/data/services/AgentWorkspaceService.ts) | Reuse `findOrCreateByPathTx` and `createSystemWorkspaceForSessionTx` |
 | [AgentSessionMessageService](../../../../src/main/data/services/AgentSessionMessageService.ts) | Add an import-specific batch contract for historical timestamps, source identity, and order |
 
-The existing message batch writer uses the current time, and pagination orders by `createdAt, id`. For nondecreasing source times, preserve timestamps and allocate local IDs consistently for ties. Source-order/time conflicts require a shared ordering-contract decision in the first layer. That contract must cover both imported history and subsequent user/assistant turns. Either implement that extension or declare the input unsupported in preview. Never alter valid timestamps or repair order only in the renderer.
+The first version retains existing pagination by `createdAt, id`. Add a historical writer that preserves nondecreasing source timestamps and strictly increasing local IDs for equal timestamps. Reject source-order/time conflicts during preview and recheck before commit. Never rewrite valid times or sort only in Renderer.
 
-Valid, internally ordered source timestamps can still be later than the local clock, for example when the source computer is one day ahead. For an accepted session, new turns must follow all imported messages in persistence, pagination, reload, and native runtime history even when their timestamps are earlier. This case requires ordering independent of timestamps. Until that ordering is supported, reject the affected session in preview with a clock-skew explanation and recheck against the current local time before commit; failure creates no session rows. Preserve historical and new-message timestamps; do not clamp them or advance them for sorting.
+Valid source timestamps can be ahead of the local clock, for example by one day. The first version rejects affected sessions in preview and rechecks before any session writes. If the last timestamp equals the current millisecond, wait outside the transaction until the next millisecond and recheck. Preserve original timestamps. Independent message ordering is deferred.
 
 Reuse the Agent Session list, search, lifecycle, and data-change notification paths. Domain services own their tables; the importer does not bypass their invariants.
 
@@ -91,11 +91,11 @@ interface NormalizedSession {
 
 The schema above is a proposed internal contract. A normalized message carries its source ID, source order, available parent relation, role, content, model, and original timestamps. Diagnostics identify the file and line or database record, a reason code, and an explanation.
 
-Expose typed IpcApi commands `discover`, `preview`, `commit`, and `cancel`. Scan results carry Main-generated references. Preview accepts the selected `targetAgentId`; Main validates that the Agent is active and its runtime supports import. Commit accepts only the preview ID, selected sessions, and workspace choices already represented in that preview. Main uses the target bound to the preview, validates window ownership and expiration, and rejects substituted Agent IDs or renderer-authored database rows.
+Expose typed IpcApi commands `discover`, `preview`, `commit`, `cancel`, and `retryInitialization`. Scan results carry Main-generated references. Preview binds the active Pi target, selected branches, and directory choices. Commit accepts only the preview ID and selected sessions. Main validates window ownership, expiry, and the bound target; reject substituted Agent IDs and renderer-authored database records. Initialization retries use persisted session IDs.
 
 Preview shows the destination Agent, title, parsed message count, recorded models, time range, source paths, original/final working directory, duplicate state, skips, degradations, and blocking findings. JSONL line counts are not message counts. Report known metadata separately from discarded conversation content.
 
-Keep an immutable snapshot in Main memory: the selected target Agent ID and runtime type, messages, diagnostics, adapter version, every source dependency and fingerprint, and workspace choices. Codex inherited-history files belong to that dependency set. Stream JSONL with limits on line, session, and batch size; reject oversized selections before confirmation without silent truncation. Determine limits from first-layer fixtures.
+Keep an immutable Main-memory snapshot of the selected Agent/runtime, messages, diagnostics, adapter version, workspace choices, and every source dependency and fingerprint, including Codex inherited history. Previews expire after 15 minutes. Stream JSONL with limits of 4 MiB per line, 32 MiB per session, and 100 sessions and 128 MiB per batch. Check input and normalized sizes separately. Reject excess before confirmation without truncation. Enable the entry only after first-layer boundary and memory fixtures pass.
 
 Scanning and preview create no Agents, workspace rows, sessions, messages, persistent preview files, or source-store changes. Expiration, cancellation, and window close release memory. Revalidate the target Agent's active state and runtime compatibility, source fingerprints, workspace state, and preview version at confirmation. A target/runtime change or another invalidated input requires a new preview; write only the confirmed snapshot.
 
@@ -141,7 +141,7 @@ Convert valid times to UTC milliseconds while preserving raw source strings. For
 
 Record complete historical model information in `messageSnapshot.model`. Leave `modelId` empty when no local model matches, and display missing information as unrecorded. Do not create fake model/account configuration. Historical references remain inert text and follow existing Markdown rendering rules.
 
-Continuation is part of the first implementation layer. Saving visible messages alone does not establish runtime context. Use the selected Agent's runtime; never switch it to Pi or infer it from the source application. Each supported target runtime must initialize Cherry-owned history. For Pi targets, reuse the conversion capability in [existing Pi history handling](../../../../src/main/ai/runtime/pi/retiredSessionHistory.ts) through an independent entry point; do not impersonate retired-runtime migration or reuse external resume tokens. Declare the supported target-runtime matrix before implementation and explain unsupported targets in the selector.
+Continuation ships in layer one, with Pi targets only; disable other runtimes in the selector. Visible messages alone do not establish native context. Reuse [Pi history conversion](../../../../src/main/ai/runtime/pi/retiredSessionHistory.ts) through a separate import entry, without impersonating retired-runtime migration or using external resume tokens. Preserve trailing imported user messages instead of applying retired migration's pending-delivery filtering.
 
 Use the selected Agent's current instructions, model-selection rules, and permissions. History can be imported without a usable model, but continuation requires selecting one through the normal workflow. Initialize Cherry-owned native history after confirmation, without a model request or historical tool execution. Reuse `app_state` for an internal, retryable initialization marker committed with the session; business source identity stays on the session.
 
@@ -184,7 +184,7 @@ Use one synchronous `DbService.withWriteTx` per source session. Each transaction
 
 Read files, parse, validate directories, and calculate fingerprints outside the write transaction. No `await`, file writes, or network calls occur inside it. Compose the owning services' Tx methods and publish their events only after commit. Never break a large session into separately committed chunks to evade transaction limits.
 
-Append migrations for session metadata and uniqueness constraints; do not add an Agent source marker or an import-ledger table. Cover populated databases, recycle-bin behavior, duplication, restore, and backup-merge conflicts. Preserve source identity during backup restore rather than deleting it to evade conflicts.
+Append migrations for session metadata, typed message provenance, and uniqueness constraints, without Agent source markers or an import-ledger table. Cover populated databases, trash, duplication, and existing full/slim backup restoration. Preserve source identity. Missing native files require reliable reconstruction from persisted history before continuation; otherwise block explicitly. Session-level backup merging is outside this change.
 
 ### Implementation ownership and stack
 
@@ -250,7 +250,7 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC16 — Opening/importing history never executes historical tools, requests approvals, or starts generation. (verification: unit runtime boundaries and Electron)
 - AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
 - AC18 — Imported sessions support search, duplication, trash, and restore; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
-- AC19 — Forward migration and backup round trips retain provenance, ownership, and workspaces; merge conflicts are explicit. (verification: unit populated-database migration and restore fixtures)
+- AC19 — Forward migration and existing full/slim backup round trips retain provenance, ownership, and workspaces; missing native history is reliably rebuilt or continuation explicitly blocked. No backup merging is added. (verification: unit populated-database migration and restore fixtures)
 - AC20 — Windows, macOS, and Linux satisfy path mapping and read-only source access, with simulations and native evidence distinguished. (verification: unit platform cases and platform-native Electron)
 - AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
 
@@ -261,13 +261,13 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Risk or open choice | Required resolution |
 |---|---|
 | Target runtime compatibility | Use the selected Agent's runtime; define and verify its history initializer before enabling selection, without silently changing Agent configuration |
-| Timestamp rollback or source clock ahead | Decide the shared ordering extension or explicit input rejection before the first implementation; include the history-to-continuation boundary and commit-time recheck, without falsifying timestamps |
+| Timestamp rollback or source clock ahead | Reject conflicting input in preview and before commit; preserve timestamps and test the continuation boundary |
 | Missing directories | Resolve before inserting messages because existing sessions with messages cannot change workspace |
 | Native-file/database consistency | Use persistent initialization markers, stable native identity, validated output, and retry recovery |
 | WorkBuddy and upstream drift | Obtain desktop samples and pin supported versions; development schemas are not release-wide promises |
 | Tool and attachment fidelity | Review the first-version text/reference degradation; disclose every omitted artifact |
 | Large inputs | Establish line, session, and batch limits from fixtures before exposing import |
-| Backup merges | Preserve identity constraints and report conflicts without silently merging or removing provenance |
+| Backup restoration | Preserve identity through existing full/slim backups; no new merge capability |
 | Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the four-source implementation sequence |
 
-Outstanding implementation choices are the supported target-runtime matrix, handling of source-time rollback and timestamps ahead of the local clock, and first-version tool/attachment fidelity. Reimport defaults to skip regardless of the chosen target; incremental synchronization is separate work. Source-version matrices, WorkBuddy samples, and input limits must be completed before claiming support. Do not close #22728 as delivered until all four sources satisfy the complete acceptance criteria.
+The first version fixes Pi targets, timestamp-conflict rejection, historical tool text, attachment references, and existing backup restoration. Reimports skip; incremental sync is separate work. Complete declared source-version matrices and boundary fixtures before enabling each source. WorkBuddy desktop samples are a prerequisite for layer four. Earlier layers can ship independently without samples, but WorkBuddy stays disabled and #22728 remains incomplete.
