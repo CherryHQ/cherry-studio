@@ -416,6 +416,164 @@ describe('Agent browser authority and control lifetime', () => {
     }
   })
 
+  it.each(['missing', 'destroyed'] as const)(
+    'recreates a released guest immediately when its previous webContents is %s',
+    async (previous) => {
+      vi.useFakeTimers()
+      const abort = new AbortController()
+      try {
+        service.agentBrowser.attach(sessionId, 1, windowId)
+        fixture.mock.close()
+        const replacement = createGuest(2)
+        Object.assign(replacement.mock, {
+          getType: () => 'webview',
+          getZoomFactor: () => 1,
+          hostWebContents: host,
+          session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+        })
+        vi.mocked(webContents.fromId).mockImplementation((id) =>
+          id === 2 ? replacement.guest : previous === 'destroyed' ? fixture.guest : undefined
+        )
+        const send = vi.mocked(application.get('IpcApiService').send)
+        const baseline = send.mock.calls.length
+        const pending = service.agentBrowser.ensureGuest({ agentId, sessionId }, abort.signal)
+        void pending.catch(() => undefined)
+        const requests = send.mock.calls.slice(baseline).filter((call) => call[1] === 'browser.guest.ensure_requested')
+        const repairs = requests.map(
+          (call) => call[2] as { repair: { kind: string; requestId: string; expiresAt: number } }
+        )
+        expect(repairs.map(({ repair }) => repair.kind)).toEqual(['recreate'])
+        const { requestId, expiresAt } = repairs[0].repair
+        expect(expiresAt - Date.now()).toBe(10000)
+        expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()
+        expect(() => service.agentBrowser.attach(sessionId, 2, 'untrusted', requestId)).toThrow(
+          expect.objectContaining({ code: 'not_allowed' })
+        )
+        expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()
+
+        const { tabId } = service.agentBrowser.attach(sessionId, 2, windowId, requestId)
+        const target = await pending
+        expect(target.tabId).toBe(tabId)
+        expect(target.guest).toBe(replacement.guest)
+        const execution = target.beginExecution()
+        expect(replacement.guest.getBackgroundThrottling()).toBe(false)
+        execution.dispose()
+        expect(replacement.guest.getBackgroundThrottling()).toBe(true)
+        expect(() => service.agentBrowser.attach(sessionId, 2, windowId, requestId)).toThrow(
+          expect.objectContaining({ code: 'not_allowed' })
+        )
+        expect(service.agentBrowser.get({ agentId, sessionId })).toBe(target)
+      } finally {
+        abort.abort()
+        await vi.advanceTimersByTimeAsync(10000)
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each([0, 1])(
+    'cancels only repair waiter %s while the other waiter still receives a usable target',
+    async (index) => {
+      vi.useFakeTimers()
+      const callers = [new AbortController(), new AbortController()]
+      try {
+        const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+        service.agentBrowser.detach(sessionId, tabId, windowId)
+        const outcomes: unknown[] = []
+        const pending = callers.map((caller, i) =>
+          service.agentBrowser.ensureGuest({ agentId, sessionId }, caller.signal).then(
+            (target) => (outcomes[i] = target),
+            (error) => (outcomes[i] = error)
+          )
+        )
+        const call = vi
+          .mocked(application.get('IpcApiService').send)
+          .mock.calls.findLast((entry) => entry[1] === 'browser.guest.ensure_requested')!
+        const { requestId } = (call[2] as { repair: { requestId: string } }).repair
+        const reason = new Error(`cancel-waiter-${index}`)
+        callers[index].abort(reason)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(outcomes[index]).toBe(reason)
+        expect(outcomes[1 - index]).toBeUndefined()
+
+        const repaired = service.agentBrowser.attach(sessionId, 1, windowId, requestId)
+        await Promise.all(pending)
+        expect(outcomes[1 - index]).toBe(service.agentBrowser.get({ agentId, sessionId }))
+        expect(service.agentBrowser.get({ agentId, sessionId })?.tabId).toBe(repaired.tabId)
+      } finally {
+        for (const caller of callers) caller.abort()
+        await vi.advanceTimersByTimeAsync(10000)
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('cancels the shared repair after both waiters abort and rejects its late token', async () => {
+    vi.useFakeTimers()
+    const callers = [new AbortController(), new AbortController()]
+    try {
+      const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+      service.agentBrowser.detach(sessionId, tabId, windowId)
+      const outcomes: unknown[] = []
+      const pending = callers.map((caller, i) =>
+        service.agentBrowser.ensureGuest({ agentId, sessionId }, caller.signal).catch((error) => (outcomes[i] = error))
+      )
+      const send = vi.mocked(application.get('IpcApiService').send)
+      const call = send.mock.calls.findLast((entry) => entry[1] === 'browser.guest.ensure_requested')!
+      const { requestId } = (call[2] as { repair: { requestId: string } }).repair
+      const reasons = [new Error('first-cancelled'), new Error('second-cancelled')]
+      callers[0].abort(reasons[0])
+      callers[1].abort(reasons[1])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(outcomes[0]).toBe(reasons[0])
+      expect(outcomes[1]).toBe(reasons[1])
+      await Promise.all(pending)
+      expect(() => service.agentBrowser.attach(sessionId, 1, windowId, requestId)).toThrow(
+        expect.objectContaining({ code: 'not_allowed' })
+      )
+      expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()
+      const sent = send.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10000)
+      expect(send.mock.calls).toHaveLength(sent)
+    } finally {
+      for (const caller of callers) caller.abort()
+      await vi.advanceTimersByTimeAsync(10000)
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds every shared repair waiter by the original ten-second deadline', async () => {
+    vi.useFakeTimers()
+    const callers = [new AbortController(), new AbortController()]
+    try {
+      const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+      service.agentBrowser.detach(sessionId, tabId, windowId)
+      const outcomes: unknown[] = []
+      const pending = callers.map((caller, i) =>
+        service.agentBrowser.ensureGuest({ agentId, sessionId }, caller.signal).catch((error) => (outcomes[i] = error))
+      )
+      await vi.advanceTimersByTimeAsync(9999)
+      expect(outcomes).toEqual([])
+      const call = vi
+        .mocked(application.get('IpcApiService').send)
+        .mock.calls.findLast((entry) => entry[1] === 'browser.guest.ensure_requested')!
+      const { requestId } = (call[2] as { repair: { requestId: string } }).repair
+      await vi.advanceTimersByTimeAsync(1)
+      await Promise.all(pending)
+      expect(outcomes).toEqual([
+        expect.objectContaining({ code: 'timeout' }),
+        expect.objectContaining({ code: 'timeout' })
+      ])
+      expect(() => service.agentBrowser.attach(sessionId, 1, windowId, requestId)).toThrow(
+        expect.objectContaining({ code: 'not_allowed' })
+      )
+    } finally {
+      for (const caller of callers) caller.abort()
+      await vi.advanceTimersByTimeAsync(10000)
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a healthy guest usable after a popup navigation rejects', async () => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     vi.mocked(fixture.guest.loadURL).mockRejectedValueOnce(new Error('aborted'))

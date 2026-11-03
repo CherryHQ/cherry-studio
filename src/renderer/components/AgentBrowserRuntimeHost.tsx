@@ -119,16 +119,13 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
   )
   useEffect(() => {
     const repair = resource?.repair
-    if (
-      tabId &&
-      repair?.kind === 'recreate' &&
-      repair.expiresAt > Date.now() &&
-      notified.current !== repair.requestId
-    ) {
+    if (!tabId || !repair) return
+    if (repair.kind === 'recreate' && repair.expiresAt > Date.now() && notified.current !== repair.requestId) {
       notified.current = repair.requestId
       toast.warning(t('webview.browser.recreated'))
     }
-  }, [tabId, resource?.repair, t])
+    runtime.update(sessionId, { repair: undefined })
+  }, [tabId, resource?.repair, runtime, sessionId, t])
   const onWebviewChange = useCallback(
     (webview: WebviewTag | null) => {
       if (runtime.get(sessionId)?.guestGeneration !== resource?.guestGeneration) return

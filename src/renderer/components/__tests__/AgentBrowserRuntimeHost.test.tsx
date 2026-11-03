@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
+import type { WebviewTag } from 'electron'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +20,7 @@ const bridge = vi.hoisted(() => ({
   listeners: new Map<string, (input: unknown) => void>(),
   binding: undefined as number | undefined,
   presented: false,
+  attachGate: undefined as Promise<void> | undefined,
   attaches: [] as Array<{ webviewId?: number; requestId?: string }>,
   toasts: [] as unknown[],
   tabs: [{ id: 'tab-a', type: 'route', url: '/app/agents?sessionId=session-a', title: 'Agent' }] as Tab[]
@@ -44,6 +46,7 @@ vi.mock('@renderer/ipc/ipcApi', () => ({
       if (route === 'browser.cursor.present') bridge.presented = input.presented ?? false
       if (route === 'browser.pane.attach') {
         bridge.attaches.push(input)
+        await bridge.attachGate
         bridge.binding = input.webviewId
         return { tabId: 'binding-a' }
       }
@@ -99,6 +102,7 @@ describe('AgentBrowserRuntimeHost', () => {
     bridge.tabs = [{ id: 'tab-a', type: 'route', url: '/app/agents?sessionId=session-a', title: 'Agent' }]
     bridge.binding = undefined
     bridge.presented = false
+    bridge.attachGate = undefined
     bridge.attaches = []
     bridge.toasts = []
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
@@ -442,6 +446,86 @@ describe('AgentBrowserRuntimeHost', () => {
 
     expect(bridge.toasts).toHaveLength(1)
     expect(view.getByTestId('webview-browser-guest')).toBe(recreated)
+  })
+
+  it.each(['reattach', 'recreate'] as const)(
+    'creates a missing resource for %s and retires its token only after attach succeeds',
+    async (kind) => {
+      let confirm!: () => void
+      bridge.attachGate = new Promise<void>((resolve) => {
+        confirm = resolve
+      })
+      render(<Harness visible={false} />)
+      const repair = { requestId: 'missing-resource', kind, expiresAt: Date.now() + 10000 }
+      act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'session-a', repair }))
+      expect(runtime.get('session-a')).toMatchObject({
+        sourceUrl: 'about:blank',
+        securityProfile: 'agent-browser',
+        repair,
+        guestGeneration: kind === 'recreate' ? 1 : 0,
+        bindingRevision: 1
+      })
+      await waitFor(() =>
+        expect(bridge.attaches).toEqual([{ sessionId: 'session-a', webviewId: 42, requestId: repair.requestId }])
+      )
+      expect(bridge.binding).toBeUndefined()
+      expect(runtime.get('session-a')?.repair).toBe(repair)
+      expect(bridge.toasts).toHaveLength(0)
+      await act(async () => {
+        confirm()
+      })
+      await waitFor(() => expect(runtime.get('session-a')?.repair).toBeUndefined())
+      expect(bridge.binding).toBe(42)
+      expect(livePresentation).toBe(0)
+      expect(bridge.attaches).toHaveLength(1)
+      expect(bridge.toasts).toHaveLength(kind === 'recreate' ? 1 : 0)
+    }
+  )
+
+  it.each(['before expiry', 'after expiry'] as const)(
+    'binds an HTML replacement without replaying a completed repair token %s',
+    async (timing) => {
+      runtime.ensure('session-a')
+      const view = render(<Harness visible />)
+      await waitFor(() => expect(bridge.binding).toBe(42))
+      const repair = { requestId: 'completed-repair', kind: 'recreate' as const, expiresAt: Date.now() + 10000 }
+      act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'session-a', repair }))
+      await waitFor(() => expect(bridge.toasts).toHaveLength(1))
+      const repaired = view.getByTestId('webview-browser-guest')
+      const clock = vi.spyOn(Date, 'now')
+      try {
+        if (timing === 'after expiry') clock.mockReturnValue(repair.expiresAt + 1)
+        act(() => runtime.ensure('session-a', 'file:///workspace/after-repair.html'))
+        const html = view.getByTestId('webview-browser-guest')
+        expect(html).not.toBe(repaired)
+        expect(html).toHaveAttribute('partition', 'agent-html-artifact')
+        await waitFor(() => expect(bridge.binding).toBe((html as unknown as WebviewTag).getWebContentsId()))
+        expect(bridge.attaches.at(-1)).not.toHaveProperty('requestId')
+        expect(runtime.get('session-a')?.repair).toBeUndefined()
+        expect(bridge.toasts).toHaveLength(1)
+      } finally {
+        clock.mockRestore()
+      }
+    }
+  )
+
+  it('retires a pending repair when an ordinary ensure replaces the source and profile', async () => {
+    runtime.ensure('session-a')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    act(() => {
+      runtime.ensure('session-a', undefined, undefined, {
+        requestId: 'superseded-repair',
+        kind: 'recreate',
+        expiresAt: Date.now() + 10000
+      })
+      runtime.ensure('session-a', 'file:///workspace/replacement.html')
+    })
+    expect(runtime.get('session-a')?.repair).toBeUndefined()
+    const html = view.getByTestId('webview-browser-guest')
+    await waitFor(() => expect(bridge.binding).toBe((html as unknown as WebviewTag).getWebContentsId()))
+    expect(bridge.attaches.at(-1)).not.toHaveProperty('requestId')
+    expect(bridge.toasts).toHaveLength(0)
   })
 
   it('ignores an expired repair request and keeps the live guest untouched', async () => {

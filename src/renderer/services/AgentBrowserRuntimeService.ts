@@ -27,6 +27,7 @@ export interface AgentBrowserResource {
 export class AgentBrowserRuntimeService {
   private readonly owners = new Map<string, Set<string>>()
   private readonly resources = new Map<string, AgentBrowserResource>()
+  private readonly repairRequests = new Map<string, string>()
   private readonly listeners = new Set<() => void>()
   private ids: readonly string[] = []
   private readonly turnSubscriptions = new Map<string, () => void>()
@@ -62,21 +63,30 @@ export class AgentBrowserRuntimeService {
     if (!this.owners.has(sessionId)) return
     const existing = this.resources.get(sessionId)
     if (repair) {
-      if (!existing || repair.expiresAt <= Date.now() || existing.repair?.requestId === repair.requestId) return
-      this.update(sessionId, {
-        repair,
-        bindingRevision: existing.bindingRevision + 1,
-        guestGeneration: existing.guestGeneration + (repair.kind === 'recreate' ? 1 : 0),
-        ...(repair.kind === 'recreate' ? { guest: null, sourceUrl: 'about:blank' } : {})
-      })
-      return
+      if (repair.expiresAt <= Date.now() || this.repairRequests.get(sessionId) === repair.requestId) return
+      this.repairRequests.set(sessionId, repair.requestId)
+      if (existing) {
+        this.update(sessionId, {
+          repair,
+          bindingRevision: existing.bindingRevision + 1,
+          guestGeneration: existing.guestGeneration + (repair.kind === 'recreate' ? 1 : 0),
+          ...(repair.kind === 'recreate'
+            ? { guest: null, sourceUrl: 'about:blank', securityProfile: WebviewSecurityProfile.AgentBrowser }
+            : {})
+        })
+        return
+      }
     }
     if (existing && !url) return
-    const sourceUrl = url ?? 'about:blank'
-    const securityProfile = sourceUrl.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : profile
+    const sourceUrl = repair ? 'about:blank' : (url ?? 'about:blank')
+    const securityProfile = repair
+      ? WebviewSecurityProfile.AgentBrowser
+      : sourceUrl.startsWith('file:')
+        ? WebviewSecurityProfile.AgentHtmlArtifact
+        : profile
     if (existing) {
       if (existing.sourceUrl !== sourceUrl || existing.securityProfile !== securityProfile) {
-        this.update(sessionId, { sourceUrl, securityProfile })
+        this.update(sessionId, { sourceUrl, securityProfile, repair: undefined })
       }
       return
     }
@@ -88,8 +98,9 @@ export class AgentBrowserRuntimeService {
       title: '',
       anchor: null,
       overlays: null,
-      guestGeneration: 0,
-      bindingRevision: 0,
+      guestGeneration: repair?.kind === 'recreate' ? 1 : 0,
+      bindingRevision: repair ? 1 : 0,
+      repair,
       guest: null,
       ready: false,
       loading: true,
@@ -142,7 +153,10 @@ export class AgentBrowserRuntimeService {
       this.owners.set(sessionId, owners)
     }
     for (const sessionId of this.resources.keys()) {
-      if (!this.owners.has(sessionId)) this.resources.delete(sessionId)
+      if (!this.owners.has(sessionId)) {
+        this.resources.delete(sessionId)
+        this.repairRequests.delete(sessionId)
+      }
     }
     if (this.ids.length !== this.resources.size) {
       this.ids = [...this.resources.keys()]
@@ -154,6 +168,7 @@ export class AgentBrowserRuntimeService {
     this.turnSubscriptions.get(sessionId)?.()
     this.turnSubscriptions.delete(sessionId)
     this.owners.delete(sessionId)
+    this.repairRequests.delete(sessionId)
     if (!this.resources.delete(sessionId)) return
     this.ids = [...this.resources.keys()]
     this.emit()
@@ -164,6 +179,7 @@ export class AgentBrowserRuntimeService {
     this.turnSubscriptions.clear()
     this.owners.clear()
     this.resources.clear()
+    this.repairRequests.clear()
     this.ids = []
     this.emit()
   }
