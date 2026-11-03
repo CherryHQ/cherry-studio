@@ -169,7 +169,11 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     const savedPath = saved.filePath
     // The saved file holds exactly the block source; a trailing newline at EOF is not part of it.
     await expect
-      .poll(() => readFile(savedPath, 'utf8').then((text) => text.replace(/\r\n/g, '\n')).catch(() => null))
+      .poll(() =>
+        readFile(savedPath, 'utf8')
+          .then((text) => text.replace(/\r\n/g, '\n'))
+          .catch(() => null)
+      )
       .toBe(code)
     await testInfo.attach('MP-40 downloaded Python source', { path: savedPath, contentType: 'text/x-python' })
 

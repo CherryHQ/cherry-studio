@@ -145,7 +145,6 @@ describe('regression execution plan', () => {
       expect(supportsPlatform(id, 'windows'), id).toBe(true)
     }
   })
-
 })
 
 it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools'] as const)(
