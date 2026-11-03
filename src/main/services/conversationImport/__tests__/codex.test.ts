@@ -115,4 +115,10 @@ describe('Codex raw rollout contract', () => {
     ).toBe(true)
     expect(result.diagnostics.map((d) => d.code)).toEqual(expect.arrayContaining(['invalid_json', 'inferred_time']))
   })
+  it('shows the first user sentence when the title index has no entry', async () => {
+    await file('rollout-untitled.jsonl', [meta(), message('Explain this project'), message('answer', 'assistant')])
+    const [ref] = await discover()
+    expect(ref.title).toBe('Explain this project')
+    expect((await codexAdapter.read(ref, signal())).title).toBe('Explain this project')
+  })
 })
