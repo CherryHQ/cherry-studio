@@ -1343,6 +1343,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.saveMessage).toHaveBeenCalledWith({
         sessionId: 'session-1',
+        parentId: 'user-2',
         message: {
           role: 'assistant',
           status: 'pending',
