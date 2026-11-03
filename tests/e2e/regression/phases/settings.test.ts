@@ -178,7 +178,7 @@ test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
           section = name
           try {
             await items.nth(index).click()
-            await expect(items.nth(index)).toHaveAttribute('data-active', 'true', { timeout: 5_000 })
+            await expect(items.nth(index)).toHaveAttribute('data-active', 'true')
             await expect(content()).toBeVisible()
             await expect
               .poll(async () => (await content().innerText()).trim().length, { timeout: 10_000 })
@@ -295,7 +295,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
       { name: '模型服务', marker: content.getByPlaceholder('搜索模型平台...', { exact: true }) },
       { name: '数据', marker: content.getByText('数据', { exact: true }).first() },
       { name: '快捷键', marker: content.getByRole('heading', { name: '快捷键', exact: true }) },
-      { name: '关于我们', marker: content.getByText('关于我们', { exact: true }) },
+      { name: '关于我们', marker: content.getByRole('button', { name: 'GitHub 仓库', exact: true }) },
       { name: '外观', marker: content.locator('#setting-appearance-theme-mode') }
     ]
     let previous = proxy
