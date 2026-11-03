@@ -566,6 +566,7 @@ describe('desktop Pi root connection', () => {
     const user = message('uncertain dispatch')
     const context = preparePiBranch(input.sessionId)
     prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
+    expect(context.bindingState).toBe('pending')
     await expect(connect()).rejects.toThrow('missing')
     expect(nativeFiles()).toEqual([])
   })
@@ -573,6 +574,7 @@ describe('desktop Pi root connection', () => {
   it('keeps a primed owner idle and permits reopen before any input has created a native file', async () => {
     const first = await connect()
     expect(first.connection.retainWhileIdle).toBe(true)
+    expect(preparePiBranch(input.sessionId).bindingState).toBe('pending')
     await first.connection.close()
     const next = await connect()
     expect(nativeFiles()).toEqual([])

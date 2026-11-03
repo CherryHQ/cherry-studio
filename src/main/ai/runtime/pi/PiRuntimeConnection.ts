@@ -321,7 +321,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.branchHead,
       this.input.resumeToken ?? this.input.nativeSessionId
     )
-    const nativeId = this.context.nativeThreadId ?? this.context.intendedThreadId
+    const nativeId = this.context.nativeThreadId
     if (!nativeId || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nativeId)) throw new Error('Invalid Pi session identity')
     let files: string[]
     try {
@@ -332,7 +332,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     if (files.length > 1) throw new Error('Pi session identity is ambiguous')
     if (
-      (this.context.nativeThreadId || messages.hasContextInput(this.input.sessionId, this.context.id)) &&
+      (this.context.bindingState === 'bound' || messages.hasContextInput(this.input.sessionId, this.context.id)) &&
       files.length !== 1
     )
       throw new Error('Pi session history is missing')
@@ -437,7 +437,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         : await this.runtime.create(options)
       if (opened.status !== 'confirmed') throw this.failure ?? new Error(opened.error.message)
       this.handle = opened.value
-      if (files.length) contexts.bindContext(this.context.id, nativeId)
+      if (files.length) this.context = contexts.bindContext(this.context.id, nativeId)
       const observed = await this.handle.observe((event) => this.handleObservation(event))
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
       this.observation = observed.value
@@ -687,8 +687,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     } else if (event.type === 'turn-complete') this.checkpoint = event.headEntryId
     else if (event.type === 'session-append' && this.context) {
       // Native SessionManager synchronously flushes on the first conversation entry.
-      const id = this.context.intendedThreadId
+      const id = this.context.nativeThreadId
       if (
+        this.context.bindingState === 'pending' &&
         id &&
         event.entries.some((entry) => entry.type === 'message' && ['user', 'assistant'].includes(entry.message.role))
       ) {
