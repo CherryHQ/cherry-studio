@@ -154,6 +154,10 @@ const modelBWithFunctionCall = {
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({ isModelLocked: () => false })
+}))
+
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequestMock },

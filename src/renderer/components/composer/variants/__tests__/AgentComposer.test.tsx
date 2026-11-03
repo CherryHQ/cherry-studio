@@ -282,6 +282,10 @@ const pdfSkillToken = {
 } as const
 
 vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({ isModelLocked: () => false })
+}))
+
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {

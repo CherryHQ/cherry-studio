@@ -47,6 +47,14 @@ export function useCherryCloudModelAvailability(enabled = true) {
       isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
         !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /**
+       * A Cloud model the account cannot use now, e.g. one still selected after sign-out or without the
+       * plan. Unknown until the first snapshot arrives, so a selected model is not flagged at startup.
+       */
+      isModelLocked: (model: Model, includeAgentOnlyModels: boolean) =>
+        cloudAvailability !== undefined &&
+        isManagedCherryCloudModel(model.providerId) &&
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
       /** The built-in CherryAI models and Cloud models granted only by a free plan. */
       isModelFree: (model: Model) => isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
       isModelUnavailable: (model: Model) =>

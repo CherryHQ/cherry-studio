@@ -8,6 +8,8 @@ import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/Mo
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import { SubscriptionTag } from '@renderer/components/tags/Model'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
@@ -166,6 +168,7 @@ function ModelControl({
   const loadedProviderName = useProviderDisplayName(model?.providerId)
   const providerName = model ? loadedProviderName || getProviderDisplayNameById(model.providerId) : undefined
   const modelLabel = model ? `${model.name} | ${providerName}` : selectModelLabel
+  const { isModelLocked } = useCherryCloudModelAvailability()
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
@@ -182,6 +185,7 @@ function ModelControl({
         )}>
         {modelLabel}
       </span>
+      {model && !iconOnly && isModelLocked(model, true) ? <SubscriptionTag size={10} /> : null}
       <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && model && 'hidden')} />
     </Button>
   )
