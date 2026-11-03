@@ -66,6 +66,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AgentSessionEditError } from './AgentSessionEditError'
 import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
+import { presentClaudeHistory } from './importedHistoryText'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -985,7 +986,8 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: publicMessageData(row.data),
+      data: publicMessageData(row.provenance?.source === 'claude-code' ? presentClaudeHistory(row.data) : row.data),
+      ...(row.provenance ? { provenance: row.provenance } : {}),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
@@ -1276,6 +1278,29 @@ export class AgentSessionMessageService {
       agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
     }
     return saved
+  }
+
+  setImportedAnchorsTx(tx: DbOrTx, sessionId: string, anchors: ReadonlyMap<string, unknown>): void {
+    for (const [id, anchor] of anchors) {
+      const row = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.id, id), eq(sessionMessagesTable.sessionId, sessionId)))
+        .get()
+      if (!row) throw new Error('source_changed')
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...row.data, runtimeAnchor: anchor }, updatedAt: row.updatedAt })
+        .where(eq(sessionMessagesTable.id, id))
+        .run()
+    }
+  }
+
+  importMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly Omit<InsertSessionMessageRow, 'sessionId'>[]): void {
+    if (this.hasSessionMessages(sessionId)) throw new Error('session_not_empty')
+    for (const row of rows)
+      tx.insert(sessionMessagesTable)
+        .values({ ...row, sessionId })
+        .run()
   }
 
   saveMessagesTx(

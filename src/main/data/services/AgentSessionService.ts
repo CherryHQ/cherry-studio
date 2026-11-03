@@ -41,6 +41,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 
+import { deleteImportedHistoryTx } from './importedSessionHistory'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -109,6 +110,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     workspaceId: clean.workspaceId,
     workspace: rowToAgentWorkspace(row.workspace),
     traceId: clean.traceId,
+    ...(row.session.importMetadata ? { importMetadata: row.session.importMetadata } : {}),
     orderKey: clean.orderKey,
     lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
@@ -327,6 +329,31 @@ export class AgentSessionService {
       createdAt,
       updatedAt: createdAt
     })
+  }
+
+  findImportedTx(tx: DbOrTx, source: string, originalSessionId: string) {
+    return tx
+      .select()
+      .from(sessionsTable)
+      .where(
+        and(
+          sql`json_extract(${sessionsTable.importMetadata}, '$.source') = ${source}`,
+          sql`json_extract(${sessionsTable.importMetadata}, '$.originalSessionId') = ${originalSessionId}`
+        )
+      )
+      .get()
+  }
+
+  setImportMetadataTx(
+    tx: DbOrTx,
+    id: string,
+    metadata: NonNullable<SessionRow['importMetadata']>,
+    lastActivityAt: number
+  ): void {
+    tx.update(sessionsTable)
+      .set({ importMetadata: metadata, lastActivityAt, updatedAt: lastActivityAt })
+      .where(eq(sessionsTable.id, id))
+      .run()
   }
 
   /** Bump metadata modification time from a foreign service's transaction. */
@@ -1198,6 +1225,7 @@ export class AgentSessionService {
       .filter((row) => row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
     tx.delete(sessionsTable).where(inArray(sessionsTable.id, purgedIds)).run()
+    deleteImportedHistoryTx(tx, purgedIds)
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     return purgedIds
@@ -1249,6 +1277,7 @@ export class AgentSessionService {
       .returning({ id: sessionsTable.id })
       .all()
     const sessionIds = deletedSessions.map((session) => session.id)
+    deleteImportedHistoryTx(tx, sessionIds)
     pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
     return sessionIds
   }
@@ -1456,6 +1485,7 @@ export class AgentSessionService {
       })
       .all()
     const deletedIds = rows.map((row) => row.id)
+    deleteImportedHistoryTx(tx, deletedIds)
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds
