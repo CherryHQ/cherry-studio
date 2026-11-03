@@ -11,8 +11,13 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
-import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import type {
+  ModelLookupResult,
+  ReasoningEffort,
+  ReasoningFormatType,
+  ReasoningWireProfile
+} from '@cherrystudio/provider-registry'
+import { inferReasoningOwnedBy, REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -40,6 +45,7 @@ import {
   CHERRYAI_PROVIDER_ID,
   isManagedCherryAiDefaultModel
 } from '@shared/data/presets/cherryai'
+import { resolveGatewayChatRouteForModelId } from '@shared/data/presets/gatewayChatRouting'
 import type {
   EndpointType,
   Modality,
@@ -460,27 +466,127 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
   }
 }
 
-function applyStoredModelState(model: Model, row: UserModelRow): Model {
-  return {
-    ...model,
-    id: createUniqueModelId(row.providerId, row.modelId),
-    providerId: row.providerId,
-    apiModelId: row.modelId,
-    presetModelId: row.presetModelId,
-    isEnabled: row.isEnabled,
-    isHidden: row.isHidden,
-    isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
-  }
+/**
+ * The full effort ladder offered when a model's reasoning is user-declared but
+ * the catalog's id heuristics know no knob vocabulary for it — every level a
+ * user may need to match their endpoint, instead of no selector at all (#19761).
+ */
+const MANUAL_REASONING_EFFORTS: readonly ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max'
+]
+
+/**
+ * The profile the manual fallback controls must be built from: the SAME
+ * resolution the request layer performs — `resolveReasoningProfile` at the
+ * effective chat endpoint, where the row's `endpointTypes` override wins, then
+ * the gateway's per-model route (AiHubMix `gemini-*` ids route to the Gemini
+ * endpoint), then the provider default. Controls and requests reading one
+ * profile means no provider contract can be lost in between: a destination
+ * that disables reasoning (Poe's Chat Completions) yields no knobs instead of
+ * inert tiers, and a routed Gemini endpoint yields the toggle + low/medium/high
+ * vocabulary the wire accepts instead of tiers it would reject.
+ * (CherryHQ/cherry-studio#19761)
+ */
+function manualReasoningProfileFor(
+  providerContext: ReasoningProviderContext,
+  endpointTypes: EndpointType[] | null | undefined,
+  modelId: string
+): ResolvedReasoningProfile {
+  // The request resolves the row override FIRST (resolveEffectiveEndpoint), so
+  // an explicit override suppresses the gateway route rather than competing
+  // with it.
+  const route = endpointTypes?.length
+    ? undefined
+    : resolveGatewayChatRouteForModelId(providerContext, modelId)?.endpointType
+  return providerRegistryService.resolveReasoningProfile(
+    providerContext,
+    {
+      id: createUniqueModelId(providerContext.id, modelId),
+      apiModelId: modelId,
+      endpointTypes: endpointTypes ?? undefined
+    },
+    endpointTypes?.[0] ?? route
+  )
+}
+
+/**
+ * Reasoning knobs for a model whose REASONING capability the user declared but
+ * whose id matches no catalog heuristic. Toggle-shaped controls for formats
+ * whose wires switch reasoning without a full ladder: Ollama flips a boolean,
+ * Gemini only accepts low/medium/high as `thinkingLevel` (xhigh/max would go
+ * out verbatim and fail the request).
+ */
+function manualDeclaredReasoning(
+  format: ReasoningFormatType | undefined,
+  wire: ReasoningWireProfile | undefined,
+  declaredReasoning: boolean
+): RuntimeReasoning | undefined {
+  if (!declaredReasoning) return undefined
+  return projectRuntimeReasoning(
+    {
+      controls:
+        format === 'ollama' || format === 'gemini'
+          ? [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+          : [{ kind: 'effort', values: [...MANUAL_REASONING_EFFORTS] }]
+    },
+    wire ?? REASONING_FORMAT_PROFILES['openai-chat'].wire
+  )
+}
+
+/**
+ * Reasoning knobs for models the user marks as reasoning-capable. The bundled
+ * registry projects `reasoning.selectableEfforts` only for ids it knows, so
+ * toggling the `reasoning` capability on an unknown id (brand-new or niche
+ * models) left the composer without an effort selector — the capability toggle
+ * did nothing visible. Projected through the profile resolved at the effective
+ * chat endpoint (the same resolution requests use), so a profile that disables
+ * reasoning exposes no knobs; a registry-projected profile always wins.
+ * (CherryHQ/cherry-studio#19761)
+ */
+function withManualReasoningControls(model: Model, providerContext: ReasoningProviderContext | undefined): Model {
+  if (!model.capabilities?.includes('reasoning') || model.reasoning != null) return model
+  if (!providerContext) return model
+  const manualProfile = manualReasoningProfileFor(providerContext, model.endpointTypes, model.apiModelId ?? model.id)
+  const reasoning = manualDeclaredReasoning(manualProfile.format, manualProfile.wire, true)
+  if (!reasoning?.selectableEfforts?.length) return model
+  return { ...model, reasoning }
+}
+
+function applyStoredModelState(
+  model: Model,
+  row: UserModelRow,
+  providerContext: ReasoningProviderContext | undefined
+): Model {
+  return withManualReasoningControls(
+    {
+      ...model,
+      id: createUniqueModelId(row.providerId, row.modelId),
+      providerId: row.providerId,
+      apiModelId: row.modelId,
+      presetModelId: row.presetModelId,
+      isEnabled: row.isEnabled,
+      isHidden: row.isHidden,
+      isDeprecated: row.isDeprecated,
+      notes: row.notes ?? undefined
+    },
+    providerContext
+  )
 }
 
 function createPresetFallback(
   row: UserModelRow,
-  profile?: ResolvedReasoningProfile['wire'],
+  providerContext: ReasoningProviderContext | undefined,
+  reasoningProfile?: ResolvedReasoningProfile,
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
-  const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  const baseline = createCustomModel(row.providerId, row.modelId, reasoningProfile?.wire, serviceTierControl)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row, providerContext)
 }
 
 class ModelService {
@@ -499,7 +605,11 @@ class ModelService {
     )
   }
 
-  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+  private buildCreateValues(
+    dto: CreateModelDto,
+    registryData?: CreateModelRegistryData,
+    providerContext?: ReasoningProviderContext
+  ): NewUserModelInput {
     if (registryData?.providerModel) {
       return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
     }
@@ -521,19 +631,22 @@ class ModelService {
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
-    // descriptor-driven like catalog rows (#16598).
+    // descriptor-driven like catalog rows (#16598). The controls follow the
+    // effective endpoint — the dto endpointTypes override, then the gateway
+    // route, then the provider default — same as requests and as on read.
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
-      const inferred =
-        inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
-        (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
-          ? projectRuntimeReasoning(
-              {
-                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
-              },
-              registryData.reasoningProfile.wire
-            )
-          : undefined)
+      let inferred: RuntimeReasoning | undefined
+      if (providerContext) {
+        const manualProfile = manualReasoningProfileFor(
+          providerContext,
+          dtoValues.endpointTypes,
+          dtoValues.modelId
+        )
+        inferred =
+          inferCustomModelReasoning(dto.modelId, manualProfile.wire, { declaredReasoning }) ??
+          manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
+      }
       if (inferred) dtoValues.reasoning = inferred
     }
 
@@ -706,6 +819,11 @@ class ModelService {
     return models
   }
 
+  /** Single-provider convenience over `getReasoningContextsByProviderIdsTx` for create-path enrichment. */
+  private getProviderContext(db: Pick<DbType, 'select'>, providerId: string): ReasoningProviderContext | undefined {
+    return providerService.getReasoningContextsByProviderIdsTx(db, [providerId]).get(providerId)
+  }
+
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
    * use the current registry as their baseline and apply every non-null sparse
@@ -726,10 +844,13 @@ class ModelService {
           const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
             providerRegistryService.resolveModel(providerContext, row.modelId)
           if (providerModel) {
-            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+            return {
+              ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, providerContext),
+              presetModelId: null
+            }
           }
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
+            return createPresetFallback(row, providerContext, reasoningProfile, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -742,14 +863,18 @@ class ModelService {
           )
           const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
-          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
+          return applyStoredModelState(
+            imageGeneration ? { ...resolved, imageGeneration } : resolved,
+            row,
+            providerContext
+          )
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
             providerId: row.providerId,
             modelId: row.modelId,
             error
           })
-          return createPresetFallback(row)
+          return createPresetFallback(row, providerContext)
         }
       }
 
@@ -760,7 +885,10 @@ class ModelService {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
         if (providerModel) {
-          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          return {
+            ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, providerContext),
+            presetModelId: null
+          }
         }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
@@ -811,14 +939,28 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
+        const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
         if (registryModel) {
           reasoning = registryModel.reasoning
-        } else if (model.reasoning?.controls?.length) {
-          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
-          reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-            declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
-          })
+          // Regenerate the synthetic controls from the CURRENT endpoint instead of
+          // re-projecting the descriptor stored at create time: the stored tiers are
+          // creation-time vocabulary, so a provider endpoint switch
+          // (anthropic-messages → ollama-chat) kept offering `max` — a tier
+          // Ollama's wire echoes verbatim into `think`, which the SDK rejects.
+          // The manual profile is the one the REQUEST layer resolves at the
+          // effective endpoint (row override → gateway route → provider
+          // default), so the vocabulary can never include tiers the wire
+          // discards. Reasoning is not hand-editable (absent from
+          // UPDATE_MODEL_FIELD_MAP), so nothing user-authored is lost by
+          // regenerating; catalog and registry descriptors took the branch
+          // above. The id heuristics still win over the manual fallback, and
+          // removing the capability in Edit Model disarms the manual fallback
+          // via declaredReasoning (#19761).
+          const manualProfile = manualReasoningProfileFor(providerContext, model.endpointTypes, modelId)
+          reasoning =
+            inferCustomModelReasoning(modelId, manualProfile.wire, { declaredReasoning }) ??
+            manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
         }
         if (reasoning) updates.reasoning = reasoning
         else if (model.reasoning) updates.reasoning = undefined
@@ -945,7 +1087,9 @@ class ModelService {
     }
 
     const db = application.get('DbService').getDb()
-    const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const values = items.map(({ dto, registryData }) =>
+      this.buildCreateValues(dto, registryData, this.getProviderContext(db, dto.providerId))
+    )
 
     const rows = withSqliteErrors(
       () =>
@@ -1153,7 +1297,9 @@ class ModelService {
     payload: ProviderModelReconcilePayload
   ): ProviderModelReconcileResult {
     const dbService = application.get('DbService')
-    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const values = payload.toAdd.map(({ dto, registryData }) =>
+      this.buildCreateValues(dto, registryData, this.getProviderContext(dbService.getDb(), dto.providerId))
+    )
     const deletedIds: string[] = []
     const rows = withSqliteErrors(
       () =>

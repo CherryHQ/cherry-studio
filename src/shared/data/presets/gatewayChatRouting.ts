@@ -105,11 +105,29 @@ const GATEWAY_MODEL_ROUTERS: Partial<Record<string, (modelId: string) => Gateway
   [SystemProviderIds.dmxapi]: resolveDmxapiChatRoute
 }
 
+/**
+ * Minimal provider shape the route resolution reads. Both a full `Provider` and
+ * the main-side reasoning provider context satisfy it, so control generation
+ * and request dispatch resolve the same route from whichever handle they hold.
+ */
+export interface GatewayRouteProvider {
+  id: string
+  presetProviderId?: string | null
+  endpointConfigs?: Provider['endpointConfigs']
+}
+
 /** Resolve a gateway's per-model wire route from data available in both main and renderer. */
 export function resolveGatewayChatRoute(provider: Provider, model: Model): GatewayModelRoute | undefined {
+  return resolveGatewayChatRouteForModelId(provider, model.apiModelId ?? model.id)
+}
+
+export function resolveGatewayChatRouteForModelId(
+  provider: GatewayRouteProvider,
+  modelId: string
+): GatewayModelRoute | undefined {
   const router =
     GATEWAY_MODEL_ROUTERS[provider.id] ??
     (provider.presetProviderId ? GATEWAY_MODEL_ROUTERS[provider.presetProviderId] : undefined)
-  const route = router?.(model.apiModelId ?? model.id)
+  const route = router?.(modelId)
   return route && provider.endpointConfigs?.[route.endpointType] ? route : undefined
 }
