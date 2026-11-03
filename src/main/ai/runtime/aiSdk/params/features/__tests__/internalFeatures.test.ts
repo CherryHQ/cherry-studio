@@ -1,3 +1,5 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { wrapLanguageModel } from 'ai'
 /**
  * Integration test for the internal-feature decision matrix. Mirrors what the
  * old `PluginBuilder.buildPlugins` did: given a `RequestScope`, exactly which
@@ -5,7 +7,6 @@
  * concrete `AiPlugin` instances) so the test stays decoupled from plugin
  * implementation details.
  */
-
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
@@ -30,6 +31,7 @@ function makeScope(overrides: {
   mcpToolIds?: string[]
   topicId?: string
   endpointType?: string
+  sdkConfig?: Partial<RequestScope['sdkConfig']>
   aiSdkProviderId?: string
   reasoning?: RequestScope['reasoning']
   request?: Partial<RequestScope['request']>
@@ -47,7 +49,8 @@ function makeScope(overrides: {
       providerId: 'openai',
       providerOptionsKey: 'openai',
       providerSettings: {},
-      modelId: 'm1'
+      modelId: 'm1',
+      ...overrides.sdkConfig
     },
     endpointType: overrides.endpointType as never,
     aiSdkProviderId: overrides.aiSdkProviderId ?? 'openai-compatible',
@@ -88,6 +91,74 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       'context-build',
       'tool-schema-compatibility'
     ])
+  })
+
+  it('gates and orders Gemini compatible signature replay', () => {
+    const base = {
+      provider: { id: 'foreign' },
+      model: { id: 'test::gemini-4-argon' as const, apiModelId: 'gemini-4-argon' },
+      sdkConfig: { providerOptionsKey: '11111111-1111-4111-8111-111111111111' },
+      endpointType: 'openai-chat-completions'
+    }
+    const names = activeNames(makeScope(base))
+    expect(names.indexOf('gemini-thought-signature-replay')).toBeGreaterThanOrEqual(0)
+    expect(names.indexOf('gemini-thought-signature-replay')).toBeLessThan(
+      names.indexOf('skip-gemini-thought-signature')
+    )
+    for (const changes of [
+      { endpointType: 'openai-responses' },
+      { endpointType: undefined },
+      { aiSdkProviderId: 'google' },
+      { model: { id: 'test::gpt-4' as const, apiModelId: 'gpt-4' } }
+    ]) {
+      expect(activeNames(makeScope({ ...base, ...changes }))).not.toContain('gemini-thought-signature-replay')
+    }
+  })
+
+  it('replays the sdkConfig namespace through the registered feature chain', async () => {
+    const key = '11111111-1111-4111-8111-111111111111'
+    const scope = makeScope({
+      provider: { id: 'foreign' },
+      model: { id: 'test::gemini-4-argon', apiModelId: 'gemini-4-argon' },
+      endpointType: 'openai-chat-completions',
+      sdkConfig: { providerOptionsKey: key }
+    })
+    const adapters = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.filter((plugin) =>
+      ['gemini-thought-signature-replay', 'skip-gemini-thought-signature'].includes(plugin.name)
+    )
+    const context: any = { middlewares: [] }
+    for (const plugin of adapters) await plugin.configureContext!(context)
+    let body: any
+    const model = createOpenAICompatible({
+      name: key,
+      baseURL: 'https://example.test',
+      fetch: async (_url, init) => {
+        body = JSON.parse(String(init?.body))
+        return Response.json({
+          id: 'id',
+          created: 1,
+          model: 'gemini',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+        })
+      }
+    })('gemini-4-argon')
+    await wrapLanguageModel({ model, middleware: context.middlewares }).doGenerate({
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'call',
+              toolName: 'lookup',
+              input: {},
+              providerOptions: { foreign: { thoughtSignature: 'wrong' }, [key]: { thoughtSignature: 'right' } }
+            }
+          ]
+        }
+      ]
+    })
+    expect(body.messages[0].tool_calls[0].extra_content.google.thought_signature).toBe('right')
   })
 
   it('reasoning-extraction activates for inline-reasoning wires', () => {
