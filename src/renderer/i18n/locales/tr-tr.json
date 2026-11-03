@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Bilinmeyen hata",
   "message.error.yuque.export": "Yuque'ye aktarılamadı. Lütfen belgelere göre bağlantı durumunu ve yapılandırmayı kontrol edin",
   "message.error.yuque.no_config": "Yuque Token veya Yuque Url yapılandırılmamış",
+  "message.finish_reason.length": "Çıktı sınırına ulaşıldı. Yanıt eksik olabilir.",
   "message.group.delete.content": "Bu gruptaki tüm asistan yanıtları silinsin mi? Kullanıcının sorusu ve sonraki mesajlar korunacaktır.",
   "message.group.delete.title": "Grup Yanıtlarını Sil",
   "message.group.retry_failed": "Model başına bir başarısız mesajı yeniden dene",
