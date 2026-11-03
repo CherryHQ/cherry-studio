@@ -80,6 +80,7 @@ import {
   validateAgentSessionParent
 } from './agentSessionMessageTree'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
+import { presentClaudeHistory } from './importedHistoryText'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -1290,7 +1291,7 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: publicMessageData(row.data),
+      data: publicMessageData(row.provenance?.source === 'claude-code' ? presentClaudeHistory(row.data) : row.data),
       ...(row.provenance ? { provenance: row.provenance } : {}),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
