@@ -526,6 +526,46 @@ describe('native context storage and reconciliation', () => {
     expect(faux.state.callCount).toBe(before + 1)
   })
 
+  it('recovers a queued Durable input by native identity before it has a transcript entry', async () => {
+    const { backend, runtime, faux, options } = await durable()
+    const reached = Promise.withResolvers<void>()
+    faux.setResponses([
+      (_context, stream) =>
+        new Promise((_, reject) => {
+          reached.resolve()
+          const signal = stream!.signal!
+          if (signal.aborted) reject(signal.reason)
+          else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    ])
+    const created = await createDurableContext(sessionId, backend.id, runtime, {
+      ownership: { kind: 'ownerless' },
+      agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+    })
+    const handle = confirmed(created.result)
+    await submitInput(handle, message('running'), created.context.id)
+    await reached.promise
+    const queuedId = message('queued')
+    const receipt = await submitInput(handle, queuedId, created.context.id, 'follow-up')
+    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Expected native queued receipt')
+    expect(receipt.facts).toContain('queued')
+    await runtime.shutdown()
+    const before = faux.state.callCount
+    const reopened = confirmed(await openDurableBackend(backend.id, options))
+    cleanup.push(() => reopened.shutdown())
+    const restored = confirmed(await reopened.open(handle.thread))
+    const found = confirmed(await restored.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
+    if (!found.found) throw new Error('Queued native input was lost')
+    expect(found.input.inputId).toBeUndefined()
+    expect(found.input.facts).toEqual(['accepted', 'queued'])
+    expect(bindNativeInput(sessionId, created.context.id, found.input)).toBe(queuedId)
+    expect(messages.inputBinding(sessionId, queuedId)).toEqual({
+      contextId: created.context.id,
+      nativeInputId: receipt.nativeInput.id
+    })
+    expect(faux.state.callCount).toBe(before)
+  })
+
   it('retains an unresolved Durable creation intent when the native create succeeds but binding fails', async () => {
     const { backend, runtime } = await durable()
     const spy = vi.spyOn(contexts, 'bindContext').mockImplementationOnce(() => {

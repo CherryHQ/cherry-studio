@@ -7,6 +7,8 @@ import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { runtimeId, type InputState, type ObservationPayload } from '@cherrystudio/agent-runtime'
+import type { PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -14,6 +16,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { ModelSchema } from '@shared/data/types/model'
@@ -182,11 +185,17 @@ describe('desktop Pi Durable connection', () => {
   async function connect() {
     const connection = await new PiDurableRuntimeConnection(input).start()
     connections.push(connection)
+    const nativeInputs: InputState[] = []
+    const handle = (connection as unknown as { handle: PiDurableThreadHandle }).handle
+    await handle.observe((event) => {
+      if (event.type === 'snapshot') nativeInputs.push(...event.inputs)
+      if (event.type === 'input.changed') nativeInputs.push(event.input)
+    })
     const events: AgentRuntimeEvent[] = []
     const consuming = (async () => {
       for await (const event of connection.events) events.push(event)
     })()
-    return { connection, events, consuming }
+    return { connection, events, consuming, nativeInputs, handle }
   }
   async function done(events: AgentRuntimeEvent[]) {
     await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
@@ -325,7 +334,11 @@ describe('desktop Pi Durable connection', () => {
     expect(text(first.events)).toBe('first streaming answer')
     expect(first.events.filter((event) => event.type === 'error')).toEqual([])
     const context = prepareDurableBranch(input.sessionId)
-    expect(messages.readSubmission(input.sessionId, user.id).submission.outcome).toBe('completed')
+    expect(first.nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'completed')).toBe(true)
+    expect(messages.inputBinding(input.sessionId, user.id)).toMatchObject({
+      contextId: context.id,
+      nativeInputId: expect.any(String)
+    })
     await first.connection.close()
     setScript([assistantReply('second answer')])
     const second = await connect()
@@ -349,15 +362,17 @@ describe('desktop Pi Durable connection', () => {
       if (steering && !injected) throw new Error('Model request preceded steer placement')
       return fallback(model, context, options)
     }
-    const { connection, events } = await connect()
+    const { connection, events, nativeInputs } = await connect()
     const first = message('first')
     await connection.send({ message: first })
     await expect.poll(() => text(events)).toBe('first answer')
     finish()
     const late = message('late correction')
     expect(connection.redirect({ message: late })).toBe(true)
-    await expect.poll(() => messages.readSubmission(input.sessionId, late.id).submission.outcome).toBe('completed')
-    expect(messages.readSubmission(input.sessionId, first.id).submission.outcome).toBe('completed')
+    await expect
+      .poll(() => nativeInputs.some((state) => state.inputId === late.id && state.outcome === 'completed'))
+      .toBe(true)
+    expect(nativeInputs.some((state) => state.inputId === first.id && state.outcome === 'completed')).toBe(true)
     expect(injected).toBe(true)
     expect(text(events)).toBe('first answernext answer')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
@@ -410,13 +425,12 @@ describe('desktop Pi Durable connection', () => {
     expect(child).not.toBe(root)
     expect(text(events)).not.toContain('child continued answer')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(events.flatMap((event) => (event.type === 'input-response' ? [event.input.inputId] : []))).toEqual([user.id])
     await connection.close()
     const reopened = await connect()
     const restored = await reopened.connection.childProjection('spawn')
     expect(restored?.snapshot().contextId).toBe(contextId)
     expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
-    expect(reopened.events.filter((event) => event.type === 'input-response')).toEqual([])
+    expect(text(reopened.events)).toBe('')
   })
 
   it.each(['shutdown', 'stop'] as const)('distinguishes %s from durable cancellation', async (action) => {
@@ -436,7 +450,7 @@ describe('desktop Pi Durable connection', () => {
     } else {
       await reopened.connection.close()
       expect(script.calls).toHaveLength(0)
-      expect(messages.readSubmission(input.sessionId, user.id).submission.outcome).toBe('aborted')
+      expect(first.nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)
     }
   })
 
@@ -452,13 +466,13 @@ describe('desktop Pi Durable connection', () => {
       ),
       assistantReply('must not run')
     ])
-    const { connection, events } = await connect()
+    const { connection, events, nativeInputs } = await connect()
     const user = message('run a tool')
     await connection.send({ message: user })
     await expect.poll(() => existsSync(join(directory, 'started.txt'))).toBe(true)
     await connection.interrupt()
     await connection.close()
-    expect(messages.readSubmission(input.sessionId, user.id).submission.outcome).toBe('aborted')
+    expect(nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)
     expect(existsSync(join(directory, 'completed.txt'))).toBe(false)
     expect(text(events)).not.toContain('must not run')
     setScript([assistantReply('must not resume')])
@@ -466,4 +480,60 @@ describe('desktop Pi Durable connection', () => {
     await reopened.connection.close()
     expect(script.calls).toHaveLength(0)
   })
+
+  it.each([true, false])('waits for native-only pending work with a retained message: %s', async (retained) => {
+    const { connection, events, handle } = await connect()
+    const context = prepareDurableBranch(input.sessionId)
+    const nativeInput = { session: handle.thread, id: runtimeId<'native-input'>('queued-input') }
+    if (retained) {
+      const user = message('queued before restart')
+      prepareNativeSubmission(input.sessionId, user.id, context.id, 'follow-up')
+      bindNativeInput(input.sessionId, context.id, {
+        inputId: runtimeId(user.id),
+        nativeInput,
+        facts: ['accepted', 'queued']
+      })
+    }
+    const queued: InputState = { nativeInput, facts: ['accepted', 'queued'] }
+    vi.spyOn(handle, 'lookupInput').mockResolvedValue({ status: 'confirmed', value: { found: true, input: queued } })
+    const observer = connection as unknown as { onObservation(event: ObservationPayload): Promise<void> }
+    const snapshot = { type: 'snapshot' as const, coverage: 'retained-view' as const, messages: [], inputs: [queued] }
+    await observer.onObservation({ ...snapshot, activity: { scope: 'foreground', state: 'active' } })
+    await observer.onObservation({ ...snapshot, activity: { scope: 'foreground', state: 'idle' } })
+    expect(events.some((event) => event.type === 'autonomous-turn-state' && event.state === 'started')).toBe(true)
+    expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
+    await observer.onObservation({ type: 'input.changed', input: { ...queued, outcome: 'completed' } })
+    await done(events)
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(script.calls).toHaveLength(0)
+  })
+
+  it.each(['rejected', 'unsupported', 'unknown'] as const)(
+    'preserves only uncertain input bindings after %s',
+    async (status) => {
+      const { connection, handle } = await connect()
+      const user = message('not accepted')
+      vi.spyOn(handle.input, 'submit').mockResolvedValue({
+        status,
+        inputId: runtimeId(user.id),
+        error: { operation: 'submit', code: 'fixture', message: status }
+      })
+      await expect(connection.send({ message: user })).rejects.toThrow(status)
+      if (status === 'unknown') {
+        expect(messages.inputBinding(input.sessionId, user.id)?.contextId).toBe(
+          prepareDurableBranch(input.sessionId).id
+        )
+        expect(() => messages.deleteSessionMessage(input.sessionId, user.id)).toThrow('native input binding')
+      } else {
+        expect(messages.inputBinding(input.sessionId, user.id)).toBeUndefined()
+        messages.updateSessionMessage(input.sessionId, user.id, {
+          data: { parts: [{ type: 'text', text: 'corrected' }] }
+        })
+        messages.deleteSessionMessage(input.sessionId, user.id)
+        expect(() => messages.getSessionMessage(input.sessionId, user.id)).toThrow()
+      }
+      expect(script.calls).toHaveLength(0)
+    }
+  )
 })

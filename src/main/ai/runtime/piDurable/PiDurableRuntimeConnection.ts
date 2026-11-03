@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 
 import type { Usage } from '@earendil-works/pi-ai'
 
-import { application } from '@application'
 import type { BehaviorEvent, CallRef, SubagentOrigin } from '@cherrystudio/agent-behavior'
 import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
 import type { PiDurableRuntime, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
@@ -12,7 +11,11 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
-import { prepareNativeSubmission, bindNativeInput, applyNativeSubmissionResult } from '@main/ai/agentSession/nativeSubmission'
+import {
+  prepareNativeSubmission,
+  bindNativeInput,
+  applyNativeSubmissionResult
+} from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
