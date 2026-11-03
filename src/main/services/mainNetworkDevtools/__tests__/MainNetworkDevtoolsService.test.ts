@@ -838,3 +838,55 @@ it('redacts sensitive fields in malformed JSON instead of returning raw credenti
     'private-malformed-marker'
   )
 })
+
+it.each(['A\0B', '\0', 'a\0\0z'])('does not label embedded-NUL text as shell replayable (%j)', (text) => {
+  for (const body of [text, Buffer.from(text)]) {
+    const captured = captureRequestBody(body, 'text/plain')
+    expect(captured?.text).toBe(text)
+    expect(captured?.replayable).toBe(false)
+    expect(captured?.note).toContain('NUL')
+  }
+})
+
+it('keeps JSON escaped NUL values replayable without adding literal NUL shell bytes', () => {
+  const captured = captureRequestBody(JSON.stringify({ value: 'A\0B' }), 'application/json')
+  expect(captured?.replayable).toBe(true)
+  expect(captured?.text).toBe('{"value":"A\\u0000B"}')
+  expect(captured?.text).not.toContain('\0')
+})
+it('marks streamed Node and cloned Request NUL captures as non-replayable', async () => {
+  BaseService.resetInstances()
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as {
+    events: MainNetworkDevtoolsEvent[]
+    wrapHttpMethod: (original: (...args: unknown[]) => unknown, source: 'http') => (...args: unknown[]) => unknown
+    patchNetFetch: () => void
+  }
+  const request = createMockClientRequest()
+  state.wrapHttpMethod(() => request, 'http')('http://example.test/', {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' }
+  })
+  request.write('A')
+  request.end(Buffer.from([0, 66]))
+  await Promise.resolve()
+  expect(state.events[0].requestBody).toMatchObject({ text: 'A\0B', replayable: false })
+  vi.mocked(net.fetch).mockResolvedValue(new Response('ok'))
+  state.patchNetFetch()
+  try {
+    await net.fetch(
+      new Request('https://example.test/', {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: Buffer.from([65, 0, 66])
+      })
+    )
+    await waitFor(() => state.events.some((event) => event.source === 'net' && event.requestBody !== undefined))
+    expect(state.events.find((event) => event.source === 'net')?.requestBody).toMatchObject({
+      text: 'A\0B',
+      replayable: false
+    })
+  } finally {
+    await service._doStop()
+  }
+})

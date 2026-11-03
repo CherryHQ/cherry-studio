@@ -882,17 +882,20 @@ function createCapturedTextBody(
   }
   const precisionRisk = hasJsonIntegerPrecisionRisk(visibleText, contentType)
   const redactedText = redactBodyText(visibleText, contentType, precisionRisk)
+  const containsNul = redactedText.includes('\0')
   return {
     text: redactedText,
     contentType,
     size,
     truncated: truncated || undefined,
-    replayable: !precisionRisk && !truncated,
-    note: precisionRisk
-      ? 'JSON integer precision cannot be preserved for cURL replay.'
-      : truncated
-        ? 'Truncated body cannot be replayed from capture.'
-        : undefined
+    replayable: !precisionRisk && !truncated && !containsNul,
+    note: containsNul
+      ? 'NUL bytes cannot be represented in a shell argument for cURL replay.'
+      : precisionRisk
+        ? 'JSON integer precision cannot be preserved for cURL replay.'
+        : truncated
+          ? 'Truncated body cannot be replayed from capture.'
+          : undefined
   }
 }
 

@@ -21,7 +21,7 @@ function getHeaderValue(headers, name) {
 }
 
 function hasReplayableCurlBody(body) {
-  return body?.text !== undefined && body.replayable !== false && !body.truncated
+  return body?.text !== undefined && !String(body.text).includes('\0') && body.replayable !== false && !body.truncated
 }
 
 function buildCurlCommand(event) {
@@ -53,6 +53,8 @@ function buildCurlCommand(event) {
 
   if (method !== 'HEAD' && includeBody) {
     parts.push('--data-raw', shellQuoteSingle(body.text))
+  } else if (body?.text?.includes('\0')) {
+    parts.push(curlComment('NUL bytes cannot be represented in a shell argument; omit --data-raw for replay'))
   } else if (body?.truncated) {
     parts.push(curlComment('request body truncated in capture; omit --data-raw for replay'))
   } else if (body?.text && body.replayable === false) {

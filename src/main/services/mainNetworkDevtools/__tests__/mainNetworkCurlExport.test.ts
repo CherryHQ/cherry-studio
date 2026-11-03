@@ -144,3 +144,14 @@ describe('main network cURL export', () => {
     expect(curl).toContain('Multipart FormData cannot be exported as cURL.')
   })
 })
+
+it('defensively omits legacy NUL-bearing captures rather than emitting a lossy shell argument', () => {
+  const command = loadCurlExport()({
+    method: 'POST',
+    url: 'https://example.test',
+    requestBody: { text: 'A\0B', replayable: true }
+  })
+  expect(command).not.toContain('\0')
+  expect(command).not.toMatch(/\n\s+--data-raw\b/)
+  expect(command).toContain('NUL')
+})
