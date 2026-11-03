@@ -128,6 +128,12 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.import_settings.title'
   },
   {
+    anchorId: 'import-local-codex',
+    titleKey: 'history_import.source.codex',
+    panel: 'import_settings',
+    groupKey: 'history_import.title'
+  },
+  {
     anchorId: 'import-local-claude-code',
     titleKey: 'history_import.title',
     panel: 'import_settings',
