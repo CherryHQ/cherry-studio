@@ -29,7 +29,7 @@ function prepareContext(sessionId: string) {
 }
 
 describe('child archive migration', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0034_child_context_projection' })
+  const dbh = setupTestDatabase({ beforeMigration: '0033_child_context_projection' })
 
   // Catches a schema upgrade losing existing message trees or inferring native ownership from old display content.
   it('migrates populated parent history without inventing child bindings', () => {
