@@ -1,42 +1,228 @@
 {
-  "generated_at": "2026-11-02T17:58:43Z",
-  "date": "2026-11-02",
-  "note": "GitHub Discussions GraphQL API not available via MCP tools. Analysis derived from issue tracker engagement signals.",
-  "issue_discussion_proxy": {
-    "high_engagement_issues_today": [
-      {"number": 14198, "title": "[Bug]: Switching model mid-conversation fails with No conversation found", "comments": 266, "updated_at": "2026-11-02"},
-      {"number": 20976, "title": "[Bug]: Cherry adapter rejects mid-conversation system messages (P2)", "comments": 150, "updated_at": "2026-11-02"},
-      {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error (P1)", "comments": 144, "updated_at": "2026-11-02"},
-      {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation (P1)", "comments": 122, "updated_at": "2026-11-02"},
-      {"number": 18894, "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction", "comments": 117, "updated_at": "2026-11-01"},
-      {"number": 19793, "title": "Chat fails when response stream ends without finish reason (P1)", "comments": 89, "updated_at": "2026-11-01"},
-      {"number": 21191, "title": "[Bug]: A single corrupt image permanently bricks an Agent session", "comments": 86, "updated_at": "2026-11-01"},
-      {"number": 22775, "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3)", "comments": 74, "updated_at": "2026-11-01"},
-      {"number": 21965, "title": "[Bug]: Turns fail with HTTP 400 'Function tools with reasoning_effort are not supported'", "comments": 58, "updated_at": "2026-11-02"},
-      {"number": 22197, "title": "[Bug] DeepSeek Flash normal chat rejects max_tokens with HTTP 400", "comments": 42, "updated_at": "2026-11-01"}
-    ],
-    "feature_requests_high_interest": [
-      {"number": 22514, "title": "[Feature]: Make archived Chat and Work conversations easy to find and reopen", "comments": 7},
-      {"number": 23263, "title": "[Feature]: Follow the latest question after resend and keep streaming replies in view", "comments": 4},
-      {"number": 23264, "title": "[Feature]: Restore MCP JSON export and batch Agent role import/export", "comments": 2},
-      {"number": 22906, "title": "[Feature]: Infinite canvas workspace for batch image generation", "comments": 2}
-    ],
-    "new_today_highlights": [
-      "23417: Claude agent runtime download fails on 2.1.8 (p2, agent, claude-code) - blocks new installs",
-      "23408: Agent Mode misidentifies Copilot claude-opus-5.5 - fix already in PR #23414",
-      "23338: SECURITY - Diagnostic bundle exposes provider API keys in plaintext (no label yet)",
-      "23400: cherry-browser Runtime.enable triggers Liepin anti-debugging (p2, agent)",
-      "23386: Completed Agent task leaves spinning empty message, Stop cannot recover (p2)",
-      "23378: CherryIN Bedrock Work requests rejected on strict field (p2)",
-      "23387: Gemini subagent hangs - other subagent models and normal Gemini chat work fine"
-    ]
-  },
-  "trend_observation": "Agent stability continues as the dominant theme (6+ P1/P2 bugs in agent, autocompact thrashing, empty no-response, context overflow). New today: a potential security issue (#23338 - API keys in diagnostic bundles) warrants immediate triage. Provider compatibility issues continue to generate high comment volume (DeepSeek, Gemini, Bedrock). Windows-specific bugs (#20344, #20343, #20097) remain unresolved. The global-errors PR stack (7 PRs) is a major new development focus visible in open PRs.",
-  "security_alert": {
-    "issue": 23338,
-    "title": "Diagnostic bundle can contain provider API keys in plaintext",
-    "opened": "2026-11-01",
-    "priority": "UNSET - needs immediate triage",
-    "action": "Needs p1 label and security review"
-  }
+  "generated_at": "2026-11-03T17:49:24.179880+00:00",
+  "total": 500,
+  "by_category": [
+    {
+      "category": "Ideas",
+      "count": 107
+    },
+    {
+      "category": "Assistant | 助手",
+      "count": 75
+    },
+    {
+      "category": "KnowledgeBase | 知识库",
+      "count": 65
+    },
+    {
+      "category": "General",
+      "count": 59
+    },
+    {
+      "category": "UI & UX | 界面交互",
+      "count": 53
+    },
+    {
+      "category": "Q&A",
+      "count": 42
+    },
+    {
+      "category": "Model & Provider | 模型和服务商",
+      "count": 21
+    },
+    {
+      "category": "Internet Search | 联网搜索",
+      "count": 17
+    },
+    {
+      "category": "Data Manage | 数据管理",
+      "count": 16
+    },
+    {
+      "category": "MCP | 模型上下文协议",
+      "count": 14
+    },
+    {
+      "category": "Import & Export | 导入导出",
+      "count": 8
+    },
+    {
+      "category": "Translate | 翻译",
+      "count": 6
+    },
+    {
+      "category": "Announcements",
+      "count": 4
+    },
+    {
+      "category": "MiniApp | 小程序",
+      "count": 4
+    },
+    {
+      "category": "Show and tell",
+      "count": 3
+    },
+    {
+      "category": "Image Generation | 图片生成",
+      "count": 2
+    },
+    {
+      "category": "QuickAssistant | 快捷助手",
+      "count": 2
+    },
+    {
+      "category": "Polls",
+      "count": 1
+    },
+    {
+      "category": "Messages | 消息",
+      "count": 1
+    }
+  ],
+  "unanswered_count": 500,
+  "unanswered_sample": [
+    {
+      "number": 74,
+      "title": "Welcome to cherry-studio Discussions!",
+      "category": "Announcements",
+      "updatedAt": "2026-08-05T21:30:46Z",
+      "comments": 2
+    },
+    {
+      "number": 114,
+      "title": "v0.7.7",
+      "category": "Announcements",
+      "updatedAt": "2025-01-23T03:38:54Z",
+      "comments": 2
+    },
+    {
+      "number": 2025,
+      "title": "对话和消息删除、重新生成、分支功能有点奇怪",
+      "category": "General",
+      "updatedAt": "2026-04-02T08:54:04Z",
+      "comments": 12
+    },
+    {
+      "number": 1870,
+      "title": "[UI/UX 建议]：话题和助手 UI 修改建议",
+      "category": "General",
+      "updatedAt": "2025-02-18T02:40:21Z",
+      "comments": 3
+    },
+    {
+      "number": 1864,
+      "title": "智能画布",
+      "category": "Ideas",
+      "updatedAt": "2026-03-22T00:14:17Z",
+      "comments": 2
+    },
+    {
+      "number": 1848,
+      "title": "历史话题支持批量清理",
+      "category": "Ideas",
+      "updatedAt": "2025-02-17T20:48:24Z",
+      "comments": 3
+    },
+    {
+      "number": 320,
+      "title": "利用Quciker, 实现选中文本后发送到cherry studio",
+      "category": "Show and tell",
+      "updatedAt": "2024-11-10T08:22:51Z",
+      "comments": 0
+    },
+    {
+      "number": 1863,
+      "title": "FR: 求适配 Vertex AI",
+      "category": "Model & Provider | 模型和服务商",
+      "updatedAt": "2025-06-29T09:25:06Z",
+      "comments": 11
+    },
+    {
+      "number": 2408,
+      "title": "希望支持 mem0.ai 服务获得持久化记忆能力",
+      "category": "Ideas",
+      "updatedAt": "2026-03-22T00:14:02Z",
+      "comments": 3
+    },
+    {
+      "number": 1865,
+      "title": "[功能]: 模型多key建议加上失败重试",
+      "category": "Ideas",
+      "updatedAt": "2025-02-17T21:32:05Z",
+      "comments": 0
+    }
+  ],
+  "recent_active_7d": 0,
+  "top_upvoted": [
+    {
+      "number": 2382,
+      "title": "[功能]: 希望支持展示火山引擎 API （Bot 应用）的返回的「联网搜索的来源」",
+      "upvoteCount": 12,
+      "comments": 16,
+      "answered": false
+    },
+    {
+      "number": 4040,
+      "title": "[功能]: 建议Cherry Studio增加画布式【节点聊天】模式",
+      "upvoteCount": 11,
+      "comments": 13,
+      "answered": false
+    },
+    {
+      "number": 1862,
+      "title": "[功能]: Add support for Amazon Bedrock",
+      "upvoteCount": 7,
+      "comments": 2,
+      "answered": false
+    },
+    {
+      "number": 1891,
+      "title": "[功能]: 对话页面ctrl+f 高亮搜索功能",
+      "upvoteCount": 7,
+      "comments": 4,
+      "answered": false
+    },
+    {
+      "number": 3823,
+      "title": "[功能]: MCP建议：绑定到助手、逐Tool开关控制、调用前确认",
+      "upvoteCount": 7,
+      "comments": 4,
+      "answered": false
+    },
+    {
+      "number": 1893,
+      "title": "[功能]: 新增数据备份/同步分项选择功能 - 提升用户体验和效率",
+      "upvoteCount": 6,
+      "comments": 18,
+      "answered": false
+    },
+    {
+      "number": 3330,
+      "title": "[Feature]: Add Bocha, Kagi, and SearXNG to the web search.",
+      "upvoteCount": 6,
+      "comments": 2,
+      "answered": false
+    },
+    {
+      "number": 2836,
+      "title": "[Feature]: 允许用户完全地设置模型内的所有parameters",
+      "upvoteCount": 6,
+      "comments": 2,
+      "answered": false
+    },
+    {
+      "number": 3320,
+      "title": "[功能]: 支持Mistral OCR",
+      "upvoteCount": 6,
+      "comments": 7,
+      "answered": false
+    },
+    {
+      "number": 1887,
+      "title": "[Discussion]: 不支持docker 服务部署？",
+      "upvoteCount": 5,
+      "comments": 9,
+      "answered": false
+    }
+  ]
 }
