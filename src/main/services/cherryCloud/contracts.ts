@@ -140,6 +140,7 @@ export const cloudNotificationPageSchema = z.looseObject({
   has_more: z.boolean()
 })
 
-export const notificationErrorFrameSchema = z.looseObject({ error: z.looseObject({ code: z.string() }) })
+// Stream error frames carry the code at the top level, unlike the JSON error bodies of HTTP responses.
+export const notificationErrorFrameSchema = z.looseObject({ code: z.string() })
 
 export type CloudNotification = z.infer<typeof cloudNotificationSchema>

@@ -194,7 +194,7 @@ describe('CherryCloudNotificationService', () => {
     await start()
     await vi.waitFor(() => expect(requestedPaths()).toContain('/api/v1/notifications/stream?after=c-5'))
 
-    stream.send('error', { type: 'error', error: { code: 'RESYNC_REQUIRED' } })
+    stream.send('error', { code: 'RESYNC_REQUIRED' })
 
     await vi.waitFor(() => expect(requestedPaths().at(-1)).toBe('/api/v1/notifications/stream'))
     expect(storedCursor()).toBeNull()

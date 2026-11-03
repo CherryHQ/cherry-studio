@@ -203,7 +203,7 @@ export class CherryCloudNotificationService extends BaseService {
       if (signal.aborted) return
       if (event.event === 'error') {
         // Error frames end the connection and never advance the cursor.
-        const code = notificationErrorFrameSchema.safeParse(JSON.parse(event.data)).data?.error.code ?? null
+        const code = notificationErrorFrameSchema.safeParse(JSON.parse(event.data)).data?.code ?? null
         if (isCursorRejection(code)) throw new CursorRejectedError()
         throw new Error(`Cherry Cloud notification stream error (${code ?? 'unknown'})`)
       } else if (event.event === 'ready') {
