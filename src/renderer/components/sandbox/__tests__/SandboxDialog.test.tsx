@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 
 import SandboxDialog from '../SandboxDialog'
 
@@ -207,6 +208,33 @@ it('sends editable RPC parameters, shows the callback trace and lets authorizati
   expect(ipcApi.request).toHaveBeenLastCalledWith('sandbox.request', { kind: 'rpc', value: 7, allowCallback: false })
   expect(await screen.findByText('Access denied')).toBeVisible()
   expect(screen.queryByText('15')).not.toBeInTheDocument()
+})
+
+it('shows localized network validation errors and lets the user correct the input', async () => {
+  const user = userEvent.setup()
+  render(<SandboxDialog open onOpenChange={() => {}} />)
+  await user.click(screen.getByRole('button', { name: 'Network allowlist' }))
+  const input = screen.getByLabelText('Request URL')
+  await user.clear(input)
+  await user.type(input, 'not-a-url')
+  vi.mocked(ipcApi.request).mockRejectedValueOnce(
+    new IpcError(IpcErrorCode.VALIDATION_FAILED, 'Invalid input for sandbox.request')
+  )
+  await user.click(screen.getByRole('button', { name: 'Send request' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Check the numeric parameter, HTTP(S) URL and allowlist origins.'
+  )
+  expect(screen.getByRole('button', { name: 'Send request' })).toBeEnabled()
+
+  await user.clear(input)
+  await user.type(input, 'https://example.com')
+  vi.mocked(ipcApi.request).mockResolvedValueOnce({
+    trace: [{ step: 'response', elapsedMs: 2, detail: '{"status":200}' }],
+    report: ''
+  })
+  await user.click(screen.getByRole('button', { name: 'Send request' }))
+  expect(await screen.findByText('{"status":200}')).toBeVisible()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 it('sends the edited URL and exact allowlist, including an empty deny-all list', async () => {

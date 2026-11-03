@@ -27,6 +27,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import { sandboxExamples } from './sandboxExamples'
@@ -134,7 +135,11 @@ export default function SandboxDialog({
       const output = await ipcApi.request('sandbox.request', input)
       setRequests((previous) => ({ ...previous, [kind]: output }))
     } catch (error) {
-      setError(String(error))
+      setError(
+        error instanceof IpcError && error.code === IpcErrorCode.VALIDATION_FAILED
+          ? t('settings.about.sandbox.interactive.invalid')
+          : String(error)
+      )
     } finally {
       setActiveGroup(null)
       setBusy(null)
