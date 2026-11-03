@@ -1,24 +1,13 @@
 import { asc, desc, sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import type { BusyPolicy, InputFact, InputState } from '@cherrystudio/agent-runtime'
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
+import { agentSessionContextTable } from './agentSessionContext'
 import { userModelTable } from './userModel'
-
-/** Main-only evidence attached to the retained user message, never a second input body. */
-export interface AgentSubmission {
-  readonly contextId: string
-  readonly whenBusy: BusyPolicy
-  readonly contentHash: string
-  readonly nativeInputId?: string
-  readonly facts: readonly InputFact[]
-  readonly outcome?: InputState['outcome']
-  readonly responseMessageId?: string
-}
 
 export const agentSessionMessageTable = sqliteTable(
   'agent_session_message',
@@ -37,7 +26,8 @@ export const agentSessionMessageTable = sqliteTable(
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
-    submission: text({ mode: 'json' }).$type<AgentSubmission>(),
+    inputContextId: text().references(() => agentSessionContextTable.id),
+    nativeInputId: text(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -53,6 +43,7 @@ export const agentSessionMessageTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    uniqueIndex('agent_session_message_native_input_uniq').on(t.inputContextId, t.nativeInputId),
     index('agent_session_message_session_created_id_idx').on(t.sessionId, t.createdAt, t.id),
     index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not

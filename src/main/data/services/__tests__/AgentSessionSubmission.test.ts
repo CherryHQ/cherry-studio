@@ -4,15 +4,19 @@ import { v7 as uuid } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import {
+  applyNativeSubmissionResult,
+  bindNativeInput,
+  prepareNativeSubmission
+} from '@main/ai/agentSession/nativeSubmission'
 
-// These contracts prevent native retries from using edited content or losing earlier terminal evidence.
-describe('message-owned native submission', () => {
+describe('message-owned native input bindings', () => {
   const dbh = setupTestDatabase()
   let sessionId: string
   let contextId: string
@@ -39,13 +43,23 @@ describe('message-owned native submission', () => {
     })
   })
 
-  it('keeps admission unknown despite display success and rejects reusing or changing a submitted message', () => {
-    const draft = messages.prepareSubmission(sessionId, messageId, contextId, 'reject')
-    expect(draft.data.parts).toEqual([{ type: 'text', text: 'original' }])
-    expect(messages.readSubmission(sessionId, messageId).submission.facts).toEqual([])
-    expect(messages.getSessionMessage(sessionId, messageId).status).toBe('success')
-    expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('submission')
-    expect(() => messages.prepareSubmission(sessionId, messageId, contextId, 'steer')).toThrow('already submitted')
+  function nativeInput(id = 'native-input'): InputState {
+    const context = contexts.context(contextId)
+    return {
+      inputId: runtimeId(messageId),
+      facts: ['accepted'],
+      nativeInput: {
+        session: { backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId!) },
+        id: runtimeId(id)
+      }
+    }
+  }
+
+  it('keeps the original input immutable without exposing its private binding to message clients', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('inputContextId')
+    expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('nativeInputId')
+    expect(() => prepareNativeSubmission(sessionId, messageId, contextId, 'steer')).toThrow('already bound')
     expect(() =>
       messages.updateSessionMessage(sessionId, messageId, { data: { parts: [{ type: 'text', text: 'edited' }] } })
     ).toThrow()
@@ -56,102 +70,95 @@ describe('message-owned native submission', () => {
         message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text: 'edited' }] } }
       })
     ).toThrow()
-    expect(messages.readSubmission(sessionId, messageId).message.data.parts).toEqual([
-      { type: 'text', text: 'original' }
-    ])
+    expect(messages.getSessionMessage(sessionId, messageId).data.parts).toEqual([{ type: 'text', text: 'original' }])
   })
 
-  it('preserves terminal evidence across a late receipt and allows two inputs to share one response', () => {
-    const second = uuid()
-    const response = uuid()
-    messages.saveMessage({
-      sessionId,
-      message: { id: second, role: 'user', data: { parts: [{ type: 'text', text: 'follow up' }] } }
+  it.each(['rejected', 'unsupported'] as const)('removes only the attempted binding after %s', (status) => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    applyNativeSubmissionResult(sessionId, contextId, {
+      status,
+      inputId: runtimeId(messageId),
+      error: { operation: 'submit', code: 'busy', message: 'not admitted' }
     })
-    messages.saveMessage({
-      sessionId,
-      message: { id: response, role: 'assistant', data: { parts: [{ type: 'text', text: 'answer to both' }] } }
+    expect(messages.hasContextInput(sessionId, contextId)).toBe(false)
+    messages.updateSessionMessage(sessionId, messageId, { data: { parts: [{ type: 'text', text: 'edited' }] } })
+    expect(messages.getSessionMessage(sessionId, messageId).data.parts).toEqual([{ type: 'text', text: 'edited' }])
+    messages.deleteSessionMessage(sessionId, messageId)
+    expect(() => messages.getSessionMessage(sessionId, messageId)).toThrow()
+  })
+
+  it('does not make an uncertain input editable or eligible for another submission', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    applyNativeSubmissionResult(sessionId, contextId, {
+      status: 'unknown',
+      inputId: runtimeId(messageId),
+      error: { operation: 'submit', code: 'disconnected', message: 'receipt unavailable' }
     })
-    for (const id of [messageId, second]) {
-      messages.prepareSubmission(sessionId, id, contextId, 'follow-up')
-      application.get('DbService').withWriteTx((tx) =>
-        messages.mergeSubmissionTx(
-          tx,
-          sessionId,
-          id,
-          {
-            inputId: runtimeId(id),
-            facts: ['placed'],
-            outcome: 'completed'
-          },
-          response
-        )
-      )
-      application.get('DbService').withWriteTx((tx) =>
-        messages.mergeSubmissionTx(tx, sessionId, id, {
-          inputId: runtimeId(id),
-          facts: ['accepted']
-        })
-      )
-      expect(messages.readSubmission(sessionId, id).submission).toMatchObject({
-        outcome: 'completed',
-        facts: ['placed', 'accepted'],
-        responseMessageId: response
+    expect(messages.inputBinding(sessionId, messageId)?.contextId).toBe(contextId)
+    expect(() => prepareNativeSubmission(sessionId, messageId, contextId, 'reject')).toThrow('already bound')
+    expect(() => messages.deleteSessionMessage(sessionId, messageId)).toThrow()
+  })
+
+  it('finds a retained message from a native-only snapshot and rejects retargeting the association', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    const input = nativeInput()
+    bindNativeInput(sessionId, contextId, input)
+    expect(bindNativeInput(sessionId, contextId, { nativeInput: input.nativeInput!, facts: ['queued'] })).toBe(
+      messageId
+    )
+    expect(() => bindNativeInput(sessionId, contextId, nativeInput('different-input'))).toThrow('identity')
+    expect(() =>
+      bindNativeInput(sessionId, contextId, {
+        ...input,
+        nativeInput: { ...input.nativeInput!, session: { ...input.nativeInput!.session, id: runtimeId('other') } }
       })
-    }
+    ).toThrow('target')
+    expect(messages.inputMessageId(sessionId, contextId, 'native-input')).toBe(messageId)
+    expect(messages.inputMessageId(uuid(), contextId, 'native-input')).toBeUndefined()
   })
 
-  it('rejects a response, input identity or native target from another context', () => {
-    messages.prepareSubmission(sessionId, messageId, contextId, 'reject')
-    expect(() =>
-      application.get('DbService').withWriteTx((tx) =>
-        messages.mergeSubmissionTx(tx, sessionId, messageId, {
-          inputId: runtimeId('other'),
-          facts: ['accepted']
-        })
-      )
-    ).toThrow('identity')
-    expect(() =>
-      application.get('DbService').withWriteTx((tx) =>
-        messages.mergeSubmissionTx(tx, sessionId, messageId, {
-          inputId: runtimeId(messageId),
-          facts: ['accepted'],
-          nativeInput: {
-            id: runtimeId('input'),
-            session: { id: runtimeId('other-thread'), backendId: runtimeId('other-backend') }
-          }
-        })
-      )
-    ).toThrow('identity')
-    expect(messages.readSubmission(sessionId, messageId).submission.facts).toEqual([])
+  it('keeps a late event on the captured context and ignores another branch', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    const other = contexts.allocateContext(sessionId, contexts.context(contextId).backendId, 'other-thread')
+    contexts.bindContext(other.id, 'other-thread')
+    expect(bindNativeInput(sessionId, other.id, { inputId: runtimeId(messageId), facts: ['accepted'] })).toBeUndefined()
+    bindNativeInput(sessionId, contextId, nativeInput())
+    expect(messages.inputBinding(sessionId, messageId)).toEqual({ contextId, nativeInputId: 'native-input' })
   })
 
-  it('rejects altered stored content before recovery and leaves legacy crash cleanup off a native submission', () => {
-    messages.prepareSubmission(sessionId, messageId, contextId, 'reject')
-    const assistantId = uuid()
-    messages.saveMessage({
-      sessionId,
-      runtimeResumeToken: 'keep-native',
-      message: {
-        id: assistantId,
-        role: 'assistant',
-        status: 'pending',
-        data: { parts: [] }
-      }
+  it('cleans an orphan from the legacy context without clearing a different native context in the same session', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    const nativeAssistant = uuid()
+    const legacyAssistant = uuid()
+    for (const [id, token] of [
+      [nativeAssistant, 'native-session'],
+      [legacyAssistant, 'legacy-session']
+    ])
+      messages.saveMessage({
+        sessionId,
+        runtimeResumeToken: token,
+        message: { id, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+    expect(messages.findCrashOrphanedAssistantMessages().map((row) => row.id)).toEqual([legacyAssistant])
+    messages.resolveCrashOrphanedMessages(
+      [nativeAssistant, legacyAssistant].map((id) => ({ id, data: { parts: [] } })),
+      [sessionId]
+    )
+    expect(messages.getSessionMessage(sessionId, nativeAssistant)).toMatchObject({
+      status: 'pending',
+      runtimeResumeToken: 'native-session'
     })
-    expect(messages.findCrashOrphanedAssistantMessages()).toEqual([])
-    messages.resolveCrashOrphanedMessages([{ id: assistantId, data: { parts: [] } }], [sessionId])
-    const row = dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.id, assistantId))
-      .get()!
-    expect([row.status, row.runtimeResumeToken]).toEqual(['pending', 'keep-native'])
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { parts: [{ type: 'text', text: 'changed out of band' }] } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
-    expect(() => messages.readSubmission(sessionId, messageId)).toThrow('changed')
+    expect(messages.getSessionMessage(sessionId, legacyAssistant)).toMatchObject({
+      status: 'error',
+      runtimeResumeToken: null
+    })
+  })
+
+  it('cascades the input binding with its owning session without preventing permanent deletion', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    bindNativeInput(sessionId, contextId, nativeInput())
+    dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).run()
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual([])
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })

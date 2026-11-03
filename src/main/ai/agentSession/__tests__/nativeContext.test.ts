@@ -18,6 +18,7 @@ import {
   type OperationResult,
   type Thread,
   type ThreadHandle,
+  type InputState,
   type BusyPolicy
 } from '@cherrystudio/agent-runtime'
 import { createPiRuntime, type AgentRuntimeSessionOptions, type PiRuntime } from '@cherrystudio/agent-runtime-pi'
@@ -36,7 +37,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
 import { reconcileDurableBackend, createDurableBackend, loadPiSession, openDurableStorage } from '../nativeContext'
-import { prepareNativeSubmission } from '../nativeSubmission'
+import { applyNativeSubmissionResult, bindNativeInput, prepareNativeSubmission } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -152,23 +153,25 @@ describe('native context storage and reconciliation', () => {
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
     return id
   }
-  async function observeInputs(handle: ThreadHandle) {
-    return confirmed(
+  async function observeInputs(handle: ThreadHandle, contextId: string) {
+    const inputs = new Map<string, InputState>()
+    const observation = confirmed(
       await handle.observe((event) => {
-        const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
-        application.get('DbService').withWriteTx((tx) => {
-          for (const input of inputs) {
-            if (input.inputId && messages.hasSubmission(sessionId, input.inputId))
-              messages.mergeSubmissionTx(tx, sessionId, input.inputId, input)
-          }
-        })
+        const changed = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
+        for (const input of changed) {
+          const messageId = bindNativeInput(sessionId, contextId, input)
+          if (messageId) inputs.set(messageId, input)
+        }
       })
     )
+    return { inputs, stop: () => observation.stop() }
   }
   async function submitInput(handle: ThreadHandle, id: string, contextId: string, whenBusy: BusyPolicy = 'reject') {
     const draft = prepareNativeSubmission(sessionId, id, contextId, whenBusy)
     const input = { ...draft, deduplicationKey: id }
-    return handle.input!.submit(input)
+    const result = await handle.input!.submit(input)
+    applyNativeSubmissionResult(sessionId, contextId, result)
+    return result
   }
   async function pi() {
     const backend = allocatePiBackend()
@@ -205,12 +208,12 @@ describe('native context storage and reconciliation', () => {
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
     expect(() => confirmPiContext(created.context.id)).toThrow('missing')
-    const observer = await observeInputs(handle)
+    const observer = await observeInputs(handle, created.context.id)
     cleanup.push(() => observer.stop())
     const inputId = message()
     faux.setResponses([fauxAssistantMessage('saved answer')])
     expect((await submitInput(handle, inputId, created.context.id)).status).toBe('acknowledged')
-    await expect.poll(() => messages.readSubmission(sessionId, inputId).submission.outcome).toBe('completed')
+    await expect.poll(() => observer.inputs.get(inputId)?.outcome).toBe('completed')
     confirmPiContext(created.context.id)
     await observer.stop()
     await runtime.shutdown()
@@ -299,30 +302,45 @@ describe('native context storage and reconciliation', () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle)
+    const observer = await observeInputs(handle, created.context.id)
     cleanup.push(() => observer.stop())
     const id = message()
-    vi.spyOn(messages, 'prepareSubmissionTx').mockImplementationOnce(() => {
+    vi.spyOn(messages, 'bindInputContextTx').mockImplementationOnce(() => {
       throw new Error('DB write failed')
     })
     await expect(submitInput(handle, id, created.context.id)).rejects.toThrow('DB write failed')
     expect(faux.state.callCount).toBe(0)
-    expect(messages.hasSubmission(sessionId, id)).toBe(false)
+    expect(messages.inputBinding(sessionId, id)).toBeUndefined()
   })
 
   it('leaves an unsupported draft editable without recording or dispatching a native submission', async () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle)
+    const observer = await observeInputs(handle, created.context.id)
     cleanup.push(() => observer.stop())
     const id = message()
     messages.updateSessionMessage(sessionId, id, { data: { parts: [] } })
     await expect(submitInput(handle, id, created.context.id)).rejects.toThrow('requires message content')
-    expect(messages.hasSubmission(sessionId, id)).toBe(false)
+    expect(messages.inputBinding(sessionId, id)).toBeUndefined()
     expect(faux.state.callCount).toBe(0)
     messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'corrected' }] } })
     expect(messages.getSessionMessage(sessionId, id).data.parts).toEqual([{ type: 'text', text: 'corrected' }])
+  })
+
+  it('leaves a message editable after native admission explicitly rejects it', async () => {
+    const { backend, runtime, options, faux } = await pi()
+    const created = await createPiContext(sessionId, backend.id, runtime, options)
+    const handle = confirmed(created.result)
+    await handle.release()
+    const id = message()
+
+    expect((await submitInput(handle, id, created.context.id)).status).toBe('rejected')
+    messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'corrected' }] } })
+    expect(messages.getSessionMessage(sessionId, id).data.parts).toEqual([{ type: 'text', text: 'corrected' }])
+    messages.deleteSessionMessage(sessionId, id)
+    expect(() => messages.getSessionMessage(sessionId, id)).toThrow()
+    expect(faux.state.callCount).toBe(0)
   })
 
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
@@ -332,12 +350,12 @@ describe('native context storage and reconciliation', () => {
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle)
+    const observer = await observeInputs(handle, created.context.id)
     cleanup.push(() => observer.stop())
     faux.setResponses([fauxAssistantMessage('durable native answer')])
     const id = message()
     expect((await submitInput(handle, id, created.context.id)).status).toBe('acknowledged')
-    await expect.poll(() => messages.readSubmission(sessionId, id).submission.outcome).toBe('completed')
+    await expect.poll(() => observer.inputs.get(id)?.outcome).toBe('completed')
     await observer.stop()
     await runtime.shutdown()
     const reopened = confirmed(await openDurableBackend(backend.id, options))
@@ -374,7 +392,7 @@ describe('native context storage and reconciliation', () => {
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle)
+    const observer = await observeInputs(handle, created.context.id)
     const id = message()
     await submitInput(handle, id, created.context.id)
     await reached.promise
@@ -389,7 +407,7 @@ describe('native context storage and reconciliation', () => {
       found: true,
       input: { facts: ['accepted', 'placed'] }
     })
-    expect(messages.readSubmission(sessionId, id).submission.outcome).toBeUndefined()
+    expect(observer.inputs.get(id)?.outcome).toBeUndefined()
     await new Promise((resolve) => setTimeout(resolve, 40))
     expect(faux.state.callCount).toBe(before)
     confirmed(await reopened.resume())

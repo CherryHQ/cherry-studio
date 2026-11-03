@@ -1,11 +1,8 @@
-import { createHash } from 'node:crypto'
-
 import { isToolUIPart } from 'ai'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
-import { runtimeId, type BusyPolicy, type InputState, type Thread } from '@cherrystudio/agent-runtime'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
@@ -13,7 +10,6 @@ import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
   agentSessionMessageTable as sessionMessagesTable,
-  type AgentSubmission,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -298,10 +294,6 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   return result
 }
 
-function submissionHash(row: SessionMessageRow): string {
-  return createHash('sha256').update(JSON.stringify(row.data.parts)).digest('hex')
-}
-
 export class AgentSessionMessageService {
   readWorkspaceRelocationHistory(workspaceId: string) {
     return application
@@ -353,107 +345,90 @@ export class AgentSessionMessageService {
     }
   }
 
-  hasSubmission(sessionId: string, messageId: string): boolean {
-    return Boolean(this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId)?.submission)
+  hasContextInput(sessionId: string, contextId: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.inputContextId, contextId)))
+        .limit(1)
+        .get()
+    )
   }
 
-  prepareSubmission(sessionId: string, messageId: string, contextId: string, whenBusy: BusyPolicy): SessionMessageRow {
+  inputBinding(sessionId: string, messageId: string) {
     return application
       .get('DbService')
-      .withWriteTx((tx) => this.prepareSubmissionTx(tx, sessionId, messageId, contextId, whenBusy))
+      .getDb()
+      .select({ contextId: sessionMessagesTable.inputContextId, nativeInputId: sessionMessagesTable.nativeInputId })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.role, 'user'),
+          isNotNull(sessionMessagesTable.inputContextId)
+        )
+      )
+      .get()
   }
 
-  prepareSubmissionTx(
-    tx: DbOrTx,
-    sessionId: string,
-    messageId: string,
-    contextId: string,
-    whenBusy: BusyPolicy
-  ): SessionMessageRow {
+  inputMessageId(sessionId: string, contextId: string, nativeInputId: string): string | undefined {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          eq(sessionMessagesTable.nativeInputId, nativeInputId),
+          eq(sessionMessagesTable.role, 'user')
+        )
+      )
+      .get()?.id
+  }
+
+  bindInputContextTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): SessionMessageRow {
     this.assertActiveSession(tx, sessionId)
     const row = this.findExistingMessageRow(tx, sessionId, messageId)
-    if (!row || row.role !== 'user') throw new Error('Submission requires a retained user message')
+    if (!row || row.role !== 'user') throw new Error('Input binding requires a retained user message')
     const context = tx.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.id, contextId)).get()
-    if (!context || context.sessionId !== sessionId)
-      throw new Error('Submission context does not belong to this session')
-    if (row.submission) throw new Error('Message already submitted; reconcile it or create a new message')
+    if (!context || context.sessionId !== sessionId) throw new Error('Input context does not belong to this session')
+    if (row.inputContextId) throw new Error('Message already bound; create a new input')
     tx.update(sessionMessagesTable)
-      .set({
-        submission: { contextId, whenBusy, contentHash: submissionHash(row), facts: [] }
-      })
+      .set({ inputContextId: contextId })
       .where(eq(sessionMessagesTable.id, messageId))
       .run()
     return row
   }
 
-  readSubmission(sessionId: string, messageId: string) {
-    return this.readSubmissionTx(application.get('DbService').getDb(), sessionId, messageId)
-  }
-
-  readSubmissionTx(
-    db: DbOrTx,
-    sessionId: string,
-    messageId: string
-  ): { submission: AgentSubmission; message: SessionMessageRow; thread: Thread } {
-    const row = this.findExistingMessageRow(db, sessionId, messageId)
-    if (!row?.submission || row.submission.contentHash !== submissionHash(row)) {
-      throw new Error('Original submitted message is unavailable or changed')
-    }
-    const context = db
-      .select()
-      .from(agentSessionContextTable)
-      .where(eq(agentSessionContextTable.id, row.submission.contextId))
-      .get()
-    const nativeId = context?.nativeThreadId
-    if (!context || context.sessionId !== sessionId || !nativeId) throw new Error('Native input target is unresolved')
-    return {
-      submission: row.submission,
-      message: row,
-      thread: { backendId: runtimeId(context.backendId), id: runtimeId(nativeId) }
-    }
-  }
-
-  mergeSubmissionTx(
-    tx: DbOrTx,
-    sessionId: string,
-    messageId: string,
-    input: InputState,
-    responseMessageId?: string
-  ): void {
-    const { submission, thread } = this.readSubmissionTx(tx, sessionId, messageId)
-    if (input.inputId !== undefined && input.inputId !== messageId) throw new Error('Input identity does not match')
+  bindNativeInputTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string, nativeInputId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
     if (
-      input.nativeInput &&
-      (input.nativeInput.session.backendId !== thread.backendId ||
-        input.nativeInput.session.id !== thread.id ||
-        (submission.nativeInputId && submission.nativeInputId !== input.nativeInput.id))
-    ) {
-      throw new Error('Native input identity does not match')
-    }
-    if (submission.outcome && input.outcome && submission.outcome !== input.outcome) {
-      throw new Error('Conflicting terminal input evidence')
-    }
-    if (responseMessageId) {
-      const response = this.findExistingMessageRow(tx, sessionId, responseMessageId)
-      if (
-        !response ||
-        response.role !== 'assistant' ||
-        (submission.responseMessageId && submission.responseMessageId !== responseMessageId)
-      ) {
-        throw new Error('Response does not match the submitted input')
-      }
-    }
+      row?.role !== 'user' ||
+      row.inputContextId !== contextId ||
+      (row.nativeInputId && row.nativeInputId !== nativeInputId)
+    )
+      throw new Error('Native input identity changed')
+    if (row.nativeInputId === nativeInputId) return
+    tx.update(sessionMessagesTable).set({ nativeInputId }).where(eq(sessionMessagesTable.id, messageId)).run()
+  }
+
+  releaseInputBindingTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
     tx.update(sessionMessagesTable)
-      .set({
-        submission: {
-          ...submission,
-          nativeInputId: input.nativeInput?.id ?? submission.nativeInputId,
-          facts: [...new Set([...submission.facts, ...input.facts])],
-          outcome: submission.outcome ?? input.outcome,
-          responseMessageId: submission.responseMessageId ?? responseMessageId
-        }
-      })
-      .where(eq(sessionMessagesTable.id, messageId))
+      .set({ inputContextId: null })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          isNull(sessionMessagesTable.nativeInputId)
+        )
+      )
       .run()
   }
 
@@ -473,7 +448,7 @@ export class AgentSessionMessageService {
       .all()
     const index = rows.findIndex((row) => row.id === messageId)
     const user = rows[index]
-    if (!user || user.role !== 'user' || user.delivery || user.submission || source.session.type !== 'conversation')
+    if (!user || user.role !== 'user' || user.delivery || user.inputContextId || source.session.type !== 'conversation')
       throw new AgentSessionEditError('invalid_target')
     if (
       rows.some(
@@ -978,8 +953,8 @@ export class AgentSessionMessageService {
       this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
-      if (existing.submission)
-        throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native submission evidence')
+      if (existing.inputContextId)
+        throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
 
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
@@ -1003,8 +978,8 @@ export class AgentSessionMessageService {
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
-    if (this.findExistingMessageRow(tx, sessionId, messageId)?.submission) {
-      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native submission evidence')
+    if (this.findExistingMessageRow(tx, sessionId, messageId)?.inputContextId) {
+      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)
     const result = tx
@@ -1032,9 +1007,12 @@ export class AgentSessionMessageService {
         and(
           eq(sessionMessagesTable.role, 'assistant'),
           sql`NOT EXISTS (
-            SELECT 1 FROM agent_session_message AS native_input
-            WHERE native_input.session_id = ${sessionMessagesTable.sessionId}
-              AND native_input.submission IS NOT NULL
+            SELECT 1 FROM agent_session_context AS native_context
+            JOIN agent_session_message AS native_input ON native_input.input_context_id = native_context.id
+            WHERE native_context.session_id = ${sessionMessagesTable.sessionId}
+              AND native_context.native_thread_id = COALESCE(
+                json_extract(${sessionMessagesTable.data}, '$.nativeSessionId'), ${sessionMessagesTable.runtimeResumeToken}
+              )
           )`,
           or(
             eq(sessionMessagesTable.status, 'pending'),
@@ -1073,9 +1051,12 @@ export class AgentSessionMessageService {
             and(
               eq(sessionMessagesTable.id, message.id),
               sql`NOT EXISTS (
-            SELECT 1 FROM agent_session_message AS native_input
-            WHERE native_input.session_id = ${sessionMessagesTable.sessionId}
-              AND native_input.submission IS NOT NULL
+            SELECT 1 FROM agent_session_context AS native_context
+            JOIN agent_session_message AS native_input ON native_input.input_context_id = native_context.id
+            WHERE native_context.session_id = ${sessionMessagesTable.sessionId}
+              AND native_context.native_thread_id = COALESCE(
+                json_extract(${sessionMessagesTable.data}, '$.nativeSessionId'), ${sessionMessagesTable.runtimeResumeToken}
+              )
           )`
             )
           )
@@ -1088,9 +1069,12 @@ export class AgentSessionMessageService {
             and(
               inArray(sessionMessagesTable.sessionId, sessionIds),
               sql`NOT EXISTS (
-            SELECT 1 FROM agent_session_message AS native_input
-            WHERE native_input.session_id = ${sessionMessagesTable.sessionId}
-              AND native_input.submission IS NOT NULL
+            SELECT 1 FROM agent_session_context AS native_context
+            JOIN agent_session_message AS native_input ON native_input.input_context_id = native_context.id
+            WHERE native_context.session_id = ${sessionMessagesTable.sessionId}
+              AND native_context.native_thread_id = COALESCE(
+                json_extract(${sessionMessagesTable.data}, '$.nativeSessionId'), ${sessionMessagesTable.runtimeResumeToken}
+              )
           )`
             )
           )
@@ -1258,10 +1242,10 @@ export class AgentSessionMessageService {
 
     if (existingRow) {
       if (
-        existingRow.submission &&
-        (submissionHash(existingRow) !== submissionHash({ ...existingRow, data }) || message.role !== existingRow.role)
+        existingRow.inputContextId &&
+        (JSON.stringify(existingRow.data.parts) !== JSON.stringify(data.parts) || message.role !== existingRow.role)
       ) {
-        throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native submission evidence')
+        throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
       }
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
