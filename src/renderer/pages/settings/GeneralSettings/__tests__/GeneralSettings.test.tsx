@@ -14,7 +14,9 @@ const mockUseModelSelectorData = vi.fn(() => ({
   resolvedSelectedModelIds: [] as UniqueModelId[],
   isLoading: false,
   modelsError: undefined as Error | undefined,
-  providersError: undefined as Error | undefined
+  providersError: undefined as Error | undefined,
+  cloudAvailabilityReady: true,
+  cloudAvailabilityError: undefined as Error | undefined
 }))
 const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
 const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
@@ -171,7 +173,9 @@ describe('GeneralSettings', () => {
       resolvedSelectedModelIds: [],
       isLoading: false,
       modelsError: undefined,
-      providersError: undefined
+      providersError: undefined,
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
     })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
@@ -183,6 +187,7 @@ describe('GeneralSettings', () => {
       'app.tray.on_launch': true,
       'feature.quick_assistant.click_tray_to_show': true
     })
+    mockUseModelSelectorData.mockReset()
     ipcRequestMock.mockReset()
     ipcRequestMock.mockResolvedValue({
       target: 'https://www.gstatic.com/generate_204',
@@ -434,7 +439,9 @@ describe('GeneralSettings', () => {
       resolvedSelectedModelIds: ['openai::gpt-4o'],
       isLoading: false,
       modelsError: undefined,
-      providersError: undefined
+      providersError: undefined,
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
     })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -474,7 +481,9 @@ describe('GeneralSettings', () => {
       resolvedSelectedModelIds: [],
       isLoading: true,
       modelsError: undefined,
-      providersError: undefined
+      providersError: undefined,
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
     })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -496,7 +505,9 @@ describe('GeneralSettings', () => {
       resolvedSelectedModelIds: [],
       isLoading: false,
       modelsError: new Error('network'),
-      providersError: undefined
+      providersError: undefined,
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
     })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -518,7 +529,9 @@ describe('GeneralSettings', () => {
       resolvedSelectedModelIds: [],
       isLoading: false,
       modelsError: undefined,
-      providersError: new Error('network')
+      providersError: new Error('network'),
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
     })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
@@ -533,6 +546,71 @@ describe('GeneralSettings', () => {
       'aria-invalid',
       'true'
     )
+  })
+
+  it('defers stale fallback classification while the Cherry Cloud availability snapshot is pending', () => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: false,
+      modelsError: undefined,
+      providersError: undefined,
+      cloudAvailabilityReady: false,
+      cloudAvailabilityError: undefined
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['cherryai-subscription::managed-model']
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.retry.fallback_models_count').closest('button')).not.toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('defers stale fallback classification when the Cherry Cloud availability sync failed', () => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: false,
+      modelsError: undefined,
+      providersError: undefined,
+      cloudAvailabilityReady: false,
+      cloudAvailabilityError: new Error('sync failed')
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['cherryai-subscription::managed-model']
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
+  })
+
+  it('marks configured Cherry Cloud fallback models unavailable once availability is ready', () => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: false,
+      modelsError: undefined,
+      providersError: undefined,
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': ['cherryai-subscription::managed-model']
+    })
+
+    render(<GeneralSettings />)
+
+    const fallbackTrigger = screen.getByText('settings.models.retry.fallback_models_unavailable').closest('button')
+    expect(fallbackTrigger).toBeInTheDocument()
+    expect(fallbackTrigger).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('turns off every tray-dependent preference when the tray is disabled', async () => {

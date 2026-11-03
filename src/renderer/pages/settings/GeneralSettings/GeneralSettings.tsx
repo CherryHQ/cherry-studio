@@ -119,7 +119,9 @@ const GeneralSettings: FC = () => {
     resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
     isLoading: isFallbackSelectorDataLoading,
     modelsError: fallbackModelsCatalogError,
-    providersError: fallbackProvidersCatalogError
+    providersError: fallbackProvidersCatalogError,
+    cloudAvailabilityReady: fallbackCloudAvailabilityReady,
+    cloudAvailabilityError: fallbackCloudAvailabilityError
   } = useModelSelectorData({
     filter: chatModelFilter,
     selectedModelIds: configuredRetryFallbackModelIds,
@@ -127,8 +129,16 @@ const GeneralSettings: FC = () => {
     showTagFilter: false,
     showPinnedModels: false
   })
+  // Cloud availability readiness is part of the stale contract: until the first
+  // cherry_cloud.models.sync snapshot arrives (or after a failed sync) managed Cloud
+  // models are hidden from the selector, so classifying then would falsely mark
+  // configured Cloud fallbacks stale. Defer to the count label while it is unknown.
   const canEvaluateFallbackStale =
-    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null && fallbackProvidersCatalogError == null
+    !isFallbackSelectorDataLoading &&
+    fallbackModelsCatalogError == null &&
+    fallbackProvidersCatalogError == null &&
+    fallbackCloudAvailabilityReady &&
+    fallbackCloudAvailabilityError == null
   const hasInvalidRetryFallbackModels =
     canEvaluateFallbackStale && hasStaleSelectedModelIds(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds)
   const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale

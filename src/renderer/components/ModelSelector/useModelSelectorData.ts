@@ -114,7 +114,8 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-  const { isModelHidden, isModelUnavailable, getModelDescription } = useCherryCloudModelAvailability(enabled)
+  const { isAvailabilityReady, availabilityError, isModelHidden, isModelUnavailable, getModelDescription } =
+    useCherryCloudModelAvailability(enabled)
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
   const baseModelFilter = useCallback(
@@ -366,6 +367,8 @@ export function useModelSelectorData({
     availableTags,
     getModelDescription,
     isModelUnavailable,
+    cloudAvailabilityReady: isAvailabilityReady,
+    cloudAvailabilityError: availabilityError,
     isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
     modelsError,
     providersError,
