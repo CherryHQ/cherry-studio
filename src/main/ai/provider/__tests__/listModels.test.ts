@@ -1068,6 +1068,52 @@ describe('listModels — openRouterFetcher image models', () => {
     })
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(apiKey)
   })
+
+  it('preserves chat-capable Jev Router without filtering unrelated model names', async () => {
+    const provider = makeOpenRouterProvider()
+    const chatIds = ['typesafe/jev-router', 'other/jev-chat', 'vendor/jevil', 'TYPESAFE/JEV-ROUTER']
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            ...chatIds,
+            'typesafe/jev-1.13',
+            '~typesafe/jev-latest',
+            'TYPESAFE/JEV-1.13',
+            '~TYPESAFE/JEV-LATEST'
+          ].map((id) => ({ id }))
+        }
+      })
+    })
+
+    const { models } = await listModels(provider)
+
+    expect(models.map((model) => model.apiModelId)).toEqual(chatIds)
+  })
+
+  it('excludes Jev decision-only models from the chat listing', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      if (url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'typesafe/jev-1.13' }, { id: '~typesafe/jev-latest' }]
+        }
+      })
+    })
+
+    const { models } = await listModels(provider)
+
+    expect(models.map((model) => model.apiModelId)).toEqual(['anthropic/claude-sonnet-4'])
+  })
 })
 
 describe('listModels — Radeon Cloud source header', () => {

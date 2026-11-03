@@ -692,6 +692,14 @@ const tokenDanceFetcher: ModelFetcher = {
   }
 }
 
+// These Jev IDs use the Decisions API, not chat (#20806). Jev Router supports chat,
+// so exclude only known decision-only IDs rather than the entire Jev name family.
+const EXCLUDED_OPENROUTER_DECISION_MODEL_IDS = new Set(['typesafe/jev-1.13', '~typesafe/jev-latest'])
+
+function isSupportedOpenRouterChatModel(modelId: string): boolean {
+  return !EXCLUDED_OPENROUTER_DECISION_MODEL_IDS.has(modelId.toLowerCase())
+}
+
 const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
@@ -729,7 +737,9 @@ const openRouterFetcher: ModelFetcher = {
     ])
     warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
-    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data].filter((m) =>
+      isSupportedOpenRouterChatModel(m.id)
+    )
     return listing(
       dedup(all, (m) => m.id).map((m) => {
         const imageModel = imageModelsById.get(m.id)
