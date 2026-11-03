@@ -78,6 +78,32 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
     },
     []
   )
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    setBusy(true)
+    setError(false)
+    setScan(undefined)
+    setSelections([])
+    setPreview(undefined)
+    void ipcApi
+      .request('conversation_import.discover', { source })
+      .then((found) => {
+        if (active) {
+          setRoot(found.root)
+          setScan(found)
+        }
+      })
+      .catch(() => {
+        if (active) setError(true)
+      })
+      .finally(() => {
+        if (active) setBusy(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [open, source])
   async function run(action: () => Promise<void>) {
     setBusy(true)
     setError(false)
@@ -188,6 +214,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                       setPreview(undefined)
                       setReviewItems([])
                       setSelections([])
+                      setScan(undefined)
                       const found = await ipcApi.request('conversation_import.discover', {
                         source,
                         ...(root ? { root } : {})

@@ -1,7 +1,6 @@
-import path from 'node:path'
-
 import * as z from 'zod'
 
+import { formatClaudeHistoryText, formatClaudeTool, isClaudeLocalCommand } from '@data/services/importedHistoryText'
 import type { MessageData } from '@shared/data/types/message'
 import type { ImportDiagnostic } from '@shared/ipc/schemas/conversationImport'
 
@@ -39,13 +38,23 @@ const metadata = new Set([
   'file-history-snapshot',
   'queue-operation',
   'progress',
-  'last-prompt'
+  'last-prompt',
+  'mode',
+  'permission-mode'
 ])
 
 export const claudeCodeAdapter: HistorySourceAdapter = {
   source: 'claude-code',
   async *discover(root, signal) {
-    for await (const file of discoverJsonl(root, signal)) yield { path: file }
+    for await (const file of discoverJsonl(root, signal)) {
+      let title: string | undefined
+      try {
+        title = (await claudeCodeAdapter.read({ path: file }, signal)).title
+      } catch {
+        signal.throwIfAborted()
+      }
+      yield { path: file, title }
+    }
   },
   async read(ref, signal, branchId) {
     const file = ref.path
@@ -123,15 +132,42 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
     }
     const directories = [...new Set(selected.flatMap((r) => (r.cwd ? [r.cwd] : [])))]
     if (directories.length > 1) diagnose('directory_required', undefined, 'error')
+    const firstUser = records.find(
+      (record) =>
+        record.type === 'user' &&
+        record.isMeta !== true &&
+        record.message &&
+        (typeof record.message.content === 'string'
+          ? !isClaudeLocalCommand(record.message.content) && record.message.content.trim()
+          : record.message.content.some(
+              (block) =>
+                block.type === 'text' &&
+                typeof block.text === 'string' &&
+                block.text.trim() &&
+                !isClaudeLocalCommand(block.text)
+            ))
+    )
+    const firstText =
+      typeof firstUser?.message?.content === 'string'
+        ? firstUser.message.content
+        : firstUser?.message?.content
+            .filter((block) => block.type === 'text')
+            .map((block) => block.text)
+            .join(' ')
+    const sourceTitle =
+      records.findLast((record) => record.customTitle?.trim())?.customTitle ??
+      records.findLast((record) => record.summary?.trim())?.summary
+    const title = (
+      sourceTitle?.trim() ||
+      firstText?.replace(/\s+/g, ' ').trim() ||
+      'Claude Code · ' + (records.find((record) => record.timestamp)?.timestamp?.slice(0, 10) ?? originalSessionId)
+    ).slice(0, 255)
     const result: NormalizedSession = {
       source: 'claude-code',
       originalSessionId: agents.size === 1 ? originalSessionId + ':subagent:' + [...agents][0] : originalSessionId,
       sourcePaths: [file],
       sourceVersion: versions.join(', '),
-      title:
-        records.findLast((r) => r.customTitle)?.customTitle ??
-        records.findLast((r) => r.summary)?.summary ??
-        path.basename(file, '.jsonl'),
+      title,
       workingDirectory: directories.length === 1 ? directories[0] : undefined,
       messages: [],
       branches,
@@ -145,6 +181,10 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
     const calls = new Map<string, string>()
     let lastValid: number | undefined
     for (const [order, record] of selected.entries()) {
+      if (typeof record.message?.content === 'string' && /^\s*<local-command-caveat>/.test(record.message.content)) {
+        result.skippedRecords++
+        continue
+      }
       let timestamp = record.timestamp ? Date.parse(record.timestamp) : NaN
       const inferredTimestamp = !Number.isFinite(timestamp)
       if (inferredTimestamp) {
@@ -162,23 +202,25 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
       const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : content
       let role: 'user' | 'assistant' | 'system' =
         record.type === 'assistant' ? 'assistant' : record.type === 'system' ? 'system' : 'user'
+      if (typeof content === 'string' && isClaudeLocalCommand(content)) role = 'system'
       if (blocks.length && blocks.every((b) => b.type === 'tool_result')) role = 'system'
       else if (blocks.some((b) => b.type === 'tool_result')) diagnose('unsupported_record', record.line, 'error')
       for (const block of blocks) {
-        if (block.type === 'text' && typeof block.text === 'string') parts.push({ type: 'text', text: block.text })
+        if (block.type === 'text' && typeof block.text === 'string')
+          parts.push({ type: 'text', text: formatClaudeHistoryText(block.text) })
         else if (block.type === 'thinking' && typeof block.thinking === 'string') {
-          parts.push({ type: 'reasoning', text: block.thinking })
+          parts.push({ type: 'reasoning', text: formatClaudeHistoryText(block.thinking) })
           diagnose('reasoning_compatibility', record.line)
         } else if (block.type === 'tool_use') {
           if (typeof block.id === 'string' && typeof block.name === 'string') calls.set(block.id, block.name)
-          parts.push({ type: 'text', text: '[Historical tool call]\n' + JSON.stringify(block) })
+          parts.push({ type: 'text', text: formatClaudeTool(block) })
           result.downgradedParts++
         } else if (block.type === 'tool_result') {
           const name = typeof block.tool_use_id === 'string' ? calls.get(block.tool_use_id) : undefined
           if (!name) diagnose('unmatched_tool_result', record.line)
           parts.push({
             type: 'text',
-            text: '[Historical tool result' + (name ? ': ' + name : '') + ']\n' + JSON.stringify(block)
+            text: formatClaudeTool(block, name)
           })
           result.downgradedParts++
         } else {
