@@ -23,9 +23,9 @@ export const globToolDefinition = {
 }
 
 // Handler implementation
-export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const searchPath = args.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, roots: string[]): Promise<CallToolResult> {
+  const searchPath = args.path || roots[0]
+  const validPath = await validatePath(searchPath, roots)
 
   // Verify the search directory exists
   try {
@@ -92,7 +92,7 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
 
       try {
         // Re-validate each result to filter out symlink escapes (--follow traverses symlinks)
-        await validatePath(absolutePath, baseDir)
+        await validatePath(absolutePath, roots)
         const stats = await fs.stat(absolutePath)
         files.push({
           path: absolutePath,

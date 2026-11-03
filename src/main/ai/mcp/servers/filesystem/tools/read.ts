@@ -7,7 +7,7 @@ import * as z from 'zod'
 import { isTextByContent } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { DEFAULT_READ_LIMIT, MAX_LINE_LENGTH, validatePath } from '../types'
+import { DEFAULT_READ_LIMIT, MAX_LINE_LENGTH, relativeToRoots, validatePath } from '../types'
 
 // Schema definition
 export const ReadToolSchema = z.object({
@@ -23,9 +23,9 @@ export const readToolDefinition = {
 }
 
 // Handler implementation
-export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, roots: string[]): Promise<CallToolResult> {
   const filePath = args.file_path
-  const validPath = await validatePath(filePath, baseDir)
+  const validPath = await validatePath(filePath, roots)
 
   // Check if file exists
   try {
@@ -61,7 +61,7 @@ export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, baseD
 
   // Format output with line numbers and truncate long lines
   const output: string[] = []
-  const relativePath = path.relative(baseDir, validPath)
+  const relativePath = relativeToRoots(roots, validPath)
 
   output.push(`File: ${relativePath}`)
   if (offset > 0 || limit < lines.length) {

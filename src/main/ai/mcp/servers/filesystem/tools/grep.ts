@@ -68,13 +68,13 @@ function parseRipgrepMatch(line: string): GrepMatch | null {
 }
 
 // Handler implementation
-export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, roots: string[]): Promise<CallToolResult> {
   if (!data.pattern) {
     throw new Error('Pattern is required for grep')
   }
 
-  const searchPath = data.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+  const searchPath = data.path || roots[0]
+  const validPath = await validatePath(searchPath, roots)
 
   const matches: GrepMatch[] = []
   let truncated = false
@@ -174,7 +174,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
 
         // Validate path to prevent symlink escapes
         try {
-          await validatePath(fullPath, baseDir)
+          await validatePath(fullPath, roots)
         } catch {
           logger.debug('Skipping path outside workspace root', { path: fullPath })
           continue
@@ -233,11 +233,11 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
 
           const absoluteFilePath = path.isAbsolute(parsedMatch.file)
             ? parsedMatch.file
-            : path.resolve(baseDir, parsedMatch.file)
+            : path.resolve(roots[0], parsedMatch.file)
 
           // Re-validate each result to filter out symlink escapes
           try {
-            await validatePath(absoluteFilePath, baseDir)
+            await validatePath(absoluteFilePath, roots)
           } catch {
             logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
             continue
