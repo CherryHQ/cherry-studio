@@ -941,7 +941,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           }}>
           <ModelRow
             item={item}
-            disabled={isSelectionDisabled(item.model, item.provider)}
+            disabled={!item.locked && isSelectionDisabled(item.model, item.provider)}
             description={getModelDescription(item.model)}
             isFree={isModelFree(item.model)}
             optionId={getModelSelectorOptionDomId(listboxId, item.key)}
@@ -951,7 +951,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
             showCheckbox={multiple && multiSelectMode}
-            showPinActions={showPinActions}
+            showPinActions={showPinActions && !item.locked}
             detailPortalContainer={detailPortalContainer}
             t={t}
           />

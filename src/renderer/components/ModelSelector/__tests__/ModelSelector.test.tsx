@@ -1,5 +1,5 @@
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -386,6 +386,27 @@ describe('ModelSelector', () => {
       await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model-2'))
 
       expect(mocks.startCherryCloudSubscription).toHaveBeenCalledTimes(2)
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
+    it('keeps a locked row clickable and unpinnable even when its model is unavailable', async () => {
+      const onSelect = vi.fn()
+      const locked = { ...makeModelItem('openai::plan-model'), locked: true }
+      const listItems: FlatListItem[] = [
+        { key: 'provider-cherryai', type: 'group', title: 'CherryAI', groupKind: 'provider', isCherryAiGroup: true },
+        locked
+      ]
+      // A free agent-only offer of the same model can be out of quota.
+      mocks.useModelSelectorData.mockReturnValue(
+        makeData({ listItems, modelItems: [locked], isModelUnavailable: () => true, subscribedPlanName: undefined })
+      )
+      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
+
+      const row = screen.getByTestId('model-selector-item-openai::plan-model')
+      expect(within(row).queryByRole('button', { name: /pin/i })).not.toBeInTheDocument()
+      await userEvent.click(row)
+
+      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
       expect(onSelect).not.toHaveBeenCalled()
     })
 

@@ -1,4 +1,4 @@
-import { sortBy } from 'es-toolkit/compat'
+import { sortBy, uniqBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
@@ -134,7 +134,12 @@ export function useModelSelectorData({
     () =>
       activePaid
         ? []
-        : (plansQuery.data?.available_plans ?? []).filter((plan) => !plan.is_free).flatMap((plan) => plan.models ?? []),
+        : uniqBy(
+            (plansQuery.data?.available_plans ?? [])
+              .filter((plan) => !plan.is_free)
+              .flatMap((plan) => plan.models ?? []),
+            (planModel) => planModel.id
+          ),
     [activePaid, plansQuery.data]
   )
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
