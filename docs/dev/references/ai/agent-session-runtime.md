@@ -211,7 +211,7 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `steer-boundary` arrives when native command-start evidence is followed by
    root output, even if the preceding product turn has already settled.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
-   are marked aborted in the live projection and are not automatically resent.
+   receive native aborted evidence and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
@@ -554,10 +554,10 @@ the shared prefix's original context. Confirmed native progress marks the
 binding as `bound`; the product message tree owns the published branch head.
 
 For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
-Main stores the native context binding and placed input entry ID on the existing user message.
-Input outcomes and response associations remain in the live projection; assistant persistence
-confirms the branch binding and saves its resume token and checkpoint atomically.
-Observation snapshots establish the live
+Main keeps two private identities on the user message: the captured `inputContextId` and the
+evidenced `nativeInputId`. Connections consume native receipts and outcomes; response projection
+persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
+while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
 projection baseline and never replace or replay the product archive. Lost observations fail closed.
 A bound or previously submitted context requires exactly one existing native file with the expected
 ID. A missing or ambiguous file is an error, not permission to recreate from display history.

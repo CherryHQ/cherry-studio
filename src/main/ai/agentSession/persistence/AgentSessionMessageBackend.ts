@@ -81,7 +81,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         },
         {
           publishDataChange: true,
-          projection,
+          projection
         }
       )
     }
