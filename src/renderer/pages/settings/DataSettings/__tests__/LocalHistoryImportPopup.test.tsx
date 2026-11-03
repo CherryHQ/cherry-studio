@@ -134,8 +134,8 @@ describe('local history import dialog', () => {
         result.previewId = blocked ? 'blocked' : 'fresh'
         if (blocked)
           result.items[0].diagnostics = [
-            { code: 'unsupported_history_layout', severity: 'error' },
-            { code: 'unsupported_history_layout', severity: 'error', line: 25 },
+            { code: 'target_changed', severity: 'error' },
+            { code: 'target_changed', severity: 'error', line: 25 },
             { code: 'reasoning_compatibility', severity: 'warning' }
           ]
       }
@@ -146,7 +146,7 @@ describe('local history import dialog', () => {
     await chooseAgent(user)
     await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
     await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
-    await screen.findByText(enUS['history_import.problems.unsupported'])
+    await screen.findByText(enUS['history_import.problems.target'])
     const issues = screen.getByRole('dialog', { name: enUS['history_import.error_title'] })
     expect(issues).toHaveTextContent('1 conversations could not be imported')
     expect(within(issues).getByRole('heading')).toHaveFocus()
@@ -208,6 +208,66 @@ describe('local history import dialog', () => {
     expect(
       request.mock.calls.filter(([route]) => route === 'conversation_import.commit').map(([, payload]) => payload.refs)
     ).toEqual([['ref', 'bad'], ['bad']])
+  })
+  it('offers no repair choices or retry when an unsupported history also reports directory and branch conflicts', async () => {
+    agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (route, payload) => {
+      const result = await original(route, payload)
+      if (route === 'conversation_import.preview')
+        Object.assign(result.items[0], {
+          branches: ['a', 'b'],
+          originalDirectory: '/missing',
+          diagnostics: [
+            { code: 'unsupported_history_layout', severity: 'error' },
+            { code: 'directory_required', severity: 'error' },
+            { code: 'branch_required', severity: 'error' },
+            { code: 'empty_session', severity: 'error' }
+          ]
+        })
+      if (route === 'conversation_import.commit') return [{ ref: 'ref', status: 'failed', reason: 'preview_blocked' }]
+      return result
+    })
+    const user = userEvent.setup()
+    render(<LocalHistoryImportDialog open source="codex" resolve={() => {}} />)
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    const issues = await screen.findByRole('dialog', { name: enUS['history_import.error_title'] })
+    expect(within(issues).getByText(enUS['history_import.problems.unsupported'])).toBeInTheDocument()
+    expect(within(issues).queryByText(enUS['history_import.problems.directory'])).toBeNull()
+    expect(within(issues).queryByText(enUS['history_import.problems.branch'])).toBeNull()
+    expect(within(issues).queryByRole('combobox')).toBeNull()
+    expect(within(issues).queryByRole('button', { name: enUS['history_import.folder'] })).toBeNull()
+    expect(within(issues).queryByRole('button', { name: enUS['common.retry'] })).toBeNull()
+    await user.click(within(issues).getByText(enUS['common.close'], { selector: 'button' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: enUS['history_import.error_title'] })).toBeNull())
+    expect(screen.queryByRole('button', { name: enUS['history_import.confirm'] })).toBeNull()
+  })
+  it('keeps branch selection available when choosing a branch can resolve the empty preview', async () => {
+    agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (route, payload) => {
+      const result = await original(route, payload)
+      if (route === 'conversation_import.preview')
+        Object.assign(result.items[0], {
+          branches: ['a', 'b'],
+          diagnostics: [
+            { code: 'branch_required', severity: 'error' },
+            { code: 'empty_session', severity: 'error' }
+          ]
+        })
+      if (route === 'conversation_import.commit') return [{ ref: 'ref', status: 'failed', reason: 'preview_blocked' }]
+      return result
+    })
+    const user = userEvent.setup()
+    render(<LocalHistoryImportDialog open source="claude-code" resolve={() => {}} />)
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    const issues = await screen.findByRole('dialog', { name: enUS['history_import.error_title'] })
+    expect(within(issues).getByRole('combobox', { name: enUS['history_import.branch'] })).toBeEnabled()
+    expect(within(issues).getByRole('button', { name: enUS['common.retry'] })).toBeEnabled()
   })
   it('opens commit failures separately and keeps the result summary available after closing', async () => {
     agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
