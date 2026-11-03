@@ -2360,7 +2360,7 @@
   "message.message.user_content.expand": "Expand",
   "message.processing": "Processing...",
   "message.reasoning.edit": "Edit thinking",
-  "message.reasoning.edit_hint": "Saving rewrites this message's thinking. Reasoning that carries a provider signature cannot be edited because it cannot be replayed after a change.",
+  "message.reasoning.edit_hint": "Saving rewrites this message's thinking. Provider-signed reasoning is sent to later turns as plain <think> text.",
   "message.reasoning.edit_placeholder": "Write the thinking process in Markdown...",
   "message.reasoning.edit_title": "Edit thinking process",
   "message.reasoning.empty": "Thinking content cannot be empty",

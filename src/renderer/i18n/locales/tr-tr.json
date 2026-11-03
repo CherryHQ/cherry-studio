@@ -2360,7 +2360,7 @@
   "message.message.user_content.expand": "Genişlet",
   "message.processing": "İşleniyor...",
   "message.reasoning.edit": "Düşünmeyi düzenle",
-  "message.reasoning.edit_hint": "Kaydetme bu mesajın düşünme içeriğini yeniden yazar. İmzalı akıl yürütme düzenlenemez çünkü değişiklikten sonra yeniden oynatılamaz.",
+  "message.reasoning.edit_hint": "Kaydetme bu mesajın düşünme içeriğini yeniden yazar. Sağlayıcı tarafından imzalanan akıl yürütme sonraki turlarda düz <think> metni olarak gönderilir.",
   "message.reasoning.edit_placeholder": "Düşünme sürecini Markdown olarak yazın…",
   "message.reasoning.edit_title": "Düşünme sürecini düzenle",
   "message.reasoning.empty": "Düşünme içeriği boş olamaz",

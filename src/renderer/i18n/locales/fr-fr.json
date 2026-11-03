@@ -2360,7 +2360,7 @@
   "message.message.user_content.expand": "Développer",
   "message.processing": "En cours de traitement...",
   "message.reasoning.edit": "Modifier la réflexion",
-  "message.reasoning.edit_hint": "L'enregistrement réécrit la réflexion de ce message. Un raisonnement signé ne peut pas être modifié, car il ne peut pas être rejoué après une modification.",
+  "message.reasoning.edit_hint": "L'enregistrement réécrit la réflexion de ce message. Un raisonnement signé par le fournisseur est envoyé aux tours suivants sous forme de texte brut <think>.",
   "message.reasoning.edit_placeholder": "Écrivez le processus de réflexion en Markdown…",
   "message.reasoning.edit_title": "Modifier le processus de réflexion",
   "message.reasoning.empty": "La réflexion ne peut pas être vide",
