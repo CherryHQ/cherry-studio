@@ -8,7 +8,7 @@ import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import type { InputState } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -513,6 +513,39 @@ describe('desktop Pi root connection', () => {
     expect(completion).toMatchObject({ forkAnchor: { checkpoint: { runtime: 'pi', leafId: expect.any(String) } } })
     expect(nativeFiles()).toHaveLength(1)
   })
+
+  it.each(['rejected', 'unsupported', 'unknown'] as const)(
+    'releases only explicitly refused desktop input (%s)',
+    async (status) => {
+      const { connection, events } = await connect()
+      const user = message('refused input')
+      const handle = (connection as unknown as { handle: PiThreadHandle }).handle
+      vi.spyOn(handle.input, 'submit').mockResolvedValueOnce({
+        status,
+        inputId: runtimeId(user.id),
+        error: { operation: 'submit', code: 'fixture', message: status }
+      })
+      await connection.send({ message: user })
+      await done(events)
+      expect(events.some((event) => event.type === 'error')).toBe(true)
+      const edit = () =>
+        messages.updateSessionMessage(input.sessionId, user.id, {
+          data: { parts: [{ type: 'text', text: 'corrected' }] }
+        })
+      if (status === 'unknown') {
+        expect(edit).toThrow()
+        expect(messages.inputBinding(input.sessionId, user.id)).toBeDefined()
+      } else {
+        edit()
+        expect(messages.getSessionMessage(input.sessionId, user.id).data.parts).toEqual([
+          { type: 'text', text: 'corrected' }
+        ])
+        messages.deleteSessionMessage(input.sessionId, user.id)
+        expect(() => messages.getSessionMessage(input.sessionId, user.id)).toThrow()
+      }
+      expect(script.calls).toHaveLength(0)
+    }
+  )
 
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()

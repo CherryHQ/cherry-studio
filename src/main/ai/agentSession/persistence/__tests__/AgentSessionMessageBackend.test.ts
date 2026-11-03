@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
