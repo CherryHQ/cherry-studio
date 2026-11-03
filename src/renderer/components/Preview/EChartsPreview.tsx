@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { LocalizedError } from '@renderer/utils/error'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
@@ -55,7 +56,7 @@ const EChartsPreview = ({
         option = JSON.parse(content) as EChartsCoreOption
       } catch {
         optionRef.current = null
-        throw new Error(t('code_block.preview.invalid_json'))
+        throw new LocalizedError(t('code_block.preview.invalid_json'))
       }
 
       optionRef.current = option

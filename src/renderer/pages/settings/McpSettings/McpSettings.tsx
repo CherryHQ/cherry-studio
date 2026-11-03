@@ -20,7 +20,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import type { McpTool } from '@renderer/types/tool'
-import { formatMcpError } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
@@ -315,7 +315,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       toast.success(t('settings.mcp.deleteSuccess'))
       void navigate({ to: '/settings/mcp' })
     } catch (error: any) {
-      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.mcp.deleteError')))
     }
   }, [removeMcpServer, t, navigate])
 

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { LocalizedError } from '@renderer/utils/error'
 
 import type { ConversationImporter, ImportConversation, ImportMessageNode, ImportResult } from '../types'
 
@@ -95,7 +96,7 @@ export class ChatgptImporter implements ConversationImporter {
     const conversations: ChatGPTConversation[] = Array.isArray(parsed) ? parsed : [parsed]
 
     if (!conversations || conversations.length === 0) {
-      throw new Error(i18n.t('import.chatgpt.error.no_conversations'))
+      throw new LocalizedError(i18n.t('import.chatgpt.error.no_conversations'))
     }
 
     logger.info(`Found ${conversations.length} conversations`)
@@ -113,7 +114,7 @@ export class ChatgptImporter implements ConversationImporter {
     }
 
     if (importedConversations.length === 0) {
-      throw new Error(i18n.t('import.chatgpt.error.no_valid_conversations'))
+      throw new LocalizedError(i18n.t('import.chatgpt.error.no_valid_conversations'))
     }
 
     return {

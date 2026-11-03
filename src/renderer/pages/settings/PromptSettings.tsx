@@ -32,7 +32,7 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, localizedErrorDetail } from '@renderer/utils/error'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
@@ -270,7 +270,7 @@ export function PromptSettings() {
               type="error"
               showIcon
               message={t('settings.prompts.errors.loadFailed')}
-              description={error.message}
+              description={localizedErrorDetail(error)}
               action={
                 <Button variant="outline" size="sm" onClick={() => void refetch()}>
                   {t('common.retry')}

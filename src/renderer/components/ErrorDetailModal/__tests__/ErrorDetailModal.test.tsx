@@ -362,7 +362,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(basicInformation).toBeInTheDocument()
     expect(basicInformation).toHaveAttribute('data-variant', 'sectioned')
     expect(screen.getByText('OpenAI:gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('API Key is invalid, please check and reconfigure (failed)')).toBeInTheDocument()
+    expect(screen.getByText('API Key is invalid, please check and reconfigure')).toBeInTheDocument()
     expect(within(basicInformation).getByRole('heading', { name: 'Home conversation' })).toBeInTheDocument()
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()

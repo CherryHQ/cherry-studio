@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
+import { LocalizedError } from '@renderer/utils/error'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
@@ -293,7 +294,7 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
     return parseResponse(response)
   } catch (error) {
     logger.error('Free diagnosis model unavailable', error as Error)
-    throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
+    throw new LocalizedError(i18n.t('error.diagnosis.free_model_unavailable'))
   }
 }
 

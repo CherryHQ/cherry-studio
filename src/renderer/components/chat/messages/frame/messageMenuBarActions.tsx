@@ -143,7 +143,7 @@ function canStartEditing({
 
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
   logger.error(`Message menu action failed: ${id}`, error as Error)
-  context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
+  context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.action_failed')))
 }
 
 function registerCommand(id: string, run: (context: MessageMenuBarActionContext) => void | Promise<void>) {

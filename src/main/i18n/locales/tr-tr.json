@@ -179,7 +179,7 @@
   "paintings.generate_failed": "Görüntü oluşturulamadı",
   "paintings.image_mix_failed": "Görüntüler harmanlanamadı",
   "selection.name": "Seçim Asistanı",
-  "settings.mcp.oauth.callback.listen_error": "127.0.0.1:{{port}} adresinde OAuth geri çağrısı dinlenemedi ({{reason}}). Bağlantı noktasının kullanılabilir olduğundan emin olup yeniden deneyin.",
+  "settings.mcp.oauth.callback.listen_error": "127.0.0.1:{{port}} adresinde OAuth geri çağrısı dinlenemedi. Bağlantı noktasının kullanılabilir olduğundan emin olup yeniden deneyin.",
   "settings.mcp.oauth.callback.message": "Bu sayfayı kapatıp Cherry Studio'ya dönebilirsiniz",
   "settings.mcp.oauth.callback.title": "Kimlik Doğrulama Başarılı",
   "settings.mcp.oauth.cancelled": "Yetkilendirme iptal edildi.",

@@ -1,6 +1,7 @@
 import i18n from '@renderer/i18n/resolver'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { localizedErrorDetail } from '@renderer/utils/error'
 import {
   normalizePaintingGenerateError,
   PaintingGenerateError,
@@ -19,12 +20,8 @@ export {
 } from '@shared/ai/paintingGenerateError'
 
 export function translatePaintingGenerateError(error: Error): string {
-  if (!(error instanceof PaintingGenerateError)) {
-    return error.message
-  }
-
-  if (error.code === 'REMOTE_ERROR') {
-    return error.message || i18n.t('paintings.generate_failed')
+  if (!(error instanceof PaintingGenerateError) || error.code === 'REMOTE_ERROR') {
+    return localizedErrorDetail(error) ?? i18n.t('paintings.generate_failed')
   }
 
   const keyMap: Record<Exclude<PaintingGenerateErrorCode, 'REMOTE_ERROR'>, string> = {

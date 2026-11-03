@@ -29,6 +29,7 @@ import type {
 } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import {
@@ -1449,7 +1450,7 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
     return true
   } catch (error) {
     logger.error('Failed to export to Siyuan:', error as Error)
-    toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
+    toast.error(formatErrorMessageWithPrefix(error, i18n.t('message.error.siyuan.export')))
     return false
   } finally {
     setExportingState(false)

@@ -19,6 +19,7 @@ import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsen
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
@@ -91,7 +92,9 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
           </InputGroup>
         </Field>
 
-        {error && <Alert type="error" message={t(error.key, error.params)} />}
+        {error && (
+          <Alert type="error" message={formatErrorMessageWithPrefix(error.cause, t(error.key, error.params))} />
+        )}
       </div>
 
       <DialogFooter>
@@ -123,7 +126,7 @@ const InstallMiniAppPanel: FC<{ builtinAppId: string; onClose?: () => void }> = 
 
   useEffect(() => {
     if (!error) return
-    toast.error(t(error.key, error.params))
+    toast.error(formatErrorMessageWithPrefix(error.cause, t(error.key, error.params)))
     done()
   }, [done, error, t])
 

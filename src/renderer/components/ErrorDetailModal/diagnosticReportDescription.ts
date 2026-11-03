@@ -65,11 +65,8 @@ function combineErrorParts(localized: unknown, name: unknown, message: unknown):
   const errorName = nonEmptyText(name)
   const errorMessage = nonEmptyText(message)
   const raw = errorName && errorMessage ? `${errorName}: ${errorMessage}` : (errorName ?? errorMessage)
-  const localizedMessage = nonEmptyText(localized)
-  if (localizedMessage && errorMessage && localizedMessage !== errorMessage) {
-    return `${localizedMessage} (${errorMessage})`
-  }
-  return localizedMessage ?? raw
+  // The raw message stays in the technical detail; the summary never mixes two languages.
+  return nonEmptyText(localized) ?? raw
 }
 
 function combineModelParts(provider: unknown, model: unknown): string | undefined {
