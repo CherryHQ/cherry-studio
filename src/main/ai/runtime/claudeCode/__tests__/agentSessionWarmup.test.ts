@@ -1706,7 +1706,11 @@ describe('deriveConnectionConfig', () => {
     // The replay pins the admitted values, so the baseline must describe this turn's prompt — a
     // mismatch here would let a fresh turn keep serving the primary's values until an unrelated
     // rebuild, and would hide the divergence the next turn needs to rebuild on.
-    expect(request?.capturedPromptVariables).toEqual({ username: 'Alice', modelName: 'Primary Model' })
+    expect(request?.capturedPromptVariables).toEqual({
+      username: 'Alice',
+      modelName: 'Primary Model',
+      language: 'Unknown System Language'
+    })
     const afterSave = await deriveSignature()
     expect(
       Object.keys(afterSave.rebuildFactFingerprints).filter(
