@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
@@ -109,6 +109,9 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
   const { t } = useTranslation()
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
+  const [notesPath] = usePreference('feature.notes.path')
+  const savingNote = useRef(false)
+  const [isSavingNote, setIsSavingNote] = useState(false)
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard
@@ -126,8 +129,28 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     void window.api.quoteToMainWindow(text)
   }, [])
 
+  const handleSaveToNotes = useCallback(
+    async (text: string) => {
+      if (!text.trim() || savingNote.current) return
+      savingNote.current = true
+      setIsSavingNote(true)
+      try {
+        const { exportContentToNotes } = await import('@renderer/services/ExportService')
+        const title = text.trim().split(/\r?\n/, 1)[0].slice(0, 50)
+        await exportContentToNotes(title, text, notesPath)
+      } catch (error) {
+        // The Notes exporter owns the write-failure toast.
+        logger.error('Failed to save selection to Notes', error as Error)
+      } finally {
+        savingNote.current = false
+        setIsSavingNote(false)
+      }
+    },
+    [notesPath]
+  )
+
   const getMenuItems = useCallback(
-    (text: string, quoteText: string): CommandContextMenuExtraItem[] => {
+    (text: string, quoteText: string, canSaveSelection: boolean): CommandContextMenuExtraItem[] => {
       if (text.length === 0) return []
 
       return [
@@ -142,10 +165,21 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           id: 'selection.quote',
           label: t('chat.message.quote'),
           onSelect: () => handleQuote(quoteText)
-        }
+        },
+        ...(canSaveSelection
+          ? [
+              {
+                type: 'item' as const,
+                id: 'selection.save-notes',
+                label: t('notes.save'),
+                enabled: !isSavingNote && !!quoteText.trim(),
+                onSelect: () => void handleSaveToNotes(quoteText)
+              }
+            ]
+          : [])
       ]
     },
-    [handleCopy, handleQuote, t]
+    [handleCopy, handleQuote, handleSaveToNotes, isSavingNote, t]
   )
 
   const getExtraItems = useCallback(
@@ -153,6 +187,19 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
       const selection = window.getSelection()
       const selectedText = selection ? extractSelectedText(selection) : ''
       const quoteText = selection ? extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }) : ''
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+      const canSaveSelection =
+        !!range &&
+        [range.startContainer, range.endContainer].every((node) => {
+          const element = node instanceof Element ? node : node.parentElement
+          return (
+            element &&
+            event.currentTarget.contains(element) &&
+            !element.closest(
+              'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]'
+            )
+          )
+        })
       const target = event.target instanceof Element ? event.target : null
       const anchor = target?.closest('a[href]')
       const href = anchor?.getAttribute('href')
@@ -189,11 +236,11 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           }
         ]
         return selectedLinkText
-          ? [...getMenuItems(selectedLinkText, quoteText), { type: 'separator' }, ...linkItems]
+          ? [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), { type: 'separator' }, ...linkItems]
           : linkItems
       }
 
-      return getMenuItems(selectedText, quoteText)
+      return getMenuItems(selectedText, quoteText, canSaveSelection)
     },
     [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )
@@ -201,7 +248,11 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   return (
     <TextSelectionToolbar
       onCopy={(selection) => handleCopy(extractSelectedText(selection))}
-      onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}>
+      onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}
+      onSaveToNotes={(selection) =>
+        void handleSaveToNotes(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))
+      }
+      isSavingNote={isSavingNote}>
       <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
         {children}
       </CommandContextMenu>
