@@ -112,8 +112,6 @@ function runMacHotkey(keys: string[]): void {
   // frontmost back; re-activate the viewer in the same script so the keystroke lands on it.
   const script = activeMacTextFixturePath
     ? [
-        'tell application "TextEdit" to activate',
-        'delay 0.5',
         'tell application "System Events"',
         'tell process "TextEdit" to set frontmost to true',
         'delay 0.3',
@@ -290,7 +288,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       'osascript',
       [
         '-e',
-        'tell application "TextEdit" to activate',
+        'tell application "System Events" to tell process "TextEdit" to set frontmost to true',
         '-e',
         'delay 1',
         '-e',

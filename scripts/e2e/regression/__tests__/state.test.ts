@@ -3,8 +3,8 @@ import type * as fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
 import type { TaskSelection } from '../cases'
+import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
 import type { RegressionRun } from '../types'
 
 vi.mock('node:fs', async (importOriginal) => {
