@@ -114,7 +114,7 @@ describe('local history atomic import', () => {
       expect.objectContaining({
         type: 'dynamic-tool',
         state: 'output-available',
-        output: { content: [{ type: 'text', text: 'line one\nline two' }] }
+        output: 'line one\nline two'
       })
     ])
     expect(JSON.stringify(visible.data)).not.toContain('tool_use_id')
