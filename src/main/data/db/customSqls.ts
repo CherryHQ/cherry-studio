@@ -18,6 +18,7 @@
  * 2. Import and spread them into CUSTOM_SQL_STATEMENTS below
  */
 
+import { AGENT_SESSION_IMPORT_STATEMENTS } from './schemas/agentSession'
 import { AGENT_SESSION_MESSAGE_FTS_STATEMENTS } from './schemas/agentSessionMessage'
 import { MESSAGE_FTS_STATEMENTS } from './schemas/message'
 
@@ -25,6 +26,7 @@ import { MESSAGE_FTS_STATEMENTS } from './schemas/message'
  * All custom SQL statements to run after migrations
  */
 export const CUSTOM_SQL_STATEMENTS: string[] = [
+  ...AGENT_SESSION_IMPORT_STATEMENTS,
   ...MESSAGE_FTS_STATEMENTS,
   ...AGENT_SESSION_MESSAGE_FTS_STATEMENTS
   // Add more custom SQL arrays here as needed

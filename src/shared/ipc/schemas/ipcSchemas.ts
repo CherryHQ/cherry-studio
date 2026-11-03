@@ -13,6 +13,7 @@ import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { type ComputerUseEventSchemas, computerUseRequestSchemas } from './computerUse'
+import { conversationImportRequestSchemas } from './conversationImport'
 import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { doctorRequestSchemas } from './doctor'
@@ -72,6 +73,7 @@ export const ipcRequestSchemas = {
   ...cherryCloudRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...conversationImportRequestSchemas,
   ...computerUseRequestSchemas,
   ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,

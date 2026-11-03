@@ -13,6 +13,7 @@ import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { type RuntimeForkAnchor, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
+import { appendHistoricalMessage } from './historicalMessage'
 import { loadPiSdk } from './piSdk'
 
 const logger = loggerService.withContext('retiredSessionHistory')
@@ -117,29 +118,7 @@ async function importHistory(sessionId: string): Promise<void> {
     const text = [content, ...tools.map((tool) => `Historical tool record (already executed):\n${tool}`)]
       .filter(Boolean)
       .join('\n\n')
-    if (text && row.role === 'user') {
-      manager.appendMessage({ role: 'user', content: [{ type: 'text', text }], timestamp: row.createdAt })
-    } else if (text && row.role === 'assistant') {
-      manager.appendMessage({
-        role: 'assistant',
-        content: [{ type: 'text', text }],
-        timestamp: row.createdAt,
-        api: 'openai-completions',
-        provider: 'cherry-history',
-        model: 'imported-history',
-        stopReason: 'stop',
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-        }
-      })
-    } else if (text) {
-      manager.appendCustomMessageEntry('cherry-history', text, false)
-    }
+    appendHistoricalMessage(manager, row, text)
     const leafId = manager.getLeafId()
     if (leafId && row.role === 'assistant') {
       anchors.set(row.id, {

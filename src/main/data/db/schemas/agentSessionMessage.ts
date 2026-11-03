@@ -2,6 +2,7 @@ import { asc, desc, sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
+import type { MessageProvenance } from '@shared/data/types/conversationImport'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
@@ -31,6 +32,7 @@ export const agentSessionMessageTable = sqliteTable(
     runtimeResumeToken: text(),
     inputContextId: text().references(() => agentSessionContextTable.id),
     nativeInputId: text(),
+    provenance: text({ mode: 'json' }).$type<MessageProvenance>(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
