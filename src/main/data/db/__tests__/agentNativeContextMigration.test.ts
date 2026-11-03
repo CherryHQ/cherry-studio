@@ -36,7 +36,7 @@ function archive(dbh: ReturnType<typeof setupTestDatabase>) {
       "INSERT INTO agent_session_message_file_ref (id, file_entry_id, source_id, role, created_at, updated_at) VALUES (?, ?, ?, 'attachment', 1, 1)"
     )
     .run(uuid(), fileId, messageId)
-  return { sessionId, messageId }
+  return { messageId }
 }
 
 function assertArchive(
@@ -67,6 +67,7 @@ describe('native context migrate-forward', () => {
     const before = dbh.sqlite.prepare('SELECT * FROM agent_session_message WHERE id = ?').get(messageId)
     const attachment = dbh.sqlite.prepare('SELECT * FROM agent_session_message_file_ref').get()
     applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
     assertArchive(dbh, messageId, before, attachment)
     expect(
       dbh.sqlite
@@ -74,65 +75,6 @@ describe('native context migrate-forward', () => {
         .get(messageId)
     ).toEqual({ input_context_id: null, native_input_id: null })
     expect(dbh.sqlite.prepare('SELECT count(*) AS n FROM agent_session_context').get()).toEqual({ n: 0 })
-  })
-})
-
-describe('native input binding migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0032_agent_input_bindings' })
-
-  it('preserves the captured target and native identity, including failed inputs, while dropping the receipt mirror', () => {
-    const { sessionId, messageId } = archive(dbh)
-    const backendId = uuid()
-    const contextId = uuid()
-    dbh.sqlite
-      .prepare(
-        "INSERT INTO agent_runtime_backend (id, locator, state, created_at, updated_at) VALUES (?, ?, 'bound', 1, 1)"
-      )
-      .run(backendId, JSON.stringify({ version: 1, kind: 'pi' }))
-    dbh.sqlite
-      .prepare(`INSERT INTO agent_session_context (id, session_id, backend_id, native_thread_id, binding_state, created_at, updated_at)
-      VALUES (?, ?, ?, 'native-session', 'bound', 1, 1)`)
-      .run(contextId, sessionId, backendId)
-    dbh.sqlite.prepare('UPDATE agent_session_message SET submission = ? WHERE id = ?').run(
-      JSON.stringify({
-        contextId,
-        nativeInputId: 'native-input',
-        contentHash: 'old-hash',
-        whenBusy: 'reject',
-        facts: ['accepted'],
-        outcome: 'failed'
-      }),
-      messageId
-    )
-    const uncertainId = uuid()
-    dbh.sqlite
-      .prepare(`INSERT INTO agent_session_message (id, session_id, role, data, status, submission, created_at, updated_at)
-      VALUES (?, ?, 'user', ?, 'success', ?, 2, 2)`)
-      .run(
-        uncertainId,
-        sessionId,
-        JSON.stringify({ parts: [{ type: 'text', text: 'uncertain' }] }),
-        JSON.stringify({ contextId, contentHash: 'another-hash', whenBusy: 'steer', facts: [] })
-      )
-    const before = dbh.sqlite.prepare('SELECT * FROM agent_session_message WHERE id = ?').get(messageId) as Record<
-      string,
-      unknown
-    >
-    delete before.submission
-    const attachment = dbh.sqlite.prepare('SELECT * FROM agent_session_message_file_ref').get()
-    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
-    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
-    assertArchive(dbh, messageId, before, attachment)
-    expect(
-      dbh.sqlite
-        .prepare('SELECT input_context_id, native_input_id FROM agent_session_message WHERE id = ?')
-        .get(messageId)
-    ).toEqual({ input_context_id: contextId, native_input_id: 'native-input' })
-    expect(
-      dbh.sqlite
-        .prepare('SELECT input_context_id, native_input_id FROM agent_session_message WHERE id = ?')
-        .get(uncertainId)
-    ).toEqual({ input_context_id: contextId, native_input_id: null })
     expect(
       (dbh.sqlite.pragma('table_info(agent_session_message)') as { name: string }[]).map((column) => column.name)
     ).not.toContain('submission')

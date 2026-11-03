@@ -455,7 +455,7 @@ Keep three migration scopes separate:
 
 | Scope | Data change | Cutover condition |
 | --- | --- | --- |
-| Native association and input identity — P1 | Add backend/context records and two private message identity fields. Forward-migrate existing submission identities before dropping their receipt JSON. | Preserve archives, attachments, delivery and search; failed native outcomes do not imply non-admission. |
+| Native association and input identity — P1 | Create backend/context records and two private message identity fields in one migration, without an intermediate submission JSON column. | Preserve archives, attachments, delivery and search; failed native outcomes do not imply non-admission. |
 | Agent tree and branch actions — before P2 product cutover | Add parent/root semantics to Agent messages and product selection to their owner. Replace flat history/edit-tail readers and writers together; add sparse branch/native bindings. | Selected-path queries, retained-branch edits, attachments, projection routing and native fork pass their acceptance checks. Until then, keep the current flat path; do not flatten a new tree for an old writer. |
 | Physical archive consolidation / explicit membership — separate design | Decide archive ownership and, if consolidating, migrate table references and consumers. Coordinate explicit user membership with #20635; no automatic sidebar entry for a background/child archive. | One archive writer/read model per migrated owner, preserved IDs or an explicit complete mapping, and validated navigation/retention semantics. No permanent dual-write of full messages. |
 

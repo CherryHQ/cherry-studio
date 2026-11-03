@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c0b9ea43-081f-4eb4-abb5-6199950e7794",
+  "id": "80b4de53-5f95-431b-9373-443abb6ebf82",
   "prevId": "ca035856-20b9-4247-82bb-24a464a1ee80",
   "tables": {
     "agent": {
@@ -1053,8 +1053,15 @@
           "notNull": false,
           "autoincrement": false
         },
-        "submission": {
-          "name": "submission",
+        "input_context_id": {
+          "name": "input_context_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "native_input_id": {
+          "name": "native_input_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1118,6 +1125,14 @@
         }
       },
       "indexes": {
+        "agent_session_message_native_input_uniq": {
+          "name": "agent_session_message_native_input_uniq",
+          "columns": [
+            "input_context_id",
+            "native_input_id"
+          ],
+          "isUnique": true
+        },
         "agent_session_message_session_created_id_idx": {
           "name": "agent_session_message_session_created_id_idx",
           "columns": [
@@ -1212,6 +1227,19 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_message_input_context_id_agent_session_context_id_fk": {
+          "name": "agent_session_message_input_context_id_agent_session_context_id_fk",
+          "tableFrom": "agent_session_message",
+          "tableTo": "agent_session_context",
+          "columnsFrom": [
+            "input_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },

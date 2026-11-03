@@ -24,4 +24,6 @@ CREATE TABLE `agent_session_context` (
 --> statement-breakpoint
 CREATE INDEX `agent_session_context_backend_idx` ON `agent_session_context` (`backend_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `agent_session_context_native_uniq` ON `agent_session_context` (`session_id`,`backend_id`,`native_thread_id`);--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD `submission` text;
+ALTER TABLE `agent_session_message` ADD `input_context_id` text REFERENCES agent_session_context(id);--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD `native_input_id` text;--> statement-breakpoint
+CREATE UNIQUE INDEX `agent_session_message_native_input_uniq` ON `agent_session_message` (`input_context_id`,`native_input_id`);
