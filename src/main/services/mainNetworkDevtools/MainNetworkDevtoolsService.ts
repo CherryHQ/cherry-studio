@@ -49,6 +49,8 @@ export interface MainNetworkDevtoolsEvent {
   method: string
   url: string
   requestHeaders?: Record<string, string>
+  /** Redacted wire-order entries preserve repeated Node request headers for export. */
+  requestHeaderEntries?: [string, string][]
   requestBody?: MainNetworkDevtoolsBody
   responseHeaders?: Record<string, string>
   responseBody?: MainNetworkDevtoolsBody
@@ -457,25 +459,60 @@ export class MainNetworkDevtoolsService extends BaseService {
     contentType: string | undefined,
     requestHeaders?: Record<string, string>
   ): void {
-    const requestBodyAccumulator = createBodyAccumulator(contentType, requestHeaders)
+    let requestBodyAccumulator: ReturnType<typeof createBodyAccumulator> | undefined
+    const effectiveHeaders = () =>
+      typeof request.getHeaders === 'function' && Object.keys(request.getHeaders()).length > 0
+        ? redactHeaders(request.getHeaders())
+        : requestHeaders
+    const accumulator = () => {
+      if (!requestBodyAccumulator) {
+        const headers = effectiveHeaders()
+        requestBodyAccumulator = createBodyAccumulator(getHeaderValue(headers, 'content-type') ?? contentType, headers)
+      }
+      return requestBodyAccumulator
+    }
     const target = request as unknown as MutableClientRequestMethods
     const originalWrite = target.write
     const originalEnd = target.end
-    const updateRequestBody = (requestBody: MainNetworkDevtoolsBody) => this.updateEvent(id, { requestBody })
+    const updateFinalCapture = (requestBody: MainNetworkDevtoolsBody | undefined) => {
+      // Node has serialized the actual header list by end(). Keep its repeated entries,
+      // but never publish the unredacted wire header string.
+      const wire = (request as ClientRequest & { _header?: string })._header
+      const entries: [string, string][] = []
+      if (typeof wire === 'string') {
+        for (const line of wire.split('\r\n').slice(1)) {
+          const colon = line.indexOf(':')
+          if (colon <= 0) continue
+          const name = line.slice(0, colon)
+          entries.push([name, isSensitiveHeaderName(name) ? REDACTED : line.slice(colon + 1).trim()])
+        }
+      }
+      const headers = entries.length > 0 ? Object.fromEntries(entries) : effectiveHeaders()
+      const finalType = getHeaderValue(headers, 'content-type')
+      this.updateEvent(id, {
+        requestHeaders: headers,
+        requestHeaderEntries: entries.length > 0 ? entries : undefined,
+        requestBody: requestBody
+          ? applyContentEncodingReplayConstraint(
+              { ...requestBody, contentType: finalType ?? requestBody.contentType },
+              headers
+            )
+          : undefined
+      })
+    }
 
     target.write = function monitoredWrite(this: ClientRequest, ...args: unknown[]) {
-      requestBodyAccumulator.append(args[0], args[1])
+      accumulator().append(args[0], args[1])
       return originalWrite.apply(this, args)
     }
 
     target.end = function monitoredEnd(this: ClientRequest, ...args: unknown[]) {
-      requestBodyAccumulator.append(args[0], args[1])
-      const requestBody = requestBodyAccumulator.toBody()
-      if (requestBody) {
-        // Queue the update after Node has accepted `end()` so diagnostics cannot affect request dispatch.
-        queueMicrotask(() => updateRequestBody(requestBody))
-      }
-      return originalEnd.apply(this, args)
+      accumulator().append(args[0], args[1])
+      const requestBody = accumulator().toBody()
+      const result = originalEnd.apply(this, args)
+      // Header mutations are finalized at dispatch; update even for bodyless requests.
+      queueMicrotask(() => updateFinalCapture(requestBody))
+      return result
     }
   }
 

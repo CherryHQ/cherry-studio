@@ -155,3 +155,20 @@ it('defensively omits legacy NUL-bearing captures rather than emitting a lossy s
   expect(command).not.toMatch(/\n\s+--data-raw\b/)
   expect(command).toContain('NUL')
 })
+
+it('preserves explicitly empty header values rather than suppressing the header', () => {
+  const command = loadCurlExport()({ url: 'https://example.test', requestHeaders: { 'Content-Type': '' } })
+  expect(command).toContain("'Content-Type;'")
+})
+it('preserves repeated raw Node header entries without losing the first value', () => {
+  const command = loadCurlExport()({
+    url: 'https://example.test',
+    requestHeaders: { 'X-Route': 'two' },
+    requestHeaderEntries: [
+      ['X-Route', 'one'],
+      ['X-Route', 'two']
+    ]
+  })
+  expect(command).toContain("'X-Route: one'")
+  expect(command).toContain("'X-Route: two'")
+})

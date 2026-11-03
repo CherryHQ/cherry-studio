@@ -1172,3 +1172,99 @@ it.skipIf(process.platform === 'win32')(
     }
   }
 )
+
+it('captures late-set Node header and effective body media type', async () => {
+  BaseService.resetInstances()
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as {
+    events: MainNetworkDevtoolsEvent[]
+    wrapHttpMethod: (original: (...args: unknown[]) => unknown, source: 'http') => (...args: unknown[]) => unknown
+  }
+  const request = createMockClientRequest() as ReturnType<typeof createMockClientRequest> & {
+    getHeaders: () => Record<string, string>
+  }
+  const headers: Record<string, string> = {}
+  request.getHeaders = () => headers
+  state.wrapHttpMethod(() => request, 'http')('http://example.test', { method: 'POST' })
+  headers['content-type'] = 'application/json'
+  request.end('{"api_key":"late-private-marker"}')
+  await Promise.resolve()
+  expect(state.events[0].requestHeaders).toMatchObject({ 'content-type': 'application/json' })
+  expect(state.events[0].requestBody).toMatchObject({
+    contentType: 'application/json',
+    text: '{"api_key":"<redacted>"}'
+  })
+  await service._doStop()
+})
+
+it.skipIf(process.platform === 'win32')(
+  'preserves late, empty and repeated Node headers through actual HTTP/cURL replay',
+  async () => {
+    const received: { raw: string[]; body: string }[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push({ raw: req.rawHeaders, body: Buffer.concat(chunks).toString() })
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+    const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+    vm.createContext(sandbox)
+    vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+    try {
+      for (const mode of ['late', 'empty', 'repeated'] as const) {
+        BaseService.resetInstances()
+        const service = new MainNetworkDevtoolsService()
+        const state = service as unknown as {
+          events: MainNetworkDevtoolsEvent[]
+          wrapHttpMethod: (
+            original: (...args: unknown[]) => unknown,
+            source: 'http'
+          ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+        }
+        const headers =
+          mode === 'repeated'
+            ? ['Host', new URL(url).host, 'Content-Type', 'text/plain', 'X-Route', 'one', 'X-Route', 'two']
+            : { 'Content-Type': mode === 'empty' ? '' : 'text/plain' }
+        const request = state.wrapHttpMethod(httpRequest as (...args: unknown[]) => unknown, 'http')(url, {
+          method: 'POST',
+          headers
+        })
+        if (mode === 'late') {
+          request.setHeader('Content-Type', 'application/json')
+          request.setHeader('X-Late', 'yes')
+        }
+        const body = mode === 'late' ? '{"ok":true}' : 'payload'
+        await new Promise<void>((resolve, reject) => {
+          request.on('response', (res) => {
+            res.resume()
+            res.on('end', resolve)
+          })
+          request.on('error', reject)
+          request.end(body)
+        })
+        const event = state.events[0]
+        const command = sandbox.buildCurlCommand?.(event) as string
+        await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+        const selected = (value: (typeof received)[number]) => ({
+          headers: value.raw.flatMap((name, index) =>
+            index % 2 === 0 && ['content-type', 'x-route', 'x-late'].includes(name.toLowerCase())
+              ? [[name.toLowerCase(), value.raw[index + 1]]]
+              : []
+          ),
+          body: value.body
+        })
+        expect(selected(received.at(-1) as (typeof received)[number])).toEqual(
+          selected(received.at(-2) as (typeof received)[number])
+        )
+        if (mode === 'late') expect(event.requestBody?.contentType).toBe('application/json')
+        await service._doStop()
+      }
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)

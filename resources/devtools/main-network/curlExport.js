@@ -37,9 +37,9 @@ function buildCurlCommand(event) {
   }
 
   const requestHeaders = event.requestHeaders ?? {}
-  for (const [key, value] of Object.entries(requestHeaders)) {
+  for (const [key, value] of event.requestHeaderEntries ?? Object.entries(requestHeaders)) {
     if (shouldSkipCurlHeader(key)) continue
-    parts.push('-H', shellQuoteSingle(`${key}: ${value}`))
+    parts.push('-H', shellQuoteSingle(value === '' ? `${key};` : `${key}: ${value}`))
   }
 
   if (includeBody && getHeaderValue(requestHeaders, 'content-type') === undefined) {
