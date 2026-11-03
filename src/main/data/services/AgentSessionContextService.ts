@@ -47,20 +47,15 @@ class AgentSessionContextService {
     })
   }
 
-  allocateContext(sessionId: string, backendId: string, intendedThreadId?: string): AgentSessionContextRow {
+  allocateContext(sessionId: string, backendId: string, nativeThreadId?: string): AgentSessionContextRow {
     return application
       .get('DbService')
-      .withWriteTx((tx) => this.allocateContextTx(tx, sessionId, backendId, intendedThreadId))
+      .withWriteTx((tx) => this.allocateContextTx(tx, sessionId, backendId, nativeThreadId))
   }
 
-  allocateContextTx(
-    tx: DbOrTx,
-    sessionId: string,
-    backendId: string,
-    intendedThreadId?: string
-  ): AgentSessionContextRow {
+  allocateContextTx(tx: DbOrTx, sessionId: string, backendId: string, nativeThreadId?: string): AgentSessionContextRow {
     this.backendTx(tx, backendId)
-    if (intendedThreadId) {
+    if (nativeThreadId) {
       const existing = tx
         .select()
         .from(contexts)
@@ -68,13 +63,13 @@ class AgentSessionContextService {
           and(
             eq(contexts.sessionId, sessionId),
             eq(contexts.backendId, backendId),
-            eq(contexts.intendedThreadId, intendedThreadId)
+            eq(contexts.nativeThreadId, nativeThreadId)
           )
         )
         .get()
       if (existing) return existing
     }
-    return tx.insert(contexts).values({ sessionId, backendId, intendedThreadId }).returning().get()
+    return tx.insert(contexts).values({ sessionId, backendId, nativeThreadId }).returning().get()
   }
 
   context(id: string): AgentSessionContextRow {
@@ -91,15 +86,12 @@ class AgentSessionContextService {
     if (!nativeThreadId.trim()) throw new Error('Native thread identity is empty')
     return application.get('DbService').withWriteTx((tx) => {
       const row = this.contextTx(tx, id)
-      if (
-        (row.nativeThreadId && row.nativeThreadId !== nativeThreadId) ||
-        (row.intendedThreadId && row.intendedThreadId !== nativeThreadId)
-      ) {
+      if (row.nativeThreadId && row.nativeThreadId !== nativeThreadId) {
         throw new Error('Native context identity cannot change')
       }
       return tx
         .update(contexts)
-        .set({ nativeThreadId, updatedAt: Date.now() })
+        .set({ nativeThreadId, bindingState: 'bound', updatedAt: Date.now() })
         .where(eq(contexts.id, id))
         .returning()
         .get()

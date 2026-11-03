@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-17-agent-runtime-contract.md
-2026-10-17-agent-runtime-contract.md: 3ddf18604fd4eff97e437467b9cb2b0ecb5af699
-2026-10-17-agent-runtime-contract.zh.md: 3c9026ac3ee23ddbf964a509338bb176fd889830
+2026-10-17-agent-runtime-contract.md: a447507011d9867efb3b1eb693a5d7e18b7ab033
+2026-10-17-agent-runtime-contract.zh.md: 44b7e467869145c978571485e7a45a539c9c1af8

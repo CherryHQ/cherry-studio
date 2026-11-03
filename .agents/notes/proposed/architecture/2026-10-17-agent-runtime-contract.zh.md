@@ -405,7 +405,7 @@ Durable 的数字 conversation ID 只标识 store 内记录，不能标识 store
 | 记录 | 最少保存的事实 | 约束 |
 | --- | --- | --- |
 | `agent_runtime_backend` | 稳定 backend ID、harness 类型、带版本的私有定位信息、创建意图和已确认的原生绑定。 | 原生存储只有一个 Main 所有者；位置变更保留身份，打开不初始化缺失的已绑定 store。 |
-| `agent_session_context` | 产品上下文 ID、`sessionId`、backend ID、创建意图、可选的已确认原生 Thread ID 与私有定位信息。 | 已确认关联按 `(sessionId, backendId, nativeThreadId)` 唯一；未绑定的创建意图不可打开。它描述原生关联，不表达消息前序。 |
+| `agent_session_context` | 产品上下文 ID、`sessionId`、backend ID、单个可选的 `nativeThreadId`，以及显式的 `bindingState: pending | bound`。 | 身份按 `(sessionId, backendId, nativeThreadId)` 唯一；pending 记录可以预留 ID，bound 记录必须持有原生证据确认的 ID。它描述原生关联，不表达消息前序。 |
 | 既有用户消息及 Main 私有提交元数据 | 复用消息 ID 作为 `InputId`，保留已提交内容。仅在路由、UI 或恢复需要时保存已捕获目标/策略、原生身份或确认事实；稳定 Durable key 可由消息 ID 得出并显式传入。 | 改变目标、内容或策略时创建新消息/输入。多条消息可以关联同一有证据的响应，响应或 outcome 都可以缺失。消息 `success` 不证明原生接纳。 |
 
 使用 `Context` 表示原生关联，保留 `InputId` 作为逻辑 Runtime 身份，不另建 `Ref` 实体，也不要求输入表。Main 在构造适配器类型前验证带版本的原生定位/身份字段。提交元数据由 Main 私有管理，位于 Renderer 可编辑的消息 parts 之外，只增加有具体消费者的字段。不把文件位置、原生文档载荷或接纳记录暴露为可编辑消息数据。
@@ -474,7 +474,7 @@ Pi 没有持久输入去重，不自动重试不确定的 Pi 调用。用户明�
 | 导航与成员关系 | 协同迁移收藏、保存的路由/标签页、排序、活跃时间、回收站及占位会话复用。保留 agent/workspace、task-schedule 和 channel 绑定；`agentId` 不能当作 `assistantId`。通用 topic 导航纳入 Agent 归档前，必须明确成员关系。 |
 | 备份与清理 | 一起捕获映射、产品元数据和原生关联；移除旧所有者前，恢复/永久删除必须理解新所有者。共享原生 store 仍受全部保留绑定保护。 |
 
-数据库回填通过已注册的 [AgentSessionContextSeeder](../../../../src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts) 执行，顺序在旧 runtime 迁移 seeder 之后。它采用 `run-on-change`，覆盖已有安装，并在 `DbService` 尚在初始化时，使用传入的 `db` 执行同步事务。对于已知 Pi 会话，收集去重后的 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId` 候选；待执行的 DSH 转换仅提供预先分配的新 Pi 身份，不使用旧 DSH token。其他 harness 和无法确定所有者的孤立历史保留归档，不猜测 Pi 关联。保留已有关联不变；新候选只设置 `intendedThreadId`，`nativeThreadId` 保持 null。
+数据库回填通过已注册的 [AgentSessionContextSeeder](../../../../src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts) 执行，顺序在旧 runtime 迁移 seeder 之后。它采用 `run-on-change`，覆盖已有安装，并在 `DbService` 尚在初始化时，使用传入的 `db` 执行同步事务。对于已知 Pi 会话，收集去重后的 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId` 候选；待执行的 DSH 转换仅提供预先分配的新 Pi 身份，不使用旧 DSH token。其他 harness 和无法确定所有者的孤立历史保留归档，不猜测 Pi 关联。保留已有关联不变；新候选将 ID 保留在 `nativeThreadId` 中，并设置 `bindingState: pending`。确认只改变绑定状态，不复制或改变身份。追加式迁移保留预留及已确认身份，不将待完成创建提升为已确认。
 
 Seeder 事务只操作数据库，不读取原生文件、不创建 harness、不选择写入者、不改写消息历史，也不补造提交事实。Seeder journal 表示候选登记完成，不表示原生历史可用。事务失败不会留下部分回填；写入已提交但 journal 丢失时，重跑仍保留已有身份。
 

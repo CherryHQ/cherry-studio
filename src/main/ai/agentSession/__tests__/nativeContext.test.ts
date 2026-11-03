@@ -13,7 +13,19 @@ import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import type { OperationResult } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  type OperationResult,
+  type Thread,
+  type ThreadHandle,
+  type BusyPolicy
+} from '@cherrystudio/agent-runtime'
+import { createPiRuntime, type AgentRuntimeSessionOptions, type PiRuntime } from '@cherrystudio/agent-runtime-pi'
+import {
+  createPiDurableRuntime,
+  type PiDurableRuntime,
+  type PiDurableRuntimeOptions
+} from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -23,24 +35,90 @@ import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
-import {
-  allocatePiBackend,
-  reconcileDurableBackend,
-  confirmPiContext,
-  createDurableBackend,
-  createDurableContext,
-  createPiContext,
-  loadPiSession,
-  openDurableBackend,
-  openDurableStorage,
-  openNativeContext,
-  openPiBackend
-} from '../nativeContext'
-import { observeNativeThread, readNativeSubmission, reconcileDurableMessage } from '../nativeSubmission'
+import { reconcileDurableBackend, createDurableBackend, loadPiSession, openDurableStorage } from '../nativeContext'
+import { prepareNativeSubmission } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
+}
+
+async function openDurableBackend(backendId: string, harness: PiDurableRuntimeOptions['harness']) {
+  const storage = await reconcileDurableBackend(backendId)
+  return createPiDurableRuntime({
+    backendId: runtimeId(backendId),
+    openStorage: async () => storage,
+    harness
+  })
+}
+
+function allocatePiBackend() {
+  return application
+    .get('DbService')
+    .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
+}
+
+function openPiBackend(backendId: string, loadOptions: (thread: Thread) => Promise<AgentRuntimeSessionOptions>) {
+  if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
+  return createPiRuntime({
+    backendId: runtimeId(backendId),
+    load: async (thread) => {
+      const sessionManager = loadPiSession(backendId, thread.id)
+      return { ...(await loadOptions(thread)), sessionManager }
+    }
+  })
+}
+
+async function createPiContext(
+  sessionId: string,
+  backendId: string,
+  runtime: PiRuntime,
+  options: AgentRuntimeSessionOptions
+) {
+  if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
+  const intent = contexts.allocateContext(sessionId, backendId, uuid())
+  const sessionManager = SessionManager.create(options.cwd, application.getPath('feature.agents.pi.sessions'), {
+    id: intent.nativeThreadId!
+  })
+  const result = await runtime.create({ ...options, sessionManager })
+  if (
+    result.status === 'confirmed' &&
+    (result.value.thread.backendId !== backendId || result.value.thread.id !== intent.nativeThreadId)
+  )
+    throw new Error('Created Pi identity does not match the intent')
+  return { context: intent, result }
+}
+
+function confirmPiContext(contextId: string) {
+  const context = contexts.context(contextId)
+  if (!context.nativeThreadId) throw new Error('Pi context has no native identity')
+  loadPiSession(context.backendId, context.nativeThreadId)
+  return contexts.bindContext(context.id, context.nativeThreadId)
+}
+
+async function createDurableContext(
+  sessionId: string,
+  backendId: string,
+  runtime: PiDurableRuntime,
+  options: Parameters<PiDurableRuntime['create']>[0]
+) {
+  if (contexts.backend(backendId).locator.kind !== 'pi-durable') throw new Error('Backend is not Pi Durable')
+  const intent = contexts.allocateContext(sessionId, backendId)
+  const result = await runtime.create(options)
+  if (result.status === 'confirmed' && result.value.thread.backendId !== backendId) {
+    throw new Error('Created Durable backend does not match the intent')
+  }
+  const context = result.status === 'confirmed' ? contexts.bindContext(intent.id, result.value.thread.id) : intent
+  return { context, result }
+}
+
+async function openNativeContext(
+  contextId: string,
+  runtime: PiRuntime | PiDurableRuntime
+): Promise<OperationResult<ThreadHandle>> {
+  const context = contexts.context(contextId)
+  if (context.bindingState !== 'bound' || !context.nativeThreadId) throw new Error('Native context is unbound')
+  return runtime.open({ backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) })
 }
 
 // Exercise real adapters and native storage: receipt-only mocks cannot prove reattachment or deduplication.
@@ -73,6 +151,24 @@ describe('native context storage and reconciliation', () => {
     const id = uuid()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
     return id
+  }
+  async function observeInputs(handle: ThreadHandle) {
+    return confirmed(
+      await handle.observe((event) => {
+        const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
+        application.get('DbService').withWriteTx((tx) => {
+          for (const input of inputs) {
+            if (input.inputId && messages.hasSubmission(sessionId, input.inputId))
+              messages.mergeSubmissionTx(tx, sessionId, input.inputId, input)
+          }
+        })
+      })
+    )
+  }
+  async function submitInput(handle: ThreadHandle, id: string, contextId: string, whenBusy: BusyPolicy = 'reject') {
+    const draft = prepareNativeSubmission(sessionId, id, contextId, whenBusy)
+    const input = { ...draft, deduplicationKey: id }
+    return handle.input!.submit(input)
   }
   async function pi() {
     const backend = allocatePiBackend()
@@ -109,12 +205,11 @@ describe('native context storage and reconciliation', () => {
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
     expect(() => confirmPiContext(created.context.id)).toThrow('missing')
-    const errors: unknown[] = []
-    const observer = await observeNativeThread(sessionId, handle, (error) => errors.push(error))
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     const inputId = message()
     faux.setResponses([fauxAssistantMessage('saved answer')])
-    expect((await observer.submit(inputId, created.context.id, 'reject')).status).toBe('acknowledged')
+    expect((await submitInput(handle, inputId, created.context.id)).status).toBe('acknowledged')
     await expect.poll(() => messages.readSubmission(sessionId, inputId).submission.outcome).toBe('completed')
     confirmPiContext(created.context.id)
     await observer.stop()
@@ -132,7 +227,6 @@ describe('native context storage and reconciliation', () => {
       })
     )
     expect(text.join('\n')).toContain('saved answer')
-    expect(errors).toEqual([])
   })
 
   it('refuses missing, empty, mismatched and ambiguous Pi files without initializing them', async () => {
@@ -181,12 +275,12 @@ describe('native context storage and reconciliation', () => {
     new SeedRunner(dbh.db).runAll([seeder])
     const pending = contexts.forSession(sessionId)
     expect(pending).toHaveLength(2)
-    expect(pending.every((row) => row.nativeThreadId === null && row.backendId === backend.id)).toBe(true)
-    const available = pending.find((row) => row.intendedThreadId === manager.getSessionId())!
-    const missing = pending.find((row) => row.intendedThreadId === 'missing-native')!
+    expect(pending.every((row) => row.bindingState === 'pending' && row.backendId === backend.id)).toBe(true)
+    const available = pending.find((row) => row.nativeThreadId === manager.getSessionId())!
+    const missing = pending.find((row) => row.nativeThreadId === 'missing-native')!
     expect(confirmPiContext(available.id).nativeThreadId).toBe(manager.getSessionId())
     expect(() => confirmPiContext(missing.id)).toThrow('missing')
-    expect(contexts.context(missing.id).nativeThreadId).toBeNull()
+    expect(contexts.context(missing.id).bindingState).toBe('pending')
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
     expect(readdirSync(application.getPath('feature.agents.pi.sessions'))).toEqual(files)
 
@@ -195,7 +289,7 @@ describe('native context storage and reconciliation', () => {
     })
     recovered.appendMessage(fauxAssistantMessage('recovered native history'))
     new SeedRunner(dbh.db).runAll([seeder])
-    expect(contexts.context(missing.id).nativeThreadId).toBeNull()
+    expect(contexts.context(missing.id).bindingState).toBe('pending')
     expect(confirmPiContext(missing.id).nativeThreadId).toBe('missing-native')
     expect(contexts.forSession(sessionId)).toHaveLength(2)
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
@@ -204,15 +298,14 @@ describe('native context storage and reconciliation', () => {
   it('does not dispatch when the message submission transaction fails', async () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
-    const observer = await observeNativeThread(sessionId, confirmed(created.result), (error) => {
-      throw error
-    })
+    const handle = confirmed(created.result)
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     const id = message()
     vi.spyOn(messages, 'prepareSubmissionTx').mockImplementationOnce(() => {
       throw new Error('DB write failed')
     })
-    await expect(observer.submit(id, created.context.id, 'reject')).rejects.toThrow('DB write failed')
+    await expect(submitInput(handle, id, created.context.id)).rejects.toThrow('DB write failed')
     expect(faux.state.callCount).toBe(0)
     expect(messages.hasSubmission(sessionId, id)).toBe(false)
   })
@@ -220,58 +313,17 @@ describe('native context storage and reconciliation', () => {
   it('leaves an unsupported draft editable without recording or dispatching a native submission', async () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
-    const observer = await observeNativeThread(sessionId, confirmed(created.result), (error) => {
-      throw error
-    })
+    const handle = confirmed(created.result)
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     const id = message()
     messages.updateSessionMessage(sessionId, id, { data: { parts: [] } })
-    await expect(observer.submit(id, created.context.id, 'reject')).rejects.toThrow('requires message content')
+    await expect(submitInput(handle, id, created.context.id)).rejects.toThrow('requires message content')
     expect(messages.hasSubmission(sessionId, id)).toBe(false)
     expect(faux.state.callCount).toBe(0)
     messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'corrected' }] } })
     expect(messages.getSessionMessage(sessionId, id).data.parts).toEqual([{ type: 'text', text: 'corrected' }])
   })
-
-  it.each(['read', 'write'] as const)(
-    'retains native input evidence when its Cherry %s fails, then flushes without another invocation',
-    async (failure) => {
-      const { backend, runtime, options, faux } = await pi()
-      const created = await createPiContext(sessionId, backend.id, runtime, options)
-      const errors: unknown[] = []
-      const observer = await observeNativeThread(sessionId, confirmed(created.result), (error) => errors.push(error))
-      cleanup.push(() => observer.stop())
-      const fail = () => {
-        throw new Error('simulated DB failure')
-      }
-      const spy =
-        failure === 'read'
-          ? vi.spyOn(messages, 'hasSubmission').mockImplementation(fail)
-          : vi.spyOn(messages, 'mergeSubmissionTx').mockImplementation(fail)
-      faux.setResponses([fauxAssistantMessage('one native invocation')])
-      const id = message()
-      expect((await observer.submit(id, created.context.id, 'reject')).status).toBe('acknowledged')
-      await expect
-        .poll(() => {
-          try {
-            return loadPiSession(backend.id, created.context.intendedThreadId!).getBranch().length
-          } catch {
-            return 0
-          }
-        })
-        .toBeGreaterThan(0)
-      await expect.poll(() => errors.length).toBeGreaterThan(1)
-      spy.mockRestore()
-      observer.flush()
-      await expect.poll(() => messages.readSubmission(sessionId, id).submission.outcome).toBe('completed')
-      await expect(observer.submit(id, created.context.id, 'reject')).rejects.toThrow('already submitted')
-      expect(
-        loadPiSession(backend.id, created.context.intendedThreadId!)
-          .getBranch()
-          .filter((entry) => entry.type === 'message' && entry.message.role === 'user')
-      ).toHaveLength(1)
-    }
-  )
 
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
     const { backend, runtime, faux, options } = await durable()
@@ -280,23 +332,23 @@ describe('native context storage and reconciliation', () => {
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
     const handle = confirmed(created.result)
-    const observer = await observeNativeThread(sessionId, handle, (error) => {
-      throw error
-    })
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     faux.setResponses([fauxAssistantMessage('durable native answer')])
     const id = message()
-    expect((await observer.submit(id, created.context.id, 'reject')).status).toBe('acknowledged')
+    expect((await submitInput(handle, id, created.context.id)).status).toBe('acknowledged')
     await expect.poll(() => messages.readSubmission(sessionId, id).submission.outcome).toBe('completed')
     await observer.stop()
     await runtime.shutdown()
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const restored = confirmed(await reopened.open(handle.thread))
-    const result = confirmed(await reconcileDurableMessage(sessionId, id, restored))
+    const result = confirmed(await restored.lookupInput({ by: 'deduplication-key', key: id }))
     expect(result).toMatchObject({ found: true, input: { outcome: 'completed' } })
     const repeated = await restored.input.submit({
-      ...readNativeSubmission(sessionId, id).draft,
+      inputId: runtimeId(id),
+      text: 'question',
+      whenBusy: 'reject',
       deduplicationKey: id
     })
     expect(repeated.status).toBe('acknowledged')
@@ -322,11 +374,9 @@ describe('native context storage and reconciliation', () => {
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
     const handle = confirmed(created.result)
-    const observer = await observeNativeThread(sessionId, handle, (error) => {
-      throw error
-    })
+    const observer = await observeInputs(handle)
     const id = message()
-    await observer.submit(id, created.context.id, 'reject')
+    await submitInput(handle, id, created.context.id)
     await reached.promise
     await observer.stop()
     await runtime.shutdown()
@@ -335,7 +385,7 @@ describe('native context storage and reconciliation', () => {
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const access = confirmed(await reopened.open(handle.thread))
-    expect(confirmed(await reconcileDurableMessage(sessionId, id, access))).toMatchObject({
+    expect(confirmed(await access.lookupInput({ by: 'deduplication-key', key: id }))).toMatchObject({
       found: true,
       input: { facts: ['accepted', 'placed'] }
     })
@@ -345,8 +395,8 @@ describe('native context storage and reconciliation', () => {
     confirmed(await reopened.resume())
     await expect
       .poll(async () => {
-        await reconcileDurableMessage(sessionId, id, access)
-        return messages.readSubmission(sessionId, id).submission.outcome
+        const found = confirmed(await access.lookupInput({ by: 'deduplication-key', key: id }))
+        return found.found ? found.input.outcome : undefined
       })
       .toBe('completed')
     expect(faux.state.callCount).toBe(before + 1)

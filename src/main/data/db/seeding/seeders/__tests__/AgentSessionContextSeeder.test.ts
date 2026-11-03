@@ -91,8 +91,8 @@ describe('AgentSessionContextSeeder', () => {
     new SeedRunner(dbh.db).runAll(upgradeSeeders)
 
     const contexts = dbh.db.select().from(agentSessionContextTable).all()
-    expect(contexts.map((row) => row.intendedThreadId).sort()).toEqual(['edited-pi', 'original-pi'])
-    expect(contexts.every((row) => row.sessionId === id && row.nativeThreadId === null)).toBe(true)
+    expect(contexts.map((row) => row.nativeThreadId).sort()).toEqual(['edited-pi', 'original-pi'])
+    expect(contexts.every((row) => row.sessionId === id && row.bindingState === 'pending')).toBe(true)
     expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toHaveLength(1)
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
     expect(journal()?.value).toEqual({ version: seeder.version })
@@ -105,7 +105,7 @@ describe('AgentSessionContextSeeder', () => {
     const context = dbh.db.select().from(agentSessionContextTable).get()!
     dbh.db
       .update(agentSessionContextTable)
-      .set({ intendedThreadId: null, nativeThreadId: 'retained-pi' })
+      .set({ bindingState: 'bound', nativeThreadId: 'retained-pi' })
       .where(eq(agentSessionContextTable.id, context.id))
       .run()
     const before = dbh.db.select().from(agentSessionContextTable).all()
@@ -150,7 +150,7 @@ describe('AgentSessionContextSeeder', () => {
     const migration = getRetiredAgentSessionMigration(dbh.db, id)!
     expect(migration).toBeDefined()
     expect(dbh.db.select().from(agentSessionContextTable).all()).toMatchObject([
-      { sessionId: id, intendedThreadId: migration.resumeToken, nativeThreadId: null }
+      { sessionId: id, nativeThreadId: migration.resumeToken, bindingState: 'pending' }
     ])
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
   })

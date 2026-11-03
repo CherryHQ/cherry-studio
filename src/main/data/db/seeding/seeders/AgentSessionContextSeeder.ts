@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentRuntimeBackendTable as backends } from '@data/db/schemas/agentRuntimeBackend'
@@ -52,12 +52,12 @@ export class AgentSessionContextSeeder implements ISeeder {
                 and(
                   eq(contexts.sessionId, session.id),
                   eq(contexts.backendId, backend.id),
-                  or(eq(contexts.intendedThreadId, id), eq(contexts.nativeThreadId, id))
+                  eq(contexts.nativeThreadId, id)
                 )
               )
               .get()
             if (!existing) {
-              tx.insert(contexts).values({ sessionId: session.id, backendId: backend.id, intendedThreadId: id }).run()
+              tx.insert(contexts).values({ sessionId: session.id, backendId: backend.id, nativeThreadId: id }).run()
             }
           }
         }

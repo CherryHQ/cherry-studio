@@ -404,7 +404,7 @@ export class AgentSessionMessageService {
       .from(agentSessionContextTable)
       .where(eq(agentSessionContextTable.id, row.submission.contextId))
       .get()
-    const nativeId = context?.nativeThreadId ?? context?.intendedThreadId
+    const nativeId = context?.nativeThreadId
     if (!context || context.sessionId !== sessionId || !nativeId) throw new Error('Native input target is unresolved')
     return {
       submission: row.submission,
