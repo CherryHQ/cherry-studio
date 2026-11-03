@@ -142,6 +142,7 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: 18888 })
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
 
     act(() => cacheService.setShared('feature.openclaw.gateway_status', 'running'))
     expect(result.current.running).toBe(true)

@@ -89,14 +89,13 @@ export function useHermesDashboardController(
         toast.error(withDetail(t(START_ERROR_KEYS[result.reason]), result.message))
         return
       }
-      openDashboard(result.url)
     } catch (error) {
       logger.error('Failed to launch Hermes Dashboard', error as Error)
       toast.error(t(START_ERROR_KEYS.startup_failed))
     } finally {
       if (epoch === operationEpoch.current) setPendingOperation(null)
     }
-  }, [onConfigMayHaveChanged, openDashboard, t])
+  }, [onConfigMayHaveChanged, t])
 
   const onStop = useCallback(async () => {
     const epoch = ++operationEpoch.current

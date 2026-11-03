@@ -69,7 +69,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
 
       {files.length > 1 ? (
         <Tabs value={activeFile?.target} onValueChange={setRequestedTarget} className="min-w-0">
-          <TabsList className="h-8 max-w-full overflow-x-auto rounded-md bg-muted/40 p-0.5">
+          <TabsList className="h-8 max-w-full justify-start overflow-x-auto rounded-md bg-muted/40 p-0.5">
             {files.map((file) => (
               <TabsTrigger key={file.target} value={file.target} className="h-7 shrink-0 px-2 text-xs">
                 {file.label}

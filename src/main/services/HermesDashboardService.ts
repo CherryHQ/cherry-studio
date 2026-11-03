@@ -73,7 +73,7 @@ export class HermesDashboardService extends BaseService {
   async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
     return this.operationMutex.runExclusive(async () => {
       if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
-        throw new Error(t('code_cli.config.hermes_running'))
+        throw new Error(t('code_cli.config.service_running', { tool: 'Hermes' }))
       }
       return write()
     })

@@ -11,6 +11,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
 export type DeepSeekHarnessProtocol = 'anthropic-messages' | 'openai-responses' | 'openai-completions'
@@ -51,9 +52,9 @@ interface LockOwner {
   token: string
 }
 
-const SETTINGS_FILE = 'settings.yaml'
-const CREDENTIALS_FILE = '.credentials.yaml'
-const PROFILE_FILE = 'cordis.patch.yml'
+const SETTINGS_FILE = CLI_CONFIG_FILE_SPECS['dsh-settings'].path
+const CREDENTIALS_FILE = CLI_CONFIG_FILE_SPECS['dsh-credentials'].path
+const PROFILE_FILE = CLI_CONFIG_FILE_SPECS['dsh-profile'].path
 const FILE_MODE = 0o600
 const LOCK_TIMEOUT_MS = 2000
 const LOCK_INITIAL_DELAY_MS = 20
@@ -480,27 +481,33 @@ export function createDeepSeekHarnessDirectIdentity(
   }
 }
 
+export async function withDeepSeekHarnessConfigLock<T>(configDir: string, write: () => Promise<T>): Promise<T> {
+  const paths = [
+    CREDENTIALS_FILE,
+    SETTINGS_FILE,
+    PROFILE_FILE,
+    'profiles/headless/package.json',
+    'profiles/acp/package.json'
+  ].map((file) => path.join(configDir, file))
+  for (const file of paths) await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
+  const locks = await acquireConfigLocks(...paths)
+  try {
+    return await write()
+  } finally {
+    await releaseLocks(locks)
+  }
+}
+
 export async function writeDeepSeekHarnessConfig(
   configDir: AbsoluteFilePath,
   projection: DeepSeekHarnessProjection
 ): Promise<DeepSeekHarnessConfigReceipt> {
-  await fs.mkdir(configDir, { recursive: true, mode: 0o700 })
   const credentialsPath = AbsoluteFilePathSchema.parse(path.join(configDir, CREDENTIALS_FILE))
   const settingsPath = AbsoluteFilePathSchema.parse(path.join(configDir, SETTINGS_FILE))
   const profilePath = AbsoluteFilePathSchema.parse(path.join(configDir, PROFILE_FILE))
   const headlessPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'headless', PROFILE_FILE))
   const acpPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'acp', PROFILE_FILE))
-  await fs.mkdir(path.dirname(headlessPath), { recursive: true, mode: 0o700 })
-  await fs.mkdir(path.dirname(acpPath), { recursive: true, mode: 0o700 })
-  const locks = await acquireConfigLocks(
-    credentialsPath,
-    settingsPath,
-    profilePath,
-    path.join(path.dirname(headlessPath), 'package.json'),
-    path.join(path.dirname(acpPath), 'package.json')
-  )
-
-  try {
+  return withDeepSeekHarnessConfigLock(configDir, async () => {
     const credentials = await readSnapshot(credentialsPath)
     const settings = await readSnapshot(settingsPath)
     const profile = await readSnapshot(profilePath)
@@ -541,9 +548,7 @@ export async function writeDeepSeekHarnessConfig(
       headless: { ...headless, written: writtenHeadless },
       acp: { ...acp, written: writtenAcp }
     }
-  } finally {
-    await releaseLocks(locks)
-  }
+  })
 }
 
 export async function rollbackDeepSeekHarnessConfig(receipt: DeepSeekHarnessConfigReceipt): Promise<boolean> {

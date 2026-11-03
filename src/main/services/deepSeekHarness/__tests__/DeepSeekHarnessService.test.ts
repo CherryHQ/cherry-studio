@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
+import { MockMainPreferenceServiceExport } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -163,6 +164,7 @@ describe('DeepSeekHarnessService', () => {
           getCurrentConfig: mocks.gatewayGetConfig
         }
       }
+      if (name === 'PreferenceService') return MockMainPreferenceServiceExport.preferenceService
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       if (name === 'CacheService') return { setShared: mocks.setShared }
       throw new Error(`Unexpected application.get(${name})`)
@@ -207,6 +209,19 @@ describe('DeepSeekHarnessService', () => {
     })
     return child
   }
+
+  it('rejects raw configuration writes while its managed service is running', async () => {
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+    await service.start(startInput)
+    const write = vi.fn(async () => undefined)
+    try {
+      await expect(service.writeConfigFiles(write)).rejects.toThrow('DeepSeek Harness')
+      expect(write).not.toHaveBeenCalled()
+    } finally {
+      await service.stop()
+    }
+  })
 
   it('serializes concurrent starts into one child and confirms the ready URL with HTTP 200', async () => {
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))

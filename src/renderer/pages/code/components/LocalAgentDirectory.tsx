@@ -957,11 +957,8 @@ export function LocalAgentDetails({
               }
               actions={
                 <>
-                  {available && renderActions?.(initial, busy)}
                   {available ? (
                     <>
-                      {terminalButton}
-                      <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
                       {initial.protocol === 'acp' && (
                         <LocalAgentLogin
                           config={initial}
@@ -994,6 +991,9 @@ export function LocalAgentDetails({
                           }}
                         />
                       )}
+                      {renderActions?.(initial, busy)}
+                      <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
+                      {terminalButton}
                       <Tooltip content={chatDisabledReason} asChild>
                         <span className="inline-flex" tabIndex={chatDisabledReason ? 0 : undefined}>
                           <Button

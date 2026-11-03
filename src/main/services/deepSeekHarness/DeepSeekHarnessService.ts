@@ -35,7 +35,8 @@ import {
   type DeepSeekHarnessProjection,
   resolveDeepSeekHarnessEndpoint,
   rollbackDeepSeekHarnessConfig,
-  writeDeepSeekHarnessConfig
+  writeDeepSeekHarnessConfig,
+  withDeepSeekHarnessConfigLock
 } from './config'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
@@ -84,6 +85,15 @@ export class DeepSeekHarnessService extends BaseService {
 
   getStatus(): ManagedToolStatusState {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
+  }
+
+  async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
+    return this.operationMutex.runExclusive(async () => {
+      if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
+        throw new Error(t('code_cli.config.service_running', { tool: 'DeepSeek Harness' }))
+      }
+      return withDeepSeekHarnessConfigLock(application.getPath('external.deepseek_harness.config'), write)
+    })
   }
 
   async prepareAgent(): Promise<string | undefined> {

@@ -141,7 +141,9 @@ describe('HermesDashboardService', () => {
     await service.start()
     const write = vi.fn(async () => undefined)
 
-    await expect(service.writeConfigFiles(write)).rejects.toThrow(t('code_cli.config.hermes_running'))
+    await expect(service.writeConfigFiles(write)).rejects.toThrow(
+      t('code_cli.config.service_running', { tool: 'Hermes' })
+    )
     expect(write).not.toHaveBeenCalled()
   })
 

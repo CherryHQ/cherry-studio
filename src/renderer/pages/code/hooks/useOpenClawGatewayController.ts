@@ -95,15 +95,13 @@ export function useOpenClawGatewayController({
         toast.error(startResult.message)
         return
       }
-
-      await openDashboard()
     } catch (err) {
       logger.error('Failed to launch OpenClaw dashboard:', err as Error)
       toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)
     }
-  }, [currentProviderConfig, enabledProvider, gatewayPort, openDashboard, setCurrentProvider, upsertProviderConfig, t])
+  }, [currentProviderConfig, enabledProvider, gatewayPort, setCurrentProvider, upsertProviderConfig, t])
 
   const handleStop = useCallback(async () => {
     try {

@@ -53,7 +53,8 @@ const {
   createDeepSeekHarnessDirectIdentity,
   resolveDeepSeekHarnessEndpoint,
   rollbackDeepSeekHarnessConfig,
-  writeDeepSeekHarnessConfig
+  writeDeepSeekHarnessConfig,
+  withDeepSeekHarnessConfigLock
 } = await import('../config')
 
 const model = (partial: Partial<Model> = {}): Model => ({
@@ -556,6 +557,33 @@ describe('DeepSeek Harness config transaction', () => {
     await writeFile(settingsPath, `${concurrentReceipt.settings.written}# user edit\n`, { mode: 0o600 })
     expect(await rollbackDeepSeekHarnessConfig(concurrentReceipt)).toBe(false)
     expect(await readFile(settingsPath, 'utf8')).toContain('# user edit')
+  })
+
+  it('serializes raw edits with model synchronization and retains unrelated native settings', async () => {
+    let release!: () => void
+    let entered!: () => void
+    const ready = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const edit = withDeepSeekHarnessConfigLock(dir, async () => {
+      entered()
+      await held
+      await writeFile(path.join(dir, 'settings.yaml'), 'custom: preserved\n', { mode: 0o600 })
+    })
+    await ready
+    const sync = writeDeepSeekHarnessConfig(dir, projection())
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      await expect(readFile(path.join(dir, '.credentials.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      release()
+      await Promise.all([edit, sync])
+    }
+    expect(parse(await readFile(path.join(dir, 'settings.yaml'), 'utf8')).custom).toBe('preserved')
+    await expect(readFile(path.join(dir, 'settings.yaml.lock'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it.each(['.credentials.yaml.lock', 'profiles/headless/package.json.lock'])(

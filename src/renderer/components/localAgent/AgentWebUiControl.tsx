@@ -1,18 +1,10 @@
-import { ChevronDown, ExternalLink, Loader2, Play, Square } from 'lucide-react'
+import { ExternalLink, Loader2, Play, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Button,
-  ButtonGroup,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 
 const buttonClass = 'h-8 rounded-lg border-border-subtle text-xs shadow-none'
-const iconClass = 'lucide-custom size-3.5 text-muted-foreground'
+const iconClass = 'lucide-custom size-3.5'
 
 export function AgentWebUiControl({
   disabled,
@@ -30,45 +22,37 @@ export function AgentWebUiControl({
   onOpen: () => void
 }) {
   const { t } = useTranslation()
+  const actionLabel = t(running ? 'code.web_ui.stop' : 'code.web_ui.start')
+  const actionIconClass = `${iconClass} ${running ? 'text-destructive' : 'text-muted-foreground'}`
   return (
-    <ButtonGroup className="shrink-0" aria-label={t('code.web_ui.actions')}>
-      <Button
-        variant="outline"
-        size="sm"
-        className={buttonClass}
-        disabled={disabled || pending}
-        onClick={running ? onOpen : onStart}>
-        {pending ? (
-          <Loader2 className={`${iconClass} animate-spin`} />
-        ) : running ? (
-          <ExternalLink className={iconClass} />
-        ) : (
-          <Play className={iconClass} />
-        )}
-        {t(running ? 'code.open_web_ui' : 'code.web_ui.start')}
-      </Button>
-      {running && onStop && (
-        <DropdownMenu>
-          <Tooltip content={t('code.web_ui.actions')} asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`${buttonClass} w-7 px-0`}
-                disabled={disabled || pending}
-                aria-label={t('code.web_ui.actions')}>
-                <ChevronDown className={iconClass} />
-              </Button>
-            </DropdownMenuTrigger>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="rounded-lg p-1">
-            <DropdownMenuItem disabled={disabled || pending} onSelect={onStop} className="rounded-md text-xs">
-              <Square className={iconClass} />
-              {t('code.web_ui.stop')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <div className="flex shrink-0 items-center gap-2" role="group" aria-label={t('code.web_ui.actions')}>
+      {(!running || onStop) && (
+        <Tooltip content={actionLabel} asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className={`${buttonClass} size-8`}
+            disabled={disabled || pending}
+            aria-label={actionLabel}
+            aria-pressed={running}
+            aria-busy={pending || undefined}
+            onClick={running ? onStop : onStart}>
+            {pending ? (
+              <Loader2 className={`${actionIconClass} animate-spin`} />
+            ) : running ? (
+              <Square className={actionIconClass} />
+            ) : (
+              <Play className={actionIconClass} />
+            )}
+          </Button>
+        </Tooltip>
       )}
-    </ButtonGroup>
+      {running && (
+        <Button variant="outline" size="sm" className={buttonClass} disabled={disabled || pending} onClick={onOpen}>
+          <ExternalLink className={`${iconClass} text-muted-foreground`} />
+          {t('code.open_web_ui')}
+        </Button>
+      )}
+    </div>
   )
 }

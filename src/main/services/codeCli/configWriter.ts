@@ -28,6 +28,8 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   if (target === 'openclaw-config')
     return AbsoluteFilePathSchema.parse(application.getPath('external.openclaw.config', 'openclaw.json'))
   const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
+  if (pathBase === 'deepseek-harness-home')
+    return AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.config', specPath))
   if (pathBase === 'hermes-home') {
     return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
   }
@@ -47,6 +49,12 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
     'vibe-config': env.VIBE_HOME,
     'vibe-env': env.VIBE_HOME,
     'grok-config': env.GROK_HOME,
+    'snow-config': env.SNOW_CONFIG_DIR,
+    'snow-settings': env.SNOW_CONFIG_DIR,
+    'snow-proxy': env.SNOW_CONFIG_DIR,
+    'zcode-config': env.ZCODE_HOME && path.join(env.ZCODE_HOME, 'v2'),
+    'zcode-providers': env.ZCODE_HOME && path.join(env.ZCODE_HOME, 'v2'),
+    'zcode-cli': env.ZCODE_HOME && path.join(env.ZCODE_HOME, 'cli'),
     'cortex-settings': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex'),
     'cortex-mcp': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex'),
     'cortex-permissions': env.SNOWFLAKE_HOME && path.join(env.SNOWFLAKE_HOME, 'cortex')
@@ -57,6 +65,26 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   const home = application.getPath('sys.home')
   const configHome = env.XDG_CONFIG_HOME || path.join(home, '.config')
   const roaming = env.APPDATA || path.join(home, 'AppData', 'Roaming')
+  if (target === 'zcode-acp') filename = path.join(configHome, 'zcode-acp', 'config.json')
+  if (target === 'glm-credentials') filename = path.join(configHome, 'glm-acp-agent', 'credentials.json')
+  if (target === 'omp-settings' || target === 'omp-models') {
+    const profile = (env.OMP_PROFILE ?? env.PI_PROFILE)?.trim()
+    const namedProfile =
+      profile &&
+      profile !== 'default' &&
+      /^[a-z0-9][a-z0-9._-]{0,63}$/.test(profile) &&
+      !profile.endsWith('.') &&
+      !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(profile)
+    const root = path.join(home, env.PI_CONFIG_DIR || '.omp')
+    const directory = namedProfile
+      ? path.join(root, 'profiles', profile, 'agent')
+      : env.PI_CODING_AGENT_DIR || path.join(root, 'agent')
+    filename = path.join(directory, path.basename(specPath))
+    if (target === 'omp-settings' && (await readOrNull(AbsoluteFilePathSchema.parse(filename))) === null) {
+      const legacy = path.join(directory, 'config.yaml')
+      if ((await readOrNull(AbsoluteFilePathSchema.parse(legacy))) !== null) filename = legacy
+    }
+  }
   if (target === 'copilot-providers' && env.COPILOT_PROVIDERS_CONFIG) filename = env.COPILOT_PROVIDERS_CONFIG
   if (target.startsWith('cline-')) {
     filename = path.join(

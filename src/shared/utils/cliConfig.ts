@@ -14,6 +14,21 @@ export const CLI_CONFIG_TARGET_IDS = [
   'codex-auth',
   'opencode-config',
   'openclaw-config',
+  'dsh-settings',
+  'dsh-profile',
+  'dsh-headless-profile',
+  'dsh-acp-profile',
+  'dsh-credentials',
+  'omp-settings',
+  'omp-models',
+  'snow-config',
+  'snow-settings',
+  'snow-proxy',
+  'zcode-config',
+  'zcode-providers',
+  'zcode-cli',
+  'zcode-acp',
+  'glm-credentials',
   'qwen-settings',
   'kimi-config',
   'pi-models',
@@ -80,8 +95,65 @@ export const MINIMAX_CONFIG_PATH = '~/.minimax/config.yaml'
 
 export const CLI_CONFIG_FILE_SPECS: Record<
   CliConfigTarget,
-  { label: string; path: string; language: CliConfigLanguage; pathBase?: 'hermes-home' }
+  {
+    label: string
+    path: string
+    language: CliConfigLanguage
+    pathBase?: 'hermes-home' | 'deepseek-harness-home'
+    yamlRoot?: 'sequence'
+  }
 > = {
+  'dsh-settings': {
+    label: 'settings.yaml',
+    path: 'settings.yaml',
+    language: 'yaml',
+    pathBase: 'deepseek-harness-home'
+  },
+  'dsh-profile': {
+    label: 'cordis.patch.yml',
+    path: 'cordis.patch.yml',
+    language: 'yaml',
+    pathBase: 'deepseek-harness-home',
+    yamlRoot: 'sequence'
+  },
+  'dsh-headless-profile': {
+    label: 'headless cordis.patch.yml',
+    path: 'profiles/headless/cordis.patch.yml',
+    language: 'yaml',
+    pathBase: 'deepseek-harness-home',
+    yamlRoot: 'sequence'
+  },
+  'dsh-acp-profile': {
+    label: 'acp cordis.patch.yml',
+    path: 'profiles/acp/cordis.patch.yml',
+    language: 'yaml',
+    pathBase: 'deepseek-harness-home',
+    yamlRoot: 'sequence'
+  },
+  'dsh-credentials': {
+    label: '.credentials.yaml',
+    path: '.credentials.yaml',
+    language: 'yaml',
+    pathBase: 'deepseek-harness-home'
+  },
+  'omp-settings': { label: 'Oh My Pi config.yml', path: '~/.omp/agent/config.yml', language: 'yaml' },
+  'omp-models': { label: 'Oh My Pi models.yml', path: '~/.omp/agent/models.yml', language: 'yaml' },
+  'snow-config': { label: 'Snow config.json', path: '~/.snow/config.json', language: 'json' },
+  'snow-settings': { label: 'Snow settings.json', path: '~/.snow/settings.json', language: 'json' },
+  'snow-proxy': { label: 'Snow proxy-config.json', path: '~/.snow/proxy-config.json', language: 'json' },
+  'zcode-config': { label: 'ZCode config.json', path: '~/.zcode/v2/config.json', language: 'json' },
+  'zcode-providers': {
+    label: 'ZCode provider_config.json',
+    path: '~/.zcode/v2/provider_config.json',
+    language: 'json'
+  },
+  'zcode-cli': { label: 'ZCode CLI config.json', path: '~/.zcode/cli/config.json', language: 'json' },
+  'zcode-acp': { label: 'ZCode ACP config.json', path: '~/.config/zcode-acp/config.json', language: 'json' },
+  'glm-credentials': {
+    label: 'GLM Agent credentials.json',
+    path: '~/.config/glm-acp-agent/credentials.json',
+    language: 'json'
+  },
   'copilot-settings': { label: 'Copilot settings.json', path: '~/.copilot/settings.json', language: 'json' },
   'copilot-mcp': { label: 'Copilot mcp-config.json', path: '~/.copilot/mcp-config.json', language: 'json' },
   'copilot-providers': { label: 'Copilot providers.json', path: '~/.copilot/providers.json', language: 'json' },
@@ -170,6 +242,11 @@ export type ModelConfiguredCli = (typeof MODEL_CONFIGURED_CLI_TOOL_IDS)[number]
 export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   ...MODEL_CONFIGURED_CLI_TOOL_IDS,
   CodeCli.OPENCLAW,
+  CodeCli.DEEPSEEK_HARNESS,
+  'omp',
+  'snow',
+  'zcode',
+  'glm-acp-agent',
   'cursor',
   'kiro',
   CodeCli.QODER_CLI,
@@ -194,6 +271,17 @@ export type FileConfiguredCli = (typeof FILE_CONFIGURED_CLI_TOOL_IDS)[number]
  * be kept in sync by hand.
  */
 const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> = {
+  [CodeCli.DEEPSEEK_HARNESS]: [
+    'dsh-settings',
+    'dsh-profile',
+    'dsh-headless-profile',
+    'dsh-acp-profile',
+    'dsh-credentials'
+  ],
+  omp: ['omp-settings', 'omp-models'],
+  snow: ['snow-config', 'snow-settings', 'snow-proxy'],
+  zcode: ['zcode-config', 'zcode-providers', 'zcode-cli', 'zcode-acp'],
+  'glm-acp-agent': ['glm-credentials'],
   [CodeCli.GITHUB_COPILOT_CLI]: ['copilot-settings', 'copilot-mcp', 'copilot-providers'],
   cursor: ['cursor-config', 'cursor-mcp'],
   kiro: ['kiro-settings', 'kiro-mcp'],

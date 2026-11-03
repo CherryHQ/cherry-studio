@@ -37,10 +37,7 @@ export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgent
     setPending(true)
     try {
       if (stop) await ipcApi.request('ai.codebuddy_web.stop')
-      else {
-        const result = await ipcApi.request('ai.codebuddy_web.start', config)
-        if (result.url) open(result.url)
-      }
+      else await ipcApi.request('ai.codebuddy_web.start', config)
     } catch {
       toast.error(t(stop ? 'code.web_ui.stop_failed' : 'code.launch.error'))
     } finally {
@@ -56,7 +53,9 @@ export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgent
       pending={working}
       onStart={() => void run(false)}
       onStop={status?.owned ? () => void run(true) : undefined}
-      onOpen={() => void run(false)}
+      onOpen={() => {
+        if (status?.url) open(status.url)
+      }}
     />
   )
 }

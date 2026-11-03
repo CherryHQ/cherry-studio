@@ -74,6 +74,8 @@ describe('writeCliConfigFiles', () => {
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
     vi.mocked(application.getPath).mockImplementation((key, filename) => {
       if (key === 'external.openclaw.config') return path.join(home, 'native-openclaw', ...(filename ? [filename] : []))
+      if (key === 'external.deepseek_harness.config')
+        return path.join(home, 'native-dsh', ...(filename ? [filename] : []))
       if (key === 'sys.home') return home
       throw new Error(`Unexpected getPath(${key})`)
     })
@@ -98,6 +100,67 @@ describe('writeCliConfigFiles', () => {
     expect(await readFile(file, 'utf8')).toBe(next)
     if (!isWin) expect((await stat(file)).mode & 0o777).toBe(0o600)
     await expect(stat(path.join(home, '.openclaw', 'openclaw.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('reads and saves every native DSH profile through the registered runtime directory', async () => {
+    const files = [
+      ['dsh-settings', 'settings.yaml', 'custom: preserved\n'],
+      ['dsh-profile', 'cordis.patch.yml', '- id: custom\n'],
+      ['dsh-headless-profile', 'profiles/headless/cordis.patch.yml', '- id: headless\n'],
+      ['dsh-acp-profile', 'profiles/acp/cordis.patch.yml', '- id: acp\n'],
+      ['dsh-credentials', '.credentials.yaml', 'custom_key: test-only\n']
+    ] as const
+    await writeCliConfigFiles(
+      CodeCli.DEEPSEEK_HARNESS,
+      files.map(([target, , content]) => ({ target, content }))
+    )
+    const read = await readCliConfigFiles(files.map(([target]) => target))
+    for (const [index, [, relative, content]] of files.entries()) {
+      expect(read[index]).toMatchObject({ path: path.join(home, 'native-dsh', relative), content })
+      if (!isWin) expect((await stat(read[index].path)).mode & 0o777).toBe(0o600)
+    }
+    await expect(stat(path.join(home, '.dsh'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(writeCliConfigFiles('snow', [{ target: 'dsh-settings', content: '{}' }])).rejects.toThrow(
+      'not a config file'
+    )
+  })
+
+  it.each([
+    ['snow', 'snow-config', { SNOW_CONFIG_DIR: 'snow-home' }, ['snow-home', 'config.json']],
+    ['zcode', 'zcode-config', { ZCODE_HOME: 'zcode-home' }, ['zcode-home', 'v2', 'config.json']],
+    ['zcode', 'zcode-cli', { ZCODE_HOME: 'zcode-home' }, ['zcode-home', 'cli', 'config.json']],
+    ['zcode', 'zcode-acp', { XDG_CONFIG_HOME: 'xdg' }, ['xdg', 'zcode-acp', 'config.json']],
+    ['glm-acp-agent', 'glm-credentials', { XDG_CONFIG_HOME: 'xdg' }, ['xdg', 'glm-acp-agent', 'credentials.json']],
+    ['omp', 'omp-settings', { PI_CODING_AGENT_DIR: 'omp-agent' }, ['omp-agent', 'config.yml']],
+    [
+      'omp',
+      'omp-models',
+      { PI_CONFIG_DIR: '.custom', OMP_PROFILE: 'work' },
+      ['.custom', 'profiles', 'work', 'agent', 'models.yml']
+    ]
+  ] as const)('uses the native override for %s %s', async (tool, target, env, relative) => {
+    vi.mocked(getRawShellEnv).mockResolvedValue(
+      Object.fromEntries(
+        Object.entries(env).map(([key, value]) => [
+          key,
+          key === 'PI_CONFIG_DIR' || key === 'OMP_PROFILE' ? value : path.join(home, value)
+        ])
+      )
+    )
+    const content = target.startsWith('omp-') ? 'custom: true\n' : '{"custom":true}'
+    await writeCliConfigFiles(tool, [{ target, content }])
+    const [file] = await readCliConfigFiles([target])
+    expect(file.path).toBe(path.join(home, ...relative))
+    expect(file.content).toBe(content)
+  })
+
+  it('edits the existing Oh My Pi YAML fallback without creating a competing config.yml', async () => {
+    const directory = path.join(home, '.omp', 'agent')
+    await mkdir(directory, { recursive: true })
+    await writeFile(path.join(directory, 'config.yaml'), 'custom: true\n')
+    await writeCliConfigFiles('omp', [{ target: 'omp-settings', content: 'custom: false\n' }])
+    expect(await readFile(path.join(directory, 'config.yaml'), 'utf8')).toBe('custom: false\n')
+    await expect(stat(path.join(directory, 'config.yml'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('writes Copilot settings without overwriting internal config.json state', async () => {
@@ -349,7 +412,9 @@ describe('readCliConfigFiles', () => {
   beforeEach(async () => {
     vi.mocked(getRawShellEnv).mockResolvedValue({})
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
-    vi.mocked(application.getPath).mockImplementation((key: string) => {
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'external.deepseek_harness.config')
+        return path.join(home, 'native-dsh', ...(filename ? [filename] : []))
       if (key === 'sys.home') return home
       throw new Error(`Unexpected getPath(${key})`)
     })

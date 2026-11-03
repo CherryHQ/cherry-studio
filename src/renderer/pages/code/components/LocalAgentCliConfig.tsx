@@ -13,7 +13,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
-import { useHermesDashboardController } from '@renderer/hooks/agent/useHermesDashboardController'
 import { ipcApi } from '@renderer/ipc'
 import {
   extractConfigFromCliConfigDraft,
@@ -48,9 +47,27 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
   const [invalid, setInvalid] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const hermesStatus = useSharedCacheValue('feature.hermes_dashboard.status')
-  const hermesDashboard = useHermesDashboardController(CodeCli.HERMES)
-  const configLocked =
-    tool === CodeCli.HERMES && (hermesStatus?.status === 'running' || hermesStatus?.status === 'starting')
+  const deepSeekStatus = useSharedCacheValue('feature.deepseek_harness.status')
+  const [stopping, setStopping] = useState(false)
+  const service =
+    tool === CodeCli.HERMES
+      ? { name: 'Hermes', status: hermesStatus?.status, stop: 'hermes_dashboard.stop' as const }
+      : tool === CodeCli.DEEPSEEK_HARNESS
+        ? { name: 'DeepSeek Harness', status: deepSeekStatus?.status, stop: 'deepseek_harness.stop' as const }
+        : undefined
+  const configLocked = service?.status === 'running' || service?.status === 'starting'
+  const stopService = async () => {
+    if (!service || stopping) return
+    setStopping(true)
+    try {
+      const result = await ipcApi.request(service.stop)
+      if (!result.success) throw new Error(result.message)
+    } catch {
+      toast.error(t('code.web_ui.stop_failed'))
+    } finally {
+      setStopping(false)
+    }
+  }
   if (!isFileConfiguredCli(tool)) return null
   const dirty = JSON.stringify(files) !== JSON.stringify(original)
   const change = (next: CliConfigFileDraft[]) => {
@@ -163,12 +180,8 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
           </DialogHeader>
           {configLocked && (
             <div role="status" className="flex items-center justify-between gap-3 rounded-lg bg-muted p-3 text-sm">
-              <p>{t('code.cli_config.hermes_running')}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                loading={hermesDashboard.stopping}
-                onClick={() => void hermesDashboard.onStop()}>
+              <p>{t('code.cli_config.service_running', { tool: service?.name })}</p>
+              <Button variant="outline" size="sm" loading={stopping} onClick={() => void stopService()}>
                 {t('code.web_ui.stop')}
               </Button>
             </div>

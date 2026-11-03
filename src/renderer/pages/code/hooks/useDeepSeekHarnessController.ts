@@ -92,14 +92,13 @@ export function useDeepSeekHarnessController({
         toast.error(result.message)
         return
       }
-      openWebUi(result.url)
     } catch (error) {
       logger.error('Failed to launch DeepSeek Harness', error as Error)
       toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)
     }
-  }, [currentProviderConfig, enabledProvider, openWebUi, setCurrentProvider, settings, t, upsertProviderConfig])
+  }, [currentProviderConfig, enabledProvider, setCurrentProvider, settings, t, upsertProviderConfig])
 
   const handleStop = useCallback(async (): Promise<boolean> => {
     try {

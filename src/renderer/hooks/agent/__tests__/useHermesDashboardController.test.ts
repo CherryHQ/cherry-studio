@@ -33,12 +33,17 @@ describe('useHermesDashboardController', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('starts and opens the Dashboard through command IPC', async () => {
+  it('starts the service without opening a view until explicitly requested', async () => {
     const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
 
     await act(async () => result.current.onLaunch())
 
     expect(mocks.request).toHaveBeenCalledWith('hermes_dashboard.start')
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    act(() =>
+      cacheService.setShared('feature.hermes_dashboard.status', { status: 'running', url: 'http://127.0.0.1:49152' })
+    )
+    await act(async () => result.current.onOpenDashboard())
     expect(mocks.openSmartMiniApp).toHaveBeenCalledWith({
       appId: 'hermes-dashboard',
       name: 'code.cli_tools.hermes',

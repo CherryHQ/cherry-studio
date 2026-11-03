@@ -1,10 +1,7 @@
-import { FileCode2 } from 'lucide-react'
 import type { ComponentProps } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { AgentWebUiControl } from '@renderer/components/localAgent/AgentWebUiControl'
-import { CodeCli } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import { useCodeCliPageViewProps } from '../hooks/useCodeCliPageViewProps'
 import { CodeCliDialogs } from './CodeCliPageView'
@@ -16,7 +13,6 @@ export function ManagedLocalAgentDetails({
 }: ComponentProps<typeof LocalAgentDetails> & {
   tool: CodeCli.DEEPSEEK_HARNESS | CodeCli.OPENCLAW
 }) {
-  const { t } = useTranslation()
   const view = useCodeCliPageViewProps(tool)
   const content = view.contentProps!
   const web = content.versionCard
@@ -24,23 +20,6 @@ export function ManagedLocalAgentDetails({
     <LocalAgentDetails
       {...props}
       modelList={content.modelList}
-      cliConfigEntry={
-        tool === CodeCli.OPENCLAW ? (
-          props.cliConfigEntry
-        ) : (
-          <Tooltip content={t('code.tool_parameters')} asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 shrink-0 rounded-lg"
-              aria-label={t('code.tool_parameters')}
-              disabled={content.modelList.disabled || !content.onConfigureCurrent}
-              onClick={content.onConfigureCurrent}>
-              <FileCode2 className="lucide-custom size-3.5 text-muted-foreground" />
-            </Button>
-          </Tooltip>
-        )
-      }
       renderActions={(config, disabled) => (
         <AgentWebUiControl
           disabled={disabled || (!web.running && (!config.enabled || !web.canLaunch))}

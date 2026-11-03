@@ -25,24 +25,26 @@ function WebUiHarness({ external = false }: { external?: boolean }) {
   )
 }
 
-it('opens a running service from the main button and stops it only through the menu', async () => {
+it('toggles service lifetime from one icon button without opening WebUI implicitly', async () => {
   const user = userEvent.setup()
   render(<WebUiHarness />)
-  expect(screen.queryByRole('button', { name: 'WebUI 操作' })).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '启动 WebUI' }))
+  const start = screen.getByRole('button', { name: '启动服务' })
+  expect(start.textContent).toBe('')
+  await user.click(start)
+  expect(screen.getByRole('status', { name: 'opened views' })).toHaveTextContent('0')
+  expect(screen.getByRole('button', { name: '停止服务' })).toBeEnabled()
   await user.click(screen.getByRole('button', { name: '打开 WebUI' }))
   expect(screen.getByRole('status', { name: 'opened views' })).toHaveTextContent('1')
-  expect(screen.queryByRole('button', { name: '启动 WebUI' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('menuitem', { name: '停止 WebUI' })).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'WebUI 操作' }))
-  await user.click(screen.getByRole('menuitem', { name: '停止 WebUI' }))
-  expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: '停止服务' }))
+  expect(screen.getByRole('button', { name: '启动服务' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: '打开 WebUI' })).not.toBeInTheDocument()
+  expect(screen.getByRole('status', { name: 'opened views' })).toHaveTextContent('1')
 })
 
 it('allows opening an externally owned service without offering to stop it', async () => {
   const user = userEvent.setup()
   render(<WebUiHarness external />)
-  expect(screen.queryByRole('button', { name: 'WebUI 操作' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '停止服务' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '打开 WebUI' }))
   expect(screen.getByRole('status', { name: 'opened views' })).toHaveTextContent('1')
   expect(screen.getByRole('button', { name: '打开 WebUI' })).toBeEnabled()

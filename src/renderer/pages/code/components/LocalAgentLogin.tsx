@@ -225,18 +225,12 @@ export function LocalAgentLogin({
   if (!available || (!canAuthenticate && !onTerminalLogin)) return null
   return (
     <>
-      <Tooltip
-        content={t(
-          signedIn
-            ? 'local_agents.reauthenticate'
-            : status === 'signed-out'
-              ? 'local_agents.sign_in_required'
-              : 'local_agents.auth_status_unknown'
-        )}>
+      <Tooltip content={t(signedIn ? 'local_agents.reauthenticate' : 'local_agents.sign_in')}>
         <Button
           variant="outline"
-          size="sm"
-          className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
+          size="icon"
+          className="size-8 shrink-0 rounded-lg border-border-subtle shadow-none"
+          aria-label={t(signedIn ? 'local_agents.signed_in' : 'local_agents.sign_in')}
           disabled={disabled || busy}
           onClick={() => {
             if (!canAuthenticate && onTerminalLogin) void terminalLogin()
@@ -251,7 +245,6 @@ export function LocalAgentLogin({
           ) : (
             <LogIn className="lucide-custom size-3.5 text-muted-foreground" />
           )}
-          {t(signedIn ? 'local_agents.signed_in' : 'local_agents.sign_in')}
         </Button>
       </Tooltip>
       <Dialog

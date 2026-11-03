@@ -144,6 +144,57 @@ describe('local agent settings navigation', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it.each(['opencode', 'codebuddy-code'])(
+    'starts %s without opening a page and opens WebUI only on request',
+    async (presetId) => {
+      navigation.search = { id: presetId }
+      const route = presetId === 'opencode' ? 'ai.local_agents.web_start' : 'ai.codebuddy_web.start'
+      const url = 'http://127.0.0.1:54321/'
+      MockUseDataApiUtils.mockQueryData('/agents', {
+        items: [
+          {
+            id: 'test-local',
+            name: presetId,
+            type: 'local',
+            model: null,
+            modelName: null,
+            orderKey: 'a0',
+            createdAt: '',
+            updatedAt: '',
+            configuration: { localRuntime: { protocol: 'acp', presetId, enabled: true, args: [], env: {} } }
+          }
+        ],
+        total: 1,
+        page: 1
+      })
+      vi.mocked(ipcApi.request).mockImplementation(async (method) => {
+        if (method === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
+        if (method === route) return { status: 'running', owned: true, url } as never
+        return { models: [] } as never
+      })
+      const { rerender } = render(<LocalAgentSettingsPage />)
+      await userEvent.click(await screen.findByRole('button', { name: '启动服务' }))
+      await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith(route, expect.objectContaining({ presetId })))
+      expect(
+        vi.mocked(ipcApi.request).mock.calls.some(([method]) => method === 'system.shell.open_external_website')
+      ).toBe(false)
+      if (presetId === 'opencode')
+        MockUseCacheUtils.setSharedCacheValue('feature.local_agent.web_ui.status', {
+          opencode: { status: 'running', url }
+        })
+      else
+        MockUseCacheUtils.setSharedCacheValue('feature.codebuddy.web_ui.status', {
+          status: 'running',
+          owned: true,
+          url
+        })
+      rerender(<LocalAgentSettingsPage />)
+      await userEvent.click(await screen.findByRole('button', { name: '打开 WebUI' }))
+      expect(ipcApi.request).toHaveBeenCalledWith('system.shell.open_external_website', expect.stringContaining(url))
+      expect(vi.mocked(ipcApi.request).mock.calls.filter(([method]) => method === route)).toHaveLength(1)
+    }
+  )
+
   it.each(['opencode', 'codebuddy-code'])('reports a stop failure accurately for %s WebUI', async (presetId) => {
     navigation.search = { id: presetId }
     if (presetId === 'opencode')
@@ -155,9 +206,8 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     render(<LocalAgentSettingsPage />)
-    await userEvent.click(await screen.findByRole('button', { name: 'WebUI 操作' }))
-    await userEvent.click(screen.getByRole('menuitem', { name: '停止 WebUI' }))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('停止 WebUI 失败，请重试。'))
+    await userEvent.click(await screen.findByRole('button', { name: '停止服务' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('停止服务失败，请重试。'))
     expect(screen.getByRole('button', { name: '打开 WebUI' })).toBeEnabled()
   })
 
@@ -171,7 +221,7 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     const { rerender } = render(<LocalAgentSettingsPage />)
-    const start = await screen.findByRole('button', { name: '启动 WebUI' })
+    const start = await screen.findByRole('button', { name: '启动服务' })
     expect(start).toBeDisabled()
     await userEvent.click(start)
     expect(
@@ -195,7 +245,7 @@ describe('local agent settings navigation', () => {
       page: 1
     })
     rerender(<LocalAgentSettingsPage />)
-    await waitFor(() => expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: '启动服务' })).toBeEnabled())
   })
 
   it('keeps automatic authentication failures quiet and reports failures after a manual model refresh', async () => {
@@ -582,7 +632,7 @@ describe('local agent settings navigation', () => {
     expect(stops).toEqual(
       stopRoute ? [stopRoute === 'ai.local_agents.web_stop' ? [stopRoute, { presetId }] : [stopRoute]] : []
     )
-    if (fails) expect(screen.getByText('停止 WebUI 失败，请重试。')).toBeVisible()
+    if (fails) expect(screen.getByText('停止服务失败，请重试。')).toBeVisible()
   })
 
   it.each(['cancel', 'failure'])(

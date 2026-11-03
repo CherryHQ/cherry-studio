@@ -69,3 +69,16 @@ describe('validateCliConfigDraftForWrite (secret redaction when editing config t
     expect(() => validateCliConfigDraftForWrite(files)).not.toThrow(/sk-ant-real-secret/)
   })
 })
+
+it('accepts native DSH sequence profiles including inert JavaScript tags and rejects a mapping root', () => {
+  const draft: CliConfigFileDraft = {
+    target: 'dsh-profile',
+    label: 'DSH',
+    language: 'yaml',
+    path: '/test/cordis.patch.yml',
+    content: '- id: plugin\n  config:\n    value: !!js process.env.EXAMPLE\n'
+  }
+  expect(() => validateCliConfigDraftForWrite([draft])).not.toThrow()
+  expect(() => validateCliConfigDraftForWrite([{ ...draft, content: 'id: plugin' }])).toThrow('expected a sequence')
+  expect(() => validateCliConfigDraftForWrite([{ ...draft, target: 'dsh-settings' }])).toThrow('expected an object')
+})

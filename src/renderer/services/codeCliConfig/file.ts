@@ -74,15 +74,16 @@ export function parseTomlOrThrow(content: string): Record<string, any> {
   }
 }
 
-export function parseYamlOrThrow(content: string): Record<string, any> {
-  if (!content) return {}
+export function parseYamlOrThrow(content: string, root: 'sequence'): unknown[]
+export function parseYamlOrThrow(content: string): Record<string, any>
+export function parseYamlOrThrow(content: string, root?: 'sequence'): Record<string, any> | unknown[] {
   try {
-    const parsed = parseYaml(content)
-    if (parsed == null) return {}
-    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('invalid YAML root: expected an object')
+    const parsed = parseYaml(content, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value) => value }] })
+    if (parsed == null) return root === 'sequence' ? [] : {}
+    if (root === 'sequence' ? !Array.isArray(parsed) : typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`invalid YAML root: expected ${root === 'sequence' ? 'a sequence' : 'an object'}`)
     }
-    return parsed as Record<string, any>
+    return parsed
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(redactSecretText(rawMessage))

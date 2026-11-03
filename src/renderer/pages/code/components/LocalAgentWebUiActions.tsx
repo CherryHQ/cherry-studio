@@ -59,10 +59,7 @@ function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentW
     setPending(true)
     try {
       if (stop) await ipcApi.request('ai.local_agents.web_stop', { presetId: id })
-      else {
-        const result = await ipcApi.request('ai.local_agents.web_start', config)
-        if (result.url) open(result.url)
-      }
+      else await ipcApi.request('ai.local_agents.web_start', config)
     } catch {
       toast.error(t(stop ? 'code.web_ui.stop_failed' : 'code.launch.error'))
     } finally {

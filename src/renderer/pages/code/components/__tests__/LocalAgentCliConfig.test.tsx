@@ -109,7 +109,13 @@ it.each([
     '{"permissions":{"deny":["Shell(rm)","Shell(sudo)"]}}'
   ],
   ['mistral-vibe', 'vibe-config', 'active_model = "old"', 'active_model = "new"'],
-  ['goose', 'goose-config', 'GOOSE_MODEL: old', 'GOOSE_MODEL: new']
+  ['goose', 'goose-config', 'GOOSE_MODEL: old', 'GOOSE_MODEL: new'],
+  [
+    CodeCli.DEEPSEEK_HARNESS,
+    'dsh-profile',
+    '- id: test\n  config: {enabled: false}\n',
+    '- id: test\n  config: {enabled: true}\n'
+  ]
 ] as const)('edits %s native configuration without a Cherry model adapter', async (tool, target, original, next) => {
   vi.mocked(ipcApi.request).mockImplementation(async (route) =>
     route === 'code_cli.read_config'
@@ -131,24 +137,31 @@ it.each([
   })
 })
 
-it('blocks editing while Hermes WebUI is running and offers stopping it before saving', async () => {
-  MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', { status: 'running' })
-  vi.mocked(ipcApi.request).mockImplementation(async (route) => {
-    if (route === 'code_cli.read_config')
-      return { files: [{ target: 'hermes-config', path: '/test/config.yaml', content: 'model: test' }] } as never
-    if (route === 'hermes_dashboard.stop') {
-      MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', { status: 'stopped' })
+it.each([CodeCli.HERMES, CodeCli.DEEPSEEK_HARNESS])(
+  'blocks editing %s during service operation and offers stopping it',
+  async (tool) => {
+    const key = tool === CodeCli.HERMES ? 'feature.hermes_dashboard.status' : 'feature.deepseek_harness.status'
+    const routeToStop = tool === CodeCli.HERMES ? 'hermes_dashboard.stop' : 'deepseek_harness.stop'
+    const name = tool === CodeCli.HERMES ? 'Hermes' : 'DeepSeek Harness'
+    const target = tool === CodeCli.HERMES ? 'hermes-config' : 'dsh-settings'
+    MockUseCacheUtils.setSharedCacheValue(key, { status: 'running' })
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'code_cli.read_config')
+        return { files: [{ target, path: '/test/config.yaml', content: 'model: test' }] } as never
+      if (route === routeToStop) {
+        MockUseCacheUtils.setSharedCacheValue(key, { status: 'stopped' })
+        return { success: true } as never
+      }
       return { success: true } as never
-    }
-    return { success: true } as never
-  })
-  const { rerender } = render(<LocalAgentCliConfig tool={CodeCli.HERMES} />)
-  await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
-  expect(await screen.findByRole('status')).toHaveTextContent('请先停止 Hermes WebUI，再编辑其配置。')
-  expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
-  await userEvent.click(screen.getByRole('button', { name: '停止 WebUI' }))
-  rerender(<LocalAgentCliConfig tool={CodeCli.HERMES} />)
-  await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
-  fireEvent.change(screen.getByRole('textbox', { name: 'config' }), { target: { value: 'model: next' } })
-  expect(screen.getByRole('button', { name: '保存' })).toBeEnabled()
-})
+    })
+    const { rerender } = render(<LocalAgentCliConfig tool={tool} />)
+    await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(`请先停止 ${name} 服务，再编辑其配置。`)
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: '停止服务' }))
+    rerender(<LocalAgentCliConfig tool={tool} />)
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    fireEvent.change(screen.getByRole('textbox', { name: 'config' }), { target: { value: 'model: next' } })
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled()
+  }
+)

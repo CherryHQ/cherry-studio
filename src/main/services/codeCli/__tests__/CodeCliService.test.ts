@@ -16,6 +16,7 @@ const installerMock = vi.hoisted(() => ({
   installCli: vi.fn(),
   uninstallCli: vi.fn()
 }))
+const deepSeekHarnessMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
 const skillServiceMock = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ vi.mock('@application', async () => {
   const services = {
     BinaryManager: binaryManagerMock,
     LocalAgentInstallService: installerMock,
+    DeepSeekHarnessService: deepSeekHarnessMock,
     HermesDashboardService: hermesDashboardMock
   }
   const mock = mockApplicationFactory(services)
@@ -1213,17 +1215,20 @@ describe('CodeCliService', () => {
   })
 
   describe('writeConfigFiles', () => {
-    it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
-      const { codeCliService } = await loadModules()
-
-      await codeCliService.writeConfigFiles({
-        cliTool: CodeCli.HERMES,
-        files: [{ target: 'hermes-config', content: 'model: {}\n' }]
-      })
-
-      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
-      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))
-    })
+    it.each([CodeCli.HERMES, CodeCli.DEEPSEEK_HARNESS])(
+      'enforces the %s service write guard before touching files',
+      async (tool) => {
+        const { codeCliService } = await loadModules()
+        const guard = tool === CodeCli.HERMES ? hermesDashboardMock : deepSeekHarnessMock
+        guard.writeConfigFiles.mockRejectedValueOnce(new Error('Stop service before editing configuration'))
+        await expect(
+          codeCliService.writeConfigFiles({
+            cliTool: tool,
+            files: [{ target: tool === CodeCli.HERMES ? 'hermes-config' : 'dsh-settings', content: 'custom: true\n' }]
+          })
+        ).rejects.toThrow('Stop service before editing configuration')
+      }
+    )
   })
 
   describe('run (provider/model validation is owned solely by the service)', () => {

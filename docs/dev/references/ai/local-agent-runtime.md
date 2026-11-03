@@ -25,6 +25,26 @@ The Code Mate launchpad and sidebar shortcuts open Settings → Agent Services,
 the sole manager for installation, model selection and CLI configuration.
 Legacy `/app/code` links and saved tabs redirect to settings, preserve the selected
 Agent, and reuse the existing settings tab.
+WebUI controls separate service lifetime from navigation. One icon button to the
+left of Terminal starts or stops a Cherry-owned service, with a tooltip for the
+current action. Starting only runs the background process; once running, a separate
+**Open WebUI** button opens its page. Externally owned services remain open-only.
+
+All presets with native configuration files use the same **CLI configuration files**
+editor, including DeepSeek Harness, Oh My Pi, Snow, ZCode and GLM Agent. It opens
+without a selected Cherry model and does not replace file access with a provider
+or model dialog. DeepAgents uses its runtime arguments and environment settings;
+no native configuration file is invented for it.
+
+DeepSeek Harness exposes `settings.yaml`, the default, headless and ACP
+`cordis.patch.yml` profiles, and `.credentials.yaml` under its registered `~/.dsh`
+home. Profile YAML retains its sequence root and native tags. Raw saves reuse the
+service mutex, native file locks, snapshot conflict checks, owner-only atomic
+writes and rollback. DeepSeek Harness and Hermes require their managed service
+to stop before editing, with the stop action in the same editor. Model selection
+continues to own Cherry-managed connection defaults; unrelated native settings
+and files remain user-owned.
+
 OpenClaw connects through `openclaw acp` to its local Gateway and uses the shared
 enable, archive and chat controls. It retains its Code Mate model list, native
 configuration entry and WebUI actions. Its configuration button opens the shared
@@ -36,7 +56,7 @@ default immediately; a failed write rolls back the Cherry selection. Chat follow
 that default because the bridge does not expose ACP model selection.
 
 ACP connections share a Gateway lease. The last connection stops a Gateway started
-for chat unless the WebUI was explicitly opened. Healthy external Gateways are
+for chat unless the service was explicitly started or its WebUI opened. Healthy external Gateways are
 reused and never terminated by Cherry. Stopping an owned Gateway targets its child
 process tree only; active chat leases defer WebUI shutdown. New sessions use
 isolated bridge keys and persist the selected working directory and native resume
@@ -66,8 +86,7 @@ controls and resume. Per-session MCP injection, client filesystem and terminal
 callbacks are not supported by the bridge. Native Gateway/Agent configuration
 continues to own those capabilities.
 DeepSeek Harness connects through `dsh --profile acp` and uses the shared enable,
-archive and chat controls. It retains its Code Mate model list, configuration dialog
-and WebUI actions. New ACP connections apply the selected Code Mate model using
+archive and chat controls, native file editor, model list and WebUI actions. New ACP connections apply the selected Code Mate model using
 the same native settings and credentials as the WebUI. The ACP profile override is
 written and rolled back with the existing configuration transaction, preserving
 unrelated user entries. Disabling or uninstalling also stops its managed WebUI.

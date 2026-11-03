@@ -6,8 +6,10 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
+import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent'
 import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CodeCli } from '@shared/types/codeCli'
+import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import { CodeCliConfiguration } from '../components/CodeCliConfiguration'
 import { LocalAgentCliConfig } from '../components/LocalAgentCliConfig'
@@ -99,62 +101,52 @@ function configured(tool: CodeCli) {
 }
 
 describe('managed local Agent details', () => {
-  it('keeps DeepSeek parameters alongside its ACP chat and enable controls', async () => {
-    const tool = CodeCli.DEEPSEEK_HARNESS
-    configured(tool)
-    render(
-      <ManagedLocalAgentDetails
-        tool={tool}
-        preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === tool)}
-        detection={{ presetId: tool, path: '/usr/local/bin/tool', source: 'system' }}
-        installing={false}
-        onInstall={vi.fn()}
-        onNavigate={vi.fn()}
-        onCancelNavigation={vi.fn()}
-        onSaved={vi.fn()}
-      />
-    )
-    expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(screen.getByRole('button', { name: '对话' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '启动 WebUI' })).toBeDisabled()
-    expect(await screen.findByRole('button', { name: 'DeepSeek Chat' })).toBeVisible()
-    await userEvent.click(screen.getByRole('button', { name: '参数设置' }))
-    expect(await screen.findByRole('dialog')).toBeVisible()
+  it('provides a native file editor for every preset with persistent configuration', () => {
+    const missing = LOCAL_AGENT_PRESETS.filter((p) => p.id !== 'deepagents')
+      .filter((p) => !getCliConfigTargets(codeCliForLocalAgent(p.id) ?? p.id).length)
+      .map((p) => p.id)
+    expect(missing).toEqual([])
   })
 
-  it('opens the OpenClaw native configuration without requiring a selected Cherry model', async () => {
-    vi.mocked(ipcApi.request).mockImplementation(
-      async (route) =>
-        (route === 'code_cli.read_config'
-          ? {
-              files: [
-                {
-                  target: 'openclaw-config',
-                  path: '/home/test/.openclaw/openclaw.json',
-                  content: '{"gateway":{"port":18790}}'
-                }
-              ]
-            }
-          : { success: true }) as never
-    )
-    render(
-      <ManagedLocalAgentDetails
-        tool={CodeCli.OPENCLAW}
-        preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === 'openclaw')}
-        detection={{ presetId: 'openclaw', path: '/usr/local/bin/openclaw', source: 'system' }}
-        cliConfigEntry={<LocalAgentCliConfig tool={CodeCli.OPENCLAW} />}
-        installing={false}
-        onInstall={vi.fn()}
-        onNavigate={vi.fn()}
-        onCancelNavigation={vi.fn()}
-        onSaved={vi.fn()}
-      />
-    )
-    await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
-    const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText('/home/test/.openclaw/openclaw.json')).toBeVisible()
-    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
-  })
+  it.each([CodeCli.OPENCLAW, CodeCli.DEEPSEEK_HARNESS] as const)(
+    'opens %s native files without requiring a selected Cherry model',
+    async (tool) => {
+      const target = tool === CodeCli.OPENCLAW ? 'openclaw-config' : 'dsh-settings'
+      const path = tool === CodeCli.OPENCLAW ? '/home/test/.openclaw/openclaw.json' : '/home/test/.dsh/settings.yaml'
+      const content = tool === CodeCli.OPENCLAW ? '{"gateway":{"port":18790}}' : 'agent-presets:\n  default: standard\n'
+      vi.mocked(ipcApi.request).mockImplementation(
+        async (route) =>
+          (route === 'code_cli.read_config'
+            ? {
+                files: [
+                  {
+                    target,
+                    path,
+                    content
+                  }
+                ]
+              }
+            : { success: true }) as never
+      )
+      render(
+        <ManagedLocalAgentDetails
+          tool={tool}
+          preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === tool)}
+          detection={{ presetId: tool, path: '/usr/local/bin/tool', source: 'system' }}
+          cliConfigEntry={<LocalAgentCliConfig tool={tool} />}
+          installing={false}
+          onInstall={vi.fn()}
+          onNavigate={vi.fn()}
+          onCancelNavigation={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      )
+      await userEvent.click(screen.getByRole('button', { name: 'CLI 配置文件' }))
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(path)).toBeVisible()
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    }
+  )
 
   it.each([CodeCli.DEEPSEEK_HARNESS, CodeCli.OPENCLAW] as const)(
     'selects a model directly for %s without launching it',
@@ -178,7 +170,7 @@ describe('managed local Agent details', () => {
   it('launches DSH with the selected model and saved tool settings', async () => {
     configured(CodeCli.DEEPSEEK_HARNESS)
     render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} />)
-    await userEvent.click(screen.getByRole('button', { name: '启动 WebUI' }))
+    await userEvent.click(screen.getByRole('button', { name: '启动服务' }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('deepseek_harness.start', {
         mode: 'direct',
@@ -202,8 +194,7 @@ describe('managed local Agent details', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'DeepSeek Chat' })).toBeDisabled())
     expect(screen.getByRole('button', { name: '高级设置' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '升级' })).toBeDisabled()
-    await userEvent.click(screen.getByRole('button', { name: 'WebUI 操作' }))
-    expect(screen.getByRole('menuitem', { name: '停止 WebUI' })).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: '停止服务' })).toBeEnabled()
   })
 
   it('stops DSH before uninstalling and preserves its saved settings', async () => {

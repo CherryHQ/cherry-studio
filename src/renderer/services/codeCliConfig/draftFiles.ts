@@ -96,7 +96,7 @@ export function parseDraftFileOrThrow<T>(
   }
 }
 
-function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<string, string> {
+function parseDraftFile(file: CliConfigFileDraft): unknown {
   switch (file.language) {
     case 'json':
       return parseJsonOrThrow(file.content)
@@ -105,7 +105,9 @@ function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<str
     case 'dotenv':
       return parseDotenv(file.content)
     case 'yaml':
-      return parseYamlOrThrow(file.content)
+      return CLI_CONFIG_FILE_SPECS[file.target].yamlRoot === 'sequence'
+        ? parseYamlOrThrow(file.content, 'sequence')
+        : parseYamlOrThrow(file.content)
   }
 }
 

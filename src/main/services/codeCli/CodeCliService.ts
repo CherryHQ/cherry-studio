@@ -481,6 +481,8 @@ export class CodeCliService extends BaseService {
           (await writeCliConfigFiles(cliTool, update(await readCliConfigFiles(targets)), commit)) as T
         if (cliTool === CodeCli.HERMES) return application.get('HermesDashboardService').writeConfigFiles(apply)
         if (cliTool === CodeCli.OPENCLAW) return application.get('OpenClawService').writeConfigFiles(apply)
+        if (cliTool === CodeCli.DEEPSEEK_HARNESS)
+          return application.get('DeepSeekHarnessService').writeConfigFiles(apply)
         return apply()
       })
     this.configWriteQueue = operation
