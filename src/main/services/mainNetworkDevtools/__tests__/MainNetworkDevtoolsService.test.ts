@@ -1069,3 +1069,34 @@ it('still truncates a Node body with one character beyond the capture limit', as
   expect(state.events[0].requestBody).toMatchObject({ truncated: true, replayable: false, size: 131073 })
   await service._doStop()
 })
+
+it.each([131071, 131072, 131073])(
+  'distinguishes a complete cloned Request JSON body of %i characters from overflow',
+  async (length) => {
+    const body = JSON.stringify({ prompt: 'x'.repeat(length - '{"prompt":""}'.length) })
+    BaseService.resetInstances()
+    vi.mocked(net.fetch).mockResolvedValue(new Response('ok'))
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchNetFetch: () => void }
+    state.patchNetFetch()
+    const request = new Request('https://example.test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body
+    })
+    try {
+      await net.fetch(request)
+      await waitFor(() => state.events[0]?.requestBody !== undefined)
+      if (length <= 131072) {
+        expect(state.events[0].requestBody).toMatchObject({ text: body, replayable: true })
+        expect(state.events[0].requestBody?.truncated).not.toBe(true)
+      } else {
+        expect(state.events[0].requestBody).toMatchObject({ truncated: true, replayable: false })
+        expect(state.events[0].requestBody?.text).toBeUndefined()
+      }
+      expect(await request.text()).toBe(body)
+    } finally {
+      await service._doStop()
+    }
+  }
+)

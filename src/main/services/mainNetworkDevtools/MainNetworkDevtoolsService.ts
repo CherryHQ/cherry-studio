@@ -735,7 +735,9 @@ async function readWebBody(
 
   try {
     let done = false
-    while (text.length < MAX_BODY_CHARS) {
+    // At the exact limit, one more read distinguishes EOF from actual overflow.
+    // Do not discard a complete body merely because its final chunk fills the budget.
+    while (text.length <= MAX_BODY_CHARS) {
       const result = await reader.read()
       done = result.done
       if (done) break
@@ -747,7 +749,7 @@ async function readWebBody(
       text = text.slice(0, MAX_BODY_CHARS)
       truncated = true
     }
-    if (!done && text.length >= MAX_BODY_CHARS) truncated = true
+    if (!done && text.length > MAX_BODY_CHARS) truncated = true
 
     if (truncated) {
       // A cloned Request is a tee branch: cancellation can wait for its original reader.
