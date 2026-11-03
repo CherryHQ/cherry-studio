@@ -11,13 +11,16 @@
  */
 
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { isEqual } from 'es-toolkit'
 
 import { application } from '@application'
+import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { providerRegistryService, type ResolvedReasoningProfile } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
+import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { isPiGatewayCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
@@ -32,6 +35,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
@@ -51,7 +55,7 @@ import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { withGoogleReplayIdentity } from './piGoogleReplay'
-import { projectPiReasoningCompat } from './piReasoningCompat'
+import { projectPiReasoningCompat, withPiReasoningOff } from './piReasoningCompat'
 import { withReasoningSummarySuppressed } from './piResponsesReasoning'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple, loadPiOpenAiResponsesApi } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -117,6 +121,7 @@ interface PiProviderInjectionBase {
 
 /** Native/OAuth route whose invocations are accounted for by the Agent SDK. */
 export interface PiDirectProviderInjection extends PiProviderInjectionBase {
+  reasoning?: { model: Model; profile: ResolvedReasoningProfile }
   usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
 }
 
@@ -128,7 +133,10 @@ export interface PiGatewayProviderInjection extends PiProviderInjectionBase {
 export type PiProviderInjection = PiDirectProviderInjection | PiGatewayProviderInjection
 
 /** Materialize provider-specific stream compatibility before the connection consumes it. */
-export async function materializePiProviderStream(injection: PiProviderInjection): Promise<{
+export async function materializePiProviderStream(
+  injection: PiProviderInjection,
+  selection?: ReasoningEffortOption
+): Promise<{
   providerConfig: ProviderConfig
   streamSimple: NonNullable<ProviderConfig['streamSimple']>
 }> {
@@ -139,7 +147,22 @@ export async function materializePiProviderStream(injection: PiProviderInjection
       : injection.suppressReasoningSummary
         ? withReasoningSummarySuppressed(injection.providerConfig, (await loadPiOpenAiResponsesApi()).streamSimple)
         : injection.providerConfig
-  const streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+  let streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+  if (
+    injection.usageCapture.owner === 'agent-sdk' &&
+    injection.api === 'openai-completions' &&
+    selection === 'none' &&
+    'reasoning' in injection &&
+    injection.reasoning &&
+    !injection.reasoning.profile.wire.disabled &&
+    !isEqual(injection.reasoning.profile.wire.off, REASONING_FORMAT_PROFILES['openai-chat'].wire.off)
+  ) {
+    const { model, profile } = injection.reasoning
+    const invocation = resolveReasoningInvocation({ selection: 'none', model, profile: profile.wire })
+    if (invocation.kind === 'off' && invocation.emissions.length > 0) {
+      streamSimple = withPiReasoningOff(streamSimple, { ...invocation, wire: profile.wire })
+    }
+  }
   return {
     providerConfig,
     streamSimple:
@@ -211,6 +234,10 @@ export function buildPiProviderInjection(
 
   return {
     providerName: provider.id,
+    reasoning: {
+      model,
+      profile: providerRegistryService.resolveReasoningProfile(provider, model, resolvedEndpoint.endpointType)
+    },
     suppressReasoningSummary,
     api,
     providerConfig,
