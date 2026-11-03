@@ -1,0 +1,1 @@
+ALTER TABLE `translate_history` ADD `archived` integer DEFAULT false NOT NULL;

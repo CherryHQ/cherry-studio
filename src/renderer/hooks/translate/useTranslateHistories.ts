@@ -13,6 +13,7 @@ interface UseTranslateHistoriesOptions {
   search?: string
   /** Filter for starred records only (server-side). */
   star?: boolean
+  archived?: boolean
   /** Items per fetched page. Defaults to {@link TRANSLATE_HISTORY_DEFAULT_LIMIT}. */
   pageSize?: number
 }
@@ -20,11 +21,16 @@ interface UseTranslateHistoriesOptions {
 export const useTranslateHistories = ({
   search,
   star,
+  archived,
   pageSize = TRANSLATE_HISTORY_DEFAULT_LIMIT
 }: UseTranslateHistoriesOptions = {}) => {
   const searchKey = search?.trim() || undefined
   const starKey = star || undefined
-  const query = useMemo(() => ({ search: searchKey, star: starKey }), [searchKey, starKey])
+  const archivedKey = archived || undefined
+  const query = useMemo(
+    () => ({ search: searchKey, star: starKey, archived: archivedKey }),
+    [searchKey, starKey, archivedKey]
+  )
 
   const {
     pages,
@@ -49,7 +55,7 @@ export const useTranslateHistories = ({
 
   useEffect(() => {
     resetRef.current()
-  }, [pageSize, searchKey, starKey])
+  }, [pageSize, searchKey, starKey, archivedKey])
 
   const { t } = useTranslation()
   // One-shot UX surface: mirror useLanguages — only notify the user once per

@@ -1,5 +1,6 @@
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useTranslateHistories } from '../useTranslateHistories'
@@ -98,7 +99,7 @@ describe('useTranslateHistories', () => {
     renderHook(() => useTranslateHistories({ search: 'hello', star: true, pageSize: 5 }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/translate/histories', {
-      query: { search: 'hello', star: true },
+      query: { search: 'hello', star: true, archived: undefined },
       limit: 5,
       swrOptions: { keepPreviousData: false }
     })
@@ -167,5 +168,37 @@ describe('useTranslateHistories', () => {
       expect(result.current.status).toBe('ready')
       expect(result.current.items).toEqual([])
     })
+  })
+  it('uses mode-specific results and resets to the first page when switching modes', () => {
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const [pageCount, setPageCount] = useState(1)
+      const mode = options?.query?.archived ? 'archived' : 'active'
+      return buildInfiniteState({
+        pages: Array.from({ length: pageCount }, (_, page) => ({
+          items: [{ id: `${mode}-${page + 1}` }],
+          total: mode === 'active' ? 4 : 3
+        })),
+        hasNext: pageCount < 3,
+        loadNext: () => setPageCount((count) => count + 1),
+        reset: () => setPageCount(1)
+      })
+    })
+    const { result, rerender } = renderHook<ReturnType<typeof useTranslateHistories>, { archived?: boolean }>(
+      ({ archived }) => useTranslateHistories({ archived }),
+      { initialProps: { archived: undefined } }
+    )
+    expect(result.current.items.map((item) => item.id)).toEqual(['active-1'])
+    act(() => result.current.loadMore())
+    expect(result.current.items.map((item) => item.id)).toEqual(['active-1', 'active-2'])
+
+    rerender({ archived: true })
+    expect(result.current.items.map((item) => item.id)).toEqual(['archived-1'])
+    expect(result.current.total).toBe(3)
+    act(() => result.current.loadMore())
+    expect(result.current.items.map((item) => item.id)).toEqual(['archived-1', 'archived-2'])
+
+    rerender({ archived: false })
+    expect(result.current.items.map((item) => item.id)).toEqual(['active-1'])
+    expect(result.current.total).toBe(4)
   })
 })

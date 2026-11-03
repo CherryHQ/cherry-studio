@@ -1,12 +1,19 @@
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod'
 
+import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import {
   CreateTranslateHistorySchema,
   CreateTranslateLanguageSchema,
   TranslateHistoryQuerySchema,
+  type TranslateHistoryQueryParams,
   UpdateTranslateHistorySchema,
   UpdateTranslateLanguageSchema
 } from '@shared/data/api/schemas/translate'
+
+import { translateHandlers } from '../translate'
 
 describe('Translate handler validation (Zod schemas)', () => {
   describe('TranslateHistoryQuerySchema', () => {
@@ -140,4 +147,81 @@ describe('Translate handler validation (Zod schemas)', () => {
       expect(() => UpdateTranslateLanguageSchema.parse({ value: '' })).toThrow()
     })
   })
+})
+
+describe('Translate history handlers', () => {
+  const dbh = setupTestDatabase()
+  const collection = translateHandlers['/translate/histories']
+  const record = translateHandlers['/translate/histories/:id']
+  const list = collection.GET as (input: { query?: TranslateHistoryQueryParams }) => ReturnType<typeof collection.GET>
+  const id = '019606a0-0000-7000-8000-000000000001'
+  const body = {
+    sourceText: 'Hello',
+    targetText: 'Bonjour',
+    sourceLanguage: null,
+    targetLanguage: null
+  }
+
+  function seed() {
+    dbh.db
+      .insert(translateHistoryTable)
+      .values({ id, ...body })
+      .run()
+  }
+
+  it('defaults to active records and persists archive and restore through PATCH', async () => {
+    seed()
+    expect(await list({})).toMatchObject({ items: [{ id, archived: false }], total: 1 })
+    expect(await list({ query: { archived: false } })).toMatchObject({ items: [{ id }], total: 1 })
+    expect(await record.PATCH({ params: { id }, body: { archived: true } })).toMatchObject({ id, archived: true })
+    expect(translateHistoryService.getById(id).archived).toBe(true)
+    expect(await list({})).toMatchObject({ items: [], total: 0 })
+    expect(await list({ query: { archived: true } })).toMatchObject({ items: [{ id }], total: 1 })
+    expect(await record.GET({ params: { id } })).toMatchObject({ id, archived: true })
+    expect(await record.PATCH({ params: { id }, body: { archived: false } })).toMatchObject({ id, archived: false })
+    expect(translateHistoryService.getById(id).archived).toBe(false)
+    expect(await list({ query: { archived: true } })).toMatchObject({ items: [], total: 0 })
+    expect(await list({})).toMatchObject({ items: [{ id }], total: 1 })
+  })
+
+  it.each([['true'], ['false'], [0], [1], [null], [[]], [{}]])(
+    'rejects non-boolean archive input %j at GET and PATCH',
+    async (archived) => {
+      seed()
+      await expect(list({ query: { archived } as never })).rejects.toThrow(ZodError)
+      await expect(record.PATCH({ params: { id }, body: { archived } as never })).rejects.toThrow(ZodError)
+      expect(translateHistoryService.getById(id).archived).toBe(false)
+    }
+  )
+
+  it('creates active records without accepting client-controlled archive membership', async () => {
+    await expect(collection.POST({ body })).resolves.toMatchObject({ ...body, archived: false })
+    expect(dbh.db.select().from(translateHistoryTable).all()).toEqual([expect.objectContaining({ archived: false })])
+  })
+
+  it.each([true, false])('rejects archived=%s on Create', async (archived) => {
+    await expect(collection.POST({ body: { ...body, archived } as never })).rejects.toThrow(ZodError)
+    expect(dbh.db.select().from(translateHistoryTable).all()).toEqual([])
+  })
+
+  it.each(['unknown', 'kind', 'id', 'createdAt', 'updatedAt', 'archivedAt', 'deletedAt', 'inTrash', 'fileEntryId'])(
+    'rejects forbidden field %s without modifying the record',
+    async (field) => {
+      seed()
+      const before = translateHistoryService.getById(id)
+      await expect(list({ query: { [field]: 'value' } })).rejects.toThrow(ZodError)
+      await expect(collection.POST({ body: { ...body, [field]: 'value' } })).rejects.toThrow(ZodError)
+      await expect(record.PATCH({ params: { id }, body: { archived: true, [field]: 'value' } })).rejects.toThrow(
+        ZodError
+      )
+      expect(translateHistoryService.getById(id)).toEqual(before)
+    }
+  )
+
+  it.each([{ limit: 0 }, { limit: 101 }, { limit: 1.5 }, { search: '' }, { search: 'a'.repeat(201) }, { offset: 1 }])(
+    'rejects invalid list query %j',
+    async (query) => {
+      await expect(list({ query })).rejects.toThrow(ZodError)
+    }
+  )
 })

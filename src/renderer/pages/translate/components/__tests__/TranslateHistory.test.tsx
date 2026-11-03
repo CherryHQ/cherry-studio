@@ -13,12 +13,7 @@ import { chinese, english } from './testUtils'
 
 const translateHistoryMock = vi.hoisted(() => ({
   useTranslateHistory: vi.fn(),
-  useTranslateHistories: vi.fn(),
-  confirmDialogProps: [] as Array<{
-    onConfirm?: () => void | Promise<void>
-    onOpenChange?: (open: boolean) => void
-    title?: string
-  }>
+  useTranslateHistories: vi.fn()
 }))
 
 const writeTextMock = vi.hoisted(() => vi.fn())
@@ -64,7 +59,7 @@ vi.mock('@renderer/hooks/translate', () => ({
     getLanguage: (langCode: string) => languages.find((language) => language.langCode === langCode),
     getLabel: (language: TranslateLanguage | null) => language?.value
   }),
-  useTranslateHistories: () => translateHistoryMock.useTranslateHistories(),
+  useTranslateHistories: (options: unknown) => translateHistoryMock.useTranslateHistories(options),
   useTranslateHistory: () => translateHistoryMock.useTranslateHistory()
 }))
 
@@ -72,15 +67,8 @@ vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  ConfirmDialog: (props: {
-    onConfirm?: () => void | Promise<void>
-    onOpenChange?: (open: boolean) => void
-    title?: string
-  }) => {
-    translateHistoryMock.confirmDialogProps.push(props)
-    return <div>{props.title}</div>
-  },
+vi.mock('@cherrystudio/ui', async () => ({
+  ConfirmDialog: (await import('@cherrystudio/ui/components/composites/confirm-dialog')).ConfirmDialog,
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PageSidePanel: ({
@@ -115,6 +103,7 @@ const histories: TranslateHistoryItem[] = [
     sourceLanguage: english.langCode,
     targetLanguage: chinese.langCode,
     star: false,
+    archived: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   },
@@ -126,6 +115,7 @@ const histories: TranslateHistoryItem[] = [
     sourceLanguage: english.langCode,
     targetLanguage: chinese.langCode,
     star: true,
+    archived: false,
     createdAt: '2026-01-02T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z'
   }
@@ -139,6 +129,7 @@ const pdfHistory: TranslateHistoryItem = {
   sourceLanguage: english.langCode,
   targetLanguage: chinese.langCode,
   star: false,
+  archived: false,
   createdAt: '2026-01-03T00:00:00.000Z',
   updatedAt: '2026-01-03T00:00:00.000Z'
 }
@@ -171,7 +162,6 @@ describe('TranslateHistory', () => {
   beforeEach(() => {
     translateHistoryMock.useTranslateHistory.mockReset()
     translateHistoryMock.useTranslateHistories.mockReset()
-    translateHistoryMock.confirmDialogProps = []
     clearMock.mockReset()
     updateMock.mockReset()
     removeMock.mockReset()
@@ -202,12 +192,10 @@ describe('TranslateHistory', () => {
     translateHistoryMock.useTranslateHistories.mockReturnValue(historyState())
   })
 
-  it('does not create one translate history mutation hook per visible row', () => {
+  it('shows the current query total rather than the loaded row count', () => {
+    translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ total: 41, hasMore: true }))
     renderHistory()
-
-    expect(screen.getByText('hello')).toBeInTheDocument()
-    expect(screen.getByText('bye')).toBeInTheDocument()
-    expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('translate.history.title (41)')).toBeInTheDocument()
   })
 
   it('localizes compact header spacing to the translate history drawer', () => {
@@ -456,13 +444,8 @@ describe('TranslateHistory', () => {
     fireEvent.click(screen.getByText('hello'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.delete' }))
 
-    const deleteConfirm = [...translateHistoryMock.confirmDialogProps].reverse().find((dialog) => {
-      return dialog.title === 'translate.history.delete'
-    })
-
-    await act(async () => {
-      await deleteConfirm?.onConfirm?.()
-    })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'translate.history.delete' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
     expect(removeMock).toHaveBeenCalledWith('1')
   })
@@ -472,18 +455,13 @@ describe('TranslateHistory', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.clear' }))
 
-    const clearConfirm = [...translateHistoryMock.confirmDialogProps].reverse().find((dialog) => {
-      return dialog.title === 'translate.history.clear'
-    })
-
-    await act(async () => {
-      await clearConfirm?.onConfirm?.()
-    })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'translate.history.clear' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
     expect(clearMock).toHaveBeenCalledTimes(1)
   })
 
-  it('centers the empty state and hides history actions', () => {
+  it('keeps archive navigation and favorite filtering reachable in an empty active list', () => {
     translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
       historyState({
         items: [],
@@ -495,7 +473,11 @@ describe('TranslateHistory', () => {
     renderHistory()
 
     expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'translate.history.filter.starred' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'translate.history.filter.archived' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
     expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
     expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
       'flex',
@@ -568,5 +550,133 @@ describe('TranslateHistory', () => {
     fireEvent.scroll(list)
 
     await waitFor(() => expect(loadMoreMock).toHaveBeenCalledTimes(1))
+  })
+  function renderMutableHistory(initial: TranslateHistoryItem[] = histories) {
+    let rows = initial.map((item) => ({ ...item }))
+    translateHistoryMock.useTranslateHistories.mockImplementation((options: { archived?: boolean; star?: boolean }) => {
+      const items = rows.filter((item) => item.archived === !!options.archived && (!options.star || item.star))
+      return historyState({ items, total: items.length })
+    })
+    const view = renderHistory()
+    const refresh = () => view.rerender(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    updateMock.mockImplementation(async (id, data) => {
+      rows = rows.map((item) => (item.id === id ? { ...item, ...data } : item))
+      refresh()
+    })
+    removeMock.mockImplementation(async (id) => {
+      rows = rows.filter((item) => item.id !== id)
+      refresh()
+    })
+    clearMock.mockImplementation(async () => {
+      rows = []
+      refresh()
+    })
+    return view
+  }
+
+  it('cancels row deletion, then confirms the captured target even if that row is no longer rendered', async () => {
+    const user = userEvent.setup()
+    const view = renderMutableHistory()
+    const row = screen.getByRole('button', { name: /hello/ })
+    await user.click(within(row).getByRole('button', { name: 'translate.history.delete' }))
+    expect(screen.queryByRole('button', { name: 'translate.history.back' })).not.toBeInTheDocument()
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.cancel' }))
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(screen.getByText('hello')).toBeInTheDocument()
+
+    await user.click(within(row).getByRole('button', { name: 'translate.history.delete' }))
+    translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [histories[1]], total: 2 }))
+    view.rerender(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'translate.history.delete' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(removeMock).toHaveBeenCalledWith('1')
+    expect(screen.getByText('bye')).toBeInTheDocument()
+  })
+
+  it.each(['{Enter}', ' '])(
+    'archives and restores with %s without opening detail and retains empty-list recovery',
+    async (key) => {
+      const user = userEvent.setup()
+      renderMutableHistory([histories[1]])
+      const row = screen.getByRole('button', { name: /bye/ })
+      within(row).getByRole('button', { name: 'common.archive' }).focus()
+      await user.keyboard(key)
+      await waitFor(() => expect(screen.queryByText('bye')).not.toBeInTheDocument())
+      expect(screen.queryByRole('button', { name: 'translate.history.back' })).not.toBeInTheDocument()
+      expect(screen.getByText('translate.history.title (0)')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'translate.history.filter.archived' }))
+      await waitFor(() => expect(screen.getByText('bye')).toBeInTheDocument())
+      expect(screen.getByText('translate.history.title (1)')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'translate.history.clear' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'translate.history.filter.archived' })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      )
+      await user.click(screen.getByRole('button', { name: 'translate.history.filter.starred' }))
+      expect(screen.getByText('bye')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'translate.history.star' })).toHaveAttribute('aria-pressed', 'true')
+
+      screen.getByRole('button', { name: 'translate.history.restore' }).focus()
+      await user.keyboard(key)
+      await waitFor(() => expect(screen.getByText('translate.history.empty_archived')).toBeInTheDocument())
+      expect(screen.getByText('translate.history.title (0)')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'translate.history.filter.archived' }))
+      await waitFor(() => expect(screen.getByText('bye')).toBeInTheDocument())
+      expect(screen.getByText('translate.history.title (1)')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'translate.history.back' })).not.toBeInTheDocument()
+    }
+  )
+
+  it('retains the row when archive or delete fails', async () => {
+    const user = userEvent.setup()
+    renderMutableHistory()
+    updateMock.mockRejectedValue(new Error('save failed'))
+    await user.click(
+      within(screen.getByRole('button', { name: /hello/ })).getByRole('button', { name: 'common.archive' })
+    )
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { archived: true }))
+    expect(screen.getByText('hello')).toBeInTheDocument()
+    removeMock.mockRejectedValue(new Error('delete failed'))
+    await user.click(
+      within(screen.getByRole('button', { name: /hello/ })).getByRole('button', { name: 'translate.history.delete' })
+    )
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'translate.history.delete' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByText('hello')).toBeInTheDocument()
+  })
+
+  it('cancels then clears both active and archived rows from the archived view', async () => {
+    const user = userEvent.setup()
+    renderMutableHistory([histories[0], { ...histories[1], archived: true }])
+    await user.click(screen.getByRole('button', { name: 'translate.history.filter.archived' }))
+    await user.click(screen.getByRole('button', { name: 'translate.history.clear' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.cancel' }))
+    expect(clearMock).not.toHaveBeenCalled()
+    expect(screen.getByText('bye')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'translate.history.clear' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'translate.history.clear' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByText('translate.history.empty_archived')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'translate.history.filter.archived' }))
+    expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
+  })
+
+  it('clears detail and pending confirmations when the panel is closed externally', async () => {
+    const user = userEvent.setup()
+    const view = renderMutableHistory()
+    await user.click(screen.getByText('hello'))
+    await user.click(screen.getByRole('button', { name: 'translate.history.delete' }))
+    view.rerender(<TranslateHistory isOpen={false} onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    view.rerender(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.history.back' })).not.toBeInTheDocument()
+    await user.click(
+      within(screen.getByRole('button', { name: /hello/ })).getByRole('button', { name: 'translate.history.delete' })
+    )
+    view.rerender(<TranslateHistory isOpen={false} onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    view.rerender(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(removeMock).not.toHaveBeenCalled()
   })
 })

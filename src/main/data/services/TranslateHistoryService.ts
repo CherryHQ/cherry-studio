@@ -34,6 +34,7 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
     sourceLanguage: row.sourceLanguage === null ? null : parsePersistedLangCode(row.sourceLanguage),
     targetLanguage: row.targetLanguage === null ? null : parsePersistedLangCode(row.targetLanguage),
     star: row.star,
+    archived: row.archived,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -101,7 +102,7 @@ export class TranslateHistoryService {
     const db = application.get('DbService').getDb()
     const { limit } = query
 
-    const filterConditions: SQL[] = []
+    const filterConditions: SQL[] = [eq(translateHistoryTable.archived, query.archived ?? false)]
 
     if (query?.star !== undefined) {
       filterConditions.push(eq(translateHistoryTable.star, query.star))
@@ -208,7 +209,10 @@ export class TranslateHistoryService {
         dto.sourceLanguage !== undefined ||
         dto.targetLanguage !== undefined
       if (currentHistory.kind === 'file' && changesFileSnapshot) {
-        throw DataApiErrorFactory.invalidOperation('update file translate history', 'only star can be changed')
+        throw DataApiErrorFactory.invalidOperation(
+          'update file translate history',
+          'only star and archived can be changed'
+        )
       }
 
       const updates: Partial<typeof translateHistoryTable.$inferInsert> = {}
@@ -217,6 +221,7 @@ export class TranslateHistoryService {
       if (dto.sourceLanguage !== undefined) updates.sourceLanguage = dto.sourceLanguage
       if (dto.targetLanguage !== undefined) updates.targetLanguage = dto.targetLanguage
       if (dto.star !== undefined) updates.star = dto.star
+      if (dto.archived !== undefined) updates.archived = dto.archived
 
       if (Object.keys(updates).length === 0) {
         return currentHistory
