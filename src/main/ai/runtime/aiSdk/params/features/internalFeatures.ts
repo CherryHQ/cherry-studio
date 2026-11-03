@@ -22,6 +22,7 @@ import { gatewayAnthropicCacheFeature, gatewayUsageNormalizeFeature } from './ga
 import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
+import { ollamaCapacityGuardFeature } from './ollamaCapacityGuard'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
@@ -67,6 +68,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   providerWebSearchFeature,
   providerUrlContextFeature,
   qwenAnthropicWebToolsFeature,
+  // Last middleware = innermost: prices the prompt the provider will actually receive.
+  ollamaCapacityGuardFeature,
   // Stop when a trusted local tool cannot succeed without an external change.
   terminalToolFailureFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.

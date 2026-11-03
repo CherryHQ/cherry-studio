@@ -98,4 +98,38 @@ describe('buildApiKeyFallbackModels', () => {
     ).toEqual([])
     expect(getApiKeys).not.toHaveBeenCalled()
   })
+
+  it('reuses the primary frozen Ollama window for each key model', async () => {
+    const provider = makeProvider({ id: 'ollama' })
+    getApiKeys.mockReturnValue([
+      { id: 'key-1', key: 'sk-1', isEnabled: true },
+      { id: 'key-2', key: 'sk-2', isEnabled: true }
+    ])
+    const model = makeModel({ id: 'ollama::qwen', providerId: 'ollama', apiModelId: 'qwen' })
+    buildAgentParams.mockResolvedValue({
+      sdkConfig: { providerId: 'ollama', providerSettings: {}, modelId: 'qwen' },
+      credentialReceipt: { attribution: 'matched' as const, id: 'key-2', masked: 'sk-2****2222' },
+      plugins: [],
+      options: {}
+    })
+    const resolvedModel = { modelId: 'qwen' }
+    resolveLanguageModel.mockResolvedValue(resolvedModel)
+    const frozenOllamaNumCtx = { uniqueModelId: 'ollama::qwen', trainedContextWindow: 32_768, numCtx: 4_096 }
+
+    const [fallback] = buildApiKeyFallbackModels({
+      request: { uniqueModelId: 'ollama::qwen' } as never,
+      provider,
+      model,
+      assistant: undefined,
+      signal: undefined,
+      extraFeatures: [],
+      primaryCredentialReceipt: { attribution: 'explicit', id: 'key-1', masked: 'sk-1****1111' },
+      createUsagePlugin: vi.fn().mockReturnValue({ name: 'usage' }),
+      frozenOllamaNumCtx
+    })
+
+    const resolved = await fallback()
+    expect(resolved?.model).toBe(resolvedModel)
+    expect(buildAgentParams).toHaveBeenCalledWith(expect.objectContaining({ frozenOllamaNumCtx }))
+  })
 })

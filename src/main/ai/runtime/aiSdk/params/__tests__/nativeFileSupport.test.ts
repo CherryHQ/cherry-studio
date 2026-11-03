@@ -4,7 +4,7 @@ import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
-import { resolveNativeFileSupport } from '../nativeFileSupport'
+import { resolveFallbackNativeFileSupport, resolveNativeFileSupport } from '../nativeFileSupport'
 
 describe('resolveNativeFileSupport', () => {
   it('native PDF on an OpenAI Responses LLM model', () => {
@@ -145,5 +145,42 @@ describe('resolveNativeFileSupport', () => {
       { aiSdkProviderId: 'openai-compatible', runtimeProviderId: 'openai-compatible' }
     )
     expect(typeof ns.image).toBe('boolean')
+  })
+})
+
+describe('fallback static runtime routing', () => {
+  it.each([
+    ['claude-sonnet', false, false],
+    ['publisher/qwen-maas', true, false],
+    ['gemini-2.5-flash', true, true]
+  ] as const)('matches Vertex runtime specialization for %s', (apiModelId, audio, video) => {
+    const support = resolveFallbackNativeFileSupport(
+      makeProvider({ id: 'vertex-custom', authType: 'iam-gcp' }),
+      makeModel({ apiModelId, capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION, MODEL_CAPABILITY.VIDEO_RECOGNITION] }),
+      { aiSdkProviderId: 'google-vertex', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+    )
+    expect(support.audio).toBe(audio)
+    expect(support.video).toBe(video)
+  })
+  it.each([
+    ['claude-sonnet', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, false],
+    ['gpt-audio', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, false],
+    ['gpt-audio', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true]
+  ] as const)('matches Azure runtime specialization for %s/%s', (apiModelId, endpointType, audio) => {
+    const support = resolveFallbackNativeFileSupport(
+      makeProvider({ id: 'azure-custom', authType: 'iam-azure' }),
+      makeModel({ apiModelId, capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION] }),
+      { aiSdkProviderId: 'azure', endpointType }
+    )
+    expect(support.audio).toBe(audio)
+    expect(support.video).toBe(false)
+  })
+  it('does not specialize a non-Vertex adapter merely because auth is IAM GCP', () => {
+    const support = resolveFallbackNativeFileSupport(
+      makeProvider({ id: 'custom', authType: 'iam-gcp' }),
+      makeModel({ apiModelId: 'publisher/qwen-maas', capabilities: [MODEL_CAPABILITY.VIDEO_RECOGNITION] }),
+      { aiSdkProviderId: 'google', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+    )
+    expect(support.video).toBe(true)
   })
 })

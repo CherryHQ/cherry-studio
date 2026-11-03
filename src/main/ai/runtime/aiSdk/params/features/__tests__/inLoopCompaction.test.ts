@@ -301,6 +301,39 @@ describe('inLoopCompactionFeature', () => {
     expect(compactModelMessages).toHaveBeenCalledOnce()
   })
 
+  it('budgets by a small effective compressor window (4k): input+output stays below it', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({
+        chatId: 'topic-1',
+        contextWindow: CONTEXT_WINDOW,
+        compressionModel: { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: 4_096 }
+      })
+    )
+    await prepareStep({ messages: [userMessage(90_000)] } as any)
+    const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
+    expect(maxOutputTokens + maxInputTokens).toBeLessThan(4_096)
+  })
+
+  it('a compressor failure after an earlier fold keeps serving the earlier folded prefix, unchanged', async () => {
+    compactModelMessages.mockClear()
+    const folded = [userMessage(10)]
+    compactModelMessages.mockResolvedValueOnce(folded)
+    compactModelMessages.mockRejectedValueOnce(new Error('context length exceeded'))
+    const prepareStep = getPrepareStep()
+    const first = [userMessage(90_000)]
+    await prepareStep({ messages: first } as any)
+    const tail = userMessage(90_000)
+    const res = (await prepareStep({ messages: [...first, tail] } as any)) as { messages: ModelMessage[] }
+    expect(compactModelMessages).toHaveBeenCalledTimes(2)
+    expect(res.messages).toEqual([...folded, tail])
+    // failure disables further attempts; fold state is not advanced or replaced
+    const res2 = (await prepareStep({ messages: [...first, tail] } as any)) as { messages: ModelMessage[] }
+    expect(compactModelMessages).toHaveBeenCalledTimes(2)
+    expect(res2.messages).toEqual([...folded, tail])
+  })
+
   it('disables compaction for the rest of the request after a failure (no retry storm)', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockRejectedValue(new Error('429 rate limited'))

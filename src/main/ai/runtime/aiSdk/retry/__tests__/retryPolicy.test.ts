@@ -6,7 +6,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { readRetryPolicy } = await import('../retryPolicy')
+const { readRetryPolicy, resolveEffectiveFallbackModelIds } = await import('../retryPolicy')
 
 describe('readRetryPolicy', () => {
   beforeEach(() => {
@@ -29,5 +29,30 @@ describe('readRetryPolicy', () => {
       backoffEnabled: true,
       fallbackModelIds: ['anthropic::claude']
     })
+  })
+})
+
+describe('resolveEffectiveFallbackModelIds', () => {
+  beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.fallback_model_ids', ['ollama::qwen3'])
+  })
+
+  it('returns no fallbacks when chat retry is disabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', false)
+
+    expect(resolveEffectiveFallbackModelIds(undefined, false, false)).toEqual([])
+  })
+
+  it('returns configured fallbacks when retry is enabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', true)
+
+    expect(resolveEffectiveFallbackModelIds(undefined, false, false)).toEqual(['ollama::qwen3'])
+  })
+
+  it('returns no fallbacks when the request disables retries', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', true)
+
+    expect(resolveEffectiveFallbackModelIds(0, true, false)).toEqual([])
   })
 })

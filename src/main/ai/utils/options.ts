@@ -9,6 +9,7 @@ import { merge } from 'es-toolkit/compat'
 
 import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import { ENDPOINT_TYPE, type EndpointType, type Model, type ServiceTierSelection } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type AiSdkParam, isAiSdkParam } from '@shared/types/aiSdk'
@@ -20,6 +21,7 @@ import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
+import { resolveOllamaRequestNumCtx } from './ollamaRequestNumCtx'
 import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './reasoningSerializers'
 import { getWebSearchParams } from './websearch'
 
@@ -119,6 +121,7 @@ export function buildCapabilityProviderOptions(
     providerOptionsKey: string
     endpointType: EndpointType | undefined
     reasoning: ResolvedReasoningInvocation
+    ollamaNumCtx?: OllamaNumCtxRequestSnapshot
   }
 ): Record<string, Record<string, JSONValue>> {
   const rawProviderId = context.runtimeProviderId
@@ -167,7 +170,13 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildBedrockProviderOptions(model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
-      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
+      providerSpecificOptions = buildOllamaProviderOptions(
+        model,
+        actualProvider,
+        reasoningOptions.options,
+        context.ollamaNumCtx,
+        context.endpointType
+      )
       break
     case 'cherryin':
     case 'cherryin-chat':
@@ -420,15 +429,18 @@ function buildBedrockProviderOptions(
 
 function buildOllamaProviderOptions(
   model: Model,
-  reasoningOptions: Record<string, unknown>
+  provider: Provider,
+  reasoningOptions: Record<string, unknown>,
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot,
+  endpointType?: EndpointType
 ): Record<string, Record<string, unknown>> {
+  const numCtx = ollamaNumCtx?.numCtx ?? resolveOllamaRequestNumCtx(model, provider, endpointType)?.numCtx
   return {
     ollama: {
       ...reasoningOptions,
-      // Forward the model's context window so large-context models are not silently
-      // truncated. Omitting it is deliberate when unknown: Ollama then sizes by available
-      // VRAM (4k / 32k / 256k), which beats any fixed guess we could substitute.
-      ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
+      // Forward a memory-feasible context window (#19864). Omitting num_ctx when unknown
+      // is deliberate: Ollama then sizes by available VRAM (4k / 32k / 256k).
+      ...(numCtx != null ? { options: { num_ctx: numCtx } } : {})
     }
   }
 }
