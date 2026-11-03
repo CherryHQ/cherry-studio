@@ -1132,7 +1132,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                   className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-link hover:underline"
                   onClick={() => {
                     setOpen(false)
-                    void startCherryCloudSubscription()
+                    void startCherryCloudSubscription('selector_header')
                   }}>
                   {t('settings.subscription.go_to_subscribe')}
                 </button>
