@@ -1,4 +1,4 @@
-import path from 'node:path'
+import path, { resolve as resolvePath } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -44,7 +44,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const MOCK_USER_DATA = '/mock/userData'
+const MOCK_USER_DATA = resolvePath('/mock/userData')
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000401'
 const FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000402'
@@ -97,8 +97,8 @@ function makeCtx(dbh: ReturnType<typeof setupTestDatabase>, dexieFiles: FileMeta
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     paths: {
       userData: MOCK_USER_DATA,
-      knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
-      filesDataDir: `${MOCK_USER_DATA}/Data/Files`
+      knowledgeBaseDir: resolvePath(`${MOCK_USER_DATA}/Data/KnowledgeBase`),
+      filesDataDir: resolvePath(`${MOCK_USER_DATA}/Data/Files`)
     }
   } as never
 }
@@ -246,8 +246,8 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       paths: {
         userData: MOCK_USER_DATA,
-        knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
-        filesDataDir: `${MOCK_USER_DATA}/Data/Files`
+        knowledgeBaseDir: resolvePath(`${MOCK_USER_DATA}/Data/KnowledgeBase`),
+        filesDataDir: resolvePath(`${MOCK_USER_DATA}/Data/Files`)
       }
     } as never
 

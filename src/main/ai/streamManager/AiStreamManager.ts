@@ -313,7 +313,7 @@ const nullStreamListener: StreamListener = {
 }
 
 /**
- * Active-stream registry. See `docs/references/ai/stream-manager.md`.
+ * Active-stream registry. See `docs/dev/references/ai/stream-manager.md`.
  *
  * DO NOT add `@DependsOn(['AiService'])` here — `runExecutionLoop` does
  * `application.get('AiService')` as a runtime back-edge, which is safe

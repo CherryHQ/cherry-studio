@@ -50,6 +50,7 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
+          'settings.skills.globalEnabled': '全局启用',
           'settings.skills.globalToggle': '全局启用技能',
           'settings.skills.source.local': '本地',
           'settings.skills.tryNow': '立即试用',
@@ -839,6 +840,14 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('shows only the visibly labeled global switch on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.getAllByRole('switch')).toHaveLength(1)
+    expect(screen.getByText('全局启用')).toBeVisible()
+    expect(screen.queryByRole('switch', { name: '同步技能到外部目录' })).not.toBeInTheDocument()
+  })
+
   it('does not expose a sidebar shortcut action on Skill settings cards', () => {
     render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
 

@@ -1,5 +1,8 @@
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createOpenAI } from '@ai-sdk/openai'
+import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import type { UIMessageChunk } from 'ai'
+import { asSchema, type ToolSet, type UIMessageChunk } from 'ai'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,7 +39,9 @@ const {
   mockResolveAgentSessionUsage: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
   mockToUIMessages: vi.fn<(params: MessageCreateParams) => CherryUIMessage[]>(),
-  mockToAiSdkTools: vi.fn(() => undefined),
+  mockToAiSdkTools: vi.fn<(params: MessageCreateParams, endpoint?: EndpointType) => ToolSet | undefined>(
+    () => undefined
+  ),
   mockExtractStreamOptions: vi.fn(() => ({})),
   mockExtractProviderOptions: vi.fn<
     (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
@@ -104,6 +109,7 @@ vi.mock('../adapters', () => ({
 }))
 
 import type { OutputFormat } from '../adapters'
+import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -246,6 +252,73 @@ async function processAndCaptureStreamMessages(
   return mockStreamPrompt.mock.calls[0][0].messages as CherryUIMessage[]
 }
 
+describe('processMessage (Anthropic client tools)', () => {
+  it.each(
+    [
+      { endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, modelId: 'claude-fable-5' },
+      { endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, modelId: 'gpt-5' },
+      { endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES, modelId: 'gpt-5' }
+    ].flatMap((target) => [true, false].map((streaming) => ({ ...target, streaming })))
+  )(
+    'forwards Anthropic client tools according to the resolved $endpoint ($streaming)',
+    async ({ endpoint, modelId, streaming }) => {
+      useGatewayModel(modelId, endpoint)
+      const converter = new AnthropicMessageConverter()
+      mockToAiSdkTools.mockImplementationOnce((params, target) => converter.toAiSdkTools(params, target))
+      const params = createAnthropicParams(modelId, [{ role: 'user', content: 'Weather?' }], streaming)
+      params.tools = [
+        { name: 'get_weather', description: 'Get weather', input_schema: { type: 'object', properties: {} } }
+      ]
+
+      await processAndCaptureStreamMessages(params)
+
+      const tools: ToolSet = mockStreamPrompt.mock.calls[0][0].callOverrides.tools
+      expect(tools).toBeDefined()
+      expect(Object.keys(tools)).toEqual(['get_weather'])
+      if (endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(tools.get_weather.strict).toBe(false)
+      else expect(tools.get_weather).not.toHaveProperty('strict')
+
+      const wireBodies: {
+        tools: { name?: string; strict?: boolean; function?: { name: string; strict?: boolean } }[]
+      }[] = []
+      const fetch: typeof globalThis.fetch = async (_input, init) => {
+        wireBodies.push(JSON.parse(String(init?.body)))
+        return new Response(JSON.stringify({ error: { type: 'invalid_request_error', message: 'captured' } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+      const model =
+        endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          ? createAnthropic({ apiKey: 'test-key', fetch })(modelId)
+          : endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+            ? createOpenAI({ apiKey: 'test-key', fetch }).chat(modelId)
+            : createOpenAI({ apiKey: 'test-key', fetch }).responses(modelId)
+      const forwardedTools: LanguageModelV3FunctionTool[] = await Promise.all(
+        Object.entries(tools).map(async ([name, tool]) => ({
+          type: 'function',
+          name,
+          description: tool.description,
+          inputSchema: await asSchema(tool.inputSchema).jsonSchema,
+          ...(Object.hasOwn(tool, 'strict') ? { strict: tool.strict } : {})
+        }))
+      )
+      await expect(model.doGenerate({ prompt: [], tools: forwardedTools })).rejects.toMatchObject({ statusCode: 400 })
+      expect(wireBodies).toHaveLength(1)
+      expect(wireBodies[0].tools).toHaveLength(1)
+      const wireTool = wireBodies[0].tools[0]
+      if (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+        expect(wireTool.function?.name).toBe('get_weather')
+        expect(wireTool.function).not.toHaveProperty('strict')
+      } else {
+        expect(wireTool.name).toBe('get_weather')
+        if (endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(wireTool.strict).toBe(false)
+        else expect(wireTool).not.toHaveProperty('strict')
+      }
+    }
+  )
+})
+
 describe('processMessage (internal Agent continuation normalization)', () => {
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
@@ -278,7 +351,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(effectiveParams).not.toBe(params)
     expect(effectiveParams.messages[0].content).toEqual([call])
     expect(effectiveParams.messages[1].content).toEqual([output])
-    expect(mockToAiSdkTools).toHaveBeenCalledWith(effectiveParams)
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(effectiveParams, ENDPOINT_TYPE.OPENAI_RESPONSES)
     expect(mockExtractStreamOptions).toHaveBeenCalledWith(effectiveParams)
     expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(effectiveParams)
     expect(params).toEqual(snapshot)
@@ -303,7 +376,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     await processAndCaptureStreamMessages(params)
 
     expect(mockToUIMessages).toHaveBeenCalledWith(params)
-    expect(mockToAiSdkTools).toHaveBeenCalledWith(params)
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(params, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     expect(mockExtractStreamOptions).toHaveBeenCalledWith(params)
     expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(params)
     expect(mockLoggerWarn).not.toHaveBeenCalled()

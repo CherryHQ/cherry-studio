@@ -295,6 +295,12 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('createCustomModel', () => {
+    it('exposes Qwen 3.8 Flash Next effort tiers for a compatible custom provider', () => {
+      const model = createCustomModel('strata', 'qwen3.8-flash-next')
+
+      expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'xhigh'])
+    })
+
     it('does not infer image capability from an unknown model id', () => {
       const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
 

@@ -1,6 +1,8 @@
 import { Type } from '@earendil-works/pi-ai'
 import type { AgentToolResult, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
+import { isSubagentSession } from './subagent'
+
 /** Claude Code's name: Cherry's composer, card and remote access match on this raw name. */
 export const ASK_USER_TOOL_NAME = 'AskUserQuestion'
 
@@ -48,6 +50,8 @@ export interface AskUserQuestionDetails {
   questions: AskUserQuestionItem[]
   answers: Record<string, string>
   annotations?: AskUserAnnotations
+  /** How the call ended; `declined` means the user dismissed it. */
+  outcome: 'answered' | 'declined' | 'unavailable' | 'aborted'
 }
 
 const DESCRIPTION = [
@@ -111,29 +115,30 @@ function toToolResult(
   questions: AskUserQuestionItem[],
   response: AskUserResponse | undefined
 ): AgentToolResult<AskUserQuestionDetails> {
-  const unanswered = (text: string) => ({
+  const unanswered = (text: string, outcome: AskUserQuestionDetails['outcome']) => ({
     content: [{ type: 'text' as const, text }],
-    details: { questions, answers: {} },
+    details: { questions, answers: {}, outcome },
     isError: true
   })
   switch (response?.status) {
     case undefined:
-      return unanswered(CANCELLED)
+      return unanswered(CANCELLED, 'aborted')
     case 'unavailable':
-      return unanswered(UNAVAILABLE)
+      return unanswered(UNAVAILABLE, 'unavailable')
     case 'declined': {
       const feedback = response.feedback?.trim()
       return unanswered(
         feedback
           ? `${DECLINED} They said:\n${feedback}`
-          : `${DECLINED} Wait for the user's instructions instead of asking again.`
+          : `${DECLINED} Wait for the user's instructions instead of asking again.`,
+        'declined'
       )
     }
     case 'answered': {
       const { answers, annotations } = response
       return {
         content: [{ type: 'text', text: answeredText(questions, response) }],
-        details: { questions, answers, ...(annotations === undefined ? {} : { annotations }) }
+        details: { questions, answers, outcome: 'answered', ...(annotations === undefined ? {} : { annotations }) }
       }
     }
   }
@@ -154,8 +159,9 @@ async function waitForAnswer(port: AskUserPort, request: AskUserRequest): Promis
 }
 
 /**
- * The `AskUserQuestion` tool with Claude Code's input schema. It waits on `port`; calls in one
- * model step run one at a time, so the user sees one set of questions at a time.
+ * The `AskUserQuestion` tool with Claude Code's input schema. It waits on `port`, except inside a
+ * subagent's session, where it ends as `unavailable` without asking the port. Calls in one model
+ * step run one at a time, so the user sees one set of questions at a time.
  */
 export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
   return (pi) => {
@@ -167,13 +173,15 @@ export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
       exposure: 'model-only',
       executionMode: 'sequential',
       annotations: { readOnlyHint: true, openWorldHint: false },
-      async execute(toolCallId, params, signal) {
+      async execute(toolCallId, params, signal, _onUpdate, ctx) {
         const questions = params.questions.map((item) => ({ ...item, multiSelect: item.multiSelect ?? false }))
         const texts = new Set(questions.map((item) => item.question))
         // Answers are keyed by question text and name the chosen labels.
         if (texts.size !== questions.length) throw new Error('Each question must have a different question text.')
         if (questions.some(({ options }) => new Set(options.map((option) => option.label)).size !== options.length))
           throw new Error('Each option of a question must have a different label.')
+        // A subagent works for another agent; no person is there to answer.
+        if (isSubagentSession(ctx.sessionManager.getBranch())) return toToolResult(questions, { status: 'unavailable' })
 
         const request = { toolCallId, questions, signal: signal ?? new AbortController().signal }
         return toToolResult(questions, await waitForAnswer(port, request))
