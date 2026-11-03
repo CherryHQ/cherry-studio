@@ -13,7 +13,7 @@ export function openCherryCloudAccountPortal(): Promise<void> {
 }
 
 // The official website has no test deployment, so every China-edition build links the production FAQ.
-const CN_SUBSCRIPTION_FAQ_URL = 'https://cherryai.com.cn/flash#plus-faq'
+const CN_SUBSCRIPTION_FAQ_URL = 'https://cherryai.com.cn/subscription/faq'
 
 /** The global path is a placeholder until the web team provides that edition's subscription FAQ page. */
 export function openCherryCloudFaq(): Promise<void> {

@@ -31,7 +31,10 @@ describe('openCherryCloudAccountPortal', () => {
 
     await openCherryCloudFaq()
 
-    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherryai.com.cn/flash#plus-faq')
+    expect(request).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://cherryai.com.cn/subscription/faq'
+    )
   })
 
   it('opens the global-edition FAQ on the same origin as the portal', async () => {
