@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type { ReasoningWireProfile } from '@cherrystudio/provider-registry'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -2169,5 +2169,126 @@ describe('Responses summary permission through production materialization', () =
       expect(materialized.providerConfig).toBe(injection.providerConfig)
       expect(materialized.streamSimple).toBe(await loadPiApiStreamSimple(injection.api))
     }
+  })
+})
+
+describe('declared chat-completions reasoning off wire', () => {
+  function fixture(route: string) {
+    const provider = makeProvider({
+      id: ['preset', 'generic'].includes(route) ? 'custom-bridge' : 'deepseek',
+      presetProviderId: route === 'preset' ? 'deepseek' : null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai',
+          baseUrl: route === 'official' ? 'https://api.deepseek.com' : 'https://compatible.invalid'
+        }
+      }
+    })
+    const resolved = providerRegistryService.resolveModel(provider, 'deepseek-flash')
+    if (!resolved.presetModel) throw new Error('Expected registry DeepSeek model')
+    const model = {
+      ...mergePresetModel(
+        resolved.presetModel,
+        resolved.registryOverride,
+        provider.id,
+        resolved.reasoningProfile.wire,
+        resolved.reasoningProfile.support
+      ),
+      apiModelId: 'deepseek-flash',
+      endpointTypes: ['openai-chat-completions'] as Model['endpointTypes']
+    }
+    if (route === 'no-none') {
+      model.reasoning = { ...model.reasoning, selectableEfforts: ['high'] }
+    }
+    const injection =
+      route === 'gateway'
+        ? buildPiGatewayInjection(provider, model, GATEWAY)
+        : buildPiProviderInjection(provider, model, REAL_KEY)
+    return injection
+  }
+
+  async function capture(
+    injection: ReturnType<typeof fixture>,
+    streamSimple: Awaited<ReturnType<typeof materializePiProviderStream>>['streamSimple'],
+    selection: 'none' | 'high' | 'default' | 'auto' | undefined
+  ) {
+    let body = ''
+    const model = {
+      ...injection.providerConfig.models![0],
+      api: injection.api,
+      provider: 'session-qualified-deepseek',
+      baseUrl: injection.providerConfig.baseUrl
+    } as PiModel<'openai-completions'>
+    await streamSimple(model, normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }), {
+      apiKey: REAL_KEY,
+      ...(selection === 'none' ? {} : { reasoning: 'high' }),
+      maxRetries: 0,
+      fetch: async (_input, init) => {
+        body = String(init?.body)
+        return new Response(JSON.stringify({ error: { message: 'payload captured' } }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+    }).result()
+    return body
+  }
+
+  it.each(['official', 'bridge', 'preset', 'generic', 'no-none', 'gateway'])(
+    'honors off only for declared direct models on %s',
+    async (route) => {
+      const injection = fixture(route)
+      const { loadPiApiStreamSimple } = await import('./piSdk')
+      const builtin = await loadPiApiStreamSimple(injection.api)
+      const baseline = await capture(injection, builtin, 'none')
+      const materialized = await materializePiProviderStream(injection, 'none')
+      const serialized = await capture(injection, materialized.streamSimple, 'none')
+      const body = JSON.parse(serialized)
+      if (['official', 'bridge', 'preset'].includes(route)) {
+        expect(body.thinking).toEqual({ type: 'disabled' })
+        expect(body).not.toHaveProperty('reasoning_effort')
+      }
+      if (['official', 'generic', 'no-none', 'gateway'].includes(route)) {
+        expect(serialized).toBe(baseline)
+      }
+      if (['generic', 'no-none', 'gateway'].includes(route)) {
+        expect(materialized.streamSimple).toBe(builtin)
+      }
+    }
+  )
+
+  it.each([
+    { name: 'disabled profile', wire: { disabled: true } },
+    {
+      name: 'off mode without emissions',
+      wire: {
+        off: { operations: [{ target: 'reasoningSummary', value: { source: 'assistant-summary' } }] }
+      }
+    }
+  ] satisfies Array<{ name: string; wire: ReasoningWireProfile }>)('leaves $name unwrapped', async ({ wire }) => {
+    const injection = fixture('bridge')
+    if (!('reasoning' in injection) || !injection.reasoning) throw new Error('Expected direct reasoning profile')
+    injection.reasoning.profile = { ...injection.reasoning.profile, wire }
+    const { loadPiApiStreamSimple } = await import('./piSdk')
+    const builtin = await loadPiApiStreamSimple(injection.api)
+    const materialized = await materializePiProviderStream(injection, 'none')
+    expect(await capture(injection, materialized.streamSimple, 'none')).toBe(await capture(injection, builtin, 'none'))
+    expect(materialized.streamSimple).toBe(builtin)
+  })
+
+  it.each(
+    ['official', 'bridge', 'preset', 'generic', 'no-none', 'gateway'].flatMap((route) =>
+      (['high', 'default', 'auto', undefined] as const).map((selection) => ({ route, selection }))
+    )
+  )('preserves base serialization for $selection on $route', async ({ route, selection }) => {
+    const injection = fixture(route)
+    const { loadPiApiStreamSimple } = await import('./piSdk')
+    const builtin = await loadPiApiStreamSimple(injection.api)
+    const materialized = await materializePiProviderStream(injection, selection)
+    expect(await capture(injection, materialized.streamSimple, selection)).toBe(
+      await capture(injection, builtin, selection)
+    )
+    expect(materialized.streamSimple).toBe(builtin)
   })
 })

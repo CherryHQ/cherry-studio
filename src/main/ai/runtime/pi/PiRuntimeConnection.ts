@@ -250,7 +250,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const sessionDir = application.getPath('feature.agents.pi.sessions')
     const pi = await loadPiSdk()
 
-    const materializedProvider = await materializePiProviderStream(injection)
+    const materializedProvider = await materializePiProviderStream(injection, this.input.reasoningEffort)
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),

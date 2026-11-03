@@ -11,13 +11,18 @@ import {
   ModelRuntime,
   SessionManager,
   SettingsManager,
+  type CreateAgentSessionOptions,
   type ToolDefinition
 } from '@earendil-works/pi-coding-agent'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
+import type { Provider } from '@shared/data/types/provider'
 
+import { buildPiProviderInjection, materializePiProviderStream } from './modelInjection'
 import { forkPiSession } from './piFork'
+import { resolvePiThinkingLevel } from './piThinkingLevel'
 
 const directories: string[] = []
 afterEach(async () => {
@@ -300,6 +305,130 @@ describe('Pi reasoning selection SDK contract', () => {
         ])
       } finally {
         resumed.session.dispose()
+      }
+    }
+  )
+})
+
+const registryGetPath = vi.mocked(application.getPath).getMockImplementation()
+
+describe('registry-backed direct Pi reasoning off SDK contract', () => {
+  beforeEach(() => {
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
+      key === 'feature.provider_registry.data' && filename
+        ? path.resolve(process.cwd(), 'packages/provider-registry/data', filename)
+        : (registryGetPath?.(key, filename) ?? `/mock/${key}`)
+    )
+    providerRegistryService.clearCache()
+  })
+
+  afterEach(() => providerRegistryService.clearCache())
+
+  it.each(['none', 'high'] as const)(
+    'serializes %s through the resolved bridge model and completes the turn',
+    async (selection) => {
+      const provider: Provider = {
+        id: 'deepseek',
+        name: 'DeepSeek bridge',
+        reportsActualCost: false,
+        apiKeys: [],
+        authType: 'api-key',
+        settings: {},
+        isEnabled: true,
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://compatible.invalid' }
+        }
+      }
+      const resolved = providerRegistryService.resolveModel(provider, 'deepseek-flash')
+      if (!resolved.presetModel) throw new Error('Expected registry DeepSeek model')
+      const model = {
+        ...mergePresetModel(
+          resolved.presetModel,
+          resolved.registryOverride,
+          provider.id,
+          resolved.reasoningProfile.wire,
+          resolved.reasoningProfile.support
+        ),
+        apiModelId: 'deepseek-flash',
+        endpointTypes: ['openai-chat-completions'] as const
+      }
+      const injection = buildPiProviderInjection(
+        provider,
+        { ...model, endpointTypes: [...model.endpointTypes] },
+        'fixture-only'
+      )
+      const materialized = await materializePiProviderStream(injection, selection)
+      const cwd = await mkdtemp(path.join(tmpdir(), 'cherry-pi-registry-thinking-'))
+      directories.push(cwd)
+      const settingsManager = SettingsManager.inMemory()
+      const resourceLoader = new DefaultResourceLoader({
+        cwd,
+        agentDir: cwd,
+        settingsManager,
+        noExtensions: true,
+        noSkills: true,
+        noPromptTemplates: true,
+        noThemes: true,
+        noContextFiles: true
+      })
+      await resourceLoader.reload()
+      const modelRuntime = await ModelRuntime.create({
+        credentials: new InMemoryCredentialStore(),
+        modelsPath: null,
+        refreshOnCreate: false
+      })
+      const providerName = `${provider.id}:session-22847:1`
+      modelRuntime.registerProvider(providerName, materialized.providerConfig)
+      await modelRuntime.setRuntimeApiKey(providerName, injection.apiKey)
+      const { session } = await createAgentSession({
+        cwd,
+        agentDir: cwd,
+        modelRuntime,
+        settingsManager,
+        resourceLoader,
+        sessionManager: SessionManager.inMemory(cwd),
+        model: modelRuntime.getModel(providerName, injection.modelId),
+        thinkingLevel: resolvePiThinkingLevel(selection) as CreateAgentSessionOptions['thinkingLevel'],
+        tools: []
+      })
+      const requests: Array<{ method: string | undefined; url: string; body: Record<string, unknown> }> = []
+      session.agent.streamFunction = (piModel, context, options) =>
+        materialized.streamSimple(piModel, context, {
+          ...options,
+          apiKey: injection.apiKey,
+          fetch: async (input, init) => {
+            requests.push({ method: init?.method, url: String(input), body: JSON.parse(String(init?.body)) })
+            const chunk = {
+              id: 'fixture-response',
+              object: 'chat.completion.chunk',
+              created: 1,
+              model: 'deepseek-flash',
+              choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: null }]
+            }
+            const end = { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }
+            return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: ${JSON.stringify(end)}\n\ndata: [DONE]\n\n`, {
+              headers: { 'content-type': 'text/event-stream' }
+            })
+          }
+        })
+      try {
+        await session.prompt('hello')
+        expect(requests).toHaveLength(1)
+        expect(requests[0]).toMatchObject({ method: 'POST', url: 'https://compatible.invalid/v1/chat/completions' })
+        expect(requests[0].body.model).toBe('deepseek-flash')
+        if (selection === 'none') {
+          expect(requests[0].body.thinking).toEqual({ type: 'disabled' })
+          expect(requests[0].body).not.toHaveProperty('reasoning_effort')
+        } else {
+          expect(requests[0].body.reasoning_effort).toBe('high')
+          expect(requests[0].body).not.toHaveProperty('thinking')
+        }
+        const assistant = session.messages.filter((message) => message.role === 'assistant')
+        expect(assistant).toHaveLength(1)
+        expect(assistant[0]).toMatchObject({ stopReason: 'stop', content: [{ type: 'text', text: 'ok' }] })
+      } finally {
+        session.dispose()
       }
     }
   )
