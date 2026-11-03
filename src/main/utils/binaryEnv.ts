@@ -1,7 +1,7 @@
 import path from 'path'
 
 import { application } from '@application'
-import { isWin } from '@main/core/platform'
+import { isMac, isWin } from '@main/core/platform'
 
 import { getBundledGitDir } from './bundledGit'
 
@@ -60,7 +60,7 @@ function canonicalPathSegment(segment: string): string {
   return stripped
 }
 
-/** Root dir for all Cherry-managed binary state (mise data, shims, isolated home). */
+/** Root dir for Cherry-managed mise data, shims, and the isolated home. */
 function binaryDataDir(): string {
   return application.getPath('feature.binary.data')
 }
@@ -126,6 +126,10 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
     XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
     XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
+  }
+  if (isMac && /\s/u.test(env.XDG_CACHE_HOME)) {
+    const uvCacheDir = application.getPath('feature.binary.data.uv_cache')
+    if (!/\s/u.test(uvCacheDir)) env.UV_CACHE_DIR = uvCacheDir
   }
   // On Windows, mise's aqua backend runs Sigstore/TUF verification, which resolves
   // its cache/config dirs from %LOCALAPPDATA%/%APPDATA%. The install subprocess
