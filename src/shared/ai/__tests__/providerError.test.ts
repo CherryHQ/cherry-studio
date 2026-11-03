@@ -1,3 +1,4 @@
+import { GatewayInternalServerError } from '@ai-sdk/gateway'
 import { APICallError, RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -264,5 +265,18 @@ describe('Groq service-tier serialization', () => {
       lastError: { message: body, statusCode: 400, providerErrorCategory: 'permission' },
       errors: [{ message: body, statusCode: 400, providerErrorCategory: 'permission' }]
     })
+  })
+})
+
+describe('nested Gateway failures', () => {
+  it('keeps only safe HTTP diagnostics from a real Gateway error nested in RetryError', () => {
+    const error = new GatewayInternalServerError({ message: '', statusCode: 504, cause: new Error('private prompt') })
+    const retry = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [error] })
+    const result = serializeNestedProviderError(retry)
+    expect(result).toMatchObject({
+      lastError: { name: 'GatewayInternalServerError', statusCode: 504, isRetryable: true, stack: null, cause: null }
+    })
+    expect(JSON.stringify(result)).not.toContain('private prompt')
+    expect(result).not.toHaveProperty('lastError.generationId')
   })
 })
