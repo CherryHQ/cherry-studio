@@ -26,7 +26,7 @@ export function formatClaudeTool(block: Record<string, unknown>, name?: string):
             )
             .join('\n')
         : JSON.stringify(block.content ?? '', null, 2)
-  return '[Historical tool result' + (name ? ': ' + name : '') + ']\n\n' + codeBlock(content)
+  return '[Historical tool result' + (name ? ': ' + name : '') + ']\n\n' + stripVTControlCharacters(content)
 }
 
 export function isClaudeLocalCommand(text: string): boolean {
@@ -41,9 +41,9 @@ export function formatClaudeHistoryText(text: string): string {
     /^\s*<command-name>([\s\S]*?)<\/command-name>\s*<command-message>[\s\S]*?<\/command-message>\s*<command-args>([\s\S]*?)<\/command-args>\s*$/.exec(
       clean
     )
-  if (command) return '[Historical local command]\n\n' + codeBlock((command[1] + ' ' + command[2]).trim())
+  if (command) return '[Historical local command]\n\n' + (command[1] + ' ' + command[2]).trim()
   const output = /^\s*<local-command-(stdout|stderr)>([\s\S]*?)<\/local-command-\1>\s*$/.exec(clean)
-  if (output) return '[Historical local command output]\n\n' + codeBlock(output[2])
+  if (output) return '[Historical local command output]\n\n' + output[2]
   const legacy = /^\[Historical tool (call|result)(?:: ([^\]\n]+))?\]\n(\{[\s\S]*\})$/.exec(clean)
   if (legacy) {
     try {

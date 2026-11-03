@@ -6,7 +6,7 @@ describe('Claude imported history presentation', () => {
   it('renders CLI commands and terminal output without transport tags or ANSI escapes', () => {
     const command =
       '<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args></command-args>'
-    expect(formatClaudeHistoryText(command)).toContain('```\n/model\n```')
+    expect(formatClaudeHistoryText(command)).toContain('[Historical local command]\n\n/model')
     const output = formatClaudeHistoryText(
       '<local-command-stdout>Set model to \u001b[1mmodel\u001b[22m</local-command-stdout>'
     )
@@ -28,11 +28,11 @@ describe('Claude imported history presentation', () => {
     const result = presentClaudeHistory(data)
     expect(result.parts?.[0]).toEqual({
       type: 'text',
-      text: '[Historical tool result: Read]\n\n```\nfirst\nsecond\n```'
+      text: '[Historical tool result: Read]\n\nfirst\nsecond'
     })
     expect(data.parts[0].text).toContain('tool_use_id')
   })
-  it('keeps code fences in tool results inert and does not embed attachment bytes', () => {
+  it('keeps plain tool result text intact and does not embed attachment bytes', () => {
     const text = formatClaudeTool(
       {
         type: 'tool_result',
@@ -43,7 +43,7 @@ describe('Claude imported history presentation', () => {
       },
       'Read'
     )
-    expect(text).toContain('````\n```html')
+    expect(text).toContain('```html\n<img src=x>\n```')
     expect(text).toContain('[Historical attachment]')
     expect(text).not.toContain('BASE64')
     expect(formatClaudeHistoryText(text)).toBe(text)
