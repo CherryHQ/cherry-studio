@@ -1,10 +1,11 @@
-import { Bell, PanelLeftClose, X } from 'lucide-react'
+import { Bell, Check, X } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Drawer, DrawerContent, DrawerTitle, DrawerDescription, Scrollbar, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -17,7 +18,17 @@ import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
-const NotificationCenterContext = createContext<{ open: boolean; hasUnread: boolean; toggle: () => void } | null>(null)
+type DrawerSide = 'left' | 'right'
+const NotificationCenterContext = createContext<{
+  open: boolean
+  hasUnread: boolean
+  toggle: (side: DrawerSide) => void
+} | null>(null)
+
+const visibleTrigger = () =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>('[data-notification-trigger]')).find(
+    (button) => button.getClientRects().length > 0
+  )
 
 function NotificationItem({
   record,
@@ -93,7 +104,7 @@ function NotificationItem({
   }
 
   return (
-    <li data-requested={initiallyExpanded} className="border-b border-border-subtle last:border-0">
+    <li data-requested={initiallyExpanded} className="group border-b border-border-subtle last:border-0">
       <div className="relative py-2">
         <Button
           variant="ghost"
@@ -105,7 +116,7 @@ function NotificationItem({
           onClick={() => void activate()}>
           <span className="relative mb-1 flex min-h-5 min-w-0 items-center gap-2 pr-8 font-medium">
             {record.readAt === null && (
-              <span className="absolute -left-5 top-2 size-1.5 rounded-full bg-primary">
+              <span className="absolute -left-5.5 top-2 size-1.5 rounded-full bg-primary">
                 <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
                   {t('notification.center.unread')}
                 </span>
@@ -152,7 +163,7 @@ function NotificationItem({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="absolute right-2 top-3 text-muted-foreground"
+          className="absolute right-2 top-3 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           aria-label={t('notification.center.dismiss')}
           loading={dismissing}
           onClick={() =>
@@ -163,7 +174,7 @@ function NotificationItem({
                 toast.error(t('notification.center.error'))
               })
           }>
-          <X className="size-4" />
+          <Check className="size-4" />
         </Button>
       </div>
       {expanded && (release || announcementUrl) && (
@@ -289,10 +300,12 @@ function NotificationList({
 
 export function NotificationCenterButton({
   className = '',
-  placement
+  placement,
+  drawerSide = 'left'
 }: {
   className?: string
   placement?: 'top' | 'right' | 'bottom' | 'left'
+  drawerSide?: DrawerSide
 }) {
   const { t } = useTranslation()
   const unreadDescriptionId = useId()
@@ -303,13 +316,13 @@ export function NotificationCenterButton({
       <Button
         variant="ghost"
         size="icon"
-        data-notification-trigger
+        data-notification-trigger={drawerSide}
         className={`shell-navigation-item relative size-9 rounded-full ${className}`}
         aria-label={t('notification.center.title')}
         aria-describedby={center.hasUnread ? unreadDescriptionId : undefined}
         aria-expanded={center.open}
         aria-controls="notification-center"
-        onClick={center.toggle}>
+        onClick={() => center.toggle(drawerSide)}>
         <Bell className="size-4.5" strokeWidth={1.6} />
         {center.hasUnread && (
           <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary">
@@ -326,6 +339,7 @@ export function NotificationCenterButton({
 export function NotificationCenterProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [side, setSide] = useState<DrawerSide>('left')
   const [requestedId, setRequestedId] = useState<string | null>(null)
   const returnFocus = useRef(false)
   const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
@@ -338,14 +352,30 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   })
   useIpcOn('notification.open', ({ id }) => {
     setRequestedId(id)
+    setSide(visibleTrigger()?.dataset.notificationTrigger === 'right' ? 'right' : 'left')
     setOpen(true)
   })
   const changeOpen = (value: boolean) => {
     setOpen(value)
     if (!value) setRequestedId(null)
   }
+  const tabs = useOptionalTabsContext()
+  const page = `${tabs?.activeTabId}:${tabs?.tabs.find((tab) => tab.id === tabs.activeTabId)?.url}`
+  const [openedPage, setOpenedPage] = useState(page)
+  if (page !== openedPage) {
+    setOpenedPage(page)
+    if (open) changeOpen(false)
+  }
   return (
-    <NotificationCenterContext value={{ open, hasUnread: (unread?.count ?? 0) > 0, toggle: () => changeOpen(!open) }}>
+    <NotificationCenterContext
+      value={{
+        open,
+        hasUnread: (unread?.count ?? 0) > 0,
+        toggle: (nextSide) => {
+          setSide(nextSide)
+          changeOpen(!open)
+        }
+      }}>
       {children}
       <div
         ref={setPortalContainer}
@@ -358,13 +388,13 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
           right: '6px'
         }}
       />
-      <Drawer open={open} onOpenChange={changeOpen} direction="left" modal={false}>
+      <Drawer open={open} onOpenChange={changeOpen} direction={side} modal={false}>
         <DrawerContent
           id="notification-center"
           showOverlay={false}
           portalContainer={portalContainer}
           style={{
-            left: 0,
+            [side]: 0,
             top: 0,
             bottom: 0,
             width: 'min(384px, 100%)',
@@ -381,9 +411,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             if (returnFocus.current) {
-              Array.from(document.querySelectorAll<HTMLButtonElement>('[data-notification-trigger]'))
-                .find((button) => button.getClientRects().length > 0)
-                ?.focus()
+              visibleTrigger()?.focus()
               returnFocus.current = false
             }
           }}>
@@ -410,10 +438,10 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
                 returnFocus.current = event.detail === 0
                 changeOpen(false)
               }}>
-              <PanelLeftClose className="size-4" />
+              <X className="size-4" />
             </Button>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-3">
+          <Scrollbar className="min-h-0 flex-1 px-4">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}

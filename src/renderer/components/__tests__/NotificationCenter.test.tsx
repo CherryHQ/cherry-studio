@@ -5,6 +5,7 @@ import { getI18n } from 'react-i18next'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
 import { NotificationCenterButton, NotificationCenterProvider } from '../NotificationCenter'
@@ -54,6 +55,50 @@ describe('NotificationCenter reading', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(outside).toHaveBeenCalledOnce()
     expect(mockDataApiService.patch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['left', undefined],
+    ['right', 'right']
+  ] as const)('opens the drawer from the %s side of its trigger', async (side, drawerSide) => {
+    mockDataApiService.get.mockImplementation(async (path) =>
+      path === '/notifications' ? { items: [] } : { count: 0 }
+    )
+    const user = userEvent.setup()
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <NotificationCenterProvider>
+          <NotificationCenterButton drawerSide={drawerSide} />
+        </NotificationCenterProvider>
+      </SWRConfig>
+    )
+    await user.click(await screen.findByRole('button', { name: /Notification center/ }))
+    const drawer = await screen.findByRole('dialog')
+    expect(drawer).toHaveAttribute('data-vaul-drawer-direction', side)
+    expect(drawer.style.getPropertyValue(side)).toBe('0px')
+  })
+
+  it('closes when the user navigates to another page', async () => {
+    mockDataApiService.get.mockImplementation(async (path) =>
+      path === '/notifications' ? { items: [] } : { count: 0 }
+    )
+    const user = userEvent.setup()
+    const page = (url: string) =>
+      ({ activeTabId: 'tab-1', tabs: [{ id: 'tab-1', type: 'route', url, title: url }] }) as unknown as TabsContextValue
+    const app = (url: string) => (
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <TabsContext value={page(url)}>
+          <NotificationCenterProvider>
+            <NotificationCenterButton />
+          </NotificationCenterProvider>
+        </TabsContext>
+      </SWRConfig>
+    )
+    const { rerender } = render(app('/app/chat'))
+    await user.click(await screen.findByRole('button', { name: /Notification center/ }))
+    expect(await screen.findByRole('dialog')).toBeVisible()
+    rerender(app('/settings/provider'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it.each([
