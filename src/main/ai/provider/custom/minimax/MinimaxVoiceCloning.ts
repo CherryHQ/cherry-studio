@@ -86,8 +86,14 @@ async function parseResponse<T extends MinimaxResponse>(
 }
 
 function extractFileId(responseBody: string): string | undefined {
-  const fileObject = responseBody.match(/"file"\s*:\s*\{([^{}]*)\}/s)?.[1]
-  return fileObject?.match(/"file_id"\s*:\s*(\d+)/)?.[1]
+  const parsed = JSON.parse(responseBody, (key, value, context?: { source: string }) => {
+    if (key === 'file_id' && typeof value === 'number') {
+      return context?.source
+    }
+    return value
+  }) as { file?: { file_id?: unknown } }
+  const fileId = parsed.file?.file_id
+  return typeof fileId === 'string' && /^\d+$/.test(fileId) ? fileId : undefined
 }
 
 export class MinimaxVoiceCloning {

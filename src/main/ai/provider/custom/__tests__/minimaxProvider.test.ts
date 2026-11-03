@@ -132,11 +132,14 @@ describe('createMinimaxProvider', () => {
   it.each([
     ['https://api.minimax.io/v1', 'https://api.minimax.io/v1/files/upload'],
     ['https://api.minimaxi.com/v1', 'https://api.minimaxi.com/v1/files/upload']
-  ])('uploads clone audio and creates a voice through %s', async (baseURL, uploadUrl) => {
+  ])('uploads clone audio with braces in its metadata through %s', async (baseURL, uploadUrl) => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response('{"file":{"file_id":123456789012345678},"base_resp":{"status_code":0}}', { status: 200 })
+        new Response(
+          '{"file":{"file_id":123456789012345678,"filename":"sample {take 1}.mp3"},"base_resp":{"status_code":0}}',
+          { status: 200 }
+        )
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ input_sensitive: false, demo_audio: '', base_resp: { status_code: 0 } }), {
