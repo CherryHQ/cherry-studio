@@ -93,28 +93,31 @@ export function SubscriptionSettings() {
   return (
     <div className="space-y-6">
       <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              {activePaid?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
-            </p>
-            {activePaid?.plan.subscription_price && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {activePaid.plan.subscription_price.currency.toUpperCase()}{' '}
-                {activePaid.plan.subscription_price.unit_amount / 100} / {activePaid.plan.subscription_price.interval}
+      {/* Unknown until plans load; a failed load must not tell a subscriber they have no plan. */}
+      {plans && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {activePaid?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
               </p>
-            )}
+              {activePaid?.plan.subscription_price && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {activePaid.plan.subscription_price.currency.toUpperCase()}{' '}
+                  {activePaid.plan.subscription_price.unit_amount / 100} / {activePaid.plan.subscription_price.interval}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void (activePaid ? openCherryCloudAccountPortal() : startCherryCloudSubscription())}>
+              {activePaid ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
+              <ExternalLink />
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void (activePaid ? openCherryCloudAccountPortal() : startCherryCloudSubscription())}>
-            {activePaid ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
-            <ExternalLink />
-          </Button>
         </div>
-      </div>
+      )}
       <div>
         <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
         <div className="rounded-xl border border-border bg-card p-4">

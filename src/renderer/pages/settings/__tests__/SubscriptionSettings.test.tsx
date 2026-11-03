@@ -160,6 +160,16 @@ describe('SubscriptionSettings', () => {
     expect(screen.queryByText('US$8.00')).not.toBeInTheDocument()
   })
 
+  it('does not tell a subscriber they have no plan when the plans fail to load', async () => {
+    requestMock.mockRejectedValue(new Error('offline'))
+
+    renderSettings()
+
+    expect(await screen.findByText('settings.subscription.load_failed')).toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.no_plan')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.subscription.subscribe' })).not.toBeInTheDocument()
+  })
+
   it('does not offer sign-in before the session status is known', () => {
     session.status = null
     session.loadState = 'loading'
