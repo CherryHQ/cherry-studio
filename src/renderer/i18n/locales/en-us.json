@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Next",
   "library.config.dialogs.create.quick.auto_create": "Agent create",
   "library.config.dialogs.create.quick.auto_hint": "Skills and tools are set up from the name and purpose",
+  "library.config.dialogs.create.quick.back_to_quick": "Back to quick create",
   "library.config.dialogs.create.quick.manual_create": "Manual create",
   "library.config.dialogs.create.quick.model_required": "No default model yet. Choose a model to continue.",
   "library.config.dialogs.create.quick.name_placeholder": "Name your Agent, e.g. Slide Expert",

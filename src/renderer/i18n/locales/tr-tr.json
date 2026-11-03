@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "İleri",
   "library.config.dialogs.create.quick.auto_create": "Agent ile oluştur",
   "library.config.dialogs.create.quick.auto_hint": "Beceriler ve araçlar ad ile amaca göre ayarlanır",
+  "library.config.dialogs.create.quick.back_to_quick": "Hızlı oluşturmaya dön",
   "library.config.dialogs.create.quick.manual_create": "Elle oluştur",
   "library.config.dialogs.create.quick.model_required": "Henüz varsayılan model yok. Devam etmek için bir model seçin.",
   "library.config.dialogs.create.quick.name_placeholder": "Agent'ınıza bir ad verin, ör. Slayt Uzmanı",

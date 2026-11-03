@@ -102,14 +102,12 @@ describe('BasicInfoStep', () => {
     ).toBeVisible()
   })
 
-  it('lets an agent pick a permission mode and model without a runtime choice', () => {
+  it('asks an agent only for its model, leaving runtime and permission mode to their defaults', () => {
     render(<Harness isAgent />)
 
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.label')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
-    )
+    expect(screen.queryByText('library.config.agent.field.permission_mode.label')).not.toBeInTheDocument()
     expect(screen.getByText('common.model')).toBeVisible()
   })
 

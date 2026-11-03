@@ -161,7 +161,7 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
 const CANCEL = 'common.cancel'
-const BACK = 'library.config.dialogs.create.back'
+const BACK_TO_QUICK = 'library.config.dialogs.create.quick.back_to_quick'
 const MANUAL = 'manual create'
 const AUTO = 'auto create'
 
@@ -388,14 +388,14 @@ describe('ResourceCreateWizard', () => {
     )
   })
 
-  it('returns from the first guided step to the quick-create page', async () => {
+  it('returns from the guided wizard to the quick-create page', async () => {
     const user = userEvent.setup()
     render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.queryByRole('button', { name: AUTO })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: BACK }))
+    await user.click(screen.getByRole('button', { name: BACK_TO_QUICK }))
     expect(screen.getByRole('button', { name: AUTO })).toBeInTheDocument()
   })
 

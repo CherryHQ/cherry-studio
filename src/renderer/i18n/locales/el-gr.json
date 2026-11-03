@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Επόμενο",
   "library.config.dialogs.create.quick.auto_create": "Δημιουργία από Agent",
   "library.config.dialogs.create.quick.auto_hint": "Οι δεξιότητες και τα εργαλεία ρυθμίζονται από το όνομα και τον σκοπό",
+  "library.config.dialogs.create.quick.back_to_quick": "Επιστροφή στη γρήγορη δημιουργία",
   "library.config.dialogs.create.quick.manual_create": "Χειροκίνητη δημιουργία",
   "library.config.dialogs.create.quick.model_required": "Δεν υπάρχει ακόμη προεπιλεγμένο μοντέλο. Επιλέξτε ένα μοντέλο για να συνεχίσετε.",
   "library.config.dialogs.create.quick.name_placeholder": "Δώστε όνομα στον Agent, π.χ. Ειδικός παρουσιάσεων",

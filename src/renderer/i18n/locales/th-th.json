@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "ถัดไป",
   "library.config.dialogs.create.quick.auto_create": "สร้างด้วย Agent",
   "library.config.dialogs.create.quick.auto_hint": "ตั้งค่าสกิลและเครื่องมือจากชื่อและวัตถุประสงค์โดยอัตโนมัติ",
+  "library.config.dialogs.create.quick.back_to_quick": "กลับไปที่การสร้างด่วน",
   "library.config.dialogs.create.quick.manual_create": "สร้างด้วยตนเอง",
   "library.config.dialogs.create.quick.model_required": "ยังไม่มีโมเดลเริ่มต้น โปรดเลือกโมเดลเพื่อดำเนินการต่อ",
   "library.config.dialogs.create.quick.name_placeholder": "ตั้งชื่อ Agent เช่น ผู้เชี่ยวชาญสไลด์",

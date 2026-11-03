@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Suivant",
   "library.config.dialogs.create.quick.auto_create": "Créer avec l'Agent",
   "library.config.dialogs.create.quick.auto_hint": "Les compétences et outils sont configurés à partir du nom et de l'objectif",
+  "library.config.dialogs.create.quick.back_to_quick": "Retour à la création rapide",
   "library.config.dialogs.create.quick.manual_create": "Créer manuellement",
   "library.config.dialogs.create.quick.model_required": "Aucun modèle par défaut. Choisissez un modèle pour continuer.",
   "library.config.dialogs.create.quick.name_placeholder": "Nommez votre Agent, par ex. Expert en diapositives",

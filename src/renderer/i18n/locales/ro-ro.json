@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Următorul",
   "library.config.dialogs.create.quick.auto_create": "Creează cu Agent",
   "library.config.dialogs.create.quick.auto_hint": "Abilitățile și instrumentele sunt configurate pe baza numelui și scopului",
+  "library.config.dialogs.create.quick.back_to_quick": "Înapoi la crearea rapidă",
   "library.config.dialogs.create.quick.manual_create": "Creează manual",
   "library.config.dialogs.create.quick.model_required": "Nu există încă un model implicit. Alege un model pentru a continua.",
   "library.config.dialogs.create.quick.name_placeholder": "Dă un nume Agentului, de ex. Expert în prezentări",

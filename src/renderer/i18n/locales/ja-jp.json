@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "次",
   "library.config.dialogs.create.quick.auto_create": "Agent で作成",
   "library.config.dialogs.create.quick.auto_hint": "名前と用途からスキルとツールを自動で設定します",
+  "library.config.dialogs.create.quick.back_to_quick": "クイック作成に戻る",
   "library.config.dialogs.create.quick.manual_create": "手動で作成",
   "library.config.dialogs.create.quick.model_required": "既定のモデルがまだありません。続行するにはモデルを選択してください。",
   "library.config.dialogs.create.quick.name_placeholder": "Agent の名前を入力（例：スライド職人）",

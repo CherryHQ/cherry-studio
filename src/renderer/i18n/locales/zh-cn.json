@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "下一步",
   "library.config.dialogs.create.quick.auto_create": "Agent 创建",
   "library.config.dialogs.create.quick.auto_hint": "会根据名称和用途自动配置技能和工具",
+  "library.config.dialogs.create.quick.back_to_quick": "返回快速创建",
   "library.config.dialogs.create.quick.manual_create": "手动创建",
   "library.config.dialogs.create.quick.model_required": "还没有设置默认模型，请先选择一个模型",
   "library.config.dialogs.create.quick.name_placeholder": "给 Agent 起个名字，比如「PPT 专家」",

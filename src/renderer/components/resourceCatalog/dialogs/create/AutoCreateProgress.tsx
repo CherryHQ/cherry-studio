@@ -67,7 +67,13 @@ export function AutoCreateProgress({ input, model, onSubmit, onBack, onRunningCh
       mark('skills', 'done')
 
       mark('create', 'running')
-      await onSubmit({ ...input, prompt: instructions, skillIds, knowledgeBaseIds: [] })
+      await onSubmit({
+        ...input,
+        prompt: instructions,
+        skillIds,
+        knowledgeBaseIds: [],
+        setupIncomplete: !generated
+      })
       mark('create', 'done')
     } catch (error) {
       if (signal.aborted) return

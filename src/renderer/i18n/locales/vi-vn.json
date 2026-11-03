@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Tiếp theo",
   "library.config.dialogs.create.quick.auto_create": "Tạo bằng Agent",
   "library.config.dialogs.create.quick.auto_hint": "Kỹ năng và công cụ được thiết lập dựa trên tên và mục đích",
+  "library.config.dialogs.create.quick.back_to_quick": "Quay lại tạo nhanh",
   "library.config.dialogs.create.quick.manual_create": "Tạo thủ công",
   "library.config.dialogs.create.quick.model_required": "Chưa có mô hình mặc định. Hãy chọn một mô hình để tiếp tục.",
   "library.config.dialogs.create.quick.name_placeholder": "Đặt tên cho Agent, ví dụ: Chuyên gia slide",

@@ -86,7 +86,8 @@ describe('AutoCreateProgress', () => {
         ...INPUT,
         prompt: '## Role\nYou turn meeting notes into slides.',
         skillIds: ['pdf', 'pptx'],
-        knowledgeBaseIds: []
+        knowledgeBaseIds: [],
+        setupIncomplete: false
       })
     )
   })
@@ -97,7 +98,9 @@ describe('AutoCreateProgress', () => {
     const { onSubmit } = renderProgress()
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Turn meeting notes into slides' }))
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'Turn meeting notes into slides', setupIncomplete: true })
+      )
     )
     expect(screen.getByText('library.config.dialogs.create.auto.step.prompt_fallback')).toBeInTheDocument()
   })

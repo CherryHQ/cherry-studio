@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Следующий",
   "library.config.dialogs.create.quick.auto_create": "Создать с Agent",
   "library.config.dialogs.create.quick.auto_hint": "Навыки и инструменты настраиваются по названию и назначению",
+  "library.config.dialogs.create.quick.back_to_quick": "Назад к быстрому созданию",
   "library.config.dialogs.create.quick.manual_create": "Создать вручную",
   "library.config.dialogs.create.quick.model_required": "Модель по умолчанию не задана. Выберите модель, чтобы продолжить.",
   "library.config.dialogs.create.quick.name_placeholder": "Назовите Agent, например «Эксперт по слайдам»",

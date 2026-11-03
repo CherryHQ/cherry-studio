@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Nächste",
   "library.config.dialogs.create.quick.auto_create": "Agent erstellen",
   "library.config.dialogs.create.quick.auto_hint": "Skills und Tools werden aus Name und Zweck eingerichtet",
+  "library.config.dialogs.create.quick.back_to_quick": "Zurück zur Schnellerstellung",
   "library.config.dialogs.create.quick.manual_create": "Manuell erstellen",
   "library.config.dialogs.create.quick.model_required": "Noch kein Standardmodell. Wähle ein Modell, um fortzufahren.",
   "library.config.dialogs.create.quick.name_placeholder": "Benenne deinen Agent, z. B. Folien-Experte",

@@ -2178,6 +2178,7 @@
   "library.config.dialogs.create.next": "Próximo",
   "library.config.dialogs.create.quick.auto_create": "Criar com Agent",
   "library.config.dialogs.create.quick.auto_hint": "As skills e ferramentas são configuradas a partir do nome e da finalidade",
+  "library.config.dialogs.create.quick.back_to_quick": "Voltar à criação rápida",
   "library.config.dialogs.create.quick.manual_create": "Criar manualmente",
   "library.config.dialogs.create.quick.model_required": "Ainda não há modelo predefinido. Escolha um modelo para continuar.",
   "library.config.dialogs.create.quick.name_placeholder": "Dê um nome ao seu Agent, p. ex. Especialista em diapositivos",

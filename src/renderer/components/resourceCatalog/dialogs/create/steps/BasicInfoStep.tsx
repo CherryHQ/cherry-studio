@@ -13,14 +13,12 @@ import {
   InputGroupInput
 } from '@cherrystudio/ui'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
   CompactModelField,
   type ModelLabels,
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
-import { getPermissionModeCards } from '@renderer/utils/agent'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 
@@ -31,83 +29,15 @@ const EMPTY_MODEL_LABELS: ModelLabels = {
   contextCompressModelId: null
 }
 
-type ModelFieldProps = {
-  form: UseFormReturn<ResourceCreateWizardFormValues>
-  portalContainer: HTMLElement | null
-  modelLabels: ModelLabels
-  setModelLabels: (labels: ModelLabels) => void
-  modelFilter?: ModelSelectorFilter
-  isModelDisabled?: ModelSelectorFilter
-  onSettingsNavigate?: (navigate: () => void) => void
-}
-
 type BasicInfoStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
   fallbackAvatar: string
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
-  /** Agent create flows add the permission mode and the Pi model filter. */
+  /** Agent create flows also offer agent-only models; the permission mode keeps its default. */
   isAgent?: boolean
   onSettingsNavigate?: (navigate: () => void) => void
-}
-
-/**
- * Permission mode + model picker for agent create flows. Every new Agent runs on Pi, so there is no
- * runtime choice. Isolated so `useAgentModelFilter` (and its provider subscription) only mounts for
- * agents — assistants keep using the static `modelFilter` prop.
- */
-function AgentModelFields({
-  form,
-  portalContainer,
-  modelLabels,
-  setModelLabels,
-  modelFilter,
-  isModelDisabled,
-  onSettingsNavigate
-}: ModelFieldProps) {
-  const { t } = useTranslation()
-  const agentType = useWatch({ control: form.control, name: 'agentType' })
-  const agentName = useWatch({ control: form.control, name: 'name' })
-  const permissionModeCards = getPermissionModeCards(agentType)
-
-  return (
-    <>
-      <FormField
-        control={form.control}
-        name="permissionMode"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="font-medium">{t('library.config.agent.field.permission_mode.label')}</FormLabel>
-            <PermissionModeSelect
-              cards={permissionModeCards}
-              value={field.value}
-              onValueChange={field.onChange}
-              portalContainer={portalContainer}
-              ariaLabel={t('library.config.agent.field.permission_mode.label')}
-              scopeName={agentName?.trim() || undefined}
-              t={t}
-            />
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <CompactModelField
-        form={form}
-        name="modelId"
-        includeAgentOnlyModels
-        label={t('common.model')}
-        labelClassName="font-medium"
-        filter={modelFilter}
-        isModelDisabled={isModelDisabled}
-        portalContainer={portalContainer}
-        modelLabels={modelLabels}
-        setModelLabels={setModelLabels}
-        onSettingsNavigate={onSettingsNavigate}
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
-      />
-    </>
-  )
 }
 
 /**
@@ -170,31 +100,20 @@ export function BasicInfoStep({
         )}
       />
 
-      {isAgent ? (
-        <AgentModelFields
-          form={form}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          modelFilter={modelFilter}
-          isModelDisabled={isModelDisabled}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-      ) : (
-        <CompactModelField
-          form={form}
-          name="modelId"
-          label={t('common.model')}
-          labelClassName="font-medium"
-          filter={modelFilter}
-          isModelDisabled={isModelDisabled}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onSettingsNavigate={onSettingsNavigate}
-          triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
-        />
-      )}
+      <CompactModelField
+        form={form}
+        name="modelId"
+        includeAgentOnlyModels={isAgent}
+        label={t('common.model')}
+        labelClassName="font-medium"
+        filter={modelFilter}
+        isModelDisabled={isModelDisabled}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onSettingsNavigate={onSettingsNavigate}
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
+      />
 
       <TextInputField
         form={form}

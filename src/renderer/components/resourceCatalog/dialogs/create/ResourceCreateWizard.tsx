@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -100,12 +101,23 @@ function WizardFooter({
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
+      {onBackToQuick ? (
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={submitting}
+          className="mr-auto text-muted-foreground"
+          onClick={onBackToQuick}>
+          <ArrowLeft />
+          {t('library.config.dialogs.create.quick.back_to_quick')}
+        </Button>
+      ) : null}
       {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
-      {stepIndex > 0 || onBackToQuick ? (
-        <Button type="button" variant="outline" disabled={submitting} onClick={stepIndex > 0 ? onBack : onBackToQuick}>
+      {stepIndex > 0 ? (
+        <Button type="button" variant="outline" disabled={submitting} onClick={onBack}>
           {t('library.config.dialogs.create.back')}
         </Button>
       ) : null}
