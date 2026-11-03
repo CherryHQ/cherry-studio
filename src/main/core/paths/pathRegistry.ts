@@ -170,6 +170,13 @@ export function buildPathRegistry() {
     // naming a Python runtime there is what makes mise fetch its own from
     // GitHub releases (see binaryManager/pythonRuntime.ts).
     'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
+    // Outside feature.binary.data: install XDG_CACHE_HOME inherits macOS userData's space, as do uv's sdist build dirs.
+    'feature.binary.data.uv_cache': path.join(
+      CHERRY_HOME,
+      'cache',
+      'uv',
+      createHash('sha256').update(path.resolve(appUserData)).digest('hex')
+    ),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
@@ -446,6 +453,7 @@ const NO_ENSURE = [
   'feature.agents.skills.builtin',
   'feature.agents.pi.vcc_file',
   'feature.mini_app.builtin',
+  'feature.binary.data.uv_cache',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',
