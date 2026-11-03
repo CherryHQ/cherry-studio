@@ -1366,6 +1366,10 @@ export class ClaudeCodeStreamAdapter {
       case 'api_retry':
         this.handleApiRetrySystemMessage(message)
         return
+      case 'informational':
+        logger.debug(`Received system message subtype: ${message.subtype}`, { message })
+        this.handleInformationalSystemMessage(message, ctx)
+        return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
@@ -1379,7 +1383,6 @@ export class ClaudeCodeStreamAdapter {
       case 'model_refusal_fallback':
       case 'model_refusal_no_fallback':
       case 'control_request_progress':
-      case 'informational':
       case 'worker_shutting_down':
         // TODO: Implement handling for these system message subtypes as needed. For now, they are
         // acknowledged at debug level in the logger to avoid being silently ignored. The two
@@ -1397,6 +1400,25 @@ export class ClaudeCodeStreamAdapter {
         return
       }
     }
+  }
+
+  private handleInformationalSystemMessage(
+    message: Extract<SDKMessage, { subtype: 'informational' }>,
+    ctx: StreamContext
+  ): void {
+    if (
+      !this.turnActive ||
+      message.prevent_continuation !== true ||
+      message.level === 'info' ||
+      !message.content.trim()
+    ) {
+      return
+    }
+
+    const id = generateId()
+    ctx.sink.enqueue({ type: 'text-start', id })
+    ctx.sink.enqueue({ type: 'text-delta', id, delta: message.content })
+    ctx.sink.enqueue({ type: 'text-end', id })
   }
 
   private handlePermissionDeniedSystemMessage(

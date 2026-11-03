@@ -719,6 +719,18 @@ describe('useAgentMessageListProviderValue', () => {
         role: 'assistant',
         parts: [{ type: 'data-agent-task-event', data: {} }],
         metadata: { createdAt: '2026-01-01T00:00:03.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-hook-block',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'text',
+            text: 'UserPromptSubmit operation blocked by hook:\ntest\n\nOriginal prompt: hello there',
+            state: 'done'
+          }
+        ],
+        metadata: { createdAt: '2026-01-01T00:00:04.000Z', status: 'success' }
       }
     ] as CherryUIMessage[]
     const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
@@ -743,7 +755,24 @@ describe('useAgentMessageListProviderValue', () => {
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
     expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      { type: 'data-error', data: { name: 'AgentRuntimeError', message: 'error.no_response', stack: null } }
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-hook-block']).toEqual([
+      {
+        type: 'text',
+        text: 'UserPromptSubmit operation blocked by hook:\ntest\n\nOriginal prompt: hello there',
+        state: 'done'
+      }
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hook-block']).toEqual([
+      {
+        type: 'text',
+        text: 'UserPromptSubmit operation blocked by hook:\ntest\n\nOriginal prompt: hello there',
+        state: 'done'
+      }
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-empty-success']).toEqual([
+      { type: 'data-error', data: { name: 'AgentRuntimeError', message: 'error.no_response', stack: null } }
     ])
     expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
     expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
