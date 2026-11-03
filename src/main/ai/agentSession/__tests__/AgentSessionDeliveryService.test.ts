@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   runtimeBusy: vi.fn(),
   listSessionIdsByExecutingAgent: vi.fn(),
   closeSession: vi.fn(),
+  prepareBranch: vi.fn(),
   getPath: vi.fn(),
   purgeSystemWorkspace: vi.fn(),
   withDispatchLock: vi.fn(),
@@ -144,6 +145,7 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  getExecutionHead: () => undefined,
   cancelSessionForks: vi.fn().mockResolvedValue(undefined),
   recoverSessionForks: vi.fn().mockResolvedValue(undefined),
   listActiveWork: () => [],
@@ -152,6 +154,7 @@ const runtime = {
   isSessionBusyForArchive: mocks.runtimeBusy,
   listSessionIdsByExecutingAgent: mocks.listSessionIdsByExecutingAgent,
   closeSession: mocks.closeSession,
+  prepareBranch: mocks.prepareBranch,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
     return { dispose: () => mocks.terminalListeners.delete(listener) }
@@ -252,6 +255,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.listSessionIdsByExecutingAgent.mockReturnValue([])
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.prepareBranch.mockReset().mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
     mocks.purgeSystemWorkspace.mockResolvedValue(undefined)
     mocks.listSystemWorkspaceSessions.mockReturnValue([])
@@ -327,6 +331,22 @@ describe('AgentSessionDeliveryService', () => {
     await service.drainInFlight({ timeoutMs: 100 })
     expect(mocks.hasLiveStream).toHaveBeenCalled()
     expect(mocks.send).toHaveBeenCalled()
+  })
+
+  it('rechecks admission after switching the captured delivery branch', async () => {
+    const switching = Promise.withResolvers<void>()
+    mocks.prepareBranch.mockReturnValue(switching.promise)
+    const service = new AgentSessionDeliveryService()
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    service.kick('target')
+    await vi.waitFor(() => expect(mocks.prepareBranch).toHaveBeenCalledWith('target', 'delivery-1'))
+    const hold = service.pause('test')
+    switching.resolve()
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+    hold.dispose()
+    await service.drainSessionQueues(['target'])
   })
 
   it('keeps an accepted row durable while the target is busy, then starts it on idle', async () => {

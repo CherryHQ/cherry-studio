@@ -210,6 +210,27 @@
       "when": 1792948344082,
       "tag": "0029_sloppy_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793181295484,
+      "tag": "0030_skill_mirror_export",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1793700315599,
+      "tag": "0031_agent_native_contexts",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1793700436233,
+      "tag": "0032_agent_message_tree",
+      "breakpoints": true
     }
   ],
   "version": "7"

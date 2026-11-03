@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { SWRConfig } from 'swr'
@@ -174,6 +174,9 @@ const defaultExternalTargets: ExternalOpenTarget[] = [
   { id: 'vscode', kind: 'application', name: 'VS Code' }
 ]
 
+/** The tab strip repeats the name, and only the breadcrumb right-click is under test. */
+const breadcrumbTitle = (name: string) => within(screen.getByTestId('artifact-file-preview-overlay')).getByText(name)
+
 function createMockModel(): ArtifactFileTreeModel {
   return {
     nodes: [],
@@ -203,11 +206,14 @@ function renderHarness(props: {
       <CommandContextKeyProvider>
         <CommandProvider>
           <ArtifactPaneView
+            paneTitle="Files"
+            paneActions={null}
             workspacePath={props.workspacePath ?? '/tmp/workspace'}
             selectedFile={props.selectedFile ?? null}
             onSelectedFileChange={props.onSelectedFileChange ?? vi.fn()}
             previewFileSelection={props.previewFileSelection}
-            onPreviewClose={props.onPreviewClose}
+            fileTabs={props.previewFileSelection ? [props.previewFileSelection] : []}
+            onPreviewClose={props.onPreviewClose ?? vi.fn()}
             model={model}
             searchKeyword=""
             onSearchKeywordChange={vi.fn()}
@@ -261,7 +267,7 @@ describe('ArtifactPane Context Menu Integration', () => {
       model
     })
 
-    const titleElement = screen.getByText('README.md')
+    const titleElement = breadcrumbTitle('README.md')
     fireEvent.contextMenu(titleElement)
 
     // Default app and reveal sit at the top level; other apps and copy actions are grouped.
@@ -298,7 +304,7 @@ describe('ArtifactPane Context Menu Integration', () => {
         readOnly: true
       }
     })
-    fireEvent.contextMenu(screen.getByText(`entry-1.${extension}`))
+    fireEvent.contextMenu(breadcrumbTitle(`entry-1.${extension}`))
     await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.content' }))
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith('Selected file contents'))
   })
@@ -313,7 +319,7 @@ describe('ArtifactPane Context Menu Integration', () => {
       },
       fileSession: { status: 'idle', isDirty: false } as React.ComponentProps<typeof ArtifactPaneView>['fileSession']
     })
-    fireEvent.contextMenu(screen.getByText('report.md'))
+    fireEvent.contextMenu(breadcrumbTitle('report.md'))
     expect(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.content' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'common.edit' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'common.edit' })).toBeNull()
@@ -330,7 +336,7 @@ describe('ArtifactPane Context Menu Integration', () => {
       }
     })
 
-    fireEvent.contextMenu(screen.getByText('entry-1.md'))
+    fireEvent.contextMenu(breadcrumbTitle('entry-1.md'))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.absolute_path' }))
 
     await waitFor(() => {
@@ -352,7 +358,7 @@ describe('ArtifactPane Context Menu Integration', () => {
     // Targets resolve while the file opens, before anyone right-clicks it.
     await waitFor(() => expect(mocks.listOpenTargets).toHaveBeenCalled())
     await act(async () => {})
-    const titleElement = screen.getByText('README.md')
+    const titleElement = breadcrumbTitle('README.md')
     fireEvent.contextMenu(titleElement)
 
     await waitFor(() => expect(mocks.showNativePopupMenu).toHaveBeenCalled())
@@ -376,10 +382,14 @@ describe('ArtifactPane Context Menu Integration', () => {
         <CommandContextKeyProvider>
           <CommandProvider>
             <ArtifactPaneView
+              paneTitle="Files"
+              paneActions={null}
               workspacePath="/tmp/workspace"
               selectedFile={null}
               onSelectedFileChange={vi.fn()}
               previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'a.md' }}
+              fileTabs={[{ workspacePath: '/tmp/workspace', filePath: 'a.md' }]}
+              onPreviewClose={vi.fn()}
               model={createMockModel()}
               searchKeyword=""
               onSearchKeywordChange={vi.fn()}
@@ -390,7 +400,7 @@ describe('ArtifactPane Context Menu Integration', () => {
     )
 
     // Open context menu for file A
-    fireEvent.contextMenu(screen.getByText('a.md'))
+    fireEvent.contextMenu(breadcrumbTitle('a.md'))
     expect(await screen.findByRole('menuitem', { name: /reveal_in_finder/ })).toBeInTheDocument()
 
     // Switch selection to file B
@@ -399,10 +409,14 @@ describe('ArtifactPane Context Menu Integration', () => {
         <CommandContextKeyProvider>
           <CommandProvider>
             <ArtifactPaneView
+              paneTitle="Files"
+              paneActions={null}
               workspacePath="/tmp/workspace"
               selectedFile={null}
               onSelectedFileChange={vi.fn()}
               previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'b.md' }}
+              fileTabs={[{ workspacePath: '/tmp/workspace', filePath: 'b.md' }]}
+              onPreviewClose={vi.fn()}
               model={createMockModel()}
               searchKeyword=""
               onSearchKeywordChange={vi.fn()}
@@ -413,7 +427,7 @@ describe('ArtifactPane Context Menu Integration', () => {
     )
 
     // Open context menu for file B
-    fireEvent.contextMenu(screen.getByText('b.md'))
+    fireEvent.contextMenu(breadcrumbTitle('b.md'))
     const finderItem = await screen.findByRole('menuitem', { name: /reveal_in_finder/ })
     fireEvent.click(finderItem)
 
@@ -432,7 +446,7 @@ describe('ArtifactPane Context Menu Integration', () => {
     renderHarness({
       previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'slow.md' }
     })
-    fireEvent.contextMenu(screen.getByText('slow.md'))
+    fireEvent.contextMenu(breadcrumbTitle('slow.md'))
 
     await waitFor(() =>
       expect(mocks.showNativePopupMenu).toHaveBeenCalledWith(
