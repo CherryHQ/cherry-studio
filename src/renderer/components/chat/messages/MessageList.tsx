@@ -38,11 +38,12 @@ import {
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig, type MessageListItem } from './types'
 import {
   getLatestAssistantGroupKey,
   getMessageGroupKey,
-  getOwningUserMessageIdByAssistantId
+  getOwningUserMessageIdByAssistantId,
+  withHistoricalProcessGroups
 } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
@@ -194,7 +195,12 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
   const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
-  const { topic, messages, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
+  const { topic, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
+  const historicalProcessCache = useRef(new WeakMap<MessageListItem, MessageListItem>())
+  const messages = useMemo(
+    () => withHistoricalProcessGroups(data.messages, partsByMessageId, historicalProcessCache.current),
+    [data.messages, partsByMessageId]
+  )
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false

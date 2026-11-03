@@ -45,6 +45,53 @@ const sourceLabels = {
 } as const
 
 type Props = { source: HistorySource } & PopupInjectedProps<void>
+type Result = ImportOutcome & { title: string; terminal: boolean; problemCodes: string[] }
+
+function isTerminalProblem(code: string) {
+  return (
+    code.startsWith('unsupported_') ||
+    [
+      'unstable_identity',
+      'identity_conflict',
+      'duplicate_message_id',
+      'broken_parent_chain',
+      'invalid_record',
+      'missing_time',
+      'timestamp_order',
+      'line_limit',
+      'session_limit'
+    ].includes(code)
+  )
+}
+
+function cannotImport(item: ImportPreviewItem) {
+  const errors = item.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')
+  const canChooseBranch = item.branches.length > 1 && errors.some((diagnostic) => diagnostic.code === 'branch_required')
+  return errors.some(
+    ({ code }) =>
+      isTerminalProblem(code) || ((code === 'empty_session' || code === 'branch_required') && !canChooseBranch)
+  )
+}
+
+function blockingProblemCodes(item: ImportPreviewItem) {
+  const terminal = cannotImport(item)
+  const hasTerminalProblem = item.diagnostics.some(
+    ({ code, severity }) => severity === 'error' && isTerminalProblem(code)
+  )
+  return [
+    ...new Set(
+      item.diagnostics
+        .filter(
+          ({ code, severity }) =>
+            severity === 'error' &&
+            (!terminal ||
+              isTerminalProblem(code) ||
+              (!hasTerminalProblem && (code === 'empty_session' || code === 'branch_required')))
+        )
+        .map(({ code }) => code)
+    )
+  ]
+}
 
 function problem(code: string) {
   if (code.includes('limit')) return 'history_import.problems.limit'
@@ -67,7 +114,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const [root, setRoot] = useState('')
   const [scan, setScan] = useState<{ scanId: string; candidates: ImportCandidate[] }>()
   const [selections, setSelections] = useState<ImportSelection[]>([])
-  const [results, setResults] = useState<(ImportOutcome & { title: string })[]>()
+  const [results, setResults] = useState<Result[]>()
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
@@ -78,13 +125,14 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const errorTitle = useRef<HTMLHeadingElement>(null)
   const blockedItems = reviewItems.filter(
     (item) =>
-      selections.some((selection) => selection.ref === item.ref) &&
+      (selections.some((selection) => selection.ref === item.ref) ||
+        results?.some((result) => result.ref === item.ref && result.terminal)) &&
       item.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   )
   const showPicker = !results || selections.length > 0
   const completedRefs = new Set(
     results
-      ?.filter((result) => result.status === 'imported' || result.status === 'existing')
+      ?.filter((result) => result.status === 'imported' || result.status === 'existing' || result.terminal)
       .map((result) => result.ref)
   )
   useEffect(
@@ -162,16 +210,24 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       previewId: checked.previewId,
       refs: checked.items.map((item) => item.ref)
     })
+    const nextResults: Result[] = outcomes.map((outcome) => {
+      const item = checked.items.find((item) => item.ref === outcome.ref)
+      return {
+        ...outcome,
+        title: item?.title ?? '',
+        terminal:
+          (outcome.status === 'failed' || outcome.status === 'unprocessed') &&
+          ((item ? cannotImport(item) : false) || isTerminalProblem(outcome.reason ?? '')),
+        problemCodes: item ? blockingProblemCodes(item) : []
+      }
+    })
     setResults((current) => [
       ...(current ?? []).filter((result) => !outcomes.some((outcome) => outcome.ref === result.ref)),
-      ...outcomes.map((outcome) => ({
-        ...outcome,
-        title: checked.items.find((item) => item.ref === outcome.ref)?.title ?? ''
-      }))
+      ...nextResults
     ])
     const completed = new Set(
-      outcomes
-        .filter((outcome) => outcome.status === 'imported' || outcome.status === 'existing')
+      nextResults
+        .filter((outcome) => outcome.status === 'imported' || outcome.status === 'existing' || outcome.terminal)
         .map((outcome) => outcome.ref)
     )
     setSelections((current) => current.filter((selection) => !completed.has(selection.ref)))
@@ -460,53 +516,52 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                     </p>
                   </div>
                   <ul className="list-disc space-y-3 pl-5 text-sm leading-6 text-error">
-                    {[
-                      ...new Set(
-                        item.diagnostics
-                          .filter((diagnostic) => diagnostic.severity === 'error')
-                          .map((diagnostic) => problem(diagnostic.code))
-                      )
-                    ].map((key) => (
+                    {[...new Set(blockingProblemCodes(item).map((code) => problem(code)))].map((key) => (
                       <li key={key}>{t(key)}</li>
                     ))}
                   </ul>
-                  {item.branches.length > 1 && (
-                    <Select
-                      value={selections.find((s) => s.ref === item.ref)?.branchId ?? item.branchId ?? ''}
-                      disabled={busy}
-                      onValueChange={(branchId) => updateSelection(item.ref, { branchId })}>
-                      <SelectTrigger aria-label={t('history_import.branch')}>
-                        <SelectValue placeholder={t('history_import.branch')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {item.branches.map((branch) => (
-                          <SelectItem key={branch} value={branch}>
-                            {branch}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {item.diagnostics.some((d) => d.code.includes('directory')) && (
-                    <div className="flex items-center gap-3">
-                      <span className="min-w-0 flex-1 break-all text-sm text-muted-foreground">
-                        {selections.find((s) => s.ref === item.ref)?.directory ??
-                          item.directory ??
-                          item.originalDirectory}
-                      </span>
-                      <Button
-                        variant="outline"
+                  {!cannotImport(item) &&
+                    item.branches.length > 1 &&
+                    item.diagnostics.some(
+                      (diagnostic) => diagnostic.code === 'branch_required' && diagnostic.severity === 'error'
+                    ) && (
+                      <Select
+                        value={selections.find((s) => s.ref === item.ref)?.branchId ?? item.branchId ?? ''}
                         disabled={busy}
-                        onClick={() =>
-                          void run(async () => {
-                            const directory = await chooseFolder()
-                            if (directory) updateSelection(item.ref, { directory })
-                          })
-                        }>
-                        {t('history_import.folder')}
-                      </Button>
-                    </div>
-                  )}
+                        onValueChange={(branchId) => updateSelection(item.ref, { branchId })}>
+                        <SelectTrigger aria-label={t('history_import.branch')}>
+                          <SelectValue placeholder={t('history_import.branch')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {item.branches.map((branch) => (
+                            <SelectItem key={branch} value={branch}>
+                              {branch}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  {!cannotImport(item) &&
+                    item.diagnostics.some((d) => d.code === 'directory_required' && d.severity === 'error') && (
+                      <div className="flex items-center gap-3">
+                        <span className="min-w-0 flex-1 break-all text-sm text-muted-foreground">
+                          {selections.find((s) => s.ref === item.ref)?.directory ??
+                            item.directory ??
+                            item.originalDirectory}
+                        </span>
+                        <Button
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(async () => {
+                              const directory = await chooseFolder()
+                              if (directory) updateSelection(item.ref, { directory })
+                            })
+                          }>
+                          {t('history_import.folder')}
+                        </Button>
+                      </div>
+                    )}
                 </section>
               ))}
             {!error &&
@@ -523,12 +578,14 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                     <p className="truncate font-medium" title={result.title}>
                       {result.title}
                     </p>
-                    <p className="text-sm leading-6 text-error">
+                    <p className="whitespace-pre-line text-sm leading-6 text-error">
                       {result.initialization === 'failed'
                         ? t('history_import.retry_history')
-                        : result.reason
-                          ? t(problem(result.reason))
-                          : t(resultLabels[result.status])}
+                        : result.problemCodes.length
+                          ? [...new Set(result.problemCodes.map((code) => t(problem(code))))].join('\n')
+                          : result.reason
+                            ? t(problem(result.reason))
+                            : t(resultLabels[result.status])}
                     </p>
                   </section>
                 ))}
