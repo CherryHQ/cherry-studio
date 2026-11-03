@@ -1017,11 +1017,26 @@ function afterColumns(columns: number, line: string): string {
 
 /** The index past a parenthesised run that opens at `open`, or −1 when it never closes. */
 function pastParenRun(source: string, open: number): number {
-  let depth = 0
-  for (let index = open; index < source.length; index += 1) {
+  let depth = 1
+  // An angle-bracketed destination may hold parentheses, so the closing `)` inside `<…>` is not
+  // the run's end. Only the first non-space token after `(` can open one.
+  let angle = false
+  let destinationStart = true
+  for (let index = open + 1; index < source.length; index += 1) {
     const character = source[index]
-    if (character === '\\') index += 1
-    else if (character === '(') depth += 1
+    if (character === '\\') {
+      index += 1
+      continue
+    }
+    if (destinationStart) {
+      if (character === '<') angle = true
+      if (character !== ' ' && character !== '\t') destinationStart = false
+    }
+    if (angle) {
+      if (character === '>') angle = false
+      continue
+    }
+    if (character === '(') depth += 1
     else if (character === ')' && (depth -= 1) === 0) return index + 1
   }
   return -1

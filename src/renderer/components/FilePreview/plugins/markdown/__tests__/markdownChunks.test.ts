@@ -2917,6 +2917,15 @@ describe('document-wide heading slugs', () => {
     expect(chunks.flatMap((chunk) => [...(chunk.headingSlugs?.get('xcc') ?? [])])).toEqual(['xcc', 'xcc-1'])
   })
 
+  it('keeps a parenthesis inside an angle-bracketed destination out of the heading text', () => {
+    // `<b)c>` is the whole destination, so the heading text is `a`. Reading the inner `)` as the
+    // link's end left the text as `a-bc`, and the second heading then took the id the jump expects.
+    const content = `# [a](<b)c>)\n\n${'filler\n\n'.repeat(3072)}# a\n\n[jump](#a-1)\n`
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(chunkHeadingIds(content)).toEqual(['chunk--a', 'chunk--a-1'])
+  })
+
   it('counts a heading behind quote markers toward the document-wide numbering', () => {
     const content = ['# Title', '', '> # Title', '', '# Title', ''].join('\n')
 
