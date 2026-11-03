@@ -154,6 +154,50 @@ describe('message-owned native input bindings', () => {
     })
   })
 
+  it('leaves a native placeholder for its owner but cleans an unbound input on a sibling branch', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    const nativeAssistant = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: messageId,
+      message: {
+        id: nativeAssistant,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      }
+    })
+    const legacyInput = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: messageId,
+      message: {
+        id: legacyInput,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'legacy' }] }
+      }
+    })
+    const legacyAssistant = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: legacyInput,
+      message: {
+        id: legacyAssistant,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      }
+    })
+    expect(messages.findCrashOrphanedAssistantMessages().map((row) => row.id)).toEqual([legacyAssistant])
+    messages.resolveCrashOrphanedMessages(
+      [nativeAssistant, legacyAssistant].map((id) => ({ id, data: { parts: [] } })),
+      [sessionId]
+    )
+    expect(messages.getSessionMessage(sessionId, nativeAssistant).status).toBe('pending')
+    expect(messages.getSessionMessage(sessionId, legacyAssistant).status).toBe('error')
+  })
+
   it('cascades the input binding with its owning session without preventing permanent deletion', () => {
     prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
     bindNativeInput(sessionId, contextId, nativeInput())
