@@ -366,6 +366,113 @@ describe('useAgentMessageListProviderValue', () => {
     expect(result.current.actions.openForkSourceSession).toBeUndefined()
   })
 
+  it('uses the current Agent for imported authors while retaining source models and native author snapshots', () => {
+    const snapshot = {
+      id: 'source-session',
+      name: 'Conversation title',
+      emoji: '📄',
+      model: { id: 'source-model', name: 'Source model', provider: 'source-provider' }
+    }
+    const messages: CherryUIMessage[] = [
+      {
+        id: 'imported',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Historical answer' }],
+        metadata: {
+          status: 'success',
+          messageSnapshot: snapshot,
+          provenance: { source: 'codex', originalMessageId: 'source-answer', sourceOrder: 2, inferredTimestamp: false }
+        }
+      },
+      { id: 'native', role: 'assistant', parts: [], metadata: { messageSnapshot: snapshot } }
+    ]
+    const { result, rerender } = renderHook(
+      ({ profile }) =>
+        useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Conversation title',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            lastActivityAt: '2026-01-01T00:00:00.000Z',
+            messages: []
+          },
+          messages,
+          partsByMessageId: {},
+          assistantProfile: profile,
+          messageNavigation: 'anchor',
+          isLoading: false
+        }),
+      { initialProps: { profile: { name: 'Current Agent', avatar: '🤖' } } }
+    )
+    const imported = result.current.state.messages[0]
+    expect(imported.messageSnapshot).toBeUndefined()
+    expect(imported.model).toEqual(snapshot.model)
+    expect(result.current.meta.assistantProfile).toEqual({ name: 'Current Agent', avatar: '🤖' })
+    expect(result.current.state.messages[1].messageSnapshot).toEqual(snapshot)
+    rerender({ profile: { name: 'Renamed Agent', avatar: '🍒' } })
+    expect(result.current.meta.assistantProfile).toEqual({ name: 'Renamed Agent', avatar: '🍒' })
+    expect(result.current.state.messages[0]).toBe(imported)
+    expect(messages[0].metadata?.messageSnapshot).toEqual(snapshot)
+  })
+
+  it('hides only the imported preamble at the actual start, keeping mid-turn pages and normal messages', () => {
+    const imported = (id: string, role: CherryUIMessage['role'], text: string): CherryUIMessage => ({
+      id,
+      role,
+      parts: [{ type: 'text', text }],
+      metadata: { provenance: { source: 'codex', originalMessageId: id, sourceOrder: 1, inferredTimestamp: false } }
+    })
+    const preamble = imported('context', 'system', '[Historical project instructions]\nAGENTS.md')
+    const setup = imported('setup', 'assistant', 'Starting session')
+    const user = imported('user', 'user', 'Explain this project')
+    const answer = imported('answer', 'assistant', 'Project explanation')
+    const laterContext = imported('later-context', 'system', 'Later context')
+    const native: CherryUIMessage = {
+      id: 'native',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Background task' }]
+    }
+    const messages = [native, preamble, setup, user, answer, laterContext]
+    const { result, rerender } = renderHook(
+      ({ hasOlder }) =>
+        useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Source',
+            messages: [],
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            lastActivityAt: '2026-01-01T00:00:00.000Z'
+          },
+          messages,
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor',
+          hasOlder
+        }),
+      { initialProps: { hasOlder: true } }
+    )
+    expect(result.current.state.messages.map((message) => message.id)).toEqual(messages.map((message) => message.id))
+    rerender({ hasOlder: false })
+    expect(result.current.state.messages.map((message) => message.id)).toEqual([
+      'native',
+      'user',
+      'answer',
+      'later-context'
+    ])
+    expect(messages.map((message) => message.id)).toEqual([
+      'native',
+      'context',
+      'setup',
+      'user',
+      'answer',
+      'later-context'
+    ])
+  })
+
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
       id: 'agent-session-topic',
