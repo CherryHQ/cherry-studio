@@ -14,7 +14,11 @@ Users accumulate conversations in Claude Code, Codex, OpenCode, and WorkBuddy ou
 
 ### Destination and entry point
 
-Expose **Settings → Import external application data → Import local application data → source application**. Add the local-application group inside the existing external-import page. Each source opens a shared import wizard. Show an enabled source only after its implementation is complete; existing web-export import entries retain their purpose.
+Expose **Settings → Data settings → Import local application data → source application**. Keep Import external application data and Import local application data in separate settings groups. Each source opens a shared import dialog. Show an enabled source only after its implementation is complete; existing web-export import entries retain their purpose. Give local sources their application icons and the spacing used by other settings rows.
+
+Opening a source automatically discovers its default history location. Allow a manual location override when needed. Use the source conversation title, falling back to the first real user message and then a source/date label. Keep titles on one line with the full title available on hover. Use cards at least 80 px tall with a hover shadow. Select all applies to the currently displayed search results, up to 100 candidates; retain selections outside the filter without exceeding the batch limit.
+
+Keep one primary action, Import selected conversations. It runs read-only validation and then commits valid selections; do not add a separate Preview button or require another confirmation screen. Retain the internal preview contract below. Unsupported targets remain disabled and explain that only Pi Agents are supported.
 
 | Source | Target Agent | Destination |
 |---|---|---|
@@ -91,9 +95,11 @@ interface NormalizedSession {
 
 The schema above is a proposed internal contract. A normalized message carries its source ID, source order, available parent relation, role, content, model, and original timestamps. Diagnostics identify the file and line or database record, a reason code, and an explanation.
 
-Expose typed IpcApi commands `discover`, `preview`, `commit`, `cancel`, and `retryInitialization`. Scan results carry Main-generated references. Preview binds the active Pi target, selected branches, and directory choices. Commit accepts only the preview ID and selected sessions. Main validates window ownership, expiry, and the bound target; reject substituted Agent IDs and renderer-authored database records. Initialization retries use persisted session IDs.
+Expose typed IpcApi commands `discover`, `preview`, `commit`, `cancel`, and `retry_initialization`. Scan results carry Main-generated references. Preview binds the active Pi target, selected branches, and directory choices. Commit accepts only the preview ID and selected sessions. Main validates window ownership, expiry, and the bound target; reject substituted Agent IDs and renderer-authored database records. Initialization retries use persisted session IDs.
 
-Preview shows the destination Agent, title, parsed message count, recorded models, time range, source paths, original/final working directory, duplicate state, skips, degradations, and blocking findings. JSONL line counts are not message counts. Report known metadata separately from discarded conversation content.
+The internal preview returns the destination Agent, title, parsed message count, recorded models, time range, source paths, original/final working directory, duplicate state, skips, degradations, and blocking findings. The dialog uses these findings to import valid sessions and explain failures. JSONL line counts are not message counts. Report known metadata separately from discarded conversation content.
+
+Show errors in a separate dialog, grouped by session with duplicate reasons combined and enough space between findings. Focus its heading when it opens. Offer branch or directory choices only when they can resolve that session's blocking findings. A definitively unsupported or damaged session shows its terminal reasons, without unrelated conflict choices or retry. Remove it from pending selections. If every failed session is terminal, offer only Close. Mixed batches retain successful results and allow retries only for unresolved, recoverable selections. Failed native-history initialization remains separately retryable for the already saved session.
 
 Keep an immutable Main-memory snapshot of the selected Agent/runtime, messages, diagnostics, adapter version, workspace choices, and every source dependency and fingerprint, including Codex inherited history. Previews expire after 15 minutes. Stream JSONL with limits of 4 MiB per line, 32 MiB per session, and 100 sessions and 128 MiB per batch. Check input and normalized sizes separately. Reject excess before confirmation without truncation. Enable the entry only after first-layer boundary and memory fixtures pass.
 
@@ -120,7 +126,7 @@ OpenCode's [storage guide](https://dev.opencode.ai/docs/troubleshooting/#storage
 
 Tencent's [directory documentation](https://cloud.tencent.cn/document/product/1831/137016) describes CodeBuddy Code. WorkBuddy requires separate validation of session discovery, messages, times, directory, external tool output, and subagents. Investigate its format before enabling its source entry.
 
-All adapters allow explicit store selection. Register default store paths under `external.*` in [the path registry](../../../../src/main/core/paths/pathRegistry.ts), preserving no-auto-create behavior. Do not scan the entire user home or read account secrets. Store paths and working directories are different inputs.
+All adapters support automatic default-store discovery and explicit store selection. Register default store paths under `external.*` in [the path registry](../../../../src/main/core/paths/pathRegistry.ts), preserving no-auto-create behavior. Do not scan the entire user home or read account secrets. Store paths and working directories are different inputs.
 
 ### Message projection and continuation
 
@@ -135,11 +141,17 @@ All adapters allow explicit store selection. Register default store paths under 
 
 Keep historical tools as inert persisted text. Present supported tool-call/result markers as completed, display-only tool items under the existing Processed disclosure, including older imported records. Match tool results by call ID when available, never as user speech. Unmatched results remain labeled historical notes. Do not import pending tools, approvals, or generation state. Explicitly completed, failed, and interrupted messages use `success`, `error`, and `paused`.
 
+Merge adjacent completed historical process-only records into one Processed group for normal viewing. User messages, answer text, and unfinished records break the group. Preserve record order and every original message ID. Pagination must keep a stable group anchor; multi-select and capture retain the original individual records. Grouping changes display only, without rewriting persistence or replaying tools.
+
 Project one selected source branch into the flat Agent Session. Use an explicit active branch when available; otherwise require a preview choice. Report other branches as not imported. Independently recoverable subagent sessions are separate candidates under the selected target Agent. Never concatenate mutually exclusive branches.
 
 Convert valid times to UTC milliseconds while preserving raw source strings. For missing/invalid times, use the preceding valid time on the selected path, or a valid session-start time for the first message. Mark inferred values in preview; if no basis exists, block that session. Preserve source message identity and inference markers in typed message provenance, not in body text. Set session activity from historical activity; preserve the existing Agent's creation time.
 
 Record complete historical model information in `messageSnapshot.model`. Leave `modelId` empty when no local model matches, and display missing information as unrecorded. Do not create fake model/account configuration. Historical references remain inert text and follow existing Markdown rendering rules.
+
+Imported assistant headers use the current destination Agent's name and avatar, including old imports. A source conversation title is not the author name. Retain the source model snapshot; ordinary Cherry messages keep their existing author-snapshot behavior. Renaming the destination Agent updates imported headers without rewriting historical records.
+
+Once the actual beginning of history is loaded and a real user message is found, start the visible imported conversation at that message. Hide preceding imported project instructions such as AGENTS.md, environment information, and other setup records. Do not cut at the first user message of a partially loaded page. Preserve later records and histories without a real user message. This is a display projection: keep the original stored records and continuation context. Pass import provenance through image export so it uses the same author and preamble rules.
 
 Continuation ships in layer one, with Pi targets only; disable other runtimes in the selector. Visible messages alone do not establish native context. Reuse [Pi history conversion](../../../../src/main/ai/runtime/pi/retiredSessionHistory.ts) through a separate import entry, without impersonating retired-runtime migration or using external resume tokens. Preserve trailing imported user messages instead of applying retired migration's pending-delivery filtering.
 
@@ -181,7 +193,7 @@ Keep the active directory in `workspaceId`; the original path is provenance, not
 | User duplicates or forks a session | Clear the new session's unique import identity |
 | Conflicting copies claim one source ID | Report a conflict without merging silently |
 
-Use one synchronous `DbService.withWriteTx` per source session. Each transaction revalidates the selected Agent's active state and runtime compatibility, then creates necessary workspace records, the session with that `agentId`, messages, provenance, and the initialization marker together. Failure rolls back that session's writes; the existing Agent and its other sessions remain intact. Sessions commit independently. In a mixed batch, skip blocked sessions and commit valid sessions. Keep successes visible and retry only unresolved selections with a fresh preview. Cancellation or target invalidation stops subsequent sessions; report what was already committed.
+Use one synchronous `DbService.withWriteTx` per source session. Each transaction revalidates the selected Agent's active state and runtime compatibility, then creates necessary workspace records, the session with that `agentId`, messages, provenance, and the initialization marker together. Failure rolls back that session's writes; the existing Agent and its other sessions remain intact. Sessions commit independently. In a mixed batch, skip blocked sessions and commit valid sessions. Keep successes visible and retry only unresolved, recoverable selections with a fresh preview. Cancellation or target invalidation stops subsequent sessions; report what was already committed.
 
 Read files, parse, validate directories, and calculate fingerprints outside the write transaction. No `await`, file writes, or network calls occur inside it. Compose the owning services' Tx methods and publish their events only after commit. Never break a large session into separately committed chunks to evade transaction limits.
 
@@ -191,7 +203,7 @@ Append migrations for session metadata, typed message provenance, and the active
 
 Place the source adapters, diagnostics, normalization, and Main preview coordinator in `src/main/services/conversationImport/`. Put cross-process commands in `src/shared/ipc/schemas/conversationImport.ts` with matching handlers/registration. The coordinator uses the existing lifecycle container.
 
-Extend [ImportMenuSettings](../../../../src/renderer/pages/settings/DataSettings/ImportMenuSettings.tsx) with a local-application group and a shared dialog for target Agent selection, session selection, directory mapping, preview, and results. Use `@cherrystudio/ui`, i18next, and settings-search integration. Main must not import the renderer's web importer.
+Extend [ImportMenuSettings](../../../../src/renderer/pages/settings/DataSettings/ImportMenuSettings.tsx) with a separate local-application group and a shared dialog for discovery, target Agent selection, session selection, validation, and results. Put recoverable directory/branch choices in the separate error dialog. Use `@cherrystudio/ui`, i18next, and settings-search integration. Main must not import the renderer's web importer.
 
 Data changes belong to the Agent Session, message, and workspace owners identified above; the Agent owner supplies destination validation. Extend session schemas and typed message provenance. Runtime history initialization belongs to the runtime host and the selected runtime's adapter. Include path registration, migrations, backup compatibility, and post-commit notifications with their owning changes.
 
@@ -233,27 +245,29 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 
 ## Acceptance criteria
 
-- AC1 — The settings path exposes only completed source entries under Import external application data → Import local application data. (verification: renderer navigation and settings search)
+- AC1 — External and local imports use separate settings groups; only completed local sources are enabled. Opening a source discovers its default history, uses the source title or first real user message, and offers select all for displayed candidates. Import runs validation automatically without a separate Preview button. (verification: renderer discovery/selection/navigation and settings search)
 - AC2 — Import requires an explicit existing Agent selection and binds all newly imported sessions in the batch to it, without creating Agents or changing their configuration. (verification: unit database fixtures and renderer selection/empty-state cases)
 - AC3 — Each source conversation becomes a separate Agent Session, without ordinary Topics or mixed histories. (verification: unit multi-session fixtures)
 - AC4 — Recorded working directories bind correctly, and equivalent normalized paths reuse a user workspace. (verification: unit workspace and session relations)
 - AC5 — Absent working directories display No work directory and use the existing system-workspace semantics. (verification: unit and renderer)
-- AC6 — Missing, inaccessible, and foreign-platform directories require preview mapping or skipping, without silent fallback. (verification: unit and Electron directory fixtures)
+- AC6 — Missing, inaccessible, and foreign-platform directories require mapping or skipping, without silent fallback. Offer mapping only when it can make the session importable; terminal failures show no ineffective directory choices. (verification: unit, renderer and Electron directory fixtures)
 - AC7 — Repeated/concurrent imports, including different target selections, create no duplicate active imports while an active matching session exists; archived copies do not block a new import; selection uses Agent IDs despite equal names, and existing imports retain their owner. (verification: unit concurrency, cross-target, rename, and namesake fixtures)
 - AC8 — Empty input, cancelled previews, all-duplicate batches, and failed transactions leave no empty session or workspace and do not create or alter Agent configuration. (verification: unit state and source-directory comparisons)
 - AC9 — Imported content, valid timestamps, and supported source order remain consistent through persistence, pagination, and reload. With source timestamps one day ahead of the local clock, either new user/assistant turns remain after all imported history without changing timestamps, or preview rejects the session and commit rechecks before any session writes. (verification: unit clock-skew/ordering fixtures with controlled time and renderer paging/reload)
-- AC10 — Invalid JSON and unknown records have actionable locations/reasons while recoverable messages still import. (verification: unit mixed-record fixtures)
-- AC11 — A failed session rolls back atomically while valid sessions in the batch are saved. Retrying unresolved selections does not duplicate successes. Cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection and cancellation)
+- AC10 — Invalid JSON and unknown records have actionable locations/reasons while recoverable messages still import. A separate error dialog groups failures by session. Definitively unimportable sessions show only terminal reasons, without unrelated branch/directory choices or retry; offer only Close when no recoverable selections remain. (verification: unit mixed-record fixtures, renderer error/recovery cases and Electron)
+- AC11 — A failed session rolls back atomically while valid sessions in the batch are saved. Retry includes only unresolved, recoverable selections and does not duplicate successes. Cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection/cancellation and renderer mixed-batch retry)
 - AC12 — Changed sources/directories, a changed or deleted target, incompatible runtime changes, or expired previews require renewed selection/preview; foreign-window tokens and substituted target IDs are rejected. (verification: unit and renderer boundary checks)
 - AC13 — Codex indexes/events do not duplicate content, and shared root-session IDs do not merge distinct threads. (verification: unit missing-index and fork fixtures)
 - AC14 — OpenCode reads supported schemas including committed WAL data and clearly rejects unknown schemas. (verification: unit real SQLite fixtures)
 - AC15 — WorkBuddy support is limited to desktop formats and directory fields verified by declared versioned samples. (verification: unit versioned adapter fixtures)
-- AC16 — Historical tool calls/results display as completed tool items under Processed, including old imports. Opening/importing or expanding them never executes historical tools, requests approvals, or starts generation. (verification: unit runtime boundaries and Electron)
+- AC16 — Historical tool calls/results display as completed tool items under Processed, including old imports. Adjacent completed process-only records share one group; user messages, answer text and unfinished records separate groups. Paging, selection and capture preserve original message identities. Opening/importing or expanding them never executes tools, requests approvals, or starts generation. (verification: unit runtime boundaries, renderer grouping/paging/selection/capture and Electron)
 - AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
 - AC18 — Imported sessions support search, duplication, trash, and restore; reimport preserves archived copies, and restoring one after reimport keeps both histories; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
 - AC19 — Forward migration and existing full/slim backup round trips retain provenance, ownership, and workspaces; missing native history is reliably rebuilt or continuation explicitly blocked. No backup merging is added. (verification: unit populated-database migration and restore fixtures)
 - AC20 — Windows, macOS, and Linux satisfy path mapping and read-only source access, with simulations and native evidence distinguished. (verification: unit platform cases and platform-native Electron)
 - AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
+- AC22 — Imported assistant headers use the current destination Agent's name/avatar, including old imports and Agent renames, while retaining the source model. Source conversation titles do not appear as authors; ordinary Cherry author snapshots remain unchanged. (verification: renderer author/provenance/capture cases and Electron)
+- AC23 — After loading the actual beginning and finding the first real user message, hide only earlier imported setup records. Partial pages, later records, stored history and continuation context remain intact. Image export applies the same preamble rule. (verification: renderer paging/projection/capture cases and Electron)
 
 Use `setupTestDatabase()` for database cases and explicit affected-test paths per layer. Native platform checks are not replaced by platform simulations. These criteria are future product verification, not evidence supplied by this documentation PR.
 
