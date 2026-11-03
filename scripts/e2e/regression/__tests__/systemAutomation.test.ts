@@ -1,12 +1,14 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { once } from 'node:events'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { vi } from 'vitest'
 
-const { execFileSync } = vi.hoisted(() => ({ execFileSync: vi.fn() }))
-vi.mock('node:child_process', () => ({ execFileSync }))
+const { execFileSync, execFile } = vi.hoisted(() => ({ execFileSync: vi.fn(), execFile: vi.fn() }))
+vi.mock('node:child_process', () => ({ execFileSync, execFile }))
 
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import type * as SystemAutomation from '../systemAutomation'
@@ -20,30 +22,47 @@ beforeEach(async () => {
   automation = await import('../systemAutomation')
   directory = mkdtempSync(join(tmpdir(), 'cherry-text-fixture-'))
   execFileSync.mockReset()
+  execFile.mockReset()
 })
 
 afterEach(() => {
   execFileSync.mockReset()
+  execFile.mockReset()
   automation.closeExternalText('macos')
   rmSync(directory, { recursive: true, force: true })
 })
 
-it('closes only the owned TextEdit document without quitting the application', () => {
+it.each(['fixtures', 'evidence'] as const)(
+  'closes only the owned TextEdit document from %s without quitting the application',
+  (root) => {
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const filePath = join(
+      paths[root],
+      process.platform === 'win32' ? "selection 'quoted'.txt" : 'selection "quoted".txt'
+    )
+    writeFileSync(filePath, 'Test selection')
+    automation.openExternalText('macos', paths, filePath)
+    execFileSync.mockClear()
+    automation.closeExternalText('macos')
+    const [command, args] = execFileSync.mock.calls[0]
+    expect(command).toBe('osascript')
+    expect(args.slice(-2)).toEqual(['--', pathToFileURL(filePath).href])
+    expect(args[1]).toContain('if value of attribute "AXDocument" of docWindow is item 1 of argv then')
+    expect(args[1]).not.toContain('tell application "TextEdit"')
+    expect(args[1]).not.toMatch(/\bquit\b/)
+    execFileSync.mockClear()
+    automation.closeExternalText('macos')
+    expect(execFileSync).not.toHaveBeenCalled()
+  }
+)
+
+it('rejects external text outside the owned input and export directories', () => {
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
-  const filePath = join(paths.fixtures, 'selection "quoted".txt')
-  writeFileSync(filePath, 'Test selection')
-  automation.openExternalText('macos', paths, filePath)
-  execFileSync.mockClear()
-  automation.closeExternalText('macos')
-  const [command, args] = execFileSync.mock.calls[0]
-  expect(command).toBe('osascript')
-  expect(args.slice(-2)).toEqual(['--', pathToFileURL(filePath).href])
-  expect(args[1]).toContain('if value of attribute "AXDocument" of docWindow is item 1 of argv then')
-  expect(args[1]).not.toContain('tell application "TextEdit"')
-  expect(args[1]).not.toMatch(/\bquit\b/)
-  execFileSync.mockClear()
-  automation.closeExternalText('macos')
+  const filePath = join(directory, 'outside.txt')
+  writeFileSync(filePath, 'Unrelated document')
+  expect(() => automation.openExternalText('macos', paths, filePath)).toThrow('outside the regression test directories')
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
@@ -65,7 +84,10 @@ it('retains the document for cleanup when activation or closing fails', () => {
 function nativeFixture() {
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
-  const filePath = join(paths.workspace, 'folder "quoted" $literal.txt')
+  const filePath = join(
+    paths.workspace,
+    process.platform === 'win32' ? "folder 'quoted' $literal.txt" : 'folder "quoted" $literal.txt'
+  )
   writeFileSync(filePath, 'Native selection')
   writeFileSync(
     paths.appRecord,
@@ -73,6 +95,10 @@ function nativeFixture() {
       schemaVersion: 1,
       ownership: 'regression-driver',
       policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'windows',
+      targetRoot: directory,
+      cdpPort: 9222,
       runnerPid: 123,
       electronPid: 456,
       targetUrl: 'http://localhost:5173',
@@ -90,6 +116,62 @@ it.each(['outside', 'missing'] as const)('rejects an %s path before any OS autom
     kind === 'outside' ? 'outside the regression test directories' : 'Selected file does not exist'
   )
   expect(execFileSync).not.toHaveBeenCalled()
+})
+
+it('rejects native saves outside the evidence directory before any OS automation', async () => {
+  const { paths, filePath } = nativeFixture()
+  await expect(automation.saveNativeFile('macos', paths, filePath)).rejects.toThrow(
+    'outside the regression test directories'
+  )
+  expect(execFileSync).not.toHaveBeenCalled()
+})
+
+it('allows native saves under the private root so unredacted artifacts stay out of uploads', async () => {
+  const { paths } = nativeFixture()
+  const privateSave = join(paths.private, 'downloads', 'bundle.zip')
+  await automation.saveNativeFile('macos', paths, privateSave).catch(() => undefined)
+  expect(existsSync(join(paths.private, 'downloads'))).toBe(true)
+})
+
+it('serves fixture images while waiting for the native save dialog', async () => {
+  const { paths } = nativeFixture()
+  execFileSync.mockImplementation((_file, args) => {
+    const script = args.at(-1)!
+    if (script.includes('CommandLine')) return `electron ${directory}`
+    if (script.includes('Get-NetTCPConnection')) return '456'
+    throw new Error(`Unexpected synchronous OS automation: ${_file}`)
+  })
+  let served = false
+  const server = createServer((_request, response) => {
+    served = true
+    response.end('fixture image')
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address() as { port: number }
+  execFile.mockImplementation((_file, _args, _options, callback) => {
+    void fetch(`http://127.0.0.1:${address.port}`)
+      .then(async (response) => {
+        expect(await response.text()).toBe('fixture image')
+        callback(null)
+      })
+      .catch(callback)
+  })
+  try {
+    const output = join(paths.evidence, 'export.png')
+    await expect(automation.saveNativeFile('windows', paths, output)).resolves.toBe(output)
+    expect(served).toBe(true)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  }
+})
+
+it('does not cancel a file dialog after the recorded process identity changes', async () => {
+  const { paths } = nativeFixture()
+  execFileSync.mockReturnValue('unrelated application')
+  await expect(automation.cancelNativeFileDialogs('windows', paths)).rejects.toThrow('command no longer matches')
+  expect(execFile).not.toHaveBeenCalled()
 })
 
 it('uses locale-independent macOS 27 selection and keeps path and PID exclusively in argv', () => {
@@ -132,6 +214,22 @@ it('preserves the legacy macOS 26 panel, path-entry and accept sequence', () => 
   expect(args.slice(2)).toEqual(['--', filePath, '456'])
 })
 
+it('sets the Windows file name field directly instead of typing into the dialog', () => {
+  const { paths, filePath } = nativeFixture()
+  execFileSync.mockReturnValue('')
+  expect(automation.chooseNativeFile('windows', paths, filePath)).toBe(filePath)
+  const [command, args, options] = execFileSync.mock.calls.at(-1)!
+  expect(command).toBe('powershell.exe')
+  const script = String(args.at(-1))
+  expect(script).toContain('AutomationIdProperty, "1001"')
+  expect(script).toContain('ValuePattern')
+  expect(script).toContain('Native file name readback mismatch')
+  expect(script).toContain('SendMessage($acceptHandle, 0x00F5')
+  expect(script).toContain('Native file dialog did not close after accepting the file name')
+  expect(script).not.toContain('SendKeys')
+  expect(options).toEqual({ stdio: ['ignore', 'ignore', 'pipe'], timeout: 30_000 })
+})
+
 it('surfaces macOS stage diagnostics and subprocess stderr', () => {
   const { paths, filePath } = nativeFixture()
   execFileSync.mockImplementation((command) => {
@@ -145,4 +243,57 @@ it('surfaces macOS stage diagnostics and subprocess stderr', () => {
   expect(() => automation.chooseNativeFile('macos', paths, filePath)).toThrow(
     /osascript failed[\s\S]*stage path-entry for pid 456 after 8s: readback mismatch/
   )
+})
+
+it.each(['macos', 'windows'] as const)('acknowledges only an owned %s pre-main native dialog', async (platform) => {
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  writeFileSync(
+    paths.appRecord,
+    JSON.stringify({
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform,
+      targetRoot: directory,
+      runnerPid: 42000,
+      cdpPort: 9222,
+      logPath: join(paths.logs, 'electron.log')
+    })
+  )
+  execFileSync.mockImplementation((file, args) => {
+    if (file === 'lsof') return '42001'
+    if (file === 'ps' && args.includes('command=')) return `electron ${directory}`
+    if (file === 'ps' && args.includes('ppid=')) return '42000'
+    if (file === 'powershell.exe') {
+      const script = args.at(-1)!
+      if (script.includes('Get-NetTCPConnection')) return '42001'
+      if (script.includes('CommandLine')) return `electron ${directory}`
+      if (script.includes('ParentProcessId')) return '42000'
+    }
+    throw new Error('Unexpected process query')
+  })
+  execFile.mockImplementation((_file, _args, _options, callback) => callback(null))
+  await automation.dismissNativeMessageBox(platform, paths, 'Manual Restart Required')
+  const [command, args] = execFile.mock.calls.at(-1)!
+  expect(command).toBe(platform === 'macos' ? 'osascript' : 'powershell.exe')
+  if (platform === 'macos') expect(args.slice(-2)).toEqual(['Manual Restart Required', '42001'])
+  execFile.mockClear()
+  execFileSync.mockImplementation((file, args) => {
+    if (file === 'lsof') return '42001'
+    if (file === 'ps' && args.includes('command=')) return `electron ${directory}`
+    if (file === 'ps' && args.includes('ppid=')) return '0'
+    if (file === 'powershell.exe') {
+      const script = args.at(-1)!
+      if (script.includes('Get-NetTCPConnection')) return '42001'
+      if (script.includes('CommandLine')) return `electron ${directory}`
+      if (script.includes('ParentProcessId')) return '0'
+    }
+    throw new Error('Unexpected process query')
+  })
+  await expect(automation.dismissNativeMessageBox(platform, paths, 'Manual Restart Required')).rejects.toThrow(
+    'outside the owned run'
+  )
+  expect(execFile).not.toHaveBeenCalled()
 })

@@ -1,4 +1,5 @@
 import type * as NodeModule from 'node:module'
+import type * as NodePath from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +10,7 @@ import { Phase } from '@main/core/lifecycle/types'
 const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
-  platformMock: { isWin: false },
+  platformMock: { isWin: false, isMac: false },
   mockExecFileAsync: vi.fn(),
   mockFs: {
     existsSync: vi.fn(() => false),
@@ -57,6 +58,9 @@ vi.mock('@application', async () => {
 vi.mock('@main/core/platform', () => ({
   get isWin() {
     return platformMock.isWin
+  },
+  get isMac() {
+    return platformMock.isMac
   }
 }))
 
@@ -165,6 +169,7 @@ describe('BinaryManager', () => {
     mockExecFileAsync.mockReset()
     mockCreateRequire.mockReset().mockReturnValue({ resolve: vi.fn(() => '/mock/resolved-package') })
     platformMock.isWin = false
+    platformMock.isMac = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
     mockFsp.readdir.mockReset().mockResolvedValue([])
@@ -3212,6 +3217,46 @@ describe('BinaryManager', () => {
       })
     }
 
+    it('passes the selected macOS cache to mise, managed Python, and post-install uv without moving HOME/XDG', async () => {
+      platformMock.isMac = true
+      const getPath = vi.mocked(application.getPath).getMockImplementation()!
+      vi.mocked(application.getPath).mockImplementation((key, filename) => {
+        if (key === 'feature.binary.data') return '/Users/test/Library/Application Support/CherryStudio/Toolchain/mise'
+        return getPath(key, filename)
+      })
+      try {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        stubPinnedBabeldocInstall()
+
+        await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
+
+        const expectedEnv = {
+          HOME: '/Users/test/Library/Application Support/CherryStudio/Toolchain/mise/home',
+          XDG_CONFIG_HOME: '/Users/test/Library/Application Support/CherryStudio/Toolchain/mise/xdg/config',
+          XDG_CACHE_HOME: '/Users/test/Library/Application Support/CherryStudio/Toolchain/mise/xdg/cache',
+          XDG_STATE_HOME: '/Users/test/Library/Application Support/CherryStudio/Toolchain/mise/xdg/state',
+          UV_CACHE_DIR: '/mock/feature.binary.data.uv_cache'
+        }
+        expect(miseUseCalls()[0]?.[2].env).toMatchObject({
+          ...expectedEnv,
+          UV_PYTHON: MANAGED_PYTHON,
+          UV_PYTHON_DOWNLOADS: 'never'
+        })
+        expect(uvCalls('find')[0]?.[2].env).toMatchObject({
+          ...expectedEnv,
+          UV_PYTHON_INSTALL_DIR: '/mock/feature.binary.data.uv_python'
+        })
+        const pipCall = mockExecFileAsync.mock.calls.find((call) => call[0] === UV_BIN && call[1][0] === 'pip')
+        expect(pipCall?.[1]).toEqual(['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5'])
+        expect(pipCall?.[2].env).toMatchObject({ ...expectedEnv, UV_PYTHON_DOWNLOADS: 'never' })
+        expect(mockFs.mkdirSync).toHaveBeenCalledWith('/mock/feature.binary.data.uv_cache', { recursive: true })
+      } finally {
+        vi.mocked(application.getPath).mockImplementation(getPath)
+        platformMock.isMac = false
+      }
+    })
+
     it('enforces a declared pin in the active mise install environment', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -4484,4 +4529,10 @@ describe('BinaryManager', () => {
       }
     })
   })
+})
+
+// These fixtures model a POSIX tool installation independently of the host OS.
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof NodePath>('node:path')
+  return { ...actual.posix, default: actual.posix }
 })

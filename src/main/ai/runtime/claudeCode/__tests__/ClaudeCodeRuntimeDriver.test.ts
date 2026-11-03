@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -148,7 +148,7 @@ describe('Claude native forks', () => {
   })
 })
 
-const externalFileUrl = (name: string) => `file:///${process.platform === 'win32' ? 'C:/' : ''}tmp/${name}`
+const externalFileUrl = (name: string) => pathToFileURL(path.resolve('/tmp', name)).href
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
@@ -1225,7 +1225,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
+            { type: 'file', url: externalFileUrl('pixel.png'), mediaType: 'image/png', filename: 'pixel.png' },
             { type: 'file', url: externalFileUrl('spec.pdf'), mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
@@ -1329,7 +1329,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'describe this' },
             {
               type: 'file',
-              url: 'file:///tmp/pixel.png',
+              url: externalFileUrl('pixel.png'),
               mediaType: 'image/png',
               filename: 'pixel.png',
               providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
@@ -1813,7 +1813,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'summarize this' },
             {
               type: 'file',
-              url: 'file:///tmp/spec.pdf',
+              url: externalFileUrl('spec.pdf'),
               mediaType: 'application/pdf',
               filename: 'spec.pdf',
               providerMetadata: { cherry: { fileEntryId: 'entry-secret' } }
@@ -1933,7 +1933,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'describe this' },
             {
               type: 'file',
-              url: 'file:///tmp/pixel.png',
+              url: externalFileUrl('pixel.png'),
               mediaType: 'image/png',
               filename: 'pixel.png',
               providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
@@ -2025,7 +2025,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         ...userMessage(),
         data: {
-          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+          parts: [
+            {
+              type: 'file',
+              url: externalFileUrl('pixel.png'),
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
+          ]
         }
       }
     })
@@ -2068,7 +2075,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         ...userMessage(),
         data: {
-          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+          parts: [
+            {
+              type: 'file',
+              url: externalFileUrl('pixel.png'),
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
+          ]
         }
       }
     })
@@ -4143,7 +4157,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'look at this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            {
+              type: 'file',
+              url: externalFileUrl('pixel.png'),
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
           ]
         }
       },
