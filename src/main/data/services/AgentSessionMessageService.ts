@@ -528,7 +528,7 @@ export class AgentSessionMessageService {
     const rows = readAgentSessionPath(tx, sessionId)
     const index = rows.findIndex((row) => row.id === messageId)
     const user = rows[index]
-    if (!user || user.role !== 'user' || user.delivery || user.inputContextId || source.session.type !== 'conversation')
+    if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
       throw new AgentSessionEditError('invalid_target')
     if (
       tx
@@ -1143,8 +1143,8 @@ export class AgentSessionMessageService {
     return { rowsAffected: result.changes }
   }
 
-  /** Assistant rows whose in-memory owner cannot survive a main-process restart. */
-  findCrashOrphanedAssistantMessages(): Array<{
+  /** Legacy orphans plus native agent types whose caller owns restart terminalization. */
+  findCrashOrphanedAssistantMessages(includeNativeAgentTypes: readonly string[] = []): Array<{
     id: string
     sessionId: string
     data: AgentSessionMessageEntity['data']
@@ -1160,7 +1160,20 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.role, 'assistant'),
-          isLegacyMessage(),
+          or(
+            isLegacyMessage(),
+            includeNativeAgentTypes.length > 0
+              ? sql`EXISTS (
+                  SELECT 1 FROM agent_session AS owner_session
+                  JOIN agent AS owner_agent ON owner_agent.id = owner_session.agent_id
+                  WHERE owner_session.id = ${sessionMessagesTable.sessionId}
+                    AND owner_agent.type IN (${sql.join(
+                      includeNativeAgentTypes.map((type) => sql`${type}`),
+                      sql`, `
+                    )})
+                )`
+              : undefined
+          ),
           or(
             eq(sessionMessagesTable.status, 'pending'),
             sql<boolean>`exists (
@@ -1180,7 +1193,7 @@ export class AgentSessionMessageService {
 
   /**
    * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
-   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
+   * caller's terminalized `data`) and discard only legacy resume tokens, atomically.
    * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
    * a runaway execution (#18281) — so the next connection must start without a token.
    */
@@ -1194,7 +1207,7 @@ export class AgentSessionMessageService {
       for (const message of messages) {
         tx.update(sessionMessagesTable)
           .set({ status: 'error', data: message.data, updatedAt })
-          .where(and(eq(sessionMessagesTable.id, message.id), isLegacyMessage()))
+          .where(and(eq(sessionMessagesTable.id, message.id), eq(sessionMessagesTable.role, 'assistant')))
           .run()
       }
       if (sessionIds.length > 0) {
@@ -1497,8 +1510,12 @@ export class AgentSessionMessageService {
   ): AgentSessionMessageEntity {
     const { db, publishDataChange } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const persist = (tx: DbOrTx) => {
+      const saved = this.saveMessageTx(tx, params, timestampMs)
+      return saved
+    }
+    if (db) return persist(db).entity
+    const result = application.get('DbService').withWriteTx(persist)
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
