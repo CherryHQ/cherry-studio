@@ -8,7 +8,6 @@ import type { Storage, Tx, ConversationId } from '@earendil-works/pi-durable'
 import { application } from '@application'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
-import { allocateDurableBackendTx } from '@main/ai/runtime/piDurable/durableContext'
 
 async function loadDurableStorage() {
   const [native, sqlite, node, { BACKGROUND_CONTEXT }] = await Promise.all([
@@ -33,11 +32,9 @@ function durablePath(backend: AgentRuntimeBackendRow): string {
 }
 
 /** Explicit creation only. A partial creation is reconciled by opening, never recreated. */
-export async function createDurableBackend(backendId?: string) {
+export async function createDurableBackend(backendId: string) {
   const { openNodeSqliteStorage, createSession, backendDocument, nativeContext } = await loadDurableStorage()
-  const backend = backendId
-    ? contexts.backend(backendId)
-    : application.get('DbService').withWriteTx(allocateDurableBackendTx)
+  const backend = contexts.backend(backendId)
   if (backend.state !== 'creating') throw new Error('Native backend is already initialized')
   const path = durablePath(backend)
   mkdirSync(dirname(path), { recursive: true })
@@ -134,7 +131,7 @@ export async function prepareDurableRoot(contextId: string) {
     if (matches.length > 1 || (context.nativeThreadId && matches[0] !== context.nativeThreadId))
       throw new Error('Durable context identity does not match')
     const nativeId = matches[0]
-    if (nativeId && !context.nativeThreadId) contexts.bindContext(contextId, nativeId)
+    if (nativeId && context.bindingState === 'pending') contexts.bindContext(contextId, nativeId)
     return {
       storage,
       nativeId,

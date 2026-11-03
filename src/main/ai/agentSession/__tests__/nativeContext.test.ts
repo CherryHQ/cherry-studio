@@ -1,4 +1,13 @@
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -30,6 +39,7 @@ import {
 import { agentTable } from '@data/db/schemas/agent'
 import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionContextSeeder } from '@data/db/seeding/seeders/AgentSessionContextSeeder'
@@ -37,15 +47,35 @@ import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
-import { prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
+import { allocateDurableBackendTx, prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
 
-import { reconcileDurableBackend, createDurableBackend, openDurableStorage, prepareDurableRoot } from '../durableNativeContext'
-import { loadPiSession } from '../nativeContext'
+import {
+  reconcileDurableBackend,
+  createDurableBackend as initializeDurableBackend,
+  openDurableStorage,
+  prepareDurableRoot
+} from '../durableNativeContext'
 import { applyNativeSubmissionResult, bindNativeInput, prepareNativeSubmission } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
+}
+
+function loadPiSession(backendId: string, nativeId: string, cwd?: string): SessionManager {
+  if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nativeId)) throw new Error('Invalid Pi session identity')
+  const directory = application.getPath('feature.agents.pi.sessions')
+  const files = readdirSync(directory).filter((file) => file.endsWith(`_${nativeId}.jsonl`))
+  if (files.length !== 1) throw new Error('Pi session is missing or ambiguous')
+  const file = application.getPath('feature.agents.pi.sessions', files[0])
+  if (!lstatSync(file).isFile()) throw new Error('Pi session must be a regular file')
+  return SessionManager.openExisting(file, nativeId, cwd)
+}
+
+async function createDurableBackend() {
+  const backend = application.get('DbService').withWriteTx(allocateDurableBackendTx)
+  return initializeDurableBackend(backend.id)
 }
 
 async function openDurableBackend(backendId: string, harness: PiDurableRuntimeOptions['harness']) {
@@ -225,30 +255,41 @@ describe('native context storage and reconciliation', () => {
     ).toEqual([backend.id])
   })
 
-  it('recovers the Durable root identity after native creation but before the product binding commits', async () => {
-    const intent = prepareDurableBranch(sessionId)
-    const root = await prepareDurableRoot(intent.id)
-    const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
-    const runtime = confirmed(
-      await createPiDurableRuntime({
-        backendId: runtimeId(intent.backendId),
-        openStorage: async () => root.storage,
-        harness: { models: createModels(), registry: createRegistry() }
-      })
-    )
-    cleanup.push(() => runtime.shutdown())
-    const handle = confirmed(await runtime.create({ ownership: { kind: 'ownerless' }, init: root.init }))
-    expect(contexts.context(intent.id).nativeThreadId).toBeNull()
-    await runtime.shutdown()
-    const recovered = await prepareDurableRoot(intent.id)
-    try {
-      expect(recovered.nativeId).toBe(handle.thread.id)
-      expect(contexts.context(intent.id).nativeThreadId).toBe(handle.thread.id)
-      expect((await recovered.storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(1)
-    } finally {
-      await recovered.storage.close(BACKGROUND_CONTEXT)
+  it.each([false, true])(
+    'recovers the Durable root before confirmation with a reserved identity: %s',
+    async (reserved) => {
+      const intent = prepareDurableBranch(sessionId)
+      const root = await prepareDurableRoot(intent.id)
+      const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
+      const runtime = confirmed(
+        await createPiDurableRuntime({
+          backendId: runtimeId(intent.backendId),
+          openStorage: async () => root.storage,
+          harness: { models: createModels(), registry: createRegistry() }
+        })
+      )
+      cleanup.push(() => runtime.shutdown())
+      const handle = confirmed(await runtime.create({ ownership: { kind: 'ownerless' }, init: root.init }))
+      if (reserved)
+        dbh.db
+          .update(agentSessionContextTable)
+          .set({ nativeThreadId: handle.thread.id })
+          .where(eq(agentSessionContextTable.id, intent.id))
+          .run()
+      expect(contexts.context(intent.id).bindingState).toBe('pending')
+      await runtime.shutdown()
+      const recovered = await prepareDurableRoot(intent.id)
+      try {
+        expect(recovered.nativeId).toBe(handle.thread.id)
+        expect(contexts.context(intent.id)).toMatchObject({ nativeThreadId: handle.thread.id, bindingState: 'bound' })
+        expect((await recovered.storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(
+          1
+        )
+      } finally {
+        await recovered.storage.close(BACKGROUND_CONTEXT)
+      }
     }
-  })
+  )
 
   it('keeps an unflushed Pi context unresolved, then strictly restores its original native history', async () => {
     const { backend, runtime, options, faux } = await pi()
