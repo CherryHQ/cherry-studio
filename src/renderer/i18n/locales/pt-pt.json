@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Erro desconhecido",
   "message.error.yuque.export": "Erro ao exportar Yuque, verifique o status da conexão e a configuração de acordo com a documentação",
   "message.error.yuque.no_config": "Token Yuque ou URL da base de conhecimento não configurados",
+  "message.finish_reason.length": "O limite de saída foi atingido. A resposta pode estar incompleta.",
   "message.group.delete.content": "Eliminar todas as respostas do assistente neste grupo? A pergunta do utilizador e as mensagens posteriores serão mantidas.",
   "message.group.delete.title": "Eliminar respostas agrupadas",
   "message.group.retry_failed": "Repetir mensagem com erro",
