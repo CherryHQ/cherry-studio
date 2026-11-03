@@ -6,6 +6,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionService } from './AgentSessionService'
@@ -65,12 +66,13 @@ export class AgentSessionForkService {
   ): void {
     const { source } = input
     const current = this.readTx(tx, source.session.id, input.messageId, input.excludedIds)
-    // Appending after the boundary is allowed. Changes to the chosen prefix, Agent or cwd are not.
+    // Appending after the boundary is allowed. Changes to the chosen prefix, Agent, cwd or model are not.
     if (
       current.agent.type !== source.agent.type ||
       current.agent.id !== source.agent.id ||
       current.workspace.id !== source.workspace.id ||
       current.workspace.path !== source.workspace.path ||
+      current.session.model !== source.session.model ||
       JSON.stringify(current.messages) !== JSON.stringify(source.messages)
     )
       throw new AgentSessionForkSourceError('source_changed')
@@ -102,6 +104,7 @@ export class AgentSessionForkService {
         agentId: source.agent.id,
         name: `${baseName}${separator}(${number})`,
         description: source.session.description,
+        model: (source.session.model ?? undefined) as UniqueModelId | undefined,
         workspace:
           source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
       },
