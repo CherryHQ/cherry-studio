@@ -3,10 +3,16 @@ import { type ReactNode, useEffect, useRef } from 'react'
 import type { FieldValues, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import { resourceDialogCloseButtonClassName, resourceDialogHeaderClassName } from '../components/EditDialogShared'
+import {
+  resourceDialogCloseButtonClassName,
+  resourceDialogHeaderClassName,
+  settingsFormRowClassName,
+  settingsFormRowLabelClassName
+} from '../components/EditDialogShared'
+import { settingsValueButtonClassName } from './SettingsPickerPopover'
 
 /**
  * One scrolling settings page with a back step instead of a tab rail. `pageKey` identifies the page
@@ -65,9 +71,11 @@ export function AgentSettingsShell<TValues extends FieldValues>({
               ) : null}
               <DialogTitle className="min-w-0 truncate text-sm">{title}</DialogTitle>
             </div>
-            <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-6 pt-4 pb-3">
+            <ScrollArea
+              viewportProps={{ ref: scrollContainerRef, className: 'px-6 pt-4 pb-3' }}
+              className="min-h-0 min-w-0 flex-1">
               {children}
-            </Scrollbar>
+            </ScrollArea>
             <div className="flex min-h-6 shrink-0 items-center px-6 pb-4" aria-live="polite">
               {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
             </div>
@@ -87,16 +95,33 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
   )
 }
 
+/** Name (and optional hint) on the left, a fixed-width control on the right. */
+export function SettingsRow({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <div className={settingsFormRowClassName}>
+      <div className="min-w-0">
+        <div className={settingsFormRowLabelClassName}>{label}</div>
+        {hint ? <div className="text-muted-foreground text-xs">{hint}</div> : null}
+      </div>
+      <div className="flex min-w-0 items-center justify-end">{children}</div>
+    </div>
+  )
+}
+
 /** A settings row whose value is edited on its own sub-page. */
 export function SettingsNavRow({ label, value, onClick }: { label: string; value?: ReactNode; onClick: () => void }) {
+  const { t } = useTranslation()
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/20">
-      <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-      {value ? <span className="shrink-0 text-muted-foreground text-sm">{value}</span> : null}
-      <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-    </button>
+    <SettingsRow label={label}>
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={label}
+        onClick={onClick}
+        className={settingsValueButtonClassName}>
+        {value ?? t('common.edit')}
+        <ChevronRight aria-hidden className="size-3.5" />
+      </Button>
+    </SettingsRow>
   )
 }

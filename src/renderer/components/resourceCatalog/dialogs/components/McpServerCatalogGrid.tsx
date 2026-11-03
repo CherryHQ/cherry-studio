@@ -51,7 +51,6 @@ export function McpServerCatalogGrid({
   onOpenSettings,
   onToggle,
   portalContainer,
-  query = '',
   title
 }: {
   enabledIds: ReadonlySet<string>
@@ -59,8 +58,6 @@ export function McpServerCatalogGrid({
   onOpenSettings?: () => void
   onToggle: (id: string, enabled: boolean) => void
   portalContainer: HTMLElement | null
-  /** Narrows the list to servers whose name contains it. */
-  query?: string
   title?: string
 }) {
   const { t } = useTranslation()
@@ -73,21 +70,19 @@ export function McpServerCatalogGrid({
   const settingsLabel = title ? `${title} ${t('settings.title')}` : t('settings.mcp.title')
   const catalog = useMemo<CatalogItem[]>(
     () =>
-      mcpServers
-        .filter((server) => server.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .map((server) => {
-          const state = getServerState(server, mcpStatuses[server.id])
+      mcpServers.map((server) => {
+        const state = getServerState(server, mcpStatuses[server.id])
 
-          return {
-            id: server.id,
-            name: server.name,
-            inactiveBadge: server.isActive ? undefined : t('library.config.tools.inactive_badge'),
-            statusBadge: getStatusBadge(t, state),
-            statusBadgeClassName: getStatusBadgeClassName(state),
-            pickable: server.isActive
-          }
-        }),
-    [mcpServers, mcpStatuses, query, t]
+        return {
+          id: server.id,
+          name: server.name,
+          inactiveBadge: server.isActive ? undefined : t('library.config.tools.inactive_badge'),
+          statusBadge: getStatusBadge(t, state),
+          statusBadgeClassName: getStatusBadgeClassName(state),
+          pickable: server.isActive
+        }
+      }),
+    [mcpServers, mcpStatuses, t]
   )
 
   const handleOpenMcpSettings = () => {

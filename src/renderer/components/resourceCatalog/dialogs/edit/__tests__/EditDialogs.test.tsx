@@ -47,7 +47,8 @@ const {
           id: 'skill-1',
           name: 'Skill One',
           description: 'Skill description',
-          isEnabled: false
+          isEnabled: false,
+          isGlobalEnabled: true
         }
       ],
       loading: false,
@@ -617,7 +618,8 @@ beforeEach(() => {
         id: 'skill-1',
         name: 'Skill One',
         description: 'Skill description',
-        isEnabled: false
+        isEnabled: false,
+        isGlobalEnabled: true
       }
     ],
     loading: false,
@@ -754,7 +756,7 @@ function selectTab(name: string) {
     return
   }
   // The assistant 'Prompts' tab is the agent's 'Bind prompt' row.
-  const rowName = new RegExp(`^${name === 'Prompts' ? 'Bind prompt' : name}`)
+  const rowName = new RegExp(`^${name === 'Prompts' ? 'Bind prompt' : name}(:|$)`)
   if (!screen.queryByRole('button', { name: rowName }) && back) fireEvent.click(back)
   fireEvent.click(screen.getByRole('button', { name: rowName }))
 }
@@ -2100,25 +2102,23 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('opens each tool page from its settings row and returns to the main page', async () => {
+  it('opens tools, MCP, and skills as in-place pickers on the settings page', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     expect(screen.queryByText('Read')).not.toBeInTheDocument()
 
     selectTab('Built-in tools')
-    expect(screen.getByRole('heading', { name: 'Built-in tools' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Built-in tools' })).toBeInTheDocument()
     expect(screen.getByText('Read')).toBeInTheDocument()
-
-    selectTab('Basic')
-    expect(screen.getByRole('button', { name: /^Built-in tools/ })).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'common.back' })).not.toBeInTheDocument()
 
     selectTab('MCP')
     expect(screen.getByText('MCP One')).toBeInTheDocument()
 
     selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+    // Pickers sit on the main page, so there is no sub-page to step back from.
+    expect(screen.queryByRole('button', { name: 'common.back' })).not.toBeInTheDocument()
   })
 
   it('projects pi capabilities without exposing Claude-only fields', async () => {
@@ -2197,11 +2197,10 @@ describe('edit dialogs', () => {
     const props = { open: true, onOpenChange: vi.fn(), initialTab: 'tools.knowledge' }
     const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Knowledge One' }))
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-    fireEvent.click(screen.getByText('Knowledge One'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Knowledge One' }))
     rerender(<AgentEditDialog {...props} resource={{ ...boundAgent, knowledgeBaseIds: [] }} />)
 
     selectTab('Built-in tools')
@@ -2218,8 +2217,8 @@ describe('edit dialogs', () => {
   it('opens the agent edit dialog directly on the requested initial tab', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tools.skills" />)
 
-    expect(screen.getByRole('heading', { name: '技能' })).toBeInTheDocument()
-    expect(screen.getByText('Skill One')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '技能' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Skill One' })).toBeInTheDocument()
   })
 
   it('narrows built-in tools to the search query', () => {
@@ -2239,7 +2238,8 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Renamed Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
-    await waitFor(() => expect(onBack).toHaveBeenCalledOnce())
+    // Waits out the autosave debounce that the back step flushes.
+    await waitFor(() => expect(onBack).toHaveBeenCalledOnce(), { timeout: 3000 })
     expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ name: 'Renamed Agent' }) })
   })
 
@@ -2258,21 +2258,19 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('reuses the shared skill catalog in the agent edit dialog', async () => {
+  it('lists only globally enabled skills in the agent skills picker', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [
+        ...installedSkillsState.current.skills,
+        { id: 'skill-off', name: 'Globally Off', description: '', isEnabled: false, isGlobalEnabled: false }
+      ]
+    }
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tools.skills" />)
 
-    await waitFor(() =>
-      expect(skillCatalogPickerMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          mode: 'edit',
-          skills: installedSkillsState.current.skills,
-          loading: false,
-          selectedIds: [],
-          disabled: false
-        })
-      )
-    )
-    expect(screen.getByTestId('skill-catalog-picker')).toHaveAttribute('data-mode', 'edit')
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled())
+    expect(screen.getByRole('switch', { name: 'Skill One' })).not.toBeChecked()
+    expect(screen.queryByText('Globally Off')).not.toBeInTheDocument()
   })
 
   it('waits for background skill refresh before initializing the editable baseline', async () => {
@@ -2317,19 +2315,22 @@ describe('edit dialogs', () => {
       id: 'skill-hidden',
       name: 'Hidden Skill',
       description: 'Hidden while globally disabled',
-      isEnabled: true
+      isEnabled: true,
+      isGlobalEnabled: true
     }
     const localSkill = {
       id: 'skill-local',
       name: 'Local Edit Skill',
       description: 'Changed in this dialog',
-      isEnabled: false
+      isEnabled: false,
+      isGlobalEnabled: true
     }
     const reenabledSkill = {
       id: 'skill-reenabled',
       name: 'Re-enabled Skill',
       description: 'Disabled when the dialog opened',
-      isEnabled: true
+      isEnabled: true,
+      isGlobalEnabled: true
     }
     installedSkillsState.current = {
       skills: [hiddenSkill, localSkill],
@@ -2400,7 +2401,7 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('uses the same MCP server list presentation in assistant and agent editing', async () => {
+  it('shows MCP servers with their runtime status in assistant and agent editing', async () => {
     const onAssistantOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} />)
 
@@ -2422,10 +2423,10 @@ describe('edit dialogs', () => {
 
     selectTab('MCP')
 
-    expect(screen.getByText('MCP services')).toBeInTheDocument()
+    // Agent settings list the same servers and runtime status in an in-place picker.
     expect(screen.getByText('MCP One')).toBeInTheDocument()
     expect(screen.getByText('Connected')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.title' }))
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
     expect(onAgentOpenChange).not.toHaveBeenCalled()
   })
