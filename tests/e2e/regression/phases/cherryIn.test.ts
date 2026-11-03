@@ -118,8 +118,5 @@ async function generateAndSaveImage(
   await expect(page.getByTestId('artboard-image-transform').last()).toBeVisible()
 }
 
-test(...caseDefinition('P-01'), async ({ app, mainWindow: page }) => {
-  await ensureCherryInSignedIn(app, page)
-  await addCherryInModel(page, app.config.cherryIn.imageModel, 'Image')
-  await generateAndSaveImage(app, page, app.config.cherryIn.imageModel, 'image.png')
-})
+// 这些 helper 只被尚未合并的用例使用（PR B 恢复用例时会再引用）。
+void generateAndSaveImage

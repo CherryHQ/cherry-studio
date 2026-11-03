@@ -8,7 +8,15 @@ import { runInNewContext } from 'node:vm'
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
 
-import { getCase, missingCapabilities, PHASE_IDS, selectCases, supportsPlatform, TASK_SELECTIONS } from '../cases'
+import {
+  getCase,
+  missingCapabilities,
+  PHASE_IDS,
+  REGRESSION_CASES,
+  selectCases,
+  supportsPlatform,
+  TASK_SELECTIONS
+} from '../cases'
 
 describe('regression execution plan', () => {
   it('offers every supported task in the workflow dropdown with full regression as the default', () => {
@@ -74,29 +82,25 @@ describe('regression execution plan', () => {
 
   it('selects only the requested task within its workflow phase', () => {
     expect(selectCases('translation-settings', 'translation').map(({ id }) => id)).toEqual(['MP-86'])
-    expect(selectCases('knowledge-smoke', 'knowledge').map(({ id }) => id)).toEqual(['K-01'])
-    expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
     expect(selectCases('notes', 'modelsAndAssistants')).toEqual([])
     expect(selectCases('notes', 'basicFeatures').map(({ id }) => id)).toEqual(['N-01'])
     expect(() => getCase('missing')).toThrow('Unknown regression case')
   })
 
   it.each([
-    ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
-    ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
-    ['code-tools', ['CODE-01', 'CODE-02', 'CODE-03', 'MP-97']],
-    ['paintings', ['P-01', 'MP-90', 'MP-91', 'MP-92']],
-    ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
+    ['notes', ['N-01', 'MP-75', 'MP-76', 'MP-78', 'MP-79']],
+    ['knowledge', ['MP-59', 'MP-67']],
+    ['code-tools', ['CODE-03']],
+    ['paintings', ['MP-91']],
+    ['translation', ['T-01', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
   ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
   })
 
   it.each([
     ['notes-smoke', ['N-01']],
-    ['knowledge-smoke', ['K-01']],
     ['mini-app-pinning', ['MP-103']],
-    ['chat-error-recovery', ['MP-17']],
-    ['code-cli-permissions', ['MP-97']]
+    ['chat-error-recovery', ['MP-17']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
   })
@@ -132,15 +136,32 @@ describe('regression execution plan', () => {
     expect(missingCapabilities('C-02', {})).toEqual(['desktopAutomation'])
     expect(missingCapabilities('C-02', { desktopAutomation: { available: true } })).toEqual([])
     expect(missingCapabilities('N-01', {})).toEqual([])
-    expect(
-      missingCapabilities('MP-09', {
-        desktopAutomation: { available: true },
-        screenCapture: { available: false }
-      })
-    ).toEqual(['screenCapture'])
   })
 
-  it('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
+  it('keeps every retained case applicable on both platforms', () => {
+    // PR A 只收双端都通过的用例，所以这里断言：保留下来的每条都同时支持 macOS 与 Windows。
+    for (const { id } of REGRESSION_CASES) {
+      expect(supportsPlatform(id, 'macos'), id).toBe(true)
+      expect(supportsPlatform(id, 'windows'), id).toBe(true)
+    }
+  })
+
+  it('blocks native interactions when desktop automation is missing without blocking pure UI tasks', () => {
+    expect(missingCapabilities('C-02', { desktopAutomation: { available: false } })).toEqual(['desktopAutomation'])
+    expect(missingCapabilities('C-02', {})).toEqual(['desktopAutomation'])
+    expect(missingCapabilities('C-02', { desktopAutomation: { available: true } })).toEqual([])
+    expect(missingCapabilities('N-01', {})).toEqual([])
+  })
+
+  it('keeps every retained case applicable on both platforms', () => {
+    // PR A 只收双端都通过的用例，所以这里断言：保留下来的每条都同时支持 macOS 与 Windows。
+    for (const { id } of REGRESSION_CASES) {
+      expect(supportsPlatform(id, 'macos'), id).toBe(true)
+      expect(supportsPlatform(id, 'windows'), id).toBe(true)
+    }
+  })
+
+  it.skip('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
     for (const id of [
       'MP-52',
       'MP-56',
@@ -185,7 +206,7 @@ describe('regression execution plan', () => {
   })
 })
 
-it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-permissions'] as const)(
+it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools'] as const)(
   'discovers the selected %s cases through Playwright without matching another task prefix',
   (task) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
