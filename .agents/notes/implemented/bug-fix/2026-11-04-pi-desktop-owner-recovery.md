@@ -6,13 +6,13 @@ English | [中文](2026-11-04-pi-desktop-owner-recovery.zh.md)
 
 ## Problem
 
-Local Pi commands could acknowledge state before creating a native file. Manual compaction had no behavior run to stop, and shutdown waited for its admission before cancellation. A failed child build retained a running record. Crash recovery excluded native-bound product placeholders, while the Responses gateway discarded reasoning identities and encrypted content needed for continuation.
+Local Pi commands could acknowledge state before creating a native file. Manual compaction had no behavior run to stop, and shutdown waited for its admission before cancellation. A failed child build retained a running record. Crash recovery excluded native-bound product placeholders, while gateway converters discarded reasoning identities, encrypted content and signatures needed for continuation. The pinned AI SDK also filtered empty text deltas carrying provider metadata before the gateway could receive them.
 
 ## Decision
 
 Pi's pinned SessionManager exposes an explicit first-file flush; local command acknowledgement follows it. Interrupt and shutdown cancel native compaction before joining admission. A child-open failure reaches the behavior lifecycle before report jobs start; the existing run-end decision records failure and frees capacity without rolling back successful siblings.
 
-The desktop runtime selects Pi placeholders for restart terminalization. The message service applies that selection and preserves native bindings and resume tokens; delivery-owned turns remain with delivery recovery. Responses converters retain native reasoning IDs and ciphertext through AI SDK metadata, including empty summaries.
+The desktop runtime selects Pi placeholders for restart terminalization. The message service applies that selection and preserves native bindings and resume tokens; delivery-owned turns remain with delivery recovery. Gateway converters retain native replay metadata: Responses reasoning IDs and ciphertext, Anthropic redacted thinking, and Google text/thought signatures. The AI SDK patch forwards metadata-only text deltas without adding visible text; empty deltas without metadata remain filtered.
 
 ## Alternatives considered
 
@@ -31,4 +31,5 @@ Local state survives reopening without a model call. Restart settles abandoned p
 - Regression — `behaviorRuntime.test.ts`: Stop and shutdown abort standalone manual summaries and finish closing.
 - Regression — `behaviorAdapter.test.ts`: failed child construction frees capacity and preserves healthy siblings.
 - Regression — `AgentSessionSubmission.test.ts`: selected native placeholders become terminal, editing unblocks, and native identity remains intact.
-- Regression — `gatewayIntegration.test.ts` and the Responses converter tests: encrypted-only reasoning survives the production gateway and the next native Pi request, with one billing owner.
+- Regression — `gatewayIntegration.test.ts` and the protocol converter tests: Responses ciphertext, Anthropic redacted thinking and Google text/thought signatures survive the production gateway and the next native Pi request, with one billing owner.
+- Regression — `aiSdkTextMetadata.test.ts`: both ESM and CommonJS bundles forward metadata-only text updates while retaining visible text and final content metadata.

@@ -6,13 +6,13 @@ Status: implemented
 
 ## Problem
 
-Pi 本地命令可能在原生文件创建前确认状态已处理。手动压缩没有可停止的 behavior 运行，关闭流程又先等待其接纳完成，再执行取消。子会话构建失败会留下运行中记录。崩溃恢复排除了已绑定原生上下文的产品占位消息，而 Responses 网关会丢弃续接所需的 reasoning 身份和加密内容。
+Pi 本地命令可能在原生文件创建前确认状态已处理。手动压缩没有可停止的 behavior 运行，关闭流程又先等待其接纳完成，再执行取消。子会话构建失败会留下运行中记录。崩溃恢复排除了已绑定原生上下文的产品占位消息，而网关转换器会丢弃续接所需的 reasoning 身份、加密内容和签名。固定版本的 AI SDK 还会在网关收到事件前，过滤携带 provider 元数据的空文本增量。
 
 ## Decision
 
 固定版本的 Pi SessionManager 提供显式首次落盘入口，本地命令落盘后才确认处理完成。中断和关闭在等待接纳完成前取消原生压缩。子会话打开失败在报告任务启动前通知 behavior 生命周期，由已有的运行结束决策记录失败并释放名额，不回滚成功的兄弟任务。
 
-桌面运行时选择需要在重启时收尾的 Pi 占位消息。消息服务执行该选择，保留原生绑定和恢复 token；由投递流程拥有的轮次仍交给投递恢复。Responses 转换器通过 AI SDK 元数据保留原生 reasoning ID 和密文，包括没有摘要文本的条目。
+桌面运行时选择需要在重启时收尾的 Pi 占位消息。消息服务执行该选择，保留原生绑定和恢复 token；由投递流程拥有的轮次仍交给投递恢复。网关转换器保留原生重放元数据：Responses reasoning ID 和密文、Anthropic redacted thinking，以及 Google 文本和思考签名。AI SDK 补丁转发只有元数据的文本增量，不添加可见文本；没有元数据的空增量仍被过滤。
 
 ## Alternatives considered
 
@@ -31,4 +31,5 @@ Pi 本地命令可能在原生文件创建前确认状态已处理。手动压�
 - Regression — `behaviorRuntime.test.ts`：Stop 和关闭会取消独立执行的手动摘要，并完成关闭。
 - Regression — `behaviorAdapter.test.ts`：子会话构建失败释放名额，同时保留正常的兄弟任务。
 - Regression — `AgentSessionSubmission.test.ts`：选中的原生占位消息转为终态，编辑解除阻塞，原生身份保持完整。
-- Regression — `gatewayIntegration.test.ts` 及 Responses 转换器测试：仅含密文的 reasoning 能经过生产网关并进入 Pi 下一次原生请求，计费仍只有一个所有者。
+- Regression — `gatewayIntegration.test.ts` 及协议转换器测试：Responses 密文、Anthropic redacted thinking 和 Google 文本及思考签名能经过生产网关并进入 Pi 下一次原生请求，计费仍只有一个所有者。
+- Regression — `aiSdkTextMetadata.test.ts`：ESM 和 CommonJS 两种构建均转发只有元数据的文本更新，同时保留可见文本和最终内容元数据。

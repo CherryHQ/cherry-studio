@@ -21,6 +21,7 @@ import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
+import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
@@ -70,7 +71,7 @@ describe('native Pi through the production gateway', () => {
   let session: AgentRuntimeSession | undefined
   let holdResponse = false
   let upstreamClosed = false
-  let responsesProtocol = false
+  let protocol: InputFormat = 'openai'
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   beforeEach(async () => {
@@ -87,8 +88,9 @@ describe('native Pi through the production gateway', () => {
         for (const [name, value] of Object.entries(request.headers)) if (value) headers.set(name, String(value))
         const result = await processMessage({
           params: JSON.parse(raw),
-          inputFormat: responsesProtocol ? 'openai-responses' : 'openai',
-          outputFormat: responsesProtocol ? 'openai-responses' : 'openai',
+          inputFormat: protocol,
+          outputFormat: protocol,
+          ...(protocol === 'gemini' && { modelString: 'port:wire-model', streaming: true }),
           signal: abort.signal,
           requestHeaders: headers
         })
@@ -105,7 +107,7 @@ describe('native Pi through the production gateway', () => {
     requests.length = 0
     holdResponse = false
     upstreamClosed = false
-    responsesProtocol = false
+    protocol = 'openai'
     mocks.messageId = 'original-answer'
     call = () => ({ content: 'Model answer' })
     server = createServer(async (req, res) => {
@@ -113,7 +115,57 @@ describe('native Pi through the production gateway', () => {
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
       requests.push(body)
-      if (responsesProtocol) {
+      if (protocol === 'anthropic') {
+        const events = [
+          {
+            type: 'message_start',
+            message: {
+              id: `msg_${requests.length}`,
+              type: 'message',
+              role: 'assistant',
+              model: 'wire-model',
+              content: [],
+              stop_reason: null,
+              stop_sequence: null,
+              usage: { input_tokens: 100, output_tokens: 0 }
+            }
+          },
+          {
+            type: 'content_block_start',
+            index: 0,
+            content_block: { type: 'redacted_thinking', data: 'opaque-ciphertext' }
+          },
+          { type: 'content_block_stop', index: 0 },
+          { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } },
+          { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'answer' } },
+          { type: 'content_block_stop', index: 1 },
+          {
+            type: 'message_delta',
+            delta: { stop_reason: 'end_turn', stop_sequence: null },
+            usage: { output_tokens: 25 }
+          },
+          { type: 'message_stop' }
+        ]
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        res.end(events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''))
+        return
+      }
+      if (protocol === 'gemini') {
+        const parts = [
+          { text: 'reasoning', thought: true, thoughtSignature: Buffer.from('thought-signature').toString('base64') },
+          { text: 'answer' },
+          { text: '', thoughtSignature: Buffer.from('text-signature').toString('base64') }
+        ]
+        const events = parts.map((part) => ({ candidates: [{ content: { role: 'model', parts: [part] }, index: 0 }] }))
+        const finish = {
+          candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP', index: 0 }],
+          usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 25, totalTokenCount: 125 }
+        }
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        res.end([...events, finish].map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''))
+        return
+      }
+      if (protocol === 'openai-responses') {
         const reasoning = {
           type: 'reasoning',
           id: `rs_native_${requests.length}`,
@@ -403,7 +455,7 @@ describe('native Pi through the production gateway', () => {
 
   // Catches metadata stripped by the production stream pipeline before native Pi can replay it.
   it('replays encrypted-only reasoning through native Pi and the production Responses gateway', async () => {
-    responsesProtocol = true
+    protocol = 'openai-responses'
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
     dbh.db
       .update(userProviderTable)
@@ -438,6 +490,55 @@ describe('native Pi through the production gateway', () => {
     })
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
   })
+
+  it.each([
+    { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+  ] as const)(
+    'replays $format opaque reasoning through the production gateway and native Pi',
+    async ({ format, endpoint }) => {
+      protocol = format
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/${format === 'gemini' ? 'v1beta' : 'v1'}`
+      dbh.db
+        .update(userProviderTable)
+        .set({ endpointConfigs: { [endpoint]: { baseUrl: url } }, defaultChatEndpoint: endpoint })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const directory = tempDir(`gateway-${format}-replay`)
+      session = await createAgentRuntimeSession({
+        ...binding,
+        cwd: directory,
+        agentDir: directory,
+        settings: { retry: { enabled: false } }
+      })
+      await session.prompt('first question')
+      expect(lastAssistant(session.session).stopReason).toBe('stop')
+      await session.prompt('continue')
+      expect(lastAssistant(session.session).stopReason).toBe('stop')
+      expect(requests).toHaveLength(2)
+      if (format === 'anthropic') {
+        const messages = requests[1].messages as Array<{ role: string; content: unknown[] }>
+        expect(
+          messages.filter((message) => message.role === 'assistant').flatMap((message) => message.content)
+        ).toContainEqual({
+          type: 'redacted_thinking',
+          data: 'opaque-ciphertext'
+        })
+      } else {
+        const contents = requests[1].contents as Array<{ role: string; parts: unknown[] }>
+        expect(contents.filter((content) => content.role === 'model').flatMap((content) => content.parts)).toEqual([
+          { text: 'reasoning', thought: true, thoughtSignature: Buffer.from('thought-signature').toString('base64') },
+          { text: 'answer', thoughtSignature: Buffer.from('text-signature').toString('base64') }
+        ])
+      }
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
+    }
+  )
 
   it('freezes message attribution before gateway dispatch', async () => {
     call = () => {
