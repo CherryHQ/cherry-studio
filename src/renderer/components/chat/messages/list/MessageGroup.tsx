@@ -105,6 +105,16 @@ const MessageGroup = ({
 
   const isMultiModelGroup = isAssistantMultiModelGroup(messages)
   const isGrouped = isMultiSelectMode ? false : isMultiModelGroup
+  const isHistoricalProcessGroup =
+    !!messages[0]?.historicalProcessGroupId &&
+    messages.every((message) => message.historicalProcessGroupId === messages[0].historicalProcessGroupId)
+  const historicalParts = useMemo(
+    () =>
+      isHistoricalProcessGroup
+        ? messages.flatMap((message) => partsByMessageId?.[message.id] ?? [])
+        : EMPTY_MESSAGE_PARTS,
+    [isHistoricalProcessGroup, messages, partsByMessageId]
+  )
 
   // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
@@ -125,6 +135,12 @@ const MessageGroup = ({
       registerMessageElement?.(messageId, element)
     },
     [registerMessageElement]
+  )
+  const registerHistoricalElement = useCallback(
+    (_messageId: string, element: HTMLElement | null) => {
+      for (const message of messages) registerRenderedMessageElement(message.id, element)
+    },
+    [messages, registerRenderedMessageElement]
   )
 
   const multiModelMessageStyle = useMemo(
@@ -414,6 +430,21 @@ const MessageGroup = ({
       registerRenderedMessageElement
     ]
   )
+
+  if (isHistoricalProcessGroup && messages.length > 1 && !isMultiSelectMode && !captureMode) {
+    const anchor = messages[messages.length - 1]
+    return (
+      <GroupContainer>
+        <MessageWrapper
+          id={`message-${currentTabId ? `${currentTabId}-` : ''}${anchor.id}`}
+          data-message-id={anchor.id}
+          messageId={anchor.id}
+          onElementChange={registerHistoricalElement}>
+          <MessageItem message={anchor} messageParts={historicalParts} hideMenuBar />
+        </MessageWrapper>
+      </GroupContainer>
+    )
+  }
 
   return (
     <GroupContainer

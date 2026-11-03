@@ -54,6 +54,9 @@ const mocks = vi.hoisted(() => ({
       data-testid="message-parts-content"
       data-message-id={messageId}
       data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
+      data-tool-outputs={JSON.stringify(
+        parts.filter((part) => part.type === 'dynamic-tool').map((part) => part.output)
+      )}
       style={{ minHeight: 600 }}>
       Long message content
     </div>
@@ -332,6 +335,57 @@ describe('MessageGroup', () => {
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
     mocks.scrollByWheel.mockReturnValue(false)
+  })
+
+  it('renders one process body while preserving member lookup, multi-selection and capture', () => {
+    const messages = ['call', 'result'].map((id, index) => ({
+      ...createMessage(id, index, 'vertical'),
+      historicalProcessGroupId: 'result'
+    }))
+    const parts = Object.fromEntries(
+      messages.map((message) => [
+        message.id,
+        [
+          {
+            type: 'dynamic-tool' as const,
+            toolName: 'historical_tool',
+            toolCallId: message.id,
+            state: 'output-available' as const,
+            input: {},
+            output: message.id
+          }
+        ]
+      ])
+    )
+    const elements = new Map<string, HTMLElement | null>()
+    const registerMessageElement = (id: string, element: HTMLElement | null) => {
+      elements.set(id, element)
+    }
+    const { rerender } = render(
+      <MessageGroup
+        messages={messages.map((message) => ({ ...message }))}
+        partsByMessageId={parts}
+        registerMessageElement={registerMessageElement}
+      />
+    )
+    expect(screen.getAllByTestId('message-parts-content')).toHaveLength(1)
+    expect(screen.getByTestId('message-parts-content')).toHaveAttribute('data-tool-outputs', '["call","result"]')
+    expect(elements.get('call')).toBeInstanceOf(HTMLElement)
+    expect(elements.get('result')).toBe(elements.get('call'))
+    expect(screen.queryByText('menu')).toBeNull()
+    mocks.messageListSelection.mockReturnValue({ isMultiSelectMode: true, selectedMessageIds: [] })
+    rerender(
+      <MessageGroup
+        messages={messages.map((message) => ({ ...message }))}
+        partsByMessageId={parts}
+        registerMessageElement={registerMessageElement}
+      />
+    )
+    expect(screen.getAllByTestId('message-parts-content')).toHaveLength(2)
+    expect(elements.get('result')).not.toBe(elements.get('call'))
+    mocks.messageListSelection.mockReturnValue(undefined)
+    rerender(<MessageGroup messages={messages} partsByMessageId={parts} captureMode />)
+    expect(screen.getAllByTestId('message-parts-content')).toHaveLength(2)
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {
