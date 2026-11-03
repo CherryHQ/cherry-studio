@@ -102,6 +102,7 @@ export const AGENT_SESSION_MESSAGE_READ_PAGE_RESULT_BUDGET = 16_777_216
 const MESSAGE_TEXT_COLUMNS = [
   sessionMessagesTable.id,
   sessionMessagesTable.sessionId,
+  sessionMessagesTable.parentId,
   sessionMessagesTable.role,
   sessionMessagesTable.data,
   sessionMessagesTable.searchableText,

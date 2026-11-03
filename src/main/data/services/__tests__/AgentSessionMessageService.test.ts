@@ -131,14 +131,14 @@ describe('AgentSessionMessageService', () => {
         .run()
     }
 
-    // Independently enumerate the 17 budgeted TEXT columns; parent_id belongs to the message tree.
+    // Independently enumerate every TEXT column from the database schema.
     function inputBytes(id: string): number {
       const columns = dbh.sqlite.prepare('PRAGMA table_info(agent_session_message)').all() as Array<{
         name: string
         type: string
       }>
       const sum = columns
-        .filter((c) => c.type === 'TEXT' && c.name !== 'parent_id')
+        .filter((c) => c.type === 'TEXT')
         .map((c) => `coalesce(length(cast("${c.name}" as blob)), 0)`)
         .join(' + ')
       return (
@@ -240,6 +240,7 @@ describe('AgentSessionMessageService', () => {
 
     it('enforces inclusive message and page budgets across every text column', () => {
       expect(dbh.sqlite.pragma('encoding', { simple: true })).toBe('UTF-8')
+      expect(dbh.sqlite.pragma('foreign_keys', { simple: true })).toBe(1)
       dbh.db.insert(userProviderTable).values({ providerId: 'budget', name: 'Budget', orderKey: 'p0' }).run()
       dbh.db
         .insert(userModelTable)
@@ -258,6 +259,7 @@ describe('AgentSessionMessageService', () => {
         'message_snapshot',
         'stats',
         'delivery',
+        'parent_id',
         'searchable_text',
         'runtime_resume_token',
         'native_input_id',
@@ -310,9 +312,10 @@ describe('AgentSessionMessageService', () => {
       )
       dbh.db.delete(agentSessionMessageTable).run()
       for (let i = 0; i < 33; i++) {
-        const id = `page-${i.toString().padStart(2, '0')}`
-        insertHistorical(id, 100 - i)
-        padTo(id, i === 32 ? 3000 : MESSAGE_BUDGET)
+        insertHistorical(`page-${i.toString().padStart(2, '0')}`, 100 - i)
+      }
+      for (let i = 0; i < 33; i++) {
+        padTo(`page-${i.toString().padStart(2, '0')}`, i === 32 ? 3000 : MESSAGE_BUDGET)
       }
       const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 32, deferToolOutputs: true })
       expect(page.items).toHaveLength(32)
