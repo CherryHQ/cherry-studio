@@ -474,7 +474,7 @@ Pi 没有持久输入去重，不自动重试不确定的 Pi 调用。用户明�
 | 导航与成员关系 | 协同迁移收藏、保存的路由/标签页、排序、活跃时间、回收站及占位会话复用。保留 agent/workspace、task-schedule 和 channel 绑定；`agentId` 不能当作 `assistantId`。通用 topic 导航纳入 Agent 归档前，必须明确成员关系。 |
 | 备份与清理 | 一起捕获映射、产品元数据和原生关联；移除旧所有者前，恢复/永久删除必须理解新所有者。共享原生 store 仍受全部保留绑定保护。 |
 
-数据库回填通过已注册的 [AgentSessionContextSeeder](../../../../src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts) 执行，顺序在旧 runtime 迁移 seeder 之后。它采用 `run-on-change`，覆盖已有安装，并在 `DbService` 尚在初始化时，使用传入的 `db` 执行同步事务。对于已知 Pi 会话，收集去重后的 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId` 候选；待执行的 DSH 转换仅提供预先分配的新 Pi 身份，不使用旧 DSH token。其他 harness 和无法确定所有者的孤立历史保留归档，不猜测 Pi 关联。保留已有关联不变；新候选将 ID 保留在 `nativeThreadId` 中，并设置 `bindingState: pending`。确认只改变绑定状态，不复制或改变身份。追加式迁移保留预留及已确认身份，不将待完成创建提升为已确认。
+数据库回填通过已注册的 [AgentSessionContextSeeder](../../../../src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts) 执行，顺序在旧 runtime 迁移 seeder 之后。它采用 `run-on-change`，覆盖已有安装，并在 `DbService` 尚在初始化时，使用传入的 `db` 执行同步事务。对于已知 Pi 会话，收集去重后的 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId` 候选；待执行的 DSH 转换仅提供预先分配的新 Pi 身份，不使用旧 DSH token。其他 harness 和无法确定所有者的孤立历史保留归档，不猜测 Pi 关联。保留已有关联不变；新候选将 ID 保留在 `nativeThreadId` 中，并设置 `bindingState: pending`。确认只改变绑定状态，不复制或改变身份。原生上下文迁移一次创建单 ID 和显式绑定状态的最终表结构。
 
 Seeder 事务只操作数据库，不读取原生文件、不创建 harness、不选择写入者、不改写消息历史，也不补造提交事实。Seeder journal 表示候选登记完成，不表示原生历史可用。事务失败不会留下部分回填；写入已提交但 journal 丢失时，重跑仍保留已有身份。
 

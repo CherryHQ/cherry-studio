@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4b5e0a08-487a-490b-b5c3-901925b5ba52",
+  "id": "c0b9ea43-081f-4eb4-abb5-6199950e7794",
   "prevId": "ca035856-20b9-4247-82bb-24a464a1ee80",
   "tables": {
     "agent": {
@@ -890,19 +890,20 @@
           "notNull": true,
           "autoincrement": false
         },
-        "intended_thread_id": {
-          "name": "intended_thread_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "native_thread_id": {
           "name": "native_thread_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "binding_state": {
+          "name": "binding_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
         },
         "created_at": {
           "name": "created_at",
@@ -933,15 +934,6 @@
             "session_id",
             "backend_id",
             "native_thread_id"
-          ],
-          "isUnique": true
-        },
-        "agent_session_context_intent_uniq": {
-          "name": "agent_session_context_intent_uniq",
-          "columns": [
-            "session_id",
-            "backend_id",
-            "intended_thread_id"
           ],
           "isUnique": true
         }
@@ -976,7 +968,16 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "agent_session_context_binding_state_check": {
+          "name": "agent_session_context_binding_state_check",
+          "value": "\"agent_session_context\".\"binding_state\" IN ('pending', 'bound')"
+        },
+        "agent_session_context_bound_identity_check": {
+          "name": "agent_session_context_bound_identity_check",
+          "value": "\"agent_session_context\".\"binding_state\" != 'bound' OR \"agent_session_context\".\"native_thread_id\" IS NOT NULL"
+        }
+      }
     },
     "agent_session_message": {
       "name": "agent_session_message",
