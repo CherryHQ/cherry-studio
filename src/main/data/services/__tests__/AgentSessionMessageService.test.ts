@@ -95,6 +95,34 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('presents imported Codex context as system history without rewriting stored messages', () => {
+    const data = {
+      parts: [{ type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Notes</INSTRUCTIONS>' }]
+    }
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({ id: USER_MESSAGE_ID, sessionId: SESSION_ID, role: 'user', data, status: 'success' })
+      .run()
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ provenance: { source: 'codex', originalMessageId: 'source-message', sourceOrder: 1 } })
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .run()
+    const presented = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(presented.role).toBe('system')
+    expect(presented.data.parts?.[0]).toEqual({
+      type: 'text',
+      text: expect.stringContaining('[Historical project instructions]')
+    })
+    const stored = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()
+    expect(stored).toMatchObject({ role: 'user', data })
+  })
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)

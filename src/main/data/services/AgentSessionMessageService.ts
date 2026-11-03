@@ -1016,6 +1016,8 @@ export class AgentSessionMessageService {
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
+    const role =
+      row.role === 'user' && row.provenance?.source === 'codex' && isCodexContextMessage(row.data) ? 'system' : row.role
     const formatted =
       row.provenance?.source === 'claude-code'
         ? presentClaudeHistory(row.data)
@@ -1023,8 +1025,8 @@ export class AgentSessionMessageService {
           ? presentCodexHistory(row.data)
           : row.data
     const presented = row.provenance
-      ? presentImportedTools(row.provenance.source, row.id, row.role, formatted, row.status)
-      : { role: row.role, data: formatted }
+      ? presentImportedTools(row.provenance.source, row.id, role, formatted, row.status)
+      : { role, data: formatted }
     return {
       id: row.id,
       sessionId: row.sessionId,
