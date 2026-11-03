@@ -99,6 +99,7 @@ export const cherryCloudAccountPlansSchema = z.looseObject({
 })
 
 export type CherryCloudAccountPlans = z.infer<typeof cherryCloudAccountPlansSchema>
+export type CherryCloudPlanModel = NonNullable<CherryCloudAccountPlans['available_plans'][number]['models']>[number]
 
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),

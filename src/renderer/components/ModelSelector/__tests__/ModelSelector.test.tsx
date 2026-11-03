@@ -410,6 +410,22 @@ describe('ModelSelector', () => {
       expect(onSelect).not.toHaveBeenCalled()
     })
 
+    it('offers Subscribe when an unsubscribed picker has nothing to show', async () => {
+      const onSelect = vi.fn()
+      mocks.useModelSelectorData.mockReturnValue(
+        makeData({ listItems: [], modelItems: [], subscribedPlanName: undefined })
+      )
+      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
+
+      await userEvent.click(
+        within(screen.getByTestId('model-selector-empty')).getByRole('button', {
+          name: 'settings.subscription.go_to_subscribe'
+        })
+      )
+
+      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
+    })
+
     it('draws the subscription tag in the prototype amber', () => {
       renderCherryAiGroup()
 

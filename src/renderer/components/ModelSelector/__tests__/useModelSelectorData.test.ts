@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,9 +39,17 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: (...args: unknown[]) => mockUsePins(...args)
 }))
-const cloudPlans = vi.hoisted(() => ({ data: undefined as unknown, activePaid: undefined as unknown }))
+const cloudPlans = vi.hoisted(() => ({
+  data: undefined as unknown,
+  activePaid: undefined as unknown,
+  phase: 'signed-in' as 'signed-in' | 'signed-out'
+}))
 vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
-  useCherryCloudPlans: () => ({ plansQuery: { data: cloudPlans.data }, activePaid: cloudPlans.activePaid })
+  useCherryCloudPlans: () => ({
+    session: { status: { phase: cloudPlans.phase } },
+    plansQuery: { data: cloudPlans.data },
+    activePaid: cloudPlans.activePaid
+  })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -115,6 +124,7 @@ function wireDeps({
 }
 
 beforeEach(() => {
+  MockUseCacheUtils.resetMocks()
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
@@ -258,6 +268,42 @@ describe('useModelSelectorData', () => {
       expect(result.current.modelItems.filter((item) => item.locked).map((item) => item.model.name)).toEqual(['Shared'])
     } finally {
       cloudPlans.data = undefined
+    }
+  })
+
+  it('keeps offering the paid plan models after sign-out, but not while a session loads its plans', () => {
+    wireDeps({ providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)], models: [] })
+    const plan = {
+      id: '22222222-2222-4222-8222-222222222222',
+      display_name: 'Plus',
+      is_free: false,
+      default_for_new_accounts: false,
+      quota_pool_count: 1,
+      model_count: 1,
+      purchase_available: true,
+      models: [{ id: 'plus-model', display_name: 'Plus model', available_features: ['agent', 'chat', 'translate'] }]
+    }
+    const lockedNames = (items: ModelSelectorModelItem[]) =>
+      items.filter((item) => item.locked).map((item) => item.model.name)
+
+    try {
+      cloudPlans.data = { measured_at: '2026-10-27T00:00:00Z', entitlements: [], available_plans: [plan] }
+      const { result, rerender } = renderHook(() => useModelSelectorData({ searchText: '' }))
+      expect(lockedNames(result.current.modelItems)).toEqual(['Plus model'])
+
+      // The plans API needs a session; signed out, the plans last seen keep the offer.
+      cloudPlans.data = undefined
+      cloudPlans.phase = 'signed-out'
+      rerender()
+      expect(lockedNames(result.current.modelItems)).toEqual(['Plus model'])
+
+      // A new session shows nothing stale while its own plans load.
+      cloudPlans.phase = 'signed-in'
+      rerender()
+      expect(lockedNames(result.current.modelItems)).toEqual([])
+    } finally {
+      cloudPlans.data = undefined
+      cloudPlans.phase = 'signed-in'
     }
   })
 

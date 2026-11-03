@@ -1,6 +1,7 @@
-import { sortBy, uniqBy } from 'es-toolkit/compat'
-import { useCallback, useMemo } from 'react'
+import { isEqual, sortBy, uniqBy } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo } from 'react'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
@@ -127,20 +128,27 @@ export function useModelSelectorData({
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
   const { isAvailabilityReady, availabilityError, isModelHidden, isModelFree, isModelUnavailable, getModelDescription } =
     useCherryCloudModelAvailability(enabled)
-  const { plansQuery, activePaid } = useCherryCloudPlans(enabled)
-  // Until the account subscribes, paid plan models it cannot use render as locked rows; there is no
-  // higher plan to sell after that. Like the usage page, ignore purchase_available: the portal decides.
-  const planModels = useMemo(
+  const { session, plansQuery, activePaid } = useCherryCloudPlans(enabled)
+  const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
+  // Like the usage page, ignore purchase_available: the portal decides.
+  const livePlanModels = useMemo(
     () =>
-      activePaid
-        ? []
-        : uniqBy(
-            (plansQuery.data?.available_plans ?? [])
-              .filter((plan) => !plan.is_free)
-              .flatMap((plan) => plan.models ?? []),
-            (planModel) => planModel.id
-          ),
-    [activePaid, plansQuery.data]
+      plansQuery.data &&
+      uniqBy(
+        plansQuery.data.available_plans.filter((plan) => !plan.is_free).flatMap((plan) => plan.models ?? []),
+        (planModel) => planModel.id
+      ),
+    [plansQuery.data]
+  )
+  useEffect(() => {
+    if (livePlanModels && !isEqual(cachedPlanModels, livePlanModels)) setCachedPlanModels(livePlanModels)
+  }, [cachedPlanModels, livePlanModels, setCachedPlanModels])
+  // Until the account subscribes, paid plan models it cannot use render as locked rows; there is no
+  // higher plan to sell after that. Signed out, the plans last seen keep the offer visible.
+  const isSignedOut = session.status?.phase === 'signed-out'
+  const planModels = useMemo(
+    () => (activePaid ? [] : (livePlanModels ?? (isSignedOut ? cachedPlanModels : []))),
+    [activePaid, cachedPlanModels, isSignedOut, livePlanModels]
   )
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 

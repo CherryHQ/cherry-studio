@@ -1099,10 +1099,22 @@ export function ModelSelector(props: ModelSelectorProps) {
             </div>
           ) : (
             <div
-              className="flex items-center justify-center px-3 py-4 text-muted-foreground text-xs"
+              className="flex flex-col items-center justify-center gap-2 px-3 py-4 text-muted-foreground text-xs"
               style={{ height: visibleListHeight }}
               data-testid="model-selector-empty">
               {t('models.no_matches')}
+              {/* Nothing to pick and nothing searched: Subscribe (signing in first) is the way to models. */}
+              {!subscribedPlanName && searchText.length === 0 && (
+                <button
+                  type="button"
+                  className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-link hover:underline"
+                  onClick={() => {
+                    setOpen(false)
+                    void startCherryCloudSubscription()
+                  }}>
+                  {t('settings.subscription.go_to_subscribe')}
+                </button>
+              )}
             </div>
           )
         }}
