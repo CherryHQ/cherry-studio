@@ -189,7 +189,9 @@ describe('AutoCreateProgress', () => {
 
     const { onSubmit } = renderProgress()
 
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ skillIds: ['pdf'] })))
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ skillIds: ['pdf'], setupIncomplete: true }))
+    )
     expect(screen.getByText('library.config.dialogs.create.auto.step.recommend_failed')).toBeInTheDocument()
   })
 })

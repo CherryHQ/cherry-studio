@@ -107,7 +107,7 @@ export function AutoCreateProgress({ input, model, onSubmit, onBack, onRunningCh
         prompt: instructions,
         skillIds,
         knowledgeBaseIds: [],
-        setupIncomplete: !generated
+        setupIncomplete: !generated || installFailed
       })
       mark('create', 'done')
     } catch (error) {
