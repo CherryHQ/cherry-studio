@@ -42,7 +42,7 @@ export default defineConfig({
           // Node ABI — `pretest:main` guarantees that via `pnpm rebuild:node`. `pnpm dev` and
           // packaging flip it to the Electron ABI instead (`pnpm rebuild:electron`); each flip is
           // a cached restore (~0.3s/~2s), not a recompile. See
-          // docs/references/testing/database-testing.md.
+          // docs/dev/references/testing/database-testing.md.
           //
           // pool: 'forks' — better-sqlite3 is a NAN/V8 native addon that is not safe under
           // worker_threads (its finalizers crash at thread teardown — SIGSEGV at process exit).
@@ -220,6 +220,10 @@ export default defineConfig({
         }
       },
       ...[
+        ['agent-behavior', 'tests'],
+        ['agent-runtime', 'tests'],
+        ['agent-runtime-pi', 'tests'],
+        ['agent-runtime-pi-durable', 'tests'],
         ['ai-sdk-provider', 'src'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']

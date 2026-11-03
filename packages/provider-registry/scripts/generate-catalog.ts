@@ -35,7 +35,7 @@ import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
-import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
+import { canonOf, deriveOverrideModelId, isModelsDevRoutingAlias, prefixHit } from './canonicalize'
 import { scopeModelRefresh } from './scopeModelRefresh'
 import {
   type CherryMeta,
@@ -348,8 +348,7 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   const openRouterStandalones = new Set(
     [
       ...(openRouter?.standaloneModelIds ?? []),
-      ...(openRouter?.overrides?.flatMap((override) => (override.name && override.modelId ? [override.modelId] : [])) ??
-        [])
+      ...(openRouter?.modelTemplates?.flatMap((template) => (template.name ? [template.modelId] : [])) ?? [])
     ].map(canonOf)
   )
   for (const m of or.data ?? []) {
@@ -524,12 +523,12 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
 
 /**
  * Build providers.json from PROVIDERS: the connection config only (generation-only `modelsDevProvider` /
- * `fetchModels` / `overrides` are dropped), with `description` templated as `"{name} - AI model provider"`.
+ * `fetchModels` / `overrides` / `modelTemplates` are dropped), with `description` templated as `"{name} - AI model provider"`.
  * Array order follows PROVIDERS; `sortKeys` orders each provider's keys.
  */
 function buildProviders(): ProviderEntry[] {
   // oxlint-disable-next-line no-unused-vars
-  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, ...conn }) => {
+  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, modelTemplates, ...conn }) => {
     const serverTools = conn.serverTools?.map((tool) => {
       const config = { ...tool }
       delete config.modelIdPrefixes
@@ -568,7 +567,7 @@ function buildProviderModels(
   // apiModelIds (e.g. tokenhub's dated 原厂直供 variants alongside the undated id) — `listProviderRegistryModels`
   // turns each surviving row into a distinct selectable model (its unique id derives from apiModelId).
   const addOverride = (raw: any): void => {
-    const o = splitOverrideWireId(raw)
+    const o = raw.apiModelId ? deriveOverrideModelId(raw) : raw
     const k = `${o.providerId} ${o.modelId} ${o.apiModelId ?? ''} ${variantsKey(o)}`
     if (seen.has(k)) return
     seen.add(k)
@@ -582,22 +581,9 @@ function buildProviderModels(
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    const modelTemplates = (p.overrides ?? []).filter(
-      (override) =>
-        p.modelsDevProvider &&
-        !override.apiModelId &&
-        (override.endpointTypes ||
-          override.reasoningContracts ||
-          override.requestControls ||
-          override.parameterSupport ||
-          override.name ||
-          override.ownedBy ||
-          Object.hasOwn(override, 'pricing'))
-    )
+    const modelTemplates = p.modelTemplates ?? []
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
-    for (const override of p.overrides ?? []) {
-      if (!modelTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
-    }
+    for (const override of p.overrides ?? []) addOverride({ providerId: p.id, ...override })
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
       if (p.modelsDevProvider && isModelsDevRoutingAlias(p.modelsDevProvider, apiModelId)) continue

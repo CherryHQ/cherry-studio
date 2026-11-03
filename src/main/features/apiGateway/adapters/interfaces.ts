@@ -11,7 +11,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 /**
@@ -142,7 +142,7 @@ export interface IMessageConverter<TInputParams = unknown> {
    * Convert input tools to AI SDK `ToolSet`. Tools have NO `execute` (client
    * tools): the model emits the call and the gateway forwards it to the client.
    */
-  toAiSdkTools?(params: TInputParams): ToolSet | undefined
+  toAiSdkTools?(params: TInputParams, targetEndpointType?: EndpointType): ToolSet | undefined
 
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string

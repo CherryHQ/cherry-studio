@@ -28,6 +28,10 @@ const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(
   './native/darwin/build'
 )
 
+const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
+  './native/external-app/build.cjs'
+)
+
 type ElectronBuilderConfig = {
   releaseInfo?: {
     releaseNotes?: unknown
@@ -103,7 +107,7 @@ const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer'
 // `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
-// MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
+// MODULE_NOT_FOUND (no test catches this). See docs/dev/references/api-gateway/README.md.
 const mainExternalDependencies = [
   ...Object.keys(pkg.dependencies),
   // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
@@ -190,6 +194,14 @@ export default defineConfig({
         buildStart() {
           this.addWatchFile(selectionPanelSource)
           buildSelectionPanel()
+        }
+      },
+      {
+        name: 'cherry-external-app',
+        apply: 'build',
+        buildStart() {
+          for (const file of externalAppSources) this.addWatchFile(file)
+          buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),

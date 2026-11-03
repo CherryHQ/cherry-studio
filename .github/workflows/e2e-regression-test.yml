@@ -64,7 +64,7 @@ jobs:
       task: ${{ steps.ref.outputs.task }}
     steps:
       - name: Checkout workflow controller
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -121,14 +121,14 @@ jobs:
       MCP_TOOL_TIMEOUT: "240000"
     steps:
       - name: Checkout workflow controller
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 1
 
       - name: Checkout application under test
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
@@ -493,7 +493,7 @@ jobs:
       actions: write
     steps:
       - name: Checkout workflow controller
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
