@@ -5,16 +5,9 @@ import useSWR from 'swr'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
 const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
-const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
-  entitledModelIds: [],
-  freeModelIds: [],
-  availableModelIds: { agent: [], general: [] },
-  quotaExhaustedModelIds: []
-}
 
 /**
  * Cherry Cloud's server-declared model availability, expressed in model-selector terms so no other
@@ -36,7 +29,8 @@ export function useCherryCloudModelAvailability(enabled = true) {
 
   useIpcOn('cherry_cloud.status_changed', () => {
     if (!enabled) return
-    void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: true }).catch(() => undefined)
+    // Clear stale account availability without fabricating a completed empty response.
+    void mutate(undefined, { revalidate: true }).catch(() => undefined)
   })
 
   return useMemo(() => {
@@ -46,7 +40,7 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
 
     return {
-      /** False until the first availability snapshot arrives (pending or failed initial sync). */
+      /** False until a server snapshot arrives, including after a status reset. */
       isAvailabilityReady: cloudAvailability !== undefined,
       availabilityError,
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */

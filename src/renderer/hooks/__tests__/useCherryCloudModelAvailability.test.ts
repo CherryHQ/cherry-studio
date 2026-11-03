@@ -154,6 +154,44 @@ describe('useCherryCloudModelAvailability', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
+  it('keeps reset availability unknown until a real response, including failure and recovery', async () => {
+    const shared = cloud('shared')
+    const signedIn = snapshot({
+      entitledModelIds: [shared.id],
+      availableModelIds: { agent: [shared.id], general: [shared.id] }
+    })
+    mocks.ipcRequest.mockResolvedValueOnce(signedIn)
+    const cachedWrapper = wrapper()
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: cachedWrapper })
+    await waitFor(() => expect(result.current.isAvailabilityReady).toBe(true))
+
+    const pending = Promise.withResolvers<CherryCloudModelSyncResult>()
+    mocks.ipcRequest.mockImplementationOnce(() => pending.promise)
+    act(() => mocks.statusChanged?.())
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
+    expect(result.current.isAvailabilityReady).toBe(false)
+    expect(result.current.isModelHidden(shared, false)).toBe(true)
+
+    // A second consumer of the shared SWR cache must not mistake the reset
+    // placeholder for a completed empty server snapshot either.
+    const second = renderHook(() => useCherryCloudModelAvailability(), { wrapper: cachedWrapper })
+    expect(second.result.current.isAvailabilityReady).toBe(false)
+
+    const failure = new Error('reset sync failed')
+    await act(async () => pending.reject(failure))
+    await waitFor(() => expect(result.current.availabilityError).toBe(failure))
+    expect(result.current.isAvailabilityReady).toBe(false)
+    expect(second.result.current.isAvailabilityReady).toBe(false)
+
+    // A genuine empty response is ready: a signed-out account may have no models.
+    mocks.ipcRequest.mockResolvedValueOnce(snapshot())
+    act(() => mocks.statusChanged?.())
+    await waitFor(() => expect(result.current.isAvailabilityReady).toBe(true))
+    expect(result.current.availabilityError).toBeUndefined()
+    expect(second.result.current.isAvailabilityReady).toBe(true)
+    expect(result.current.isModelHidden(shared, false)).toBe(true)
+  })
+
   it('hides models again when an older sign-in refresh finishes after sign out', async () => {
     const shared = cloud('shared')
     const signedIn = snapshot({
