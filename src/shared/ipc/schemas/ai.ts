@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import { AgentSessionForkAvailabilityDecisionSchema } from '@shared/ai/agentSessionFork'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type {
   AiStreamAttachResponse,
@@ -390,6 +391,15 @@ export const aiRequestSchemas = {
       messageId: z.uuid()
     }),
     output: z.strictObject({ sessionId: z.uuid() })
+  }),
+  'ai.agent.session.fork_availability': defineRoute({
+    input: z.strictObject({ sourceSessionId: z.uuid(), messageIds: z.array(z.uuid()).min(1).max(200) }),
+    output: z.strictObject({
+      items: z
+        .array(z.strictObject({ messageId: z.uuid(), availability: AgentSessionForkAvailabilityDecisionSchema }))
+        .min(1)
+        .max(200)
+    })
   }),
   'ai.agent.session.edit_target': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),

@@ -1,3 +1,4 @@
+export { probeClaudeFork } from './claudeFork'
 export { ClaudeCodeBinaryService } from './ClaudeCodeBinaryService'
 export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'

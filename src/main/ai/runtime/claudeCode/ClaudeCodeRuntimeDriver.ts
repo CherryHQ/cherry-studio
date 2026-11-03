@@ -60,7 +60,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
-import { forkClaudeSession } from './claudeFork'
+import { forkClaudeSession, probeClaudeFork } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import {
@@ -1326,6 +1326,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
+  readonly probeFork = probeClaudeFork
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

@@ -1,5 +1,12 @@
 import type { RuntimeForkCheckpoint } from '@data/services/agentSessionForkContract'
 
+export interface RuntimeForkProbeCandidate {
+  messageId: string
+  checkpoint: RuntimeForkCheckpoint
+  checkpoints: readonly RuntimeForkCheckpoint[]
+  cwd: string
+}
+
 export interface RuntimeForkInput {
   sourceSessionId: string
   checkpoint: RuntimeForkCheckpoint

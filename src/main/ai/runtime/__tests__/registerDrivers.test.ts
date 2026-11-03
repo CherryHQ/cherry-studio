@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -55,6 +59,39 @@ describe('registerRuntimeDrivers', () => {
     controller.abort(new Error('cancelled'))
     await expect(driver.fork!({ ...input, signal: controller.signal })).rejects.toThrow('cancelled')
     expect(implementation.fork).toHaveBeenCalledTimes(3)
+  })
+
+  it('probes real Claude history through the registered driver', async () => {
+    const directory = await mkdtemp(path.join(process.env.TMPDIR!, 'registry-probe-'))
+    try {
+      const project = path.join(directory, 'projects', 'project')
+      await mkdir(project, { recursive: true })
+      const session = randomUUID(),
+        present = randomUUID(),
+        absent = randomUUID()
+      await writeFile(
+        path.join(project, `${session}.jsonl`),
+        JSON.stringify({ uuid: present, type: 'assistant' }) + '\n'
+      )
+      registerRuntimeDrivers()
+      const driver = runtimeDriverRegistry.getAgentSessionDriver('claude-code')!
+      const candidate = (id: string) => ({
+        messageId: id,
+        checkpoint: {
+          runtime: 'claude-code' as const,
+          runtimeSessionId: session,
+          messageUuid: id,
+          configDir: directory
+        },
+        checkpoints: [],
+        cwd: directory
+      })
+      const results = await driver.probeFork!([candidate(present), candidate(absent)])
+      expect(results.get(present)).toEqual({ enabled: true })
+      expect(results.get(absent)).toEqual({ enabled: false, reason: 'history_missing' })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   // Guards the descriptor↔registry pairing: a merge that drops a driver

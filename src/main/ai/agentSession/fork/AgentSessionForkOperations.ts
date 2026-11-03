@@ -34,6 +34,49 @@ function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
 }
 
+export function prepareForkSource(sourceSessionId: string, messageId: string) {
+  const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
+  const selected = preliminary.messages.at(-1)!
+  const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
+  if (selected.role !== 'assistant' || selected.status !== 'success')
+    throw new AgentSessionForkError('not_turn_boundary')
+  if (!anchor.success)
+    throw new AgentSessionForkError(selected.data.runtimeAnchor == null ? 'legacy_history' : 'unsupported_checkpoint')
+  const excludedIds = [
+    ...new Set([
+      ...(anchor.data.excludedMessageIds ?? []),
+      ...preliminary.messages
+        .filter(
+          (row) =>
+            row.id !== messageId &&
+            (row.status === 'pending' ||
+              row.status === 'streaming' ||
+              row.deliveryStatus === 'accepted' ||
+              row.deliveryStatus === 'delivering')
+        )
+        .map((row) => row.id)
+    ])
+  ]
+  const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
+  const checkpoint = anchor.data.checkpoint
+  const agent = agentService.getAgent(source.agent.id)
+  if (!agent) throw new AgentSessionForkSourceError('source_missing')
+  const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+  if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+  const checkpoints: RuntimeForkCheckpoint[] = []
+  for (const row of source.messages) {
+    const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+    if (parsed.success) checkpoints.push(parsed.data.checkpoint)
+  }
+  return {
+    source,
+    checkpoint,
+    checkpoints,
+    driver: driver as typeof driver & { fork: NonNullable<typeof driver.fork> },
+    excludedIds
+  }
+}
+
 /** Owns native history publication for forks and in-place edits. */
 export class AgentSessionForkOperations {
   private readonly recoveryQueue = new Sequencer()
@@ -208,39 +251,7 @@ export class AgentSessionForkOperations {
   ): Promise<string> {
     signal.throwIfAborted()
     await ensureRetiredSessionHistory(sourceSessionId)
-    const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
-    const selected = preliminary.messages.at(-1)!
-    const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
-    if (selected.role !== 'assistant' || selected.status !== 'success')
-      throw new AgentSessionForkError('not_turn_boundary')
-    if (!anchor.success)
-      throw new AgentSessionForkError(selected.data.runtimeAnchor == null ? 'legacy_history' : 'unsupported_checkpoint')
-    const excludedIds = [
-      ...new Set([
-        ...(anchor.data.excludedMessageIds ?? []),
-        ...preliminary.messages
-          .filter(
-            (row) =>
-              row.id !== messageId &&
-              (row.status === 'pending' ||
-                row.status === 'streaming' ||
-                row.deliveryStatus === 'accepted' ||
-                row.deliveryStatus === 'delivering')
-          )
-          .map((row) => row.id)
-      ])
-    ]
-    const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
-    const checkpoint = anchor.data.checkpoint
-    const agent = agentService.getAgent(source.agent.id)
-    if (!agent) throw new AgentSessionForkSourceError('source_missing')
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
-    if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
-    const checkpoints: RuntimeForkCheckpoint[] = []
-    for (const row of source.messages) {
-      const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-      if (parsed.success) checkpoints.push(parsed.data.checkpoint)
-    }
+    const { source, checkpoint, checkpoints, driver, excludedIds } = prepareForkSource(sourceSessionId, messageId)
     const resources: AgentSessionForkResources = {
       version: 1,
       operationId,

@@ -164,6 +164,7 @@ describe('ai.agent.session.fork IPC schema', () => {
 
     expect(forkSession.parse(input)).toEqual(input)
     expect(forkSession.safeParse({ ...input, allowHistoryRebuild: true }).success).toBe(false)
+    expect(forkSession.safeParse({ ...input, dryRun: true }).success).toBe(false)
   })
 })
 
@@ -222,5 +223,25 @@ describe('ai.agent.skill_session.create IPC schema', () => {
   it('returns only the prepared Session id', () => {
     expect(createSkillSessionResult.parse({ sessionId: 'session-1' })).toEqual({ sessionId: 'session-1' })
     expect(createSkillSessionResult.safeParse({ sessionId: 'session-1', skillId: 'skill-1' }).success).toBe(false)
+  })
+})
+
+describe('agent session fork availability decision', () => {
+  it('distinguishes available, unavailable, and unknown decisions', async () => {
+    const { AgentSessionForkAvailabilityDecisionSchema: schema } = await import('@shared/ai/agentSessionFork')
+    for (const decision of [
+      { enabled: true },
+      { enabled: false, reason: 'legacy_history' },
+      { enabled: null, reason: 'operation_failed' }
+    ])
+      expect(schema.safeParse(decision).success).toBe(true)
+    for (const decision of [
+      { enabled: true, reason: 'legacy_history' },
+      { enabled: false },
+      { enabled: false, reason: 'unknown' },
+      { enabled: null, reason: 'legacy_history' },
+      { enabled: null, reason: 'operation_failed', extra: true }
+    ])
+      expect(schema.safeParse(decision).success).toBe(false)
   })
 })

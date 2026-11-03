@@ -7,6 +7,7 @@ import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionForkAvailabilityDecision } from '@shared/ai/agentSessionFork'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
@@ -18,7 +19,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import type { RuntimeForkInput, RuntimeForkResult } from './fork'
+import type { RuntimeForkInput, RuntimeForkProbeCandidate, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
@@ -250,6 +251,9 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
+  probeFork?(
+    candidates: readonly RuntimeForkProbeCandidate[]
+  ): Promise<ReadonlyMap<string, AgentSessionForkAvailabilityDecision>>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call

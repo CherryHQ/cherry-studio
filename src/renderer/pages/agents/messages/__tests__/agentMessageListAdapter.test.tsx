@@ -1,6 +1,10 @@
-import { act, render, renderHook } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  executeMessageMenuBarAction,
+  type MessageMenuBarActionContext
+} from '@renderer/components/chat/messages/frame/messageMenuBarActions'
 import type {
   MessageListItem,
   MessageListProviderValue,
@@ -247,71 +251,122 @@ describe('useAgentMessageListProviderValue', () => {
     expect(opened).toEqual([input])
   })
 
-  it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
-    'offers completed messages without an availability flag and reports native fork errors: %s',
+  it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected', 'unknown'] as const)(
+    'uses probe results and preserves fork behavior: %s',
     async (scenario) => {
-      let value: MessageListProviderValue | undefined
-      const Probe = () => {
-        value = useAgentMessageListProviderValue({
+      const selectedId = '00000000-0000-4000-8000-000000000001'
+      const selected = {
+        id: selectedId,
+        role: 'assistant',
+        metadata: { status: 'success' },
+        parts: []
+      } as CherryUIMessage
+      const probe = Promise.withResolvers<unknown>()
+      ipcApiRequest.mockImplementation((route) => {
+        if (route === 'ai.agent.session.fork_availability') return probe.promise
+        if (route !== 'ai.agent.session.fork') return undefined
+        if (scenario === 'success' || scenario === 'unknown') return Promise.resolve({ sessionId: 'child' })
+        if (scenario === 'unexpected') return Promise.reject(new Error('unexpected failure'))
+        return Promise.reject(
+          new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'fork failed', { reason: scenario })
+        )
+      })
+      const { result } = renderHook(() =>
+        useAgentMessageListProviderValue({
           topic: {
             id: 'agent-session:source',
             assistantId: 'agent-1',
             name: 'Source',
             messages: []
           } as unknown as Topic,
-          messages: [],
+          messages: [selected],
           partsByMessageId: {},
           isLoading: false,
           messageNavigation: 'anchor'
         })
-        return null
-      }
-      ipcApiRequest.mockReset()
-      if (scenario === 'success') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
-      else if (scenario === 'unexpected') ipcApiRequest.mockRejectedValueOnce(new Error('unexpected failure'))
-      else
-        ipcApiRequest.mockRejectedValueOnce(
-          new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'fork failed', {
-            reason: scenario
-          })
-        )
-      render(<Probe />)
-      const capability = value!.actions.forkSession!
-      const selectedMessage = {
-        id: 'selected-message',
-        role: 'assistant',
-        status: 'success'
-      } as MessageListItem
-      expect(capability.label).toBe('agent_session_fork.label')
-      expect(capability.availability(selectedMessage)).toMatchObject({
-        visible: true,
-        enabled: true
-      })
-      expect(capability.availability({ ...selectedMessage, status: 'pending' })).toEqual({
+      )
+      const item = { id: selectedId, role: 'assistant', status: 'success' } as MessageListItem
+      expect(result.current.actions.forkSession!.availability(item)).toEqual({ visible: true, enabled: false })
+      await act(async () => result.current.actions.forkSession!.run(selectedId))
+      expect(ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.agent.session.fork')).toHaveLength(0)
+      await act(async () =>
+        probe.resolve({
+          items: [
+            {
+              messageId: selectedId,
+              availability: scenario === 'unknown' ? { enabled: null, reason: 'operation_failed' } : { enabled: true }
+            }
+          ]
+        })
+      )
+      await waitFor(() =>
+        expect(result.current.actions.forkSession!.availability(item)).toMatchObject({ visible: true, enabled: true })
+      )
+      expect(result.current.actions.forkSession!.availability({ ...item, status: 'pending' })).toEqual({
         visible: true,
         enabled: false,
         reason: 'agent_session_fork.not_turn_boundary'
       })
-      expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
-      expect(ipcApiRequest).not.toHaveBeenCalled()
-      const action = value!.actions.forkSession!.run('selected-message')
+      expect(result.current.actions.forkSession!.availability({ ...item, role: 'user' })).toBe(false)
       if (scenario === 'unexpected') {
-        await expect(action).rejects.toThrow('unexpected failure')
+        await act(async () => {
+          await expect(result.current.actions.forkSession!.run(selectedId)).rejects.toThrow('unexpected failure')
+        })
         expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
-      } else if (scenario !== 'success') {
-        const message = scenario === 'cancelled' ? 'message.tools.cancelled' : `agent_session_fork.${scenario}`
-        await expect(action).resolves.toBeUndefined()
-        expect(leafCapabilitiesMock.notifyError.mock.calls).toEqual([[message]])
-      } else await action
-      expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
-        sourceSessionId: 'source',
-        messageId: 'selected-message'
-      })
-      expect(ipcApiRequest).toHaveBeenCalledTimes(1)
-      if (scenario === 'success') expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
-      else expect(openRouteMock).not.toHaveBeenCalled()
+      } else {
+        await act(async () => result.current.actions.forkSession!.run(selectedId))
+        if (scenario !== 'success' && scenario !== 'unknown') {
+          const label = scenario === 'cancelled' ? 'message.tools.cancelled' : `agent_session_fork.${scenario}`
+          expect(leafCapabilitiesMock.notifyError.mock.calls).toEqual([[label]])
+        }
+      }
+      expect(ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.agent.session.fork')).toEqual([
+        ['ai.agent.session.fork', { sourceSessionId: 'source', messageId: selectedId }]
+      ])
+      if (scenario === 'success' || scenario === 'unknown')
+        expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
+      else {
+        expect(openRouteMock).not.toHaveBeenCalled()
+        expect(
+          ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.agent.session.fork_availability').length
+        ).toBeGreaterThan(1)
+      }
     }
   )
+
+  it.each(['legacy_history', 'history_changed'] as const)('blocks a confirmed unavailable fork: %s', async (reason) => {
+    const selectedId = '00000000-0000-4000-8000-000000000001'
+    ipcApiRequest.mockImplementation(async (route) =>
+      route === 'ai.agent.session.fork_availability'
+        ? { items: [{ messageId: selectedId, availability: { enabled: false, reason } }] }
+        : undefined
+    )
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:source', assistantId: 'agent-1', name: 'Source', messages: [] } as unknown as Topic,
+        messages: [{ id: selectedId, role: 'assistant', metadata: { status: 'success' }, parts: [] }],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+    )
+    const item = { id: selectedId, role: 'assistant', status: 'success' } as MessageListItem
+    await waitFor(() =>
+      expect(result.current.actions.forkSession!.availability(item)).toEqual({
+        visible: true,
+        enabled: false,
+        reason: `agent_session_fork.${reason}`
+      })
+    )
+    const context = { actions: result.current.actions, message: item } as MessageMenuBarActionContext
+    await act(async () => {
+      expect(await executeMessageMenuBarAction('fork-session', context)).toBe(false)
+    })
+    await act(async () => result.current.actions.forkSession!.run(selectedId))
+    expect(ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.agent.session.fork')).toHaveLength(0)
+    expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
+    expect(openRouteMock).not.toHaveBeenCalled()
+  })
 
   it.each(['success', 'not-found', 'failure'] as const)(
     'opens the fork source only after a successful lookup: %s',

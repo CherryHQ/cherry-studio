@@ -2,15 +2,23 @@ import type { TFunction } from 'i18next'
 
 import type { ActionAvailabilityInput } from '@renderer/components/chat/actions/actionTypes'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import type { AgentSessionForkAvailabilityDecision, AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 
-export function agentSessionForkAvailability(t: TFunction, message: MessageListItem): ActionAvailabilityInput {
+export function agentSessionForkAvailability(
+  t: TFunction,
+  message: MessageListItem,
+  availability?: AgentSessionForkAvailabilityDecision
+): ActionAvailabilityInput {
   if (message.role !== 'assistant') return false
-  const enabled = message.status === 'success'
+  if (message.status !== 'success') {
+    return { visible: true, enabled: false, reason: agentSessionForkReasonLabel(t, 'not_turn_boundary') }
+  }
+  if (!availability) return { visible: true, enabled: false }
+  if (availability.enabled === true) return { visible: true, enabled: true }
   return {
     visible: true,
-    enabled,
-    reason: enabled ? undefined : agentSessionForkReasonLabel(t, 'not_turn_boundary')
+    enabled: availability.enabled === null,
+    reason: agentSessionForkReasonLabel(t, availability.reason)
   }
 }
 
