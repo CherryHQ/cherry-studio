@@ -23,6 +23,8 @@ const CapsuleStack: FC<{ displayId: number }> = ({ displayId }) => {
   const { t } = useTranslation()
   const capsules = useSharedCacheValue(`selection.agent_capsules.${displayId}` as const) ?? []
   const [expanded, setExpanded] = useState(false)
+  // The host is recycled once its stack empties, and the next stack starts folded.
+  if (expanded && capsules.length === 0) setExpanded(false)
   const stackRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {

@@ -4,6 +4,9 @@ import type { SelectionAgentCapsule, SelectionAgentStatus } from '@shared/types/
 
 /** The host's own padding adds to this, keeping the capsules 12px from the work-area edges. */
 const HOST_MARGIN = 4
+const CAPSULE_INSET = 12
+/** About the size of one capsule, which collapse and restore animate toward and from. */
+const CAPSULE_SLOT = { width: 180, height: 36 }
 
 /** Lower ranks sit nearer the corner: what waits on the user, then what runs, then what has finished. */
 const STATUS_RANK: Record<SelectionAgentStatus, number> = {
@@ -38,5 +41,14 @@ export function placeSelectionCapsuleHost(size: Size, workArea: Rectangle): Rect
     y: workArea.y + workArea.height - HOST_MARGIN - height,
     width: size.width,
     height
+  }
+}
+
+/** Where the capsule nearest the corner sits, close enough for a window to shrink toward. */
+export function placeSelectionCapsuleSlot(workArea: Rectangle): Rectangle {
+  return {
+    x: workArea.x + workArea.width - CAPSULE_INSET - CAPSULE_SLOT.width,
+    y: workArea.y + workArea.height - CAPSULE_INSET - CAPSULE_SLOT.height,
+    ...CAPSULE_SLOT
   }
 }

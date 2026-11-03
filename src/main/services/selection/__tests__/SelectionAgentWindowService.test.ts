@@ -1,6 +1,6 @@
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import type { Rectangle } from 'electron'
-import { screen } from 'electron'
+import { screen, systemPreferences } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
@@ -9,7 +9,26 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 import type { AgentSelectionAction, SelectionAgentSummary } from '@shared/types/selection'
 
-vi.mock('@main/core/platform', () => ({ isDev: false, isLinux: false, isMac: false, isWin: true }))
+const platform = vi.hoisted(() => ({ isMac: false }))
+vi.mock('@main/core/platform', () => ({
+  isDev: false,
+  isLinux: false,
+  get isMac() {
+    return platform.isMac
+  },
+  get isWin() {
+    return !platform.isMac
+  }
+}))
+const native = vi.hoisted(() => ({
+  configurePanel: vi.fn(),
+  moveToActiveSpace: vi.fn(),
+  setMiniaturizeHandler: vi.fn(),
+  interceptMiniaturize: vi.fn(),
+  isFullScreenAppInFront: vi.fn(),
+  animateWindow: vi.fn()
+}))
+vi.mock('../selectionNativePanel', () => ({ getSelectionNativePanel: () => native }))
 
 const { SelectionAgentWindowService } = await import('../SelectionAgentWindowService')
 
@@ -25,14 +44,26 @@ const RESEARCH: AgentSelectionAction = {
   agentId: 'agent-1'
 }
 
+let nextHandle = 0
+
 function createWindow() {
   let bounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
+  const handle = Buffer.from([++nextHandle])
   const mockWindow = {
+    handle,
+    getNativeWindowHandle: () => handle,
+    opacity: 1,
+    setOpacity(this: { opacity: number }, value: number) {
+      this.opacity = value
+    },
+    setAlwaysOnTop: vi.fn(),
+    focus: vi.fn(),
     zoomFactor: 1,
     webContents: {
       getZoomFactor: () => mockWindow.zoomFactor
     },
     resizable: true,
+    minimizable: true,
     visible: false,
     getBounds: () => bounds,
     setBounds: (next: Rectangle) => {
@@ -42,6 +73,9 @@ function createWindow() {
       this.resizable = value
     },
     setMinimumSize: vi.fn(),
+    setMinimizable(this: { minimizable: boolean }, value: boolean) {
+      this.minimizable = value
+    },
     setFocusable: vi.fn(),
     show(this: { visible: boolean }) {
       this.visible = true
@@ -85,6 +119,7 @@ describe('SelectionAgentWindowService', () => {
 
     expect(window.getBounds()).toEqual({ x: 240, y: 100, width: 560, height: 160 })
     expect(window.resizable).toBe(false)
+    expect(window.minimizable).toBe(false)
     expect(window.visible).toBe(true)
   })
 
@@ -104,6 +139,7 @@ describe('SelectionAgentWindowService', () => {
     svc.resize('mock-window-id', { mode: 'conversation' })
     expect(window.getBounds()).toEqual({ x: 240, y: 100, width: 560, height: 620 })
     expect(window.resizable).toBe(true)
+    expect(window.minimizable).toBe(true)
 
     // A late compose measurement must not shrink the conversation the user is reading.
     svc.resize('mock-window-id', { mode: 'compose', height: 180 })
@@ -193,8 +229,8 @@ describe('SelectionAgentWindowService', () => {
   describe('capsules', () => {
     const SECOND_WORK_AREA = { x: 1440, y: 0, width: 1920, height: 1080 }
     const DISPLAYS = [
-      { id: 1, workArea: WORK_AREA },
-      { id: 2, workArea: SECOND_WORK_AREA }
+      { id: 1, bounds: WORK_AREA, workArea: WORK_AREA },
+      { id: 2, bounds: SECOND_WORK_AREA, workArea: SECOND_WORK_AREA }
     ]
     const RUNNING: SelectionAgentSummary = { agentName: 'Research', agentAvatar: '🔎', status: 'running', steps: 2 }
     let windows: Record<string, ReturnType<typeof createWindow>>
@@ -415,6 +451,133 @@ describe('SelectionAgentWindowService', () => {
       // host-1 left with the display, and host-2 held the capsule on the primary one meanwhile.
       svc.restore('host-3', 'w1')
       expect(windows.w1.visible).toBe(true)
+    })
+
+    describe('on macOS', () => {
+      let behavior: { hideMacDockWhileShown: ReturnType<typeof vi.fn> }
+      const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+      const lastAnimation = () => native.animateWindow.mock.calls.at(-1)?.slice(1)
+      /** Moves the window as the native animation would once it ends. */
+      const land = (handle: Buffer, target: Rectangle, opacity: number) => {
+        const window = Object.values(windows).find((candidate) => candidate.handle.equals(handle))
+        window?.setBounds(target)
+        if (window) window.opacity = opacity
+      }
+
+      beforeEach(() => {
+        platform.isMac = true
+        native.isFullScreenAppInFront.mockReturnValue(false)
+        native.animateWindow.mockImplementation(async (handle: Buffer, target: Rectangle, opacity: number) =>
+          land(handle, target, opacity)
+        )
+        Object.assign(systemPreferences, { getAnimationSettings: vi.fn(() => ({ prefersReducedMotion: false })) })
+        behavior = { hideMacDockWhileShown: vi.fn() }
+        Object.assign(wm, { behavior })
+      })
+
+      afterEach(() => {
+        platform.isMac = false
+      })
+
+      it('collapses the agent window whose yellow light or Cmd+M was used', async () => {
+        await svc._doInit()
+        openStarted('w1')
+        openStarted('w2')
+        const manager = wm as unknown as {
+          getWindowsByType: ReturnType<typeof vi.fn>
+          getWindowId: ReturnType<typeof vi.fn>
+        }
+        manager.getWindowsByType.mockReturnValue([windows.w1, windows.w2])
+        manager.getWindowId.mockImplementation((window) => (window === windows.w1 ? 'w1' : 'w2'))
+        const onMiniaturize = native.setMiniaturizeHandler.mock.calls[0][0] as (handle: Buffer) => void
+
+        onMiniaturize(Buffer.from(windows.w2.handle))
+        await settle()
+
+        expect(windows.w1.visible).toBe(true)
+        expect(windows.w2.visible).toBe(false)
+        expect(stack(1)?.map((capsule) => capsule.windowId)).toEqual(['w2'])
+      })
+
+      it('shrinks toward the corner before the capsule appears, then hides at its own bounds', async () => {
+        let finish = () => undefined as void
+        native.animateWindow.mockImplementationOnce(
+          (handle: Buffer, target: Rectangle, opacity: number) =>
+            new Promise<void>((resolve) => {
+              finish = () => {
+                land(handle, target, opacity)
+                resolve()
+              }
+            })
+        )
+        openStarted('w1')
+        const bounds = windows.w1.getBounds()
+
+        svc.collapse('w1')
+        const [target, opacity] = lastAnimation() ?? []
+        expect(target.x + target.width).toBeGreaterThan(WORK_AREA.width - 24)
+        expect(target.y + target.height).toBeGreaterThan(WORK_AREA.height - 24)
+        expect(opacity).toBe(0)
+        expect(windows.w1.visible).toBe(true)
+        // A turn that moves on mid-animation must not bring the capsule in early.
+        svc.setSummary('w1', { ...RUNNING, steps: 3 })
+        expect(hostFor(1)).toBe(-1)
+
+        finish()
+        await settle()
+
+        expect(windows.w1.visible).toBe(false)
+        expect(windows.w1.getBounds()).toEqual(bounds)
+        expect(windows.w1.opacity).toBe(1)
+        expect(stack(1)).toEqual([expect.objectContaining({ windowId: 'w1', steps: 3 })])
+      })
+
+      it('restores over a full-screen app on its capsule display with the Dock hidden again, growing back to its bounds', async () => {
+        openStarted('w1')
+        openStarted('w2', RUNNING, 2)
+        const bounds = windows.w2.getBounds()
+        svc.collapse('w1')
+        await settle()
+        svc.collapse('w2')
+        await settle()
+        // Both opened over a regular desktop, but the second display has since moved to a full-screen app.
+        native.isFullScreenAppInFront.mockImplementation((display: Rectangle) => display.x === SECOND_WORK_AREA.x)
+
+        svc.restore('host-1', 'w1')
+        svc.restore('host-2', 'w2')
+        await settle()
+
+        expect(behavior.hideMacDockWhileShown).toHaveBeenCalledWith('w2')
+        expect(behavior.hideMacDockWhileShown).not.toHaveBeenCalledWith('w1')
+        expect(lastAnimation()).toEqual([bounds, 1, 200])
+        expect(windows.w2.visible).toBe(true)
+        expect(windows.w2.resizable).toBe(true)
+      })
+
+      it('switches instantly when the OS prefers reduced motion', () => {
+        Object.assign(systemPreferences, { getAnimationSettings: vi.fn(() => ({ prefersReducedMotion: true })) })
+        openStarted('w1')
+
+        svc.collapse('w1')
+        expect(windows.w1.visible).toBe(false)
+        svc.restore('host-1', 'w1')
+
+        expect(windows.w1.visible).toBe(true)
+        expect(native.animateWindow).not.toHaveBeenCalled()
+      })
+
+      it('expands the compose bar with an animation, then lets the conversation resize and collapse', async () => {
+        windows.w1 = createWindow()
+        wm.open.mockReturnValueOnce('w1')
+        svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+
+        svc.resize('w1', { mode: 'conversation' })
+        expect(lastAnimation()).toEqual([{ x: 240, y: 100, width: 560, height: 620 }, 1, 200])
+        await settle()
+
+        expect(windows.w1.resizable).toBe(true)
+        expect(windows.w1.minimizable).toBe(true)
+      })
     })
   })
 })
