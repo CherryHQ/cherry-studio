@@ -22,7 +22,7 @@ type HeldSkill = {
   abort: AbortController
   files: Map<string, McpResource>
 }
-type SkillSession = {
+type SessionSkillState = {
   agentId: string
   abort: AbortController
   skills: Map<string, HeldSkill>
@@ -69,7 +69,7 @@ const executionTools = new Set([
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService'])
 export class McpSkillService extends BaseService {
-  private readonly sessions = new Map<string, SkillSession>()
+  private readonly sessions = new Map<string, SessionSkillState>()
 
   protected async onInit(): Promise<void> {
     this.registerDisposable(
@@ -151,7 +151,7 @@ export class McpSkillService extends BaseService {
       }
       return
     }
-    const session: SkillSession = {
+    const session: SessionSkillState = {
       agentId,
       abort: new AbortController(),
       skills: new Map(),
@@ -190,14 +190,14 @@ export class McpSkillService extends BaseService {
     this.sessions.delete(sessionId)
   }
 
-  private session(sessionId: string): SkillSession {
+  private session(sessionId: string): SessionSkillState {
     const session = this.sessions.get(sessionId)
     if (!session) throw new Error('MCP skill session is not active')
     session.abort.signal.throwIfAborted()
     return session
   }
 
-  private server(session: SkillSession, serverId: string) {
+  private server(session: SessionSkillState, serverId: string) {
     const agent = agentService.getAgent(session.agentId)
     const server = mcpServerService.findByIdOrName(serverId)
     if (
@@ -218,7 +218,7 @@ export class McpSkillService extends BaseService {
       agentSessionMessageService.invalidateMcpSkill(held.sessionId, held.entry.serverId, held.entry.uri)
   }
 
-  private assertHeld(session: SkillSession, held: HeldSkill): void {
+  private assertHeld(session: SessionSkillState, held: HeldSkill): void {
     session.abort.signal.throwIfAborted()
     try {
       const server = this.server(session, held.entry.serverId)
@@ -274,7 +274,7 @@ export class McpSkillService extends BaseService {
     for (const session of this.sessions.values()) this.observe(session, entry)
   }
 
-  private observe(session: SkillSession, entry: McpSkillEntry): void {
+  private observe(session: SessionSkillState, entry: McpSkillEntry): void {
     const key = keyOf(entry.serverId, entry.uri)
     const pending = session.loads.get(key)
     if (pending) {

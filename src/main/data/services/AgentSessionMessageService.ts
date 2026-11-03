@@ -6,6 +6,7 @@ import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { McpSkillContextSchema, type McpSkillContext } from '@data/db/mcpSkillContext'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
@@ -62,7 +63,6 @@ import {
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { McpSkillContextSchema, type McpSkillContext } from '@shared/types/mcpSkills'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import type { RuntimeForkCheckpoint } from './agentSessionForkContract'

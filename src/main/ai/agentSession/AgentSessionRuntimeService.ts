@@ -3,6 +3,7 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { McpSkillContext } from '@data/db/mcpSkillContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
@@ -66,7 +67,6 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { McpSkillContext } from '@shared/types/mcpSkills'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
