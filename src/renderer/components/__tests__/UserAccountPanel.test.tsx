@@ -302,7 +302,7 @@ describe('UserAccountPanel', () => {
 
     renderAccount(<UserAccountPanel />)
 
-    const usage = await screen.findByRole('button', { name: '用量 剩余 79%' })
+    const usage = await screen.findByRole('button', { name: '用量 剩余 79.00%' })
     expect(within(screen.getByRole('button', { name: '用户名' })).getByText('API Plan 2026')).toBeVisible()
     expect(screen.queryByText(session.displayName!)).not.toBeInTheDocument()
     await user.click(usage)
@@ -326,7 +326,7 @@ describe('UserAccountPanel', () => {
     })
     renderAccount(<UserAccountPanel />)
 
-    expect(await screen.findByRole('button', { name: '用量 剩余 25%' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '用量 剩余 25.00%' })).toBeEnabled()
   })
 
   it('shows zero remaining when a quota window is exhausted', async () => {
@@ -334,7 +334,21 @@ describe('UserAccountPanel', () => {
     plans.entitlements[0].quota_pools[0].windows[0].remaining_units = 0
     renderAccount(<UserAccountPanel />)
 
-    expect(await screen.findByRole('button', { name: '用量 剩余 0%' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '用量 剩余 0.00%' })).toBeEnabled()
+  })
+
+  it.each([
+    [39_969_732, '99.92'],
+    [39_999_999, '99.99']
+  ])('shows %i of 40M units left as %s%%, never rounding a used window up to full', async (remaining, percent) => {
+    plans = paidPlans('Plus')
+    Object.assign(plans.entitlements[0].quota_pools[0].windows[0], {
+      limit_units: 40_000_000,
+      remaining_units: remaining
+    })
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: `用量 剩余 ${percent}%` })).toBeEnabled()
   })
 
   it('keeps usage details accessible without inventing a percentage when no quota is configured', async () => {
@@ -348,7 +362,7 @@ describe('UserAccountPanel', () => {
   it('keeps cached account and plan details visible while reopening refreshes them', async () => {
     plans = paidPlans('Flash')
     const first = renderAccount(<UserAccountPanel />)
-    expect(await screen.findByRole('button', { name: '用量 剩余 79%' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '用量 剩余 79.00%' })).toBeEnabled()
     first.unmount()
 
     const pendingStatus = deferred<{ ok: true; data: CherryCloudStatus }>()
@@ -361,7 +375,7 @@ describe('UserAccountPanel', () => {
     renderAccount(<UserAccountPanel />)
 
     expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('Flash')
-    expect(screen.getByRole('button', { name: '用量 剩余 79%' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '用量 剩余 79.00%' })).toBeEnabled()
     expect(screen.queryByText('加载中...')).not.toBeInTheDocument()
     await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
     await act(async () => {
@@ -455,7 +469,7 @@ describe('UserAccountPanel', () => {
 
     renderAccount(<UserAccountPanel />)
 
-    const row = await screen.findByRole('button', { name: '用量 剩余 40%' })
+    const row = await screen.findByRole('button', { name: '用量 剩余 40.00%' })
     await user.hover(row)
 
     expect(await screen.findByRole('progressbar', { name: '月度用量' })).toHaveAttribute('aria-valuenow', '92')

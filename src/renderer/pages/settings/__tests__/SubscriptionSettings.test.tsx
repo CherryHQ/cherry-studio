@@ -181,7 +181,7 @@ describe('SubscriptionSettings', () => {
 
     expect(await screen.findByText('settings.subscription.limit_monthly')).toBeInTheDocument()
     expect(screen.queryByText('Flash quota')).not.toBeInTheDocument()
-    expect(screen.getByText('100% remaining')).toBeInTheDocument()
+    expect(screen.getByText('100.00% remaining')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'settings.subscription.limit_monthly' })).toHaveAttribute(
       'aria-valuenow',
       '100'

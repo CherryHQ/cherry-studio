@@ -24,6 +24,7 @@ import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAcco
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { formatQuotaPercent, getLowestRemainingPercent } from '@renderer/utils/cherryCloudQuota'
 import { isEmoji } from '@renderer/utils/naming'
 
 import { AppearanceMenu } from './layout/AppearanceMenu'
@@ -77,14 +78,7 @@ export function UserAccountPanel({
 
   const activePaidPlan = plans?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
   const paidPlanName = activePaidPlan?.plan.display_name
-  const quotaWindows = activePaidPlan?.quota_pools.flatMap((pool) => pool.windows) ?? []
-  const remainingPercent = quotaWindows.length
-    ? Math.min(
-        ...quotaWindows.map((window) =>
-          window.limit_units > 0 ? Math.min(100, Math.round((window.remaining_units / window.limit_units) * 100)) : 0
-        )
-      )
-    : null
+  const remainingPercent = activePaidPlan ? (getLowestRemainingPercent(activePaidPlan) ?? null) : null
   const cloudSubtitle = isCloudSignedIn
     ? paidPlanName || cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
     : isAuthorizing
@@ -106,7 +100,7 @@ export function UserAccountPanel({
     remainingPercent === null ? (
       t('settings.subscription.no_quota')
     ) : (
-      t('settings.subscription.remaining', { percent: remainingPercent })
+      t('settings.subscription.remaining', { percent: formatQuotaPercent(remainingPercent) })
     )
   ) : (
     <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>

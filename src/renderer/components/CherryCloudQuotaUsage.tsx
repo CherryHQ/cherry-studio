@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type CherryCloudEntitlement,
   getQuotaRecoveryTime,
+  formatQuotaPercent,
   getQuotaRemainingPercent,
   getQuotaWindowLabel
 } from '@renderer/utils/cherryCloudQuota'
@@ -22,7 +23,7 @@ export function CherryCloudQuotaUsage({ entitlement }: { entitlement: CherryClou
             <div className="flex items-baseline justify-between gap-3 text-xs">
               <span className="font-medium">{label}</span>
               <span className="tabular-nums text-muted-foreground">
-                {t('settings.subscription.remaining', { percent: remainingPercent })}
+                {t('settings.subscription.remaining', { percent: formatQuotaPercent(remainingPercent) })}
               </span>
             </div>
             <div

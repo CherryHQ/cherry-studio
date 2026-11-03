@@ -5,8 +5,14 @@ import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 export type CherryCloudEntitlement = CherryCloudAccountPlans['entitlements'][number]
 export type CherryCloudQuotaWindow = CherryCloudEntitlement['quota_pools'][number]['windows'][number]
 
+/** Rounded down to two decimals, so a window that has been used never reads as full. */
 export function getQuotaRemainingPercent(window: CherryCloudQuotaWindow): number {
-  return window.limit_units > 0 ? Math.min(100, Math.round((window.remaining_units / window.limit_units) * 100)) : 0
+  if (window.limit_units <= 0) return 0
+  return Math.min(100, Math.max(0, Math.floor((window.remaining_units / window.limit_units) * 10_000) / 100))
+}
+
+export function formatQuotaPercent(percent: number): string {
+  return percent.toFixed(2)
 }
 
 /** The tightest window decides how much of the plan is left. */
