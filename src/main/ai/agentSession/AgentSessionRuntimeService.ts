@@ -1659,7 +1659,8 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         if (entry && this.entries.get(sessionId) !== entry) return null
         const child = await connection?.childProjection?.(toolCallId)
-        if (entry && (this.entries.get(sessionId) !== entry || this.currentConnection(entry) !== connection)) return null
+        if (entry && (this.entries.get(sessionId) !== entry || this.currentConnection(entry) !== connection))
+          return null
         if (child) return child
         const context = childContexts.findChild(sessionId, toolCallId)
         if (!context) return null

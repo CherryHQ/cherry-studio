@@ -15,6 +15,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
+import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
 import { savedChildView } from '../ChildThreadProjection'
@@ -273,12 +274,16 @@ it('waits for an in-flight prewarm and delivers child updates without another at
   const f = fixture()
   const priming = f.service.primeConnection('root')
   await expect.poll(() => f.connect.mock.calls.length).toBe(1)
-  const received: AgentChildUpdate[] = []
+  const received: MessageProjectionUpdate[] = []
   const attaching = f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', (update) => received.push(update))
   f.ready.resolve(f.connection)
   await priming
   expect(await attaching).toEqual(f.view)
   const update: AgentChildUpdate = {
+    kind: 'child',
+    contextId: f.context.id,
+    sessionId: f.context.sessionId,
+    canSubmit: false,
     revision: 1,
     patches: [{ type: 'append', messageId: replyId, part: 0, text: ' continued' }],
     order: [replyId],
