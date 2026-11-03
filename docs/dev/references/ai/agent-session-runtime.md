@@ -538,8 +538,8 @@ connection can recover from the newest driver-known state.
 User rows do not need a resume token. Resume lookup follows the captured branch,
 not the globally newest assistant row. An edited Pi input carries its intended
 native identity and resolves through its branch binding, without falling back to
-the shared prefix's original context. Confirmed native progress records the
-binding's native identity and published message head.
+the shared prefix's original context. Confirmed native progress marks the
+binding as `bound`; the product message tree owns the published branch head.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file

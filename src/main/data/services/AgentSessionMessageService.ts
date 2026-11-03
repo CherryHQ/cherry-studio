@@ -573,6 +573,7 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(agentSessionContextTable.sessionId, sessionId),
+            eq(agentSessionContextTable.bindingState, 'bound'),
             eq(agentSessionContextTable.nativeThreadId, resumeToken)
           )
         )

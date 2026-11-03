@@ -59,23 +59,17 @@ describe('native association transactions', () => {
   })
 
   it('keeps a reserved identity pending, confirms it once, and rejects identity changes', () => {
-    dbh.db
-      .insert(agentWorkspaceTable)
-      .values({ id: 'workspace', name: 'Work', path: '/test', type: 'user', orderKey: 'a0' })
-      .run()
-    dbh.db
-      .insert(agentSessionTable)
-      .values({ id: 'session', workspaceId: 'workspace', name: 'Session', orderKey: 'a0' })
-      .run()
     const backend = application
       .get('DbService')
       .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
     const reserved = contexts.allocateContext('session', backend.id, 'native')
     expect(reserved).toMatchObject({ nativeThreadId: 'native', bindingState: 'pending' })
+    expect(messages.hasRuntimeResumeToken('session', 'native')).toBe(false)
     expect(contexts.allocateContext('session', backend.id, 'native').id).toBe(reserved.id)
     expect(() => contexts.bindContext(reserved.id, 'different')).toThrow('identity cannot change')
     expect(contexts.context(reserved.id).bindingState).toBe('pending')
     contexts.bindContext(reserved.id, 'native')
+    expect(messages.hasRuntimeResumeToken('session', 'native')).toBe(true)
     expect(contexts.allocateContext('session', backend.id, 'native')).toMatchObject({
       id: reserved.id,
       nativeThreadId: 'native',

@@ -288,7 +288,7 @@ Child 内容可以复用消息存储和树形渲染，但界面上嵌套到父�
 | 容器与导航 | `topic` 拥有 assistant 选择、名称、排序、活跃时间、回收站及 `activeNodeId`。 | `agent_session` 混合了会话元数据、agent/workspace 绑定、计划复用及 `conversation`/`background` 分类。 | Runtime 切换期间保留既有 ID 和导航所有者。显式用户会话成员关系由 [#20635](https://github.com/CherryHQ/cherry-studio/issues/20635) 拆分；能够访问 Runtime 不代表应进入侧栏。 |
 | 消息结构 | `message.parentId`、单个虚拟根、兄弟分组和选中路径查询。 | `agent_session_message.parentId` 和隐藏根定义前序，`agent_session.activeNodeId` 选择路径；Seeder 按 `(createdAt, id)` 串联旧平铺记录。 | Agent 归档复用消息树契约，不以原生 context 代替消息节点。 |
 | 编辑与 fork | 产品树操作选择或创建替代路径。 | [编辑](../../../../src/main/data/services/AgentSessionMessageService.ts)在发布原生 fork 后创建并选中兄弟输入，保留旧尾部；[fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts)发布另一个产品会话并复制前缀。 | 已确认的目标行为是保留旧分支并选中编辑后的分支，随相应 UI/action 改动一起交付。“fork 为新会话”仍是另一项操作。 |
-| 原生位置 | 普通聊天根据选中路径组装模型历史。 | 消息保留原生来源；`agent_session_context` 将根/分支锚点关联到原生身份、已发布末端和 fork checkpoint 映射。 | 持久化经过验证的原生绑定，保留历史 checkpoint；不能从选中的展示路径重建 harness。 |
+| 原生位置 | 普通聊天根据选中路径组装模型历史。 | 消息保留原生来源；`agent_session_context` 将根/分支锚点关联到原生身份和 fork checkpoint 映射。 | 持久化经过验证的原生绑定，保留历史 checkpoint；不能从选中的展示路径重建 harness。 |
 | 可信产品状态 | 共享消息内容、snapshot、用量及附件。 | 另有 Main 写入的 `delivery*` 状态和原生 checkpoint 证据。 | 保留 Main 独占写入和跨会话投递语义；共享消息编辑不能接受这些字段。 |
 | 依赖记录 | 聊天附件引用及 topic 导航/搜索。 | [Agent 附件引用](../../../../src/main/data/db/schemas/fileRelations.ts)、用量 `messageKind`、session 收藏、task/channel 绑定和保存的路由。 | 合表需要迁移所有消费者；内容列看起来相同不代表所有权可以互换。 |
 
@@ -322,7 +322,7 @@ flowchart LR
     Membership["User conversation membership"] --> Archive["Product message tree"]
     View["Selected message / activeNodeId"] --> Archive
     Archive --> Anchor["Root or branch anchor"]
-    Anchor --> Binding["Verified native binding + published head"]
+    Anchor --> Binding["Verified native binding + fork checkpoints"]
     Binding --> Thread["Thread: backendId + native id"]
     Input["Message-owned input identities"] --> Binding
     Parent["Parent native context"] --> Relation["Subagent ownership relationship"]
@@ -342,7 +342,7 @@ flowchart LR
 
 Main 从操作开始时明确捕获的产品所有者和锚点解析输入，不在稍后重新读取 `activeNodeId` 决定目标。找到该路径上已发布的绑定，验证所有权及 checkpoint 兼容性，并对账待确认的原生事实。所选位置是绑定的可写末端时直接提交；位于历史位置时先准备原生 fork，再发布可写分支。Checkpoint 缺失或操作仍不确定时，历史保持可读并拒绝该执行操作，不能通过重放展示消息补齐。
 
-稀疏锚点绑定和已发布末端是 P1/P2 需要建立的事实，具体列归属由选定存储实现决定，无需给每条展示行添加 `contextId`。Checkpoint 是可恢复位置，不证明新 fork 上下文最初生成了所复制的前缀。保留明确的 fork 映射，不改写历史作者归属。
+P1/P2 保留稀疏锚点绑定与 fork checkpoint；分支末端由现有产品消息树负责，无需给每条展示行添加 `contextId`。Checkpoint 是可恢复位置，不证明新 fork 上下文最初生成了所复制的前缀。保留明确的 fork 映射，不改写历史作者归属。
 
 初版可写分支优先经既有 checkpoint/发布所有者创建独立原生 fork。Pi 能在同一 session 中切换分支，但多个同时活跃的产品分支共享可变原生 leaf，需要当前适配器未暴露的额外协调。浏览分支绝不切换该原生 leaf。多个输入可能共用一个响应，因此输入到响应的关联与消息树的单父边分开。
 
