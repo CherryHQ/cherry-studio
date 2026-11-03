@@ -111,14 +111,12 @@ describe('startCherryCloudSubscription', () => {
       return () => handlers.delete(handler)
     })
 
-    await startCherryCloudSubscription()
-    await startCherryCloudSubscription()
+    await startCherryCloudSubscription('settings')
+    await startCherryCloudSubscription('settings')
     handlers.forEach((handler) => handler(signedIn))
 
     await vi.waitFor(() => expect(portalOpened()).toBe(true))
-    expect(
-      request.mock.calls.filter(([route, url]) => route === 'system.shell.open_external_website' && url === PORTAL)
-    ).toHaveLength(1)
+    expect(portalUrls()).toHaveLength(1)
   })
 
   it('explains a sign-in rejected because the client must be upgraded', async () => {
