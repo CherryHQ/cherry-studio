@@ -177,9 +177,11 @@ test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
         await test.step(name, async () => {
           section = name
           try {
+            const previousContent = await content().innerText()
             await items.nth(index).click()
             await expect(items.nth(index)).toHaveAttribute('data-active', 'true')
             await expect(content()).toBeVisible()
+            await expect(content()).not.toHaveText(previousContent, { useInnerText: true })
             await expect
               .poll(async () => (await content().innerText()).trim().length, { timeout: 10_000 })
               .toBeGreaterThan(10)
