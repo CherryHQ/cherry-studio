@@ -14,8 +14,10 @@ import { agentSessionMessageHandlers } from '../agentSessionMessages'
 describe('agentSessionMessageHandlers list with real storage', () => {
   const dbh = setupTestDatabase()
   const sessionId = 'session-1'
+  const historicalHeads = new Map<string, string>()
 
   beforeEach(() => {
+    historicalHeads.clear()
     dbh.db
       .insert(agentWorkspaceTable)
       .values({ id: 'workspace-1', name: 'Workspace', path: '/workspace', type: 'user', orderKey: 'a0' })
@@ -29,26 +31,19 @@ describe('agentSessionMessageHandlers list with real storage', () => {
   function insert(id: string, role: 'assistant' | 'user', parts: CherryMessagePart[], createdAt: number) {
     dbh.db
       .insert(agentSessionMessageTable)
-      .values({ id, sessionId, role, data: { parts }, status: 'success', createdAt, updatedAt: createdAt })
+      .values({
+        id,
+        sessionId,
+        parentId: historicalHeads.get(sessionId) ?? null,
+        role,
+        data: { parts },
+        status: 'success',
+        createdAt,
+        updatedAt: createdAt
+      })
       .run()
-    const rows = dbh.db
-      .select({ id: agentSessionMessageTable.id })
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
-      .orderBy(agentSessionMessageTable.createdAt, agentSessionMessageTable.id)
-      .all()
-    for (const [index, row] of rows.entries()) {
-      dbh.db
-        .update(agentSessionMessageTable)
-        .set({ parentId: rows[index - 1]?.id ?? null })
-        .where(eq(agentSessionMessageTable.id, row.id))
-        .run()
-    }
-    dbh.db
-      .update(agentSessionTable)
-      .set({ activeNodeId: rows.at(-1)!.id })
-      .where(eq(agentSessionTable.id, sessionId))
-      .run()
+    historicalHeads.set(sessionId, id)
+    dbh.db.update(agentSessionTable).set({ activeNodeId: id }).where(eq(agentSessionTable.id, sessionId)).run()
   }
 
   async function list(query?: {
@@ -87,8 +82,8 @@ describe('agentSessionMessageHandlers list with real storage', () => {
         output
       }
     ]
-    insert('assistant-message', 'assistant', parts, 200)
     insert('user-message', 'user', userParts, 100)
+    insert('assistant-message', 'assistant', parts, 200)
     const result = await list({ deferToolOutputs: true })
     expect(result.items.map((m) => m.id)).toEqual(['assistant-message', 'user-message'])
     expect(result.items[0].data.parts).toEqual([

@@ -97,6 +97,11 @@ describe('AgentSessionMessageService', () => {
   describe('history read protection', () => {
     const MESSAGE_BUDGET = 16_777_216
     const DEFERRED_PAGE_BUDGET = 536_870_912
+    const historicalHeads = new Map<string, string>()
+
+    beforeEach(() => {
+      historicalHeads.clear()
+    })
 
     function insertHistorical(id: string, createdAt = 100, parts: CherryMessagePart[] = []) {
       dbh.db
@@ -104,6 +109,7 @@ describe('AgentSessionMessageService', () => {
         .values({
           id,
           sessionId: SESSION_ID,
+          parentId: historicalHeads.get(SESSION_ID) ?? null,
           role: 'assistant',
           status: 'success',
           createdAt,
@@ -111,23 +117,23 @@ describe('AgentSessionMessageService', () => {
           data: { parts, runtimeAnchor: 'x'.repeat(2048), nativeSessionId: 'private-session' }
         })
         .run()
-      const rows = dbh.db
-        .select({ id: agentSessionMessageTable.id })
-        .from(agentSessionMessageTable)
-        .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
-        .orderBy(agentSessionMessageTable.createdAt, agentSessionMessageTable.id)
-        .all()
-      for (const [index, row] of rows.entries()) {
-        dbh.db
-          .update(agentSessionMessageTable)
-          .set({ parentId: rows[index - 1]?.id ?? null })
-          .where(eq(agentSessionMessageTable.id, row.id))
-          .run()
-      }
+      historicalHeads.set(SESSION_ID, id)
+      dbh.db.update(agentSessionTable).set({ activeNodeId: id }).where(eq(agentSessionTable.id, SESSION_ID)).run()
+    }
+
+    function insertSibling(id: string, parentId: string, createdAt: number) {
       dbh.db
-        .update(agentSessionTable)
-        .set({ activeNodeId: rows.at(-1)!.id })
-        .where(eq(agentSessionTable.id, SESSION_ID))
+        .insert(agentSessionMessageTable)
+        .values({
+          id,
+          sessionId: SESSION_ID,
+          parentId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt,
+          updatedAt: createdAt
+        })
         .run()
     }
 
@@ -289,9 +295,10 @@ describe('AgentSessionMessageService', () => {
         }
         dbh.sqlite.prepare("UPDATE agent_session_message SET searchable_text = '' WHERE id = 'boundary'").run()
         dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'boundary')).run()
+        historicalHeads.delete(SESSION_ID)
       }
-      insertHistorical('page-new', 200)
       insertHistorical('page-old', 100)
+      insertHistorical('page-new', 200)
       padTo('page-new', MESSAGE_BUDGET / 2)
       padTo('page-old', MESSAGE_BUDGET / 2)
       expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items.map((m) => m.id)).toEqual([
@@ -311,7 +318,8 @@ describe('AgentSessionMessageService', () => {
         2
       )
       dbh.db.delete(agentSessionMessageTable).run()
-      for (let i = 0; i < 33; i++) {
+      historicalHeads.delete(SESSION_ID)
+      for (let i = 32; i >= 0; i--) {
         insertHistorical(`page-${i.toString().padStart(2, '0')}`, 100 - i)
       }
       for (let i = 0; i < 33; i++) {
@@ -367,7 +375,7 @@ describe('AgentSessionMessageService', () => {
     })
 
     it('rejects an oversized final page without returning a partial page', () => {
-      for (let i = 0; i < 2; i++) {
+      for (let i = 1; i >= 0; i--) {
         insertHistorical(`result-${i}`, 100 - i)
         dbh.db
           .update(agentSessionMessageTable)
@@ -391,19 +399,7 @@ describe('AgentSessionMessageService', () => {
           MESSAGE_BUDGET
         )
       }
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          id: 'result-branch',
-          sessionId: SESSION_ID,
-          parentId: 'result-1',
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 100,
-          updatedAt: 100
-        })
-        .run()
+      insertSibling('result-branch', 'result-1', 100)
       for (const deferToolOutputs of [false, true]) {
         expectBudget(
           () => agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs }),
@@ -432,6 +428,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id, status: agentSessionMessageTable.status })
           .from(agentSessionMessageTable)
+          .orderBy(agentSessionMessageTable.id)
           .all()
       ).toEqual([
         { id: 'result-0', status: 'success' },
@@ -467,8 +464,8 @@ describe('AgentSessionMessageService', () => {
         tool('citation', citation),
         tool('persisted', persisted)
       ]
-      insertHistorical('assistant', 200, parts)
       insertHistorical('user', 100, [tool('user-tool', output)])
+      insertHistorical('assistant', 200, parts)
       dbh.db.update(agentSessionMessageTable).set({ role: 'user' }).where(eq(agentSessionMessageTable.id, 'user')).run()
       const messageSnapshot = {
         id: 'snapshot-agent',
@@ -542,19 +539,7 @@ describe('AgentSessionMessageService', () => {
     it('budgets only the selected path while returning ordered siblings without decoding their payloads', () => {
       insertHistorical('parent', 100)
       insertHistorical('selected', 200)
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          id: 'off-path',
-          sessionId: SESSION_ID,
-          parentId: 'parent',
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 200,
-          updatedAt: 200
-        })
-        .run()
+      insertSibling('off-path', 'parent', 200)
       padTo('off-path', MESSAGE_BUDGET + 1)
       dbh.sqlite.prepare("UPDATE agent_session_message SET stats = '{' WHERE id = 'off-path'").run()
       for (const deferToolOutputs of [false, true]) {
@@ -579,8 +564,8 @@ describe('AgentSessionMessageService', () => {
     })
 
     it('uses primary-key lookups for each selected message', () => {
-      insertHistorical('lookup-new', 200)
       insertHistorical('lookup-old', 100)
+      insertHistorical('lookup-new', 200)
       const nativePrepare = dbh.sqlite.prepare.bind(dbh.sqlite)
       const readsInTransaction: boolean[] = []
       const boundReads: Array<{ query: string; params: unknown[] }> = []
