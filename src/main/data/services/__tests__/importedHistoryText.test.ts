@@ -1,8 +1,32 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatClaudeHistoryText, formatClaudeTool, presentClaudeHistory } from '../importedHistoryText'
+import {
+  formatClaudeHistoryText,
+  formatClaudeTool,
+  presentClaudeHistory,
+  presentImportedTools
+} from '../importedHistoryText'
 
 describe('Claude imported history presentation', () => {
+  it('projects historical tools as completed read-only assistant items without changing their persisted text', () => {
+    const data = { parts: [{ type: 'text' as const, text: '[Historical tool result: Read]\n\nfile content' }] }
+    const result = presentImportedTools('claude-code', 'message', 'system', data)
+    expect(result.role).toBe('assistant')
+    expect(result.data.parts?.[0]).toMatchObject({
+      type: 'dynamic-tool',
+      toolName: 'historical_tool',
+      state: 'output-available',
+      output: { content: [{ type: 'text', text: 'file content' }] }
+    })
+    expect(result.data.parts?.[0]).not.toHaveProperty('approval')
+    expect(data.parts[0].text).toContain('[Historical tool result: Read]')
+    expect(presentImportedTools('claude-code', 'message', 'user', data)).toEqual({ role: 'user', data })
+    expect(
+      presentImportedTools('claude-code', 'context', 'system', {
+        parts: [{ type: 'text', text: '[Historical environment]\ncwd: /repo' }]
+      }).role
+    ).toBe('system')
+  })
   it('renders CLI commands and terminal output without transport tags or ANSI escapes', () => {
     const command =
       '<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args></command-args>'

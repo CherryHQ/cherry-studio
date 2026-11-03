@@ -66,7 +66,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AgentSessionEditError } from './AgentSessionEditError'
 import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
-import { presentClaudeHistory } from './importedHistoryText'
+import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -982,11 +982,15 @@ export class AgentSessionMessageService {
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
+    const formatted = row.provenance?.source === 'claude-code' ? presentClaudeHistory(row.data) : row.data
+    const presented = row.provenance
+      ? presentImportedTools(row.provenance.source, row.id, row.role, formatted)
+      : { role: row.role, data: formatted }
     return {
       id: row.id,
       sessionId: row.sessionId,
-      role: row.role as AgentSessionMessageEntity['role'],
-      data: publicMessageData(row.provenance?.source === 'claude-code' ? presentClaudeHistory(row.data) : row.data),
+      role: presented.role as AgentSessionMessageEntity['role'],
+      data: publicMessageData(presented.data),
       ...(row.provenance ? { provenance: row.provenance } : {}),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],

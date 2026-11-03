@@ -67,7 +67,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const [root, setRoot] = useState('')
   const [scan, setScan] = useState<{ scanId: string; candidates: ImportCandidate[] }>()
   const [selections, setSelections] = useState<ImportSelection[]>([])
-  const [results, setResults] = useState<ImportOutcome[]>()
+  const [results, setResults] = useState<(ImportOutcome & { title: string })[]>()
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
@@ -76,8 +76,16 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const importButton = useRef<HTMLButtonElement>(null)
   const rootInput = useRef<HTMLInputElement>(null)
   const errorTitle = useRef<HTMLHeadingElement>(null)
-  const blockedItems = reviewItems.filter((item) =>
-    item.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+  const blockedItems = reviewItems.filter(
+    (item) =>
+      selections.some((selection) => selection.ref === item.ref) &&
+      item.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+  )
+  const showPicker = !results || selections.length > 0
+  const completedRefs = new Set(
+    results
+      ?.filter((result) => result.status === 'imported' || result.status === 'existing')
+      .map((result) => result.ref)
   )
   useEffect(
     () => () => {
@@ -135,7 +143,10 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const selectedTarget = agents?.items.find((agent) => agent.id === target)
   const targetValid = selectedTarget?.type === 'pi'
   const visibleCandidates = (scan?.candidates ?? [])
-    .filter((item) => (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase()))
+    .filter(
+      (item) =>
+        !completedRefs.has(item.ref) && (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase())
+    )
     .slice(0, 100)
   const selectedRefs = new Set(selections.map((item) => item.ref))
   const visibleSelected = visibleCandidates.filter((item) => selectedRefs.has(item.ref)).length
@@ -147,15 +158,23 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       selections
     })
     setReviewItems(checked.items)
-    if (checked.items.some((item) => item.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))) {
-      setIssuesOpen(true)
-      return
-    }
     const outcomes = await ipcApi.request('conversation_import.commit', {
       previewId: checked.previewId,
       refs: checked.items.map((item) => item.ref)
     })
-    setResults(outcomes)
+    setResults((current) => [
+      ...(current ?? []).filter((result) => !outcomes.some((outcome) => outcome.ref === result.ref)),
+      ...outcomes.map((outcome) => ({
+        ...outcome,
+        title: checked.items.find((item) => item.ref === outcome.ref)?.title ?? ''
+      }))
+    ])
+    const completed = new Set(
+      outcomes
+        .filter((outcome) => outcome.status === 'imported' || outcome.status === 'existing')
+        .map((outcome) => outcome.ref)
+    )
+    setSelections((current) => current.filter((selection) => !completed.has(selection.ref)))
     setIssuesOpen(
       outcomes.some(
         (result) => result.status === 'failed' || result.status === 'unprocessed' || result.initialization === 'failed'
@@ -178,9 +197,14 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
               {t('history_import.title')} · {t(sourceLabels[source])}
             </DialogTitle>
           </DialogHeader>
+          {results?.some((result) => result.status === 'imported') && (
+            <p role="status" className="text-sm text-success">
+              {t('history_import.results.imported')} · {results.filter((result) => result.status === 'imported').length}
+            </p>
+          )}
           <div className="min-h-0 space-y-4 overflow-y-auto">
             <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
-            {!results && (
+            {showPicker && (
               <>
                 <Label htmlFor="history-import-target">{t('history_import.target')}</Label>
                 <Select
@@ -337,8 +361,8 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
             )}
             {results?.map((result) => (
               <section key={result.ref} className="space-y-2 rounded-md border p-3">
-                <p className="truncate font-medium" title={reviewItems.find((item) => item.ref === result.ref)?.title}>
-                  {reviewItems.find((item) => item.ref === result.ref)?.title}
+                <p className="truncate font-medium" title={result.title}>
+                  {result.title}
                 </p>
                 <p>{t(resultLabels[result.status])}</p>
                 {result.initialization === 'failed' && (
@@ -367,7 +391,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                       void run(async () => {
                         await ipcApi.request('navigation.focus_or_open_conversation', {
                           target: { conversationType: 'agent', conversationId: result.sessionId! },
-                          title: reviewItems.find((item) => item.ref === result.ref)?.title ?? ''
+                          title: result.title ?? ''
                         })
                         resolve()
                       })
@@ -387,7 +411,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
               }}>
               {busy ? t('common.cancel') : t('common.close')}
             </Button>
-            {!results && (
+            {showPicker && (
               <Button
                 ref={importButton}
                 disabled={busy || !targetValid || !scan || !selections.length}
@@ -418,14 +442,13 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
             <DialogDescription className="leading-6">
               {error
                 ? t('history_import.error')
-                : !results
+                : blockedItems.length > 0
                   ? t('history_import.blocked', { count: blockedItems.length })
                   : t('history_import.results.failed')}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 space-y-6 overflow-y-auto">
             {!error &&
-              !results &&
               blockedItems.map((item) => (
                 <section key={item.ref} aria-label={item.title} className="space-y-4 rounded-lg border p-4">
                   <div className="space-y-2">
@@ -490,14 +513,15 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
               results
                 ?.filter(
                   (result) =>
-                    result.status === 'failed' || result.status === 'unprocessed' || result.initialization === 'failed'
+                    !blockedItems.some((item) => item.ref === result.ref) &&
+                    (result.status === 'failed' ||
+                      result.status === 'unprocessed' ||
+                      result.initialization === 'failed')
                 )
                 .map((result) => (
                   <section key={result.ref} className="space-y-4 rounded-lg border p-4">
-                    <p
-                      className="truncate font-medium"
-                      title={reviewItems.find((item) => item.ref === result.ref)?.title}>
-                      {reviewItems.find((item) => item.ref === result.ref)?.title}
+                    <p className="truncate font-medium" title={result.title}>
+                      {result.title}
                     </p>
                     <p className="text-sm leading-6 text-error">
                       {result.initialization === 'failed'
@@ -513,7 +537,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
             <Button variant="outline" disabled={busy} onClick={() => setIssuesOpen(false)}>
               {t('common.close')}
             </Button>
-            {!error && !results && (
+            {!error && selections.length > 0 && (
               <Button disabled={busy || !targetValid} onClick={() => void run(importSelected)}>
                 {busy ? t('common.loading') : t('common.retry')}
               </Button>
