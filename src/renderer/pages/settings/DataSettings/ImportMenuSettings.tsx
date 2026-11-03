@@ -58,6 +58,12 @@ const ImportMenuOptions: FC = () => {
             {t('history_import.start')}
           </Button>
         </SettingRow>
+        <SettingRow id="setting-data-import-local-codex" className="scroll-mt-6">
+          <SettingRowTitle>{t('history_import.source.codex')}</SettingRowTitle>
+          <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'codex' })}>
+            {t('history_import.start')}
+          </Button>
+        </SettingRow>
       </SettingGroup>
     </>
   )
