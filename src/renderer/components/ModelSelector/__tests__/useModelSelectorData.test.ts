@@ -1,5 +1,7 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { renderHook } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -304,6 +306,60 @@ describe('useModelSelectorData', () => {
     } finally {
       cloudPlans.data = undefined
       cloudPlans.phase = 'signed-in'
+    }
+  })
+
+  it('offers paid plan models from the public catalog to a signed-out user who never signed in', async () => {
+    wireDeps({ providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)], models: [] })
+    const request = vi.mocked(window.api.ipcApi.request)
+    const previousRequest = request.getMockImplementation()
+    request.mockImplementation(async (route) =>
+      route === 'cherry_cloud.public_plans.get'
+        ? {
+            ok: true,
+            data: {
+              measured_at: '2026-11-03T00:00:00Z',
+              plans: [
+                {
+                  id: '22222222-2222-4222-8222-222222222222',
+                  display_name: 'Plus',
+                  is_free: false,
+                  models: [
+                    {
+                      id: 'public-model',
+                      display_name: 'Public model',
+                      available_features: ['agent', 'chat', 'translate']
+                    }
+                  ]
+                },
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  display_name: 'Free',
+                  is_free: true,
+                  models: [
+                    { id: 'free-model', display_name: 'Free model', available_features: ['agent', 'chat', 'translate'] }
+                  ]
+                }
+              ]
+            }
+          }
+        : { ok: true, data: undefined }
+    )
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(SWRConfig, { value: { provider: () => new Map(), dedupingInterval: 0 } }, children)
+    cloudPlans.phase = 'signed-out'
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }), { wrapper })
+
+      await waitFor(() =>
+        expect(result.current.modelItems.filter((item) => item.locked).map((item) => item.model.name)).toEqual([
+          'Public model'
+        ])
+      )
+    } finally {
+      cloudPlans.phase = 'signed-in'
+      if (previousRequest) request.mockImplementation(previousRequest)
     }
   })
 

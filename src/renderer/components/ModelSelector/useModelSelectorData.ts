@@ -1,5 +1,6 @@
 import { isEqual, sortBy, uniqBy } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo } from 'react'
+import useSWR from 'swr'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
@@ -8,6 +9,7 @@ import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -144,11 +146,26 @@ export function useModelSelectorData({
     if (livePlanModels && !isEqual(cachedPlanModels, livePlanModels)) setCachedPlanModels(livePlanModels)
   }, [cachedPlanModels, livePlanModels, setCachedPlanModels])
   // Until the account subscribes, paid plan models it cannot use render as locked rows; there is no
-  // higher plan to sell after that. Signed out, the plans last seen keep the offer visible.
+  // higher plan to sell after that. Signed out, the public catalog offers them, falling back to the
+  // plans last seen while it is unreachable.
   const isSignedOut = session.status?.phase === 'signed-out'
+  const { data: publicPlans } = useSWR(
+    enabled && isSignedOut ? 'cherry-cloud/public-plans' : null,
+    () => ipcApi.request('cherry_cloud.public_plans.get'),
+    { shouldRetryOnError: false }
+  )
+  const publicPlanModels = useMemo(
+    () =>
+      publicPlans &&
+      uniqBy(
+        publicPlans.plans.filter((plan) => !plan.is_free).flatMap((plan) => plan.models),
+        (planModel) => planModel.id
+      ),
+    [publicPlans]
+  )
   const planModels = useMemo(
-    () => (activePaid ? [] : (livePlanModels ?? (isSignedOut ? cachedPlanModels : []))),
-    [activePaid, cachedPlanModels, isSignedOut, livePlanModels]
+    () => (activePaid ? [] : (livePlanModels ?? (isSignedOut ? (publicPlanModels ?? cachedPlanModels) : []))),
+    [activePaid, cachedPlanModels, isSignedOut, livePlanModels, publicPlanModels]
   )
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
