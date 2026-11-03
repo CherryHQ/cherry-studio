@@ -267,11 +267,17 @@ async function stageDataReset(operation: DataResetOperation, shouldClearChromium
  * Executes a pending reset before services open profile data.
  * The target path and attempt count are committed before deletion. Success
  * commits `completed` before removing the marker; unsafe failures quit.
+ *
+ * Returns `handled` when this launch must end: exit/relaunch and any notice
+ * were already requested, so the caller must not run later preboot gates.
+ * Returns `skipped` when no reset ran or the outcome explicitly continues boot.
+ * `app.exit()` / `app.relaunch()` return before the process terminates; the
+ * caller must stop explicitly to avoid running later gates after a terminal reset.
  */
-export async function runDataReset(): Promise<void> {
+export async function runDataReset(): Promise<'handled' | 'skipped'> {
   try {
     const marker = readMarker()
-    if (!marker) return
+    if (!marker) return 'skipped'
 
     // A completed marker never authorizes another wipe.
     if (marker.status === 'completed') {
@@ -287,7 +293,7 @@ export async function runDataReset(): Promise<void> {
           error: String(error)
         })
       }
-      return
+      return 'skipped'
     }
 
     const userData = application.getPath('app.userdata')
@@ -299,8 +305,7 @@ export async function runDataReset(): Promise<void> {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      await refuseResetForPathMismatch()
-      return
+      return (await refuseResetForPathMismatch()) ? 'handled' : 'skipped'
     }
 
     const attempts = marker.attempts ?? 0
@@ -309,8 +314,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      await abandonIncompleteReset()
-      return
+      return (await abandonIncompleteReset()) ? 'handled' : 'skipped'
     }
 
     logger.info('Data reset pending — wiping user data', {
@@ -334,7 +338,7 @@ export async function runDataReset(): Promise<void> {
           'Starting now could erase data you create later, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
-      return
+      return 'handled'
     }
 
     const failures: string[] = []
@@ -360,20 +364,19 @@ export async function runDataReset(): Promise<void> {
             'The app will quit and keep the pending request so the cleanup can retry on the next launch.\n\n' +
             'Please check disk space, file permissions, and antivirus locks, then start Cherry Studio again.'
         )
-        return
+        return 'handled'
       }
       if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
         logger.error('Data reset pass had critical failures — relaunching to retry in preboot', { failures })
         await app.whenReady()
         application.relaunch()
-        return
+        return 'handled'
       }
       // Disarm the marker before booting with partial data.
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      await abandonIncompleteReset()
-      return
+      return (await abandonIncompleteReset()) ? 'handled' : 'skipped'
     }
 
     // Commit terminal state before removing the marker.
@@ -393,7 +396,7 @@ export async function runDataReset(): Promise<void> {
           'Starting now could erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
-      return
+      return 'handled'
     }
 
     try {
@@ -407,6 +410,7 @@ export async function runDataReset(): Promise<void> {
     logger.info('Data reset completed — relaunching into a fresh state')
     await app.whenReady()
     application.relaunch()
+    return 'handled'
   } catch (error) {
     logger.error('Data reset failed — refusing to boot', error as Error)
     await showDataResetError(
@@ -415,6 +419,7 @@ export async function runDataReset(): Promise<void> {
         'The app will quit instead of starting with a reset marker still present.\n\n' +
         'Please check disk space and file permissions, then start Cherry Studio again.'
     )
+    return 'handled'
   }
 }
 
@@ -452,24 +457,26 @@ function wipeNestedUserDataTargets(failures: string[]): void {
   }
 }
 
-async function refuseResetForPathMismatch(): Promise<void> {
+async function refuseResetForPathMismatch(): Promise<boolean> {
   deleteMarker()
   await showPathMismatchWarning()
-  deferPendingCopyRelocation('data reset path mismatch')
+  return deferPendingCopyRelocation('data reset path mismatch')
 }
 
-async function abandonIncompleteReset(): Promise<void> {
+async function abandonIncompleteReset(): Promise<boolean> {
   deleteMarker()
   await showIncompleteResetWarning()
-  deferPendingCopyRelocation('data reset attempt cap')
+  return deferPendingCopyRelocation('data reset attempt cap')
 }
 
 // The readiness-gated notice opened Chromium sessions on the source profile (services/userDataRelocation/README.md).
 // An executable pending copy must end this launch via application.relaunch() before copying.
-function deferPendingCopyRelocation(reason: string): void {
-  if (!hasPendingCopyRelocation()) return
+function deferPendingCopyRelocation(reason: string): boolean {
+  if (!hasPendingCopyRelocation()) return false
   logger.warn(`${reason}: pending relocation copy is deferred to a fresh launch`)
   application.relaunch()
+  // Relaunch alone is insufficient: the caller must stop or this launch enters relocation with the source session open.
+  return true
 }
 
 async function showPrebootNotice(title: string, message: string): Promise<void> {
