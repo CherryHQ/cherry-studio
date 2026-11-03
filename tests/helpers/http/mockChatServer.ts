@@ -18,7 +18,7 @@ export interface MockChatRequest {
   /** Sends one text delta. Only valid for streaming requests. */
   sendText(text: string): void
   /** Sends optional final text and completes the JSON or SSE response normally. */
-  complete(text?: string): void
+  complete(text?: string, finishReason?: 'stop' | 'length'): void
   /** Sends an SSE provider error, or HTTP 500 for a non-streaming request. */
   fail(message: string): void
   /** Destroys the socket without a finish chunk or [DONE]. */
@@ -53,7 +53,7 @@ function createChatRequest(
     if (res.destroyed || res.writableEnded) throw new Error('Mock chat response is already closed')
   }
   const sendEvent = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`)
-  const sendChunk = (delta: object, finishReason: 'stop' | null = null) =>
+  const sendChunk = (delta: object, finishReason: 'stop' | 'length' | null = null) =>
     sendEvent({
       ...metadata,
       object: 'chat.completion.chunk',
@@ -76,17 +76,17 @@ function createChatRequest(
       if (!body.stream) throw new Error('sendText requires a streaming request')
       sendChunk({ content: text })
     },
-    complete(text = '') {
+    complete(text = '', finishReason = 'stop') {
       assertOpen()
       if (body.stream) {
         if (text) sendChunk({ content: text })
-        sendChunk({}, 'stop')
+        sendChunk({}, finishReason)
         res.end('data: [DONE]\n\n')
       } else {
         sendJson(res, 200, {
           ...metadata,
           object: 'chat.completion',
-          choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }]
+          choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: finishReason }]
         })
       }
     },

@@ -13,6 +13,7 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
     role: toContentRole(shared.role),
     parts: shared.data?.parts ?? [],
     metadata: {
+      finishReason: shared.data.finishReason,
       parentId: shared.parentId,
       siblingsGroupId: shared.siblingsGroupId || undefined,
       modelId: shared.modelId ?? undefined,

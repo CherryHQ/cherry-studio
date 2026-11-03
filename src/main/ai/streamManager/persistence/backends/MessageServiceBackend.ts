@@ -36,6 +36,7 @@ export class MessageServiceBackend implements PersistenceBackend {
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
         parts,
+        finishReason: finalMessage?.metadata?.finishReason,
         ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
       },
       status,

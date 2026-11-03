@@ -30,7 +30,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
       this.opts.topicId,
       {
         role: 'assistant',
-        data: { parts: finalMessage?.parts ?? [] },
+        data: { parts: finalMessage?.parts ?? [], finishReason: finalMessage?.metadata?.finishReason },
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot

@@ -2,6 +2,7 @@ import type {
   DataUIPart,
   DynamicToolUIPart,
   FileUIPart,
+  FinishReason,
   InferUIMessageChunk,
   ReasoningUIPart,
   TextUIPart,
@@ -155,6 +156,7 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  finishReason?: FinishReason
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
@@ -180,6 +182,7 @@ export interface MessageData {
  * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
+  finishReason?: FinishReason
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
@@ -409,6 +412,11 @@ export interface SerializedErrorData {
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
+  if (
+    v.finishReason !== undefined &&
+    !['stop', 'length', 'content-filter', 'tool-calls', 'error', 'other'].includes(v.finishReason)
+  )
+    return false
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
