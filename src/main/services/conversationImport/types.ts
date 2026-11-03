@@ -36,6 +36,7 @@ export interface NormalizedSession {
 }
 export interface SessionRef {
   path: string
+  sourcePaths?: string[]
   originalSessionId?: string
   title?: string
 }
