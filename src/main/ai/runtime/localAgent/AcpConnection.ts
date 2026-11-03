@@ -25,6 +25,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
@@ -37,7 +38,6 @@ import {
 } from '@shared/ai/elicitation'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
-import { isOpenClawTechnicalTitle } from '@shared/utils/conversationTitle'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { acpError } from './acpError'
@@ -296,7 +296,7 @@ export class AcpConnection extends LocalConnection {
         const answer = await this.approve(
           id,
           'ACP: Terminal',
-          { command: params.command, args: params.args, cwd: params.cwd ?? cwd },
+          { command: params.command, args: params.args, cwd: params.cwd ?? cwd, env: params.env ?? [] },
           signal
         )
         if (!answer.approved || this.abort.signal.aborted || signal.aborted) {

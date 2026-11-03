@@ -62,11 +62,11 @@ describe('DataApiDevtools', () => {
     const longString = 'a'.repeat(1005)
     expect(dataApiDevtoolsTesting.sanitizeValue(longString)).toBe(`${'a'.repeat(1000)}...<truncated 5 chars>`)
 
-    const wideObject = Object.fromEntries(Array.from({ length: 105 }, (_, index) => [`key${index}`, index]))
+    const wideObject = Object.fromEntries(Array.from({ length: 105 }, (_, index) => [`item${index}`, index]))
     const sanitizedObject = dataApiDevtoolsTesting.sanitizeValue(wideObject) as Record<string, unknown>
-    expect(sanitizedObject.key0).toBe(0)
-    expect(sanitizedObject.key99).toBe(99)
-    expect(sanitizedObject.key100).toBeUndefined()
+    expect(sanitizedObject.item0).toBe(0)
+    expect(sanitizedObject.item99).toBe(99)
+    expect(sanitizedObject.item100).toBeUndefined()
     expect(sanitizedObject.__truncatedKeys).toBe(5)
   })
 
@@ -95,8 +95,8 @@ describe('DataApiDevtools', () => {
     expect(summaries[0].body).toBeUndefined()
     expect(summaries[0].response).toBeUndefined()
     expect(window.__CHERRY_DATA_API_DEVTOOLS__?.getEvent('req_summary')).toMatchObject({
-      body: { token: 'request-token' },
-      response: { token: 'response-token' }
+      body: { token: '<redacted>' },
+      response: { token: '<redacted>' }
     })
   })
 

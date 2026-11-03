@@ -92,9 +92,9 @@ describe('redactDeep', () => {
     expect(config.args).toEqual(['secret'])
   })
 
-  it('protects incomplete wrapped configurations without hiding unrelated command payloads', () => {
+  it('redacts opaque environment and argument payloads regardless of their domain', () => {
     const command = { env: { MODE: 'test' }, args: ['--help'] }
-    expect(redactDeep(command)).toEqual(command)
+    expect(redactDeep(command)).toEqual({ env: REDACTED, args: REDACTED })
     expect(redactDeep({ localRuntime: command })).toEqual({ localRuntime: { env: REDACTED, args: REDACTED } })
   })
 

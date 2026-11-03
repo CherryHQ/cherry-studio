@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
@@ -28,6 +29,7 @@ interface UseOpenClawGatewayControllerOptions {
 }
 
 interface OpenClawGatewayController {
+  canStop: boolean
   launching: boolean
   running: boolean
   starting: boolean
@@ -51,6 +53,7 @@ export function useOpenClawGatewayController({
   // Status comes from main-pushed events (single source of truth); only the local
   // launching/stopping intents live here, covering the gap until events arrive.
   const { status } = useManagedToolStatus('openclaw', isOpenClawTool)
+  const owned = useSharedCacheValue('feature.openclaw.gateway_owned')
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
 
@@ -137,6 +140,7 @@ export function useOpenClawGatewayController({
   }, [gatewayPort, openDashboard, t])
 
   return {
+    canStop: !!owned,
     launching,
     running: isOpenClawTool && status === 'running',
     starting: isOpenClawTool && status === 'starting',

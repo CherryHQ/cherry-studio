@@ -18,6 +18,7 @@ import type {
 } from '../types'
 
 export abstract class LocalConnection implements AgentRuntimeConnection {
+  readonly sessionCostScope = 'native-session' as const
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   readonly localSessionInfo: LocalAgentSessionInfo = { models: [], images: false, resume: false }
   protected readonly abort = new AbortController()

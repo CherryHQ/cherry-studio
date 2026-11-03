@@ -332,7 +332,7 @@ describe('useConfigPanelController', () => {
   })
 
   describe('DeepSeek Harness selection', () => {
-    it('defers gateway startup and shared config writes until the managed launch action', async () => {
+    it('applies the native model before enabling DeepSeek Harness', async () => {
       const ensureRunning = vi.fn().mockResolvedValue(undefined)
       const getApiKey = vi.fn().mockResolvedValue('gateway-key')
       const options = {
@@ -361,9 +361,11 @@ describe('useConfigPanelController', () => {
       })
 
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
-      expect(ensureRunning).not.toHaveBeenCalled()
-      expect(getApiKey).not.toHaveBeenCalled()
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(ensureRunning).toHaveBeenCalled()
+      expect(getApiKey).toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ cliTool: CodeCli.DEEPSEEK_HARNESS, modelId: 'deepseek::deepseek-chat' })
+      )
     })
   })
 

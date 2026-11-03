@@ -206,7 +206,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it.each([
     ['/settings/provider', '/settings/local-agents?id=poolside', '/settings/local-agents?id=poolside'],
-    ['/settings/provider?id=openai', '/settings/local-agents?id=poolside', '/settings/local-agents?id=poolside'],
+    ['/settings/provider?id=openai', '/settings/local-agents?id=poolside', '/settings/provider?id=openai'],
     ['/settings/general', '/settings/local-agents?id=poolside', '/settings/general'],
     ['/settings/provider?id=anthropic', undefined, '/settings/provider?id=anthropic']
   ])('routes recovery from %s to the owning settings page', (target, providerErrorSettingsPath, expected) => {

@@ -1,7 +1,7 @@
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import type { ModelConfiguredCli } from '@shared/utils/cliConfig'
+import { MODEL_CONFIGURED_CLI_TOOL_IDS, type ModelConfiguredCli } from '@shared/utils/cliConfig'
 import { isEmbeddingModel, isPublicGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import {
   isAgentOnlyProvider,
@@ -160,4 +160,10 @@ export function getGatewayProviderIds(providers: Provider[]): Set<string> {
 
 export function isCliGatewayModel(providerIds: ReadonlySet<string>, model: Model): boolean {
   return providerIds.has(model.providerId) && isPublicGatewayRoutableModel(model)
+}
+
+const MODEL_CONFIGURED_CLI_TOOLS: ReadonlySet<string> = new Set(MODEL_CONFIGURED_CLI_TOOL_IDS)
+
+export function isModelConfiguredCli(cliTool: string): cliTool is ModelConfiguredCli {
+  return MODEL_CONFIGURED_CLI_TOOLS.has(cliTool)
 }

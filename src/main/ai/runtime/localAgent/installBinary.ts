@@ -36,7 +36,7 @@ export async function installBinaryAgent(
 ): Promise<string> {
   const previous = expectedPath ? await getBinaryAgentInstallation(executable, expectedPath) : undefined
   if (expectedPath && !previous) throw new Error('This binary installation cannot be upgraded automatically')
-  const root = application.getPath('external.acp.agents')
+  const root = application.getPath('feature.acp.agents')
   const bin = application.getPath('external.acp.bin')
   await fs.mkdir(root, { recursive: true })
   const staging = await fs.mkdtemp(path.join(root, `${executable}-${recipe.version}-`))

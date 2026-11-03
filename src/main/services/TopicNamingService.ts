@@ -4,6 +4,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
@@ -15,7 +16,6 @@ import type { Topic } from '@shared/data/types/topic'
 import {
   buildFirstUserMessageTitle,
   normalizeConversationTitle,
-  isOpenClawTechnicalTitle,
   sanitizeConversationTitle,
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'

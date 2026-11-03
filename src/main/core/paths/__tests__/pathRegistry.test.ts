@@ -57,6 +57,10 @@ describe('buildPathRegistry', () => {
     }
   )
 
+  it('leaves managed ACP materialization to the installation owner', () => {
+    expect(shouldAutoEnsure('feature.acp.agents')).toBe(false)
+  })
+
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {
       getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))

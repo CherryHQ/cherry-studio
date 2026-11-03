@@ -762,6 +762,12 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private getAgentExecutionId(agent: AgentEntity | null | undefined): ExecutionId | undefined {
+    if (!agent) return
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    return driver?.getExecutionId ? driver.getExecutionId(agent) : (agent.model ?? undefined)
+  }
+
   /**
    * Open the session's runtime connection ahead of the first turn (on session open) so the driver's
    * slash-command catalog (`query.supportedCommands()`) is read into the shared cache before the user
@@ -788,8 +794,8 @@ export class AgentSessionRuntimeService extends BaseService {
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
-      if (!agent || (!agent.model && agent.type !== 'local')) return
-      if (agent.type === 'local' && !agent.configuration?.localRuntime?.enabled) return
+      const executionId = this.getAgentExecutionId(agent)
+      if (!agent || !executionId) return
       if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
         return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
@@ -813,7 +819,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionTraceId,
         agentId: session.agentId,
         agentType: agent.type,
-        modelId: agent.type === 'local' ? `runtime:${agent.id}` : agent.model!,
+        modelId: executionId,
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -851,7 +857,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.agentId !== agentId) continue
 
       // A cleared model (`PATCH { model: null }`) is unroutable, not stale — fully invalidate.
-      if (modelEdited && !agent.model && agent.type !== 'local') {
+      if (modelEdited && !this.getAgentExecutionId(agent)) {
         this.invalidateModelClearedEntry(entry)
         continue
       }
@@ -1948,7 +1954,7 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
-        if (entry.agentType === 'local') {
+        if (connection?.sessionCostScope === 'native-session') {
           const cached = application.get('CacheService').getShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId))
           if (cached?.nativeSessionId !== event.token) {
             const saved = agentSessionMessageService.getSessionCost(entry.sessionId)
@@ -2975,11 +2981,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
     const liveAgent = agentService.getAgent(entry.agentId)
-    if (
-      !liveAgent ||
-      (!liveAgent.model && liveAgent.type !== 'local') ||
-      (liveAgent.type === 'local' && !liveAgent.configuration?.localRuntime?.enabled)
-    ) {
+    if (!liveAgent || !this.getAgentExecutionId(liveAgent)) {
       application
         .get('AiStreamManager')
         .terminateHeldTopicStream(
@@ -3554,7 +3556,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
       return
     }
-    if (entry.agentType === 'local' && !agentService.getAgent(entry.agentId)?.configuration?.localRuntime?.enabled) {
+    if (!this.getAgentExecutionId(agentService.getAgent(entry.agentId))) {
       this.closeConnectionAsync(entry)
       return
     }
@@ -3644,6 +3646,10 @@ export class AgentSessionRuntimeService extends BaseService {
   ): AgentRuntimeConnection | undefined {
     const connection = this.currentConnection(entry)
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
+    if (connection?.localSessionInfo)
+      application
+        .get('IpcApiService')
+        .broadcast('ai.local_agents.session_updated', { sessionId: entry.sessionId, info: null })
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
     entry.connectionLoop = undefined
     return connection

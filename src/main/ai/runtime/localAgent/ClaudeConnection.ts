@@ -100,9 +100,8 @@ export class ClaudeConnection extends LocalConnection {
         )
       }
     })
-    const stream = this.createQuery(messages)
     this.begin()
-    this.query = stream
+    let stream: Query | undefined
     let finishReason: FinishReason = 'stop'
     let completed = false
     let failure: unknown
@@ -135,6 +134,8 @@ export class ClaudeConnection extends LocalConnection {
     })
     adapter.beginTurn()
     try {
+      stream = this.createQuery(messages)
+      this.query = stream
       this.events.push({ type: 'supported-commands', commands: await stream.supportedCommands() })
       this.localSessionInfo.models = (await stream.supportedModels()).map((m) => ({ id: m.value, name: m.displayName }))
       for await (const message of stream) {
@@ -151,7 +152,7 @@ export class ClaudeConnection extends LocalConnection {
       failure = error
     } finally {
       messages.close()
-      stream.close()
+      stream?.close()
       if (this.query === stream) this.query = undefined
       this.finish(failure, finishReason)
     }

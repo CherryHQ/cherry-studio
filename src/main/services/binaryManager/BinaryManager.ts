@@ -51,6 +51,7 @@ import { Semaphore } from '@shared/utils/async'
 import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
+import { SYSTEM_TOOL_LOCATIONS } from './systemToolLocations'
 import { measureToolInstalledSize } from './toolInstalledSize'
 
 const logger = loggerService.withContext('BinaryManager')
@@ -459,8 +460,8 @@ export class BinaryManager extends BaseService {
         let resolved = isWin
           ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
           : await findCommandInShellEnv(name, shellEnv)
-        if (!resolved && name === 'agy') {
-          const installed = application.getPath('external.antigravity.cli.file')
+        if (!resolved && SYSTEM_TOOL_LOCATIONS[name]) {
+          const installed = application.getPath(SYSTEM_TOOL_LOCATIONS[name])
           if (await hasExecutableCandidateShim(installed)) resolved = installed
         }
         if (!resolved || cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved)))) return null

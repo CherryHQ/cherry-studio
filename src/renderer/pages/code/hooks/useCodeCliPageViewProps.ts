@@ -14,7 +14,8 @@ import {
   CLI_OWN_LOGIN_PROVIDER_ID,
   CodeCli,
   GATEWAY_CAPABLE_CLI_TOOLS,
-  LOGIN_CAPABLE_CLI_TOOLS
+  LOGIN_CAPABLE_CLI_TOOLS,
+  isApiGatewayProviderId
 } from '@shared/types/codeCli'
 
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
@@ -240,16 +241,18 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
-  const modelOptions = supportedProviders.flatMap((provider) =>
-    [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => ({
-      id: JSON.stringify([provider.id, model.id]),
-      name: model.name || model.id,
-      group: resolveProviderMeta(provider).providerName,
-      source: 'gateway' as const,
-      provider,
-      model
-    }))
-  )
+  const modelOptions = supportedProviders
+    .filter((provider) => isApiGatewayProviderId(provider.id))
+    .flatMap((provider) =>
+      [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => ({
+        id: JSON.stringify([provider.id, model.id]),
+        name: model.name || model.id,
+        group: resolveProviderMeta(provider).providerName,
+        source: 'gateway' as const,
+        provider,
+        model
+      }))
+    )
 
   return {
     contentProps: activeMeta
@@ -294,6 +297,7 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
               deepSeekHarness.starting ||
               hermesDashboard.launching ||
               hermesDashboard.starting,
+            canStop: selectedCliTool !== CodeCli.OPENCLAW || openClawGateway.canStop,
             running: openClawGateway.running || deepSeekHarness.running || hermesDashboard.running,
             stopping: openClawGateway.stopping || deepSeekHarness.stopping || hermesDashboard.stopping,
             upgradeDisabled: providerActionsDisabled

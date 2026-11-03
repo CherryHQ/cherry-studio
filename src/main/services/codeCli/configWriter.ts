@@ -63,10 +63,18 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
     ? path.join(directories[target], path.basename(specPath))
     : path.join(application.getPath('sys.home'), specPath.replace(/^~[/\\]/, ''))
   const home = application.getPath('sys.home')
-  const configHome = env.XDG_CONFIG_HOME || path.join(home, '.config')
-  const roaming = env.APPDATA || path.join(home, 'AppData', 'Roaming')
-  if (target === 'zcode-acp') filename = path.join(configHome, 'zcode-acp', 'config.json')
-  if (target === 'glm-credentials') filename = path.join(configHome, 'glm-acp-agent', 'credentials.json')
+  const configHome = env.XDG_CONFIG_HOME || application.getPath('external.xdg.config')
+  const roaming = env.APPDATA || application.getPath('external.windows.roaming')
+  if (target === 'zcode-acp')
+    filename = path.join(
+      env.XDG_CONFIG_HOME ? path.join(configHome, 'zcode-acp') : application.getPath('external.zcode_acp.config'),
+      'config.json'
+    )
+  if (target === 'glm-credentials')
+    filename = path.join(
+      env.XDG_CONFIG_HOME ? path.join(configHome, 'glm-acp-agent') : application.getPath('external.glm_acp.config'),
+      'credentials.json'
+    )
   if (target === 'omp-settings' || target === 'omp-models') {
     const profile = (env.OMP_PROFILE ?? env.PI_PROFILE)?.trim()
     const namedProfile =
@@ -75,10 +83,11 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
       /^[a-z0-9][a-z0-9._-]{0,63}$/.test(profile) &&
       !profile.endsWith('.') &&
       !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(profile)
-    const root = path.join(home, env.PI_CONFIG_DIR || '.omp')
+    const root = env.PI_CONFIG_DIR ? path.join(home, env.PI_CONFIG_DIR) : application.getPath('external.omp.config')
     const directory = namedProfile
       ? path.join(root, 'profiles', profile, 'agent')
-      : env.PI_CODING_AGENT_DIR || path.join(root, 'agent')
+      : env.PI_CODING_AGENT_DIR ||
+        (env.PI_CONFIG_DIR ? path.join(root, 'agent') : application.getPath('external.omp.agent'))
     filename = path.join(directory, path.basename(specPath))
     if (target === 'omp-settings' && (await readOrNull(AbsoluteFilePathSchema.parse(filename))) === null) {
       const legacy = path.join(directory, 'config.yaml')
@@ -88,13 +97,14 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   if (target === 'copilot-providers' && env.COPILOT_PROVIDERS_CONFIG) filename = env.COPILOT_PROVIDERS_CONFIG
   if (target.startsWith('cline-')) {
     filename = path.join(
-      env.CLINE_DATA_DIR || path.join(env.CLINE_DIR || path.join(home, '.cline'), 'data'),
+      env.CLINE_DATA_DIR ||
+        (env.CLINE_DIR ? path.join(env.CLINE_DIR, 'data') : application.getPath('external.cline.data')),
       'settings',
       path.basename(specPath)
     )
   }
   if (target === 'kilo-config') {
-    const directory = path.join(configHome, 'kilo')
+    const directory = env.XDG_CONFIG_HOME ? path.join(configHome, 'kilo') : application.getPath('external.kilo.config')
     filename = env.KILO_CONFIG || path.join(directory, 'kilo.jsonc')
     if (
       !env.KILO_CONFIG &&
@@ -105,26 +115,29 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
     }
   }
   if (target === 'goose-config') {
-    filename = path.join(
-      env.GOOSE_PATH_ROOT
-        ? path.join(env.GOOSE_PATH_ROOT, 'config')
-        : process.platform === 'win32'
-          ? path.join(roaming, 'Block', 'goose', 'config')
-          : path.join(configHome, 'goose'),
-      'config.yaml'
-    )
+    const directory = env.GOOSE_PATH_ROOT
+      ? path.join(env.GOOSE_PATH_ROOT, 'config')
+      : process.platform === 'win32' && env.APPDATA
+        ? path.join(roaming, 'Block', 'goose', 'config')
+        : process.platform !== 'win32' && env.XDG_CONFIG_HOME
+          ? path.join(configHome, 'goose')
+          : application.getPath('external.goose.config')
+    filename = path.join(directory, 'config.yaml')
   }
   if (target.startsWith('devin-')) {
-    filename = path.join(process.platform === 'win32' ? roaming : configHome, 'devin', path.basename(specPath))
+    const directory = (process.platform === 'win32' ? env.APPDATA : env.XDG_CONFIG_HOME)
+      ? path.join(process.platform === 'win32' ? roaming : configHome, 'devin')
+      : application.getPath('external.devin.config')
+    filename = path.join(directory, path.basename(specPath))
   }
   if (target === 'trae-config') {
-    const root =
-      process.platform === 'win32'
-        ? roaming
-        : process.platform === 'darwin'
-          ? path.join(home, 'Library', 'Application Support')
-          : configHome
-    filename = path.join(root, 'trae_cli', 'trae_cli.yaml')
+    const directory =
+      process.platform === 'win32' && env.APPDATA
+        ? path.join(roaming, 'trae_cli')
+        : process.platform !== 'win32' && process.platform !== 'darwin' && env.XDG_CONFIG_HOME
+          ? path.join(configHome, 'trae_cli')
+          : application.getPath('external.trae.config')
+    filename = path.join(directory, 'trae_cli.yaml')
   }
   if (target === 'amp-settings' && (await readOrNull(AbsoluteFilePathSchema.parse(`${filename}c`))) !== null)
     filename += 'c'

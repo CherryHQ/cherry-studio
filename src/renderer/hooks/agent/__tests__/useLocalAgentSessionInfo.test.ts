@@ -24,7 +24,7 @@ const first: LocalAgentSessionInfo = {
   }
 }
 const next = { ...first, mode: { ...first.mode!, currentValue: 'plan' } }
-let publish: (event: { sessionId: string; info: LocalAgentSessionInfo }) => void
+let publish: (event: { sessionId: string; info: LocalAgentSessionInfo | null }) => void
 
 beforeEach(() => {
   MockCacheUtils.resetMocks()
@@ -36,6 +36,24 @@ beforeEach(() => {
 })
 
 describe('local agent session option cache', () => {
+  it('clears detached live capabilities and ignores an older pending read', async () => {
+    let resolve!: (info: LocalAgentSessionInfo) => void
+    vi.mocked(ipcApi.request).mockReturnValue(
+      new Promise((r) => {
+        resolve = r
+      }) as never
+    )
+    const { result } = renderHook(() => useLocalAgentSessionInfo('session', true))
+    act(() => publish({ sessionId: 'session', info: first }))
+    expect(result.current.info).toEqual(first)
+    act(() => publish({ sessionId: 'session', info: null }))
+    await act(async () => {
+      resolve(first)
+    })
+    expect(result.current.info).toBeNull()
+    expect(result.current.options?.mode).toEqual(first.mode)
+  })
+
   it('immediately shows remembered options on remount but waits for a live connection before exposing capabilities', async () => {
     vi.mocked(ipcApi.request).mockResolvedValue(first)
     const initial = renderHook(() => useLocalAgentSessionInfo('one', true))

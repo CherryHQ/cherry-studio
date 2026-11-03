@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -77,6 +78,13 @@ describe('writeCliConfigFiles', () => {
       if (key === 'external.deepseek_harness.config')
         return path.join(home, 'native-dsh', ...(filename ? [filename] : []))
       if (key === 'sys.home') return home
+      const registry = buildPathRegistry()
+      if (key in registry)
+        return path.join(
+          home,
+          path.relative(registry['sys.home'], registry[key as keyof typeof registry]),
+          filename ?? ''
+        )
       throw new Error(`Unexpected getPath(${key})`)
     })
     hermesHomeMock.getHermesHome.mockImplementation(async () => hermesHome())
@@ -416,6 +424,13 @@ describe('readCliConfigFiles', () => {
       if (key === 'external.deepseek_harness.config')
         return path.join(home, 'native-dsh', ...(filename ? [filename] : []))
       if (key === 'sys.home') return home
+      const registry = buildPathRegistry()
+      if (key in registry)
+        return path.join(
+          home,
+          path.relative(registry['sys.home'], registry[key as keyof typeof registry]),
+          filename ?? ''
+        )
       throw new Error(`Unexpected getPath(${key})`)
     })
     hermesHomeMock.getHermesHome.mockImplementation(async () => hermesHome())

@@ -1113,6 +1113,32 @@ describe('local protocol processes', () => {
     ])
   })
 
+  it('preserves a native Codex interrupted turn as cancellation', async () => {
+    const { connection, events } = create('codex', 'interrupted')
+    await connection.start(cwd)
+    await connection.send(input)
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete', cancelled: true }))
+    expect(events.some((event) => event.type === 'chunk' && event.chunk.type === 'finish')).toBe(false)
+  })
+
+  it.each(['allow', 'deny'])('returns the original Codex network %s decision', async (action) => {
+    const { connection, events } = create('codex', `codex-network-${action}`)
+    await connection.start(cwd)
+    await connection.send(input)
+    const approval = await waitForApproval(events)
+    const decision = { applyNetworkPolicyAmendment: { network_policy_amendment: { host: 'example.com', action } } }
+    const optionId = JSON.stringify(decision)
+    expect(approval.request.input.localPermissionOptions).toContainEqual(
+      expect.objectContaining({ optionId, kind: action === 'allow' ? 'allow_always' : 'reject_always' })
+    )
+    toolApprovalRegistry.dispatch(approval.request.approvalId, {
+      approved: action === 'allow',
+      updatedInput: { localPermissionOption: optionId }
+    })
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
+    expect(await readWire()).toContainEqual({ id: 'approval', result: { decision } })
+  })
+
   it.each(['acp', 'codex'] as const)('%s denies outstanding approvals on close', async (protocol) => {
     const { connection, events, drained } = create(protocol, 'permission')
     await connection.start(cwd)
@@ -1198,7 +1224,10 @@ describe('local protocol processes', () => {
       const approval = events.filter((event) => event.type === 'tool-approval-request')[index]
       if (approval.type !== 'tool-approval-request') throw new Error('Missing approval')
       if (index === 0) await expect(readFile(path.join(cwd, 'callback.txt'), 'utf8')).rejects.toThrow()
-      else expect(text()).not.toContain('terminal-result')
+      else {
+        expect(text()).not.toContain('terminal-result')
+        expect(approval.request.input.env).toEqual([{ name: 'APPROVAL_ENV', value: 'terminal-result' }])
+      }
       toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
     }
     await sending

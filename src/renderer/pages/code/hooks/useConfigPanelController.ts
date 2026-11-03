@@ -15,13 +15,13 @@ import {
   writeCliConfigDraft,
   writeOwnLoginCliConfigDraft
 } from '@renderer/services/codeCliConfig'
+import { isModelConfiguredCli } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { isModelConfiguredCli } from '@shared/utils/cliConfig'
 
 import type { OwnLoginConfigPanelProps } from '../components/configEditPanel/OwnLoginConfigPanel'
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
@@ -74,7 +74,10 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
-  const writesCliConfig = isModelConfiguredCli(selectedCliTool) || selectedCliTool === CodeCli.OPENCLAW
+  const writesCliConfig =
+    isModelConfiguredCli(selectedCliTool) ||
+    selectedCliTool === CodeCli.OPENCLAW ||
+    selectedCliTool === CodeCli.DEEPSEEK_HARNESS
 
   // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
@@ -168,11 +171,6 @@ export function useConfigPanelController({
         providerConfigPersisted = true
       }
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: provider.id })
-      if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
-        if (shouldEnableAfterSave) await setCurrentProvider(provider.id)
-        setCurrentCliConfigConnection(null)
-        return
-      }
       if (!cliConfigModelId) return
       if (!shouldApplyCliConfig) {
         if (shouldEnableAfterSave) {

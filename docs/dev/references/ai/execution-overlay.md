@@ -62,8 +62,8 @@ class that owns:
   model writing to that assistant row. Multi-model parallel responses
   get separate branches by `executionId`; same-model steer
   continuations get separate branches by `anchorMessageId`.
-- **Anchor is part of stream identity.** `executionId` names the model,
-  not the assistant row. During a steer continuation, Main can close
+- **Anchor is part of stream identity.** `executionId` identifies the routed execution, either a provider/model ID or
+  `runtime:<agent-id>` for a provider-free native runtime; it does not identify the assistant row. During a steer continuation, Main can close
   A1a and immediately open A2 with the same model id. Chunks for A2 can
   arrive before React registers A2's reader, so the transport must
   buffer them under `executionId + anchorMessageId` instead of routing

@@ -290,7 +290,7 @@ export function useAgentMessageListProviderValue({
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
     (target) =>
       navigateToErrorTarget?.(
-        providerErrorSettingsPath && target.split('?')[0] === '/settings/provider' ? providerErrorSettingsPath : target
+        providerErrorSettingsPath && target === '/settings/provider' ? providerErrorSettingsPath : target
       ),
     [navigateToErrorTarget, providerErrorSettingsPath]
   )

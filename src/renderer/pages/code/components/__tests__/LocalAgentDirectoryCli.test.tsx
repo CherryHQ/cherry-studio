@@ -35,17 +35,14 @@ beforeEach(() => {
   )
 })
 
-it('combines CLI configuration with a single ACP entry', async () => {
-  const cliContent = (tool: string) => <div data-testid="cli-content">{tool}</div>
-  const { rerender } = render(<LocalAgentDirectory renderCli={cliContent} />)
+it('shows one entry per Agent and preserves settings navigation', async () => {
+  const { rerender } = render(<LocalAgentDirectory />)
   expect(screen.getAllByRole('button', { name: /^Claude Code ·/ })).toHaveLength(1)
   expect(screen.queryByRole('button', { name: '模型服务商' })).not.toBeInTheDocument()
-  expect(screen.queryByTestId('cli-content')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: /^OpenClaw ·/ }))
   await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('OpenClaw'))
-  expect(screen.queryByTestId('cli-content')).not.toBeInTheDocument()
   navigation.search = { id: 'codex' }
-  rerender(<LocalAgentDirectory renderCli={cliContent} />)
+  rerender(<LocalAgentDirectory />)
   await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
 })
 
@@ -124,11 +121,9 @@ it.each([
             { presetId: 'codex', source: 'system', path: '/usr/local/bin/codex' },
             { presetId: 'copilot', source: 'system', path: '/usr/local/bin/copilot' }
           ]
-        : route === 'binary.get_tool_snapshots'
-          ? { openclaw: { availability: { source: 'system', path: '/usr/local/bin/openclaw' } } }
-          : { models: [] }) as never
+        : { models: [] }) as never
   )
-  render(<LocalAgentDirectory renderCli={() => null} />)
+  render(<LocalAgentDirectory />)
   await waitFor(() => {
     const names = within(screen.getByRole('complementary'))
       .getAllByRole('button', { name: / · |^(OpenClaw|DeepSeek Harness)$/ })
@@ -141,10 +136,10 @@ it.each([
   expect(rows[4]).toHaveAccessibleName(/^Claude Code ·/)
 })
 
-it('places popular CLI-only and ACP agents together in the default order', async () => {
+it('places popular Agents together in the default order', async () => {
   mockPreferenceState.set('feature.code_cli.agent_order', [])
   vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
-  render(<LocalAgentDirectory renderCli={() => null} />)
+  render(<LocalAgentDirectory />)
   await waitFor(() => {
     const rows = within(screen.getByRole('complementary')).getAllByRole('button', {
       name: / · |^(OpenClaw|DeepSeek Harness)$/
@@ -170,7 +165,7 @@ it.each([
   navigation.search = { id: `cli:${id}` }
   mockPreferenceState.set('feature.code_cli.agent_order', [`cli:${id}`, 'claude'])
   vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
-  render(<LocalAgentDirectory renderCli={() => null} />)
+  render(<LocalAgentDirectory />)
   expect(await screen.findByRole('heading', { name })).toBeVisible()
   expect(screen.getByRole('switch')).not.toBeChecked()
   const rows = within(screen.getByRole('complementary')).getAllByRole('button', { name: / · |^OpenClaw$/ })

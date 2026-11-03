@@ -7,6 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { executeCommand } from '@main/utils/processRunner'
 import type { LocalAgentCheckResult, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
@@ -32,6 +33,9 @@ async function connection(sessionId: string, agentId: string, config: LocalAgent
 }
 
 export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
+  getExecutionId(agent: AgentEntity): `runtime:${string}` | undefined {
+    return agent.configuration?.localRuntime?.enabled ? `runtime:${agent.id}` : undefined
+  }
   readonly type = 'local'
   readonly capabilities = ['agent-session'] as const
   validateSession(session: AgentSessionEntity) {

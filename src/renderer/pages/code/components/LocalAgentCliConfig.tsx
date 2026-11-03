@@ -15,6 +15,7 @@ import {
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import {
+  isModelConfiguredCli,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
   type CliConfigFileDraft,
@@ -23,12 +24,7 @@ import {
 } from '@renderer/services/codeCliConfig'
 import { toast } from '@renderer/services/toast'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import {
-  CLI_CONFIG_FILE_SPECS,
-  getCliConfigTargets,
-  isFileConfiguredCli,
-  isModelConfiguredCli
-} from '@shared/utils/cliConfig'
+import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import { CliConfigEditor } from './configEditPanel/CliConfigEditor'
 import { renderToolFields } from './configEditPanel/toolFieldRenderer'

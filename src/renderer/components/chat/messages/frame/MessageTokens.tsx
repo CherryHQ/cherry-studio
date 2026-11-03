@@ -153,11 +153,25 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
 
   const totalTokens =
     (stats ? getMessageTokenUsage(stats).totalTokens : undefined) ?? message.localTurnUsage?.usage.totalTokens
-  if (totalTokens === undefined) return null
+  const hasDetails =
+    message.role === 'assistant' &&
+    !!(
+      stats?.costs?.length ||
+      stats?.requestCount ||
+      stats?.estimatedRequestCount ||
+      stats?.unpricedRequestCount ||
+      stats?.providerPerformance ||
+      stats?.runtimeTiming ||
+      stats?.timeFirstTokenMs !== undefined ||
+      stats?.timeCompletionMs !== undefined ||
+      stats?.timeThinkingMs !== undefined
+    )
+  if (totalTokens === undefined && !hasDetails) return null
 
-  const tokenLabel = t('chat.message.token_details.tokens', {
-    value: compactFormatter.format(totalTokens)
-  })
+  const tokenLabel =
+    totalTokens === undefined
+      ? t(stats?.costs?.length ? 'chat.message.token_details.cost' : 'chat.message.token_details.more_details')
+      : t('chat.message.token_details.tokens', { value: compactFormatter.format(totalTokens) })
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
   if (message.role === 'user') {

@@ -1,6 +1,6 @@
 import { isDev } from '@renderer/utils/platform'
 import type { DataResponse, HttpMethod } from '@shared/data/api/types'
-import { redactDeep, redactLocalAgentConfiguration } from '@shared/utils/redaction'
+import { isSensitiveKey, REDACTED } from '@shared/utils/redaction'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
@@ -170,7 +170,7 @@ function consumeClientDuration(requestId: string): number | undefined {
   return performance.now() - startTime
 }
 
-function sanitizeValue(value: unknown, depth = 0, parentKey?: string): unknown {
+function sanitizeValue(value: unknown, depth = 0): unknown {
   if (!options.capturePayloads) return undefined
   if (value === null || value === undefined) return value
 
@@ -194,10 +194,9 @@ function sanitizeValue(value: unknown, depth = 0, parentKey?: string): unknown {
   }
 
   const result: Record<string, unknown> = {}
-  const projected = redactLocalAgentConfiguration(value, parentKey)
-  const entries = Object.entries((projected === value ? value : redactDeep(projected)) as Record<string, unknown>)
+  const entries = Object.entries(value as Record<string, unknown>)
   for (const [key, item] of entries.slice(0, MAX_OBJECT_KEYS)) {
-    result[key] = sanitizeValue(item, depth + 1, key)
+    result[key] = isSensitiveKey(key) ? REDACTED : sanitizeValue(item, depth + 1)
   }
   if (entries.length > MAX_OBJECT_KEYS) {
     result.__truncatedKeys = entries.length - MAX_OBJECT_KEYS

@@ -855,7 +855,13 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
     notifyDataApiDataChange([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } },
+      ...(existing?.data.localTurnUsage || existing?.data.localSessionCost
+        ? [{ endpoint: '/ai-usage-records/local' as const, kind: 'membership' as const }]
+        : []),
+      ...(existing?.data.localSessionCost
+        ? [{ endpoint: '/agent-sessions/:sessionId/cost' as const, routeParams: { sessionId } }]
+        : [])
     ])
   }
 

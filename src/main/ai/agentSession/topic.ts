@@ -17,3 +17,7 @@ export function extractAgentSessionId(topicId: string): string {
 export function buildAgentSessionTopicId(sessionId: string): string {
   return `${AGENT_SESSION_PREFIX}${sessionId}`
 }
+
+export function isOpenClawTechnicalTitle(title: string | null | undefined): boolean {
+  return /^(?:(?:agent:[^:]+:)?acp-bridge:|\[Working directory:)/i.test((title ?? '').trim())
+}

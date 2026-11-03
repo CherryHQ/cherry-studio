@@ -28,7 +28,9 @@ Agent, and reuse the existing settings tab.
 WebUI controls separate service lifetime from navigation. One icon button to the
 left of Terminal starts or stops a Cherry-owned service, with a tooltip for the
 current action. Starting only runs the background process; once running, a separate
-**Open WebUI** button opens its page. Externally owned services remain open-only.
+**Open WebUI** button opens its page. Externally owned services remain open-only. OpenClaw preserves native password
+authentication and opens its native sign-in page; only token authentication uses a
+Dashboard token bootstrap.
 
 All presets with native configuration files use the same **CLI configuration files**
 editor, including DeepSeek Harness, Oh My Pi, Snow, ZCode and GLM Agent. It opens
@@ -41,8 +43,9 @@ DeepSeek Harness exposes `settings.yaml`, the default, headless and ACP
 home. Profile YAML retains its sequence root and native tags. Raw saves reuse the
 service mutex, native file locks, snapshot conflict checks, owner-only atomic
 writes and rollback. DeepSeek Harness and Hermes require their managed service
-to stop before editing, with the stop action in the same editor. Model selection
-continues to own Cherry-managed connection defaults; unrelated native settings
+to stop before editing, with the stop action in the same editor. Model selection immediately applies Cherry-managed connection defaults, including
+DeepSeek Harness profiles, without starting its WebUI. Global raw edits synchronize
+only Agents whose configuration environment matches the global CLI root; unrelated native settings
 and files remain user-owned.
 
 OpenClaw connects through `openclaw acp` to its local Gateway and uses the shared
@@ -155,11 +158,11 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 
 ## Additional ACP presets
 
-| Preset | Chat command | System npm package | Requirements |
-| --- | --- | --- | --- |
-| Oh My Pi | `omp acp` | `@oh-my-pi/pi-coding-agent` | Bun 1.3.14 or newer on the user's shell PATH; configure providers in the CLI |
-| Snow CLI | `snow --acp` | `snow-ai` | Node.js 22 or newer; configure the active profile in the CLI |
-| ZCode | `zcode-acp server` | `zcode-acp-server` | Community adapter; Node.js 22 or newer and a separately installed/configured ZCode runtime |
+Executable names, launch arguments and packages are defined by the code-owned
+[preset catalog](../../../../src/shared/ai/localAgent.ts) and
+[installation recipes](../../../../src/main/ai/runtime/localAgent/installRecipe.ts).
+Oh My Pi requires system Bun; Snow and the ZCode adapter require their documented
+Node.js runtime. ZCode also requires a separate native backend.
 
 These presets use explicit published npm packages because they are absent from
 our ACP registry snapshot. Installation, upgrade and uninstall reuse the existing
@@ -176,26 +179,9 @@ the connected version returns. Snow currently provides no model selection throug
 ACP; it follows its CLI profile. No new global-model writer is implied by these
 presets. Existing user credentials remain owned by each CLI.
 
-On 2026-10-14, isolated npm installations of omp 18.10.4, Snow 0.9.5 and
-zcode-acp-server 0.69.3 passed real stdio initialization and session creation with
-no non-JSON stdout. No model inference was requested. ZCode creates sessions
-lazily, so this does not verify its native backend, credentials or conversation.
-A subsequent real prompt with the machine's native configuration failed for all
-three: omp reported no selected model, Snow returned HTTP 401 for a missing API
-key, and ZCode reported a dead backend. No native ZCode executable or desktop app
-was found. These are setup blockers, not successful conversation acceptance.
-A follow-up used isolated CLI configurations with Cherry's running unified gateway
-and `deepseek:deepseek-flash`; no native user configuration was changed:
-
-| Agent | Real gateway checks | Remaining limitations |
-|---|---|---|
-| omp 18.10.4 | Text, file read/write with verified contents, cancellation, process restart, session load and context recall passed | First tool turn exceeded a 55-second probe deadline; a repeat with a longer deadline passed. Permission denial and full Cherry chat UI remain unverified. |
-| Snow 0.9.5 | Text, allow-once permissions, verified file read/write and cancellation passed | `session/load` returned success after process restart, but context recall failed. Cross-process recovery is not certified; permission denial and full Cherry chat UI remain unverified. |
-| ZCode adapter 0.69.3 | Initialization and lazy session creation only | Missing native ZCode backend blocks inference, tools, cancellation and recovery tests. |
-
-These checks exercise real CLI subprocesses over ACP, not the complete Cherry
-chat UI. The temporary gateway profiles do not add automatic global-model
-configuration support to these presets.
+Snow's recovery acknowledgment does not guarantee context recall after a process restart.
+ZCode requires a working native backend; a successful lazy session creation does not
+prove that its backend or credentials can serve a prompt.
 
 Icon artwork is sourced from [Magpie](https://github.com/yetone/magpie/tree/63ad2b7c76ef57a02d3ca025a760a9d610ae5b74/internal/gui/assets/icons).
 Protocol implementations: [omp](https://github.com/can1357/oh-my-pi),
@@ -433,217 +419,12 @@ prompt as `end_turn`, even after retries fail. Cherry cannot reliably classify
 that result as a failure from ACP alone. This remains an upstream adapter
 limitation; retry text is not used to infer message status.
 
-Focused gateway acceptance on 2026-10-14 passed real file reads and terminal
-Unicode output with Pi ACP 0.0.34, OpenCode 1.19.0 and Kilo 7.8.8 through the
-configured Aliyun Coding Plan Kimi K2.5 model. Its provider-specific output
-ceiling was configured as 98,304; its context window remained 262,144.
-
-### Acceptance repairs: 2026-10-31
-
-macOS source-level tests with real installed CLIs verified immediate successive Claude
-turns, CodeBuddy's approved terminal command and exit status, DeepAgents model-dependency
-reuse and a gateway reply, ZCode initialization/model discovery, and a DeepSeek Harness
-headless gateway reply using the saved credential store. These checks used temporary
-workspaces/configuration and did not create or delete Cherry Agent/session records.
-
-Installation regressions cover official Kiro/Trae/Vibe recipes, required native Amp
-and Bun executables, and missing DeepAgents provider packages. Fresh installation on
-every supported OS is not certified by those tests.
-
-Remaining external conditions include account authentication, OpenClaw's native
-database maintenance, and agents that report
-model failures as successful ACP terminal states (Pi/Cortex). Cherry does not repair
-native databases, downgrade packages, or infer protocol failure from response prose.
-
-### Acceptance refresh: 2026-10-22
-
-The following checks used the real Electron main/preload/renderer path and its
-production database on macOS ARM64. Each test had an isolated workspace; native
-user configuration and credentials were unchanged. Session configuration changes
-were restored. Controlled protocol tests are additional evidence, not substitutes
-for these CLI checks.
-
-| Agent / installed version | Verified behavior | Limits |
-|---|---|---|
-| Pi ACP 0.0.34 | Text, reasoning change/restoration, file read/write, stop/continuation and process release/recreation; recovery retained the native ID, recalled context and added exactly two Cherry messages | No normal file-tool permission request, native message ID, per-turn token usage or cost was emitted; context usage was reported. The adapter's failure-terminal limitation described above remains open. |
-| OpenCode 1.19.3 | Text, mode change/restoration, file read/write, stop/continuation, process release/recovery and history without replay; edit allow/deny, cancel while awaiting approval and continuation | Free-model write completion exceeded probe deadlines after the file and tool result were complete. A standalone official ACP SDK client also took 88.7 seconds, including 39.7 seconds after the last tool update; latency is not attributed solely to Cherry. |
-| Kilo 7.8.8 | Text, mode change/restoration, file read/write, stop/continuation, process release/recovery and history without replay; edit allow/deny, pending-approval cancellation, rejected late approval and continuation | These turns did not exercise standalone media, compaction events or nonzero costs. |
-| Codex 0.162.1 | Text, stop/continuation, process release/recovery, file-change approval with visible path/content, verified write, terminal file read, rejection, pending-approval cancellation and rejected late approval | No dedicated file-read tool was exposed; the read check used `cat` on the test file. |
-| Claude Code 2.1.296 | Text, stop/continuation, native-ID recovery with recalled context and no replay; approved file write with verified contents and a later successful file read | Some consecutive tool turns exited before a result; a later explicit read succeeded. Cause remains unclassified, and approval UI automation was inconclusive, so full tool acceptance remains open. Idle queries already exited their per-turn processes before connection release. |
-
-OpenCode and Kilo permission tests used project-local `edit: "ask"` settings in
-fresh test workspaces. Their default configurations allowed writes without a
-client approval request; an absent request is not evidence of a failed denial.
-Pi did not expose an equivalent normal-file approval path in this run.
-
-OpenCode and Kilo returned native message IDs, context usage and cumulative
-`USD 0` costs. Positive and non-USD costs remain covered by controlled protocol
-tests only. Pi's missing cost remains unknown, not zero. These checks do not
-certify other versions, providers, platforms or unobserved capability types.
-
-### Earlier compatibility inventory
-
-Validation environment: macOS ARM64; installed-agent acceptance refreshed 2026-09-30. Other platforms require real CLI
-acceptance before being marked verified. Presets are discoverable configuration
-entries, not a claim that every installed version implements the protocol.
-
-| Preset | Launch | Observed version | Verification |
-|---|---|---|---|
-| Claude Code | Installed CLI through SDK | 2.1.207 | Real text, read/write tools, approval, connection release/resume, stop and continuation passed with CLI default model after reauthentication; configured `claude-sonnet-4-6` was rejected by the current endpoint (2026-09-30) |
-| Codex | `codex app-server` | 0.155.1 | Real text, read/write tools, connection process exit/recreation, native ID recovery, stop and continuation passed (2026-09-30) |
-| GitHub Copilot | `copilot --acp` | 1.0.89 | Real text, mode/reasoning changes and restoration, generic permission configuration round-trip, read/write tools, diff, approval, process release/resume, stop and continuation passed (2026-09-30) |
-| MiniMax Code | `mcode acp` | — | Not installed locally; launch contract and shared ACP fixture tests passed |
-| Cursor | `cursor-agent acp` (`agent` alias) | 2026.01.28-fd13201 | Real text, agent → plan → agent, read/write tools and diff, process release/resume, stop and continuation passed; custom question/plan extensions not exercised (2026-09-30) |
-| Kimi Code CLI | `kimi acp` | 2.1.1 | Real ACP initialization and Web UI start/open/stop passed; session creation requires a fresh login (2026-10-13) |
-| Qwen Code | `qwen --acp` | — | Not tested |
-| OpenCode | `opencode acp` | 1.18.33 | Real text, build → plan → build, file read/write, process release/resume, stop and continuation passed; first edit attempt stalled without output, stopped and explicit retry passed (2026-09-30) |
-| Kiro | `kiro-cli acp` | — | Not tested |
-| Qoder | `qoderclicn --acp` (aliases supported) | — | Not tested |
-| Trae | `traecli acp serve` | — | Not tested |
-| Hermes | `hermes acp` | 0.21.1 | Real text, file read/write and edit approval, process release/resume, stop and continuation passed; missing terminal updates display “Result not reported” after the turn (2026-09-30) |
-| Cline | `cline --acp` | — | Registry launch definition checked (3.0.65); real CLI acceptance pending |
-| Kilo | `kilo acp` | 7.8.1 | Auto Free: real text, code → ask → code, read/write tools, process release/resume, stop and continuation passed; manual `/compact` works but does not emit ACP compaction updates (2026-09-30) |
-| goose | `goose acp` | — | Registry launch definition checked (1.52.0); real CLI acceptance pending |
-| Codebuddy Code | `codebuddy --acp` | — | Registry launch definition checked (2.159.0); real CLI acceptance pending |
-| Auggie CLI | `auggie --acp` | — | Registry launch definition checked (0.36.0); real CLI acceptance pending |
-| Junie | `junie --acp=true` | — | Registry launch definition checked (3419.16.0); real CLI acceptance pending |
-| Factory Droid | `droid exec --output-format acp-daemon` | 1.1.0 | Persistent custom model works in standalone CLI against a local test backend; ACP handshake passed, but session creation requires Factory authentication (2026-10-31) |
-| Devin | `devin acp` | — | Registry launch definition checked (3000.11.3); real CLI acceptance pending |
-| Google Antigravity | `agy_acp_server.par` | 1.2.1 | Configured Gemini 3.7 Flash Medium: real text, read/write tools and diff, approval, process release/resume, stop and continuation passed; identical file callbacks reuse one native approval (2026-09-30) |
-| Mistral Vibe | `vibe-acp` | 3.0.4 | Persistent custom model, standalone CLI and ACP text passed against a local test backend (2026-10-31); production provider credentials not exercised |
-| Amp | `amp-acp ` | — | Registry launch definition checked (0.9.0); real CLI acceptance pending |
-| pi ACP | `pi-acp ` | 0.0.34 | Real text, medium → low → medium reasoning, read/write tools and diff, process release/resume, stop and continuation passed (2026-09-30) |
-| DeepAgents | `deepagents-acp ` | — | Registry launch definition checked (0.1.7); real CLI acceptance pending |
-| GLM Agent | `glm-acp-agent ` | — | Registry launch definition checked (1.12.0); real CLI acceptance pending |
-| Grok Build | `grok agent stdio` | — | Registry launch definition checked (1.0.43); real CLI acceptance pending |
-| Cortex Code | `cortex acp serve` | — | Registry launch definition checked (1.0.73); real CLI acceptance pending |
-| Poolside | `pool acp` | 1.0.16 | Native login, native/global and Cherry gateway model selection, real text in Cherry and an independent terminal, connection release/resume and persisted-history reload passed (2026-10-31); tools and approvals remain unverified |
-| Custom ACP | Explicit executable and arguments | User selected | Controlled fixture processes tested |
-
-Gemini CLI is no longer offered in Code Mate or as an Agent Service preset. Its installation, launch and configuration entry points and bundled Code Mate skill have been removed. Existing session history is retained; retired presets are excluded from the active Agent picker. This does not remove Gemini model providers or uninstall the CLI.
-
-Antigravity advertises session loading/resuming, images, audio, embedded context, and HTTP/SSE MCP in its handshake. Text, tools, cancellation and recovery passed with the configured credentials on 2026-09-30. The earlier personal Google OAuth location/eligibility rejection remains an authentication-method finding, not a current conversation failure. Image/audio semantics and MCP integration are still unverified; advertised capabilities alone do not certify them.
-
-Poolside saves the native model in `agent_servers.Poolside.default_config_options.model`
-in its personal `settings.yaml`. Cherry gateway models use a separate `cherry-poolside`
-agent-server entry containing the gateway connection and model. Selecting a native model
-removes that managed entry. The original API URL, CLI account credentials and other
-agent servers remain intact. Both the terminal client and Cherry's ACP connection read
-the selected profile; an Agent without a model override follows its saved default.
-Native-model discovery uses the original account even while a gateway model is selected,
-so gateway models do not replace the native-model list.
-Poolside's terminal client still requires its own login at startup, including when a
-custom server is selected. A gateway selection does not replace that login flow.
-
-Additional presets use the [ACP Registry](https://github.com/agentclientprotocol/registry)
-launch definitions checked on 2026-09-28. Registry versions in this table are
-reference versions, not versions installed or tested by Cherry. No packages are
-silently downloaded when detecting or connecting to a preset.
-
-Amp requires `amp-acp`, Pi requires `pi-acp`, DeepAgents requires `deepagents-acp`,
-and GLM requires `glm-acp-agent`. Antigravity uses Google's separate
-`agy_acp_server.par` (or `agy_acp_server.exe` on Windows), not the Antigravity CLI
-already available in CodeMate. Vibe uses `vibe-acp`. Install the ACP entry point from the preset's registry link and
-make it available on PATH, or select its explicit path in advanced settings.
-
-Antigravity uses the registry's `--uid=` argument on Linux. Auggie and Droid
-receive the registry's auto-update suppression variables; explicit user environment
-values take precedence.
-Models and authentication must be configured in the CLI before use.
-
-Cursor's `cursor/ask_question` and `cursor/create_plan` blocking extensions use the
-existing question composer and approval flow. Question and option IDs are retained
-separately from display labels; choice-only prompts do not offer free-text answers.
-Plan approval is explicit, and stopping cancels outstanding requests. Controlled
-protocol processes cover selection, approval, rejection and cancellation. Real Cursor
-question/plan extension interactions remain unverified; authenticated text and native mode switching passed separately. Cherry does
-not invoke browser login automatically.
-
-Hermes interruption and application-restart recovery were revalidated on 2026-09-29,
-as recorded in the compatibility table. Earlier interrupted-output replay findings
-have been superseded by that acceptance run.
-
-System installation and uninstallation are available through registry recipes;
-existing CodeMate/system installations take precedence. Real CLI image input,
-Windows command wrappers, and unlisted preset/platform combinations remain pending.
-CLI history import, scheduled tasks, heartbeat, and native fork UI are not provided.
-Attachment acceptance on 2026-09-29 verified Kilo reading a real text attachment
-through an ACP resource link and returning its content. Pasted image bytes were
-persisted in Cherry, but Kilo Auto Free reported no vision support. A direct Hermes
-ACP image probe returned an incorrect description of a controlled test image, so
-neither combination is recorded as verified vision support. Controlled-process tests
-cover image payloads, embedded text/binary/empty resources, managed file IDs, encoded
-paths, and rejecting missing or unsupported attachments before dispatch.
-
-Mode/output capabilities have controlled-process coverage. Electron acceptance with
-a controlled ACP process verified thought/plan/diff rendering, persisted history
-after reload, and both themes. The real-agent run below additionally exercised tool output and native diff payloads.
-Image/audio/resource output still requires a real agent that emits those content types.
-
-### Real-agent acceptance, 2026-09-30
-
-The installed set was nine agents (seven ACP, two native) out of 32 presets.
-The other 23 presets were not installed and remain unverified. Each test used a
-separate system workspace and existing CLI credentials; no permission-bypass
-mode was enabled and existing global model selections were preserved.
-
-The real Electron main/preload/renderer and production database were used:
-
-1. Create an isolated session, verify a short reply, and retain a per-agent recall marker.
-2. Switch supported mode/reasoning controls to a safe alternative and restore the
-   original value. Copilot's generic `allow_all` option round-tripped `off`;
-   permissive alternatives were not enabled. Other tested ACP agents returned
-   no generic configuration options, so boolean configuration remains fixture-only.
-3. Read a unique marker file through the agent's tools. Confirm streamed chunks,
-   persisted tool data and the returned content in the real chat window.
-4. Release the warm lease and wait beyond its ten-second grace period. For the
-   eight original working configurations, verify their workspace process IDs
-   disappeared, then verify new process IDs, unchanged native resume IDs, correct
-   recall, and exactly two new Cherry messages (no replayed history). Claude's
-   temporary CLI-default configuration additionally passed release and recall;
-   its process IDs were not separately sampled.
-5. Abort on the first real text/reasoning delta. All nine attempts persisted as
-   `paused`; all nine subsequent turns returned `CONTINUE_OK` successfully.
-6. Create only `acceptance-result.txt` in each isolated workspace. Inspect the
-   requested path/content before allowing individual approval requests, then
-   compare actual file contents to the expected per-agent marker.
-
-| Output / configuration surface | Real evidence | Remaining boundary |
-|---|---|---|
-| Text, reasoning, file-read tools | All nine returned the correct file content; streamed deltas and persisted tool parts were inspected | Hermes tool completion missing, below |
-| ACP native diff content | pi, Antigravity, Copilot and Cursor emitted `type: diff` for the controlled write | Kilo and OpenCode writes completed without native diff content |
-| Approval presentation | Copilot, Antigravity, Hermes, Claude and Codex emitted approval requests | Denial, remembered grants and cancellation while awaiting approval were not revalidated in this run |
-| Generic configuration | Copilot `allow_all=off` accepted; native mode/reasoning changes restored successfully where safe alternatives existed | No real boolean option advertised by the tested agents |
-| Standalone image/audio/resource output | None of these turns emitted `data-acp-content` | Controlled-process coverage only; not certified as real-agent support |
-| Session titles | Copilot and Hermes updated generated titles; manually renamed titles survived connection release and reload | Other agents did not change titles in these turns; no forced conflicting title event was injected |
-| Notices, compaction events | Not emitted during the common acceptance turns | Kilo `/compact` separately succeeded without `compaction_update`; do not infer events from reply text |
-| Platform coverage | macOS ARM64 only | Windows and Linux still need real CLI acceptance |
-
-Real findings that keep full compatibility acceptance open:
-
-- **Hermes tool completion:** successful reads and writes left their execution
-  cards in `input-available`. A separate direct ACP read reproduced a lone
-  `tool_call` with no `tool_call_update`; the edit-approval card itself settled.
-  Cherry now persists a turn-ended marker and displays “Result not reported”
-  instead of leaving the card running. A fresh real write and the expanded
-  Electron tool card verified this behavior; execution success is not inferred.
-- **Antigravity duplicate approval:** one file creation emitted both a native
-  permission request and a subsequent `fs/write_text_file` request. Cherry asked
-  again for the file callback. Native approved diff content now authorizes only
-  one identical path/content write in the same turn. Changed or repeated writes
-  need a separate approval; unused grants expire at turn end. A fresh real
-  Antigravity creation completed with one approval and matching file contents.
-- **Claude model configuration:** expired OAuth blocked the first attempt. After
-  the user repaired authentication, the explicitly selected `claude-sonnet-4-6`
-  was rejected with HTTP 400 by the current endpoint. A temporary CLI-default
-  configuration passed all common conversation checks; this does not validate
-  the original model selection against that endpoint.
-
-A subsequent real Hermes turn was cancelled while awaiting edit approval; no file
-was written and the turn persisted as paused. Antigravity's second turn produced
-no response within the bounded follow-up, so real denial was not certified and
-the turn was stopped. Remembered option IDs and denial/cancel paths are covered
-by controlled protocol tests, not claimed as fresh real-agent acceptance.
+Authentication, backend availability and native database maintenance remain CLI-owned
+prerequisites. Cherry does not repair native databases, downgrade packages, or infer
+protocol failures from response prose. Presets describe connection recipes; supported
+capabilities come from the connected version, not a historical compatibility table.
+See the code-owned [preset catalog](../../../../src/shared/ai/localAgent.ts) and
+[installation recipes](../../../../src/main/ai/runtime/localAgent/installRecipe.ts).
 
 ## Structured questions
 
@@ -659,11 +440,7 @@ values in both renderer and main. Selection alone never submits a form; users ca
 review all fields and explicitly submit, decline, or cancel. Turn completion and
 connection shutdown release pending questions and approvals.
 
-Controlled protocol processes cover accepted, invalid, declined, cancelled,
-foreign-session and unsupported-mode requests. Electron acceptance verified
-numeric validation and submission of `{ count: 3, enabled: false }`. These tests
-verify Cherry's form flow; no installed real agent emitted standard elicitation
-during this run. Cursor's existing question extension remains supported.
+Cursor's question extension remains supported independently of standard elicitation.
 
 ## Validation
 
@@ -711,5 +488,5 @@ restrictions.
 Authentication has a five-minute timeout. Canceling, changing the program, closing
 the panel, or application shutdown releases the owned ACP process. Late responses
 cannot report success or persist credentials after cancellation. Sign-in refreshes
-the model catalog; the chat error's settings action opens the matching Agent in
-Agent services.
+the model catalog; native CLI authentication errors open the matching Agent in Agent services.
+Errors identifying a Cherry upstream provider retain that provider's recovery link.

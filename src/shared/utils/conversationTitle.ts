@@ -21,7 +21,3 @@ export function buildFirstUserMessageTitle(userText: string): string {
 export function normalizeConversationTitle(title: string | null | undefined): string {
   return (title ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
 }
-
-export function isOpenClawTechnicalTitle(title: string | null | undefined): boolean {
-  return /^(?:(?:agent:[^:]+:)?acp-bridge:|\[Working directory:)/i.test((title ?? '').trim())
-}

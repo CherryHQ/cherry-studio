@@ -334,6 +334,7 @@ export type SharedCacheSchema = {
   'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
+  'feature.openclaw.gateway_owned': boolean
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   'feature.deepseek_harness.status': ManagedToolStatusState
   'feature.local_agent.web_ui.status': Record<string, ManagedToolStatusState>
@@ -411,6 +412,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
+  'feature.openclaw.gateway_owned': false,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.local_agent.web_ui.status': {},

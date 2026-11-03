@@ -21,6 +21,7 @@ interface CodeCliContentPanelProps {
   versionStatus: VersionStatus
   versionCard: {
     visible: boolean
+    canStop?: boolean
     canLaunch: boolean
     launching: boolean
     running: boolean

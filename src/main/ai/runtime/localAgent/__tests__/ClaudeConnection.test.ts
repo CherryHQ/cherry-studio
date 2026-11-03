@@ -8,23 +8,33 @@ import { ClaudeConnection } from '../ClaudeConnection'
 
 const sdk = vi.hoisted(() => ({
   messages: [] as SDKMessage[],
+  openQueries: 0,
   returning: false,
   returnGate: undefined as Promise<void> | undefined
 }))
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: () => ({
-    supportedCommands: async () => [],
-    supportedModels: async () => [],
-    close() {},
-    async *[Symbol.asyncIterator]() {
-      try {
-        yield* sdk.messages
-      } finally {
-        sdk.returning = true
-        await sdk.returnGate
+  query: () => {
+    sdk.openQueries++
+    let closed = false
+    return {
+      supportedCommands: async () => [],
+      supportedModels: async () => [],
+      close() {
+        if (!closed) {
+          closed = true
+          sdk.openQueries--
+        }
+      },
+      async *[Symbol.asyncIterator]() {
+        try {
+          yield* sdk.messages
+        } finally {
+          sdk.returning = true
+          await sdk.returnGate
+        }
       }
     }
-  })
+  }
 }))
 vi.mock('../launch', () => ({ resolveLocalAgentLaunch: async () => ({ executable: 'claude', args: [], env: {} }) }))
 
@@ -72,12 +82,27 @@ async function run() {
 }
 
 beforeEach(() => {
+  sdk.openQueries = 0
   sdk.messages = []
   sdk.returning = false
   sdk.returnGate = undefined
 })
 
 describe('native Claude protocol mapping', () => {
+  it('does not allocate an SDK query after the connection closes during content preparation', async () => {
+    const connection = new ClaudeConnection('session', 'agent', {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    await connection.start('/tmp')
+    const sending = expect(connection.send(input)).rejects.toThrow('unavailable')
+    await connection.close()
+    await sending
+    expect(sdk.openQueries).toBe(0)
+  })
+
   it('admits the next turn only after the previous SDK iterator has closed', async () => {
     sdk.messages = [result()]
     let release!: () => void

@@ -139,7 +139,12 @@ export class CodexConnection extends LocalConnection {
           .array(
             z.union([
               z.enum(['accept', 'acceptForSession', 'decline', 'cancel']),
-              z.object({ acceptWithExecpolicyAmendment: z.object({ execpolicy_amendment: z.array(z.string()) }) })
+              z.object({ acceptWithExecpolicyAmendment: z.object({ execpolicy_amendment: z.array(z.string()) }) }),
+              z.object({
+                applyNetworkPolicyAmendment: z.object({
+                  network_policy_amendment: z.object({ host: z.string(), action: z.enum(['allow', 'deny']) })
+                })
+              })
             ])
           )
           .parse(params.availableDecisions ?? ['accept', 'acceptForSession', 'decline', 'cancel'])
@@ -157,11 +162,16 @@ export class CodexConnection extends LocalConnection {
                     ? 'deny'
                     : 'cancel',
           kind:
-            typeof decision !== 'string' || decision === 'acceptForSession'
-              ? 'allow_always'
-              : decision === 'accept'
-                ? 'allow_once'
-                : 'reject_once'
+            typeof decision !== 'string'
+              ? 'applyNetworkPolicyAmendment' in decision &&
+                decision.applyNetworkPolicyAmendment.network_policy_amendment.action === 'deny'
+                ? 'reject_always'
+                : 'allow_always'
+              : decision === 'acceptForSession'
+                ? 'allow_always'
+                : decision === 'accept'
+                  ? 'allow_once'
+                  : 'reject_once'
         }))
         const answer = await this.approve(
           String(params.itemId),
@@ -218,7 +228,10 @@ export class CodexConnection extends LocalConnection {
         .object({ status: z.string(), error: z.object({ message: z.string() }).nullish() })
         .parse(params.turn)
       this.turnId = undefined
-      this.finish(turn.status === 'failed' ? new Error(turn.error?.message ?? 'Codex turn failed') : undefined)
+      this.finish(
+        turn.status === 'failed' ? new Error(turn.error?.message ?? 'Codex turn failed') : undefined,
+        turn.status === 'interrupted' ? 'cancelled' : 'stop'
+      )
     }
     if (message.method === 'error' && params.willRetry !== true)
       this.finish(new Error(z.object({ message: z.string() }).parse(params.error).message))

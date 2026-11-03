@@ -62,6 +62,22 @@ describe('useOpenClawGatewayController', () => {
     vi.restoreAllMocks()
   })
 
+  it('offers stop capability only when main reports a Cherry-owned Gateway', () => {
+    cacheService.setShared('feature.openclaw.gateway_status', 'running')
+    cacheService.setShared('feature.openclaw.gateway_owned', false)
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+    expect(result.current.running).toBe(true)
+    expect(result.current.canStop).toBe(false)
+    act(() => cacheService.setShared('feature.openclaw.gateway_owned', true))
+    expect(result.current.canStop).toBe(true)
+  })
+
   it('adds a fresh navigation revision while preserving the dashboard token fragment', async () => {
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'running' })

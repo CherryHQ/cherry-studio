@@ -619,7 +619,7 @@ export const aiRequestSchemas = {
  */
 export type AiEventSchemas = {
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
-  'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo }
+  'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo | null }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload

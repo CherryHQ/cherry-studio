@@ -81,6 +81,33 @@ describe('global local agent model selection', () => {
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('custom/new')
   })
 
+  it('does not project global config edits onto an Agent with a separate config root', () => {
+    const agent = agentService.createAgentWithId('independent-claude', {
+      name: 'Separate Claude',
+      type: 'local',
+      model: null,
+      configuration: {
+        localRuntime: {
+          presetId: 'claude',
+          protocol: 'claude',
+          enabled: true,
+          args: [],
+          env: { CLAUDE_CONFIG_DIR: '/independent' },
+          nativeModel: 'private-model'
+        }
+      }
+    })
+    expect(
+      syncLocalAgentConfigModel(
+        CodeCli.CLAUDE_CODE,
+        [{ target: 'claude-settings', content: '{"model":"global-model","effortLevel":"high"}' }],
+        false,
+        {}
+      )
+    ).toBeUndefined()
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('private-model')
+  })
+
   it('keeps Poolside native and gateway defaults consistent with the saved Agent', async () => {
     const agent = agentService.createAgentWithId('local-poolside', {
       name: 'Poolside',

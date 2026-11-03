@@ -30,7 +30,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
-import { CLI_TOOLS } from '@renderer/components/icons/CliIcon'
+import {} from '@renderer/components/icons/CliIcon'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
 import { AgentUpgradeControl } from '@renderer/components/localAgent/AgentUpgradeControl'
@@ -84,10 +84,6 @@ const installErrorKeys = {
   stopping: 'local_agents.install_error.stopping'
 } as const
 
-const CLI_ONLY_TOOLS = CODE_CLI_TOOL_PRESETS.filter(
-  (tool) => !LOCAL_AGENT_PRESETS.some((preset) => codeCliForLocalAgent(preset.id) === tool.id)
-)
-
 const DEFAULT_AGENT_ORDER = new Map(
   [
     'claude',
@@ -130,14 +126,12 @@ const DEFAULT_AGENT_ORDER = new Map(
 const logger = loggerService.withContext('LocalAgentDirectory')
 
 export function LocalAgentDirectory({
-  renderCli,
   renderCliConfig,
   renderDetails = (props) => <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />,
   renderContextMenu
 }: {
   renderContextMenu?: (id: string, tool: CodeCli | undefined, name: string, row: ReactNode) => ReactNode
   renderCliConfig?: (tool: string) => ReactNode
-  renderCli?: (tool: CodeCli) => ReactNode
   renderDetails?: (props: ComponentProps<typeof LocalAgentDetails>) => ReactNode
 }) {
   const { t } = useTranslation()
@@ -186,41 +180,21 @@ export function LocalAgentDirectory({
     setPendingSelection(undefined)
     void navigate({ to: '/settings/local-agents', search: { id: selected }, replace: true })
   }, [navigate, selected])
-  const includeCli = !!renderCli
   const detectionRequest = useRef(0)
-  const refresh = useCallback(
-    async (manual = false) => {
-      const request = ++detectionRequest.current
-      setDetecting(true)
-      try {
-        const [localDetections, cliSnapshots] = await Promise.all([
-          ipcApi.request('ai.local_agents.detect', {}),
-          includeCli
-            ? ipcApi.request(
-                'binary.get_tool_snapshots',
-                CLI_ONLY_TOOLS.map((tool) => tool.executable)
-              )
-            : undefined
-        ])
-        if (request !== detectionRequest.current) return
-        setDetections([
-          ...localDetections,
-          ...(cliSnapshots
-            ? CLI_ONLY_TOOLS.map((tool) => ({
-                presetId: `cli:${tool.id}`,
-                ...(cliSnapshots[tool.executable]?.availability ?? { source: 'none' })
-              }))
-            : [])
-        ])
-      } catch (error) {
-        logger.warn('Failed to refresh local agent installations', error as Error)
-        if (manual && request === detectionRequest.current) toast.error(String(error))
-      } finally {
-        if (request === detectionRequest.current) setDetecting(false)
-      }
-    },
-    [includeCli]
-  )
+  const refresh = useCallback(async (manual = false) => {
+    const request = ++detectionRequest.current
+    setDetecting(true)
+    try {
+      const localDetections = await ipcApi.request('ai.local_agents.detect', {})
+      if (request !== detectionRequest.current) return
+      setDetections(localDetections)
+    } catch (error) {
+      logger.warn('Failed to refresh local agent installations', error as Error)
+      if (manual && request === detectionRequest.current) toast.error(String(error))
+    } finally {
+      if (request === detectionRequest.current) setDetecting(false)
+    }
+  }, [])
   const invalidateDetections = useCallback(() => {
     detectionRequest.current++
   }, [])
@@ -250,15 +224,7 @@ export function LocalAgentDirectory({
     })),
     ...localAgents
       .filter((a) => !a.configuration?.localRuntime?.presetId)
-      .map((agent) => ({ id: agent.id, name: agent.name, preset: undefined, agent })),
-    ...(renderCli
-      ? CLI_ONLY_TOOLS.map((tool) => ({
-          id: `cli:${tool.id}`,
-          name: t(CLI_TOOLS.find((entry) => entry.value === tool.id)!.label),
-          preset: undefined,
-          agent: undefined
-        }))
-      : [])
+      .map((agent) => ({ id: agent.id, name: agent.name, preset: undefined, agent }))
   ].sort(
     (a, b) =>
       getPriority(b) - getPriority(a) ||
@@ -268,9 +234,7 @@ export function LocalAgentDirectory({
   )
   const dragName = (id: string | number) => entries.find((entry) => entry.id === id)?.name ?? String(id)
   const entry = entries.find((e) => e.id === selected || e.agent?.id === selected)
-  const cliTool = entry?.preset
-    ? codeCliForLocalAgent(entry.preset.id)
-    : CODE_CLI_TOOL_PRESETS.find((tool) => entry?.id === `cli:${tool.id}`)?.id
+  const cliTool = entry?.preset ? codeCliForLocalAgent(entry.preset.id) : undefined
   useEffect(() => {
     if (pendingSelection && entry?.id.startsWith('cli:')) navigateToSelection()
   }, [pendingSelection, entry?.id, navigateToSelection])
@@ -442,34 +406,32 @@ export function LocalAgentDirectory({
         </div>
       </aside>
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {renderCli && cliTool && entry?.id.startsWith('cli:')
-          ? renderCli(cliTool)
-          : entry || selected === 'custom-new'
-            ? renderDetails({
-                installing: installingAgents.has(entry?.preset?.id ?? ''),
-                upgradeTargetVersion: installingAgents.get(entry?.preset?.id ?? ''),
-                onInstall: installAgent,
-                cliConfigEntry: renderCliConfig?.(cliTool ?? entry?.preset?.id ?? ''),
-                pendingSelection:
-                  pendingSelection &&
-                  pendingSelection !== selected &&
-                  pendingSelection !== entry?.id &&
-                  pendingSelection !== entry?.agent?.id
-                    ? pendingSelection
-                    : undefined,
-                onNavigate: navigateToSelection,
-                onCancelNavigation: cancelNavigation,
-                preset: entry?.preset,
-                agent: entry?.agent,
-                detection: detections.find((d) => d.presetId === entry?.preset?.id),
-                onSaved: async (id, refreshInstallations = true) => {
-                  await Promise.all([refetch(), refetchArchivedAgents()])
-                  setSelected(id)
-                  void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
-                  if (refreshInstallations) await refresh()
-                }
-              })
-            : null}
+        {entry || selected === 'custom-new'
+          ? renderDetails({
+              installing: installingAgents.has(entry?.preset?.id ?? ''),
+              upgradeTargetVersion: installingAgents.get(entry?.preset?.id ?? ''),
+              onInstall: installAgent,
+              cliConfigEntry: renderCliConfig?.(cliTool ?? entry?.preset?.id ?? ''),
+              pendingSelection:
+                pendingSelection &&
+                pendingSelection !== selected &&
+                pendingSelection !== entry?.id &&
+                pendingSelection !== entry?.agent?.id
+                  ? pendingSelection
+                  : undefined,
+              onNavigate: navigateToSelection,
+              onCancelNavigation: cancelNavigation,
+              preset: entry?.preset,
+              agent: entry?.agent,
+              detection: detections.find((d) => d.presetId === entry?.preset?.id),
+              onSaved: async (id, refreshInstallations = true) => {
+                await Promise.all([refetch(), refetchArchivedAgents()])
+                setSelected(id)
+                void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
+                if (refreshInstallations) await refresh()
+              }
+            })
+          : null}
       </main>
     </div>
   )

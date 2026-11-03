@@ -151,7 +151,14 @@ const finish = () => {
   else
     emit({
       method: 'turn/completed',
-      params: { threadId: 'native-session', turn: { id: 'turn', status: 'completed', error: null } }
+      params: {
+        threadId: 'native-session',
+        turn: {
+          id: 'turn',
+          status: scenario === 'interrupted' || scenario === 'cancel' ? 'interrupted' : 'completed',
+          error: null
+        }
+      }
     })
 }
 
@@ -822,7 +829,25 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })
       return
     }
-    if (scenario.startsWith('codex-approval-context-')) {
+    if (scenario.startsWith('codex-network-')) {
+      emit({
+        id: 'approval',
+        method: 'item/commandExecution/requestApproval',
+        params: {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'tool',
+          availableDecisions: [
+            {
+              applyNetworkPolicyAmendment: {
+                network_policy_amendment: { host: 'example.com', action: scenario.endsWith('deny') ? 'deny' : 'allow' }
+              }
+            },
+            'cancel'
+          ]
+        }
+      })
+    } else if (scenario.startsWith('codex-approval-context-')) {
       const type = scenario.endsWith('file') ? 'fileChange' : 'commandExecution'
       if (turn === 1)
         emit({
@@ -931,7 +956,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       params: {
         sessionId: 'native-session',
         command: process.execPath,
-        args: ['-e', 'process.stdout.write("terminal-result")'],
+        args: ['-e', 'process.stdout.write(process.env.APPROVAL_ENV)'],
+        env: [{ name: 'APPROVAL_ENV', value: 'terminal-result' }],
         outputByteLimit: 1024
       }
     })

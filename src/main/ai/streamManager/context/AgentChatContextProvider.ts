@@ -17,6 +17,7 @@ import {
   type ExpectedAgent
 } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { getProviderModelId } from '@shared/ai/executionIdentity'
@@ -26,7 +27,6 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isOpenClawTechnicalTitle } from '@shared/utils/conversationTitle'
 
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'

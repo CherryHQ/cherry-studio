@@ -1,7 +1,7 @@
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +11,6 @@ import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CodeCli } from '@shared/types/codeCli'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
-import { CodeCliConfiguration } from '../components/CodeCliConfiguration'
 import { LocalAgentCliConfig } from '../components/LocalAgentCliConfig'
 import { ManagedLocalAgentDetails } from '../components/ManagedLocalAgentDetails'
 
@@ -91,15 +90,6 @@ beforeEach(() => {
   )
 })
 
-function configured(tool: CodeCli) {
-  mockPreferenceState.set('feature.code_cli.configs', {
-    [tool]: {
-      current: 'deepseek',
-      providers: { deepseek: { modelId, config: { agentPreset: 'code', permissionMode: 'read-only' } } }
-    }
-  })
-}
-
 describe('managed local Agent details', () => {
   it('provides a native file editor for every preset with persistent configuration', () => {
     const missing = LOCAL_AGENT_PRESETS.filter((p) => p.id !== 'deepagents')
@@ -147,75 +137,4 @@ describe('managed local Agent details', () => {
       expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
     }
   )
-
-  it.each([CodeCli.DEEPSEEK_HARNESS, CodeCli.OPENCLAW] as const)(
-    'selects a model directly for %s without launching it',
-    async (tool) => {
-      render(<CodeCliConfiguration initialTool={tool} />)
-      const button = await screen.findByRole('button', { name: 'DeepSeek Chat' })
-      expect(screen.getByRole('tab', { name: '智能体模型' })).toBeDisabled()
-      expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
-      await userEvent.click(button)
-      await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'true'))
-      expect(mockPreferenceState.get('feature.code_cli.configs')[tool]).toMatchObject({
-        current: 'deepseek',
-        providers: { deepseek: { modelId } }
-      })
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '跟随 CLI' })).not.toBeInTheDocument()
-      expect(vi.mocked(ipcApi.request).mock.calls.some(([route]) => route.endsWith('.start'))).toBe(false)
-    }
-  )
-
-  it('launches DSH with the selected model and saved tool settings', async () => {
-    configured(CodeCli.DEEPSEEK_HARNESS)
-    render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} />)
-    await userEvent.click(screen.getByRole('button', { name: '启动服务' }))
-    await waitFor(() =>
-      expect(ipcApi.request).toHaveBeenCalledWith('deepseek_harness.start', {
-        mode: 'direct',
-        uniqueModelId: modelId,
-        agentPreset: 'code',
-        permissionMode: 'read-only'
-      })
-    )
-  })
-
-  it.each([
-    [CodeCli.DEEPSEEK_HARNESS, 'feature.deepseek_harness.status'],
-    [CodeCli.OPENCLAW, 'feature.openclaw.gateway_status']
-  ] as const)('locks model and config changes while %s runs', async (tool, key) => {
-    configured(tool)
-    MockUseCacheUtils.setSharedCacheValue(
-      key,
-      tool === CodeCli.OPENCLAW ? 'running' : { status: 'running', url: 'http://127.0.0.1:43123' }
-    )
-    render(<CodeCliConfiguration initialTool={tool} />)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'DeepSeek Chat' })).toBeDisabled())
-    expect(screen.getByRole('button', { name: '高级设置' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '升级' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '停止服务' })).toBeEnabled()
-  })
-
-  it('stops DSH before uninstalling and preserves its saved settings', async () => {
-    configured(CodeCli.DEEPSEEK_HARNESS)
-    const operations: string[] = []
-    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
-      if (route === 'deepseek_harness.stop') operations.push('stop')
-      return { success: true } as never
-    })
-    binaries.remove.mockImplementation(async () => {
-      operations.push('remove')
-      return true
-    })
-    render(<CodeCliConfiguration initialTool={CodeCli.DEEPSEEK_HARNESS} />)
-    await userEvent.click(screen.getByRole('button', { name: '卸载' }))
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /卸载|删除|确认/ }))
-    await waitFor(() => expect(operations).toEqual(['stop', 'remove']))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(mockPreferenceState.get('feature.code_cli.configs')[CodeCli.DEEPSEEK_HARNESS]).toMatchObject({
-      current: null,
-      providers: { deepseek: { modelId } }
-    })
-  })
 })

@@ -90,6 +90,23 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('invalidates local usage and cumulative cost after deleting their carrier message', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', data: { parts: [] } },
+      localSessionCost: { nativeSessionId: 'native', reportedAt: 1, cost: { currency: 'USD', amount: 0.2 } }
+    })
+    notifyDataApiDataChangeMock.mockClear()
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ endpoint: '/ai-usage-records/local', kind: 'membership' }),
+        expect.objectContaining({ endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId: SESSION_ID } })
+      ])
+    )
+  })
+
   it('stores the latest cumulative native-session snapshot without changing message content, activity or invocation costs', async () => {
     expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
     agentSessionMessageService.saveSessionCost(SESSION_ID, {

@@ -12,8 +12,12 @@ export function useLocalAgentSessionInfo(sessionId: string, enabled: boolean) {
   const scope = useMemo(() => ({ sessionId, enabled }), [sessionId, enabled])
   const [live, setLive] = useState<{ scope: typeof scope; info: LocalAgentSessionInfo } | null>(null)
 
-  const accept = useEffectEvent((info: LocalAgentSessionInfo, source: typeof scope) => {
+  const accept = useEffectEvent((info: LocalAgentSessionInfo | null, source: typeof scope) => {
     if (source !== scope) return
+    if (!info) {
+      setLive(null)
+      return
+    }
     setLive({ scope, info })
     const { mode, thoughtLevel, configOptions } = info
     setSnapshots((previous) =>

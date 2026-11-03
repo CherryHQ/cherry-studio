@@ -50,7 +50,7 @@ export async function getBinaryAgentInstallation(executable: string, detectedPat
   if (!match) return undefined
   const command = process.platform === 'win32' ? match[1].replace(/%%/g, '%') : match[1].replace(/'\\''/g, "'")
   if (wrapper !== systemAgentWrapper(command)) return undefined
-  const installationRoot = application.getPath('external.acp.agents')
+  const installationRoot = application.getPath('feature.acp.agents')
   const root = await fs.realpath(installationRoot)
   const resolvedCommand = await fs.realpath(command)
   const relative = path.relative(installationRoot, command).split(path.sep)
@@ -65,7 +65,7 @@ export async function getBinaryAgentInstallation(executable: string, detectedPat
 export async function uninstallBinaryAgent(executable: string, detectedPath: string): Promise<boolean> {
   const installed = await getBinaryAgentInstallation(executable, detectedPath)
   if (!installed) return false
-  const root = await fs.realpath(application.getPath('external.acp.agents'))
+  const root = await fs.realpath(application.getPath('feature.acp.agents'))
   for (const name of new Set(installed.retired)) {
     if (name !== path.basename(name) || !name.startsWith(`${executable}-`)) continue
     const bundle = path.join(root, name)

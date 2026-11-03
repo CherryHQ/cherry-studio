@@ -191,7 +191,7 @@ describe('MessageTokens', () => {
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
   })
 
-  it('hides the token entry for empty runtime token counters', () => {
+  it('hides unknown token counters while retaining measured performance details', () => {
     renderWithProvider(
       createMessage('assistant', {
         inputTokens: 0,
@@ -202,10 +202,17 @@ describe('MessageTokens', () => {
       })
     )
 
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Tokens/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More details' })).toBeEnabled()
   })
 
-  it('hides the token entry after reloading an Agent message with cost but no token counts', () => {
+  it('retains known historical timing when token counts are absent', () => {
+    renderWithProvider(createMessage('assistant', { timeCompletionMs: 1000 }))
+    expect(screen.getByRole('button', { name: 'More details' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /Tokens/ })).not.toBeInTheDocument()
+  })
+
+  it('retains known cost details after reloading a message without token counts', () => {
     const row = {
       id: 'agent-message-1',
       sessionId: 'agent-session-1',
@@ -236,7 +243,8 @@ describe('MessageTokens', () => {
 
     renderWithProvider(reloadedMessage, 'agent-session')
 
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Tokens/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cost' })).toBeEnabled()
   })
 
   it('loads the first invocation page when the card opens and defers full pagination until expansion', () => {

@@ -171,7 +171,12 @@ export class AgentSessionService {
     this.notifyReadModelChange(sessionIds, 'membership')
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
-      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
+      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' },
+      { endpoint: '/ai-usage-records/local', kind: 'membership' },
+      ...sessionIds.map((sessionId) => ({
+        endpoint: '/agent-sessions/:sessionId/cost' as const,
+        routeParams: { sessionId }
+      }))
     ])
   }
 
@@ -836,6 +841,7 @@ export class AgentSessionService {
       .run()
     if (!result.changes) return false
     this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([{ endpoint: '/ai-usage-records/local', kind: 'projection' }])
     this.sessionUpdated.fire({ sessionId: id })
     return true
   }
@@ -861,6 +867,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
+    if (dto.name !== undefined) notifyDataApiDataChange([{ endpoint: '/ai-usage-records/local', kind: 'projection' }])
     this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }

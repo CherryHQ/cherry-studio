@@ -492,6 +492,7 @@ export class CodeCliService extends BaseService {
   /** Apply a CLI draft and its Agent projection together, rejecting stale files inside the write queue. */
   public async writeConfigFiles(input: InputFor<'code_cli.write_config'>): Promise<void> {
     let agentId: string | undefined
+    const shellEnv = await getRawShellEnv()
     await this.updateConfigFiles(
       input.cliTool,
       input.expectedFiles?.map((file) => file.target) ?? [],
@@ -506,7 +507,7 @@ export class CodeCliService extends BaseService {
         return input.files
       },
       () => {
-        agentId = syncLocalAgentConfigModel(input.cliTool, input.files, input.preserveModelSource)
+        agentId = syncLocalAgentConfigModel(input.cliTool, input.files, input.preserveModelSource, shellEnv)
       }
     )
     if (agentId) notifyLocalModelChange(agentId)

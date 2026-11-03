@@ -729,16 +729,6 @@ describe('OpenClawService gateway status state machine', () => {
     )
   })
 
-  describe('getDashboardUrl', () => {
-    it('uses fragment token to keep dashboard auth client-side', () => {
-      // @ts-expect-error -- accessing private field for testing
-      service.gatewayAuthToken = 'a b+c'
-
-      const url = service.getDashboardUrl()
-      expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
-    })
-  })
-
   describe('gateway health probe', () => {
     it('uses the canonical /healthz endpoint when /health serves HTML', async () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -1684,6 +1674,27 @@ describe('OpenClawService gateway status state machine', () => {
       const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
       expect(written.gateway.auth).toEqual({ token: 'user-owned-token', mode: 'token', allowTailscale: true })
       expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
+    })
+
+    it('preserves password authentication and never bootstraps a random dashboard token', async () => {
+      const file = path.join(configDir, 'openclaw.json')
+      fs.writeFileSync(
+        file,
+        JSON.stringify({ gateway: { auth: { mode: 'password', password: 'native-password', token: 'stale-token' } } })
+      )
+      expect(await service.syncProviderConfig(legacyProvider, legacyModel)).toEqual({ success: true })
+      const written = JSON.parse(fs.readFileSync(file, 'utf8'))
+      expect(written.gateway.auth).toEqual({ mode: 'password', password: 'native-password', token: 'stale-token' })
+      expect(new URL(service.getDashboardUrl()).hash).toBe('')
+      expect(service.getDashboardUrl()).not.toContain('native-password')
+    })
+
+    it('bootstraps native token authentication in a client-side fragment', () => {
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({ gateway: { auth: { mode: 'token', token: 'a b+c' } } })
+      )
+      expect(service.getDashboardUrl()).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
     })
 
     it('uses edited Gateway credentials after saving a native config file', async () => {

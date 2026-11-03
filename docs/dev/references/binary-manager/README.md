@@ -3,6 +3,7 @@ description: Lifecycle service that acquires third-party CLI binaries through mi
 sources:
   - src/main/services/binaryManager/BinaryManager.ts
   - src/main/services/binaryManager/pythonRuntime.ts
+  - src/main/services/binaryManager/systemToolLocations.ts
   - src/shared/data/presets/binaryTools.ts
   - src/main/ipc/handlers/binary.ts
   - scripts/download-binaries.js
@@ -16,9 +17,16 @@ sources:
 
 ## Scope
 
+Code Mate installation is a domain-owned exception: `LocalAgentInstallService`
+installs Code CLI presets into the user system using their supported recipes.
+Do not route those installs through `installByName()` or create a shadow mise copy.
+BinaryManager snapshots still discover their runnable `availability`; managed-only
+inventory is not proof of system installation. MCP CLI listing and post-install
+checks combine that inventory with live Code CLI availability.
+
 BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
-Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
+Managed mise examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
 ## Tool definitions and runtime facts
 

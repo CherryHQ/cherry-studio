@@ -79,7 +79,7 @@ describe('writeCliConfigDraft', () => {
   it('rejects a tool without config files instead of sending IPC', async () => {
     await expect(
       writeCliConfigDraft({
-        cliTool: CodeCli.OPENCLAW,
+        cliTool: 'deepagents',
         files: [codexConfigDraft]
       })
     ).rejects.toThrow(/does not use config files/)

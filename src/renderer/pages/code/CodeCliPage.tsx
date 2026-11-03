@@ -6,7 +6,6 @@ import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { CodeCli } from '@shared/types/codeCli'
 
-import { CodeCliConfiguration } from './components/CodeCliConfiguration'
 import { LocalAgentCliConfig } from './components/LocalAgentCliConfig'
 import { LocalAgentDetails, LocalAgentDirectory } from './components/LocalAgentDirectory'
 import { ManagedLocalAgentDetails } from './components/ManagedLocalAgentDetails'
@@ -51,7 +50,6 @@ export default function CodeCliPage() {
           <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />
         )
       }
-      renderCli={(tool) => <CodeCliConfiguration key={tool} initialTool={tool} />}
     />
   )
 }

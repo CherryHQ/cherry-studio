@@ -96,6 +96,12 @@ export class DeepSeekHarnessService extends BaseService {
     })
   }
 
+  async applyModel(input: DeepSeekHarnessStartInput): Promise<void> {
+    await this.operationMutex.runExclusive(async () => {
+      await this.syncConfig(input)
+    })
+  }
+
   async prepareAgent(): Promise<string | undefined> {
     const state = application.get('PreferenceService').get('feature.code_cli.configs')[CodeCli.DEEPSEEK_HARNESS]
     if (!state?.current) return

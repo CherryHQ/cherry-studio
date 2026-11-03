@@ -3,14 +3,15 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { getCliConfigTargets, isFileConfiguredCli, isModelConfiguredCli } from '@shared/utils/cliConfig'
+import { getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import { readConfigFiles } from './file'
+import { isModelConfiguredCli } from './modelSupport'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
@@ -162,6 +163,16 @@ export async function writeCliConfigDraft(args: {
   writePrimaryModel?: boolean
   gateway?: CliConfigGatewayContext
 }): Promise<unknown> {
+  if (args.cliTool === CodeCli.DEEPSEEK_HARNESS) {
+    if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
+    const result = await ipcApi.request('deepseek_harness.apply_model', {
+      uniqueModelId: args.modelId,
+      mode: args.gateway ? 'gateway' : 'direct',
+      ...normalizeDeepSeekHarnessSettings(args.configBlob)
+    })
+    if (!result.success) throw new Error(result.message)
+    return
+  }
   if (args.cliTool === CodeCli.OPENCLAW) {
     if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
     const result = await ipcApi.request('openclaw.sync_config', { uniqueModelId: args.modelId })

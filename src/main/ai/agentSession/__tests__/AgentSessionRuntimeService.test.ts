@@ -4788,6 +4788,7 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'local',
+        getExecutionId: () => (enabled ? 'runtime:agent-1' : undefined),
         capabilities: ['agent-session'],
         connect: async () => connection,
         validateSession: vi.fn(),

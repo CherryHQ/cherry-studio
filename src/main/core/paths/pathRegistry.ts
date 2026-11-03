@@ -343,7 +343,7 @@ export function buildPathRegistry() {
       'uv',
       'uv.toml'
     ),
-    'external.acp.agents': isWin
+    'feature.acp.agents': isWin
       ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'Programs', 'ACP', 'agents')
       : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
     'external.acp.bin': path.join(sysHome, '.local', 'bin'),
@@ -351,6 +351,25 @@ export function buildPathRegistry() {
     'external.antigravity.cli.file': isWin
       ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
       : path.join(sysHome, '.local', 'bin', 'agy'),
+    'external.xdg.config': path.join(sysHome, '.config'),
+    'external.windows.roaming': path.join(sysHome, 'AppData', 'Roaming'),
+    'external.omp.config': path.join(sysHome, '.omp'),
+    'external.omp.agent': path.join(sysHome, '.omp', 'agent'),
+    'external.zcode_acp.config': path.join(sysHome, '.config', 'zcode-acp'),
+    'external.glm_acp.config': path.join(sysHome, '.config', 'glm-acp-agent'),
+    'external.cline.data': path.join(sysHome, '.cline', 'data'),
+    'external.kilo.config': path.join(sysHome, '.config', 'kilo'),
+    'external.goose.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'Block', 'goose', 'config')
+      : path.join(sysHome, '.config', 'goose'),
+    'external.devin.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'devin')
+      : path.join(sysHome, '.config', 'devin'),
+    'external.trae.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'trae_cli')
+      : isMac
+        ? path.join(sysHome, 'Library', 'Application Support', 'trae_cli')
+        : path.join(sysHome, '.config', 'trae_cli'),
     'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
@@ -434,6 +453,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.acp.agents',
   // Namespace prefixes
   'sys.',
   'external.',

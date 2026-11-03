@@ -378,6 +378,17 @@ describe('DeepSeekHarnessService', () => {
     await service.stop()
   })
 
+  it('applies native defaults without starting a WebUI process', async () => {
+    const service = new DeepSeekHarnessService()
+    await service.applyModel(startInput)
+    expect(mocks.writeConfig).toHaveBeenCalledWith(
+      '/mock/home/.dsh',
+      expect.objectContaining({ modelId: 'claude-sonnet' })
+    )
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
   it('uses an enabled API key obtained through CherryIN-style OAuth in direct mode', async () => {
     mocks.providerGet.mockReturnValue({ ...provider, authType: 'oauth' })
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))

@@ -322,9 +322,3 @@ export function isFileConfiguredCli(cliTool: string): cliTool is FileConfiguredC
 export function getCliConfigTargets(cliTool: string): readonly CliConfigTarget[] {
   return isFileConfiguredCli(cliTool) ? CLI_CONFIG_TARGETS[cliTool] : []
 }
-
-const MODEL_CONFIGURED_CLI_TOOLS: ReadonlySet<string> = new Set(MODEL_CONFIGURED_CLI_TOOL_IDS)
-
-export function isModelConfiguredCli(cliTool: string): cliTool is ModelConfiguredCli {
-  return MODEL_CONFIGURED_CLI_TOOLS.has(cliTool)
-}

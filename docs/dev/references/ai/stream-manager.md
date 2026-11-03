@@ -228,7 +228,7 @@ each event by calling these methods uniformly:
 ```typescript
 interface StreamListener {
   readonly id: string
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: ExecutionId, anchorMessageId?: string): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
   onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
@@ -337,7 +337,7 @@ committed. Per-chunk delivery is unaffected.
 ```typescript
 interface ActiveStream {
   topicId: string
-  executions: Map<UniqueModelId, StreamExecution>   // 1 entry single-model, N multi-model
+  executions: Map<ExecutionId, StreamExecution>   // 1 entry single-model, N multi-model
   listeners: Map<string, StreamListener>            // shared across executions
   // 'pending' on creation; flips to 'streaming' on first chunk; derived
   // from executions on terminal (done / aborted / error /
@@ -350,7 +350,7 @@ interface ActiveStream {
 }
 
 interface StreamExecution {
-  modelId: UniqueModelId
+  modelId: ExecutionId
   anchorMessageId?: string  // placeholder id for submit/regen, anchor id for continue
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
@@ -528,7 +528,7 @@ class AiStreamManager {
 interface SendInput {
   topicId: string
   models: ReadonlyArray<{
-    modelId: UniqueModelId
+    modelId: ExecutionId
     request: AiStreamRequest
     runtimeTimingSeed?: MessageRuntimeTiming
     seedFromEmpty?: boolean
@@ -918,7 +918,7 @@ interface ChatContextProvider {
 
 interface PreparedDispatch {
   topicId: string
-  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
+  models: ReadonlyArray<{ modelId: ExecutionId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
   pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
   reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch

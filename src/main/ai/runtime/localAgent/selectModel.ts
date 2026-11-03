@@ -11,23 +11,7 @@ import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@sh
 
 import { readNativeModelConfig, updateNativeModelConfig } from './nativeModelConfig'
 
-export async function selectLocalAgentModel(
-  agentId: string,
-  nativeModel?: string,
-  selection: {
-    sourceModelId?: UniqueModelId
-    sourceModelViaGateway?: boolean
-    files?: CliConfigWriteFile[]
-    expectedFiles?: { target: CliConfigTarget; content: string | null }[]
-  } = {}
-) {
-  const agent = agentService.getAgent(agentId)
-  const config = agent?.configuration?.localRuntime
-  const native = config?.presetId && LOCAL_AGENT_MODEL_CONFIG[config.presetId]
-  if (!agent || agent.type !== 'local' || !config || !native) {
-    throw new Error(t('code_cli.model.unsupported'))
-  }
-  const shellEnv = await getRawShellEnv()
+function hasConfigOverrides(env: Record<string, string>, shellEnv: Record<string, string | undefined>) {
   const overrides = [
     'HOME',
     'USERPROFILE',
@@ -52,12 +36,30 @@ export async function selectLocalAgentModel(
     'POOLSIDE_STANDALONE_BASE_URL',
     'POOLSIDE_STANDALONE_MODEL'
   ]
-  if (
-    overrides.some((key) => {
-      const override = getEnvironmentValue(config.env, key)
-      return override !== undefined && override !== getEnvironmentValue(shellEnv, key)
-    })
-  ) {
+  return overrides.some((key) => {
+    const override = getEnvironmentValue(env, key)
+    return override !== undefined && override !== getEnvironmentValue(shellEnv, key)
+  })
+}
+
+export async function selectLocalAgentModel(
+  agentId: string,
+  nativeModel?: string,
+  selection: {
+    sourceModelId?: UniqueModelId
+    sourceModelViaGateway?: boolean
+    files?: CliConfigWriteFile[]
+    expectedFiles?: { target: CliConfigTarget; content: string | null }[]
+  } = {}
+) {
+  const agent = agentService.getAgent(agentId)
+  const config = agent?.configuration?.localRuntime
+  const native = config?.presetId && LOCAL_AGENT_MODEL_CONFIG[config.presetId]
+  if (!agent || agent.type !== 'local' || !config || !native) {
+    throw new Error(t('code_cli.model.unsupported'))
+  }
+  const shellEnv = await getRawShellEnv()
+  if (hasConfigOverrides(config.env, shellEnv)) {
     throw new Error(t('code_cli.model.environment_mismatch'))
   }
   if (selection.sourceModelId && !selection.files?.length) throw new Error(t('code_cli.model.provider_config_missing'))
@@ -114,7 +116,8 @@ export async function selectLocalAgentModel(
 export function syncLocalAgentConfigModel(
   tool: FileConfiguredCli,
   files: CliConfigWriteFile[],
-  preserveModelSource = false
+  preserveModelSource = false,
+  shellEnv: Record<string, string | undefined> = {}
 ): string | undefined {
   const entry = Object.entries(LOCAL_AGENT_MODEL_CONFIG).find(([, config]) => config.tool === tool)
   if (!entry) return
@@ -123,7 +126,7 @@ export function syncLocalAgentConfigModel(
   const agent = agentService
     .listAgents()
     .agents.find((agent) => agent.configuration?.localRuntime?.presetId === presetId)
-  if (!agent?.configuration?.localRuntime) return
+  if (!agent?.configuration?.localRuntime || hasConfigOverrides(agent.configuration.localRuntime.env, shellEnv)) return
   const nativeModel =
     file?.content === undefined
       ? agent.configuration.localRuntime.nativeModel

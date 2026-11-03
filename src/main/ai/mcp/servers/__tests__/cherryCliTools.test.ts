@@ -4,6 +4,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManager = {
+  getToolSnapshots: vi.fn(),
   getToolInventory: vi.fn(),
   searchRegistry: vi.fn(),
   installByName: vi.fn(),
@@ -52,6 +53,7 @@ function json(result: Result) {
 describe('cherry-tools CLI tools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    binaryManager.getToolSnapshots.mockResolvedValue({})
     binaryManager.getToolInventory.mockResolvedValue([])
     binaryManager.searchRegistry.mockResolvedValue([])
     binaryManager.installByName.mockResolvedValue(undefined)
@@ -66,7 +68,6 @@ describe('cherry-tools CLI tools', () => {
   it('advertises the thin list/search/install surface', async () => {
     const { tools } = await (await connectCli()).listTools()
     expect(tools.map((tool) => tool.name)).toEqual([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, CLI_INSTALL_TOOL_NAME])
-    expect(tools.find((tool) => tool.name === CLI_LIST_TOOL_NAME)?.description).toContain('system PATH')
     expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
     expect(tools.find((tool) => tool.name === CLI_INSTALL_TOOL_NAME)?.inputSchema.required).toEqual(['name', 'tool'])
   })
@@ -143,6 +144,19 @@ describe('cherry-tools CLI tools', () => {
     expect(codeCliService.installCli).toHaveBeenCalledWith({ name: 'codex', targetVersion: '1.2.3' })
     expect(binaryManager.installByName).not.toHaveBeenCalled()
     expect(result.isError).toBeFalsy()
+  })
+
+  it('reports a globally installed Code CLI as runnable without a managed copy', async () => {
+    binaryManager.getToolInventory.mockResolvedValue([{ name: 'codex', recipe: 'codex', status: 'not_installed' }])
+    binaryManager.getToolSnapshots.mockResolvedValue({
+      codex: { name: 'codex', availability: { source: 'system', path: '/usr/local/bin/codex' } }
+    })
+    const result = await call(CLI_INSTALL_TOOL_NAME, { name: 'codex', tool: 'codex' })
+    expect(result.isError).toBeFalsy()
+    expect(json(result).tool.status).toBe('ready')
+    expect(json(await call(CLI_LIST_TOOL_NAME, {})).tools).toContainEqual(
+      expect.objectContaining({ name: 'codex', status: 'ready' })
+    )
   })
 
   it('persists an arbitrary valid mise backend through BinaryManager', async () => {

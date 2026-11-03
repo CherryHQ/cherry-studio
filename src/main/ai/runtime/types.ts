@@ -14,6 +14,7 @@ import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { Tool } from '@shared/ai/tool'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -201,6 +202,7 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  readonly sessionCostScope?: 'native-session'
   readonly localSessionInfo?: LocalAgentSessionInfo
   setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
   setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
@@ -258,6 +260,7 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  getExecutionId?(agent: AgentEntity): ExecutionId | undefined
   /** Native artifact ownership and checkpoint remapping before session recovery. */
   readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */

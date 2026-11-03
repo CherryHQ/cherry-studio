@@ -26,7 +26,7 @@ export function ManagedLocalAgentDetails({
           running={web.running}
           pending={web.launching || web.stopping}
           onStart={content.onLaunch}
-          onStop={content.onStop}
+          onStop={web.canStop === false ? undefined : content.onStop}
           onOpen={content.onOpenDashboard}
         />
       )}>

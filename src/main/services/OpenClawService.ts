@@ -296,6 +296,8 @@ export interface OpenClawConfig {
     mode?: 'local' | 'remote'
     port?: number
     auth?: {
+      mode?: 'token' | 'password' | 'none' | 'trusted-proxy'
+      password?: string
       token?: string
     }
   }
@@ -419,6 +421,7 @@ export class OpenClawService extends BaseService {
 
   protected async onInit(): Promise<void> {
     application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
+    application.get('CacheService').setShared('feature.openclaw.gateway_owned', false)
   }
 
   protected async onReady(): Promise<void> {
@@ -452,6 +455,7 @@ export class OpenClawService extends BaseService {
 
   /** Single gateway-status-transition point for the main-owned shared snapshot. */
   private setGatewayStatus(status: GatewayStatus, options?: { force?: boolean }): void {
+    application.get('CacheService').setShared('feature.openclaw.gateway_owned', !!this.gatewayProcess)
     if (!options?.force && this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
@@ -1061,9 +1065,7 @@ export class OpenClawService extends BaseService {
    */
   public getDashboardUrl(): string {
     // Ensure we have the token (may have been lost after app restart)
-    if (!this.gatewayAuthToken) {
-      this.loadAuthTokenFromConfig()
-    }
+    this.loadAuthTokenFromConfig()
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
       // Use query string (not URL fragment) so dashboard app state can persist correctly.
@@ -1077,11 +1079,13 @@ export class OpenClawService extends BaseService {
    * Load auth token from the config file (for recovery after app restart).
    */
   private loadAuthTokenFromConfig(): void {
+    this.gatewayAuthToken = ''
     try {
       if (fs.existsSync(openclawConfigPath())) {
         const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
         const config = JSON.parse(content) as OpenClawConfig
-        const token = config.gateway?.auth?.token
+        const auth = config.gateway?.auth
+        const token = !auth?.mode || auth.mode === 'token' ? auth?.token : undefined
         if (token) {
           this.gatewayAuthToken = token
           logger.info('Recovered auth token from config file')
@@ -1399,8 +1403,9 @@ export class OpenClawService extends BaseService {
       config.gateway.port = this.gatewayPort
       // Auto-generate auth token if not already set. Publish it in memory only after
       // the candidate is valid and the formal config write succeeds.
-      const token = config.gateway.auth?.token || this.gatewayAuthToken || this.generateAuthToken()
-      config.gateway.auth = { ...config.gateway.auth, token }
+      const tokenMode = !config.gateway.auth?.mode || config.gateway.auth.mode === 'token'
+      const token = tokenMode ? config.gateway.auth?.token || this.gatewayAuthToken || this.generateAuthToken() : ''
+      if (tokenMode) config.gateway.auth = { ...config.gateway.auth, token }
 
       // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
       // BinaryManager installed and version-tracks; the hint has no env kill switch
