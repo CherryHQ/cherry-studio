@@ -6,6 +6,7 @@ import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@renderer/data/CacheService'
+import { AgentBrowserView } from '@renderer/pages/agents/components/AgentRightPane/AgentBrowserView'
 import {
   agentBrowserRuntimeService as runtime,
   topicBrowserRuntimeService as topicRuntime
@@ -14,6 +15,8 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { BrowserCursorState } from '@shared/types/browserCursor'
 
 import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
+
+vi.unmock('@cherrystudio/ui')
 
 const bridge = vi.hoisted(() => ({
   listeners: new Map<string, (input: unknown) => void>(),
@@ -116,6 +119,237 @@ describe('AgentBrowserRuntimeHost', () => {
     runtime.dispose()
     topicRuntime.dispose()
     vi.unstubAllGlobals()
+  })
+
+  it('clears the guest when the host unmounts', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    expect(runtime.get('session-a')?.guest).not.toBeNull()
+    const dispose = vi.spyOn(runtime, 'dispose').mockImplementation(() => {})
+    view.unmount()
+    dispose.mockRestore()
+    expect(runtime.get('session-a')?.guest).toBeNull()
+    expect(runtime.get('session-a')?.ready).toBe(false)
+  })
+
+  it('retains the crash reason when the host unmounts', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    act(() => {
+      view.getByTestId('webview-browser-guest').dispatchEvent(new Event('render-process-gone'))
+    })
+    expect(runtime.get('session-a')?.recoveryReason).toBe('render-process-gone')
+    const dispose = vi.spyOn(runtime, 'dispose').mockImplementation(() => {})
+    view.unmount()
+    dispose.mockRestore()
+    expect(runtime.get('session-a')?.recoveryReason).toBe('render-process-gone')
+  })
+
+  it('preserves the session and presentation when resetting a healthy guest', () => {
+    runtime.ensure('session-a', 'https://example.com/original', 'agent-dev-preview')
+    const guest = document.createElement('webview')
+    const anchor = document.createElement('div')
+    const overlays = document.createElement('div')
+    runtime.update('session-a', { guest, anchor, overlays, url: 'https://example.com/committed', failed: true })
+    void runtime.recover('session-a')
+    const replacement = runtime.get('session-a')
+    expect(replacement).toMatchObject({
+      guest: null,
+      anchor,
+      overlays,
+      sourceUrl: 'https://example.com/committed',
+      securityProfile: 'agent-dev-preview',
+      guestRevision: 1,
+      failed: false,
+      ready: false,
+      loading: true
+    })
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')).toBe(replacement)
+    runtime.reconcileOwners(new Set(['tab-a']))
+    expect(runtime.get('session-a')).toBe(replacement)
+  })
+
+  it('preserves the committed location when a retained guest changes destination', () => {
+    runtime.ensure('session-a', 'https://example.com/a')
+    const guest = document.createElement('webview')
+    runtime.installGuest('session-a', guest)
+    runtime.updateGuest('session-a', guest, { url: 'https://example.com/committed-a' })
+    runtime.ensure('session-a', 'https://example.com/b')
+    expect(runtime.get('session-a')).toMatchObject({
+      sourceUrl: 'https://example.com/b',
+      url: 'https://example.com/committed-a'
+    })
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')?.sourceUrl).toBe('https://example.com/committed-a')
+  })
+
+  it('recovers an artifact that crashes before its first commit from the artifact URL', () => {
+    runtime.ensure('session-a', 'https://example.com/page')
+    const httpGuest = document.createElement('webview')
+    runtime.installGuest('session-a', httpGuest)
+    runtime.updateGuest('session-a', httpGuest, {
+      ready: true,
+      loading: false,
+      url: 'https://example.com/committed'
+    })
+    expect(runtime.get('session-a')?.url).toBe('https://example.com/committed')
+
+    act(() => runtime.ensure('session-a', 'file:///workspace/artifact.html'))
+    expect(runtime.get('session-a')).toMatchObject({ securityProfile: 'agent-html-artifact', url: '' })
+    const artifactGuest = document.createElement('webview')
+    runtime.installGuest('session-a', artifactGuest)
+    runtime.reportGuestHealth('session-a', artifactGuest, 'render-process-gone')
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')).toMatchObject({
+      sourceUrl: 'file:///workspace/artifact.html',
+      securityProfile: 'agent-html-artifact',
+      guest: null,
+      recoveryReason: undefined
+    })
+  })
+
+  it('keeps the committed location of a recovered guest across its replacement', () => {
+    runtime.ensure('session-a', 'https://example.com/original')
+    const guest = document.createElement('webview')
+    runtime.update('session-a', { guest, url: 'https://example.com/committed' })
+    void runtime.recover('session-a')
+    expect(runtime.get('session-a')?.sourceUrl).toBe('https://example.com/committed')
+
+    const replacement = document.createElement('webview')
+    runtime.installGuest('session-a', replacement)
+    expect(runtime.get('session-a')).toMatchObject({ url: '', sourceUrl: 'https://example.com/committed' })
+  })
+
+  it('latches guest death and recovers the committed location with a new guest', async () => {
+    let nextId = 40
+    const ids = new WeakMap<HTMLElement, number>()
+    Object.assign(HTMLElement.prototype, {
+      getWebContentsId: function (this: HTMLElement) {
+        if (!ids.has(this)) ids.set(this, ++nextId)
+        return ids.get(this)
+      },
+      isLoading: () => true
+    })
+    runtime.ensure('session-a', 'https://example.com/original', 'agent-dev-preview')
+    const view = render(<Harness visible />)
+    const old = view.getByTestId('webview-browser-guest')
+    await waitFor(() => expect(bridge.binding).toBe(41))
+    const committed = 'https://example.com/path?q=1#section'
+    act(() => {
+      old.dispatchEvent(Object.assign(new Event('did-navigate'), { url: committed }))
+    })
+    act(() => {
+      old.dispatchEvent(new Event('render-process-gone'))
+    })
+    expect(runtime.get('session-a')).toMatchObject({
+      recoveryReason: 'render-process-gone',
+      ready: false,
+      loading: false
+    })
+    act(() =>
+      bridge.listeners.get('browser.guest.ensure_requested')?.({
+        kind: 'health',
+        sessionId: 'session-a',
+        scope: 'agent',
+        webviewId: 41,
+        status: 'responsive'
+      })
+    )
+    expect(runtime.get('session-a')?.recoveryReason).toBe('render-process-gone')
+    act(() => {
+      void runtime.recover('session-a')
+      void runtime.recover('session-a')
+    })
+    const replacement = view.getByTestId('webview-browser-guest')
+    expect(replacement).not.toBe(old)
+    expect(runtime.get('session-a')).toMatchObject({
+      sourceUrl: committed,
+      securityProfile: 'agent-dev-preview',
+      guestRevision: 1
+    })
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    act(() => {
+      old.dispatchEvent(Object.assign(new Event('page-title-updated'), { title: 'stale' }))
+    })
+    expect(runtime.get('session-a')?.title).not.toBe('stale')
+    const successor = runtime.get('session-a')!
+    act(() => {
+      runtime.updateGuest('session-a', old as Electron.WebviewTag, { ready: true, loading: false, title: 'stale' })
+      runtime.reportGuestHealth('session-a', old as Electron.WebviewTag, 'unresponsive')
+    })
+    expect(runtime.get('session-a')).toBe(successor)
+  })
+
+  it('clears the crash alert when an HTML artifact installs a new guest', async () => {
+    Object.assign(HTMLElement.prototype, {
+      canGoBack: () => false,
+      canGoForward: () => false,
+      stopFindInPage: () => {}
+    })
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(
+      <>
+        <AgentBrowserView
+          sessionId="session-a"
+          securityProfile="agent-browser"
+          onNavigate={vi.fn()}
+          target={{ id: 'agent-browser:session-a', label: 'Browser' }}
+          isHostActive
+        />
+        <AgentBrowserRuntimeHost />
+      </>
+    )
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const old = view.getByTestId('webview-browser-guest')
+    act(() => {
+      old.dispatchEvent(new Event('render-process-gone'))
+    })
+    expect(view.getByRole('alert')).toBeInTheDocument()
+    act(() => runtime.ensure('session-a', 'file:///workspace/artifact.html'))
+    const next = view.getByTestId('webview-browser-guest')
+    expect(next).not.toBe(old)
+    act(() => {
+      next.dispatchEvent(new Event('dom-ready'))
+    })
+    expect(runtime.get('session-a')).toMatchObject({ recoveryReason: undefined, ready: true, failed: false })
+    expect(view.queryByRole('alert')).not.toBeInTheDocument()
+    const state = runtime.get('session-a')
+    act(() => {
+      old.dispatchEvent(new Event('did-finish-load'))
+    })
+    expect(runtime.get('session-a')).toBe(state)
+    expect(runtime.get('session-a')?.recoveryReason).toBeUndefined()
+    for (const key of ['canGoBack', 'canGoForward', 'stopFindInPage'])
+      Reflect.deleteProperty(HTMLElement.prototype, key)
+  })
+
+  it('handles health notifications only for the current guest without ensuring a resource', async () => {
+    const ensure = vi.spyOn(runtime, 'ensure')
+    runtime.ensure('session-a', 'https://example.com/')
+    render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    ensure.mockClear()
+    const notify = (webviewId: number, status: 'unresponsive' | 'responsive') =>
+      act(() =>
+        bridge.listeners.get('browser.guest.ensure_requested')?.({
+          kind: 'health',
+          sessionId: 'session-a',
+          scope: 'agent',
+          webviewId,
+          status
+        })
+      )
+    notify(99, 'unresponsive')
+    expect(runtime.get('session-a')?.recoveryReason).toBeUndefined()
+    notify(42, 'unresponsive')
+    expect(runtime.get('session-a')?.recoveryReason).toBe('unresponsive')
+    notify(42, 'responsive')
+    expect(runtime.get('session-a')?.recoveryReason).toBeUndefined()
+    expect(ensure).not.toHaveBeenCalled()
+    ensure.mockRestore()
   })
 
   it.each([

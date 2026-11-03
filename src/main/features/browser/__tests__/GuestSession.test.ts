@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events'
+
 import type { Protocol } from 'devtools-protocol'
 import { afterEach, assertType, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
@@ -21,6 +23,381 @@ afterEach(() => {
 })
 
 describe('GuestSession command lifetime', () => {
+  it('invalidates refs and rejects work when the renderer dies without detach or destruction', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) => {
+      if (method === 'DOM.getDocument') return Promise.resolve({ root: { backendNodeId: 1 } })
+      if (method === 'Accessibility.queryAXTree')
+        return Promise.resolve({ nodes: [{ backendDOMNodeId: 2, role: { value: 'button' }, name: { value: 'Go' } }] })
+      return fallback(method, params)
+    })
+    const { matches } = await session.find({ role: 'button' })
+    expect(session.resolveRef(matches[0].ref)).toBe(2)
+    const started = new Signal<void>()
+    mock.debugger.sendCommand.mockImplementation(async () => {
+      started.resolve()
+      return new Promise(() => undefined)
+    })
+    const pending = expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    await started
+    mock.crash()
+    expect(() => session.resolveRef(matches[0].ref)).toThrow(expect.objectContaining({ code: 'stale_ref' }))
+    await pending
+    const count = mock.debugger.sendCommand.mock.calls.length
+    await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    expect(mock.debugger.sendCommand.mock.calls).toHaveLength(count)
+    expect(mock.debugger.isAttached()).toBe(true)
+    expect(mock.isDestroyed()).toBe(false)
+    expect(mock.close).not.toHaveBeenCalled()
+  })
+
+  it('rearms a crashed session on dom-ready without reviving old refs', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) => {
+      if (method === 'DOM.getDocument') return Promise.resolve({ root: { backendNodeId: 1 } })
+      if (method === 'Accessibility.queryAXTree')
+        return Promise.resolve({ nodes: [{ backendDOMNodeId: 2, role: { value: 'button' }, name: { value: 'Go' } }] })
+      return fallback(method, params)
+    })
+    const { matches } = await session.find({ role: 'button' })
+    mock.crash()
+    await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    mock.recover()
+    await expect(session.send('Runtime.enable')).resolves.toBeDefined()
+    expect(mock.debugger.attach).toHaveBeenCalledTimes(2)
+    expect(() => session.resolveRef(matches[0].ref)).toThrow(expect.objectContaining({ code: 'stale_ref' }))
+  })
+
+  it.each(['before', 'after'] as const)(
+    'dismisses a recovery startup dialog when frame navigation arrives %s the dialog',
+    async (navigationOrder) => {
+      vi.useFakeTimers()
+      const { guest, mock } = createGuest()
+      const session = new GuestSession(guest, 'managed')
+      sessions.push(session)
+      await session.send('Runtime.enable')
+      mock.crash()
+      mock.isCrashed.mockReturnValue(false)
+      const commands = mock.debugger.sendCommand.mock.calls.length
+      await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      await expect(session.send('Page.handleJavaScriptDialog', { accept: false })).rejects.toMatchObject({
+        code: 'debugger_unavailable'
+      })
+      const operation = vi.fn(async () => 'must not execute')
+      await expect(session.run(operation)).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      await expect(session.observe()).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      await expect(session.snapshot()).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      expect(operation).not.toHaveBeenCalled()
+      expect(mock.debugger.sendCommand.mock.calls).toHaveLength(commands)
+
+      const navigate = () =>
+        mock.debugger.emit('message', {}, 'Page.frameNavigated', { frame: { id: 'main', loaderId: 'recovered' } })
+      if (navigationOrder === 'before') navigate()
+      const dialog = { type: 'alert', message: 'Startup alert' }
+      mock.debugger.emit('message', {}, 'Page.javascriptDialogOpening', dialog)
+      expect.soft(session.pendingDialog).toEqual(dialog)
+      if (navigationOrder === 'after') navigate()
+      expect.soft(session.pendingDialog).toEqual(dialog)
+      await expect.soft(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'dialog_open' })
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(mock.debugger.sendCommand).toHaveBeenCalledWith('Page.handleJavaScriptDialog', { accept: false })
+      expect(session.pendingDialog).toBeUndefined()
+      expect(session.takeEvents()).toEqual({ dismissedDialog: dialog })
+      expect(session.isAvailable()).toBe(false)
+      await expect(session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      mock.recover()
+      await expect(session.send('Runtime.enable')).resolves.toBeDefined()
+    }
+  )
+
+  it('retains recovered startup requests before and after dom-ready', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    mock.crash()
+    mock.isCrashed.mockReturnValue(false)
+    const requests: string[] = []
+    session.onEvent((event) => {
+      if (event.method === 'Network.requestWillBeSent') requests.push(event.params.request.url)
+    })
+    mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+      requestId: 'startup',
+      type: 'Document',
+      request: { method: 'GET', url: 'https://example.com/startup', headers: {} }
+    })
+    expect.soft(requests).toEqual(['https://example.com/startup'])
+    expect(() => session.networkRequests()).toThrow(expect.objectContaining({ code: 'debugger_unavailable' }))
+    mock.recover()
+    await session.send('Runtime.enable')
+    mock.debugger.emit('message', {}, 'Network.loadingFinished', { requestId: 'startup' })
+    expect(session.networkRequests().requests).toEqual([
+      expect.objectContaining({ requestId: 'startup', url: 'https://example.com/startup', state: 'completed' })
+    ])
+  })
+
+  it('re-arms download observation once when a managed guest recovers', () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(1)
+    fixture.mock.crash()
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(0)
+    fixture.mock.recover()
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(1)
+    fixture.mock.crash()
+    fixture.mock.recover()
+    expect(fixture.mock.session.listenerCount('will-download')).toBe(1)
+
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'after-recovery.txt' })
+    fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'after-recovery.txt', state: 'progressing' }] })
+    expect(session.busy).toBe(true)
+    item.emit('done', {}, 'completed')
+    expect(session.busy).toBe(false)
+  })
+
+  it.each(['completed', 'cancelled', 'interrupted'])(
+    'keeps an in-flight managed download busy across a crash until it is %s',
+    async (state) => {
+      const fixture = createGuest()
+      const session = new GuestSession(fixture.guest, 'managed')
+      sessions.push(session)
+      const item = Object.assign(new EventEmitter(), { getFilename: () => 'in-flight.txt' })
+      fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+      expect(session.busy).toBe(true)
+      fixture.mock.crash()
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      fixture.mock.recover()
+      await session.send('Runtime.enable')
+      expect(session.busy).toBe(true)
+      item.emit('done', {}, state)
+      expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'in-flight.txt', state }] })
+      expect(item.listenerCount('updated')).toBe(0)
+      expect(item.listenerCount('done')).toBe(0)
+      expect(session.busy).toBe(false)
+    }
+  )
+
+  it('keeps the same in-flight download through two crash/recovery cycles and reports completion once', async () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'two-cycles.txt' })
+    fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+    expect(session.busy).toBe(true)
+    expect(item.listenerCount('updated')).toBe(1)
+    expect(item.listenerCount('done')).toBe(1)
+    for (let cycle = 0; cycle < 2; cycle++) {
+      fixture.mock.crash()
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      fixture.mock.recover()
+      await session.send('Runtime.enable')
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+    }
+    item.emit('done', {}, 'completed')
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'two-cycles.txt', state: 'completed' }] })
+    expect(session.takeEvents()).toEqual({})
+    expect(item.listenerCount('updated')).toBe(0)
+    expect(item.listenerCount('done')).toBe(0)
+    expect(session.busy).toBe(false)
+  })
+
+  it('preserves recorded download progress and keeps receiving updates while crashed', () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    const item = Object.assign(new EventEmitter(), { getFilename: () => 'progress.txt' })
+    fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+    item.emit('updated', {}, 'interrupted')
+    fixture.mock.crash()
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'progress.txt', state: 'interrupted' }] })
+    item.emit('updated', {}, 'progressing')
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'progress.txt', state: 'progressing' }] })
+    item.emit('done', {}, 'completed')
+    expect(session.takeEvents()).toEqual({ downloads: [{ filename: 'progress.txt', state: 'completed' }] })
+    expect(session.busy).toBe(false)
+  })
+
+  it.each(['active', 'crashed', 'recovered'])(
+    'disposes an in-flight download in a %s managed session',
+    async (phase) => {
+      const fixture = createGuest()
+      const session = new GuestSession(fixture.guest, 'managed')
+      sessions.push(session)
+      const item = Object.assign(new EventEmitter(), { getFilename: () => 'disposed.txt' })
+      fixture.mock.session.emit('will-download', {}, item, fixture.guest)
+      if (phase !== 'active') fixture.mock.crash()
+      if (phase === 'recovered') {
+        fixture.mock.recover()
+        await session.send('Runtime.enable')
+      }
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      session.dispose()
+      expect(fixture.mock.session.listenerCount('will-download')).toBe(0)
+      expect(item.listenerCount('updated')).toBe(0)
+      expect(item.listenerCount('done')).toBe(0)
+      expect(session.busy).toBe(false)
+      expect(session.takeEvents()).toEqual({})
+      item.emit('updated', {}, 'progressing')
+      item.emit('done', {}, 'completed')
+      expect(session.takeEvents()).toEqual({})
+    }
+  )
+
+  it.each([false, true])(
+    'drops borrowed download tracking on the last observer release (crashed: %s)',
+    async (crash) => {
+      const { guest, session, mock } = setup()
+      const handle = await session.observe()
+      const item = Object.assign(new EventEmitter(), { getFilename: () => 'borrowed.txt' })
+      mock.session.emit('will-download', {}, item, guest)
+      expect(session.busy).toBe(true)
+      if (crash) mock.crash()
+      expect(session.busy).toBe(true)
+      expect(item.listenerCount('updated')).toBe(1)
+      expect(item.listenerCount('done')).toBe(1)
+      handle.dispose()
+      expect(mock.session.listenerCount('will-download')).toBe(0)
+      expect(item.listenerCount('updated')).toBe(0)
+      expect(item.listenerCount('done')).toBe(0)
+      expect(session.busy).toBe(false)
+      expect(session.takeEvents()).toEqual({})
+      item.emit('done', {}, 'completed')
+      expect(session.takeEvents()).toEqual({})
+    }
+  )
+
+  it('immediately restores network observation after a managed guest recovers', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    const before = mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+    mock.crash()
+    mock.recover()
+    // CDP stops delivering Network events when detached, so check the connection and domain re-enablement.
+    await vi.waitFor(() => {
+      expect(mock.debugger.isAttached()).toBe(true)
+      expect(
+        mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+      ).toBeGreaterThan(before)
+    })
+    mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+      requestId: 'after-recovery',
+      type: 'Fetch',
+      request: { method: 'GET', url: 'https://example.com/after', headers: {} }
+    })
+    expect(session.networkRequests().requests.map((request) => request.url)).toContain('https://example.com/after')
+  })
+
+  it('reattaches and restores network observation when Electron detached after a crash', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    const before = mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+    mock.crash()
+    mock.debugger.detach()
+    mock.recover()
+    await vi.waitFor(() => {
+      expect(mock.debugger.isAttached()).toBe(true)
+      expect(
+        mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Network.enable').length
+      ).toBeGreaterThan(before)
+    })
+  })
+
+  it('leaves a borrowed guest without an observer detached after recovery', async () => {
+    const { session, mock } = setup()
+    await session.send('Runtime.enable')
+    mock.crash()
+    mock.recover()
+    expect(mock.debugger.isAttached()).toBe(false)
+  })
+
+  it('waits for recovery before dispatching a concurrent command', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    const started = new Signal<void>()
+    const resume = new Signal<object>()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) => {
+      if (method === 'Page.enable') {
+        started.resolve()
+        return Promise.resolve(resume)
+      }
+      return fallback(method, params)
+    })
+    mock.crash()
+    mock.recover()
+    await started
+    const command = session.send('Runtime.enable')
+    expect(mock.debugger.attach).toHaveBeenCalledTimes(1)
+    resume.resolve({})
+    await expect(command).resolves.toBeDefined()
+    expect(mock.debugger.attach).toHaveBeenCalledTimes(1)
+  })
+
+  it('detaches after recovery initialization fails and retries on the next command', async () => {
+    const { guest, mock } = createGuest()
+    const session = new GuestSession(guest, 'managed')
+    sessions.push(session)
+    await session.send('Runtime.enable')
+    mock.crash()
+    mock.debugger.sendCommand.mockRejectedValueOnce(new Error('recovery failed'))
+    mock.recover()
+    await vi.waitFor(() => expect(mock.debugger.isAttached()).toBe(false))
+    await expect(session.send('Runtime.enable')).resolves.toBeDefined()
+    expect(mock.debugger.isAttached()).toBe(true)
+  })
+
+  it('keeps observing downloads after recovery while an observe() handle is held', async () => {
+    const { session, mock } = setup()
+    const handle = await session.observe()
+    mock.crash()
+    mock.recover()
+    expect(mock.session.listenerCount('will-download')).toBe(1)
+    handle.dispose()
+    expect(mock.session.listenerCount('will-download')).toBe(0)
+  })
+
+  it('cancels queued actions on death and prevents an active action from succeeding', async () => {
+    const { session, mock } = setup()
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const active = session.run(async () => {
+      started.resolve()
+      await resume
+      return 'stale'
+    })
+    const rejected = expect(active).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    await started
+    let executed = false
+    const queued = expect(
+      session.run(async () => {
+        executed = true
+      })
+    ).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    mock.crash()
+    await queued
+    resume.resolve()
+    await rejected
+    expect(executed).toBe(false)
+  })
+
   it('captures an occluded webview and stops producing frames after the result', async () => {
     const { session, mock } = setup()
     mock.getType.mockReturnValue('webview')

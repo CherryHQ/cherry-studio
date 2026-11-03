@@ -59,6 +59,31 @@ function setup(historyEnabled = true, url = 'https://current.test/') {
 }
 
 describe('Browser address history', () => {
+  it('enables recovery reload while navigation remains disabled', async () => {
+    const onReload = vi.fn()
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <I18nextProvider i18n={i18n}>
+          <WebviewNavigation
+            initialUrl="https://example.com/"
+            webviewRef={{ current: null }}
+            webviewRevision={0}
+            isWebviewReady={false}
+            canReload
+            isHostActive
+            target={{ id: 'test', label: 'Browser' }}
+            onReload={onReload}
+          />
+        </I18nextProvider>
+      </SWRConfig>
+    )
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Forward' })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Web address' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Reload' }))
+    expect(onReload).toHaveBeenCalledOnce()
+  })
+
   it('loads history only on focus, deduplicates URLs and opens a searched result with the keyboard', async () => {
     const user = userEvent.setup()
     const { address, loadURL } = setup()

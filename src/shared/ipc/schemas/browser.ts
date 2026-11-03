@@ -63,6 +63,14 @@ export type BrowserEventSchemas = {
     expiresAt: number
   }
   'browser.cursor.state': BrowserCursorState
-  'browser.guest.ensure_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
+  'browser.guest.ensure_requested':
+    | { kind?: 'ensure'; sessionId: string; scope?: 'agent' | 'topic'; url?: string }
+    | {
+        kind: 'health'
+        sessionId: string
+        scope: 'agent' | 'topic'
+        webviewId: number
+        status: 'unresponsive' | 'responsive' | 'render-process-gone'
+      }
   'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
 }

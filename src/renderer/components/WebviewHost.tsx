@@ -6,6 +6,7 @@ import type {
   IpcMessageEvent,
   PageFaviconUpdatedEvent,
   PageTitleUpdatedEvent,
+  RenderProcessGoneEvent,
   WebviewTag
 } from 'electron'
 import type { CSSProperties } from 'react'
@@ -35,9 +36,10 @@ interface Props {
   onWebviewChange?: (webview: WebviewTag | null) => void
   onFocusChange?: (focused: boolean) => void
   onDomReady?: (webview: WebviewTag) => void
-  onDidStartLoading?: () => void
+  onRenderProcessGone?: (event: RenderProcessGoneEvent) => void
+  onDidStartLoading?: (guest: WebviewTag) => void
   onDidStartNavigation?: (event: DidStartNavigationEvent) => void
-  onDidFinishLoad?: () => void
+  onDidFinishLoad?: (guest: WebviewTag) => void
   onReadyToShow?: () => void
   onDidNavigate?: (event: DidNavigateEvent | DidNavigateInPageEvent) => void
   onDidFailLoad?: (event: DidFailLoadEvent) => void
@@ -65,6 +67,7 @@ export function WebviewHost({
   onWebviewChange,
   onFocusChange,
   onDomReady,
+  onRenderProcessGone,
   onDidStartLoading,
   onDidStartNavigation,
   onDidFinishLoad,
@@ -128,9 +131,9 @@ export function WebviewHost({
     applyGuestPreferences(guest)
     onDomReady?.(guest)
   })
-  const handleStartLoading = useEffectEvent(() => {
+  const handleStartLoading = useEffectEvent((guest: WebviewTag) => {
     readyWebviewRef.current = null
-    onDidStartLoading?.()
+    onDidStartLoading?.(guest)
   })
   const handleNavigate = useEffectEvent((event: DidNavigateEvent | DidNavigateInPageEvent) => {
     if (webview && (!('isMainFrame' in event) || event.isMainFrame)) {
@@ -139,7 +142,8 @@ export function WebviewHost({
     onDidNavigate?.(event)
   })
   const handleStartNavigation = useEffectEvent((event: DidStartNavigationEvent) => onDidStartNavigation?.(event))
-  const handleFinishLoad = useEffectEvent(() => onDidFinishLoad?.())
+  const handleFinishLoad = useEffectEvent((guest: WebviewTag) => onDidFinishLoad?.(guest))
+  const handleRenderProcessGone = useEffectEvent((event: RenderProcessGoneEvent) => onRenderProcessGone?.(event))
   const handleReadyToShow = useEffectEvent(() => onReadyToShow?.())
   const handleFailLoad = useEffectEvent((event: DidFailLoadEvent) => onDidFailLoad?.(event))
   const handleTitleUpdated = useEffectEvent((event: PageTitleUpdatedEvent) => onPageTitleUpdated?.(event))
@@ -150,6 +154,8 @@ export function WebviewHost({
   useEffect(() => {
     if (!webview) return
     const domReady = () => handleDomReady(webview)
+    const startLoading = () => handleStartLoading(webview)
+    const finishLoad = () => handleFinishLoad(webview)
 
     // Replay the guest's keydown on the host window so the normal keybinding
     // resolution (find-in-page and friends) sees it; `target` identifies the webview.
@@ -167,10 +173,11 @@ export function WebviewHost({
     webview.addEventListener('focus', handleFocus)
     webview.addEventListener('blur', handleBlur)
     webview.addEventListener('ipc-message', handleGuestKeydown)
+    webview.addEventListener('render-process-gone', handleRenderProcessGone)
     webview.addEventListener('dom-ready', domReady)
-    webview.addEventListener('did-start-loading', handleStartLoading)
+    webview.addEventListener('did-start-loading', startLoading)
     webview.addEventListener('did-start-navigation', handleStartNavigation)
-    webview.addEventListener('did-finish-load', handleFinishLoad)
+    webview.addEventListener('did-finish-load', finishLoad)
     webview.addEventListener('ready-to-show', handleReadyToShow)
     webview.addEventListener('did-navigate', handleNavigate)
     webview.addEventListener('did-navigate-in-page', handleNavigate)
@@ -190,10 +197,11 @@ export function WebviewHost({
       webview.removeEventListener('blur', handleBlur)
       handleBlur()
       webview.removeEventListener('ipc-message', handleGuestKeydown)
+      webview.removeEventListener('render-process-gone', handleRenderProcessGone)
       webview.removeEventListener('dom-ready', domReady)
-      webview.removeEventListener('did-start-loading', handleStartLoading)
+      webview.removeEventListener('did-start-loading', startLoading)
       webview.removeEventListener('did-start-navigation', handleStartNavigation)
-      webview.removeEventListener('did-finish-load', handleFinishLoad)
+      webview.removeEventListener('did-finish-load', finishLoad)
       webview.removeEventListener('ready-to-show', handleReadyToShow)
       webview.removeEventListener('did-navigate', handleNavigate)
       webview.removeEventListener('did-navigate-in-page', handleNavigate)

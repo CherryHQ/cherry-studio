@@ -28,6 +28,22 @@ describe('WebviewHost', () => {
     vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
   })
 
+  it('forwards process death details and removes the listener on unmount', () => {
+    const onGone = vi.fn()
+    const view = render(
+      <WebviewHost id="death" src="about:blank" partition="persist:webview" onRenderProcessGone={onGone} />
+    )
+    const guest = view.container.querySelector('webview')!
+    const details = { reason: 'crashed', exitCode: 1 }
+    act(() => {
+      guest.dispatchEvent(Object.assign(new Event('render-process-gone'), { details }))
+    })
+    expect(onGone.mock.calls[0][0].details).toEqual(details)
+    view.unmount()
+    guest.dispatchEvent(Object.assign(new Event('render-process-gone'), { details }))
+    expect(onGone).toHaveBeenCalledTimes(1)
+  })
+
   it('owns the common guest lifecycle without MiniApp-specific state', async () => {
     const onWebviewChange = vi.fn()
     const onNavigate = vi.fn()

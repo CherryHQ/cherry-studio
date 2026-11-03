@@ -80,11 +80,13 @@ export function useAgentBrowserGuest(
       })
     }
     guest.addEventListener('dom-ready', attach)
+    guest.addEventListener('did-attach', attach)
     attach()
     return () => {
       cancelled = true
       unsubscribeFocus()
       guest.removeEventListener('dom-ready', attach)
+      guest.removeEventListener('did-attach', attach)
       if (tabId) {
         const detachedId = tabId
         void queue

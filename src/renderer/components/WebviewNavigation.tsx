@@ -27,6 +27,7 @@ interface Props {
   pageTitle?: string
   historyEnabled?: boolean
   isWebviewReady: boolean
+  canReload?: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
   onReload?: () => void
@@ -52,6 +53,7 @@ export function WebviewNavigation({
   pageTitle,
   historyEnabled = false,
   isWebviewReady,
+  canReload,
   isHostActive,
   target,
   onReload,
@@ -259,7 +261,7 @@ export function WebviewNavigation({
             type="button"
             variant="ghost"
             size="icon-sm"
-            disabled={!isWebviewReady}
+            disabled={!(canReload ?? isWebviewReady)}
             onClick={handleReload}
             className={navigationButtonClassName}
             aria-label={t('webview.navigation.reload')}>

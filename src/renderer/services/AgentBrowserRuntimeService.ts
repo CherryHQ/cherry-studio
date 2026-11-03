@@ -2,6 +2,7 @@ import type { WebviewTag } from 'electron'
 
 import { cacheService } from '@renderer/data/CacheService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { classifyTurn } from '@shared/ai/transport'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
@@ -13,11 +14,14 @@ export interface AgentBrowserResource {
   overlays: HTMLElement | null
   reloadKey?: number | string
   guest: WebviewTag | null
+  /** Last location committed by the current guest; empty until it commits. */
   url: string
   title: string
   ready: boolean
   loading: boolean
   failed: boolean
+  recoveryReason?: 'render-process-gone' | 'unresponsive'
+  guestRevision: number
 }
 
 /** Browser instances outlive presentation subscriptions and retain active Agent turns without a tab. */
@@ -58,7 +62,10 @@ export class AgentBrowserRuntimeService {
     const securityProfile = sourceUrl.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : profile
     if (existing) {
       if (existing.sourceUrl !== sourceUrl || existing.securityProfile !== securityProfile) {
-        this.update(sessionId, { sourceUrl, securityProfile })
+        const replacesGuest =
+          getGuestAuthorizationKey(existing.securityProfile, existing.sourceUrl) !==
+          getGuestAuthorizationKey(securityProfile, sourceUrl)
+        this.update(sessionId, { sourceUrl, securityProfile, ...(replacesGuest ? { url: '' } : {}) })
       }
       return
     }
@@ -73,7 +80,8 @@ export class AgentBrowserRuntimeService {
       guest: null,
       ready: false,
       loading: true,
-      failed: false
+      failed: false,
+      guestRevision: 0
     })
     this.ids = [...this.resources.keys()]
     this.emit()
@@ -88,6 +96,69 @@ export class AgentBrowserRuntimeService {
       return
     this.resources.set(sessionId, { ...existing, ...patch })
     this.emit()
+  }
+
+  installGuest(sessionId: string, guest: WebviewTag | null): void {
+    const resource = this.get(sessionId)
+    if (!resource) return
+    if (guest === null) {
+      // Unmounting leaves no guest; retain the crash reason for the old guest.
+      this.update(sessionId, { guest: null, ready: false, loading: false, title: '' })
+      return
+    }
+    if (resource.guest === guest) return
+    // A new guest replaces the old one, so its crash reason no longer applies.
+    this.update(sessionId, {
+      guest,
+      url: '',
+      ready: false,
+      loading: true,
+      failed: false,
+      title: '',
+      recoveryReason: undefined
+    })
+  }
+
+  updateGuest(
+    sessionId: string,
+    guest: WebviewTag,
+    patch: Partial<Pick<AgentBrowserResource, 'ready' | 'loading' | 'failed' | 'url' | 'title'>>
+  ): void {
+    const resource = this.get(sessionId)
+    if (!resource || resource.guest !== guest) return
+    this.update(
+      sessionId,
+      resource.recoveryReason === 'render-process-gone' ? { ...patch, ready: false, loading: false } : patch
+    )
+  }
+
+  reportGuestHealth(
+    sessionId: string,
+    guest: WebviewTag,
+    status: 'render-process-gone' | 'unresponsive' | 'responsive'
+  ): void {
+    const resource = this.get(sessionId)
+    if (!resource || resource.guest !== guest) return
+    if (status === 'render-process-gone')
+      this.update(sessionId, { recoveryReason: status, ready: false, loading: false })
+    else if (status === 'unresponsive' && resource.recoveryReason !== 'render-process-gone')
+      this.update(sessionId, { recoveryReason: status })
+    else if (status === 'responsive' && resource.recoveryReason === 'unresponsive')
+      this.update(sessionId, { recoveryReason: undefined })
+  }
+
+  async recover(sessionId: string): Promise<void> {
+    const resource = this.get(sessionId)
+    if (!resource?.guest) return
+    this.update(sessionId, {
+      sourceUrl: resource.url || resource.sourceUrl,
+      guest: null,
+      failed: false,
+      ready: false,
+      loading: true,
+      recoveryReason: undefined,
+      guestRevision: resource.guestRevision + 1
+    })
   }
 
   reconcileOwners(tabIds: ReadonlySet<string>): void {
