@@ -68,6 +68,9 @@ derived resources.
 Restore applies to the explicitly selected entity. Independent related Sessions
 remain independently restorable. Owned child archives follow their root Session's
 archive, restore, and permanent deletion; they are not independent restore targets.
+Reassigning the root to another Agent updates its child archives in the same
+transaction. Only the root owns their shared system workspace, so storage operations
+process it once under the root's identity; deleting a child cannot remove that workspace.
 Undo supplies explicit entity
 IDs; no temporary restore snapshot or archive-operation journal is stored in DB.
 Pins removed at archive time are not recreated. Session archive retains the
