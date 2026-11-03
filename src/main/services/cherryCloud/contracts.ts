@@ -125,8 +125,7 @@ export const cloudModelListSchema = z.looseObject({
   )
 })
 
-// Provisional notification payloads, limited to the fields the client relies on, until the backend publishes
-// the field documentation for /api/v1/notifications.
+// The fields of the CN client notification protocol (cloud-api `api/control-cn/notifications.yaml`) the client relies on.
 export const notificationReadySchema = z.looseObject({ cursor: z.string().min(1) })
 
 export const cloudNotificationSchema = z.looseObject({
@@ -136,8 +135,11 @@ export const cloudNotificationSchema = z.looseObject({
 })
 
 export const cloudNotificationPageSchema = z.looseObject({
-  notifications: z.array(cloudNotificationSchema),
-  next_cursor: z.string().min(1).nullable()
+  items: z.array(cloudNotificationSchema),
+  next_cursor: z.string().min(1),
+  has_more: z.boolean()
 })
+
+export const notificationErrorFrameSchema = z.looseObject({ error: z.looseObject({ code: z.string() }) })
 
 export type CloudNotification = z.infer<typeof cloudNotificationSchema>

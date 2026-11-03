@@ -10,6 +10,7 @@ import {
   type CloudNotification,
   cloudNotificationPageSchema,
   cloudNotificationSchema,
+  notificationErrorFrameSchema,
   notificationReadySchema
 } from './contracts'
 
@@ -21,11 +22,32 @@ const PAGE_LIMIT = 50
 const RETRY_MIN_MS = 1_000
 const RETRY_MAX_MS = 60_000
 const SEEN_ID_LIMIT = 500
+// The server sends a heartbeat every 15 seconds; three missed ones mean a dead connection.
+const IDLE_TIMEOUT_MS = 45_000
 
 /** The backend has the notification endpoints switched off; focus refresh stays the only path. */
 class NotificationsUnavailableError extends Error {}
 /** The stored cursor is no longer valid; the next connection starts from a new baseline. */
 class CursorRejectedError extends Error {}
+/** The server is rate limiting or unavailable and asked the client to wait before reconnecting. */
+class RetryLaterError extends Error {
+  constructor(
+    status: number,
+    readonly retryAfterMs: number
+  ) {
+    super(`Cherry Cloud notification request failed (${status})`)
+  }
+}
+
+const isCursorRejection = (code: string | null) => code === 'INVALID_CURSOR' || code === 'RESYNC_REQUIRED'
+
+function retryAfterMs(response: Response): number {
+  const header = response.headers.get('Retry-After')
+  if (!header) return 0
+  const seconds = Number(header)
+  const ms = Number.isFinite(seconds) ? seconds * 1_000 : Date.parse(header) - Date.now()
+  return Number.isFinite(ms) ? Math.min(Math.max(ms, 0), RETRY_MAX_MS) : 0
+}
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -91,6 +113,7 @@ export class CherryCloudNotificationService extends BaseService {
   private async run(accountId: string, signal: AbortSignal): Promise<void> {
     let retryMs = RETRY_MIN_MS
     while (!signal.aborted) {
+      let serverDelayMs = 0
       try {
         const cursor = this.storedCursor(accountId)
         if (cursor) await this.catchUp(accountId, cursor, signal)
@@ -102,11 +125,12 @@ export class CherryCloudNotificationService extends BaseService {
           this.saveCursor(accountId, null)
           continue
         }
+        if (error instanceof RetryLaterError) serverDelayMs = error.retryAfterMs
         logger.warn('Cherry Cloud notification stream interrupted', {
           reason: error instanceof Error ? error.message : String(error)
         })
       }
-      await wait(retryMs * (0.5 + Math.random()), signal)
+      await wait(Math.max(retryMs * (0.5 + Math.random()), serverDelayMs), signal)
       retryMs = Math.min(retryMs * 2, RETRY_MAX_MS)
     }
   }
@@ -118,25 +142,71 @@ export class CherryCloudNotificationService extends BaseService {
       const query = new URLSearchParams({ after, limit: String(PAGE_LIMIT) })
       const response = await this.request(`${PAGE_PATH}?${query}`, signal)
       const page = cloudNotificationPageSchema.parse(await response.json())
-      const unseen = page.notifications.filter((notification) => !this.seenIds.has(notification.id))
+      const unseen = page.items.filter((notification) => !this.seenIds.has(notification.id))
       if (unseen.some(asksForRefresh)) await this.refreshAccount(signal)
       unseen.forEach((notification) => this.remember(notification.id))
-      after = page.next_cursor ?? page.notifications.at(-1)?.cursor ?? after
+      after = page.next_cursor
       this.saveCursor(accountId, after)
-      if (!page.next_cursor || page.notifications.length === 0) return
+      if (!page.has_more) return
     }
   }
 
   private async listen(accountId: string, signal: AbortSignal, onReady: () => void): Promise<void> {
+    const connection = new AbortController()
+    const close = () => connection.abort()
+    signal.addEventListener('abort', close, { once: true })
+    // Heartbeats are SSE comments the parser drops, so liveness is measured on the raw text; a silent
+    // connection is failed here because aborting the request does not always end its body.
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+    let fail: (error: Error) => void = () => undefined
+    const watch = () => {
+      clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => {
+        fail(new Error('Cherry Cloud notification stream stopped sending heartbeats'))
+        close()
+      }, IDLE_TIMEOUT_MS)
+    }
+    const heartbeat = new TransformStream<string, string>({
+      start(controller) {
+        fail = (error) => controller.error(error)
+        watch()
+      },
+      transform(chunk, controller) {
+        watch()
+        controller.enqueue(chunk)
+      }
+    })
+    try {
+      await this.readStream(accountId, connection.signal, heartbeat, onReady)
+    } finally {
+      clearTimeout(idleTimer)
+      signal.removeEventListener('abort', close)
+    }
+  }
+
+  private async readStream(
+    accountId: string,
+    signal: AbortSignal,
+    heartbeat: TransformStream<string, string>,
+    onReady: () => void
+  ): Promise<void> {
     const cursor = this.storedCursor(accountId)
     const query = cursor ? `?${new URLSearchParams({ after: cursor })}` : ''
     const response = await this.request(`${STREAM_PATH}${query}`, signal, { Accept: 'text/event-stream' })
     if (!response.body) throw new Error('Cherry Cloud notification stream has no body')
 
-    const events = response.body.pipeThrough(new TextDecoderStream()).pipeThrough(new EventSourceParserStream())
+    const events = response.body
+      .pipeThrough(new TextDecoderStream())
+      .pipeThrough(heartbeat)
+      .pipeThrough(new EventSourceParserStream())
     for await (const event of events) {
       if (signal.aborted) return
-      if (event.event === 'ready') {
+      if (event.event === 'error') {
+        // Error frames end the connection and never advance the cursor.
+        const code = notificationErrorFrameSchema.safeParse(JSON.parse(event.data)).data?.error.code ?? null
+        if (isCursorRejection(code)) throw new CursorRejectedError()
+        throw new Error(`Cherry Cloud notification stream error (${code ?? 'unknown'})`)
+      } else if (event.event === 'ready') {
         this.saveCursor(accountId, notificationReadySchema.parse(JSON.parse(event.data)).cursor)
         onReady()
         await this.refreshAccount(signal)
@@ -172,11 +242,11 @@ export class CherryCloudNotificationService extends BaseService {
       .authenticatedFetch(path, { method: 'GET', headers, signal })
     if (response.ok) return response
     if (response.status === 404) throw new NotificationsUnavailableError()
-    const code = await errorCode(response)
-    if (
-      (response.status === 400 && code === 'INVALID_CURSOR') ||
-      (response.status === 410 && code === 'RESYNC_REQUIRED')
-    ) {
+    if (response.status === 429 || response.status === 503) {
+      throw new RetryLaterError(response.status, retryAfterMs(response))
+    }
+    // 410 always means the cursor's position is gone; a 400 only when it names the cursor.
+    if (response.status === 410 || (response.status === 400 && isCursorRejection(await errorCode(response)))) {
       throw new CursorRejectedError()
     }
     throw new Error(`Cherry Cloud notification request failed (${response.status})`)

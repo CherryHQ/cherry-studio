@@ -38,14 +38,17 @@ function eventStream() {
     response: new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }),
     send(event: string, data: unknown) {
       controller.enqueue(new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+    },
+    heartbeat() {
+      controller.enqueue(new TextEncoder().encode(': heartbeat\n\n'))
     }
   }
 }
 
 const jsonError = (status: number, code: string) =>
   new Response(JSON.stringify({ type: 'error', error: { code } }), { status })
-const page = (notifications: unknown[], nextCursor: string | null = null) =>
-  new Response(JSON.stringify({ notifications, next_cursor: nextCursor }))
+const page = (items: unknown[], nextCursor: string, hasMore = false) =>
+  new Response(JSON.stringify({ items, next_cursor: nextCursor, has_more: hasMore }))
 const notification = (id: string, cursor: string, refresh: string[] = ['account', 'models']) => ({
   id,
   cursor,
@@ -148,8 +151,8 @@ describe('CherryCloudNotificationService', () => {
       .setPersist('cherry_cloud.notification_cursor', { accountId: 'account-1', cursor: 'c-5' })
     reply(
       '/api/v1/notifications',
-      page([notification('n-6', 'c-6'), notification('n-7', 'c-7')], 'c-7'),
-      page([notification('n-8', 'c-8', [])])
+      page([notification('n-6', 'c-6'), notification('n-7', 'c-7')], 'c-7', true),
+      page([notification('n-8', 'c-8', [])], 'c-8')
     )
     await start()
 
@@ -166,7 +169,8 @@ describe('CherryCloudNotificationService', () => {
 
   it.each([
     [400, 'INVALID_CURSOR'],
-    [410, 'RESYNC_REQUIRED']
+    [410, 'RESYNC_REQUIRED'],
+    [410, 'UNDOCUMENTED']
   ])('rebuilds the baseline when the cursor is rejected with %i %s', async (code, errorCode) => {
     application
       .get('CacheService')
@@ -178,6 +182,65 @@ describe('CherryCloudNotificationService', () => {
       expect(requestedPaths()).toEqual(['/api/v1/notifications?after=stale&limit=50', '/api/v1/notifications/stream'])
     )
     expect(storedCursor()).toBeNull()
+  })
+
+  it('rebuilds the baseline when the stream ends with a cursor error frame, without advancing the cursor', async () => {
+    application
+      .get('CacheService')
+      .setPersist('cherry_cloud.notification_cursor', { accountId: 'account-1', cursor: 'c-5' })
+    reply('/api/v1/notifications', page([], 'c-5'))
+    const stream = eventStream()
+    reply('/api/v1/notifications/stream', stream.response)
+    await start()
+    await vi.waitFor(() => expect(requestedPaths()).toContain('/api/v1/notifications/stream?after=c-5'))
+
+    stream.send('error', { type: 'error', error: { code: 'RESYNC_REQUIRED' } })
+
+    await vi.waitFor(() => expect(requestedPaths().at(-1)).toBe('/api/v1/notifications/stream'))
+    expect(storedCursor()).toBeNull()
+  })
+
+  it('waits as long as Retry-After asks before reconnecting', async () => {
+    vi.useFakeTimers()
+    try {
+      reply(
+        '/api/v1/notifications/stream',
+        new Response(null, { status: 429, headers: { 'Retry-After': '20' } }),
+        eventStream().response
+      )
+      await start()
+      await vi.waitFor(() => expect(requestedPaths()).toHaveLength(1))
+
+      await vi.advanceTimersByTimeAsync(19_000)
+      expect(requestedPaths()).toHaveLength(1)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(requestedPaths()).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reconnects when the stream stops sending heartbeats, but not while they arrive', async () => {
+    vi.useFakeTimers()
+    try {
+      const stream = eventStream()
+      reply('/api/v1/notifications/stream', stream.response, eventStream().response)
+      await start()
+      stream.send('ready', { cursor: 'c-0' })
+      await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledOnce())
+
+      for (let elapsed = 0; elapsed < 90_000; elapsed += 15_000) {
+        stream.heartbeat()
+        await vi.advanceTimersByTimeAsync(15_000)
+      }
+      expect(requestedPaths()).toHaveLength(1)
+
+      await vi.advanceTimersByTimeAsync(45_000 + 3_000)
+      expect(requestedPaths()).toEqual(['/api/v1/notifications/stream', '/api/v1/notifications?after=c-0&limit=50'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('stops without retrying when the notification endpoints are not available', async () => {
@@ -230,7 +293,7 @@ describe('CherryCloudNotificationService', () => {
       await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledOnce())
 
       refreshEntitledModels.mockRejectedValueOnce(new Error('offline'))
-      reply('/api/v1/notifications', page([notification('n-1', 'c-1')]))
+      reply('/api/v1/notifications', page([notification('n-1', 'c-1')], 'c-1'))
       stream.send('notification', notification('n-1', 'c-1'))
       await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledTimes(2))
       expect(storedCursor()).toEqual({ accountId: 'account-1', cursor: 'c-0' })
