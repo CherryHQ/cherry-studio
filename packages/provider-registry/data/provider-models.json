@@ -18527,6 +18527,29 @@
       "providerId": "longcat"
     },
     {
+      "apiModelId": "LongCat-2.5",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages", "openai-responses"],
+      "modelId": "longcat-2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        }
+      },
+      "providerId": "longcat",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "mimo-v2.5",
       "modelId": "mimo-v2-5",
       "providerId": "mimo",
@@ -44872,5 +44895,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e1d2a384f90cb096"
+  "version": "3a62020562d88d4a"
 }

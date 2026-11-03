@@ -2612,6 +2612,92 @@
               }
             }
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.longcat.chat/openai",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "longcat",
@@ -2872,5 +2958,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1422be0ed8705479"
+  "version": "25614f1b36688bba"
 }
