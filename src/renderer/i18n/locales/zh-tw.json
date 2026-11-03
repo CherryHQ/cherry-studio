@@ -1813,6 +1813,7 @@
   "history.records.table.session": "任務",
   "history.records.table.time": "時間",
   "history.records.title": "對話歷史記錄",
+  "history_import.blocked": "有 {{count}} 個對話無法匯入。請處理下方問題後重試。",
   "history_import.branch": "選擇對話分支",
   "history_import.confirm": "匯入所選對話",
   "history_import.default_location": "使用應用程式預設位置",

@@ -1813,6 +1813,7 @@
   "history.records.table.session": "タスク",
   "history.records.table.time": "時間",
   "history.records.title": "会話履歴",
+  "history_import.blocked": "{{count}} 件の会話をインポートできませんでした。以下の問題を解決して再試行してください。",
   "history_import.branch": "会話の分岐を選択",
   "history_import.confirm": "選択した会話をインポート",
   "history_import.default_location": "アプリの既定の場所",

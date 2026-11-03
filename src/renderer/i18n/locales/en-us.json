@@ -1813,6 +1813,7 @@
   "history.records.table.session": "Task",
   "history.records.table.time": "Time",
   "history.records.title": "Conversation History",
+  "history_import.blocked": "{{count}} conversations could not be imported. Resolve the issues below and try again.",
   "history_import.branch": "Choose a conversation branch",
   "history_import.confirm": "Import selected conversations",
   "history_import.default_location": "Default application location",

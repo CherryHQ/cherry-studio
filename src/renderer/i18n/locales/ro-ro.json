@@ -1813,6 +1813,7 @@
   "history.records.table.session": "Sarcină",
   "history.records.table.time": "Timp",
   "history.records.title": "Istoricul conversației",
+  "history_import.blocked": "Nu s-au putut importa {{count}} conversații. Rezolvă problemele de mai jos și încearcă din nou.",
   "history_import.branch": "Alege ramura",
   "history_import.confirm": "Importă conversațiile selectate",
   "history_import.default_location": "Locația implicită a aplicației",

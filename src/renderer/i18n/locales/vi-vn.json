@@ -1813,6 +1813,7 @@
   "history.records.table.session": "Nhiệm vụ",
   "history.records.table.time": "Thời gian",
   "history.records.title": "Lịch sử cuộc trò chuyện",
+  "history_import.blocked": "Không thể nhập {{count}} cuộc trò chuyện. Hãy khắc phục các vấn đề bên dưới rồi thử lại.",
   "history_import.branch": "Chọn nhánh hội thoại",
   "history_import.confirm": "Nhập các cuộc trò chuyện đã chọn",
   "history_import.default_location": "Vị trí mặc định của ứng dụng",
