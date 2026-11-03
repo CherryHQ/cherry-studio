@@ -351,6 +351,7 @@ export function buildPathRegistry() {
     'external.antigravity.cli.file': isWin
       ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
       : path.join(sysHome, '.local', 'bin', 'agy'),
+    'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')

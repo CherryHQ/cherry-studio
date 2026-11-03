@@ -282,7 +282,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   )
 
   const MockArtifactPaneView = ({
-    headerVariant,
     model,
     paneActions,
     paneTitle,
@@ -294,7 +293,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     previewFileSelection,
     onPreviewClose
   }: {
-    headerVariant?: 'overlay' | 'pane'
     model: {
       effectiveExpandedIds: ReadonlySet<string>
       setExpandedIds: (ids: ReadonlySet<string>) => void
@@ -310,12 +308,10 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     onPreviewClose?: () => void
   }) => (
     <div>
-      {headerVariant === 'pane' ? (
-        <div data-testid="artifact-pane-header">
-          <span>{previewFileSelection?.filePath ?? paneTitle}</span>
-          {paneActions}
-        </div>
-      ) : null}
+      <div data-testid="artifact-pane-header">
+        <span>{previewFileSelection?.filePath ?? paneTitle}</span>
+        {paneActions}
+      </div>
       <MockArtifactPane
         workspacePath={workspacePath}
         previewFileSelection={previewFileSelection}
@@ -348,8 +344,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
       }
       return workspacePath ? { workspacePath, filePath: rawPath } : null
     },
-    ArtifactPaneView: MockArtifactPaneView,
-    default: MockArtifactPane
+    ArtifactPaneView: MockArtifactPaneView
   }
 })
 

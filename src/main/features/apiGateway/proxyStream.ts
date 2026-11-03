@@ -216,15 +216,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const convertedMessages = converter.toUIMessages(effectiveParams)
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
-  const positionedMessages = positionInlineSystemMessages(
-    convertedMessages,
-    resolveEffectiveEndpoint(provider, model).endpointType,
-    config.requestHeaders
-  )
+  const targetEndpointType = resolveEffectiveEndpoint(provider, model).endpointType
+  const positionedMessages = positionInlineSystemMessages(convertedMessages, targetEndpointType, config.requestHeaders)
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams)
+  const tools = converter.toAiSdkTools?.(effectiveParams, targetEndpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
   if (streamOptions.maxOutputTokens !== undefined && model.maxOutputTokens !== undefined) {
     streamOptions.maxOutputTokens = Math.min(streamOptions.maxOutputTokens, model.maxOutputTokens)

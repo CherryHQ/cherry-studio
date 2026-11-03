@@ -244,7 +244,7 @@ describe('buildPiProviderInjection', () => {
   function completionsProvider(baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai') {
     return makeProvider({
       id: 'custom-gemini',
-      presetProviderId: null,
+      presetProviderId: undefined,
       defaultChatEndpoint: 'openai-chat-completions',
       endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl } }
     })
@@ -260,7 +260,8 @@ describe('buildPiProviderInjection', () => {
   }
 
   async function captureRequest(
-    injection: ReturnType<typeof buildPiProviderInjection> | ReturnType<typeof buildPiGatewayInjection>
+    injection: ReturnType<typeof buildPiProviderInjection> | ReturnType<typeof buildPiGatewayInjection>,
+    rejectOwnStore = false
   ) {
     const { streamSimple } = await materializePiProviderStream(injection)
     const target = {
@@ -279,7 +280,20 @@ describe('buildPiProviderInjection', () => {
         timeoutMs: 2_000,
         fetch: async (input, init) => {
           const request = new Request(input, init)
-          captures.push({ url: request.url, method: request.method, body: JSON.parse(await request.text()) })
+          const body = JSON.parse(await request.text())
+          captures.push({ url: request.url, method: request.method, body })
+          if (rejectOwnStore && Object.hasOwn(body, 'store')) {
+            return new Response(
+              JSON.stringify({
+                error: {
+                  message:
+                    "fixture: [{'type': 'extra_forbidden', 'loc': ('body', 'store'), 'msg': 'Extra inputs are not permitted', 'input': false}]",
+                  type: 'invalid_request_error'
+                }
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            )
+          }
           const chunk =
             injection.api === 'google-generative-ai'
               ? { candidates: [{ content: { role: 'model', parts: [{ text: 'fixture-ok' }] }, finishReason: 'STOP' }] }
@@ -340,42 +354,66 @@ describe('buildPiProviderInjection', () => {
     })
   })
 
-  it.each(['https://api.openai.com/v1', 'https://third-party.example/v1'])(
-    'leaves store compatibility inferred for %s',
-    (baseUrl) => {
-      const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), REAL_KEY)
+  it('leaves store compatibility inferred for the exact OpenAI host', () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://api.openai.com/v1'),
+      reportedModel(),
+      REAL_KEY
+    )
 
-      expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
-    }
-  )
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
 
-  it.each(['https://api.openai.com/v1', 'https://third-party.example/v1'])(
-    'retains store false in the serialized Completions request to %s',
-    async (baseUrl) => {
-      const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), 'fixture-only')
-      const { captures, result } = await captureRequest(injection)
+  it('disables store compatibility for a custom non-OpenAI target', () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://third-party.example/v1'),
+      reportedModel(),
+      REAL_KEY
+    )
 
-      expect(captures).toHaveLength(1)
-      expect(captures[0].method).toBe('POST')
-      expect(captures[0].url).toBe(`${baseUrl}/chat/completions`)
-      expect(captures[0].body.model).toBe('models/gemini-3.1-flash-lite')
-      expect(Object.hasOwn(captures[0].body, 'store')).toBe(true)
-      expect(captures[0].body.store).toBe(false)
-      expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
-      expect(result.stopReason).toBe('stop')
-      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
-    }
-  )
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it('retains store false in the serialized Completions request to the exact OpenAI host', async () => {
+    const baseUrl = 'https://api.openai.com/v1'
+    const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), 'fixture-only')
+    const { captures, result } = await captureRequest(injection)
+
+    expect(captures).toHaveLength(1)
+    expect(captures[0].method).toBe('POST')
+    expect(captures[0].url).toBe(`${baseUrl}/chat/completions`)
+    expect(captures[0].body.model).toBe('models/gemini-3.1-flash-lite')
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(true)
+    expect(captures[0].body.store).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('omits store from the serialized Completions request to a custom non-OpenAI target', async () => {
+    const baseUrl = 'https://third-party.example/v1'
+    const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), 'fixture-only')
+    const { captures, result } = await captureRequest(injection)
+
+    expect(captures).toHaveLength(1)
+    expect(captures[0].method).toBe('POST')
+    expect(captures[0].url).toBe(`${baseUrl}/chat/completions`)
+    expect(captures[0].body.model).toBe('models/gemini-3.1-flash-lite')
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
 
   it('uses the loopback target for store compatibility on a Google upstream gateway route', () => {
     const injection = buildPiGatewayInjection(completionsProvider(), reportedModel(), GATEWAY)
 
     expect(injection.api).toBe('openai-completions')
     expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333/v1')
-    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
   })
 
-  it('retains store false in the serialized loopback request for a Google upstream', async () => {
+  it('omits store in the serialized loopback request for a Google upstream', async () => {
     const injection = buildPiGatewayInjection(completionsProvider(), reportedModel(), GATEWAY)
     const { captures, result } = await captureRequest(injection)
 
@@ -383,8 +421,7 @@ describe('buildPiProviderInjection', () => {
     expect(captures[0].method).toBe('POST')
     expect(captures[0].url).toBe('http://127.0.0.1:23333/v1/chat/completions')
     expect(captures[0].body.model).toBe('custom-gemini:models/gemini-3.1-flash-lite')
-    expect(Object.hasOwn(captures[0].body, 'store')).toBe(true)
-    expect(captures[0].body.store).toBe(false)
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
     expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
     expect(result.stopReason).toBe('stop')
     expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
@@ -465,7 +502,6 @@ describe('buildPiProviderInjection', () => {
   })
 
   it.each([
-    'https://api.openai.com/v1',
     'https://third-party.example/v1',
     'https://aiplatform.googleapis.com/v1',
     'https://us-central1-aiplatform.googleapis.com/v1',
@@ -476,9 +512,113 @@ describe('buildPiProviderInjection', () => {
     'https://evil.generativelanguage.googleapis.com/v1',
     'https://generativelanguage.googleapis.com@evil.test/v1',
     'https://relay.test/v1/generativelanguage.googleapis.com'
-  ])('does not override store for a nonmatching target at %s', (baseUrl) => {
+  ])('omits store for a custom non-OpenAI target at %s', (baseUrl) => {
     const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), REAL_KEY)
 
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it('completes the reported glm request at a strict endpoint', async () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://strict.example/v1'),
+      reportedModel('glm'),
+      REAL_KEY
+    )
+    const { captures, result } = await captureRequest(injection, true)
+    expect(captures).toHaveLength(1)
+    expect(captures[0]).toMatchObject({
+      url: 'https://strict.example/v1/chat/completions',
+      method: 'POST',
+      body: { model: 'glm' }
+    })
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('disables store for the reported glm configuration', () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://strict.example/v1'),
+      reportedModel('glm'),
+      REAL_KEY
+    )
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it.each([
+    ['zhipu', 'https://open.bigmodel.cn/api/paas/v4'],
+    ['deepseek', 'https://api.deepseek.com/v1'],
+    ['moonshot', 'https://api.moonshot.ai/v1'],
+    ['together', 'https://api.together.xyz/v1'],
+    ['nvidia', 'https://integrate.api.nvidia.com/v1'],
+    ['grok', 'https://api.x.ai/v1'],
+    ['cerebras', 'https://api.cerebras.ai/v1'],
+    ['zai', 'https://api.z.ai/api/paas/v4'],
+    ['opencode', 'https://opencode.ai/zen/v1']
+  ])('preserves store omission for %s at its normal host', async (id, url) => {
+    const provider = { ...completionsProvider(url), id, presetProviderId: id }
+    const injection = buildPiProviderInjection(provider, reportedModel('glm'), REAL_KEY)
+    injection.providerName = `${id}:session:1`
+    const { captures, result } = await captureRequest(injection)
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(result.stopReason).toBe('stop')
+  })
+
+  it('strict endpoint rejects even store false', async () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://api.openai.com/v1'),
+      reportedModel('glm'),
+      REAL_KEY
+    )
+    const { captures, result } = await captureRequest(injection, true)
+    expect(captures[0].body.store).toBe(false)
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(true)
+    expect(result.stopReason).toBe('error')
+    expect(result.errorMessage).toContain('extra_forbidden')
+  })
+
+  it.each([
+    'https://API.OPENAI.COM/v1',
+    'http://api.openai.com/v1',
+    'https://api.openai.com:443/v1',
+    'https://api.openai.com:8443/v1',
+    'https://api.openai.com./v1',
+    'https://api.openai.com/alternate'
+  ])('preserves inference for OpenAI host %s', (url) => {
+    const injection = buildPiProviderInjection(completionsProvider(url), reportedModel('glm'), REAL_KEY)
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it.each([
+    'https://api.openai.com.evil.test/v1',
+    'https://evil.api.openai.com/v1',
+    'https://api.openai.com@evil.test/v1',
+    'https://evil.test/api.openai.com',
+    'https://api.openai.com../v1'
+  ])('omits for deceptive OpenAI target %s', (url) => {
+    const injection = buildPiProviderInjection(completionsProvider(url), reportedModel('glm'), REAL_KEY)
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it.each([
+    'https://generativelanguage.googleapis.com.evil.test/v1',
+    'https://evil.generativelanguage.googleapis.com/v1',
+    'https://generativelanguage.googleapis.com@evil.test/v1',
+    'https://evil.test/generativelanguage.googleapis.com'
+  ])('does not match deceptive Google target %s', (url) => {
+    const provider = { ...completionsProvider(url), presetProviderId: 'openai' }
+    const injection = buildPiProviderInjection(provider, reportedModel('glm'), REAL_KEY)
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it.each([
+    { id: 'openai', presetProviderId: undefined },
+    { id: 'clone-id', presetProviderId: 'openai' },
+    { id: 'cherryin', presetProviderId: undefined }
+  ])('preserves inference for non-custom provider $id', (identity) => {
+    const provider = { ...completionsProvider('https://strict.example/v1'), ...identity }
+    const injection = buildPiProviderInjection(provider, reportedModel('glm'), REAL_KEY)
     expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
   })
 
@@ -606,8 +746,14 @@ describe('buildPiProviderInjection', () => {
     )
 
     expect(unsupported.providerConfig.api).toBe(expectedApi)
-    expect(unsupported.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: false })
-    expect(supported.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: true })
+    expect(unsupported.providerConfig.models?.[0]?.compat).toEqual({
+      ...(expectedApi === 'openai-completions' ? { supportsStore: false } : {}),
+      supportsDeveloperRole: false
+    })
+    expect(supported.providerConfig.models?.[0]?.compat).toEqual({
+      ...(expectedApi === 'openai-completions' ? { supportsStore: false } : {}),
+      supportsDeveloperRole: true
+    })
   })
 
   it('maps Azure OpenAI through its responses endpoint (non-4-family)', () => {
@@ -1500,7 +1646,7 @@ describe('Anthropic adaptive thinking projection', () => {
     fallback.endpointConfigs!['anthropic-messages']!.adapterFamily = 'bedrock'
     const injection = buildPiGatewayInjection(fallback, model(), GATEWAY)
     expect(injection.api).toBe('openai-completions')
-    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: false })
+    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ supportsStore: false, supportsDeveloperRole: false })
   })
 
   // Fixture wires catch dialect-only predicates and first-write-wins regressions without mocking resolution.

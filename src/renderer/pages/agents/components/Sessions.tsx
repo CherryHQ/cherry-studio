@@ -69,13 +69,11 @@ import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   type AgentSessionDisplayMode,
-  applyOptimisticSessionDisplayMove,
   buildSessionAgentGroupDropAnchor,
   buildSessionDropAnchor,
   buildSessionWorkdirGroupDropAnchor,
   canDropSessionItemInDisplayGroup,
-  createSessionDisplayGroupResolver,
-  createSessionWorkdirDisplayMaps,
+  deriveSessionListView,
   getAgentIdFromSessionGroupId,
   getSessionAgentGroupId,
   getWorkdirPathFromSessionGroupId,
@@ -92,7 +90,7 @@ import {
   SESSION_UNKNOWN_AGENT_GROUP_ID,
   SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
-  sortSessionsForDisplayGroups
+  type SessionListViewOptions
 } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -416,6 +414,7 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
+    readSessionListItems,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -505,7 +504,11 @@ const Sessions = ({
     sessionItemsReconciliationRef.current = reconciliation
     return reconciliation.items
   }, [pinIdBySessionId, sessions])
-  const { items: sessionItems, rename: renameSessionOptimistically } = useOptimisticResourceName(apiBackedSessionItems)
+  const {
+    items: sessionItems,
+    rename: renameSessionOptimistically,
+    withOptimisticNames
+  } = useOptimisticResourceName(apiBackedSessionItems)
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const togglePinRef = useRef(togglePin)
@@ -627,10 +630,6 @@ const Sessions = ({
       optimisticWorkspaceOrderIds ? applyOptimisticOrder(workspaceRows, optimisticWorkspaceOrderIds) : workspaceRows,
     [optimisticWorkspaceOrderIds, workspaceRows]
   )
-  const workdirDisplay = useMemo(
-    () => createSessionWorkdirDisplayMaps(sessionItems, workspaceRowsForDisplay),
-    [sessionItems, workspaceRowsForDisplay]
-  )
   const workspaceOrderSignature = useMemo(
     () => workspaceRows.map((workspace) => `${workspace.id}:${workspace.orderKey}`).join('|'),
     [workspaceRows]
@@ -640,27 +639,41 @@ const Sessions = ({
     [agents]
   )
 
-  const baseGroupedSessions = useMemo(
-    () =>
-      sortSessionsForDisplayGroups(sessionItems, {
-        agentRankById,
-        mode: displayMode,
-        now: groupNow,
-        workdirDisplay
-      }),
-    [agentRankById, displayMode, groupNow, sessionItems, workdirDisplay]
+  const sessionListViewOptions = useMemo<SessionListViewOptions>(
+    () => ({
+      agentById,
+      agentRankById,
+      labels: {
+        pinned: t('selector.common.pinned_title'),
+        time: {
+          today: t('agent.session.group.today'),
+          yesterday: t('agent.session.group.yesterday'),
+          'this-week': t('agent.session.group.this_week'),
+          earlier: t('agent.session.group.earlier')
+        },
+        agent: {
+          unknown: t('agent.session.group.unknown_agent')
+        },
+        workdir: {
+          none: t('agent.session.group.no_workdir')
+        }
+      },
+      mode: displayMode,
+      now: groupNow,
+      visibleAgentId: isRightPanel ? (agentIdFilter ?? null) : undefined,
+      workspaces: workspaceRowsForDisplay
+    }),
+    [agentById, agentIdFilter, agentRankById, displayMode, groupNow, isRightPanel, t, workspaceRowsForDisplay]
   )
 
-  const groupedSessions = useMemo(
-    () =>
-      optimisticMove ? applyOptimisticSessionDisplayMove(baseGroupedSessions, optimisticMove) : baseGroupedSessions,
-    [baseGroupedSessions, optimisticMove]
+  const {
+    groupBy: sessionGroupBy,
+    items: filteredGroupedSessions,
+    workdirDisplay
+  } = useMemo(
+    () => deriveSessionListView(sessionItems, sessionListViewOptions, optimisticMove),
+    [optimisticMove, sessionItems, sessionListViewOptions]
   )
-  const filteredGroupedSessions = useMemo(() => {
-    if (!isRightPanel) return groupedSessions
-    if (!agentIdFilter) return []
-    return groupedSessions.filter((session) => session.agentId === agentIdFilter)
-  }, [agentIdFilter, groupedSessions, isRightPanel])
 
   const sessionOrderSignature = useMemo(
     () =>
@@ -682,35 +695,6 @@ const Sessions = ({
     setOptimisticAgentOrderIds(null)
   }, [agentOrderSignature])
 
-  const hasAgentSection =
-    displayMode === 'agent' &&
-    (agentsForDisplay.length > 0 || filteredGroupedSessions.some((session) => !session.pinned))
-  const sessionGroupBy = useMemo(
-    () =>
-      createSessionDisplayGroupResolver({
-        agentById,
-        labels: {
-          pinned: t('selector.common.pinned_title'),
-          time: {
-            today: t('agent.session.group.today'),
-            yesterday: t('agent.session.group.yesterday'),
-            'this-week': t('agent.session.group.this_week'),
-            earlier: t('agent.session.group.earlier')
-          },
-          agent: {
-            unknown: t('agent.session.group.unknown_agent')
-          },
-          workdir: {
-            none: t('agent.session.group.no_workdir')
-          }
-        },
-        mode: displayMode,
-        now: groupNow,
-        pinnedAsSection: displayMode !== 'time' && (displayMode !== 'agent' || hasAgentSection),
-        workdirDisplay
-      }),
-    [agentById, displayMode, groupNow, hasAgentSection, t, workdirDisplay]
-  )
   // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
   const sessionGroupByForDisplay = useMemo(
     () =>
@@ -820,17 +804,20 @@ const Sessions = ({
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
-      const deletedSession =
-        filteredGroupedSessions.find((session) => session.id === id) ??
-        sessionItemsRef.current.find((session) => session.id === id)
+      const allSessions = withOptimisticNames(readSessionListItems())
+      const { groupBy, items: listedSessions } = deriveSessionListView(
+        allSessions,
+        sessionListViewOptions,
+        optimisticMove
+      )
+      const deletedSession = allSessions.find((session) => session.id === id)
 
-      const deletedGroupId = deletedSession ? sessionGroupBy(deletedSession)?.id : undefined
+      const deletedGroupId = deletedSession ? groupBy(deletedSession)?.id : undefined
       const sameGroupSessions = deletedGroupId
-        ? filteredGroupedSessions.filter((session) => sessionGroupBy(session)?.id === deletedGroupId)
-        : filteredGroupedSessions
+        ? listedSessions.filter((session) => groupBy(session)?.id === deletedGroupId)
+        : listedSessions
       const sameGroupNext = pickNeighbourAfterRemoval(sameGroupSessions, id)
-      const replacement =
-        sameGroupNext ?? findLatestActive(sessionItemsRef.current.filter((candidate) => candidate.id !== id))
+      const replacement = sameGroupNext ?? findLatestActive(allSessions.filter((candidate) => candidate.id !== id))
       const wasActive = activeSessionIdRef.current === id
 
       const performDelete = async () => {
@@ -863,9 +850,7 @@ const Sessions = ({
           setTrackedActiveSessionId(replacement.id, replacement)
           void performDelete()
         }
-        const activeSession = activeSessionIdRef.current
-          ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
-          : null
+        const activeSession = allSessions.find((session) => session.id === activeSessionIdRef.current)
         const preservesFileWorkspace =
           activeSession &&
           replacement &&
@@ -883,14 +868,16 @@ const Sessions = ({
     },
     [
       deleteSession,
-      filteredGroupedSessions,
+      optimisticMove,
+      readSessionListItems,
       requestFileNavigation,
       reload,
       restoreSession,
-      sessionGroupBy,
+      sessionListViewOptions,
       setActiveSessionId,
       setTrackedActiveSessionId,
-      t
+      t,
+      withOptimisticNames
     ]
   )
 
