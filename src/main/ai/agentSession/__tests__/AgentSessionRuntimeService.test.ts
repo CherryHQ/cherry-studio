@@ -1243,6 +1243,18 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual(recipients)
 
+      service.enqueueUserMessage('session-1', userMessage('user-task-correction'), {
+        trustedNotifyChannels: [{ id: 'channel-task', type: 'telegram' }]
+      })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(getEntry(service).currentTurn.userMessage.id).toBe('user-task-correction')
+      expect(getEntry(service).currentTurn.headless).not.toBe(true)
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([{ id: 'channel-task', type: 'telegram' }])
+      expect((service as any).connectionTarget(getEntry(service)).trustedNotifyChannels).toEqual([
+        { id: 'channel-task', type: 'telegram' }
+      ])
+
       service.enqueueUserMessage('session-1', userMessage('user-ordinary'))
       service.markTurnTerminal('session-1', 'success')
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1251,6 +1263,109 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.userMessage.id).toBe('user-ordinary')
       expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
       expect((service as any).connectionTarget(entry).trustedNotifyChannels).toBeUndefined()
+    })
+
+    describe('notification authority during steering', () => {
+      function openLiveTurn(trustedNotifyChannels: readonly { id: string; type: 'telegram' }[] | undefined) {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-source'), trustedNotifyChannels })
+        const entry = getEntry(service)
+        const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+        entry.connection = connection
+        entry.connectionModelId = baseTurnInput.modelId
+        entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+        return { service, entry, connection }
+      }
+
+      it.each([
+        { source: [], incoming: [{ id: 'channel-task', type: 'telegram' as const }] },
+        { source: [{ id: 'channel-task', type: 'telegram' as const }], incoming: [] },
+        { source: undefined, incoming: [] },
+        { source: [], incoming: undefined }
+      ])('queues differing grants: $source → $incoming', async ({ source, incoming }) => {
+        const { service, entry, connection } = openLiveTurn(source)
+        service.enqueueUserMessage('session-1', userMessage('user-changed-grant'), { trustedNotifyChannels: incoming })
+        expect(connection.redirect).not.toHaveBeenCalled()
+        expect(entry.pendingTurns).toHaveLength(1)
+        expect(entry.pendingTurns[0].message.id).toBe('user-changed-grant')
+        if (incoming === undefined) expect(entry.pendingTurns[0].trustedNotifyChannels).toBeUndefined()
+        else if (incoming.length === 0) expect(entry.pendingTurns[0].trustedNotifyChannels).toEqual([])
+        else expect(entry.pendingTurns[0].trustedNotifyChannels).toEqual([{ id: 'channel-task', type: 'telegram' }])
+
+        service.markTurnTerminal('session-1', 'success')
+        await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-changed-grant'))
+        if (incoming === undefined) expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
+        else if (incoming.length === 0) expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([])
+        else
+          expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([{ id: 'channel-task', type: 'telegram' }])
+        await service.closeSession('session-1')
+      })
+
+      it.each([false, true])(
+        'redirects equal grants and keeps the source authority on A2 (reordered: %s)',
+        async (reordered) => {
+          const { service, entry, connection } = openLiveTurn([
+            { id: 'channel-task', type: 'telegram' },
+            { id: 'channel-other', type: 'telegram' }
+          ])
+          const incoming = reordered
+            ? [
+                { id: 'channel-other', type: 'telegram' as const },
+                { id: 'channel-task', type: 'telegram' as const }
+              ]
+            : [
+                { id: 'channel-task', type: 'telegram' as const },
+                { id: 'channel-other', type: 'telegram' as const }
+              ]
+          service.enqueueUserMessage('session-1', userMessage('user-equal-grant'), { trustedNotifyChannels: incoming })
+          expect(entry.pendingTurns).toEqual([])
+          expect(connection.redirect).toHaveBeenCalledExactlyOnceWith({
+            message: userMessage('user-equal-grant'),
+            systemReminder: true
+          })
+          const sourceTurnId = entry.currentTurn.turnId
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'steer-boundary',
+            inputs: [connection.redirect.mock.calls[0][0]]
+          })
+          service.markTurnTerminal('session-1', 'success', sourceTurnId)
+          await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-equal-grant'))
+          expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([
+            { id: 'channel-task', type: 'telegram' },
+            { id: 'channel-other', type: 'telegram' }
+          ])
+          expect((service as any).connectionTarget(entry).trustedNotifyChannels).toEqual([
+            { id: 'channel-task', type: 'telegram' },
+            { id: 'channel-other', type: 'telegram' }
+          ])
+          await service.closeSession('session-1')
+        }
+      )
+
+      it('retains the accepted grant when an undelivered steer is requeued and executed', async () => {
+        const { service, entry, connection } = openLiveTurn([{ id: 'channel-task', type: 'telegram' }])
+        service.enqueueUserMessage('session-1', userMessage('user-undelivered'), {
+          trustedNotifyChannels: [{ id: 'channel-task', type: 'telegram' }]
+        })
+        expect(entry.pendingTurns).toEqual([])
+        expect(connection.redirect).toHaveBeenCalledExactlyOnceWith({
+          message: userMessage('user-undelivered'),
+          systemReminder: true
+        })
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'steer-undelivered',
+          inputs: [connection.redirect.mock.calls[0][0]]
+        })
+        expect(entry.pendingTurns).toHaveLength(1)
+        expect(entry.pendingTurns[0].trustedNotifyChannels).toEqual([{ id: 'channel-task', type: 'telegram' }])
+        service.markTurnTerminal('session-1', 'success')
+        await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-undelivered'))
+        expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([{ id: 'channel-task', type: 'telegram' }])
+        expect((service as any).connectionTarget(entry).trustedNotifyChannels).toEqual([
+          { id: 'channel-task', type: 'telegram' }
+        ])
+        await service.closeSession('session-1')
+      })
     })
 
     it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {

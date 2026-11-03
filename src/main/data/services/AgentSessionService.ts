@@ -381,6 +381,19 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
+  /** Read the session→schedule sticky binding without exposing it on session entities. */
+  getTaskScheduleIdBySessionId(sessionId: string): string | null {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({ taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
+      .limit(1)
+      .all()
+    return row?.taskScheduleId ?? null
+  }
+
   /** Read the internal sticky-session relation without exposing it on session entities. */
   getByTaskScheduleId(taskScheduleId: string): AgentSessionEntity | null {
     return this.getByTaskScheduleIdTx(application.get('DbService').getDb(), taskScheduleId)

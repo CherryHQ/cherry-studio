@@ -1,6 +1,8 @@
 ---
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
+  - src/main/ai/streamManager/context/AgentChatContextProvider.ts
+  - src/main/ai/runtime/agentMcpServers.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
   - src/main/ai/runtime/workspaceRelocation.ts
@@ -234,6 +236,23 @@ the roll (and across a mid-flight compaction) so the continuation carries the
 renderer listeners.
 The source row's terminal event is marked `row-roll`; lifecycle consumers must
 not treat it as completion of the work that continues in A2.
+
+### Task-bound notification authority
+
+Interactive submissions and edit/resend in a task-bound Session inherit a snapshot
+of the task's subscribed channels owned by the Session's Agent when caller
+notification authority is omitted. The snapshot belongs only to the submitted
+work. Explicit authority, including an empty set, takes precedence; an empty
+inherited set disables notification delivery.
+
+Headless submissions do not acquire task authority through this rule. Scheduled
+runs retain their explicit recipient snapshot, and unbound Sessions retain
+linked-channel fallback.
+
+A live follow-up may redirect only when its notification authority matches the
+running turn's. Otherwise it queues with its own snapshot. An undelivered steer
+preserves that snapshot when requeued. Subscription changes do not revoke
+already-admitted work; channel ownership is checked again before delivery.
 
 ## Cross-Session delivery
 

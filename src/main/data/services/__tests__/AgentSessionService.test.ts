@@ -10,6 +10,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -1219,6 +1220,42 @@ describe('AgentSessionService', () => {
       )
     ).toBe(false)
     expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskScheduleId')
+  })
+
+  describe('getTaskScheduleIdBySessionId', () => {
+    it('reads a persisted binding without exposing it on the session entity', async () => {
+      const task = createTaskSchedule()
+      dbh.db.update(jobScheduleTable).set({ id: 'schedule-task' }).where(eq(jobScheduleTable.id, task.id)).run()
+      const session = await createSession('Reverse binding')
+      bindTaskSession(session.id, 'schedule-task')
+      expect(agentSessionService.getTaskScheduleIdBySessionId(session.id)).toBe('schedule-task')
+      expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskScheduleId')
+    })
+
+    it('returns null for an unknown session', () => {
+      expect(agentSessionService.getTaskScheduleIdBySessionId('missing-session')).toBeNull()
+    })
+
+    it('returns null for an unbound session', async () => {
+      const session = await createSession('Unbound reverse binding')
+      expect(agentSessionService.getTaskScheduleIdBySessionId(session.id)).toBeNull()
+    })
+
+    it('returns null for a soft-deleted session even if the binding remains', async () => {
+      const task = createTaskSchedule()
+      const session = await createSession('Trashed reverse binding')
+      bindTaskSession(session.id, task.id)
+      dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, session.id)).run()
+      expect(agentSessionService.getTaskScheduleIdBySessionId(session.id)).toBeNull()
+    })
+
+    it('returns null after deletion of the bound task', async () => {
+      const task = createTaskSchedule()
+      const session = await createSession('Deleted task reverse binding')
+      bindTaskSession(session.id, task.id)
+      jobScheduleService.delete(task.id)
+      expect(agentSessionService.getTaskScheduleIdBySessionId(session.id)).toBeNull()
+    })
   })
 
   it('clears the task relation atomically when a session is reassigned', async () => {
