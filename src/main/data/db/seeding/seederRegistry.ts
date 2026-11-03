@@ -1,4 +1,6 @@
 import type { ISeeder } from '../types'
+import { AgentSessionContextSeeder } from './seeders/AgentSessionContextSeeder'
+import { AgentSessionMessageTreeSeeder } from './seeders/AgentSessionMessageTreeSeeder'
 import { BrowserCapabilityUpgradeSeeder } from './seeders/browserCapabilityUpgradeSeeder'
 import { BuiltinMcpServerSeeder } from './seeders/builtinMcpServerSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
@@ -11,6 +13,7 @@ import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicy
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePreferenceUpgradeSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
+import { PoeChatEndpointUpgradeSeeder } from './seeders/PoeChatEndpointUpgradeSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { RetiredAgentRuntimeSeeder } from './seeders/RetiredAgentRuntimeSeeder'
@@ -29,10 +32,13 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  */
 export const seeders: ISeeder[] = [
   new RetiredAgentRuntimeSeeder(),
+  new AgentSessionContextSeeder(),
+  new AgentSessionMessageTreeSeeder(),
   new KnowledgeBaseOrderSeeder(),
   new BrowserCapabilityUpgradeSeeder(),
   new LegacyFileCleanupPolicySeeder(),
   new PresetProviderSeeder(),
+  new PoeChatEndpointUpgradeSeeder(),
   new CherryAiDefaultModelSeeder(),
   new CherryAssistantSeeder(),
   new CherryAssistantInstructionsUpgradeSeeder(),

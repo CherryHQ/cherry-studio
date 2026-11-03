@@ -11,6 +11,10 @@ export const testProjects = [
   'provider-registry',
   'web-search',
   'scripts',
+  'agent-behavior',
+  'agent-runtime',
+  'agent-runtime-pi',
+  'agent-runtime-pi-durable',
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
@@ -30,6 +34,13 @@ export const checkTasks = {
   'types-web': { group: 'types', args: ['typecheck:web'] },
   'types-aicore': { group: 'types', args: ['--filter', '@cherrystudio/ai-core', 'typecheck'] },
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
+  'types-agent-runtime-pi': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime-pi', 'typecheck'] },
+  'types-agent-runtime-pi-durable': {
+    group: 'types',
+    args: ['--filter', '@cherrystudio/agent-runtime-pi-durable', 'typecheck']
+  },
+  'types-agent-runtime': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime', 'typecheck'] },
+  'types-agent-behavior': { group: 'types', args: ['--filter', '@cherrystudio/agent-behavior', 'typecheck'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
   'types-system-speech': { group: 'types', args: ['--filter', '@cherrystudio/system-speech', 'typecheck'] },
@@ -45,6 +56,10 @@ const consumers = {
   renderer: ['renderer'],
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
+  'agent-behavior': ['agent-behavior', 'agent-runtime-pi', 'main'],
+  'agent-runtime': ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main'],
+  'agent-runtime-pi': ['agent-runtime-pi', 'main'],
+  'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
@@ -60,6 +75,8 @@ const consumers = {
 
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
+  if (file.startsWith('docs/website/')) return 'docs'
+  if (file === '.github/website-docs-sync-plan.json') return 'docs'
   if (
     file === 'CONTRIBUTING.i18n.yaml' ||
     ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
@@ -137,6 +154,10 @@ export function createPlan(files, fullReason) {
       add('types-node', file)
     if (affected.includes('renderer')) add('types-web', file)
     if (affected.includes('aiCore')) add('types-aicore', file)
+    if (affected.includes('agent-behavior')) add('types-agent-behavior', file)
+    if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
+    if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
+    if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
     if (affected.includes('sandbox')) add('types-sandbox', file)

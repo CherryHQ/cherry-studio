@@ -1,8 +1,11 @@
+import type { UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
-import { allocateAttachmentBudget, allocateInlineCaps } from '../attachmentBudget'
+import { allocateAttachmentBudget, allocateInlineCaps, resolveAttachmentBudget } from '../attachmentBudget'
 
 /** One token per character, so allocations read directly as character counts. */
 const charTokenizer = { id: 'chars', count: (text: string) => text.length }
@@ -97,3 +100,41 @@ describe('allocateInlineCaps', () => {
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0)
 }
+
+it('#22441 prices duplicate history as one surviving pair while distinct ids cost two pairs', async () => {
+  const price = (parts: UIMessage['parts']) =>
+    resolveAttachmentBudget({
+      provider: { id: 'test', endpointConfigs: {} } as Provider,
+      model: {
+        id: 'test::model',
+        providerId: 'test',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        contextWindow: 100_000
+      } satisfies Model,
+      system: undefined,
+      tools: undefined,
+      maxOutputTokens: 1_000,
+      messages: [{ id: 'history', role: 'assistant', parts }],
+      mediaCapabilities: { image: false, video: false, audio: false }
+    })
+  const winner = {
+    type: 'dynamic-tool',
+    toolName: 'lookup',
+    toolCallId: 'one',
+    state: 'output-available',
+    input: { query: 'winner' },
+    output: { answer: 'retained' }
+  } satisfies UIMessage['parts'][number]
+  const loser = { ...winner, input: { query: 'loser'.repeat(100) }, output: { answer: 'discarded'.repeat(100) } }
+  const single = await price([winner])
+  const duplicate = await price([winner, loser])
+  const distinct = await price([winner, { ...winner, toolCallId: 'two' }])
+  expect(single).not.toBeNull()
+  expect(duplicate?.tokens).toBe(single?.tokens)
+  expect(distinct).not.toBeNull()
+  expect(distinct!.tokens).toBeLessThan(single!.tokens)
+})

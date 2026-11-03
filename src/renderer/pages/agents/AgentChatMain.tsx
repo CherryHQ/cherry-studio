@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -19,6 +20,7 @@ interface AgentChatMainProps {
   sessionMessagesEnabled: boolean
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -30,6 +32,8 @@ interface AgentChatMainProps {
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage: (messageId: string) => Promise<void>
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
@@ -41,6 +45,7 @@ export default function AgentChatMain({
   sessionMessagesEnabled,
   agentId,
   sessionId,
+  workspacePath,
   messages,
   activeAgent,
   partsByMessageId,
@@ -53,6 +58,8 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval
@@ -67,6 +74,7 @@ export default function AgentChatMain({
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
           sessionId={sessionId}
+          workspacePath={workspacePath}
           messages={messages}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
@@ -78,6 +86,8 @@ export default function AgentChatMain({
           selectAllPagination={selectAllPagination}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
+          getMessageSiblings={getMessageSiblings}
+          setActiveBranch={setActiveBranch}
           deleteMessage={agentId ? deleteMessage : undefined}
           startEditing={agentId ? startEditing : undefined}
           editBusy={editBusy}

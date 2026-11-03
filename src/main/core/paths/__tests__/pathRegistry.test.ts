@@ -38,6 +38,25 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it.each(['darwin', 'win32', 'linux'] as const)(
+    'locates the %s addon in target-specific unpackable resources',
+    (platform) => {
+      for (const arch of ['arm64', 'x64']) {
+        vi.stubGlobal(
+          'process',
+          Object.defineProperties(Object.create(process), {
+            platform: { value: platform },
+            arch: { value: arch }
+          })
+        )
+        expect(buildPathRegistry()['feature.external_app.native_file']).toBe(
+          path.normalize(`/mock/app/resources/binaries/${platform}-${arch}/external-app.node`)
+        )
+      }
+      expect(shouldAutoEnsure('feature.external_app.native_file')).toBe(false)
+    }
+  )
+
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {
       getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
@@ -90,6 +109,12 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps external skill exports under the user home without creating the shared directory', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.agents.skills']).toBe(path.join(registry['sys.home'], '.agents', 'skills'))
+    expect(shouldAutoEnsure('external.agents.skills')).toBe(false)
+  })
+
   it('keeps conditional Code Mate skill templates in read-only app resources', () => {
     const registry = buildPathRegistry()
 
@@ -132,6 +157,30 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps the uv cache under Cherry home', () => {
+    const registry = buildPathRegistry()
+    const cacheRoot = path.join(registry['cherry.home'], 'cache', 'uv')
+
+    expect(path.relative(cacheRoot, registry['feature.binary.data.uv_cache'])).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('leaves uv cache materialization to binary management', () => {
+    expect(shouldAutoEnsure('feature.binary.data.uv_cache')).toBe(false)
+  })
+
+  it('separates uv caches by resolved profile identity without copying a spaced suffix into the cache leaf', () => {
+    const uvCache = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.binary.data.uv_cache']
+    }
+
+    const first = uvCache('/profiles/first/Dev Oslo')
+    expect(uvCache('/profiles/second/Dev Oslo')).not.toBe(first)
+    expect(uvCache('/profiles/first/./Dev Oslo')).toBe(first)
+    expect(path.basename(first)).toMatch(/^[a-f0-9]{64}$/)
+    expect(path.relative(path.join(buildPathRegistry()['cherry.home'], 'cache', 'uv'), first)).not.toMatch(/\s/u)
   })
 
   it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {

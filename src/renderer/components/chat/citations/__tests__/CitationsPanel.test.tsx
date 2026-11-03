@@ -9,7 +9,12 @@ import type { CitationPanelActions } from '../common'
 const mocks = vi.hoisted(() => ({
   webCitationCard: vi.fn(),
   knowledgeCitationCard: vi.fn(),
-  fileOpenPath: vi.fn()
+  ipcRequest: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal()),
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -79,14 +84,6 @@ import CitationsPanel from '../CitationsPanel'
 describe('CitationsPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        file: {
-          openPath: mocks.fileOpenPath
-        }
-      }
-    })
   })
 
   it('renders citations in a page side panel and forwards platform actions', () => {
@@ -108,7 +105,7 @@ describe('CitationsPanel', () => {
     expect(contentProps.citation).toBe(citations[0])
 
     contentProps.actions?.openPath?.('/tmp/example.md')
-    expect(mocks.fileOpenPath).toHaveBeenCalledWith('/tmp/example.md')
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_path', '/tmp/example.md')
 
     contentProps.actions?.openBrowserUrl?.('https://example.com')
     expect(openBrowserUrl).toHaveBeenCalledExactlyOnceWith('https://example.com')

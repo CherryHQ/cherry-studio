@@ -77,15 +77,15 @@ sources:
 
 | 现有模块 | 现状 | 设计约束 |
 | --- | --- | --- |
-| [Utility Process](../references/utility-process/README.md) | 面向可信子进程；只支持主到子 RPC，无业务载荷运行时校验；每个 definition 一个实例 | 不能直接用来运行不可信插件；需评估受限启动、实例身份、反向调用和载荷 schema 的上游扩展 |
+| [Utility Process](../dev/references/utility-process/README.md) | 面向可信子进程；只支持主到子 RPC，无业务载荷运行时校验；每个 definition 一个实例 | 不能直接用来运行不可信插件；需评估受限启动、实例身份、反向调用和载荷 schema 的上游扩展 |
 | [ProcessAdapter](../../src/main/core/utilityProcess/host/processAdapter.ts) | 已有进程适配接点，但绑定现有 frame 契约；生产实现使用 Electron MessagePort | 可以研究复用生命周期实现，不能认定增加一个 launcher 就完成适配 |
-| [IpcApi](../references/ipc/README.md) | 入口使用 Electron sender 校验；`IpcContext` 目前只有窗口身份 | 不能伪造窗口或使用 `senderId: null` 将插件接入所有现有路由 |
+| [IpcApi](../dev/references/ipc/README.md) | 入口使用 Electron sender 校验；`IpcContext` 目前只有窗口身份 | 不能伪造窗口或使用 `senderId: null` 将插件接入所有现有路由 |
 
 建议先验证能否在现有进程基础设施中添加明确的受限执行能力，并保持当前可信消费者语义不变。若通道或启动方式不兼容，应将所需上游改动与独立实现的成本列出后再决策；本草案不默认复制第二套 ProcessHost。
 
 插件调用宿主的身份应由宿主绑定到私有连接，至少能够关联 owner 与当前实例。具体身份类型和授权上下文需在 IpcApi 的入口能力扩展中讨论，不能靠把任意插件请求转发成 renderer IPC 来绕过限制。方法层复用现有业务服务，不复制业务实现。
 
-实现时，持有长驻资源的管理者遵循 [lifecycle](../references/lifecycle/README.md)；主进程路径通过 [路径注册表](../../src/main/core/paths/README.md) 访问，日志经过 `loggerService`。当前独立包仅用于原型，不接入生产服务。
+实现时，持有长驻资源的管理者遵循 [lifecycle](../dev/references/lifecycle/README.md)；主进程路径通过 [路径注册表](../../src/main/core/paths/README.md) 访问，日志经过 `loggerService`。当前独立包仅用于原型，不接入生产服务。
 
 ## 4. 进程接口的最小契约
 

@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -28,6 +29,7 @@ const logger = loggerService.withContext('AgentSessionMessages')
 type Props = {
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -48,6 +50,8 @@ type Props = {
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   previewInputFile?: MessageListActions['previewInputFile']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
@@ -57,6 +61,7 @@ type Props = {
 const AgentSessionMessages = ({
   agentId,
   sessionId,
+  workspacePath,
   messages,
   activeAgent,
   partsByMessageId,
@@ -75,6 +80,8 @@ const AgentSessionMessages = ({
   openDiagnosticReport,
   previewInputFile,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval
@@ -158,12 +165,14 @@ const AgentSessionMessages = ({
     openDiagnosticReport,
     diagnosticReport,
     previewInputFile,
+    getMessageSiblings,
+    setActiveBranch,
     deleteMessage,
     startEditing,
     editBusy,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path,
+    workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,
     afterMessages
   })

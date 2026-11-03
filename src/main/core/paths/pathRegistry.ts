@@ -101,6 +101,13 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.external_app.native_file': path.join(
+      appRootResources,
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      'external-app.node'
+    ),
+
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
@@ -163,6 +170,13 @@ export function buildPathRegistry() {
     // naming a Python runtime there is what makes mise fetch its own from
     // GitHub releases (see binaryManager/pythonRuntime.ts).
     'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
+    // Outside feature.binary.data: install XDG_CACHE_HOME inherits macOS userData's space, as do uv's sdist build dirs.
+    'feature.binary.data.uv_cache': path.join(
+      CHERRY_HOME,
+      'cache',
+      'uv',
+      createHash('sha256').update(path.resolve(appUserData)).digest('hex')
+    ),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
@@ -229,6 +243,7 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
+    'feature.agents.durable.stores': path.join(appUserDataData, 'Agents', '.durable'),
     'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
@@ -335,6 +350,7 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
@@ -417,6 +433,8 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.pi.sessions',
+  'feature.agents.durable.stores',
   // Namespace prefixes
   'sys.',
   'external.',
@@ -427,6 +445,7 @@ const NO_ENSURE = [
   'app.exe_file',
   'app.extra_resources',
   'feature.voice.helper_file',
+  'feature.external_app.native_file',
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
@@ -447,6 +466,7 @@ const NO_ENSURE = [
   'feature.agents.pi.vcc_file',
   'feature.mini_app.builtin',
   'feature.sandbox.native.builtin',
+  'feature.binary.data.uv_cache',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',

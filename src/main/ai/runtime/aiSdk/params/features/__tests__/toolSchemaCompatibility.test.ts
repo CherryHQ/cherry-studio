@@ -1,4 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -8,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import { createAihubmix } from '@main/ai/provider/custom/aihubmix/aihubmixProvider'
 import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInspect'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSearch'
@@ -42,16 +44,24 @@ async function transform(
 
 function createMetaTools() {
   const registry = new ToolRegistry()
-  return {
+  const tools = {
     tool_search: createToolSearchTool(registry, new Set(['web_search']), new Set()),
     tool_inspect: createToolInspectTool(registry, new Set(['web_search']), new Set()),
     tool_invoke: createToolInvokeTool(registry, new Set(['web_search']), new Set())
   }
+  tools.tool_search.providerOptions = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '5m' } } }
+  return tools
 }
 
 function captureRequest() {
   type WireSchema = { type: string; properties: Record<string, unknown> }
-  type WireTool = { name: string; description: string; input_schema: WireSchema; input_examples?: unknown }
+  type WireTool = {
+    name: string
+    description: string
+    input_schema: WireSchema
+    input_examples?: unknown
+    cache_control?: unknown
+  }
   type WireBody = {
     model: string
     stream?: boolean
@@ -68,89 +78,112 @@ function captureRequest() {
   return { requests, captureFetch }
 }
 
-const CHERRYIN_SCOPE = {
-  aiSdkProviderId: 'cherryin',
-  runtimeProviderId: 'cherryin',
-  endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-}
-
-describe('toolSchemaCompatibilityFeature', () => {
-  it.each([
-    ['omits input_examples on CherryIN Anthropic messages with built-in meta tools', 'cherryin'],
-    ['preserves input_examples and advanced beta on official Anthropic with built-in meta tools', 'anthropic']
-  ])('%s', async (_name, provider) => {
-    const { requests, captureFetch } = captureRequest()
-    const tools = createMetaTools()
-    const originals = Object.values(tools).map((entry) => structuredClone(entry.inputExamples))
-    const model = wrapLanguageModel({
-      model:
-        provider === 'cherryin'
-          ? createCherryIn({
-              apiKey: 'test-key',
-              endpointType: 'anthropic',
-              anthropicBaseURL: 'http://127.0.0.1:1',
-              fetch: captureFetch
-            })('anthropic/claude-haiku-5.5')
-          : createAnthropic({ apiKey: 'test-key', baseURL: 'http://127.0.0.1:1', fetch: captureFetch })(
-              'claude-haiku-5.5'
-            ),
-      middleware: await getMiddleware({
-        aiSdkProviderId: provider,
-        runtimeProviderId: provider,
-        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      })
-    })
-    await expect(generateText({ model, prompt: 'hello', tools, maxRetries: 0 })).rejects.toBeDefined()
-    expect(requests).toHaveLength(1)
-    const request = requests[0]
-    expect(new URL(request.url).pathname).toBe('/messages')
-    expect(request.body.model).toBe(provider === 'cherryin' ? 'anthropic/claude-haiku-5.5' : 'claude-haiku-5.5')
-    expect(request.body.tools.map((entry) => entry.name)).toEqual(Object.keys(tools))
-    for (const [index, [name, original]] of Object.entries(tools).entries()) {
-      const sent = request.body.tools[index]
-      expect(sent.name).toBe(name)
-      expect(sent.description).toBe(original.description)
-      expect(sent.description.length).toBeGreaterThan(0)
-      const expectedSchema = { ...(await asSchema(original.inputSchema).jsonSchema) }
-      delete expectedSchema.$schema
-      expect(sent.input_schema).toEqual(expectedSchema)
-      expect(sent.input_schema.type).toBe('object')
-      expect(Object.keys(sent.input_schema.properties).length).toBeGreaterThan(0)
-      if (provider === 'cherryin') expect(sent).not.toHaveProperty('input_examples')
-      else expect(sent.input_examples).toEqual(original.inputExamples!.map((example) => example.input))
-      expect(original.inputExamples).toEqual(originals[index])
-      expect(original.inputExamples!.length).toBeGreaterThan(0)
-    }
-    const betas =
-      request.headers
-        .get('anthropic-beta')
-        ?.split(',')
-        .map((beta) => beta.trim()) ?? []
-    if (provider === 'cherryin') expect(betas).not.toContain('advanced-tool-use-2025-11-20')
-    else expect(betas).toContain('advanced-tool-use-2025-11-20')
-  })
-
-  it('omits input_examples on consumed CherryIN Anthropic streams', async () => {
-    const { requests, captureFetch } = captureRequest()
-    const model = wrapLanguageModel({
-      model: createCherryIn({
+const ANTHROPIC_PROVIDER_CASES = [
+  {
+    provider: 'cherryin',
+    modelId: 'anthropic/claude-haiku-5.5',
+    createModel: (fetch: typeof globalThis.fetch) =>
+      createCherryIn({
         apiKey: 'test-key',
         endpointType: 'anthropic',
         anthropicBaseURL: 'http://127.0.0.1:1',
-        fetch: captureFetch
+        fetch
       })('anthropic/claude-haiku-5.5'),
-      middleware: await getMiddleware(CHERRYIN_SCOPE)
-    })
-    const result = streamText({ model, prompt: 'hello', tools: createMetaTools(), maxRetries: 0 })
-    const partTypes: string[] = []
-    for await (const part of result.fullStream) partTypes.push(part.type)
-    expect(partTypes).toContain('error')
-    expect(requests).toHaveLength(1)
-    expect(new URL(requests[0].url).pathname).toBe('/messages')
-    expect(requests[0].body.stream).toBe(true)
-    expect(requests[0].body.tools.map((entry) => entry.name)).toEqual(['tool_search', 'tool_inspect', 'tool_invoke'])
-    for (const sent of requests[0].body.tools) expect(sent).not.toHaveProperty('input_examples')
-  })
+    omitExamples: true
+  },
+  {
+    provider: 'aihubmix',
+    modelId: 'claude-haiku-5-5',
+    createModel: (fetch: typeof globalThis.fetch) =>
+      createAihubmix({ apiKey: 'test-key', baseURL: 'http://127.0.0.1:1', fetch })('claude-haiku-5-5'),
+    omitExamples: true
+  },
+  {
+    provider: 'anthropic',
+    modelId: 'claude-haiku-5.5',
+    createModel: (fetch: typeof globalThis.fetch) =>
+      createAnthropic({ apiKey: 'test-key', baseURL: 'http://127.0.0.1:1', fetch })('claude-haiku-5.5'),
+    omitExamples: false
+  }
+]
+
+describe('toolSchemaCompatibilityFeature', () => {
+  it.each(ANTHROPIC_PROVIDER_CASES)(
+    'applies the $provider input examples policy with built-in meta tools',
+    async ({ provider, modelId, createModel, omitExamples }) => {
+      const { requests, captureFetch } = captureRequest()
+      const tools = createMetaTools()
+      const originals = Object.values(tools).map((entry) => structuredClone(entry.inputExamples))
+      const model = wrapLanguageModel({
+        model: createModel(captureFetch),
+        middleware: await getMiddleware({
+          aiSdkProviderId: provider,
+          runtimeProviderId: provider,
+          endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        })
+      })
+      await expect(generateText({ model, prompt: 'hello', tools, maxRetries: 0 })).rejects.toBeDefined()
+      expect(requests).toHaveLength(1)
+      const request = requests[0]
+      expect(new URL(request.url).pathname).toBe('/messages')
+      expect(request.body.model).toBe(modelId)
+      expect(request.body.tools.map((entry) => entry.name)).toEqual(Object.keys(tools))
+      expect(request.body.tools[0].cache_control).toEqual({ type: 'ephemeral', ttl: '5m' })
+      for (const [index, [name, original]] of Object.entries(tools).entries()) {
+        const sent = request.body.tools[index]
+        expect(sent.name).toBe(name)
+        expect(sent.description).toBe(original.description)
+        expect(sent.description.length).toBeGreaterThan(0)
+        const expectedSchema = { ...(await asSchema(original.inputSchema).jsonSchema) }
+        delete expectedSchema.$schema
+        expect(sent.input_schema).toEqual(expectedSchema)
+        expect(sent.input_schema.type).toBe('object')
+        expect(Object.keys(sent.input_schema.properties).length).toBeGreaterThan(0)
+        if (omitExamples) expect(sent).not.toHaveProperty('input_examples')
+        else expect(sent.input_examples).toEqual(original.inputExamples!.map((example) => example.input))
+        expect(original.inputExamples).toEqual(originals[index])
+        expect(original.inputExamples!.length).toBeGreaterThan(0)
+      }
+      const betas =
+        request.headers
+          .get('anthropic-beta')
+          ?.split(',')
+          .map((beta) => beta.trim()) ?? []
+      if (omitExamples) expect(betas).not.toContain('advanced-tool-use-2025-11-20')
+      else expect(betas).toContain('advanced-tool-use-2025-11-20')
+    }
+  )
+
+  it.each(ANTHROPIC_PROVIDER_CASES.filter(({ omitExamples }) => omitExamples))(
+    'omits input_examples and their beta on consumed $provider Anthropic streams',
+    async ({ provider, createModel }) => {
+      const { requests, captureFetch } = captureRequest()
+      const model = wrapLanguageModel({
+        model: createModel(captureFetch),
+        middleware: await getMiddleware({
+          aiSdkProviderId: provider,
+          runtimeProviderId: provider,
+          endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        })
+      })
+      const result = streamText({ model, prompt: 'hello', tools: createMetaTools(), maxRetries: 0 })
+      const partTypes: string[] = []
+      for await (const part of result.fullStream) partTypes.push(part.type)
+      expect(partTypes).toContain('error')
+      expect(requests).toHaveLength(1)
+      expect(new URL(requests[0].url).pathname).toBe('/messages')
+      expect(requests[0].body.stream).toBe(true)
+      expect(requests[0].body.tools.map((entry) => entry.name)).toEqual(['tool_search', 'tool_inspect', 'tool_invoke'])
+      for (const sent of requests[0].body.tools) expect(sent).not.toHaveProperty('input_examples')
+      expect(requests[0].body.tools[0].cache_control).toEqual({ type: 'ephemeral', ttl: '5m' })
+      const betas =
+        requests[0].headers
+          .get('anthropic-beta')
+          ?.split(',')
+          .map((beta) => beta.trim()) ?? []
+      expect(betas).not.toContain('advanced-tool-use-2025-11-20')
+    }
+  )
 
   it('strips unsupported validation keywords from nested strict schemas without mutating the source', async () => {
     const params: LanguageModelV3CallOptions = {
@@ -511,6 +544,76 @@ describe('toolSchemaCompatibilityFeature', () => {
     const sent = readTool(capturedBody)
     expect(sent.strict).toBe(true)
     expect(JSON.stringify(sent.input_schema)).not.toMatch(/"(minimum|maximum|minLength)"/)
+  })
+
+  // Responses (incl. Azure OpenAI) treat a tool without `strict` as strict and
+  // mark every property required, so the model invents optional MCP arguments.
+  it('opts non-strict tools out of the Azure Responses default strict mode', async () => {
+    const { requests, captureFetch } = captureRequest()
+    const model = wrapLanguageModel({
+      model: createAzure({ resourceName: 'test', apiKey: 'test-key', fetch: captureFetch }).responses('gpt-5'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'azure-responses',
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: {
+          sequentialthinking: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: { thought: { type: 'string' }, chainId: { type: 'string' } },
+              required: ['thought']
+            })
+          }),
+          read_file: tool({ inputSchema: readFileInputSchema, strict: true })
+        }
+      })
+    ).rejects.toBeDefined()
+
+    const sent = (
+      requests[0].body as unknown as {
+        tools: Array<{ name: string; strict?: boolean; parameters: { required?: string[] } }>
+      }
+    ).tools
+    const byName = Object.fromEntries(sent.map((entry) => [entry.name, entry]))
+    expect(byName.sequentialthinking.strict).toBe(false)
+    expect(byName.sequentialthinking.parameters.required).toEqual(['thought'])
+    expect(byName.read_file.strict).toBe(true)
+  })
+
+  // Strict-unaware upstreams such as Bedrock reject an unexpected `strict` key (issue #23378).
+  it.each([
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      createModel: (fetch: typeof globalThis.fetch) => createOpenAI({ apiKey: 'test-key', fetch }).chat('gpt-5'),
+      readTool: (body: unknown) => (body as { tools: Array<{ function: object }> }).tools[0].function
+    },
+    {
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      createModel: (fetch: typeof globalThis.fetch) => createAnthropic({ apiKey: 'test-key', fetch })('claude-opus-5'),
+      readTool: (body: unknown) => (body as { tools: object[] }).tools[0]
+    }
+  ])('sends no strict key for a non-strict tool on $endpointType', async ({ endpointType, createModel, readTool }) => {
+    const { requests, captureFetch } = captureRequest()
+    const model = wrapLanguageModel({
+      model: createModel(captureFetch),
+      middleware: await getMiddleware({ endpointType })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: { lookup: tool({ inputSchema: z.object({ query: z.string(), limit: z.number().optional() }) }) }
+      })
+    ).rejects.toBeDefined()
+
+    expect(readTool(requests[0].body)).not.toHaveProperty('strict')
   })
 
   // Gemini's Schema proto types `enum` as string lists; a numeric or boolean

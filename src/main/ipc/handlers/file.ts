@@ -11,6 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
+import { validateNotesDirectory } from '@main/services/notesDirectory'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -39,6 +40,14 @@ function requireManagedSender(senderId: WindowId | null): TreeOwner {
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+  'file.edit.open': async ({ handle }, { senderId }) =>
+    application.get('FileEditService').open(requireManagedSender(senderId).windowId, handle),
+  'file.edit.read': async ({ editId }, { senderId }) =>
+    application.get('FileEditService').read(requireManagedSender(senderId).windowId, editId),
+  'file.edit.write': async (input, { senderId }) =>
+    application.get('FileEditService').write(requireManagedSender(senderId).windowId, input),
+  'file.edit.close': async ({ editId }, { senderId }) =>
+    application.get('FileEditService').close(requireManagedSender(senderId).windowId, editId),
   'file.read': async ({ handle, options }) => {
     const fileManager = application.get('FileManager')
     if (options.mode === 'range') {
@@ -154,6 +163,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
+  'file.validate_notes_directory': async (path) => validateNotesDirectory(path),
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
       return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)
