@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import { exportViewToUIMessage } from '@renderer/utils/message/exportView'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -58,6 +59,25 @@ function createSessionMessage(
 describe('agentSessionExport', () => {
   beforeEach(() => {
     vi.mocked(dataApiService.get).mockReset()
+  })
+
+  it('keeps import provenance through image-capture conversion without replacing stored author identity', async () => {
+    const row = createSessionMessage({
+      id: 'imported-answer',
+      role: 'assistant',
+      provenance: { source: 'codex', originalMessageId: 'source-answer', sourceOrder: 3, inferredTimestamp: false },
+      messageSnapshot: {
+        id: 'source-session',
+        name: 'Source title',
+        model: { id: 'gpt', name: 'GPT', provider: 'openai' }
+      }
+    })
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({ items: [row] })
+    const messages = await getAgentSessionMessagesForExport({ id: 'session-a', agentId: 'agent-a', name: 'Session A' })
+    const captured = exportViewToUIMessage(messages[0])
+    expect(captured.metadata?.provenance).toEqual(row.provenance)
+    expect(captured.metadata?.messageSnapshot).toEqual(row.messageSnapshot)
+    expect(captured.parts).toEqual(row.data.parts)
   })
 
   it('resolves the export model from snapshot → row modelId → live agent fallback, in that order', async () => {
