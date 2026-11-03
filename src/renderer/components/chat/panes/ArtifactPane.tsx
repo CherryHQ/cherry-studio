@@ -9,8 +9,7 @@ import {
   MessageSquareText,
   Sparkles,
   SquareDashedMousePointer,
-  SquarePen,
-  X
+  SquarePen
 } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -39,7 +38,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import type { LineComment } from '@renderer/components/FileEditor'
 import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
@@ -81,8 +80,7 @@ import { ArtifactPaneSettingsMenu, useFilePaneSettings } from './ArtifactPaneSet
 import {
   type ArtifactFileTreeErrorKind,
   type ArtifactFileTreeModel,
-  isSelectableFileNode,
-  useArtifactFileTreeModel
+  isSelectableFileNode
 } from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
@@ -107,22 +105,6 @@ const ARTIFACT_FILE_TREE_ERROR_KEYS = {
     title: 'agent.preview_pane.tree_error.load_error.title'
   }
 } as const satisfies Record<ArtifactFileTreeErrorKind, { description: string; title: string }>
-
-export interface ArtifactPaneProps {
-  workspacePath?: string
-  maximized?: boolean
-  previewFileSelection?: ArtifactPaneFileSelection | null
-  onPreviewClose?: () => void
-  selectedFile?: string | null
-  onSelectedFileChange?: (file: string | null) => void
-  /** Caller-owned expanded folder ids. The synthetic workspace root is managed internally. */
-  fileTreeExpandedIds?: ReadonlySet<string>
-  onFileTreeExpandedIdsChange?: (next: ReadonlySet<string>) => void
-  fileTreeSearchKeyword?: string
-  onFileTreeSearchKeywordChange?: (keyword: string) => void
-  /** Show a search input inside the file tree that filters nodes by name. */
-  enableFileSearch?: boolean
-}
 
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
@@ -253,12 +235,12 @@ function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
 }
 
-interface ArtifactPaneViewBaseProps {
+interface ArtifactPaneViewProps {
+  paneTitle: ReactNode
+  paneActions: ReactNode
   workspacePath?: string
-  maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
-  onPreviewClose?: () => void
-  enableFileSearch?: boolean
+  onPreviewClose: () => void
   /** Directory-tree model owned by the surrounding artifact capability. */
   model: ArtifactFileTreeModel
   selectedFile: string | null
@@ -275,8 +257,8 @@ interface ArtifactPaneViewBaseProps {
    * quote affordance is offered.
    */
   onInsertSelectionReference?: (reference: ComposerFileReference) => void
-  /** Open file tabs; `previewFileSelection` is the active one. Defaults to the open file alone. */
-  fileTabs?: ArtifactPaneFileSelection[]
+  /** Open file tabs; `previewFileSelection` is the active one. */
+  fileTabs: ArtifactPaneFileSelection[]
   onActivateFileTab?: (tab: ArtifactPaneFileSelection) => void
   onCloseFileTab?: (tab: ArtifactPaneFileSelection) => void
   /** Keeps only the given tab open (Close others), or none (Close all). */
@@ -288,36 +270,20 @@ interface ArtifactPaneViewBaseProps {
   onAttachPathToContext?: (path: string, kind: 'file' | 'directory', name?: string) => void
 }
 
-type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
-  (
-    | {
-        headerVariant?: 'overlay'
-        paneTitle?: never
-        paneActions?: never
-      }
-    | {
-        headerVariant: 'pane'
-        paneTitle: ReactNode
-        paneActions: ReactNode
-      }
-  )
-
 /**
  * Presentational artifact pane: renders file tree and selected-file overlay
  * preview from the supplied model.
  *
- * Escape is handled in two places and never at the document level: the overlay owns it for anything
- * focused inside it, and the pane root covers the picker toggle, which sits in the pane header as the
- * overlay's sibling. The picker takes precedence over closing the preview, because losing the mode is
- * cheaper to recover from than losing the preview.
+ * Escape is handled by the overlay and never at the document level. The picker takes precedence over
+ * closing the preview, because losing the mode is cheaper to recover from than losing the preview.
  */
 export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const {
+    paneTitle,
+    paneActions,
     workspacePath,
-    maximized = false,
     previewFileSelection = null,
     onPreviewClose,
-    enableFileSearch = false,
     model,
     selectedFile,
     onSelectedFileChange,
@@ -365,7 +331,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
 
-  const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  const trimmedFileSearch = searchKeyword.trim()
   const previewSelectionWorkspacePath = previewFileSelection?.workspacePath
   const parsedPreviewWorkspacePath = useMemo(
     () => (previewSelectionWorkspacePath ? AbsoluteFilePathSchema.safeParse(previewSelectionWorkspacePath) : null),
@@ -525,14 +491,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     filePath: overlayFilePath,
     workspacePath: overlayWorkspacePath
   }
-  const handleClosePreview = useCallback(() => {
-    if (onPreviewClose) {
-      onPreviewClose()
-      return
-    }
-    onSelectedFileChange(null)
-  }, [onPreviewClose, onSelectedFileChange])
-
   // React 19 delegates events at the root container, so a document-level listener would never see a keydown
   // whose SyntheticEvent.stopPropagation() this handler already called.
   const handleOverlayKeyDown = useCallback(
@@ -550,9 +508,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         return
       }
       event.stopPropagation()
-      handleClosePreview()
+      onPreviewClose()
     },
-    [editMode, fileSession?.isDirty, fileSessionFlush, handleClosePreview, pickerActive]
+    [editMode, fileSession?.isDirty, fileSessionFlush, onPreviewClose, pickerActive]
   )
 
   const copyPath = useCallback(
@@ -653,18 +611,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [editMode, pickerActive, pickerAvailable, t]
   )
 
-  const searchToolbar = useMemo(
-    () =>
-      props.headerVariant === 'pane' ? undefined : (
-        <div className="flex shrink-0 items-center gap-1">
-          {workspacePath && !hasInvalidWorkspacePath ? (
-            <OpenTargetButton targetPath={workspacePath} pathKind="directory" />
-          ) : null}
-        </div>
-      ),
-    [hasInvalidWorkspacePath, props.headerVariant, workspacePath]
-  )
-
   const handleReloadAfterConflict = useCallback(async () => {
     if (!fileSession) return
     try {
@@ -750,15 +696,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileMenuItems = overlaySelection ? buildFileMenuItems(overlaySelection, activeOpenItems, copyActiveContent) : []
 
   const treeShown = isWide ? treePinned : treeRevealed
-  const tabSelections = fileTabs ?? (overlaySelection ? [overlaySelection] : [])
   const tabKey = (tab: ArtifactPaneFileSelection) =>
     `${tab.previewType ?? 'artifact'}:${getArtifactPaneSelectionPath(tab)}`
   const activeTabKey = overlaySelection ? tabKey(overlaySelection) : null
-  const findTab = (key: string) => tabSelections.find((tab) => tabKey(tab) === key)
+  const findTab = (key: string) => fileTabs.find((tab) => tabKey(tab) === key)
   const closeTab = (key: string) => {
     const tab = findTab(key)
     if (!tab) return
-    if (key === activeTabKey) handleClosePreview()
+    if (key === activeTabKey) onPreviewClose()
     else onCloseFileTab?.(tab)
   }
   const getTabMenuItems = async (key: string): Promise<readonly CommandContextMenuExtraItem[]> => {
@@ -780,7 +725,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       closeItem('close', t('agent.preview_pane.tabs.close'), () => closeTab(key)),
       ...(onRetainFileTab
         ? [
-            ...(tabSelections.length > 1
+            ...(fileTabs.length > 1
               ? [closeItem('close-others', t('agent.preview_pane.tabs.close_others'), () => onRetainFileTab(tab))]
               : []),
             closeItem('close-all', t('agent.preview_pane.tabs.close_all'), () => onRetainFileTab(null))
@@ -810,45 +755,44 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     ) : null
   // The toggle follows the tree to the right; a narrow pane covers the file instead, so it stays left.
   const treeToggleOnRight = isWide && paneSettings.treePosition === 'right'
-  const paneHeader =
-    props.headerVariant === 'pane' ? (
-      <div
-        data-testid="artifact-pane-header"
-        className="flex min-h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
-        {treeToggleOnRight ? null : treeToggle}
-        {tabSelections.length ? (
-          <ArtifactPaneFileTabs
-            tabs={tabSelections.map((tab) => ({
-              key: tabKey(tab),
-              title: getPreviewFileTitle(tab),
-              path: getArtifactPaneSelectionPath(tab)
-            }))}
-            activeKey={activeTabKey}
-            activeDirty={isEditDirty}
-            dirtyLabel={t('agent.preview_pane.edit.unsaved')}
-            closeLabel={t('agent.preview_pane.close')}
-            overflowLabel={t('agent.preview_pane.tabs.show_all')}
-            onActivate={(key) => {
-              const tab = findTab(key)
-              if (tab) onActivateFileTab?.(tab)
-            }}
-            onClose={closeTab}
-            getMenuItems={getTabMenuItems}
-          />
-        ) : (
-          <div
-            data-testid="artifact-pane-header-title"
-            className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
-            {props.paneTitle}
-          </div>
-        )}
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          {treeToggleOnRight ? treeToggle : null}
-          <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} wordWrapUnavailable={wordWrapUnavailable} />
-          {props.paneActions}
+  const paneHeader = (
+    <div
+      data-testid="artifact-pane-header"
+      className="flex min-h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
+      {treeToggleOnRight ? null : treeToggle}
+      {fileTabs.length ? (
+        <ArtifactPaneFileTabs
+          tabs={fileTabs.map((tab) => ({
+            key: tabKey(tab),
+            title: getPreviewFileTitle(tab),
+            path: getArtifactPaneSelectionPath(tab)
+          }))}
+          activeKey={activeTabKey}
+          activeDirty={isEditDirty}
+          dirtyLabel={t('agent.preview_pane.edit.unsaved')}
+          closeLabel={t('agent.preview_pane.close')}
+          overflowLabel={t('agent.preview_pane.tabs.show_all')}
+          onActivate={(key) => {
+            const tab = findTab(key)
+            if (tab) onActivateFileTab?.(tab)
+          }}
+          onClose={closeTab}
+          getMenuItems={getTabMenuItems}
+        />
+      ) : (
+        <div
+          data-testid="artifact-pane-header-title"
+          className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
+          {paneTitle}
         </div>
+      )}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {treeToggleOnRight ? treeToggle : null}
+        <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} wordWrapUnavailable={wordWrapUnavailable} />
+        {paneActions}
       </div>
-    ) : null
+    </div>
+  )
 
   const lineCommentPath = overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : null
   const handleLineComment = useCallback(
@@ -908,7 +852,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   const renderOverlay = () => {
     if (!overlaySelection || treeRevealed) return null
-    const isPane = props.headerVariant === 'pane'
 
     const overlayActions = (
       <>
@@ -944,19 +887,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           </Tooltip>
         ) : null}
         <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
-        {isPane ? null : (
-          <Tooltip content={t('agent.preview_pane.close')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={t('agent.preview_pane.close')}
-              onClick={handleClosePreview}>
-              <X size={16} />
-            </Button>
-          </Tooltip>
-        )}
       </>
     )
 
@@ -970,35 +900,20 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         <FilePreviewToolbarPortalProvider>
           <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle pr-2 pl-3">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground">
-              {isPane || isSplit ? (
-                <div className="flex min-w-0 cursor-context-menu font-normal">
-                  <ArtifactPaneBreadcrumb
-                    key={previewKey}
-                    relativePath={getArtifactPaneSelectionRelativePath(workspacePath, overlaySelection)}
-                    fallbackTitle={getPreviewFileTitle(overlaySelection)}
-                    fullPath={getArtifactPaneSelectionPath(overlaySelection)}
-                    rootEntries={model.filteredTree}
-                    nodeById={model.nodeById}
-                    onOpenFile={handleSelectedChange}
-                    onLoadFolder={model.loadFolder}
-                    fileMenuItems={fileMenuItems}
-                    getFolderMenuItems={getFolderMenuItems}
-                  />
-                </div>
-              ) : (
-                <CommandContextMenu key={previewKey} location="webcontents.context" extraItems={fileMenuItems}>
-                  <span className="cursor-context-menu truncate" title={getArtifactPaneSelectionPath(overlaySelection)}>
-                    {getPreviewFileTitle(overlaySelection)}
-                  </span>
-                </CommandContextMenu>
-              )}
-              {isEditDirty && !isPane && (
-                <span
-                  className="size-1.5 shrink-0 rounded-full bg-warning"
-                  aria-label={t('agent.preview_pane.edit.unsaved')}
-                  title={t('agent.preview_pane.edit.unsaved')}
+              <div className="flex min-w-0 cursor-context-menu font-normal">
+                <ArtifactPaneBreadcrumb
+                  key={previewKey}
+                  relativePath={getArtifactPaneSelectionRelativePath(workspacePath, overlaySelection)}
+                  fallbackTitle={getPreviewFileTitle(overlaySelection)}
+                  fullPath={getArtifactPaneSelectionPath(overlaySelection)}
+                  rootEntries={model.filteredTree}
+                  nodeById={model.nodeById}
+                  onOpenFile={handleSelectedChange}
+                  onLoadFolder={model.loadFolder}
+                  fileMenuItems={fileMenuItems}
+                  getFolderMenuItems={getFolderMenuItems}
                 />
-              )}
+              </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1">{overlayActions}</div>
           </div>
@@ -1084,11 +999,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           onExpandedChange={model.setExpandedIds}
           selectedId={selectedFile}
           onSelectedChange={handleSelectedChange}
-          showSearch={enableFileSearch}
+          showSearch
           searchKeyword={searchKeyword}
           onSearchKeywordChange={onSearchKeywordChange}
           searchPlaceholder={t('agent.preview_pane.search_placeholder')}
-          searchToolbar={searchToolbar}
           searchClearLabel={t('common.clear')}
           getMenuItems={getFileTreeMenuItems}
           showFolderIcons={false}
@@ -1113,10 +1027,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       treeErrorKeys,
       selectedFile,
       handleSelectedChange,
-      enableFileSearch,
       searchKeyword,
       onSearchKeywordChange,
-      searchToolbar,
       getFileTreeMenuItems,
       trimmedFileSearch,
       workspacePath,
@@ -1126,12 +1038,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   if (!workspacePath && !overlaySelection) {
     return (
-      <div
-        ref={artifactPaneRef}
-        className={cn(
-          'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
-          maximized && 'rounded-lg border border-border-subtle shadow-sm'
-        )}>
+      <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {paneHeader}
         <EmptyState
           icon={Sparkles}
@@ -1144,12 +1051,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   if (treeErrorKeys && !overlaySelection) {
     return (
-      <div
-        ref={artifactPaneRef}
-        className={cn(
-          'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
-          maximized && 'rounded-lg border border-border-subtle shadow-sm'
-        )}>
+      <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {paneHeader}
         <EmptyState icon={AlertCircle} title={t(treeErrorKeys.title)} description={t(treeErrorKeys.description)} />
       </div>
@@ -1181,12 +1083,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   )
 
   return (
-    <div
-      ref={artifactPaneRef}
-      className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
-        maximized && 'rounded-lg border border-border-subtle shadow-sm'
-      )}>
+    <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
       {paneHeader}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {isSplit ? (
@@ -1228,125 +1125,3 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     </div>
   )
 }
-
-/**
- * Standalone artifact pane: owns its own (optionally controlled) selection /
- * file-tree state and builds the tree model internally. The agent files
- * capability owns the same model and renders `ArtifactPaneView` directly; its
- * stable capability instance survives close, tab, and layout changes.
- */
-const ArtifactPane = ({
-  workspacePath,
-  maximized = false,
-  previewFileSelection,
-  onPreviewClose,
-  selectedFile: selectedFileProp,
-  onSelectedFileChange,
-  fileTreeExpandedIds: fileTreeExpandedIdsProp,
-  onFileTreeExpandedIdsChange,
-  fileTreeSearchKeyword: fileTreeSearchKeywordProp,
-  onFileTreeSearchKeywordChange,
-  enableFileSearch = false
-}: ArtifactPaneProps) => {
-  const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
-  const [internalPreviewFileSelection, setInternalPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(
-    null
-  )
-  const [internalFileTreeExpandedIds, setInternalFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
-  const [internalFileTreeSearchKeyword, setInternalFileTreeSearchKeyword] = useState('')
-  const previousWorkspacePathRef = useRef(workspacePath)
-  const hasMountedRef = useRef(false)
-  const selectedFileControlled = selectedFileProp !== undefined
-  const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
-  const previewFileSelectionControlled = previewFileSelection !== undefined
-  const effectivePreviewFileSelection = previewFileSelectionControlled
-    ? previewFileSelection
-    : internalPreviewFileSelection
-  const fileTreeExpandedIdsControlled = fileTreeExpandedIdsProp !== undefined
-  const expandedIds = fileTreeExpandedIdsProp ?? internalFileTreeExpandedIds
-  const fileTreeSearchKeywordControlled = fileTreeSearchKeywordProp !== undefined
-  const fileSearchKeyword = fileTreeSearchKeywordProp ?? internalFileTreeSearchKeyword
-
-  const setSelectedFile = useCallback(
-    (file: string | null) => {
-      if (!selectedFileControlled) setInternalSelectedFile(file)
-      if (!previewFileSelectionControlled) {
-        setInternalPreviewFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
-      }
-      onSelectedFileChange?.(file)
-    },
-    [onSelectedFileChange, previewFileSelectionControlled, selectedFileControlled, workspacePath]
-  )
-  const setExpandedIdsState = useCallback(
-    (ids: ReadonlySet<string>) => {
-      if (!fileTreeExpandedIdsControlled) setInternalFileTreeExpandedIds(ids)
-      onFileTreeExpandedIdsChange?.(ids)
-    },
-    [fileTreeExpandedIdsControlled, onFileTreeExpandedIdsChange]
-  )
-  const setFileSearchKeyword = useCallback(
-    (keyword: string) => {
-      if (!fileTreeSearchKeywordControlled) setInternalFileTreeSearchKeyword(keyword)
-      onFileTreeSearchKeywordChange?.(keyword)
-    },
-    [fileTreeSearchKeywordControlled, onFileTreeSearchKeywordChange]
-  )
-
-  const model = useArtifactFileTreeModel({
-    workspacePath,
-    treeOpen: true,
-    expandedIds,
-    searchKeyword: fileSearchKeyword,
-    enableFileSearch,
-    selectedFile,
-    onExpandedIdsChange: setExpandedIdsState
-  })
-
-  // Reset transient state when the workspace changes.
-  useEffect(() => {
-    const workspaceChanged = previousWorkspacePathRef.current !== workspacePath
-    if (workspaceChanged) {
-      if (!selectedFileControlled) setSelectedFile(null)
-      if (!previewFileSelectionControlled) setInternalPreviewFileSelection(null)
-    }
-    previousWorkspacePathRef.current = workspacePath
-
-    if (!hasMountedRef.current || workspaceChanged) {
-      if (!fileTreeExpandedIdsControlled) setExpandedIdsState(new Set())
-      if (!fileTreeSearchKeywordControlled) setFileSearchKeyword('')
-    }
-    hasMountedRef.current = true
-  }, [
-    fileTreeExpandedIdsControlled,
-    fileTreeSearchKeywordControlled,
-    previewFileSelectionControlled,
-    selectedFileControlled,
-    setExpandedIdsState,
-    setFileSearchKeyword,
-    setSelectedFile,
-    workspacePath
-  ])
-
-  useEffect(() => {
-    if (!selectedFile || !model.hasLoaded) return
-    if (isSelectableFileNode(model.nodeById, selectedFile)) return
-    setSelectedFile(null)
-  }, [model.hasLoaded, model.nodeById, selectedFile, setSelectedFile])
-
-  return (
-    <ArtifactPaneView
-      workspacePath={workspacePath}
-      maximized={maximized}
-      previewFileSelection={effectivePreviewFileSelection}
-      onPreviewClose={onPreviewClose}
-      enableFileSearch={enableFileSearch}
-      model={model}
-      selectedFile={selectedFile}
-      onSelectedFileChange={setSelectedFile}
-      searchKeyword={fileSearchKeyword}
-      onSearchKeywordChange={setFileSearchKeyword}
-    />
-  )
-}
-
-export default ArtifactPane

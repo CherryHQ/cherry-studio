@@ -1,6 +1,14 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { createTestSession, finish, hostStore, scriptedModel, gatewayModel, textParts } from '@test-helpers/piGateway'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  NATIVE_MODEL,
+  scriptedModel,
+  gatewayModel,
+  textParts
+} from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -54,11 +62,14 @@ describe('subagent', () => {
     expect(first.options.prompt.map((message) => message.role)).toEqual(['system', 'user'])
     expect(first.userText).not.toContain(DELEGATE_A)
     expect(first.options.tools?.map((tool) => tool.name)).not.toContain('subagent')
-    expect(toolResults(calls.at(-1)!).map((part) => outputText(part.output))).toEqual(['REPORT-A'])
+    const { sessionId } = host.subagents[0]
+    expect(toolResults(calls.at(-1)!).map((part) => outputText(part.output))).toEqual([
+      `REPORT-A\n\n(id: ${sessionId} — continue this subagent with message_subagent.)`
+    ])
 
     const result = toolResultOf(session, 'call_a')
     expect(result.isError).toBe(false)
-    expect(result.details).toEqual({ sessionId: host.subagents[0].sessionId, fork: false, outcome: 'completed' })
+    expect(result.details).toEqual({ sessionId, fork: false, background: false, outcome: 'completed' })
     // Two replies: 100 + 20 + 2 cached and 200 + 40 + 2 cached tokens.
     expect(result.usage?.totalTokens).toBe(364)
     expect(result.usage?.cost.total).toBeCloseTo(0.0004204, 10)
@@ -108,7 +119,8 @@ describe('subagent', () => {
     expect(calls[0].tools?.map((tool) => tool.name) ?? []).not.toContain('subagent')
   })
 
-  it('sends subagent entries only to its own listener; the parent transcript gains only the call and its result', async () => {
+  // Child output belongs to its own observation stream; origin remains in native storage.
+  it('sends child entries only to its listener and preserves native origin state', async () => {
     const { model } = delegateOnce()
     const host = recordingSubagentPort()
     const parent = hostStore()
@@ -130,6 +142,22 @@ describe('subagent', () => {
     const childEvents = host.events.get(host.subagents[0].sessionId)!
     const childEntries = childEvents.flatMap((event) => (event.type === 'session-append' ? event.entries : []))
     expect(roles(childEntries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
+    expect(
+      host.sessions
+        .get(host.subagents[0].sessionId)!
+        .sessionManager.getBranch()
+        .find((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-origin')
+    ).toMatchObject({
+      type: 'custom',
+      customType: 'cherry.subagent-origin',
+      data: {
+        parentToolCallId: 'call_a',
+        fork: false,
+        description: 'Check module A',
+        modelKey: `${NATIVE_MODEL.provider}/${NATIVE_MODEL.id}`
+      }
+    })
+    expect(new Set(childEntries.map((entry) => entry.id)).size).toBe(childEntries.length)
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: false })
   })
 
@@ -274,8 +302,9 @@ describe('subagent', () => {
     expect(outputText(result.output)).toMatch(/non-empty description and prompt/)
   })
 
-  // Breaks when two subagents of one parent can share a session id, or the host and the result disagree on it.
-  it('gives every subagent its own session id, even when provider call ids collide', async () => {
+  // Breaks when two subagents of one parent can share a session id, the host and the result disagree
+  // on it, or it is derived from the parent's id (Cherry's Pi session ids change between rebuilds).
+  it('gives every subagent its own random UUID, even when provider call ids collide', async () => {
     const check = (id: string) => subagentCall(id, { description: 'Check', prompt: `TASK ${id}` })
     const { model } = routedModel(({ userText, lastRole, options }) => {
       if (!options.tools?.some((tool) => tool.name === 'subagent')) return [...textParts('r', 'REPORT'), finish('stop')]
@@ -295,7 +324,7 @@ describe('subagent', () => {
     const ids = host.subagents.map((subagent) => subagent.sessionId)
     expect(ids).toHaveLength(5)
     expect(new Set(ids).size).toBe(5)
-    for (const id of ids) expect(id.startsWith(`${session.sessionId}.`)).toBe(true)
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     expect(new Set(requests.map((request) => request.sessionId).filter((id) => id !== session.sessionId))).toEqual(
       new Set(ids)
     )
@@ -307,7 +336,7 @@ describe('subagent', () => {
     )
     const configured = host.subagents.map((subagent) => ({
       toolCallId: subagent.parentToolCallId,
-      details: { sessionId: subagent.sessionId, fork: false, outcome: 'completed' }
+      details: { sessionId: subagent.sessionId, fork: false, background: false, outcome: 'completed' }
     }))
     expect(results).toHaveLength(5)
     expect(results).toEqual(expect.arrayContaining(configured))
@@ -360,7 +389,7 @@ describe('subagent', () => {
       { type: 'compaction-end', reason: 'threshold', entryId: expect.any(String) }
     ])
     const result = toolResultOf(session, 'call_a')
-    expect(result.content).toEqual([{ type: 'text', text: 'REPORT-A' }])
+    expect(result.content).toEqual([{ type: 'text', text: expect.stringMatching(/^REPORT-A\n\n\(id: /) }])
     expect(result.usage?.totalTokens).toBe(112 + 20_022 + 112 + 17)
     expect(summarizedSessions).toEqual([host.subagents[0].sessionId])
     expect(summarizedSessions[0]).not.toBe(session.sessionId)
