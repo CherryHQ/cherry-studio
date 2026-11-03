@@ -97,6 +97,14 @@ describe('fallback error classification', () => {
     expect(classifyRuntimeFallbackError(new Error('listen EADDRINUSE: address already in use :::500'))).toBeUndefined()
     expect(classifyRuntimeFallbackError(new Error('gateway returned 502 while proxying the request'))).toBeUndefined()
     expect(classifyRuntimeFallbackError(new Error('worker overload protection triggered'))).toBeUndefined()
+    // A named non-retryable status decides even when the same prose holds a token count that looks
+    // like a server status — replaying the turn would only fail again.
+    expect(
+      classifyRuntimeFallbackError(new Error('HTTP 400: prompt length 500 exceeds the completion limit'))
+    ).toBeUndefined()
+    expect(
+      classifyRuntimeFallbackError(new Error('400 invalid_request_error: 500 tokens exceeds the model context window'))
+    ).toBeUndefined()
   })
 
   it('recognises the bare status line Pi 1.0.0 forwards for an ordinary HTTP failure', () => {

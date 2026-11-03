@@ -27,12 +27,22 @@ export const VOLATILE_PROMPT_VARIABLES = ['{{time}}', '{{datetime}}'] as const
  */
 export interface PromptVariableInputs {
   username?: string | null
+  language?: string | null
   modelName?: string | null
 }
 
 /** Read the variable inputs the way {@link replacePromptVariables} would, for a later pin. */
 export function capturePromptVariableInputs(modelName?: string | null): PromptVariableInputs {
-  return { username: readPromptUserName(), modelName: modelName ?? null }
+  return { username: readPromptUserName(), language: readPromptLanguage(), modelName: modelName ?? null }
+}
+
+function readPromptLanguage(): string {
+  try {
+    return application.get('PreferenceService').get('app.language') ?? 'Unknown System Language'
+  } catch (error) {
+    logger.error('Failed to resolve {{language}}', error as Error)
+    return 'Unknown System Language'
+  }
 }
 
 function readPromptUserName(): string {
@@ -111,13 +121,7 @@ export const replacePromptVariables = async (
   }
 
   if (userSystemPrompt.includes('{{language}}')) {
-    try {
-      const language = application.get('PreferenceService').get('app.language') ?? 'Unknown System Language'
-      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
-    } catch (error) {
-      logger.error('Failed to resolve {{language}}', error as Error)
-      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
-    }
+    userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, pinned?.language ?? readPromptLanguage())
   }
 
   if (userSystemPrompt.includes('{{arch}}')) {

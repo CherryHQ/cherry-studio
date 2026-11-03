@@ -80,6 +80,9 @@ const RETRYABLE_PROVIDER_ERROR_TYPES = new Set([
 /** Compatibility prose matching only: a retryable status has to be named as one. */
 const MESSAGE_HTTP_STATUS =
   /\b(?:http|status(?:[\s_-]?code)?|code|api[\s_-]?error)\b[\s:#=()/-]{0,8}(429|500|502|503|529)\b/i
+/** A status the provider named as its own, even though it does not justify a fallback. */
+const MESSAGE_NON_RETRYABLE_STATUS =
+  /^(?:\s*(?:http[\s:_-]*)?(400|401|403|404|408|409|422)\b|\b(?:http|status(?:[\s_-]?code)?|code|api[\s_-]?error)\b[\s:#=()/-]{0,8}(400|401|403|404|408|409|422)\b)/i
 /**
  * The wire's own status line: `<status> <reason phrase>` is how Pi 1.0.0 forwards an ordinary HTTP
  * failure (`502 Bad Gateway`) when no envelope survives it. The reason phrase is what makes the
@@ -108,6 +111,9 @@ function classifyMessageFailure(message: string): string | undefined {
   }
   const statusLine = MESSAGE_STATUS_LINE.exec(message)?.[1]
   if (statusLine !== undefined) return `http ${statusLine}`
+  // A named non-retryable status outranks a retryable-looking number in the same prose: Pi's HTTP
+  // 400 context-length diagnostic carries the token count `500`, which is not a server failure.
+  if (MESSAGE_NON_RETRYABLE_STATUS.test(message)) return undefined
   const inProviderFrame = MESSAGE_PROVIDER_FRAME.test(message)
   const status =
     MESSAGE_HTTP_STATUS.exec(message)?.[1] ?? (inProviderFrame ? MESSAGE_STATUS.exec(message)?.[1] : undefined)
