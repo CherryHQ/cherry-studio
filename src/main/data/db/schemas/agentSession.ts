@@ -47,6 +47,8 @@ export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
 export type AgentSessionType = AgentSessionRow['type']
 
 export const AGENT_SESSION_IMPORT_STATEMENTS = [
-  `CREATE UNIQUE INDEX IF NOT EXISTS agent_session_import_identity_uniq
-   ON agent_session (json_extract(import_metadata, '$.source'), json_extract(import_metadata, '$.originalSessionId'))`
+  `DROP INDEX IF EXISTS agent_session_import_identity_uniq`,
+  `CREATE INDEX IF NOT EXISTS agent_session_import_active_identity_idx
+   ON agent_session (json_extract(import_metadata, '$.source'), json_extract(import_metadata, '$.originalSessionId'))
+   WHERE deleted_at IS NULL`
 ]

@@ -127,6 +127,8 @@ describe('local history import dialog', () => {
     const original = request.getMockImplementation()!
     let blocked = true
     request.mockImplementation(async (...args) => {
+      if (args[0] === 'conversation_import.commit' && blocked)
+        return [{ ref: 'ref', status: 'failed', reason: 'preview_blocked' }]
       const result = await original(...args)
       if (args[0] === 'conversation_import.preview') {
         result.previewId = blocked ? 'blocked' : 'fresh'
@@ -149,7 +151,7 @@ describe('local history import dialog', () => {
     expect(issues).toHaveTextContent('1 conversations could not be imported')
     expect(within(issues).getByRole('heading')).toHaveFocus()
     expect(within(issues).getAllByRole('listitem')).toHaveLength(1)
-    expect(request.mock.calls.some(([route]) => route === 'conversation_import.commit')).toBe(false)
+    expect(within(issues).queryByText(enUS['history_import.results.imported'])).toBeNull()
     await user.click(within(issues).getByText(enUS['common.close'], { selector: 'button' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: enUS['history_import.error_title'] })).toBeNull())
     expect(screen.getByRole('checkbox', { name: /Original task/ })).toBeChecked()
@@ -164,6 +166,48 @@ describe('local history import dialog', () => {
       selections: [{ ref: 'ref' }]
     })
     expect(request).toHaveBeenCalledWith('conversation_import.commit', { previewId: 'fresh', refs: ['ref'] })
+  })
+  it('keeps batch successes and retries only the remaining selection', async () => {
+    agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
+    const original = request.getMockImplementation()!
+    let blocked = true
+    request.mockImplementation(async (route, payload) => {
+      const result = await original(route, payload)
+      if (route === 'conversation_import.discover')
+        result.candidates.push({ ref: 'bad', title: 'Blocked task', sourcePath: '/source/bad.jsonl' })
+      if (route === 'conversation_import.preview')
+        result.items = payload.selections.map(({ ref }: { ref: string }) => ({
+          ...result.items[0],
+          ref,
+          title: ref === 'bad' ? 'Blocked task' : 'Original task',
+          diagnostics: ref === 'bad' && blocked ? [{ code: 'directory_required', severity: 'error' }] : []
+        }))
+      if (route === 'conversation_import.commit')
+        return payload.refs.map((ref: string) =>
+          ref === 'bad' && blocked
+            ? { ref, status: 'failed', reason: 'preview_blocked' }
+            : { ref, status: 'imported', sessionId: 'saved-' + ref, initialization: 'ready' }
+        )
+      return result
+    })
+    const user = userEvent.setup()
+    render(<LocalHistoryImportDialog open source="codex" resolve={() => {}} />)
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: enUS['common.select_all'] }))
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    const issues = await screen.findByRole('dialog', { name: enUS['history_import.error_title'] })
+    await user.click(within(issues).getByText(enUS['common.close'], { selector: 'button' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: enUS['history_import.error_title'] })).toBeNull())
+    expect(screen.getByRole('status')).toHaveTextContent('Imported · 1')
+    expect(screen.queryByRole('checkbox', { name: /Original task/ })).toBeNull()
+    expect(screen.getByRole('checkbox', { name: /Blocked task/ })).toBeChecked()
+    blocked = false
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Imported · 2'))
+    expect(screen.getAllByText(enUS['history_import.results.imported'])).toHaveLength(2)
+    expect(
+      request.mock.calls.filter(([route]) => route === 'conversation_import.commit').map(([, payload]) => payload.refs)
+    ).toEqual([['ref', 'bad'], ['bad']])
   })
   it('opens commit failures separately and keeps the result summary available after closing', async () => {
     agents([{ id: 'a', name: 'Alpha', type: 'pi' }])

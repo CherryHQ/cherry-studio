@@ -343,7 +343,8 @@ export class ConversationImportService extends BaseService {
       }
       return outcomes
     } finally {
-      if (this.scans.get(owner) === scan) this.cancel(owner)
+      scan.busy = false
+      scan.expiresAt = Date.now() + IMPORT_LIMITS.previewMs
     }
   }
   private target(id: string) {
