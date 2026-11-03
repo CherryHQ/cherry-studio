@@ -56,6 +56,12 @@ const ImportMenuOptions: FC = () => {
           {t('history_import.start')}
         </Button>
       </SettingRow>
+      <SettingRow id="setting-data-import-local-opencode" className="scroll-mt-6">
+        <SettingRowTitle>{t('history_import.source.opencode')}</SettingRowTitle>
+        <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'opencode' })}>
+          {t('history_import.start')}
+        </Button>
+      </SettingRow>
     </SettingGroup>
   )
 }

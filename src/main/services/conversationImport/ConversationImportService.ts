@@ -25,6 +25,7 @@ import type {
 
 import { claudeCodeAdapter } from './claudeCode'
 import { codexAdapter } from './codex'
+import { opencodeAdapter } from './opencode'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
 interface Prepared {
@@ -63,15 +64,22 @@ export class ConversationImportService extends BaseService {
     this.scans.delete(owner)
   }
   async discover(owner: string, source: HistorySource, requestedRoot?: string) {
-    if (source !== 'claude-code' && source !== 'codex') throw new Error('unsupported_source')
+    if (source !== 'claude-code' && source !== 'codex' && source !== 'opencode') throw new Error('unsupported_source')
     this.cancel(owner)
     const root = await realpath(
-      requestedRoot ?? application.getPath(source === 'codex' ? 'external.codex.home' : 'external.claude.projects')
+      requestedRoot ??
+        application.getPath(
+          source === 'opencode'
+            ? 'external.opencode.data'
+            : source === 'codex'
+              ? 'external.codex.home'
+              : 'external.claude.projects'
+        )
     )
     const scan: Scan = {
       id: randomUUID(),
       root,
-      adapter: source === 'codex' ? codexAdapter : claudeCodeAdapter,
+      adapter: source === 'opencode' ? opencodeAdapter : source === 'codex' ? codexAdapter : claudeCodeAdapter,
       refs: new Map(),
       abort: new AbortController(),
       expiresAt: Date.now() + IMPORT_LIMITS.previewMs,
