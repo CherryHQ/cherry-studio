@@ -113,6 +113,8 @@ it('refreshes committed child display metadata and persists it without new nativ
 // Native retraction must survive a stale archive replay; old rows remain retained off the active path.
 it('persists explicit removals and does not resurrect them after reopening', async () => {
   const f = fixture()
+  const fork = { prefix: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'leaf' } }
+  application.get('DbService').withWriteTx((tx) => contexts.publishBranchTx(tx, f.context.sessionId, 'child', fork))
   await f.projection.attach()
   f.archive.messages = [f.item('native-1', 'withdrawn'), f.item('native-2', 'retained')]
   f.archive.aliases = { 'native-1': 'native-1', 'native-2': 'native-2' }
@@ -128,6 +130,7 @@ it('persists explicit removals and does not resurrect them after reopening', asy
   projections.push(reopened)
   await reopened.attach()
   expect(reopened.snapshot().messages).toMatchObject([{ id: retained, parts: [{ text: 'retained' }] }])
+  expect(contexts.context(f.context.id).checkpointMapping?.fork).toEqual(fork)
 })
 
 // A committed UUID replaces its streaming identity without creating a second product row.
@@ -424,6 +427,5 @@ it('projects legacy split rows in native order and preserves their persisted ide
   }))
   expect(after).toEqual(before)
   const context = contexts.context(f.context.id)
-  expect(context.checkpointMapping?.projectionVersion).toBe(2)
   expect(savedChildView(context).messages).toEqual(restored.snapshot().messages)
 })

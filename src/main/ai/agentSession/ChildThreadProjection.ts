@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
 import type { RuntimeMessage, Observation, Thread, ThreadHandle } from '@cherrystudio/agent-runtime'
-import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import type { AgentSessionCheckpoints, AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
@@ -23,7 +23,7 @@ type CommittedHistory = {
   removed?: readonly string[]
   legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
 }
-type Composition = Record<string, { messageId: string; parts: number[] }[]>
+type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
 
 export function savedChildView(context: AgentSessionContextRow): AgentChildView {
   return {
@@ -32,7 +32,7 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
     revision: 0,
     active: false,
     available: false,
-    diagnostic: typeof context.checkpointMapping?.gap === 'string' ? context.checkpointMapping.gap : undefined,
+    diagnostic: context.checkpointMapping?.child?.gap,
     messages: compose(
       readAgentSessionPath(application.get('DbService').getDb(), context.sessionId).map((row) => ({
         id: row.id,
@@ -40,7 +40,7 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
         metadata: { status: row.status as MessageStatus },
         parts: row.data.parts ?? []
       })),
-      (context.checkpointMapping?.composition as Composition | undefined) ?? {}
+      context.checkpointMapping?.child?.composition ?? {}
     )
   }
 }
@@ -76,9 +76,9 @@ export class ChildThreadProjection {
     private readonly onResponse?: (responseId: string, messageId: string) => void
   ) {
     this.projection = new ThreadMessageProjection(handle.thread, decorate)
-    this.removed = new Set(context.checkpointMapping?.removed as string[] | undefined)
-    this.nativeIds = { ...(context.checkpointMapping?.projection as Record<string, string> | undefined) }
-    this.composition = { ...(context.checkpointMapping?.composition as Composition | undefined) }
+    this.removed = new Set(context.checkpointMapping?.child?.removed)
+    this.nativeIds = { ...context.checkpointMapping?.child?.sources }
+    this.composition = { ...context.checkpointMapping?.child?.composition }
     this.view = savedChildView(context)
     this.archiveGap = this.view.diagnostic
     for (const row of readAgentSessionPath(application.get('DbService').getDb(), context.sessionId))

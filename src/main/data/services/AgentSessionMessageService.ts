@@ -1338,7 +1338,6 @@ export class AgentSessionMessageService {
       .all()
     for (const binding of bindings) {
       collect(binding.sessionId, binding.nativeThreadId)
-      collect(binding.sessionId, binding.intendedThreadId)
     }
     return tokensBySession
   }

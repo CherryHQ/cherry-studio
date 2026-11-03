@@ -564,7 +564,7 @@ P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要�
 
 P1 基础现已包含 backend/context 的增量 migration、现有消息上的私有 `inputContextId` 和 `nativeInputId` 列、已提交内容保护、显式原生创建、严格打开和被动对账。[原生存储 fixture](../../../../src/main/ai/agentSession/__tests__/nativeContext.test.ts)、[消息提交测试](../../../../src/main/data/services/__tests__/AgentSessionSubmission.test.ts) 和[已有数据迁移 fixture](../../../../src/main/data/db/__tests__/agentNativeContextMigration.test.ts) 使用真实适配器和 SQLite。[Seeder 测试](../../../../src/main/data/db/seeding/seeders/__tests__/AgentSessionContextSeeder.test.ts) 覆盖已注册的升级路径、初始化时机、事务回滚、重复执行和待转换 DSH 的目标身份。原生 fixture 单独验证 Seeder 完成后的确认与重试。Durable 会话创建后的关联若丢失且无法恢复原生身份，则保留未解决的创建意图。
 
-严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Runtime 所有者对账身份关联与投影写入；写入失败不能授权重新提交。原生创建与观察 fixture 不引入第二个生命周期服务，也不切换桌面执行。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
+严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Runtime 所有者对账身份关联与投影写入；写入失败不能授权重新提交。原生创建与观察 fixture 保留在测试中，不再暴露并行的生产提交路径。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
 
 Agent 树阶段现已增加追加式 schema migration 和注册的 `AgentSessionMessageTreeSeeder`。它保留消息 ID、时间戳、附件、用量及投递元数据，再选中迁移后的末端，不补造提交事实。待完成回复的投递会捕获发送分支。既有 context 行增加 `anchorMessageId` 和 `checkpointMapping.fork` 命名空间；共享前缀行保留原始原生来源。
 
@@ -633,7 +633,7 @@ P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/Ch
 
 产品内容复用 `agent_session_message` 及其既有服务。首轮 child 归档采用独立 `agent_session` 容器和消息树根，仅沿用既有 `background` 分类使其不进入普通会话导航，不新增 `subagent` 会话类型。这是产品存储所有者，不是创建另一个原生 root、schedule 或跨会话投递。进入通用 session-open/input 路径前，先按 child 已保存的原生关系解析 Runtime 访问。不复制父消息前缀，也不把 child 节点合进父级普通选中路径。
 
-只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入继续复用消息上的提交元数据，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
+只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。Child 来源映射、移除记录、组合关系和断点保存在强类型的 `checkpointMapping.child` 命名空间中；投影写入保留 `checkpointMapping.fork`。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入继续复用消息上的提交元数据，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
 
 归档容器从其所有权关系继承产品访问权限，不能凭调用者提供的 ID 或 `type: background` 授权。查询、通用控制、搜索/导航和后台 GC 必须区分这种所有权与定时任务会话。父分支选择不能改变 child 写入目标；复制分支不能复制现有 child 的控制权。删除、备份和保留必须共同保护关系、归档及原生所有者。关系/GC 消费者审查是 P3-B 的生产门槛，不能假定既有 background 分类已经提供这些保证。
 

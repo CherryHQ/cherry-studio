@@ -56,10 +56,11 @@ class AgentSessionContextService {
           parentContextId,
           subagentId,
           nativeThreadId,
+          bindingState: 'bound',
           backendId: parent.backendId,
           spawnToolCallId: toolCallId,
           anchorMessageId: ensureAgentSessionRootTx(tx, sessionId),
-          checkpointMapping: { projection: {} }
+          checkpointMapping: { child: { sources: {} } }
         })
         .returning()
         .get()
@@ -91,10 +92,13 @@ class AgentSessionContextService {
       .set({
         checkpointMapping: {
           ...checkpoint,
-          projection: mapping,
-          gap,
-          ...(removed && { removed }),
-          ...(composition && { projectionVersion: 2, composition })
+          child: {
+            ...checkpoint?.child,
+            sources: mapping,
+            gap,
+            ...(removed && { removed }),
+            ...(composition && { composition })
+          }
         }
       })
       .where(eq(contexts.id, contextId))

@@ -7,6 +7,12 @@ import { agentSessionTable } from './agentSession'
 
 export interface AgentSessionCheckpoints {
   fork?: Record<string, unknown>
+  child?: {
+    sources: Record<string, string>
+    gap?: string
+    removed?: readonly string[]
+    composition?: Record<string, { messageId: string; parts: number[] }[]>
+  }
 }
 
 export const agentSessionContextTable = sqliteTable(

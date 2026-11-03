@@ -23,7 +23,7 @@ function prepareContext(sessionId: string) {
       sessionId,
       backendId: backend.id,
       anchorMessageId: ensureAgentSessionRootTx(tx, sessionId),
-      intendedThreadId: uuid()
+      nativeThreadId: uuid()
     })
   })
 }
@@ -52,7 +52,7 @@ describe('child archive migration', () => {
       .run(backendId, JSON.stringify({ version: 1, kind: 'pi' }), 'bound', 1, 1)
     dbh.sqlite
       .prepare(
-        'INSERT INTO agent_session_context (id, session_id, backend_id, intended_thread_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO agent_session_context (id, session_id, backend_id, native_thread_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
       )
       .run(contextId, root, backendId, 'existing-thread', 1, 1)
     dbh.sqlite
@@ -91,11 +91,12 @@ describe('child archive ownership', () => {
     })
     expect(contexts.child(parent.id, 'native-child', 'native-child', 'spawn', 'Child').id).toBe(child.id)
     expect(child.sessionId).not.toBe(root)
+    expect(child.bindingState).toBe('bound')
     expect(() => sessions.assertIndependentSession(child.sessionId)).toThrow('native owner')
     expect(() => contexts.child(parent.id, 'native-child', 'different', 'spawn', 'Child')).toThrow('identity')
     expect(messages.listAllRuntimeResumeTokens()).toContain('native-child')
     expect(messages.listRuntimeResumeTokensBySession([root]).get(root)).toEqual(
-      new Set([parent.intendedThreadId, 'native-child'])
+      new Set([parent.nativeThreadId, 'native-child'])
     )
     dbh.db.transaction((tx) => sessions.trashByIdsTx(tx, [root]))
     expect(
