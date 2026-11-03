@@ -1,7 +1,7 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -36,10 +36,10 @@ vi.mock('@renderer/components/WebviewBrowser', () => ({
   }
 }))
 
-vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: { fileName: string; value: string; wrapLines: boolean; readOnly: boolean }) => {
     mocks.codeViewer(props)
-    return <div data-testid="code-viewer">{props.value}</div>
+    return <textarea aria-label="HTML source" readOnly={props.readOnly} defaultValue={props.value} />
   }
 }))
 
@@ -73,30 +73,8 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  SegmentedControl: ({
-    disabled,
-    onValueChange,
-    options,
-    value
-  }: {
-    disabled?: boolean
-    onValueChange: (value: string) => void
-    options: Array<{ label: string; value: string }>
-    value: string
-  }) => (
-    <div>
-      {options.map((option) => (
-        <button
-          type="button"
-          aria-pressed={value === option.value}
-          disabled={disabled}
-          key={option.value}
-          onClick={() => onValueChange(option.value)}>
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
+  Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 
@@ -207,9 +185,9 @@ describe('HtmlFilePreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
 
-    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
+    expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Hello</h1>')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: 'html', value: '<h1>Hello</h1>', wrapped: true })
+      expect.objectContaining({ fileName: 'index.html', value: '<h1>Hello</h1>', wrapLines: true, readOnly: true })
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
@@ -277,13 +255,11 @@ describe('HtmlFilePreview', () => {
     expect(screen.getByTestId('html-frame')).toHaveAttribute('srcdoc', html)
 
     await user.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
-    await screen.findByTestId('code-viewer')
+    await screen.findByRole('textbox', { name: 'HTML source' })
     view.rerender(<HtmlFilePreview {...props} refreshKey={2} />)
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
-    expect(screen.getByRole('button', { name: 'file_preview.html.mode.source' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    // Still in source mode: the toggle now offers the way back to the preview.
+    expect(screen.getByRole('button', { name: 'file_preview.html.mode.preview' })).toBeInTheDocument()
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 

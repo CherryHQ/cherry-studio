@@ -5,6 +5,7 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { createSlugger, extractTextFromNode, Scrollbar } from '@cherrystudio/ui'
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
@@ -31,6 +32,8 @@ const MessageOutline: FC<MessageOutlineProps> = ({
   onNavigateToElement
 }) => {
   const messageParts = useMessageParts(message.id)
+  const insets = useChatBottomOverlayInset()
+  const bottomInset = insets ? insets.contentBottomPadding + insets.scrollerBottomMargin : 0
 
   const headings: HeadingItem[] = useMemo(() => {
     // Collect text contents from parts only
@@ -104,8 +107,12 @@ const MessageOutline: FC<MessageOutlineProps> = ({
   if (multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
-    <div className="pointer-events-none absolute inset-y-0 right-0 left-2 z-999 flex items-center">
-      <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
+    <div
+      className="pointer-events-none absolute top-0 right-0 left-2 z-999 flex items-center"
+      style={{ bottom: bottomInset }}>
+      <Scrollbar
+        data-ui="part:message-outline"
+        className="group pointer-events-auto inline-flex max-h-[min(70vh,100%)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}

@@ -12,13 +12,13 @@ export default openaiCompatible({
     official: 'https://maas.lanyun.net'
   },
   overrides: [
-    { modelId: 'deepseek-r1' },
+    { apiModelId: 'deepseek-r1' },
     { apiModelId: 'deepseek-v3.1', modelId: 'deepseek-v3-1' },
     { apiModelId: '/maas/deepseek-ai/DeepSeek-V3.2', modelId: 'deepseek-v3-2' },
     { apiModelId: 'deepseek-v3.2-exp', modelId: 'deepseek-v3-2-exp' },
     { apiModelId: '/maas/zhipuai/GLM-4.7', modelId: 'glm-4-7' },
     { apiModelId: '/maas/zhipuai/GLM-5', modelId: 'glm-5' },
-    { modelId: 'kimi-k2' },
+    { apiModelId: 'kimi-k2' },
     { apiModelId: 'MiniMax-M2.1', modelId: 'minimax-m2-1' },
     { apiModelId: '/maas/minimax/MiniMax-M2.5', modelId: 'minimax-m2-5' },
     { apiModelId: '/maas/qwen/Qwen2.5-72B-Instruct', modelId: 'qwen2-5-72b-instruct', modelVariants: ['72b'] },

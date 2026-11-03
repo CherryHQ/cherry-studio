@@ -1,5 +1,18 @@
 # @cherrystudio/ai-core
 
+## 2.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae)]:
+  - @cherrystudio/ai-sdk-provider@0.1.10
+
+## 2.4.3
+
+### Patch Changes
+
+- [#23014](https://github.com/CherryHQ/cherry-studio/pull/23014) [`da43afa`](https://github.com/CherryHQ/cherry-studio/commit/da43afa57cd2456838c3692bbccc85b69ab85812) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix the Azure OpenAI chat-mode extension crashing on native web search: the `customProvider` wrapper returned by `AzureExtension.create` now carries the SDK provider's `tools`, so `toolFactories.webSearch` no longer dereferences `provider.tools.webSearchPreview` on `undefined`.
+
 ## 2.4.2
 
 ### Patch Changes

@@ -57,4 +57,9 @@ describe('builtinToolPolicy', () => {
         .includes('mcp__cherry-tools__future_mutator')
     ).toBe(false)
   })
+
+  it('auto-approves Session renames only when cherry-tools is mounted', () => {
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', new Set())).toBeUndefined()
+  })
 })

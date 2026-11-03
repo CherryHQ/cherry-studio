@@ -32,7 +32,11 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import {
+  createSidebarShortcutTarget,
+  getSidebarShortcutResourceIds,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
@@ -148,14 +152,7 @@ export function AssistantResourceList({
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
-    () =>
-      new Set(
-        sidebarShortcuts.flatMap((shortcut) =>
-          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
-            ? [shortcut.target.locator.resourceId]
-            : []
-        )
-      ),
+    () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT),
     [sidebarShortcuts]
   )
   const assistantGroupById = useMemo(

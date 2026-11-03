@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.8",
+    "version": "2.1.10",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -500,7 +500,7 @@
     }
   ],
   "providers": {
-    "version": "d784f6c68d39ffaf",
+    "version": "26a014e34810030f",
     "count": 67,
     "entries": [
       {
@@ -661,7 +661,11 @@
       },
       {
         "id": "dashscope",
-        "name": "Bailian"
+        "name": "Qwen AI Platform"
+      },
+      {
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "stepfun",
