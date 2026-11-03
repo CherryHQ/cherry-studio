@@ -1,7 +1,7 @@
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
 
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SelectionActionSchema } from '@shared/types/selection'
 
 import { defineRoute } from '../define'
 
@@ -16,24 +16,6 @@ import { defineRoute } from '../define'
  * the handler signatures and the renderer facade; the handler bodies calling the
  * matching `SelectionService` methods make schema↔type drift a compile error.
  */
-
-/**
- * Runtime form of the {@link SelectionActionItem} preference type. The
- * `z.ZodType<SelectionActionItem>` annotation binds the two structurally, so a drift
- * in either is a compile error here at the definition (repo convention — see
- * uiParts.ts / legacyFileMetadata.ts).
- */
-const selectionActionItemSchema: z.ZodType<SelectionActionItem> = z.object({
-  id: z.string(),
-  name: z.string(),
-  enabled: z.boolean(),
-  isBuiltIn: z.boolean(),
-  icon: z.string().optional(),
-  prompt: z.string().optional(),
-  assistantId: z.string().optional(),
-  selectedText: z.string().optional(),
-  searchEngine: z.string().optional()
-})
 
 /** The cached Linux environment probe returned by `SelectionService.getLinuxEnvInfo()`. */
 const linuxEnvInfoSchema = z.object({
@@ -53,7 +35,7 @@ export const selectionRequestSchemas = {
   }),
   'selection.process_action': defineRoute({
     // isFullScreen is macOS-only; default false so non-macOS callers may omit it.
-    input: z.object({ actionItem: selectionActionItemSchema, isFullScreen: z.boolean().default(false) }),
+    input: z.object({ actionItem: SelectionActionSchema, isFullScreen: z.boolean().default(false) }),
     output: z.void()
   }),
   'selection.pin_action_window': defineRoute({ input: z.boolean(), output: z.void() }),

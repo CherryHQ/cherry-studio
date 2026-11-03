@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import AppLogo from '@renderer/assets/images/logo.png'
 import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SELECTION_BUILTIN_ACTION_ID, type SelectionAction } from '@shared/types/selection'
 
 import SelectionActionIcon from './SelectionActionIcon'
 
@@ -18,9 +18,9 @@ const COPY_ICON_CLASS_NAME = 'absolute inset-0 size-4 transition-[color,opacity,
  * ActionIcons is a component that renders the action icons
  */
 const ActionIcons: FC<{
-  actionItems: SelectionActionItem[]
+  actionItems: SelectionAction[]
   isCompact: boolean
-  handleAction: (action: SelectionActionItem) => void
+  handleAction: (action: SelectionAction) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
 }> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
@@ -64,7 +64,7 @@ const ActionIcons: FC<{
   }, [copyIconAnimation, copyIconStatus])
 
   const renderActionButton = useCallback(
-    (action: SelectionActionItem) => {
+    (action: SelectionAction) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
 
       return (
@@ -85,7 +85,7 @@ const ActionIcons: FC<{
               '[&_svg]:text-card-foreground',
               'group-hover:[&_svg]:text-primary'
             )}>
-            {action.id === 'copy' ? (
+            {action.isBuiltIn && action.id === SELECTION_BUILTIN_ACTION_ID.COPY ? (
               renderCopyIcon()
             ) : (
               <SelectionActionIcon
@@ -116,9 +116,9 @@ const ActionIcons: FC<{
 })
 
 interface SelectionToolbarViewProps {
-  actionItems: SelectionActionItem[]
+  actionItems: SelectionAction[]
   isCompact: boolean
-  handleAction: (action: SelectionActionItem) => void
+  handleAction: (action: SelectionAction) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
   /**
