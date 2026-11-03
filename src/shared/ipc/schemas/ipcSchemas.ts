@@ -35,6 +35,7 @@ import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
 import { proxyRequestSchemas } from './proxy'
 import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
+import { sandboxRequestSchemas } from './sandbox'
 import { type ScreenshotEventSchemas, screenshotRequestSchemas } from './screenshot'
 import { screenshotChatRequestSchemas, type ScreenshotChatEventSchemas } from './screenshotChat'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
@@ -94,6 +95,7 @@ export const ipcRequestSchemas = {
   ...proxyRequestSchemas,
   ...providerRequestSchemas,
   ...quickAssistantRequestSchemas,
+  ...sandboxRequestSchemas,
   ...screenshotRequestSchemas,
   ...screenshotChatRequestSchemas,
   ...selectionRequestSchemas,

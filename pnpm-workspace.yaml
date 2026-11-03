@@ -4,6 +4,10 @@ packages:
 engineStrict: true
 
 packageExtensions:
+  # Langium imports JSON-RPC 8 internals without declaring it; sandbox uses JSON-RPC 9.
+  "langium@4.2.1":
+    dependencies:
+      vscode-jsonrpc: "8.2.0"
   # Published declaration files import Shiki types, but upstream lists it only as a devDependency.
   "streamdown@2.5.0":
     dependencies:

@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   openNativeApplication: vi.fn(),
   safeOpen: vi.fn(),
   showInFolder: vi.fn(),
-  statSync: vi.fn()
+  statSync: vi.fn(),
+  lstatSync: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -31,7 +32,8 @@ vi.mock('electron', () => ({
 }))
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
-  statSync: mocks.statSync
+  statSync: mocks.statSync,
+  lstatSync: mocks.lstatSync
 }))
 vi.mock('@main/services/file', () => ({ safeOpen: mocks.safeOpen, showInFolder: mocks.showInFolder }))
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: mocks.isSafeExternalUrl }))
@@ -53,6 +55,9 @@ describe('ExternalAppService', () => {
     MockMainCacheServiceUtils.resetMocks()
     vi.clearAllMocks()
     mocks.statSync.mockReturnValue({ isDirectory: () => false })
+    mocks.lstatSync.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
     mocks.isSafeExternalUrl.mockReturnValue(true)
     mocks.listNativeApplications.mockResolvedValue({ applications: [preview, editor], defaultApplication: preview })
     mocks.getApplicationInfoForProtocol.mockImplementation(async (protocol: string) => {
@@ -63,6 +68,7 @@ describe('ExternalAppService', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   it.each(['darwin', 'win32', 'linux'])(
@@ -206,6 +212,31 @@ describe('ExternalAppService', () => {
     )
     expect(mocks.listNativeApplications).not.toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'offers Windows Terminal only for directories when installed: %s',
+    async (terminalInstalled) => {
+      vi.stubGlobal('process', Object.defineProperty(Object.create(process), 'platform', { value: 'win32' }))
+      vi.stubEnv('LOCALAPPDATA', 'C:\\Users\\tester\\AppData\\Local')
+      mocks.lstatSync.mockImplementation((file: string) => {
+        if (!terminalInstalled || file !== 'C:\\Users\\tester\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe') {
+          throw new Error('ENOENT')
+        }
+        return { isFile: () => true }
+      })
+      const service = new ExternalAppService()
+      mocks.statSync.mockReturnValue({ isDirectory: () => true })
+      const directory = await service.listOpenTargets('/tmp/project', 'directory')
+      const terminal = { id: 'known:wt', name: 'Windows Terminal', kind: 'terminal' }
+      expect(directory.targets.filter((target) => target.kind === 'terminal')).toEqual(
+        terminalInstalled ? [terminal] : []
+      )
+      mocks.statSync.mockReturnValue({ isDirectory: () => false })
+      expect((await service.listOpenTargets('/tmp/a.txt')).targets.some((target) => target.id === 'known:wt')).toBe(
+        false
+      )
+    }
+  )
 
   it('keeps saved controlled editor IDs usable and validates their URLs', async () => {
     const service = new ExternalAppService()

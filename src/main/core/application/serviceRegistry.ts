@@ -72,6 +72,7 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
 import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
+import { SandboxService } from '@main/services/SandboxService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionAgentWindowService } from '@main/services/selection/SelectionAgentWindowService'
@@ -162,6 +163,7 @@ export const services = {
   DoctorAgentService,
   LogRetentionService,
   PythonService,
+  SandboxService,
   TrayService,
   WebSearchService,
   WebviewService,
