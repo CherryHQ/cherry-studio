@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent, ConversationUnsuccessfulEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
+import { stripCitationMarkers } from '@main/ai/utils/citationIds'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -399,7 +400,9 @@ export class NotificationService extends BaseService {
     const fallbackTitle =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
     const conversationName = this.resolveConversationName(target, fallbackTitle)
-    const lastSentence = [...sentenceSegmenter.segment(responseText?.trim() ?? '')].at(-1)?.segment.trim()
+    const lastSentence = [...sentenceSegmenter.segment(stripCitationMarkers(responseText ?? '').trim())]
+      .at(-1)
+      ?.segment.trim()
     void this.publish(
       {
         eventKey: `task-completion:${topicId}:${turnId}`,

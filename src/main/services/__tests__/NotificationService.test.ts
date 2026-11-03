@@ -1324,7 +1324,9 @@ describe('NotificationService', () => {
     ['First sentence! Are we done?', 'Are we done?'],
     ['前面的说明。\n\n最后一句。\n  ', '最后一句。'],
     ['处理完毕。他说：“可以发布了。”', '他说：“可以发布了。”'],
-    ['Only one sentence', 'Only one sentence']
+    ['Only one sentence', 'Only one sentence'],
+    ['资料已核对。结论是可以发布 [cite:4c30c952-1]', '结论是可以发布'],
+    ['The fix is in the parser. [cite:web-1] [cite:web-2]', 'The fix is in the parser.']
   ])('shows only the last sentence of %s', (responseText, expected) => {
     emitCompletion({ responseText })
     expect(mocks.electronNotifications[0].options).toEqual({
