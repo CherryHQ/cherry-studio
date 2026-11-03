@@ -6,6 +6,7 @@ import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/ty
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
+import { agentSessionContextTable } from './agentSessionContext'
 import { userModelTable } from './userModel'
 
 export const agentSessionMessageTable = sqliteTable(
@@ -25,6 +26,8 @@ export const agentSessionMessageTable = sqliteTable(
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
+    inputContextId: text().references(() => agentSessionContextTable.id),
+    nativeInputId: text(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -40,6 +43,7 @@ export const agentSessionMessageTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    uniqueIndex('agent_session_message_native_input_uniq').on(t.inputContextId, t.nativeInputId),
     index('agent_session_message_session_created_id_idx').on(t.sessionId, t.createdAt, t.id),
     index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
