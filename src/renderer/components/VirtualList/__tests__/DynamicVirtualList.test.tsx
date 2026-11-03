@@ -175,7 +175,7 @@ describe('DynamicVirtualList', () => {
       expect(screen.getByRole('region')).toHaveClass('isolate')
       expect(Number(row(0).style.zIndex)).toBeGreaterThan(Number(row(1).style.zIndex))
       expect(row(0).style.zIndex).toBe(row(2).style.zIndex)
-      expect(row(0)).toHaveStyle('position: absolute; top: 0; left: 0')
+      expect(row(0)).toHaveStyle('position: sticky; top: 0; left: 0')
       expect(row(1)).toHaveStyle('position: absolute; transform: translateY(50px)')
       expect(row(0).style.backgroundColor).toBe('var(--card)')
       expect(row(2).style.backgroundColor).toBe('var(--card)')
@@ -196,9 +196,7 @@ describe('DynamicVirtualList', () => {
         />
       )
 
-      expect(row(1).style.transform).toBe(
-        'translateY(min(122px, max(28px, calc(var(--dv-scroll-offset, 0px) - 0px + 28px))))'
-      )
+      expect(row(1)).toHaveStyle('position: sticky; top: 28px; margin-top: 0')
       expect(Number(row(0).style.zIndex)).toBeGreaterThan(Number(row(1).style.zIndex))
       expect(Number(row(1).style.zIndex)).toBeGreaterThan(Number(row(2).style.zIndex))
     })
@@ -213,7 +211,7 @@ describe('DynamicVirtualList', () => {
           getItemDepth={(index) => index}
         />
       )
-      expect(row(1).style.transform).toContain('- 0px + 36px)')
+      expect(row(1)).toHaveStyle('position: sticky; top: 36px; margin-top: 36px')
     })
 
     it.each([
@@ -237,98 +235,27 @@ describe('DynamicVirtualList', () => {
 
         expect(row(1).style.transform).toBe('translateY(28px)')
         expect(row(1).style.backgroundColor).toBe('')
-        expect(row(startIndex).style.transform).toContain(`- 0px + ${slot}px)`)
+        expect(row(startIndex)).toHaveStyle(`position: sticky; top: ${slot}px`)
         if (startIndex === 3) expect(row(0).style.transform).toBe('translateY(0px)')
-        else expect(row(3).style.transform).toContain('- 0px + 56px)')
+        else expect(row(3)).toHaveStyle('position: sticky; top: 56px')
       }
     )
 
-    it('updates the private offset within an unchanged range and preserves consumer scroll handling', () => {
+    // Native sticky positioning must work without a scroll callback updating transforms.
+    it('keeps horizontal headers in flow and preserves consumer scroll handling', () => {
       const offsets: number[] = []
-      const { unmount } = render(
+      render(
         <DynamicVirtualList
           {...defaultProps}
-          isSticky={(index) => index === 0}
-          onScroll={(event) => offsets.push(event.currentTarget.scrollTop)}
+          horizontal
+          isSticky={() => true}
+          onScroll={(event) => offsets.push(event.currentTarget.scrollLeft)}
         />
       )
-      const scroller = screen.getByRole('region')
-      const node = content()
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('0px')
-      fireEvent.scroll(scroller, { target: { scrollTop: 12 } })
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('12px')
-      fireEvent.scroll(scroller, { target: { scrollTop: 13 } })
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('13px')
-      expect(offsets).toEqual([12, 13])
-      expect(row(1).style.transform).toBe('translateY(50px)')
-
-      unmount()
-      fireEvent.scroll(scroller, { target: { scrollTop: 14 } })
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('')
-    })
-
-    it('remeasures the internal header origin independently of configured scroll margin', () => {
-      let headerHeight = 80
-      const resizeCallbacks = new Map<Element, () => void>()
-      vi.stubGlobal(
-        'ResizeObserver',
-        class {
-          constructor(private notify: () => void) {}
-          observe(element: Element) {
-            resizeCallbacks.set(element, this.notify)
-          }
-          disconnect() {}
-        }
-      )
-      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-        return { top: this.style.position === 'relative' ? headerHeight : 0, left: 0 } as DOMRect
-      })
-      render(
-        <DynamicVirtualList {...defaultProps} header={<div>Header</div>} scrollMargin={20} isSticky={() => true} />
-      )
-
-      expect(row(0).style.transform).toContain('max(-20px, calc(var(--dv-scroll-offset, 0px) - 80px + 0px))')
-      headerHeight = 120
-      act(() => resizeCallbacks.get(screen.getByText('Header'))?.())
-      expect(row(0).style.transform).toContain('max(-20px, calc(var(--dv-scroll-offset, 0px) - 120px + 0px))')
-    })
-
-    it('isolates external offsets and detaches only its own listener on viewport changes', () => {
-      const first = document.createElement('div')
-      const second = document.createElement('div')
-      first.scrollTop = 30
-      second.scrollTop = 45
-      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-        return { top: this.style.position === 'relative' ? 90 : 0, left: 0 } as DOMRect
-      })
-      const sticky = () => true
-      const { rerender, unmount } = render(
-        <DynamicVirtualList {...defaultProps} externalScrollElement={first} isSticky={sticky} />
-      )
-      const node = content()
-      const other = render(<DynamicVirtualList {...defaultProps} externalScrollElement={first} isSticky={sticky} />)
-      const otherNode = other.container.querySelector('[data-index]')!.parentElement!
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('30px')
-      expect(row(0).style.transform).toContain('max(-120px, calc(var(--dv-scroll-offset, 0px) - 120px + 0px))')
-
-      rerender(<DynamicVirtualList {...defaultProps} externalScrollElement={second} isSticky={sticky} />)
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('45px')
-      fireEvent.scroll(first, { target: { scrollTop: 60 } })
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('45px')
-      expect(otherNode.style.getPropertyValue('--dv-scroll-offset')).toBe('60px')
-      unmount()
-      fireEvent.scroll(first, { target: { scrollTop: 70 } })
-      expect(node.style.getPropertyValue('--dv-scroll-offset')).toBe('')
-      expect(otherNode.style.getPropertyValue('--dv-scroll-offset')).toBe('70px')
-    })
-
-    it('uses the horizontal scroll coordinate and tail bound for sticky rows', () => {
-      render(<DynamicVirtualList {...defaultProps} horizontal isSticky={() => true} />)
-      fireEvent.scroll(screen.getByRole('region'), { target: { scrollLeft: 17, scrollTop: 99 } })
-      expect(content().style.getPropertyValue('--dv-scroll-offset')).toBe('17px')
-      expect(row(0).style.transform).toBe(
-        'translateX(min(100px, max(0px, calc(var(--dv-scroll-offset, 0px) - 0px + 0px))))'
-      )
+      fireEvent.scroll(screen.getByRole('region'), { target: { scrollLeft: 17 } })
+      expect(offsets).toEqual([17])
+      expect(row(0)).toHaveStyle('position: sticky; left: 0; margin-left: 0')
+      expect(row(0).style.transform).toBe('')
     })
 
     it('removes sticky scroll effects when disabled and leaves non-sticky rows at natural coordinates', () => {

@@ -114,6 +114,8 @@ interface AgentMessageListParams {
   previewInputFile?: MessageListActions['previewInputFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
@@ -180,6 +182,8 @@ export function useAgentMessageListProviderValue({
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval,
@@ -432,6 +436,7 @@ export function useAgentMessageListProviderValue({
   const state = useMemo<MessageListState>(
     () => ({
       topic,
+      getMessageSiblings,
       messages: messageItems,
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
@@ -453,6 +458,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       getMessageActivityState,
+      getMessageSiblings,
       hasOlder,
       isLoading,
       leafCapabilities,
@@ -476,6 +482,7 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
@@ -522,6 +529,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      setActiveBranch,
       startEditing,
       editBusy,
       openForkSourceSession,

@@ -11,6 +11,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import {
   appendNoResponseErrorPart,
   EMPTY_SUCCESS_NO_RESPONSE_I18N_KEY,
@@ -96,11 +97,16 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }
     }
-    const save = (runtimeAnchor?: RuntimeForkAnchor) =>
-      agentSessionMessageService.saveMessage(
+    const save = (runtimeAnchor?: RuntimeForkAnchor) => {
+      const nativeContext =
+        runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
+          ? preparePiBranch(this.opts.sessionId, finalMessage?.id ?? this.opts.assistantMessageId, runtimeResumeToken)
+          : undefined
+      return agentSessionMessageService.saveMessage(
         {
           sessionId: this.opts.sessionId,
           runtimeAnchor,
+          ...(runtimeAnchor && nativeContext ? { nativeContextId: nativeContext.id } : {}),
           ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
           ...(runtimeStats ? { runtimeStats } : {}),
           message: {
@@ -113,6 +119,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         },
         { publishDataChange: true }
       )
+    }
     let saved
     try {
       saved = save(forkAnchor)
