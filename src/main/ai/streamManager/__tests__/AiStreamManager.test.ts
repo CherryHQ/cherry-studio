@@ -2071,6 +2071,37 @@ describe('AiStreamManager', () => {
       expect(continuationListener.pausedResults).toHaveLength(0)
     })
 
+    it('forgets the Stop identities of a topic whose session was permanently deleted', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      mockGetLiveTurnId.mockImplementation(() => 'turn-successor')
+      mockHandleUserStop.mockImplementation(async () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+
+      // The session is gone, so the identity has nothing left to protect: a later Stop for the
+      // same id is a new request rather than a duplicate of the deleted turn.
+      mgr.forgetStoppedStops('agent-session:session-1')
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+    })
+
     it('retains the identity of a user Stop that joins another Stop’s live drain', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')

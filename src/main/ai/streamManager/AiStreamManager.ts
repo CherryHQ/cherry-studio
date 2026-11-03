@@ -1332,6 +1332,11 @@ export class AiStreamManager extends BaseService {
     return draining
   }
 
+  /** Drop the Stop identities of a topic whose session is gone, so the map does not outlive it. */
+  forgetStoppedStops(topicId: string): void {
+    this.stoppedStopsByTopic.delete(topicId)
+  }
+
   /** Retain a Stop identity for the topic, so its delayed twin returns early; keeps the newest ones. */
   private recordStoppedStop(topicId: string, stopId: string | undefined): void {
     if (stopId === undefined) return
