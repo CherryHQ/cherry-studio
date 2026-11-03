@@ -1,12 +1,4 @@
-import {
-  FlipHorizontal,
-  FlipVertical,
-  RefreshCcw,
-  RotateCcwSquare,
-  RotateCwSquare,
-  ZoomIn,
-  ZoomOut
-} from 'lucide-react'
+import { FlipHorizontal, FlipVertical, RotateCcwSquare, RotateCwSquare, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { ImagePreviewTransformControls } from '@cherrystudio/ui'
@@ -63,7 +55,7 @@ export function ImageFilePreviewToolbar({ disabled, transformControls }: ImageFi
         <FlipVertical aria-hidden />
       </FilePreviewToolbarButton>
       <FilePreviewToolbarButton label={t('preview.reset')} disabled={disabled} onClick={transformControls.reset}>
-        <RefreshCcw aria-hidden />
+        <Scan aria-hidden />
       </FilePreviewToolbarButton>
     </FilePreviewToolbar>
   )

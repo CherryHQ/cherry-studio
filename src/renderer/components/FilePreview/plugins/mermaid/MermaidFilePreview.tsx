@@ -4,7 +4,7 @@ import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import ImageDown from 'lucide-react/dist/esm/icons/image-down'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import RefreshCcw from 'lucide-react/dist/esm/icons/refresh-ccw'
+import Scan from 'lucide-react/dist/esm/icons/scan'
 import ZoomIn from 'lucide-react/dist/esm/icons/zoom-in'
 import ZoomOut from 'lucide-react/dist/esm/icons/zoom-out'
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -86,7 +86,7 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
     { label: t('preview.zoom_in'), icon: ZoomIn, run: (preview) => preview.zoom(ZOOM_STEP) },
     {
       label: t('preview.reset'),
-      icon: RefreshCcw,
+      icon: Scan,
       run: (preview) => {
         preview.pan(0, 0, true)
         preview.zoom(1, true)
