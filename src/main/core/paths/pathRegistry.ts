@@ -355,6 +355,7 @@ export function buildPathRegistry() {
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
+    'external.codex.home': process.env.CODEX_HOME || path.join(sysHome, '.codex'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.claude.projects': path.join(process.env.CLAUDE_CONFIG_DIR || path.join(sysHome, '.claude'), 'projects'),
     'external.browser.chrome': isMac
