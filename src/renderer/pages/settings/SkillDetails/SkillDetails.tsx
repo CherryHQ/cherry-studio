@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, FolderOpen, MoreHorizontal, Play, RefreshCw, Trash2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -9,10 +9,13 @@ import {
   Button,
   ConfirmDialog,
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   EmptyState,
+  Label,
   Skeleton,
   Switch
 } from '@cherrystudio/ui'
@@ -39,7 +42,10 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   // Received from the list route; handed back on return so the list restores the active tab.
   const { scope } = useSearch({ strict: false }) as { scope?: 'all' | 'system' | 'builtin' }
   const { data: skill, isLoading, error, refetch } = useQuery('/skills/:skillId', { params: { skillId } })
-  const { updateGlobalEnabled, uninstallSkill, isUpdating } = useSkillMutationsById(skillId)
+  const { updateGlobalEnabled, setMirrorEnabled, uninstallSkill, isUpdating } = useSkillMutationsById(skillId)
+  const mirrorToggleId = useId()
+  const globalToggleId = useId()
+  const [isUpdatingMirror, setIsUpdatingMirror] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [remoteCheck, setRemoteCheck] = useState<Extract<SkillRemoteUpdateCheck, { state: 'available' }> | null>(null)
@@ -69,6 +75,20 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     } catch (error) {
       logger.error('Failed to update Skill global state', error as Error, { skillId })
       toast.error(t('settings.skills.toggleFailed', { name: skill.name }))
+    }
+  }
+
+  const handleMirrorToggle = async (checked: boolean) => {
+    if (!skill) return
+    setIsUpdatingMirror(true)
+    try {
+      await setMirrorEnabled(checked)
+      await refetch()
+    } catch (error) {
+      logger.error('Failed to update Skill export', error as Error, { skillId })
+      toast.error(t('settings.skills.mirrorToggleFailed', { name: skill.name }))
+    } finally {
+      setIsUpdatingMirror(false)
     }
   }
 
@@ -194,13 +214,19 @@ export function SkillDetails({ skillId }: { skillId: string }) {
                 {t('settings.skills.readOnly')}
               </Badge>
             ) : null}
-            <Switch
-              size="sm"
-              checked={skill.isGlobalEnabled}
-              disabled={isUpdating}
-              aria-label={t('settings.skills.globalToggle', { name: skill.name })}
-              onCheckedChange={(checked) => void handleToggle(checked)}
-            />
+            <div className="flex items-center gap-2">
+              <Label htmlFor={globalToggleId} className="text-xs text-muted-foreground">
+                {t('settings.skills.globalEnabled')}
+              </Label>
+              <Switch
+                id={globalToggleId}
+                size="sm"
+                checked={skill.isGlobalEnabled}
+                disabled={isUpdating}
+                aria-label={t('settings.skills.globalToggle', { name: skill.name })}
+                onCheckedChange={(checked) => void handleToggle(checked)}
+              />
+            </div>
           </div>
           <SettingDescription className="mt-1 line-clamp-2 text-sm leading-5">
             {skill.description || t('library.skill_detail.no_description')}
@@ -219,7 +245,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
                 <MoreHorizontal size={16} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={() => void handleOpenFolder()}>
                 <FolderOpen size={14} />
                 {t('library.skill_detail.open_folder')}
@@ -230,6 +256,22 @@ export function SkillDetails({ skillId }: { skillId: string }) {
                   {checkingRemote ? t('settings.skills.remote.checking') : t('settings.skills.remote.check')}
                 </DropdownMenuItem>
               ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={skill.mirrorEnabled}
+                disabled={isUpdating || isUpdatingMirror}
+                aria-label={t('settings.skills.externalAgents')}
+                aria-describedby={`${mirrorToggleId}-description`}
+                onSelect={(event) => event.preventDefault()}
+                onCheckedChange={(checked) => void handleMirrorToggle(checked)}>
+                <span className="flex max-w-64 flex-col gap-1">
+                  <span>{t('settings.skills.externalAgents')}</span>
+                  <span id={`${mirrorToggleId}-description`} className="text-xs text-muted-foreground">
+                    {t('settings.skills.externalAgentsDescription', { path: '~/.agents/skills' })}
+                  </span>
+                </span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
                 <Trash2 size={14} />
                 {t('library.action.uninstall')}

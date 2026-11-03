@@ -1,8 +1,8 @@
 import { Play, Trash2 } from 'lucide-react'
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Label, Switch, Tooltip } from '@cherrystudio/ui'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -43,6 +43,7 @@ function hasOverflowActions(resource: ResourceItem) {
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
   const { t } = useTranslation()
+  const toggleId = useId()
   const { updateGlobalEnabled, isUpdating } = useSkillMutationsById(resource.id)
 
   const handleCheckedChange = async (checked: boolean) => {
@@ -54,45 +55,19 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   }
 
   return (
-    <span title={t('settings.skills.globalToggle', { name: resource.name })}>
+    <div className="flex items-center gap-2 px-1">
+      <Label htmlFor={toggleId} className="whitespace-nowrap text-xs text-muted-foreground">
+        {t('settings.skills.globalEnabled')}
+      </Label>
       <Switch
+        id={toggleId}
         size="sm"
         checked={resource.raw.isGlobalEnabled}
         disabled={isUpdating}
         aria-label={t('settings.skills.globalToggle', { name: resource.name })}
         onCheckedChange={handleCheckedChange}
       />
-    </span>
-  )
-}
-
-/** Controls whether the skill is exported to ~/.agents/skills for external agents. */
-function SkillMirrorToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
-  const { t } = useTranslation()
-  const { setMirrorEnabled, isUpdating } = useSkillMutationsById(resource.id)
-  const [isUpdatingMirror, setIsUpdatingMirror] = useState(false)
-
-  const handleCheckedChange = async (checked: boolean) => {
-    setIsUpdatingMirror(true)
-    try {
-      await setMirrorEnabled(checked)
-    } catch {
-      toast.error(t('settings.skills.mirrorToggleFailed', { name: resource.name }))
-    } finally {
-      setIsUpdatingMirror(false)
-    }
-  }
-
-  return (
-    <span title={t('settings.skills.mirrorToggle', { name: resource.name })}>
-      <Switch
-        size="sm"
-        checked={resource.raw.mirrorEnabled}
-        disabled={isUpdating || isUpdatingMirror}
-        aria-label={t('settings.skills.mirrorToggle', { name: resource.name })}
-        onCheckedChange={handleCheckedChange}
-      />
-    </span>
+    </div>
   )
 }
 
@@ -137,7 +112,7 @@ export function ResourceCard({
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-lg text-base',
-              isSkillGrid && 'row-span-2 self-center',
+              isSkillGrid && 'self-center',
               showTypeIcon ? cfg.color : 'bg-secondary text-secondary-foreground'
             )}>
             {showTypeIcon ? <TypeIcon size={20} aria-hidden className="lucide-custom" /> : r.avatar}
@@ -180,9 +155,9 @@ export function ResourceCard({
               </div>
             )}
           </div>
-          <div className={cn('shrink-0', isSkillGrid && 'col-start-2')} onClick={(e) => e.stopPropagation()}>
+          <div className={cn('shrink-0', isSkillGrid && 'col-span-2')} onClick={(e) => e.stopPropagation()}>
             {r.type === 'skill' && isSettings ? (
-              <div className={cn('flex items-center gap-1', isSkillGrid && 'justify-end')}>
+              <div className={cn('flex items-center gap-1', isSkillGrid && 'flex-wrap justify-end')}>
                 {onLaunchSkill ? (
                   <Button
                     variant="ghost"
@@ -193,7 +168,6 @@ export function ResourceCard({
                     {t('settings.skills.tryNow')}
                   </Button>
                 ) : null}
-                <SkillMirrorToggle resource={r} />
                 <SkillGlobalToggle resource={r} />
                 <ResourceCardMenu
                   resource={r}

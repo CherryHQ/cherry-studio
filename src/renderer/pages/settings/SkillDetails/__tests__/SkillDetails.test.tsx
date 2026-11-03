@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import type { InstalledSkill } from '@shared/data/types/agent'
 
 const mocks = vi.hoisted(() => ({
@@ -22,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   search: {} as Record<string, unknown>,
   uninstallSkill: vi.fn(),
+  setMirrorEnabled: vi.fn(),
   updateGlobalEnabled: vi.fn()
 }))
 
@@ -38,6 +41,7 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useSkillMutationsById: () => ({
     isUpdating: false,
     uninstallSkill: mocks.uninstallSkill,
+    setMirrorEnabled: mocks.setMirrorEnabled,
     updateGlobalEnabled: mocks.updateGlobalEnabled
   })
 }))
@@ -84,10 +88,18 @@ vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), info: vi.f
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en-US', resolvedLanguage: 'en-US' },
-    t: (key: string) => key
+    t: (key: string) =>
+      (
+        ({
+          'settings.skills.externalAgents': 'Available to external agents',
+          'settings.skills.externalAgentsDescription':
+            'Export this skill to ~/.agents/skills for use by external agents.'
+        }) as Record<string, string>
+      )[key] ?? key
   })
 }))
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Label: (await importOriginal<typeof CherryUiModule>()).Label,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
     const { size, variant, ...buttonProps } = props
@@ -118,22 +130,12 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       </div>
     ) : null,
-  DropdownMenu: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  DropdownMenuItem: ({
-    children,
-    disabled,
-    onSelect
-  }: {
-    children?: ReactNode
-    disabled?: boolean
-    onSelect?: () => void
-  }) => (
-    <button type="button" disabled={disabled} onClick={onSelect}>
-      {children}
-    </button>
-  ),
-  DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  DropdownMenu: (await importOriginal<typeof CherryUiModule>()).DropdownMenu,
+  DropdownMenuContent: (await importOriginal<typeof CherryUiModule>()).DropdownMenuContent,
+  DropdownMenuCheckboxItem: (await importOriginal<typeof CherryUiModule>()).DropdownMenuCheckboxItem,
+  DropdownMenuSeparator: (await importOriginal<typeof CherryUiModule>()).DropdownMenuSeparator,
+  DropdownMenuItem: (await importOriginal<typeof CherryUiModule>()).DropdownMenuItem,
+  DropdownMenuTrigger: (await importOriginal<typeof CherryUiModule>()).DropdownMenuTrigger,
   EmptyState: ({
     actionLabel,
     onAction,
@@ -153,10 +155,10 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   Skeleton: () => <div data-testid="skeleton" />,
-  Switch: ({ checked, onCheckedChange, ...props }: { checked: boolean; onCheckedChange: (value: boolean) => void }) => (
-    <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} {...props} />
-  )
+  Switch: (await importOriginal<typeof CherryUiModule>()).Switch
 }))
+
+import { toast } from '@renderer/services/toast'
 
 import { SkillDetails } from '../SkillDetails'
 
@@ -193,6 +195,7 @@ describe('SkillDetails', () => {
       isLoading: false
     }
     mocks.uninstallSkill.mockResolvedValue(undefined)
+    mocks.setMirrorEnabled.mockResolvedValue(createSkill({ mirrorEnabled: false }))
     mocks.updateGlobalEnabled.mockResolvedValue(undefined)
     mocks.flushBrowser.mockResolvedValue(undefined)
     mocks.refetch.mockResolvedValue(undefined)
@@ -217,12 +220,13 @@ describe('SkillDetails', () => {
     expect(screen.getByText('1.2.3')).toBeInTheDocument()
     expect(screen.getByTestId('source-badge')).toHaveTextContent('builtin')
     expect(screen.getByText('settings.skills.readOnly')).toBeInTheDocument()
-    expect(screen.getByRole('switch')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'settings.skills.globalToggle' })).toBeInTheDocument()
     expect(screen.queryByText('writing')).not.toBeInTheDocument()
     expect(screen.getByTestId('skill-file-browser')).toHaveAttribute('data-root-path', '/managed/skills/writer')
   })
 
   it('launches, toggles, opens, and removes the current Skill from explicit actions', async () => {
+    const user = userEvent.setup()
     const skill = createSkill()
     mocks.query = { data: skill, error: undefined, isLoading: false }
     mocks.ipcRequest.mockResolvedValue(undefined)
@@ -231,20 +235,66 @@ describe('SkillDetails', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.skills.tryNow' }))
     expect(mocks.launchSkill).toHaveBeenCalledExactlyOnceWith(skill)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.skill_detail.open_folder' }))
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'library.skill_detail.open_folder' }))
     await waitFor(() =>
       expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('skill.folder.open', { skillId: 'skill-1' })
     )
 
-    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByRole('switch', { name: 'settings.skills.globalToggle' }))
     expect(mocks.updateGlobalEnabled).toHaveBeenCalledExactlyOnceWith(false)
 
-    fireEvent.click(screen.getByRole('button', { name: /library.action.uninstall/ }))
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('menuitem', { name: /library.action.uninstall/ }))
     const dialog = screen.getByRole('dialog')
     expect(dialog).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
     await waitFor(() => expect(mocks.uninstallSkill).toHaveBeenCalledOnce())
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: undefined } })
+  })
+
+  it('keeps export changes pending until saved, then displays the refreshed preference', async () => {
+    const user = userEvent.setup()
+    let complete!: (skill: InstalledSkill) => void
+    mocks.setMirrorEnabled.mockReturnValueOnce(
+      new Promise<InstalledSkill>((resolve) => {
+        complete = resolve
+      })
+    )
+    const view = render(<SkillDetails skillId="skill-1" />)
+    expect(screen.getByRole('switch', { name: 'settings.skills.globalToggle' })).toBeChecked()
+    expect(screen.queryByRole('menuitemcheckbox')).not.toBeInTheDocument()
+    expect(screen.queryByText('Available to external agents')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Available to external agents' })
+    expect(toggle).toHaveAccessibleDescription('Export this skill to ~/.agents/skills for use by external agents.')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-disabled', 'true')
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    await act(async () => {
+      mocks.query.data = createSkill({ mirrorEnabled: false })
+      complete(mocks.query.data)
+    })
+    view.rerender(<SkillDetails skillId="skill-1" />)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
+    expect(mocks.refetch).toHaveBeenCalled()
+  })
+
+  it('preserves the export preference after failure and allows retry', async () => {
+    const user = userEvent.setup()
+    mocks.setMirrorEnabled.mockRejectedValueOnce(new Error('export conflict'))
+    render(<SkillDetails skillId="skill-1" />)
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Available to external agents' })
+    await user.click(toggle)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.skills.mirrorToggleFailed'))
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
+    await user.click(toggle)
+    await waitFor(() => expect(mocks.refetch).toHaveBeenCalled())
+    expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   it('returns to the list from the header', () => {
@@ -263,6 +313,7 @@ describe('SkillDetails', () => {
   })
 
   it('checks and applies a remote update only after flushing the editor', async () => {
+    const user = userEvent.setup()
     mocks.query = {
       data: createSkill({
         source: 'marketplace',
@@ -282,7 +333,8 @@ describe('SkillDetails', () => {
     render(<SkillDetails skillId="skill-1" />)
 
     expect(screen.getByTestId('source-badge')).toHaveAttribute('data-source-url', 'https://skills.sh/owner/repo/writer')
-    fireEvent.click(screen.getByRole('button', { name: 'settings.skills.remote.check' }))
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.skills.remote.check' }))
     await waitFor(() => expect(screen.getByText('settings.skills.remote.updateAvailableTitle')).toBeInTheDocument())
     expect(mocks.flushBrowser).toHaveBeenCalledOnce()
 
