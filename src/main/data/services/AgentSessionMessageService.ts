@@ -67,6 +67,7 @@ import { AgentSessionEditError } from './AgentSessionEditError'
 import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
+import { presentCodexHistory } from './importedCodexText'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -974,7 +975,12 @@ export class AgentSessionMessageService {
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
-    const formatted = row.provenance?.source === 'claude-code' ? presentClaudeHistory(row.data) : row.data
+    const formatted =
+      row.provenance?.source === 'claude-code'
+        ? presentClaudeHistory(row.data)
+        : row.provenance?.source === 'codex'
+          ? presentCodexHistory(row.data)
+          : row.data
     const presented = row.provenance
       ? presentImportedTools(row.provenance.source, row.id, row.role, formatted, row.status)
       : { role: row.role, data: formatted }
