@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-conversation-scrollbar-spacing.md
+2026-11-04-conversation-scrollbar-spacing.md: a415986b42b90cd423d9f18d9a539a52d0a31bc3
+2026-11-04-conversation-scrollbar-spacing.zh.md: e0e6f2d2d90d42ccc82e3e6d3e8ffa6dfc016a6c

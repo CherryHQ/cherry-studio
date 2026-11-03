@@ -143,6 +143,7 @@ export const MockCherrystudioUI = {
   // depends on it for meaning is a bug the test should catch, not one the mock hides.
   NormalTooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  ScrollArea: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   Scrollbar: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   Select: ({ children, onValueChange, value, ...props }: any) => (
     <SelectContext.Provider value={{ onValueChange, value }}>

@@ -106,6 +106,9 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    */
   scrollerStyle?: React.CSSProperties
 
+  /** Optional viewport component; its ref must expose the native scroll element. */
+  scrollerComponent?: React.ComponentType<React.ComponentPropsWithRef<'div'>>
+
   /**
    * Scroll container role
    */
@@ -165,6 +168,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     rangeExtractor: customRangeExtractor,
     itemContainerStyle,
     scrollerStyle,
+    scrollerComponent: Scroller = 'div',
     role = 'region',
     scrollElementRef,
     scrollerProps,
@@ -362,7 +366,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const measureItemElement = hasFixedItemSize ? undefined : virtualizer.measureElement
 
   return (
-    <div
+    <Scroller
       {...scrollerProps}
       ref={setScrollerRef}
       className={cn(
@@ -464,7 +468,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           )
         })}
       </div>
-    </div>
+    </Scroller>
   )
 }
 
