@@ -66,7 +66,16 @@ export const codexAdapter: HistorySourceAdapter = {
         sessions.set(id, { path: file, sourcePaths: [indexPath, file], originalSessionId: id, title: titles.get(id) })
       if (sessions.size > 10_000) throw new Error('scan_limit')
     }
-    yield* sessions.values()
+    for (const ref of sessions.values()) {
+      if (!ref.title) {
+        try {
+          ref.title = (await codexAdapter.read(ref, signal)).title
+        } catch {
+          signal.throwIfAborted()
+        }
+      }
+      yield ref
+    }
   },
   async read(ref, signal) {
     const input = await readJsonl(ref.path, signal)
@@ -74,7 +83,7 @@ export const codexAdapter: HistorySourceAdapter = {
       source: 'codex',
       originalSessionId: '',
       sourcePaths: [ref.path],
-      title: path.basename(ref.path, '.jsonl'),
+      title: ref.title ?? '',
       messages: [],
       branches: [],
       sourceFingerprint: '',
@@ -222,6 +231,15 @@ export const codexAdapter: HistorySourceAdapter = {
         result.skippedRecords++
         continue
       }
+      if (!result.title && role === 'user') {
+        result.title = parts
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 255)
+      }
       if (!parts.length) {
         result.skippedRecords++
         continue
@@ -266,6 +284,10 @@ export const codexAdapter: HistorySourceAdapter = {
             : null
       })
     }
+    if (!result.title)
+      result.title =
+        'Codex · ' +
+        (rows.find((entry) => entry.row.timestamp)?.row.timestamp?.slice(0, 10) ?? result.originalSessionId)
     if (directories.size > 1) diagnose('directory_required', undefined, 'error')
     if (!result.messages.length) diagnose('empty_session', undefined, 'error')
     if (Buffer.byteLength(JSON.stringify(result)) > IMPORT_LIMITS.session) throw new Error('session_limit')
