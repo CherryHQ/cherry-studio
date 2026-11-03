@@ -608,7 +608,7 @@ export function getEffectiveFetchRequestContentType(
   const fromHeader = getHeaderValue(requestHeaders ?? {}, 'content-type')
   if (fromHeader) return fromHeader
   if (typeof body === 'string') return 'text/plain;charset=UTF-8'
-  if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded'
+  if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded;charset=UTF-8'
   if (typeof Blob !== 'undefined' && body instanceof Blob && body.type) return body.type
   return undefined
 }
@@ -674,7 +674,7 @@ export function captureRequestBody(
   }
   if (body instanceof URLSearchParams) {
     return applyContentEncodingReplayConstraint(
-      createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded'),
+      createCapturedTextBody(body.toString(), contentType ?? 'application/x-www-form-urlencoded;charset=UTF-8'),
       requestHeaders
     )
   }
@@ -966,7 +966,7 @@ function normalizeJsonNumberToken(token: string): string | undefined {
   const [, sign, intPart = '', fracPart = '', expPart] = match
   let digits = `${intPart}${fracPart}`.replace(/^0+/, '')
   let exponent = Number(expPart ?? 0) - fracPart.length
-  if (!digits) return '0'
+  if (!digits) return sign ? '-0' : '0'
   while (digits.endsWith('0')) {
     digits = digits.slice(0, -1)
     exponent++
@@ -1071,7 +1071,15 @@ function redactJsonSensitiveValuesInText(text: string): string {
     if (!isSensitiveName(key, OAUTH_QUERY_EXTRAS)) continue
 
     const valueStart = index
-    const valueEnd = skipJsonValue(text, valueStart)
+    let valueEnd = skipJsonValue(text, valueStart)
+    // Malformed unquoted credentials are not JSON number/keyword tokens. Consume the
+    // complete primitive fragment, not only a valid-looking prefix such as true or 123.
+    let tokenStart = valueStart
+    while (tokenStart < text.length && /\s/.test(text[tokenStart])) tokenStart++
+    const firstValueCharacter = text.charAt(tokenStart)
+    if (firstValueCharacter !== '"' && firstValueCharacter !== '{' && firstValueCharacter !== '[') {
+      while (valueEnd < text.length && !',}]'.includes(text[valueEnd])) valueEnd++
+    }
     replacements.push({ start: valueStart, end: valueEnd, replacement: JSON.stringify(REDACTED) })
     // A sensitive parent covers its descendants. Skip it whole, keeping this scan linear.
     index = valueEnd

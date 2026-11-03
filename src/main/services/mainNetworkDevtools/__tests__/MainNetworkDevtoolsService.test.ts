@@ -890,3 +890,57 @@ it('marks streamed Node and cloned Request NUL captures as non-replayable', asyn
     await service._doStop()
   }
 })
+
+it.each(['secret', 'true-secret', 'null-secret', '123secret'])(
+  'removes the complete malformed unquoted credential %s',
+  (secret) => {
+    const captured = captureRequestBody(`{"api_key":${secret},}`, 'application/json')
+    expect(captured?.text).not.toContain(secret)
+  }
+)
+it.each(['-0', '-0.0', '-0e2'])('does not normalize signed JSON zero %s into replayable positive zero', (zero) => {
+  const captured = captureRequestBody(`{"amount":${zero}}`, 'application/json')
+  expect(captured?.replayable).toBe(false)
+  expect(captured?.text).toContain(zero)
+})
+it('preserves the complete Fetch URLSearchParams effective Content-Type', () => {
+  const body = new URLSearchParams({ word: 'é' })
+  expect(getEffectiveFetchRequestContentType(undefined, body)).toBe('application/x-www-form-urlencoded;charset=UTF-8')
+  expect(captureRequestBody(body)?.contentType).toBe('application/x-www-form-urlencoded;charset=UTF-8')
+})
+
+it.skipIf(process.platform === 'win32')(
+  'preserves headerless URLSearchParams Content-Type and bytes in actual Fetch/cURL replay',
+  async () => {
+    const received: { contentType: string | undefined; body: Buffer }[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push({ contentType: req.headers['content-type'], body: Buffer.concat(chunks) })
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchFetch: () => void }
+    state.patchFetch()
+    try {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+      await (await fetch(url, { method: 'POST', body: new URLSearchParams({ word: 'é' }) })).text()
+      const event = state.events[0]
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      const command = sandbox.buildCurlCommand?.(event)
+      expect(command).toBeDefined()
+      await promisify(execFile)('/bin/sh', ['-c', command as string], { timeout: 5000 })
+      expect(received[0].contentType).toBe('application/x-www-form-urlencoded;charset=UTF-8')
+      expect(received[1]).toEqual(received[0])
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
