@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 
 import ImportPopup from './ImportPopup'
+import LocalHistoryImportPopup from './LocalHistoryImportPopup'
 
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
@@ -38,6 +39,16 @@ const ImportMenuOptions: FC = () => {
             {t('settings.data.import_settings.button')}
           </Button>
         </RowFlex>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingTitle>{t('history_import.title')}</SettingTitle>
+      </SettingRow>
+      <SettingRow id="setting-data-import-local-claude-code" className="scroll-mt-6">
+        <SettingRowTitle>Claude Code</SettingRowTitle>
+        <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'claude-code' })}>
+          {t('history_import.start')}
+        </Button>
       </SettingRow>
     </SettingGroup>
   )
