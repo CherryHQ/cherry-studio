@@ -56,7 +56,9 @@ Use `agent`, `agent_session`, `agent_session_message`, and `agent_workspace`. An
 | [AgentWorkspaceService](../../../../src/main/data/services/AgentWorkspaceService.ts) | Reuse `findOrCreateByPathTx` and `createSystemWorkspaceForSessionTx` |
 | [AgentSessionMessageService](../../../../src/main/data/services/AgentSessionMessageService.ts) | Add an import-specific batch contract for historical timestamps, source identity, and order |
 
-The existing message batch writer uses the current time, and pagination orders by `createdAt, id`. For nondecreasing source times, preserve timestamps and allocate local IDs consistently for ties. Source-order/time conflicts require a shared ordering-contract decision in the first layer. Either implement that extension or declare the format unsupported in preview. Never alter valid historical timestamps or repair order only in the renderer.
+The existing message batch writer uses the current time, and pagination orders by `createdAt, id`. For nondecreasing source times, preserve timestamps and allocate local IDs consistently for ties. Source-order/time conflicts require a shared ordering-contract decision in the first layer. That contract must cover both imported history and subsequent user/assistant turns. Either implement that extension or declare the input unsupported in preview. Never alter valid timestamps or repair order only in the renderer.
+
+Valid, internally ordered source timestamps can still be later than the local clock, for example when the source computer is one day ahead. For an accepted session, new turns must follow all imported messages in persistence, pagination, reload, and native runtime history even when their timestamps are earlier. This case requires ordering independent of timestamps. Until that ordering is supported, reject the affected session in preview with a clock-skew explanation and recheck against the current local time before commit; failure creates no session rows. Preserve historical and new-message timestamps; do not clamp them or advance them for sorting.
 
 Reuse the Agent Session list, search, lifecycle, and data-change notification paths. Domain services own their tables; the importer does not bypass their invariants.
 
@@ -238,7 +240,7 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC6 — Missing, inaccessible, and foreign-platform directories require preview mapping or skipping, without silent fallback. (verification: unit and Electron directory fixtures)
 - AC7 — Repeated/concurrent imports, including different target selections, create no duplicate sessions; selection uses Agent IDs despite equal names, and existing imports retain their owner. (verification: unit concurrency, cross-target, rename, and namesake fixtures)
 - AC8 — Empty input, cancelled previews, all-duplicate batches, and failed transactions leave no empty session or workspace and do not create or alter Agent configuration. (verification: unit state and source-directory comparisons)
-- AC9 — Imported content, valid timestamps, and supported source order remain consistent through persistence and pagination. (verification: unit ordering and renderer paging)
+- AC9 — Imported content, valid timestamps, and supported source order remain consistent through persistence, pagination, and reload. With source timestamps one day ahead of the local clock, either new user/assistant turns remain after all imported history without changing timestamps, or preview rejects the session and commit rechecks before any session writes. (verification: unit clock-skew/ordering fixtures with controlled time and renderer paging/reload)
 - AC10 — Invalid JSON and unknown records have actionable locations/reasons while recoverable messages still import. (verification: unit mixed-record fixtures)
 - AC11 — A failed session rolls back atomically; cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection and cancellation)
 - AC12 — Changed sources/directories, a changed or deleted target, incompatible runtime changes, or expired previews require renewed selection/preview; foreign-window tokens and substituted target IDs are rejected. (verification: unit and renderer boundary checks)
@@ -246,7 +248,7 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC14 — OpenCode reads supported schemas including committed WAL data and clearly rejects unknown schemas. (verification: unit real SQLite fixtures)
 - AC15 — WorkBuddy support is limited to desktop formats and directory fields verified by declared versioned samples. (verification: unit versioned adapter fixtures)
 - AC16 — Opening/importing history never executes historical tools, requests approvals, or starts generation. (verification: unit runtime boundaries and Electron)
-- AC17 — First continuation uses the selected Agent's configuration and includes imported history in model input; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input, target-runtime compatibility, and recovery faults)
+- AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
 - AC18 — Imported sessions support search, duplication, trash, and restore; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
 - AC19 — Forward migration and backup round trips retain provenance, ownership, and workspaces; merge conflicts are explicit. (verification: unit populated-database migration and restore fixtures)
 - AC20 — Windows, macOS, and Linux satisfy path mapping and read-only source access, with simulations and native evidence distinguished. (verification: unit platform cases and platform-native Electron)
@@ -259,7 +261,7 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Risk or open choice | Required resolution |
 |---|---|
 | Target runtime compatibility | Use the selected Agent's runtime; define and verify its history initializer before enabling selection, without silently changing Agent configuration |
-| Timestamp rollback | Decide the shared ordering extension or explicit format limitation before the first implementation; do not falsify time |
+| Timestamp rollback or source clock ahead | Decide the shared ordering extension or explicit input rejection before the first implementation; include the history-to-continuation boundary and commit-time recheck, without falsifying timestamps |
 | Missing directories | Resolve before inserting messages because existing sessions with messages cannot change workspace |
 | Native-file/database consistency | Use persistent initialization markers, stable native identity, validated output, and retry recovery |
 | WorkBuddy and upstream drift | Obtain desktop samples and pin supported versions; development schemas are not release-wide promises |
@@ -268,4 +270,4 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Backup merges | Preserve identity constraints and report conflicts without silently merging or removing provenance |
 | Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the four-source implementation sequence |
 
-Outstanding implementation choices are the supported target-runtime matrix, treatment of source-time rollback, and first-version tool/attachment fidelity. Reimport defaults to skip regardless of the chosen target; incremental synchronization is separate work. Source-version matrices, WorkBuddy samples, and input limits must be completed before claiming support. Do not close #22728 as delivered until all four sources satisfy the complete acceptance criteria.
+Outstanding implementation choices are the supported target-runtime matrix, handling of source-time rollback and timestamps ahead of the local clock, and first-version tool/attachment fidelity. Reimport defaults to skip regardless of the chosen target; incremental synchronization is separate work. Source-version matrices, WorkBuddy samples, and input limits must be completed before claiming support. Do not close #22728 as delivered until all four sources satisfy the complete acceptance criteria.
