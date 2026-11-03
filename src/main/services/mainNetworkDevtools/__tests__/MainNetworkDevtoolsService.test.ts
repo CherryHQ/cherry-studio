@@ -1100,3 +1100,75 @@ it.each([131071, 131072, 131073])(
     }
   }
 )
+
+it.each(['text/plain', 'application/json'])(
+  'redacts URLSearchParams independently of explicit %s metadata',
+  (contentType) => {
+    const captured = captureRequestBody(new URLSearchParams({ api_key: 'private-form-marker', word: 'é' }), contentType)
+    expect(captured?.text).not.toContain('private-form-marker')
+    expect(captured?.text).toContain('api_key=%3Credacted%3E')
+    expect(captured?.contentType).toBe(contentType)
+  }
+)
+it('preserves JSON own __proto__ keys at every depth while redacting nested secrets', () => {
+  const body = '{"__proto__":{"role":"admin","api_key":"private-proto-marker"},"nested":[{"__proto__":{"x":1}}]}'
+  const captured = captureRequestBody(body, 'application/json')
+  const parsed = JSON.parse(captured?.text ?? '{}')
+  expect(Object.hasOwn(parsed, '__proto__')).toBe(true)
+  expect(parsed.__proto__).toEqual({ role: 'admin', api_key: '<redacted>' })
+  expect(Object.hasOwn(parsed.nested[0], '__proto__')).toBe(true)
+  expect(captured?.replayable).toBe(true)
+})
+
+it.skipIf(process.platform === 'win32')(
+  'preserves __proto__ payload keys and explicit form metadata during actual HTTP/cURL replay',
+  async () => {
+    const received: { contentType: string | undefined; body: string }[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push({ contentType: req.headers['content-type'], body: Buffer.concat(chunks).toString() })
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchFetch: () => void }
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+    state.patchFetch()
+    const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+    vm.createContext(sandbox)
+    vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+    try {
+      const protoBody = '{"__proto__":{"role":"admin"},"nested":[{"__proto__":{"x":1}}]}'
+      await (
+        await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: protoBody })
+      ).text()
+      await promisify(execFile)('/bin/sh', ['-c', sandbox.buildCurlCommand?.(state.events[0]) as string], {
+        timeout: 5000
+      })
+      expect(received[1]).toEqual(received[0])
+      expect(received[1].body).toBe(protoBody)
+      for (const contentType of ['text/plain', 'application/json']) {
+        await (
+          await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': contentType },
+            body: new URLSearchParams({ api_key: 'private-form-network-marker', word: 'é' })
+          })
+        ).text()
+        const event = state.events.at(-1) as MainNetworkDevtoolsEvent
+        const command = sandbox.buildCurlCommand?.(event) as string
+        expect(command).not.toContain('private-form-network-marker')
+        await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+        expect(received.at(-1)?.contentType).toBe(contentType)
+        expect(received.at(-1)?.body).toBe('api_key=%3Credacted%3E&word=%C3%A9')
+      }
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)

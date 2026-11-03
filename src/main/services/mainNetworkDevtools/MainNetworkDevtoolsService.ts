@@ -676,7 +676,10 @@ export function captureRequestBody(
   }
   if (body instanceof URLSearchParams) {
     return applyContentEncodingReplayConstraint(
-      createCapturedTextBody(body.toString(), contentType ?? 'application/x-www-form-urlencoded;charset=UTF-8'),
+      {
+        ...createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded;charset=UTF-8'),
+        contentType: contentType ?? 'application/x-www-form-urlencoded;charset=UTF-8'
+      },
       requestHeaders
     )
   }
@@ -1130,7 +1133,7 @@ function redactJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => redactJsonValue(item))
   if (!isRecord(value)) return value
 
-  const result: Record<string, unknown> = {}
+  const result: Record<string, unknown> = Object.create(null)
   for (const [key, item] of Object.entries(value)) {
     result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : redactJsonValue(item)
   }
