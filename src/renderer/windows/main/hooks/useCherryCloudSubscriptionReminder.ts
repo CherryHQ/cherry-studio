@@ -18,9 +18,23 @@ export function useCherryCloudSubscriptionReminder(): void {
   const { session, plansQuery, activePaid } = useCherryCloudPlans()
   const accountId = session.status?.phase === 'signed-in' ? session.status.accountId : null
   const lastSnapshotRef = useRef<{ accountId: string; paidEntitlementId: string | null } | null>(null)
+  // After a sign-out the plans cached for the account predate it; the next baseline waits until a
+  // revalidation has started and finished, so a purchase made while signed out is not announced.
+  const freshPlansRef = useRef<'ready' | 'awaiting' | 'revalidating'>('ready')
 
   useEffect(() => {
-    if (!accountId || !plansQuery.data) return
+    if (!accountId) {
+      // Only a session that ended; a status still loading at startup has no cached plans to distrust.
+      if (lastSnapshotRef.current) freshPlansRef.current = 'awaiting'
+      lastSnapshotRef.current = null
+      return
+    }
+    if (freshPlansRef.current !== 'ready') {
+      if (plansQuery.isValidating) freshPlansRef.current = 'revalidating'
+      if (plansQuery.isValidating || freshPlansRef.current === 'awaiting') return
+      freshPlansRef.current = 'ready'
+    }
+    if (!plansQuery.data) return
     const paidEntitlementId = activePaid?.id ?? null
     const previous = lastSnapshotRef.current
     lastSnapshotRef.current = { accountId, paidEntitlementId }
@@ -30,5 +44,5 @@ export function useCherryCloudSubscriptionReminder(): void {
     if (activePaid && previous.paidEntitlementId === null) {
       toast.success(t('settings.subscription.activated', { plan: activePaid.plan.display_name }))
     }
-  }, [accountId, activePaid, mutate, plansQuery.data, t])
+  }, [accountId, activePaid, mutate, plansQuery.data, plansQuery.isValidating, t])
 }

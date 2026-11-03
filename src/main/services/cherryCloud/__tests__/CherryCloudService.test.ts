@@ -296,6 +296,42 @@ async function createService(): Promise<CherryCloudService> {
   return service
 }
 
+function accountPlansWith(entitlementIds: string[]): Response {
+  return jsonResponse({
+    measured_at: '2030-01-02T03:00:00Z',
+    available_plans: [],
+    entitlements: entitlementIds.map((id) => ({
+      id,
+      source: 'checkout',
+      plan: {
+        id: '00000000-0000-4000-8000-000000000041',
+        display_name: 'Plus',
+        is_free: false,
+        default_for_new_accounts: false,
+        quota_pool_count: 0,
+        model_count: 1,
+        purchase_available: true
+      },
+      state: 'active',
+      starts_at: '2030-01-02T03:00:00Z',
+      quota_pools: []
+    }))
+  })
+}
+
+async function signIn(service: CherryCloudService): Promise<void> {
+  mockAuthorizationFlow()
+  mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+  await service.startLogin()
+  const createBody = authorizationRequestBody()
+  await loopbackCallback()(
+    new URL(
+      `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+    )
+  )
+  await service['syncEntitledModels']()
+}
+
 async function createSignedInService(): Promise<CherryCloudService> {
   mockAuthorizationFlow()
   mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
@@ -1364,27 +1400,7 @@ describe('CherryCloudService', () => {
 
   it('refreshes the model snapshot once account plans show a new active entitlement', async () => {
     const service = await createSignedInService()
-    const plansWith = (entitlementIds: string[]) =>
-      jsonResponse({
-        measured_at: '2030-01-02T03:00:00Z',
-        available_plans: [],
-        entitlements: entitlementIds.map((id) => ({
-          id,
-          source: 'checkout',
-          plan: {
-            id: '00000000-0000-4000-8000-000000000041',
-            display_name: 'Plus',
-            is_free: false,
-            default_for_new_accounts: false,
-            quota_pool_count: 0,
-            model_count: 1,
-            purchase_available: true
-          },
-          state: 'active',
-          starts_at: '2030-01-02T03:00:00Z',
-          quota_pools: []
-        }))
-      })
+    const plansWith = accountPlansWith
     mockModelSync()
     await service.syncEntitledModelsIfStale()
     mockCloudRoute('/api/v1/account/plans', plansWith([]))
@@ -1401,6 +1417,23 @@ describe('CherryCloudService', () => {
     await service.syncEntitledModelsIfStale()
 
     expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+  })
+
+  it('compares account plans only with plans seen in the same session', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith(['00000000-0000-4000-8000-000000000050']))
+    await service.getAccountPlans()
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+
+    await signIn(service)
+    mocks.netFetch.mockClear()
+    // The next account's first plans differ from the previous account's; that is not a purchase.
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith([]))
+    await service.getAccountPlans()
+    await service.syncEntitledModelsIfStale()
+
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(0)
   })
 
   it('bounds model sync requests without clearing the retriable Session', async () => {

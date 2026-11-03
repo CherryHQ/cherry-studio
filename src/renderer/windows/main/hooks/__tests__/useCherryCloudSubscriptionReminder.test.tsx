@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
@@ -102,6 +102,31 @@ describe('useCherryCloudSubscriptionReminder', () => {
         routes.lastIndexOf('cherry_cloud.account_plans.get')
       )
     })
+  })
+
+  it('does not announce a subscription made while signed out', async () => {
+    let publishStatus: (next: CherryCloudStatus) => void = () => {}
+    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
+    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
+      if (event === 'cherry_cloud.status_changed') publishStatus = (next) => handler(next)
+      return () => {}
+    })
+    onTestFinished(() => {
+      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
+    })
+    status = signedIn('account-1')
+    plans = unpaid()
+    renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() => expect(plansRequests()).toBe(1))
+
+    status = { phase: 'signed-out', accountId: null, displayName: null }
+    await act(async () => publishStatus(status))
+    plans = paid('Plus')
+    status = signedIn('account-1')
+    await act(async () => publishStatus(status))
+
+    await waitFor(() => expect(plansRequests()).toBe(2))
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('stays quiet for an account that was already subscribed', async () => {
