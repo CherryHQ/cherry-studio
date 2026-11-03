@@ -414,7 +414,7 @@ describe('OpenClawService gateway status state machine', () => {
       schemaCapabilitySpy.mockRestore()
       queueSpawnResult({
         stderr:
-          'Warning: first\ncontinuation of warning\n(Use `node --trace-warnings ...` to show where the warning was created)',
+          'Warning: first\n    extra detail about the warning\n(Use `node --trace-warnings ...` to show where the warning was created)',
         exitCode: 1
       })
       const error = await (service as any)
@@ -422,7 +422,67 @@ describe('OpenClawService gateway status state machine', () => {
         .catch((error: Error) => error)
       expect(error).toMatchObject({ kind: 'schema_check_failed' })
       expect(error.message).toContain('stderr carried only warnings: Warning: first')
-      expect(error.message).not.toContain('continuation of warning')
+      expect(error.message).not.toContain('extra detail about the warning')
+    })
+
+    it.each([
+      {
+        kind: 'other',
+        line: 'openclaw: Node 24.14.0: node:sqlite truncates TEXT at embedded NUL (nodejs/node#61954); use 24.16+/26.1+ or a build with the fix',
+        stack: ''
+      },
+      {
+        kind: 'error',
+        line: "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/openclaw/dist/cli.js' imported from /opt/openclaw/bin.js",
+        stack: '\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1234:15)'
+      }
+    ])('reports the post-warning $kind diagnostic: $line', async ({ kind, line, stack }) => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const stderr =
+        '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n' +
+        line +
+        stack
+      queueSpawnResult({ stderr, exitCode: 1 })
+
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('exit code 1')
+      expect(error.message).toContain(line)
+      expect(error.message).not.toContain('ExperimentalWarning')
+      expect(error.message).not.toContain('--trace-warnings')
+      expect(error.message).not.toContain('stderr carried only warnings')
+      expect(error.message).not.toContain('Module._resolveFilename')
+      expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({ kind, line })
+    })
+
+    it('ends warning continuations at a stack frame without reporting the frame', () => {
+      const stderr = 'Warning: first\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1234:15)'
+      expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+        kind: 'warnings-only',
+        line: 'Warning: first'
+      })
+      expect((service as any).firstMeaningfulStderrLine(`${stderr}\n    configuration could not be loaded`)).toEqual({
+        kind: 'other',
+        line: 'configuration could not be loaded'
+      })
+    })
+
+    it('prefers a bracketed error code over an earlier retained diagnostic', () => {
+      const line = 'Error [MODULE_NOT_FOUND]: Cannot find module openclaw'
+      expect((service as any).firstMeaningfulStderrLine(`Warning: first\nopenclaw: startup failed\n${line}`)).toEqual({
+        kind: 'error',
+        line
+      })
+    })
+
+    it('skips bare Node runtime banners when retaining a diagnostic', () => {
+      expect((service as any).firstMeaningfulStderrLine('Node.js v24.14.0\nopenclaw: startup failed')).toEqual({
+        kind: 'other',
+        line: 'openclaw: startup failed'
+      })
     })
 
     it('does not report stack frames as warnings or errors', async () => {

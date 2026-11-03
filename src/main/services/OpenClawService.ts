@@ -805,13 +805,18 @@ export class OpenClawService extends BaseService {
         warning ??= line.trim()
         inWarning = true
       } else if (
-        /^\s*(?:Error:|TypeError:|RangeError:|SyntaxError:|ReferenceError:|ERR_[A-Z0-9_]+|error:|error |[A-Z][A-Z0-9_]{2,}:)/.test(
+        /^\s*(?:Error(?: \[[A-Z0-9_]+\])?:|TypeError:|RangeError:|SyntaxError:|ReferenceError:|ERR_[A-Z0-9_]+|error:|error |[A-Z][A-Z0-9_]{2,}:)/.test(
           line
         )
       ) {
         return { kind: 'error', line: line.trim() }
-      } else if (!inWarning && !/^\s+at\s|^\s*node:internal\//.test(line)) {
-        other ??= line.trim()
+      } else {
+        const isStackFrame = /^\s+at\s|^\s*node:internal\//.test(line)
+        if (inWarning && /^\s/.test(line) && !isStackFrame) continue
+        inWarning = false
+        if (!isStackFrame && !/^Node\.js v\d/.test(line)) {
+          other ??= line.trim()
+        }
       }
     }
     if (other) return { kind: 'other', line: other }
