@@ -14,6 +14,19 @@ import { toast } from '../toast'
 afterEach(() => toast.closeAll())
 
 describe('provider entitlement toasts', () => {
+  it('shows launch-size guidance as a warning without an action', () => {
+    const key = toast.errorFromException({
+      name: 'Error',
+      message: 'Claude Code process failed to start',
+      claudeCodeExitCategory: 'launch_size'
+    })
+    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
+      title: enUS['error.diagnosis.launch_size'],
+      type: 'warning',
+      action: undefined
+    })
+  })
+
   it('shows permission without a billing action and preserves real quota recovery', () => {
     const provider = { id: 'groq', name: 'Groq' }
     const message = `service_tier auto is not available for this org. You can check your plan at

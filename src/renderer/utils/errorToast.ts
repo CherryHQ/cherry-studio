@@ -21,6 +21,7 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   rate_limit: { type: 'info', action: 'retry' },
   context_length: { type: 'warning', action: 'trimContext' },
   payload: { type: 'warning' },
+  launch_size: { type: 'warning' },
   network: { type: 'info', action: 'retry' },
   proxy: { type: 'info', action: 'retry' },
   stream: { type: 'info', action: 'retry' },

@@ -12,6 +12,8 @@ export const ERROR_CATEGORIES = [
   'rate_limit',
   'context_length',
   'payload',
+  /** Local process-launch limit (argv/env/cwd/path), not an HTTP body limit. */
+  'launch_size',
   'network',
   'proxy',
   'stream',

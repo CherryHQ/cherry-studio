@@ -17,6 +17,7 @@ const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   rate_limit: 'rate_limit',
   context_length: 'context_length',
   payload: 'payload_too_large',
+  launch_size: 'invalid_input',
   network: 'network',
   proxy: 'proxy_tls',
   stream: 'stream_interrupted',

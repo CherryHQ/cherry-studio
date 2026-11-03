@@ -53,6 +53,13 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it('uses the launch-size diagnosis from a Claude Code process failure', () => {
+    expect(classifyError(makeError({ claudeCodeExitCategory: 'launch_size' }))).toMatchObject({
+      category: 'launch_size',
+      i18nKey: 'error.diagnosis.launch_size'
+    })
+  })
+
   const groqBody = `service_tier auto is not available for this org. You can check your plan at
 [Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
 required service tier.`

@@ -9,9 +9,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import { launchSizeErrno, type ClaudeCodeLaunchInput } from './claudeCodeLaunchSize'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
   recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
@@ -58,13 +60,18 @@ function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics):
     category: diagnostics.category,
     exitCode: diagnostics.exitCode,
     exitSignal: diagnostics.exitSignal,
-    spawnFailed: diagnostics.spawnFailed
+    spawnFailed: diagnostics.spawnFailed,
+    launchSize: diagnostics.launchSize
   })
 }
 
-function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics, error: unknown): void {
-  if (!(error instanceof Error)) return
-  recordClaudeCodeSpawnError(diagnostics, error)
+function recordSynchronousSpawnFailure(
+  diagnostics: ClaudeCodeProcessDiagnostics,
+  error: unknown,
+  launch: ClaudeCodeLaunchInput
+): void {
+  if (!(error instanceof Error) && !launchSizeErrno(error)) return
+  recordClaudeCodeSpawnError(diagnostics, error as Error, launch)
   logClaudeCodeProcessFailure(diagnostics)
 }
 
@@ -204,7 +211,14 @@ export class ClaudeCodeProcessManager extends BaseService {
     } catch (error) {
       const uid = macOsForkFallbackUid(error)
       if (uid === undefined) {
-        recordSynchronousSpawnFailure(diagnostics, error)
+        recordSynchronousSpawnFailure(diagnostics, error, {
+          command: options.command,
+          args: options.args,
+          env: options.env,
+          cwd: options.cwd
+        })
+        // SDK query() constructs the process before the query loop can wrap synchronous failures.
+        if (diagnostics.category === 'launch_size') throw createClaudeCodeProcessExitError(error as Error, diagnostics)
         throw error
       }
 
@@ -214,7 +228,14 @@ export class ClaudeCodeProcessManager extends BaseService {
       try {
         rawChild = this.spawnProcess(options.command, options.args, { ...spawnOptions, uid })
       } catch (retryError) {
-        recordSynchronousSpawnFailure(diagnostics, retryError)
+        recordSynchronousSpawnFailure(diagnostics, retryError, {
+          command: options.command,
+          args: options.args,
+          env: options.env,
+          cwd: options.cwd
+        })
+        if (diagnostics.category === 'launch_size')
+          throw createClaudeCodeProcessExitError(retryError as Error, diagnostics)
         throw retryError
       }
     }

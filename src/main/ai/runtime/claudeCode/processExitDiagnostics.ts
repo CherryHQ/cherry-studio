@@ -2,6 +2,14 @@ import { randomUUID } from 'node:crypto'
 
 import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
 
+import {
+  formatLaunchSizeSummary,
+  launchSizeErrno,
+  summarizeLaunchInput,
+  type ClaudeCodeLaunchInput,
+  type ClaudeCodeLaunchSize
+} from './claudeCodeLaunchSize'
+
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
   exited?: Promise<void>
@@ -9,6 +17,7 @@ export interface ClaudeCodeProcessDiagnostics {
   category?: ErrorCategory
   exitCode?: number
   exitSignal?: NodeJS.Signals
+  launchSize?: ClaudeCodeLaunchSize
   spawnFailed?: true
 }
 
@@ -22,6 +31,7 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.exitCode
   delete diagnostics.exitSignal
   delete diagnostics.spawnFailed
+  delete diagnostics.launchSize
 }
 
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
@@ -43,7 +53,19 @@ export function recordClaudeCodeProcessExit(
   if (signal !== null) diagnostics.exitSignal = signal
 }
 
-export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnostics, error: Error): void {
+export function recordClaudeCodeSpawnError(
+  diagnostics: ClaudeCodeProcessDiagnostics,
+  error: Error,
+  launch?: ClaudeCodeLaunchInput
+): void {
+  const errno = launch && launchSizeErrno(error)
+  if (launch && errno) {
+    diagnostics.category = 'launch_size'
+    diagnostics.launchSize = summarizeLaunchInput(launch, errno)
+    diagnostics.terminalReason = `Failed to spawn Claude Code process: ${formatLaunchSizeSummary(diagnostics.launchSize)}`
+    diagnostics.spawnFailed = true
+    return
+  }
   diagnostics.terminalReason = `Failed to spawn Claude Code process: ${error.message}`
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
   diagnostics.spawnFailed = true

@@ -51,13 +51,12 @@ describe('doctorCheckDetailParams', () => {
   })
 
   // Missing catalog entries expose machine tokens such as bad_request to users.
-  it('translates all 20 categories through every real renderer catalog', async () => {
+  it('translates every category through every real renderer catalog', async () => {
     const catalogs = import.meta.glob<Record<string, string>>('../../../i18n/locales/*.json', {
       eager: true,
       import: 'default'
     })
     expect(Object.keys(catalogs)).toHaveLength(15)
-    expect(ERROR_CATEGORIES).toHaveLength(20)
     for (const [path, catalog] of Object.entries(catalogs)) {
       const i18n = createInstance()
       await i18n.init({

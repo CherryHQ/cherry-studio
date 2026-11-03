@@ -12,6 +12,7 @@ import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistant
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
+import { ClaudeCodeProcessManager } from '../ClaudeCodeProcessManager'
 import { forkClaudeSession } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
@@ -714,6 +715,26 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     void connection.close()
+  })
+
+  it('surfaces a categorized synchronous spawn failure during cold query construction', async () => {
+    class FailingManager extends ClaudeCodeProcessManager {
+      protected spawnProcess = () => {
+        throw new Error('spawn ENAMETOOLONG')
+      }
+    }
+    const manager = new FailingManager()
+    mocks.processManagerSpawn.mockImplementation(manager.spawn.bind(manager))
+    mocks.createClaudeQuery.mockImplementation(({ options }) =>
+      options.spawnClaudeCodeProcess({ command: 'cli', args: [], env: {}, signal: new AbortController().signal })
+    )
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+    ).rejects.toMatchObject({ claudeCodeExitCategory: 'launch_size', diagnosticReference: expect.any(String) })
   })
 
   it('passes the host spawn wrapper to the cold SDK query path', async () => {
