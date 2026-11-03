@@ -1,6 +1,6 @@
 import type { MessageListItem } from '../types'
 
-export function getMessageGroupKey(message: MessageListItem): string {
+export function getMessageGroupKey(message: Pick<MessageListItem, 'role' | 'id' | 'parentId'>): string {
   return message.role === 'assistant' && message.parentId ? `assistant${message.parentId}` : message.role + message.id
 }
 

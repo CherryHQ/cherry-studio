@@ -51,6 +51,7 @@ export interface MessageListSelectionState {
 }
 
 export interface MessageListRuntime {
+  prepareMessageReplacement?: (previousMessageId: string) => (messageId: string) => void
   scrollToBottom: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>

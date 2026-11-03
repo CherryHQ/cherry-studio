@@ -138,6 +138,13 @@ export function useChatRuntimeState({
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
   }, [])
+  const prepareMessageReplacement = useCallback((previousMessageId: string) => {
+    const runtime = messageListRuntimeRef.current
+    const commit = runtime?.prepareMessageReplacement?.(previousMessageId)
+    return (messageId: string) => {
+      if (messageListRuntimeRef.current === runtime) commit?.(messageId)
+    }
+  }, [])
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
     dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
@@ -488,6 +495,7 @@ export function useChatRuntimeState({
     cache,
     seedReservedMessages,
     scrollToBottom,
+    prepareMessageReplacement,
     startNewContextBlocked:
       isHistoryLoading ||
       isTopicStreamPending ||
