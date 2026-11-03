@@ -113,14 +113,14 @@ export type CreateInternalEntryIpcParams =
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
       path: AbsoluteFilePath
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
   | {
@@ -129,7 +129,7 @@ export type CreateInternalEntryIpcParams =
       data: Base64String
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
   | {
@@ -140,7 +140,7 @@ export type CreateInternalEntryIpcParams =
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
       ext: string | null
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
 
@@ -177,7 +177,7 @@ export type CreateInternalEntryIpcParams =
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: AbsoluteFilePath
-  /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+  /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
   cleanupPolicy: CleanupPolicy
 }
 

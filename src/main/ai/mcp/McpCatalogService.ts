@@ -41,10 +41,10 @@ export class McpCatalogService extends BaseService {
    * The runtime event carries the SDK's refreshed catalog; this event only announces
    * changes to the application projection, so consumers must not trigger another refresh.
    *
-   * Lifecycle-registered so service stop/destroy drops all listeners even if a bridge's
-   * own `onclose` unsubscribe never ran (e.g. a session torn down abnormally).
+   * Disposed in `onDestroy`, which drops all listeners even if a bridge's own
+   * `onclose` unsubscribe never ran (e.g. a session torn down abnormally).
    */
-  private readonly _onToolsCacheUpdated = this.registerDisposable(new Emitter<{ serverId: string }>())
+  private readonly _onToolsCacheUpdated = new Emitter<{ serverId: string }>()
   readonly onToolsCacheUpdated: Event<{ serverId: string }> = this._onToolsCacheUpdated.event
 
   protected async onInit(): Promise<void> {
@@ -67,6 +67,10 @@ export class McpCatalogService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.prewarmCancelled = true
+  }
+
+  protected async onDestroy(): Promise<void> {
+    this._onToolsCacheUpdated.dispose()
   }
 
   private getServerById(serverId: string): McpServer {

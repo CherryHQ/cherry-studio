@@ -126,6 +126,8 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
+vi.mock('../AccountSignOutButton', () => ({ AccountSignOutButton: () => null }))
+
 // This suite renders the real popup through the store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 

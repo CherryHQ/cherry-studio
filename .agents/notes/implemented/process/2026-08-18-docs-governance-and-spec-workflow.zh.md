@@ -8,9 +8,9 @@ Status: implemented
 
 本仓库的开发者文档有四个相互关联的缺陷,而且没有任何机制能发现它们。
 
-**文档在无声地腐烂。** `docs/guides/middleware.md` 在教已删除的 v1 `AiProviderMiddlewareTypes` 中间件系统(`src/` 中零命中)。`docs/references/messaging/message-system.md` 描述的 Redux + IndexedDB 消息存储早已不存在:仓库没有 `@reduxjs/toolkit` 依赖,没有 `messageThunk.ts`,没有 `src/renderer/store/`。这两篇在贡献者和 agent 眼里都是现行权威。唯一的文档门禁 `docs:check-links` 只校验链接目标存在——仅此而已——而且 CI 根本不跑它:`ci:basic-check` 覆盖 lint、format、typecheck、i18n 和 skills,不含文档。
+**文档在无声地腐烂。** `docs/guides/middleware.md` 在教已删除的 v1 `AiProviderMiddlewareTypes` 中间件系统(`src/` 中零命中)。`docs/dev/references/messaging/message-system.md` 描述的 Redux + IndexedDB 消息存储早已不存在:仓库没有 `@reduxjs/toolkit` 依赖,没有 `messageThunk.ts`,没有 `src/renderer/store/`。这两篇在贡献者和 agent 眼里都是现行权威。唯一的文档门禁 `docs:check-links` 只校验链接目标存在——仅此而已——而且 CI 根本不跑它:`ci:basic-check` 覆盖 lint、format、typecheck、i18n 和 skills,不含文档。
 
-**层级在误导读者。** `guides/` 与 `references/` 的二分并不成立:`guides/` 里大多是流程规范(contributing、branching-strategy、test-plan)和用法参考(logging、i18n、diagnostics),不是教程。`references/` 顶层是开放集,17 个域目录与 10 个散文件混住。代码里只有 chat 一个域,文档却拆成 `chat/` 和 `messaging/`。`docs/README.md` 是手工维护的索引,且已经漂移:`main-process-architecture.md`、`renderer-architecture.md`、`shared-layer-architecture.md`、`naming-conventions.md` 完全未列入,`chat/message-tree.md` 被列在 Messaging 章节下。根 `CONTRIBUTING.md` 在 `docs/guides/contributing.md` 有一份已经措辞分叉的近似副本,后者的"中文"语言切换链指向它自己——中文版并不存在。
+**层级在误导读者。** `guides/` 与 `references/` 的二分并不成立:`guides/` 里大多是流程规范(contributing、branching-strategy、test-plan)和用法参考(logging、i18n、diagnostics),不是教程。`references/` 顶层是开放集,17 个域目录与 10 个散文件混住。代码里只有 chat 一个域,文档却拆成 `chat/` 和 `messaging/`。`docs/dev/README.md` 是手工维护的索引,且已经漂移:`main-process-architecture.md`、`renderer-architecture.md`、`shared-layer-architecture.md`、`naming-conventions.md` 完全未列入,`chat/message-tree.md` 被列在 Messaging 章节下。根 `CONTRIBUTING.md` 在 `docs/guides/contributing.md` 有一份已经措辞分叉的近似副本,后者的"中文"语言切换链指向它自己——中文版并不存在。
 
 **决策在蒸发。** 理由和被否决的替代方案只存在于 PR 讨论串和聊天里。多个 agent 并行工作时,同一个被否过的主意会被反复提出、反复争论,因为没有任何记录说它输过、为什么输。
 
@@ -40,7 +40,7 @@ docs/
 - 每个域目录必须有 `README.md` 作为域之家:本域主题写全细节,子级只概括并链接。一个事实,一个家。
 - 域目录内的文件名不重复域前缀(`window-manager-usage.md` → `usage.md`);存量带前缀的文件在其所属域的 Phase 0b 搬家窗口一并改名,反正入链当时就要重写。**Phase 0b 的此项决策已被取代:**[已落地的审计结果](./2026-08-19-phase-0b-doc-audit-outcomes.md)规定,除非搬家或歧义要求改名,否则保留现有 basename。
 - 与代码旁 README(`src/main/core/paths/README.md`、`tests/__mocks__/README.md`……)的分工:跨切面或多模块的内容归 `docs/`;模块私有事实住在模块旁边。
-- `docs/README.md` 改为生成式薄索引,退役手工维护的表格。
+- `docs/dev/README.md` 改为生成式薄索引,退役手工维护的表格。
 
 现有文件的处置(在此决定;Phase 0b 执行):
 
@@ -56,13 +56,13 @@ docs/
 | `references/{architecture-overview,main-process-architecture,renderer-architecture,shared-layer-architecture,naming-conventions}.md` | 移动 → `references/architecture/`。 |
 | `guides/{logging,i18n}.md` | 移动 → `references/` 下各自的主题域。 |
 | `guides/diagnostics.md` | 归属(contrib 还是 reference)在其 Phase 0b 审计时决定。 |
-| `docs/sponsor.md` | **留在 `docs/` 根目录**——根 README 链接的面向用户页面,不是开发者文档;不进参考树、不进门禁、不进双语配对。 |
+| `docs/dev/sponsor.md` | **留在 `docs/` 根目录**——根 README 链接的面向用户页面,不是开发者文档;不进参考树、不进门禁、不进双语配对。 |
 | `references/chat/{adapters,conventions}.md` | **保持原位**——明确标注为 target-architecture 设计文档;adapters 代码落地时重新决定其归宿。不在 Phase 0b 范围内。**已被[已落地的审计结果](./2026-08-19-phase-0b-doc-audit-outcomes.md)取代。** |
 | `references/file/architecture.md` + `file-manager-architecture.md` | **两篇都保留**——刻意分层且互相声明 SoT 边界,不是腐烂。 |
 
 ### P2 — Frontmatter
 
-`docs/references/**` 下每篇文档携带:
+`docs/dev/references/**` 下每篇文档携带:
 
 ```yaml
 ---
@@ -72,7 +72,7 @@ sources: # code paths this document describes; directories preferred
 ---
 ```
 
-`docs/contrib/**` 只要求 `description`。Agent Notes **不用 frontmatter**——路径与 header block 已经编码了它们的元数据,与 dsh 一致。`docs/sponsor.md` 是根 README 链接的面向用户页面,不是开发者文档:它留在 `docs/` 根目录,不在任何门禁的扫描范围内(门禁只覆盖 `references/` 与 `contrib/`),也不进双语配对。
+`docs/dev/contrib/**` 只要求 `description`。Agent Notes **不用 frontmatter**——路径与 header block 已经编码了它们的元数据,与 dsh 一致。`docs/dev/sponsor.md` 是根 README 链接的面向用户页面,不是开发者文档:它留在 `docs/` 根目录,不在任何门禁的扫描范围内(门禁只覆盖 `references/` 与 `contrib/`),也不进双语配对。
 
 `sources` 的每一条是一个**路径前缀**:diff 路径等于该条或位于其下时即归属该文档,因此目录条目覆盖其全部子孙。这正是 Phase 4 反向查询能对子树改动生效的原因;也正因如此,过宽的条目会稀释信号——每条应写仍能覆盖该文档全部主题的最窄目录。
 
@@ -84,7 +84,7 @@ sources: # code paths this document describes; directories preferred
 
 - `verify-doc-structure`——`references/` 根的封闭集;每个域目录有 `README.md`。
 - `verify-doc-frontmatter`——必填字段齐全;每个 `sources` 路径存在。它抓住的是特定一类腐烂:主题已被删除或搬走的文档——`middleware.md` 与 `message-system.md` 正是此类——在代码移动当天即被抓住。**它是存在性检查,不是新鲜度检查**:主题原地变化、或文件在某个宽目录条目内部移动而导致的过时,门禁仍是绿的。语义过时由 Phase 4 的反向查询和评审负责,不在这里。
-- `gen-doc-index`(带 `--check`)——从 frontmatter 重新生成 `docs/README.md`;漂移即失败。
+- `gen-doc-index`(带 `--check`)——从 frontmatter 重新生成 `docs/dev/README.md`;漂移即失败。
 
 接线:新聚合命令 `pnpm docs:check` = `docs:check-links` + 上述三个,并替换 `build:check` 里的裸 `docs:check-links`。补上 CI 缺口需要改**工作流**,而不只是改 script:`.github/workflows/ci.yml` 并不调用 `pnpm ci:basic-check`——它的 `basic-checks` job 通过 `concurrently` 内联各条命令,因此 `docs:check` 必须加进那个步骤才会在 CI 里真正运行。`ci:basic-check` script 同步更新,以保持本地等价物诚实。
 
@@ -108,7 +108,7 @@ sources: # code paths this document describes; directories preferred
 
 范围内的每篇文档都是英文/中文对照加一个一致性 sidecar:`foo.md` + `foo.zh.md` + `foo.i18n.yaml`,后者记录两侧在最近一次确认一致时的 git blob hash(移植 dsh 的 `verify-translation-pairing`)。任一语言都可以先写;失同步的配对用被改一侧的 diff 去最小化修补另一侧,永不整篇重翻。
 
-范围按发现根逐步扩——这是对 dsh"不设灰度清单"立场的有意偏离:active `.agents/notes/**`、根 `CONTRIBUTING.md` 和新 `docs/i18n/**` 治理文档先行,最终翻译回填后才扩到已审计文档语料。`scripts/i18n-glossary.json` 保持机器术语 owner;`docs/i18n/terminology.md` 是由它生成的双语 agent 视图。
+范围按发现根逐步扩——这是对 dsh"不设灰度清单"立场的有意偏离:active `.agents/notes/**`、根 `CONTRIBUTING.md` 和新 `docs/dev/i18n/**` 治理文档先行,最终翻译回填后才扩到已审计文档语料。`scripts/i18n-glossary.json` 保持机器术语 owner;`docs/dev/i18n/terminology.md` 是由它生成的双语 agent 视图。
 
 常规门禁检查 hash、switcher、Markdown 结构和 Cherry frontmatter。Staged-index 模式从 Git 的 staged diff 发现 pair 产物，包括删除和 rename 两侧，再校验 index blob 以防止 partial commit。Merge driver、snapshot ref、translation brief 生成和自动语义翻译继续延后,直到出现可测需求。
 
@@ -116,7 +116,7 @@ sources: # code paths this document describes; directories preferred
 
 五个 public skill 让政策可执行:`agent-notes`、`docs-governance`、`translate-docs`、`find-simplifications` 和 `gh-stack`。仓库自带的 stack skill 让全新 checkout 能获得扩展安装和非交互式 stack 操作规则,`gh-create-pr` 则继续拥有 Cherry PR 模板和生命周期检查。根与 subtree 指令把日常工作路由到这些 skill,不依赖记忆或开发者全局配置。
 
-一个零依赖 `change:scope` 报告统一 base/head 解析和 committed/staged/unstaged/untracked path。`docs:affected`、PR 创建、PR review、生命周期转换检查和 post-stack 验证共同消费。生成的 `docs/sources-index.json` 把 source prefix 映射到候选文档;`gh-pr-review` 把命中视为必须进行的语义检查,而不是自动 CI 失败。
+一个零依赖 `change:scope` 报告统一 base/head 解析和 committed/staged/unstaged/untracked path。`docs:affected`、PR 创建、PR review、生命周期转换检查和 post-stack 验证共同消费。生成的 `docs/dev/sources-index.json` 把 source prefix 映射到候选文档;`gh-pr-review` 把命中视为必须进行的语义检查,而不是自动 CI 失败。
 
 ### Delivery state
 

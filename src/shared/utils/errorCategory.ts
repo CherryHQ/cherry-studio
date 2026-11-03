@@ -42,18 +42,31 @@ export function extractHttpStatus(text: string): number | undefined {
   return match ? Number(match[1]) : undefined
 }
 
+// Groq's entitlement response links to billing; the host confines this exception
+// so other providers keep the existing billing classification.
+export function isGroqServiceTierPermissionErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase()
+  return (
+    msg.includes('console.groq.com') &&
+    /\bservice_tier\s+[a-z0-9_-]+\s+is\s+not\s+available\s+for\s+this\s+org\b/.test(msg)
+  )
+}
+
+function isQuotaExhaustionMessage(message: string): boolean {
+  return (
+    message.includes('quota') ||
+    message.includes('insufficient_balance') ||
+    message.includes('insufficient balance') ||
+    message.includes('insufficient_credit') ||
+    message.includes('insufficient credit') ||
+    message.includes('billing_hard_limit_reached') ||
+    message.includes('余额不足')
+  )
+}
+
 export function isQuotaErrorMessage(message: string): boolean {
   const msg = message.toLowerCase()
-
-  return (
-    msg.includes('quota') ||
-    msg.includes('insufficient_balance') ||
-    msg.includes('insufficient balance') ||
-    msg.includes('insufficient_credit') ||
-    msg.includes('insufficient credit') ||
-    msg.includes('billing') ||
-    msg.includes('payment')
-  )
+  return isQuotaExhaustionMessage(msg) || msg.includes('billing') || msg.includes('payment')
 }
 
 export function isMcpErrorMessage(message: string): boolean {
@@ -181,9 +194,9 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   // Explicit billing signals win over the HTTP 429 rate-limit default.
-  if (status === 402 || isQuotaErrorMessage(msg)) {
-    return 'quota'
-  }
+  if (status === 402 || isQuotaExhaustionMessage(msg)) return 'quota'
+  if (isGroqServiceTierPermissionErrorMessage(msg)) return 'permission'
+  if (isQuotaErrorMessage(msg)) return 'quota'
 
   // 403 = the request was refused, cause unspecified. Kept below region/model/quota because
   // those more specific causes also ship as 403.
