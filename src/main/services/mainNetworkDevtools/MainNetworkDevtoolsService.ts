@@ -727,7 +727,7 @@ async function readWebBody(
   if (!body) return { contentType, note: emptyNote }
 
   const reader = body.getReader()
-  const decoder = new TextDecoder()
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
   let text = ''
   let truncated = false
 
@@ -748,8 +748,14 @@ async function readWebBody(
     if (!done && text.length >= MAX_BODY_CHARS) truncated = true
 
     if (truncated) {
-      await reader.cancel().catch(() => {})
+      // A cloned Request is a tee branch: cancellation can wait for its original reader.
+      // Do not block publishing the bounded capture on that unrelated consumer.
+      void reader.cancel().catch(() => {})
     }
+  } catch {
+    // Never advertise a replacement-decoded byte stream as executable replay data.
+    void reader.cancel().catch(() => {})
+    return { contentType, replayable: false, note: 'Body is not valid UTF-8 and cannot be replayed from capture.' }
   } finally {
     reader.releaseLock()
   }
@@ -843,7 +849,7 @@ function createCapturedBinaryBody(bytes: Uint8Array, contentType?: string): Main
     return { contentType, size: bytes.byteLength, note: 'Binary request body is not captured.' }
   }
   try {
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
     return createCapturedTextBody(text, contentType, false, bytes.byteLength)
   } catch {
     return {
@@ -863,6 +869,17 @@ function createCapturedTextBody(
 ): MainNetworkDevtoolsBody {
   const truncated = alreadyTruncated || text.length > MAX_BODY_CHARS
   const visibleText = text.slice(0, MAX_BODY_CHARS)
+  // Truncation can remove JSON's closing delimiters. Do not expose a raw prefix when
+  // structured redaction cannot parse the complete body, including display-only summaries.
+  if (truncated && (isJsonContentType(contentType) || looksJson(visibleText))) {
+    return {
+      contentType,
+      size,
+      truncated: true,
+      replayable: false,
+      note: 'Truncated JSON body is omitted because safe redaction cannot be established.'
+    }
+  }
   const precisionRisk = hasJsonIntegerPrecisionRisk(visibleText, contentType)
   const redactedText = redactBodyText(visibleText, contentType, precisionRisk)
   return {
@@ -870,8 +887,12 @@ function createCapturedTextBody(
     contentType,
     size,
     truncated: truncated || undefined,
-    replayable: precisionRisk ? false : true,
-    note: precisionRisk ? 'JSON integer precision cannot be preserved for cURL replay.' : undefined
+    replayable: !precisionRisk && !truncated,
+    note: precisionRisk
+      ? 'JSON integer precision cannot be preserved for cURL replay.'
+      : truncated
+        ? 'Truncated body cannot be replayed from capture.'
+        : undefined
   }
 }
 
@@ -881,9 +902,12 @@ function redactBodyText(text: string, contentType?: string, preserveIntegerLiter
       return redactJsonSensitiveValuesInText(text)
     }
     try {
-      return JSON.stringify(redactJsonValue(JSON.parse(text)))
+      // JSON.parse does not accept a leading BOM. Preserve it for byte-faithful replay,
+      // but strip it while parsing so BOM-prefixed credentials cannot bypass redaction.
+      const bom = text.startsWith('\uFEFF') ? '\uFEFF' : ''
+      return bom + JSON.stringify(redactJsonValue(JSON.parse(bom ? text.slice(1) : text)))
     } catch {
-      return text
+      return redactJsonSensitiveValuesInText(text)
     }
   }
 

@@ -241,7 +241,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
     formData.append('prompt', 'x'.repeat(200 * 1024))
 
     const captured = captureRequestBody(formData)
-    expect(captured?.text?.length).toBe(128 * 1024)
+    expect(captured?.text).toBeUndefined()
     expect(captured).toMatchObject({
       truncated: true,
       replayable: false,
@@ -663,3 +663,178 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   }
   throw new Error('Timed out waiting for condition')
 }
+
+describe('bounded capture secrecy and byte parity', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    vi.mocked(net.fetch).mockReset()
+  })
+  afterEach(() => BaseService.resetInstances())
+  it.each(['api_key', 'credentials', 'authorization'] as const)(
+    'omits truncated JSON with early sensitive %s',
+    (key) => {
+      const original = JSON.stringify({ [key]: 'private-early-marker', prompt: 'x'.repeat(140000) })
+      const captured = captureRequestBody(original, 'application/json')
+      expect(captured).toMatchObject({ truncated: true })
+      expect(captured?.text).toBeUndefined()
+      expect(captured?.replayable).toBe(false)
+    }
+  )
+  it('preserves direct binary BOM bytes', () => {
+    const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('plain text')])
+    const captured = captureRequestBody(bytes, 'text/plain')
+    expect(Buffer.from(captured?.text ?? '', 'utf8')).toEqual(bytes)
+  })
+  it.each(['bom', 'invalid'] as const)('preserves or refuses cloned Request %s bytes', async (kind) => {
+    vi.mocked(net.fetch).mockResolvedValue(new Response('ok', { headers: { 'content-type': 'text/plain' } }))
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchNetFetch: () => void }
+    state.patchNetFetch()
+    const bytes = kind === 'bom' ? Uint8Array.from([0xef, 0xbb, 0xbf, 0x41]) : Uint8Array.from([0x80, 0xff, 0x41])
+    const request = new Request('https://example.test/', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: bytes
+    })
+    try {
+      await net.fetch(request)
+      await waitFor(() => state.events[0]?.requestBody !== undefined)
+      const body = state.events[0].requestBody
+      if (kind === 'bom') expect(Buffer.from(body?.text ?? '', 'utf8')).toEqual(Buffer.from(bytes))
+      else {
+        expect(body?.replayable).toBe(false)
+        expect(body?.text).toBeUndefined()
+      }
+      expect(Buffer.from(await request.arrayBuffer())).toEqual(Buffer.from(bytes))
+    } finally {
+      await service._doStop()
+    }
+  })
+})
+
+it.skipIf(process.platform === 'win32')(
+  'replays direct-byte and cloned-Request BOM captures byte-for-byte over local HTTP/cURL',
+  async () => {
+    const received: Buffer[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push(Buffer.concat(chunks))
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+    const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+    vm.createContext(sandbox)
+    vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+    try {
+      for (const mode of ['direct', 'request'] as const) {
+        BaseService.resetInstances()
+        const bytes = Buffer.from([0xef, 0xbb, 0xbf, 0x41])
+        const service = new MainNetworkDevtoolsService()
+        const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchFetch: () => void }
+        state.patchFetch()
+        try {
+          const response =
+            mode === 'request'
+              ? await fetch(
+                  new Request(url, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: bytes })
+                )
+              : await fetch(url, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: bytes })
+          await response.text()
+          await waitFor(() => state.events[0]?.requestBody !== undefined)
+          const event = state.events[0]
+          expect(event.requestBody?.replayable).toBe(true)
+          const command = sandbox.buildCurlCommand?.(event)
+          expect(command).toBeDefined()
+          await promisify(execFile)('/bin/sh', ['-c', command as string], { timeout: 5000 })
+          expect(received.at(-1)).toEqual(bytes)
+          expect(received.at(-2)).toEqual(bytes)
+        } finally {
+          await service._doStop()
+        }
+      }
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
+
+it('omits truncated JSON on Node writes and cloned Requests without consuming the original', async () => {
+  const original = JSON.stringify({ api_key: 'private-truncation-marker', prompt: 'x'.repeat(140000) })
+  BaseService.resetInstances()
+  const nodeService = new MainNetworkDevtoolsService()
+  const nodeState = nodeService as unknown as {
+    events: MainNetworkDevtoolsEvent[]
+    wrapHttpMethod: (original: (...args: unknown[]) => unknown, source: 'http') => (...args: unknown[]) => unknown
+  }
+  const pending = createMockClientRequest()
+  nodeState.wrapHttpMethod(() => pending, 'http')('http://example.test', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' }
+  })
+  pending.end(original)
+  await Promise.resolve()
+  expect(nodeState.events[0].requestBody).toMatchObject({ truncated: true, replayable: false })
+  expect(nodeState.events[0].requestBody?.text).toBeUndefined()
+  await nodeService._doStop()
+  BaseService.resetInstances()
+  vi.mocked(net.fetch).mockResolvedValue(new Response('ok'))
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchNetFetch: () => void }
+  state.patchNetFetch()
+  const request = new Request('https://example.test/', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: original
+  })
+  try {
+    await net.fetch(request)
+    await waitFor(() => state.events[0]?.requestBody !== undefined)
+    expect(state.events[0].requestBody).toMatchObject({ truncated: true, replayable: false })
+    expect(state.events[0].requestBody?.text).toBeUndefined()
+    expect(await request.text()).toBe(original)
+  } finally {
+    await service._doStop()
+  }
+})
+
+it.each(['application/json', 'text/plain', undefined])(
+  'redacts small BOM JSON for string, Buffer and cloned Request (%s)',
+  async (contentType) => {
+    const original = '\uFEFF{"api_key":"private-bom-marker","prompt":"hi"}'
+    for (const input of [original, Buffer.from(original)]) {
+      const captured = captureRequestBody(input, contentType)
+      expect(captured?.text).toBe('\uFEFF{"api_key":"<redacted>","prompt":"hi"}')
+      expect(captured?.replayable).toBe(true)
+    }
+    BaseService.resetInstances()
+    vi.mocked(net.fetch).mockResolvedValue(new Response('ok'))
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchNetFetch: () => void }
+    state.patchNetFetch()
+    const request = new Request('https://example.test/', {
+      method: 'POST',
+      headers: contentType ? { 'content-type': contentType } : undefined,
+      body: Buffer.from(original)
+    })
+    try {
+      await net.fetch(request)
+      await waitFor(() => state.events[0]?.requestBody !== undefined)
+      expect(state.events[0].requestBody?.text).toBe('\uFEFF{"api_key":"<redacted>","prompt":"hi"}')
+      expect(await request.text()).toBe(original.slice(1))
+    } finally {
+      await service._doStop()
+    }
+  }
+)
+it('does not label truncated plain-text captures as replayable', () => {
+  expect(captureRequestBody('€'.repeat(140000), 'text/plain')).toMatchObject({ truncated: true, replayable: false })
+})
+it('redacts sensitive fields in malformed JSON instead of returning raw credential text', () => {
+  expect(captureRequestBody('{"api_key":"private-malformed-marker",', 'application/json')?.text).not.toContain(
+    'private-malformed-marker'
+  )
+})
