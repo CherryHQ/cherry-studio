@@ -223,15 +223,16 @@ export function useAgentMessageListProviderValue({
 
     return { ...streamingLayers, historyPartsByMessageId }
   }, [messages, streamingLayers, t])
-  const visibleMessages = useMemo(
-    () =>
-      messages.filter((message) => {
-        const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
-        if (parts.length === 0) return true
-        return parts.some((part) => !hasPartParentToolCallId(part))
-      }),
-    [displayPartsByMessageId, messages]
-  )
+  const visibleMessages = useMemo(() => {
+    // A partial page may start mid-turn; trim the imported preamble only at the actual beginning.
+    const firstUserIndex = hasOlder ? -1 : messages.findIndex((message) => message.role === 'user')
+    return messages.filter((message, index) => {
+      if (message.metadata?.provenance && index < firstUserIndex) return false
+      const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
+      if (parts.length === 0) return true
+      return parts.some((part) => !hasPartParentToolCallId(part))
+    })
+  }, [displayPartsByMessageId, hasOlder, messages])
   const messageItems = useMemo(() => {
     return visibleMessages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
@@ -243,6 +244,8 @@ export function useAgentMessageListProviderValue({
         assistantId: resolvedAgentId,
         topicId: topic.id
       })
+      // Imported snapshots name the source conversation; the current Agent supplies the author identity.
+      if (message.role === 'assistant' && message.metadata?.provenance) item.messageSnapshot = undefined
       messageItemCacheRef.current.set(message, {
         assistantId: resolvedAgentId,
         item,
