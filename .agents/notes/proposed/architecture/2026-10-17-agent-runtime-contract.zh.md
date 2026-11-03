@@ -243,7 +243,7 @@ Main reducer 消费 `ObservationPayload`，产出变化的 Item/关系以及来�
 | 初始或替换 `snapshot` | 仅替换该来源视图。遵循各 Item 的 `completeness`，partial Item 仍可更新，保留声明的 coverage。 | 不把快照追加成新 transcript、不删除旧消息，也不把所有 Item 标为结束。 |
 | `item.upsert` | 替换该 Item 的累积值，包括变短/改写的文本与未完整的工具参数。相同更新保持幂等。 | 更新已建立的产品映射，不逐 token 建行、不按文本去重。多个内容 Item 仅凭有证据的分组映射到同一消息。 |
 | `replaces` / `item.remove` | 按来源范围内的身份从当前视图移除指定 Item，替换与插入一并应用。 | 被替换的 preview 可以转交已证明的映射；单独删除 Item 不删除历史行，也不合并无关的已完成消息。 |
-| `input.changed` / `activity.changed` | 输入证据、前台活动与内容独立更新。 | 视图重置仍保留已确认且保存的回执/终态。Idle 或内容完整不结算输入；终态提交仍需响应关联和持久化屏障。 |
+| `input.changed` / `activity.changed` | 输入证据、前台活动与内容独立更新。 | 视图重置仍保留原生证据，不把回执或终态复制到输入行。Idle 或内容完整不结算输入；终态提交仍需响应关联和持久化屏障。 |
 | `subagent.upsert` / 快照关系 | 更新父级范围内的关系并发现可访问 child，不把其内容混进父视图。 | 当前列表省略或为空，不删除已保存关系、不终止 child，也不撤销所有历史入口。 |
 | `gap` | 标记不连续。映射丢失后，先等待替换基线，再通过新映射应用变化。 | 保留已存历史并启动对账，不能静默把新身份拼接到旧流。 |
 | `diagnostic` / `closed` | 记录诊断或观察不可用，保留最后可读视图。 | 观察失败不等于原生任务失败，也不允许重新提交。尽力交付的 `closed` 回调不等于 flush 确认。 |
@@ -260,7 +260,7 @@ P3 有两项恢复责任：替换快照让 UI 跟上当前状态，原生证据�
 
 已知产品映射、重开所需的原生 entry 关联，以及影响后续历史读取的断点，都是 Main 拥有的持久事实。来源 epoch、宿主 revision 和临时 preview key 保留为私有交付状态，不作为永久历史 ID。压缩可以改变当前视图，但不删除产品历史。最终原生 entry 可以替换已证明属于它的 partial 投影；不分别归档每次 token 修订。进程崩溃前，原生存储与 Cherry 都未提交的 partial 输出不保证可恢复。
 
-保存最终响应内容、产品映射和已知输入 outcome 后，才宣告产品投递完成。DB 失败时保留待写事实供有界重试/显式恢复，产品终态提交保持未完成；绝不重复模型/工具操作。原生结果报告仍由 harness 负责，不等待宿主再生成一份报告。Durable 和 Claude Code 必须为同一归档边界提供各自的证据，不能复制 Pi entry 语义。
+保存最终响应内容和产品映射后，才依据原生终态证据宣告产品投递完成。DB 失败时保留待写投影供有界重试/显式恢复，产品终态提交保持未完成；绝不重复模型/工具操作。原生结果报告仍由 harness 负责，不等待宿主再生成一份报告。Durable 和 Claude Code 必须为同一归档边界提供各自的证据，不能复制 Pi entry 语义。
 
 ##### 附着、持久化与生命周期屏障
 
@@ -633,7 +633,7 @@ P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/Ch
 
 产品内容复用 `agent_session_message` 及其既有服务。首轮 child 归档采用独立 `agent_session` 容器和消息树根，仅沿用既有 `background` 分类使其不进入普通会话导航，不新增 `subagent` 会话类型。这是产品存储所有者，不是创建另一个原生 root、schedule 或跨会话投递。进入通用 session-open/input 路径前，先按 child 已保存的原生关系解析 Runtime 访问。不复制父消息前缀，也不把 child 节点合进父级普通选中路径。
 
-只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。Child 来源映射、移除记录、组合关系和断点保存在强类型的 `checkpointMapping.child` 命名空间中；投影写入保留 `checkpointMapping.fork`。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入继续复用消息上的提交元数据，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
+只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。Child 来源映射、移除记录、组合关系和断点保存在强类型的 `checkpointMapping.child` 命名空间中；投影写入保留 `checkpointMapping.fork`。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入使用消息上的 context 与原生输入身份，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
 
 归档容器从其所有权关系继承产品访问权限，不能凭调用者提供的 ID 或 `type: background` 授权。查询、通用控制、搜索/导航和后台 GC 必须区分这种所有权与定时任务会话。父分支选择不能改变 child 写入目标；复制分支不能复制现有 child 的控制权。删除、备份和保留必须共同保护关系、归档及原生所有者。关系/GC 消费者审查是 P3-B 的生产门槛，不能假定既有 background 分类已经提供这些保证。
 
