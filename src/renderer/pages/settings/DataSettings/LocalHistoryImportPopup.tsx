@@ -6,6 +6,7 @@ import {
   Checkbox,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -71,21 +72,13 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [reviewItems, setReviewItems] = useState<ImportPreviewItem[]>([])
-  const firstProblem = useRef<HTMLElement>(null)
-  const errorNotice = useRef<HTMLParagraphElement>(null)
+  const [issuesOpen, setIssuesOpen] = useState(false)
+  const importButton = useRef<HTMLButtonElement>(null)
+  const rootInput = useRef<HTMLInputElement>(null)
+  const errorTitle = useRef<HTMLHeadingElement>(null)
   const blockedItems = reviewItems.filter((item) =>
     item.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   )
-  useEffect(() => {
-    if (results) return
-    if (blockedItems.length) {
-      firstProblem.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
-      firstProblem.current?.focus({ preventScroll: true })
-    }
-  }, [reviewItems, results, blockedItems.length])
-  useEffect(() => {
-    if (error) errorNotice.current?.focus({ preventScroll: true })
-  }, [error])
   useEffect(
     () => () => {
       void ipcApi.request('conversation_import.cancel').catch(() => {})
@@ -109,7 +102,10 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
         }
       })
       .catch(() => {
-        if (active) setError(true)
+        if (active) {
+          setError(true)
+          setIssuesOpen(true)
+        }
       })
       .finally(() => {
         if (active) setBusy(false)
@@ -125,6 +121,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       await action()
     } catch {
       setError(true)
+      setIssuesOpen(true)
     } finally {
       setBusy(false)
     }
@@ -150,223 +147,306 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       selections
     })
     setReviewItems(checked.items)
-    if (checked.items.some((item) => item.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))) return
+    if (checked.items.some((item) => item.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))) {
+      setIssuesOpen(true)
+      return
+    }
     const outcomes = await ipcApi.request('conversation_import.commit', {
       previewId: checked.previewId,
       refs: checked.items.map((item) => item.ref)
     })
     setResults(outcomes)
+    setIssuesOpen(
+      outcomes.some(
+        (result) => result.status === 'failed' || result.status === 'unprocessed' || result.initialization === 'failed'
+      )
+    )
   }
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(value) => {
-        if (!value) {
-          void ipcApi.request('conversation_import.cancel')
-          resolve()
-        }
-      }}>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>
-            {t('history_import.title')} · {t(sourceLabels[source])}
-          </DialogTitle>
-        </DialogHeader>
-        {!results && (error || blockedItems.length > 0) && (
-          <p
-            ref={errorNotice}
-            role="alert"
-            tabIndex={-1}
-            className="shrink-0 rounded-md border border-error-border bg-error-subtle p-3 text-sm text-error-subtle-foreground">
-            {error ? t('history_import.error') : t('history_import.blocked', { count: blockedItems.length })}
-          </p>
-        )}
-        <div className="min-h-0 space-y-4 overflow-y-auto">
-          <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
-          {!results && (
-            <>
-              <Label htmlFor="history-import-target">{t('history_import.target')}</Label>
-              <Select
-                value={target}
-                disabled={busy}
-                onValueChange={(value) => {
-                  setTarget(value)
-                  setReviewItems([])
-                }}>
-                <SelectTrigger id="history-import-target">
-                  <SelectValue placeholder={t('history_import.target')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {agents?.items.map((agent) => (
-                    <SelectItem key={agent.id} value={agent.id} disabled={agent.type !== 'pi'}>
-                      {agent.name}
-                      {agent.type !== 'pi' ? ' · ' + t('history_import.unsupported_target') : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!agents?.items.some((agent) => agent.type === 'pi') && (
-                <p role="status">{t('history_import.no_target')}</p>
-              )}
-              <Button variant="ghost" disabled={busy} onClick={() => void refetch()}>
-                {t('common.refresh')}
-              </Button>
-              <Label htmlFor="history-import-root">{t('history_import.storage')}</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="history-import-root"
-                  value={root}
-                  placeholder={t('history_import.default_location')}
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(value) => {
+          if (!value) {
+            void ipcApi.request('conversation_import.cancel')
+            resolve()
+          }
+        }}>
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t('history_import.title')} · {t(sourceLabels[source])}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 space-y-4 overflow-y-auto">
+            <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
+            {!results && (
+              <>
+                <Label htmlFor="history-import-target">{t('history_import.target')}</Label>
+                <Select
+                  value={target}
                   disabled={busy}
-                  onChange={(event) => {
-                    setRoot(event.target.value)
-                    setScan(undefined)
-                    setSelections([])
-
+                  onValueChange={(value) => {
+                    setTarget(value)
                     setReviewItems([])
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      const directory = await chooseFolder()
-                      if (directory) {
-                        setRoot(directory)
-                        setScan(undefined)
-                        setSelections([])
-
-                        setReviewItems([])
-                      }
-                    })
-                  }>
-                  {t('history_import.folder')}
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      setReviewItems([])
-                      setSelections([])
-                      setScan(undefined)
-                      const found = await ipcApi.request('conversation_import.discover', {
-                        source,
-                        ...(root ? { root } : {})
-                      })
-                      setScan(found)
-                    })
-                  }>
-                  {t('history_import.scan')}
-                </Button>
-              </div>
-              {scan && (
-                <>
-                  <Input
-                    aria-label={t('common.search')}
-                    placeholder={t('common.search')}
-                    value={filter}
-                    disabled={busy}
-                    onChange={(event) => setFilter(event.target.value)}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    {t('history_import.selection', { selected: selections.length, total: scan.candidates.length })}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="history-select-all"
-                      checked={
-                        visibleCandidates.length > 0 && visibleSelected === visibleCandidates.length
-                          ? true
-                          : visibleSelected > 0
-                            ? 'indeterminate'
-                            : false
-                      }
-                      disabled={
-                        busy || !visibleCandidates.length || (selections.length >= 100 && visibleSelected === 0)
-                      }
-                      onCheckedChange={(checked) => {
-                        const visibleRefs = new Set(visibleCandidates.map((item) => item.ref))
-                        setSelections((current) =>
-                          checked === true
-                            ? [
-                                ...current,
-                                ...visibleCandidates
-                                  .filter((item) => !selectedRefs.has(item.ref))
-                                  .map((item) => ({ ref: item.ref }))
-                              ].slice(0, 100)
-                            : current.filter((item) => !visibleRefs.has(item.ref))
-                        )
-                        setReviewItems([])
-                      }}
-                    />
-                    <Label htmlFor="history-select-all">{t('common.select_all')}</Label>
-                  </div>
-                  <div className="space-y-3">
-                    {visibleCandidates.map((item) => (
-                      <div
-                        key={item.ref}
-                        className="flex min-h-20 items-center gap-3 rounded-lg border bg-card px-4 py-3 text-card-foreground transition-shadow hover:shadow-md motion-reduce:transition-none"
-                        data-selected={selectedRefs.has(item.ref)}>
-                        <Checkbox
-                          id={item.ref}
-                          checked={selections.some((s) => s.ref === item.ref)}
-                          disabled={busy || (selections.length >= 100 && !selections.some((s) => s.ref === item.ref))}
-                          onCheckedChange={(checked) => {
-                            setSelections((current) =>
-                              checked === true
-                                ? [...current, { ref: item.ref }]
-                                : current.filter((s) => s.ref !== item.ref)
-                            )
-
-                            setReviewItems([])
-                          }}
-                        />
-                        <Label htmlFor={item.ref} className="block min-w-0 flex-1 cursor-pointer space-y-2">
-                          <span className="block truncate text-sm font-medium" title={item.title}>
-                            {item.title}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground" title={item.sourcePath}>
-                            {item.sourcePath}
-                          </span>
-                        </Label>
-                      </div>
+                  }}>
+                  <SelectTrigger id="history-import-target">
+                    <SelectValue placeholder={t('history_import.target')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents?.items.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id} disabled={agent.type !== 'pi'}>
+                        {agent.name}
+                        {agent.type !== 'pi' ? ' · ' + t('history_import.unsupported_target') : ''}
+                      </SelectItem>
                     ))}
-                  </div>
-                </>
-              )}
-              {reviewItems.map((item) => (
-                <section
-                  key={item.ref}
-                  ref={item.ref === blockedItems[0]?.ref ? firstProblem : undefined}
-                  tabIndex={-1}
-                  aria-label={item.title}
-                  className="space-y-2 rounded-md border p-3 focus-visible:border-ring">
-                  <p className="truncate font-medium" title={item.title}>
-                    {item.title}
-                  </p>
-                  <p className="text-sm">
-                    {t('history_import.details', {
-                      count: item.messageCount,
-                      models: item.models.join(', ') || '—',
-                      start: item.startedAt ?? '—',
-                      end: item.endedAt ?? '—'
-                    })}
-                  </p>
-                  <p className="text-sm">
-                    {t('history_import.losses', { skipped: item.skippedRecords, downgraded: item.downgradedParts })}
-                  </p>
-                  <p className="break-all text-xs text-muted-foreground">{item.sourcePath}</p>
-                  {item.existing && (
-                    <p>
-                      {t('history_import.existing', {
-                        owner:
-                          agents?.items.find((a) => a.id === item.existing?.agentId)?.name ??
-                          item.existing.agentId ??
-                          '—'
-                      })}
+                  </SelectContent>
+                </Select>
+                {!agents?.items.some((agent) => agent.type === 'pi') && (
+                  <p role="status">{t('history_import.no_target')}</p>
+                )}
+                <Button variant="ghost" disabled={busy} onClick={() => void refetch()}>
+                  {t('common.refresh')}
+                </Button>
+                <Label htmlFor="history-import-root">{t('history_import.storage')}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    ref={rootInput}
+                    id="history-import-root"
+                    value={root}
+                    placeholder={t('history_import.default_location')}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setRoot(event.target.value)
+                      setScan(undefined)
+                      setSelections([])
+
+                      setReviewItems([])
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        const directory = await chooseFolder()
+                        if (directory) {
+                          setRoot(directory)
+                          setScan(undefined)
+                          setSelections([])
+
+                          setReviewItems([])
+                        }
+                      })
+                    }>
+                    {t('history_import.folder')}
+                  </Button>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        setReviewItems([])
+                        setSelections([])
+                        setScan(undefined)
+                        const found = await ipcApi.request('conversation_import.discover', {
+                          source,
+                          ...(root ? { root } : {})
+                        })
+                        setScan(found)
+                      })
+                    }>
+                    {t('history_import.scan')}
+                  </Button>
+                </div>
+                {scan && (
+                  <>
+                    <Input
+                      aria-label={t('common.search')}
+                      placeholder={t('common.search')}
+                      value={filter}
+                      disabled={busy}
+                      onChange={(event) => setFilter(event.target.value)}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {t('history_import.selection', { selected: selections.length, total: scan.candidates.length })}
                     </p>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="history-select-all"
+                        checked={
+                          visibleCandidates.length > 0 && visibleSelected === visibleCandidates.length
+                            ? true
+                            : visibleSelected > 0
+                              ? 'indeterminate'
+                              : false
+                        }
+                        disabled={
+                          busy || !visibleCandidates.length || (selections.length >= 100 && visibleSelected === 0)
+                        }
+                        onCheckedChange={(checked) => {
+                          const visibleRefs = new Set(visibleCandidates.map((item) => item.ref))
+                          setSelections((current) =>
+                            checked === true
+                              ? [
+                                  ...current,
+                                  ...visibleCandidates
+                                    .filter((item) => !selectedRefs.has(item.ref))
+                                    .map((item) => ({ ref: item.ref }))
+                                ].slice(0, 100)
+                              : current.filter((item) => !visibleRefs.has(item.ref))
+                          )
+                          setReviewItems([])
+                        }}
+                      />
+                      <Label htmlFor="history-select-all">{t('common.select_all')}</Label>
+                    </div>
+                    <div className="space-y-3">
+                      {visibleCandidates.map((item) => (
+                        <div
+                          key={item.ref}
+                          className="flex min-h-20 items-center gap-3 rounded-lg border bg-card px-4 py-3 text-card-foreground transition-shadow hover:shadow-md motion-reduce:transition-none"
+                          data-selected={selectedRefs.has(item.ref)}>
+                          <Checkbox
+                            id={item.ref}
+                            checked={selections.some((s) => s.ref === item.ref)}
+                            disabled={busy || (selections.length >= 100 && !selections.some((s) => s.ref === item.ref))}
+                            onCheckedChange={(checked) => {
+                              setSelections((current) =>
+                                checked === true
+                                  ? [...current, { ref: item.ref }]
+                                  : current.filter((s) => s.ref !== item.ref)
+                              )
+
+                              setReviewItems([])
+                            }}
+                          />
+                          <Label htmlFor={item.ref} className="block min-w-0 flex-1 cursor-pointer space-y-2">
+                            <span className="block truncate text-sm font-medium" title={item.title}>
+                              {item.title}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground" title={item.sourcePath}>
+                              {item.sourcePath}
+                            </span>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+            {results?.map((result) => (
+              <section key={result.ref} className="space-y-2 rounded-md border p-3">
+                <p className="truncate font-medium" title={reviewItems.find((item) => item.ref === result.ref)?.title}>
+                  {reviewItems.find((item) => item.ref === result.ref)?.title}
+                </p>
+                <p>{t(resultLabels[result.status])}</p>
+                {result.initialization === 'failed' && (
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await ipcApi.request('conversation_import.retry_initialization', {
+                          sessionId: result.sessionId!
+                        })
+                        setResults((current) =>
+                          current?.map((value) =>
+                            value.ref === result.ref ? { ...value, initialization: 'ready' } : value
+                          )
+                        )
+                      })
+                    }>
+                    {t('history_import.retry_history')}
+                  </Button>
+                )}
+                {result.sessionId && (
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await ipcApi.request('navigation.focus_or_open_conversation', {
+                          target: { conversationType: 'agent', conversationId: result.sessionId! },
+                          title: reviewItems.find((item) => item.ref === result.ref)?.title ?? ''
+                        })
+                        resolve()
+                      })
+                    }>
+                    {t('common.open')}
+                  </Button>
+                )}
+              </section>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (busy) void ipcApi.request('conversation_import.cancel')
+                else resolve()
+              }}>
+              {busy ? t('common.cancel') : t('common.close')}
+            </Button>
+            {!results && (
+              <Button
+                ref={importButton}
+                disabled={busy || !targetValid || !scan || !selections.length}
+                onClick={() => void run(importSelected)}>
+                {busy ? t('common.loading') : t('history_import.confirm')}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={open && issuesOpen} onOpenChange={setIssuesOpen}>
+        <DialogContent
+          size="lg"
+          className="flex max-h-[80vh] flex-col"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            errorTitle.current?.focus()
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            if (importButton.current && !importButton.current.disabled) importButton.current.focus()
+            else rootInput.current?.focus()
+          }}>
+          <DialogHeader>
+            <DialogTitle ref={errorTitle} tabIndex={-1}>
+              {t('history_import.error_title')}
+            </DialogTitle>
+            <DialogDescription className="leading-6">
+              {error
+                ? t('history_import.error')
+                : !results
+                  ? t('history_import.blocked', { count: blockedItems.length })
+                  : t('history_import.results.failed')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 space-y-6 overflow-y-auto">
+            {!error &&
+              !results &&
+              blockedItems.map((item) => (
+                <section key={item.ref} aria-label={item.title} className="space-y-4 rounded-lg border p-4">
+                  <div className="space-y-2">
+                    <p className="truncate font-medium" title={item.title}>
+                      {item.title}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground" title={item.sourcePath}>
+                      {item.sourcePath}
+                    </p>
+                  </div>
+                  <ul className="list-disc space-y-3 pl-5 text-sm leading-6 text-error">
+                    {[
+                      ...new Set(
+                        item.diagnostics
+                          .filter((diagnostic) => diagnostic.severity === 'error')
+                          .map((diagnostic) => problem(diagnostic.code))
+                      )
+                    ].map((key) => (
+                      <li key={key}>{t(key)}</li>
+                    ))}
+                  </ul>
                   {item.branches.length > 1 && (
                     <Select
                       value={selections.find((s) => s.ref === item.ref)?.branchId ?? item.branchId ?? ''}
@@ -384,11 +464,12 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                       </SelectContent>
                     </Select>
                   )}
-                  <p className="break-all text-sm">{item.originalDirectory ?? t('history_import.no_directory')}</p>
-                  {(item.originalDirectory || item.diagnostics.some((d) => d.code === 'directory_required')) && (
-                    <div className="flex items-center gap-2">
-                      <span className="min-w-0 break-all text-sm">
-                        {selections.find((s) => s.ref === item.ref)?.directory ?? item.directory}
+                  {item.diagnostics.some((d) => d.code.includes('directory')) && (
+                    <div className="flex items-center gap-3">
+                      <span className="min-w-0 flex-1 break-all text-sm text-muted-foreground">
+                        {selections.find((s) => s.ref === item.ref)?.directory ??
+                          item.directory ??
+                          item.originalDirectory}
                       </span>
                       <Button
                         variant="outline"
@@ -403,81 +484,44 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                       </Button>
                     </div>
                   )}
-                  {item.diagnostics.map((diagnostic, index) => (
-                    <p
-                      key={index}
-                      className={
-                        diagnostic.severity === 'error' ? 'text-sm text-error' : 'text-sm text-muted-foreground'
-                      }>
-                      {t(problem(diagnostic.code))}{' '}
-                      {diagnostic.line ? t('history_import.line', { line: diagnostic.line }) : ''}
-                    </p>
-                  ))}
                 </section>
               ))}
-            </>
-          )}
-          {results?.map((result) => (
-            <section key={result.ref} className="space-y-2 rounded-md border p-3">
-              <p className="truncate font-medium" title={reviewItems.find((item) => item.ref === result.ref)?.title}>
-                {reviewItems.find((item) => item.ref === result.ref)?.title}
-              </p>
-              <p>{t(resultLabels[result.status])}</p>
-              {result.reason && <p>{t(problem(result.reason))}</p>}
-              {result.initialization === 'failed' && (
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await ipcApi.request('conversation_import.retry_initialization', { sessionId: result.sessionId! })
-                      setResults((current) =>
-                        current?.map((value) =>
-                          value.ref === result.ref ? { ...value, initialization: 'ready' } : value
-                        )
-                      )
-                    })
-                  }>
-                  {t('history_import.retry_history')}
-                </Button>
-              )}
-              {result.sessionId && (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await ipcApi.request('navigation.focus_or_open_conversation', {
-                        target: { conversationType: 'agent', conversationId: result.sessionId! },
-                        title: reviewItems.find((item) => item.ref === result.ref)?.title ?? ''
-                      })
-                      resolve()
-                    })
-                  }>
-                  {t('common.open')}
-                </Button>
-              )}
-            </section>
-          ))}
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (busy) void ipcApi.request('conversation_import.cancel')
-              else resolve()
-            }}>
-            {busy ? t('common.cancel') : t('common.close')}
-          </Button>
-          {!results && (
-            <Button
-              disabled={busy || !targetValid || !scan || !selections.length}
-              onClick={() => void run(importSelected)}>
-              {busy ? t('common.loading') : t('history_import.confirm')}
+            {!error &&
+              results
+                ?.filter(
+                  (result) =>
+                    result.status === 'failed' || result.status === 'unprocessed' || result.initialization === 'failed'
+                )
+                .map((result) => (
+                  <section key={result.ref} className="space-y-4 rounded-lg border p-4">
+                    <p
+                      className="truncate font-medium"
+                      title={reviewItems.find((item) => item.ref === result.ref)?.title}>
+                      {reviewItems.find((item) => item.ref === result.ref)?.title}
+                    </p>
+                    <p className="text-sm leading-6 text-error">
+                      {result.initialization === 'failed'
+                        ? t('history_import.retry_history')
+                        : result.reason
+                          ? t(problem(result.reason))
+                          : t(resultLabels[result.status])}
+                    </p>
+                  </section>
+                ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setIssuesOpen(false)}>
+              {t('common.close')}
             </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {!error && !results && (
+              <Button disabled={busy || !targetValid} onClick={() => void run(importSelected)}>
+                {busy ? t('common.loading') : t('common.retry')}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 export default createPopup<{ source: HistorySource }, void>(LocalHistoryImportDialog, { dismissResult: undefined })
