@@ -1,4 +1,4 @@
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { createMockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -61,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
   topicPending: false,
+  topicFulfilled: false,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
@@ -600,7 +601,13 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: mocks.topicPending,
+    status: mocks.topicFulfilled ? 'done' : 'streaming',
+    lastCompletedAt: mocks.topicFulfilled ? 100 : null,
+    isFulfilled: mocks.topicFulfilled,
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -721,6 +728,11 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.set).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.setCasual).mockImplementation(queueCache.setCasual)
+    vi.mocked(cacheService.subscribe).mockImplementation(queueCache.subscribe)
+
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
@@ -808,6 +820,7 @@ describe('ChatComposer', () => {
     mocks.selectedModel = undefined
     mocks.modelSelectorProps = []
     mocks.topicPending = false
+    mocks.topicFulfilled = false
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
     mocks.realSurface = undefined
@@ -2526,6 +2539,7 @@ describe('ChatComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
 
     mocks.topicPending = false
+    mocks.topicFulfilled = false
     view.rerender(
       <ChatComposer
         topic={topic}
@@ -5801,6 +5815,7 @@ describe('ChatComposer', () => {
           dock().onEdit(a.id)
         })
         mocks.topicPending = false
+        mocks.topicFulfilled = false
         view.rerender(
           <ChatComposer
             topic={topic}
@@ -5824,6 +5839,70 @@ describe('ChatComposer', () => {
         ])
       }
     )
+  })
+  it('queues a follow-up instead of sending directly while a queue drain is still in flight after remount', async () => {
+    // The auto-drain send never settles, so the queue keeps a send in flight while idle.
+    const onSend = vi.fn().mockImplementationOnce(() => new Promise(() => undefined))
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'first', tokens: [] })
+    })
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+
+    // Remount: hook state (drainingId, isSending) resets, but the durable claim
+    // survives — the next send must queue behind the pending drain instead of
+    // running a second send concurrently.
+    view.unmount()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'second', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect((mocks.surfaceProps?.queueContent as any)?.props.items).toHaveLength(2)
+  })
+
+  it('keeps Skip/Retry disabled after remounting mid-retry (failure drain still live)', async () => {
+    // First send fails → banner; the retry stays pending across the remount.
+    const onSend = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('send failed'))
+      .mockImplementationOnce(() => new Promise(() => undefined))
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'first', tokens: [] })
+    })
+
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    // Drain fails → the failure banner owns the queue.
+    await waitFor(() => expect((mocks.surfaceProps?.queueContent as any)?.props.failedItemId).not.toBeNull())
+
+    await act(async () => {
+      await (mocks.surfaceProps?.queueContent as any)?.props.onRetryFailed()
+    })
+    expect(onSend).toHaveBeenCalledTimes(2)
+
+    // Remount: drainingId state resets, but the durable claim survives, so the
+    // banner must stay locked instead of enabling Skip/Retry that silently no-op.
+    view.unmount()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect((mocks.surfaceProps?.queueContent as any)?.props.failedItemId).not.toBeNull()
+    expect((mocks.surfaceProps?.queueContent as any)?.props.isFailureDraining).toBe(true)
   })
 })
 

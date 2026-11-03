@@ -1,6 +1,6 @@
 import { basename } from 'node:path'
 
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { createMockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
@@ -835,6 +835,11 @@ describe('AgentComposer', () => {
     vi.mocked(cacheService.hasCasual).mockReset()
     vi.mocked(cacheService.hasCasual).mockReturnValue(false)
     vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.setCasual).mockImplementation(queueCache.setCasual)
+    vi.mocked(cacheService.subscribe).mockImplementation(queueCache.subscribe)
+
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
@@ -5988,6 +5993,54 @@ describe('AgentComposer', () => {
       expect(dock(), 'accepted A-prime must leave the queue').toBeFalsy()
       expect(mocks.surfaceProps?.text, 'draining A must preserve B in the editor').toBe('B')
     })
+  })
+  it('queues a follow-up instead of sending directly while a queue drain is still in flight after remount', async () => {
+    // The auto-drain send never settles, so the queue keeps a send in flight while idle.
+    // A dedicated session keeps the stranded drain + queued items out of other tests' scope.
+    mocks.sendMessage.mockImplementationOnce(() => new Promise(() => undefined))
+    const props = (isStreaming: boolean) => ({
+      agentId: 'agent-1',
+      sessionId: 'session-drain-guard',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const view = render(<AgentComposer {...props(true)} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    view.rerender(<AgentComposer {...props(false)} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+
+    view.unmount()
+    render(<AgentComposer {...props(false)} />)
+
+    // Idle, but the drain is still in flight: the next send must queue behind it
+    // instead of running a second send concurrently.
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(2))
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not drain a queued payload through a different selected agent', async () => {
+    const props = (agentId: string, isStreaming: boolean) => ({
+      agentId,
+      sessionId: 'agent-scope-guard',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const view = render(<AgentComposer {...props('agent-1', true)} />)
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
+    mocks.topicFulfilled = true
+    view.rerender(<AgentComposer {...props('agent-2', false)} />)
+    await act(async () => {})
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    view.rerender(<AgentComposer {...props('agent-1', false)} />)
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 })
 
