@@ -460,7 +460,13 @@ describe('UserAccountPanel', () => {
 
     expect(await screen.findByRole('progressbar', { name: '月度用量' })).toHaveAttribute('aria-valuenow', '92')
     await user.click(screen.getByRole('button', { name: '查看用量详情' }))
-    expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        expect.stringMatching(/^https:\/\/cloud-dev\.cherryai\.com\/account\/plans(\?|$)/)
+      )
+    )
+    expect(request).not.toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
   })
 
   it('does not label a failed plan lookup as unsubscribed and lets the user retry', async () => {

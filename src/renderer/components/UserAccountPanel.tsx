@@ -20,6 +20,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudPlans'
 import { ipcApi } from '@renderer/ipc'
+import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -156,9 +157,10 @@ export function UserAccountPanel({
             }
           : null
 
+  // The web account page has the full usage breakdown the desktop summary leaves out.
   const openUsage = () => {
     onRequestClose?.()
-    openSettingsTab('/settings/profile')
+    void openCherryCloudAccountPortal()
   }
   const subscriptionRow = (
     <Button
