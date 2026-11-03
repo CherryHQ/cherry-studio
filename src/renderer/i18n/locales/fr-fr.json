@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Pas encore de description",
   "library.config.agent.profile.no_tasks": "Aucune tâche planifiée pour l'instant",
   "library.config.agent.profile.no_tasks_hint": "Demandez-le dans une discussion, par ex. « Chaque vendredi après-midi, prépare le rapport hebdomadaire »",
+  "library.config.agent.profile.setup_incomplete": "Une partie de la configuration automatique n'a pas abouti, votre saisie a donc été utilisée. Vous pouvez ajouter des compétences ou affiner le prompt dans « Plus de paramètres ».",
   "library.config.agent.profile.start_chat": "Démarrer une discussion",
   "library.config.agent.section.permission.desc": "Portée d'autorisation pour les actions de l'agent",
   "library.config.agent.section.permission.title": "Mode de permission",

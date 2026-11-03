@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Chưa có mô tả",
   "library.config.agent.profile.no_tasks": "Chưa có tác vụ theo lịch",
   "library.config.agent.profile.no_tasks_hint": "Hãy yêu cầu trong cuộc trò chuyện, ví dụ: “Mỗi chiều thứ Sáu, tổng hợp báo cáo tuần”",
+  "library.config.agent.profile.setup_incomplete": "Một phần thiết lập tự động chưa hoàn tất nên đã dùng nội dung bạn nhập. Bạn có thể thêm kỹ năng hoặc chỉnh lời nhắc trong “Cài đặt khác”.",
   "library.config.agent.profile.start_chat": "Bắt đầu trò chuyện",
   "library.config.agent.section.permission.desc": "Phạm vi quyền hạn cho hành động của Agent",
   "library.config.agent.section.permission.title": "Chế độ quyền",

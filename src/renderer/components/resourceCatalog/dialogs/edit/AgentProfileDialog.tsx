@@ -1,4 +1,4 @@
-import { CalendarClock, MessageSquare, Settings2 } from 'lucide-react'
+import { AlertCircle, CalendarClock, MessageSquare, Settings2 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,7 +6,7 @@ import { Button, Dialog, DialogContent, DialogTitle, EmojiAvatar, ScrollArea } f
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
-import { formatTaskCardTime } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
+import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useTasks } from '@renderer/hooks/agent/useTasks'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
@@ -29,13 +29,21 @@ type AgentProfileDialogProps = {
   agent: AgentDetail | null
   onOpenChange: (open: boolean) => void
   onOpenSettings: () => void
+  /** Shown right after "Agent create" when part of the automatic setup fell back. */
+  setupIncomplete?: boolean
 }
 
 /**
  * What opening an Agent shows first: who it is (avatar, name, model, description) and what it runs
  * on its own (scheduled tasks). Configuration lives one step away in "More settings".
  */
-export function AgentProfileDialog({ open, agent, onOpenChange, onOpenSettings }: AgentProfileDialogProps) {
+export function AgentProfileDialog({
+  open,
+  agent,
+  onOpenChange,
+  onOpenSettings,
+  setupIncomplete = false
+}: AgentProfileDialogProps) {
   const { t } = useTranslation()
   const { model } = useModelById(agent?.model ?? null)
   const { tasks } = useTasks(agent?.id ?? null)
@@ -92,6 +100,12 @@ export function AgentProfileDialog({ open, agent, onOpenChange, onOpenSettings }
               <span className="text-muted-foreground">{t('library.config.agent.profile.no_description')}</span>
             )}
           </p>
+          {setupIncomplete ? (
+            <div className="flex items-start gap-2 rounded-lg bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs">
+              <AlertCircle aria-hidden className="mt-px size-3.5 shrink-0" />
+              {t('library.config.agent.profile.setup_incomplete')}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col border-border-subtle border-t px-7 pt-4 pb-5">
@@ -114,15 +128,22 @@ export function AgentProfileDialog({ open, agent, onOpenChange, onOpenSettings }
                           : null}
                       </div>
                     </div>
-                    <span
-                      className={cn(
-                        'shrink-0 text-xs',
-                        task.status === 'paused' || task.status === 'missed'
-                          ? 'text-warning-subtle-foreground'
-                          : 'text-muted-foreground'
-                      )}>
-                      {t(TASK_STATUS_KEYS[task.status])}
-                    </span>
+                    {/* The last run says more than the schedule state; paused/missed still need flagging. */}
+                    {task.runSummary && task.status !== 'paused' && task.status !== 'missed' ? (
+                      <span className="shrink-0 text-xs">
+                        <TaskRunSummaryLine summary={task.runSummary} />
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          'shrink-0 text-xs',
+                          task.status === 'paused' || task.status === 'missed'
+                            ? 'text-warning-subtle-foreground'
+                            : 'text-muted-foreground'
+                        )}>
+                        {t(TASK_STATUS_KEYS[task.status])}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

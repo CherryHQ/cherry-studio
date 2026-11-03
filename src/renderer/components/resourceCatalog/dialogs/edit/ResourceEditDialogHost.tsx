@@ -131,6 +131,7 @@ function AgentEditDialogHost({
         open={open}
         agent={agent ?? null}
         onOpenChange={onOpenChange}
+        setupIncomplete={target.setupIncomplete}
         onOpenSettings={() => setView('settings')}
       />
     )

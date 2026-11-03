@@ -336,7 +336,9 @@ export function useResourceCatalogController(
         if (kind === 'assistant') {
           await createAssistant(buildCreateAssistantDto(values))
         } else {
-          await createAgent(buildCreateAgentCommand(values))
+          const created = await createAgent(buildCreateAgentCommand(values))
+          // A new Agent opens on its profile card so the user sees what was set up.
+          setEditDialogTarget({ kind: 'agent', id: created.id, setupIncomplete: values.setupIncomplete })
         }
 
         setCreateDialogOpen(false)

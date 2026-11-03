@@ -40,7 +40,8 @@ const TASK = {
   prompt: 'Build the weekly deck',
   trigger: { kind: 'interval', ms: 3_600_000 },
   status: 'paused',
-  nextRun: null
+  nextRun: null,
+  runSummary: null
 }
 
 function renderProfile(agent: AgentDetail | null = AGENT) {
@@ -104,6 +105,25 @@ describe('AgentProfileDialog', () => {
     expect(screen.getByText('Weekly report deck')).toBeInTheDocument()
     expect(screen.getByText('agent.tasks.status.paused')).toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.profile.no_tasks')).not.toBeInTheDocument()
+  })
+
+  it('shows the last run of a task that has run instead of its schedule state', () => {
+    mocks.tasks = [
+      { ...TASK, status: 'active', runSummary: { status: 'failed', finishedAt: '2026-11-01T09:00:00.000Z' } }
+    ]
+    renderProfile()
+
+    expect(screen.getByText(/agent\.tasks\.runSummary\.failed/)).toBeInTheDocument()
+    expect(screen.queryByText('agent.tasks.status.active')).not.toBeInTheDocument()
+  })
+
+  it('says when the automatic setup of a just-created Agent fell back', () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AgentProfileDialog open agent={AGENT} onOpenChange={onOpenChange} onOpenSettings={vi.fn()} setupIncomplete />
+    )
+
+    expect(screen.getByText('library.config.agent.profile.setup_incomplete')).toBeInTheDocument()
   })
 
   it('starts a chat with the Agent and closes the card', () => {

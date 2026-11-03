@@ -402,8 +402,8 @@ export class AgentTaskService {
   listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
-  ): { tasks: ScheduledTaskEntity[]; total: number } {
-    return this.queryTasks({ ...options, agentId })
+  ): { tasks: ScheduledTaskListItem[]; total: number } {
+    return this.withRunSummaries(this.queryTasks({ ...options, agentId }))
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
@@ -411,7 +411,13 @@ export class AgentTaskService {
     tasks: ScheduledTaskListItem[]
     total: number
   } {
-    const result = this.queryTasks(options)
+    return this.withRunSummaries(this.queryTasks(options))
+  }
+
+  private withRunSummaries(result: { tasks: ScheduledTaskEntity[]; total: number }): {
+    tasks: ScheduledTaskListItem[]
+    total: number
+  } {
     const runSummaries = this.getRunSummariesByScheduleIds(result.tasks.map((task) => task.id))
     return {
       tasks: result.tasks.map((task) => ({ ...task, runSummary: runSummaries.get(task.id) ?? null })),

@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Δεν υπάρχει ακόμη περιγραφή",
   "library.config.agent.profile.no_tasks": "Δεν υπάρχουν ακόμη προγραμματισμένες εργασίες",
   "library.config.agent.profile.no_tasks_hint": "Ζητήστε το σε μια συνομιλία, π.χ. «Κάθε Παρασκευή απόγευμα, ετοίμασε την εβδομαδιαία αναφορά»",
+  "library.config.agent.profile.setup_incomplete": "Μέρος της αυτόματης ρύθμισης δεν ολοκληρώθηκε, οπότε χρησιμοποιήθηκε η δική σας εισαγωγή. Μπορείτε να προσθέσετε δεξιότητες ή να βελτιώσετε την προτροπή στις «Περισσότερες ρυθμίσεις».",
   "library.config.agent.profile.start_chat": "Έναρξη συνομιλίας",
   "library.config.agent.section.permission.desc": "Εύρος εξουσιοδότησης για ενέργειες πληρεξουσίου",
   "library.config.agent.section.permission.title": "Λειτουργία δικαιωμάτων",

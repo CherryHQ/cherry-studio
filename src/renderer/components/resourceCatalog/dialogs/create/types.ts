@@ -38,6 +38,4 @@ export type ResourceCreateWizardValues = ResourceCreateValues & {
   agentType: AgentType
   /** Agent permission policy. Assistant callers ignore it. */
   permissionMode: AgentPermissionMode
-  /** Set by "Agent create" when the prompt fell back to the user's input or a recommended skill failed to install. */
-  setupIncomplete?: boolean
 }

@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Aún no hay descripción",
   "library.config.agent.profile.no_tasks": "Aún no hay tareas programadas",
   "library.config.agent.profile.no_tasks_hint": "Pídelo en un chat, p. ej. «Cada viernes por la tarde, prepara el informe semanal»",
+  "library.config.agent.profile.setup_incomplete": "Parte de la configuración automática no se completó, así que se usó tu información. Puedes añadir habilidades o mejorar el prompt en «Más ajustes».",
   "library.config.agent.profile.start_chat": "Iniciar chat",
   "library.config.agent.section.permission.desc": "Ámbito de autorización para acciones del agente",
   "library.config.agent.section.permission.title": "Modo de permiso",

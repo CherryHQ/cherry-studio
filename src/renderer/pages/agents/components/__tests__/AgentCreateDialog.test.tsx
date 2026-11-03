@@ -35,6 +35,13 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   }
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string; setupIncomplete?: boolean } | null }) =>
+    target ? (
+      <div data-testid="profile-target" data-id={target.id} data-setup-incomplete={String(!!target.setupIncomplete)} />
+    ) : null
+}))
+
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAgentMutations: () => ({ createAgent: mocks.createAgent, isCreatingAgent: false })
 }))
@@ -74,6 +81,18 @@ describe('AgentCreateDialog', () => {
       })
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))
+  })
+
+  it('opens the new Agent on its profile card, carrying an incomplete-setup report', async () => {
+    mocks.createAgent.mockResolvedValue({ id: 'agent-new' })
+    render(<AgentCreateDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />)
+
+    expect(screen.queryByTestId('profile-target')).not.toBeInTheDocument()
+    mocks.createDialogProps.onSubmit({ ...wizardValues, setupIncomplete: true })
+
+    const profile = await screen.findByTestId('profile-target')
+    expect(profile).toHaveAttribute('data-id', 'agent-new')
+    expect(profile).toHaveAttribute('data-setup-incomplete', 'true')
   })
 
   it('keeps the dialog open and does not report an agent when creation fails', async () => {

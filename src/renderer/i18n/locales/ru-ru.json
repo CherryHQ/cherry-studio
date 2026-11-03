@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Описания пока нет",
   "library.config.agent.profile.no_tasks": "Запланированных задач пока нет",
   "library.config.agent.profile.no_tasks_hint": "Попросите в чате, например: «Каждую пятницу после обеда собирай недельный отчёт»",
+  "library.config.agent.profile.setup_incomplete": "Часть автоматической настройки не завершилась, поэтому использован ваш ввод. Навыки и промпт можно дополнить в разделе «Другие настройки».",
   "library.config.agent.profile.start_chat": "Начать чат",
   "library.config.agent.section.permission.desc": "Область авторизации для действий агента",
   "library.config.agent.section.permission.title": "Режим разрешений",

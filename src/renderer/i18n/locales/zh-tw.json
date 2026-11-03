@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "還沒有介紹",
   "library.config.agent.profile.no_tasks": "還沒有排程任務",
   "library.config.agent.profile.no_tasks_hint": "在對話裡告訴它「每週五下午整理週報」即可建立",
+  "library.config.agent.profile.setup_incomplete": "部分能力未能自動設定，已依你的輸入建立。可以在「更多設定」中補充技能或完善提示詞。",
   "library.config.agent.profile.start_chat": "開始對話",
   "library.config.agent.section.permission.desc": "控制 Agent 可執行操作的授權範圍",
   "library.config.agent.section.permission.title": "權限模式",

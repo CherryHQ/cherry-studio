@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Noch keine Beschreibung",
   "library.config.agent.profile.no_tasks": "Noch keine geplanten Aufgaben",
   "library.config.agent.profile.no_tasks_hint": "Frag im Chat, z. B. „Erstelle jeden Freitagnachmittag den Wochenbericht“",
+  "library.config.agent.profile.setup_incomplete": "Ein Teil der automatischen Einrichtung wurde nicht abgeschlossen, daher wurde deine Eingabe verwendet. Skills und Prompt kannst du unter „Weitere Einstellungen“ ergänzen.",
   "library.config.agent.profile.start_chat": "Chat starten",
   "library.config.agent.section.permission.desc": "Autorisierungsumfang für Agentenaktionen",
   "library.config.agent.section.permission.title": "Berechtigungsmodus",

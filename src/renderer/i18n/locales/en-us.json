@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "No description yet",
   "library.config.agent.profile.no_tasks": "No scheduled tasks yet",
   "library.config.agent.profile.no_tasks_hint": "Ask in a chat, e.g. “Every Friday afternoon, put together the weekly report”",
+  "library.config.agent.profile.setup_incomplete": "Part of the automatic setup didn't finish, so your own input was used. You can add skills or refine the prompt in More settings.",
   "library.config.agent.profile.start_chat": "Start chat",
   "library.config.agent.section.permission.desc": "Authorization scope for agent actions",
   "library.config.agent.section.permission.title": "Permission mode",

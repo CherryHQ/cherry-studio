@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "説明はまだありません",
   "library.config.agent.profile.no_tasks": "スケジュールされたタスクはまだありません",
   "library.config.agent.profile.no_tasks_hint": "チャットで「毎週金曜の午後に週報をまとめて」のように頼むと作成できます",
+  "library.config.agent.profile.setup_incomplete": "自動設定の一部が完了しなかったため、入力内容をそのまま使いました。「その他の設定」でスキルの追加やプロンプトの調整ができます。",
   "library.config.agent.profile.start_chat": "チャットを始める",
   "library.config.agent.section.permission.desc": "エージェントアクションの認可範囲",
   "library.config.agent.section.permission.title": "パーミッションモード",

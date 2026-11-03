@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Nicio descriere încă",
   "library.config.agent.profile.no_tasks": "Nicio sarcină programată încă",
   "library.config.agent.profile.no_tasks_hint": "Cere într-o conversație, de ex. „În fiecare vineri după-amiază, pregătește raportul săptămânal”",
+  "library.config.agent.profile.setup_incomplete": "O parte din configurarea automată nu s-a finalizat, așa că a fost folosit textul tău. Poți adăuga abilități sau îmbunătăți promptul în „Mai multe setări”.",
   "library.config.agent.profile.start_chat": "Începe conversația",
   "library.config.agent.section.permission.desc": "Domeniu de autorizare pentru acțiunile agentului",
   "library.config.agent.section.permission.title": "Mod de permisiune",

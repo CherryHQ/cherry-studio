@@ -2089,6 +2089,7 @@
   "library.config.agent.profile.no_description": "Henüz açıklama yok",
   "library.config.agent.profile.no_tasks": "Henüz zamanlanmış görev yok",
   "library.config.agent.profile.no_tasks_hint": "Sohbette isteyin, ör. “Her cuma öğleden sonra haftalık raporu hazırla”",
+  "library.config.agent.profile.setup_incomplete": "Otomatik kurulumun bir kısmı tamamlanmadı, bu yüzden girdiğiniz bilgiler kullanıldı. Becerileri ekleyebilir veya istemi “Diğer ayarlar” bölümünde iyileştirebilirsiniz.",
   "library.config.agent.profile.start_chat": "Sohbet başlat",
   "library.config.agent.section.permission.desc": "Ajan eylemleri için yetkilendirme kapsamı",
   "library.config.agent.section.permission.title": "İzin modu",
