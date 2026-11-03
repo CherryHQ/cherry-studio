@@ -21,8 +21,8 @@ describe('useFollowupQueue', () => {
       useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
-    act(() => result.current.enqueue(draft('a'), payload('a')))
-    act(() => result.current.enqueue(draft('b'), payload('b')))
+    act(() => void result.current.enqueue(draft('a'), payload('a')))
+    act(() => void result.current.enqueue(draft('b'), payload('b')))
 
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['a', 'b'])
     expect(result.current.items.map((i) => i.payload.text)).toEqual(['a', 'b'])
@@ -37,8 +37,8 @@ describe('useFollowupQueue', () => {
       useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
-    act(() => result.current.enqueue(draft('a'), payload('a')))
-    act(() => result.current.enqueue(draft('b'), payload('b')))
+    act(() => void result.current.enqueue(draft('a'), payload('a')))
+    act(() => void result.current.enqueue(draft('b'), payload('b')))
     const [first, second] = result.current.items
 
     act(() => result.current.reorder([second, first]))

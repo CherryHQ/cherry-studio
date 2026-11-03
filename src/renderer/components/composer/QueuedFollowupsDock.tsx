@@ -97,9 +97,7 @@ function QueuedFollowupRow({
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
       <span
-        ref={dragHandleProps?.ref}
-        {...dragHandleProps?.attributes}
-        {...dragHandleProps?.listeners}
+        {...dragHandleProps}
         aria-hidden={dragHandleProps ? undefined : true}
         aria-label={
           dragHandleProps
