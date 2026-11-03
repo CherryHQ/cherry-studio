@@ -95,6 +95,11 @@ afterward; detaching a window leaves the native observer and archive writer aliv
 An attachment during child creation waits for its native projection, including pending model
 configuration. Terminal tool output or owner/turn completion ends an unavailable child's wait.
 
+Backup/restore seals child-input admission in `AgentSessionRuntimeService`. After admitted inputs
+return, `drainChildWrites()` waits for the shared native behavior and its reporting jobs through
+`pi.settled()`, then refreshes child archives. A submission acknowledgement alone does not establish
+that writes have ended. A failed archive flush rejects the drain and can be retried.
+
 Reopening a parent restores identity-checked child files without starting work. Missing owners leave
 saved child output readable. A restored parent's stop policy still applies to child continuation;
 an independent archive is never a writable root. Shutdown quiesces native execution, reconciles

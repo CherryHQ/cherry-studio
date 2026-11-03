@@ -115,6 +115,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        through the root owner. `messageChild(contextId, text)` dispatches child input
        through that owner. These optional desktop facets do not add native history
        methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
+       A connection with independent child writes also provides `drainChildWrites()`:
+       after input admission drains, wait for native work and archive writes before returning.
+       Reject on a failed flush so backup cannot accept an unconfirmed boundary.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`

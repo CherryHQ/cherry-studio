@@ -68,6 +68,8 @@ export interface PiThreadHandle extends ThreadHandle {
     history(): readonly SessionEntry[]
     /** Read committed entries through owner shutdown, until this access is released. */
     archive(): ReturnType<PiProjection['archive']>
+    /** Wait for native work, including the shared behavior's owned children and reporting jobs. */
+    settled(): Promise<void>
     toolDefinition(name: string): ToolDefinition | undefined
     toolCallId(ref: CallRef): string | undefined
     cancelQueuedInputs(): OperationResult<readonly InputId[]>
@@ -307,6 +309,12 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         archive: () => {
           if (released) throw new Error('Pi history access is closed')
           return structuredClone(entry.projection.archive())
+        },
+        async settled() {
+          await entry.admission
+          if (entry.behavior) await entry.behavior.harness.settled()
+          await Promise.allSettled([...entry.pending])
+          await entry.session.waitForIdle()
         },
         toolDefinition: (name) => (unavailable() ? undefined : entry.session.getToolDefinition(name)),
         toolCallId: (ref) =>

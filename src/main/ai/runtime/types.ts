@@ -250,6 +250,8 @@ export interface AgentRuntimeConnection {
     { snapshot(): AgentChildView; subscribe(listener: (update: AgentChildUpdate) => void): () => void } | undefined
   >
   messageChild?(contextId: string, text: string): Promise<void>
+  /** Wait for admitted child execution and its archive writes; does not close the owner. */
+  drainChildWrites?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

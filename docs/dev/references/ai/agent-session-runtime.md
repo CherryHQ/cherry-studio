@@ -1016,8 +1016,11 @@ the last hold's disposal re-kicks it. New-turn admission through `prepareDispatc
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
 parts and runtime close barriers that may still flush external state after their entry is removed.
-The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
-lifecycle pause and never touches service state.
+Root stream writes belong to `AiStreamManager`'s drain. Child input is rejected while paused or shutting
+down and is registered before dispatch. The runtime drain waits for admitted child input, then asks
+the owning connection to settle native child work and flush its archives, including work continuing
+after an input acknowledgement. Timeouts and failed archive flushes report the root as a straggler;
+a later drain can retry. This is distinct from the BaseService lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
 hold is live, tracks validation/claim/send handoffs in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks

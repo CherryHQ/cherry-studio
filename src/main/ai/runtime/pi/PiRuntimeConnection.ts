@@ -687,6 +687,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (result.status !== 'acknowledged') throw new Error(result.error.message)
   }
 
+  async drainChildWrites(): Promise<void> {
+    await this.handle?.pi.settled()
+    await Promise.all(this.childHandles.values())
+    if (this.closing) {
+      await this.closePromise
+      return
+    }
+    await Promise.all([...this.childProjections.values()].map((projection) => projection.refresh()))
+  }
+
   async stopTask(taskId: string): Promise<boolean> {
     const handle = await this.childHandles.get(taskId)
     if (!handle?.interrupt) return false

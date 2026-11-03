@@ -495,6 +495,51 @@ describe('desktop Pi root connection', () => {
     expect(text(reopened.events)).toBe('parent answer')
   })
 
+  // Catches a backup finishing on the input receipt while native continuation/archive writes are still pending.
+  it.each(['complete', 'close'] as const)('drains an acknowledged child continuation through %s', async (outcome) => {
+    const answering = gate()
+    let root = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        childRuns++
+        return childRuns === 1 ? assistantReply('First answer') : answering.wait(assistantReply('Final answer'))
+      }
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('Parent finished')
+    })
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate now') })
+      await done(events)
+      const access = (await connection.childProjection('spawn'))!
+      await connection.messageChild(access.snapshot().contextId, 'continue')
+      await answering.reached
+      let drained = false
+      const draining = connection.drainChildWrites().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      if (outcome === 'close') await connection.close()
+      else answering.open()
+      await draining
+      const context = contexts.context(access.snapshot().contextId)
+      if (outcome === 'complete') {
+        expect(savedChildView(context).messages.flatMap((message) => message.parts)).toContainEqual(
+          expect.objectContaining({ text: 'Final answer' })
+        )
+      }
+      const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
+      await new Promise((resolve) => setTimeout(resolve, 160))
+      expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
+    } finally {
+      answering.open()
+    }
+  })
+
   // Catches a panel opened during child configuration missing its only chance to subscribe.
   it('waits for child configuration and streams updates through the original attachment', async () => {
     const configuring = gate()

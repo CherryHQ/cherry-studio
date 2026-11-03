@@ -474,6 +474,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
   /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
+  private readonly inFlightChildWrites = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -1340,8 +1341,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.forks.edits.size || this.failedClosures.size) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
+    if (this.inFlightChildWrites.size > 0) return true
     for (const sessionId of this.entries.keys()) {
-      if (this.isSessionBusy(sessionId)) return true
+      if (this.isSessionBusyForArchive(sessionId)) return true
     }
     return false
   }
@@ -1440,8 +1442,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
-   * detached-flow finalizers, and runtime close barriers, bounded by timeoutMs. Never rejects;
-   * stragglers are NOT aborted.
+   * child input/native archive writes, detached-flow finalizers, and runtime close barriers.
+   * Bounded by timeoutMs; never rejects and does not abort stragglers.
    * The resulting stream writes are AiStreamManager's drain — this only covers the windows this
    * service writes in.
    * The set can grow one step while draining (a settling turn schedules the next start
@@ -1457,6 +1459,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const seen = new WeakSet<Promise<unknown>>()
+    const drainedConnections = new Set<AgentRuntimeConnection>()
+    const failed = new Set<string>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
       for (const fork of this.forks.pending.values()) {
@@ -1480,6 +1484,29 @@ export class AgentSessionRuntimeService extends BaseService {
         const remove = () => pending.delete(flush)
         flush.then(remove, remove)
       }
+      for (const [writing, sessionId] of this.inFlightChildWrites) {
+        if (seen.has(writing)) continue
+        seen.add(writing)
+        pending.set(writing, sessionId)
+        const remove = () => pending.delete(writing)
+        writing.then(remove, remove)
+      }
+      for (const [sessionId, entry] of this.entries) {
+        const connection = this.currentConnection(entry)
+        if (!connection?.drainChildWrites || drainedConnections.has(connection)) continue
+        drainedConnections.add(connection)
+        const inputs = [...this.inFlightChildWrites].filter(([, owner]) => owner === sessionId).map(([work]) => work)
+        const writing = Promise.allSettled(inputs).then(() => connection.drainChildWrites!())
+        pending.set(writing, sessionId)
+        void writing.then(
+          () => pending.delete(writing),
+          (error) => {
+            failed.add(sessionId)
+            pending.delete(writing)
+            logger.warn('Failed to drain child writes', { sessionId, error })
+          }
+        )
+      }
       for (const [sessionId, closing] of this.closingSessions) {
         if (seen.has(closing.promise)) continue
         seen.add(closing.promise)
@@ -1496,13 +1523,13 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for (;;) {
         collect()
-        if (pending.size === 0) return { stragglerIds: [] }
+        if (pending.size === 0) return { stragglerIds: [...failed] }
         const winner = await Promise.race([
           Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
           timeout
         ])
         if (winner === 'timeout') {
-          const stragglerIds = [...new Set(pending.values())]
+          const stragglerIds = [...new Set([...pending.values(), ...failed])]
           logger.warn('drainInFlight timed out with unsettled work', { timeoutMs: opts.timeoutMs, stragglerIds })
           return { stragglerIds }
         }
@@ -1517,7 +1544,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const work: Array<{ id: string; summary: string }> = []
     const activeSessionIds = new Set<string>()
     for (const [sessionId, entry] of this.entries) {
-      if (!this.isSessionBusy(sessionId)) continue
+      if (!this.isSessionBusyForArchive(sessionId)) continue
       activeSessionIds.add(sessionId)
       const turn = this.liveTurn(entry) ? 'live' : '-'
       work.push({
@@ -1530,6 +1557,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const operation of this.forks.pending.values()) {
       work.push({ id: operation.sourceSessionId, summary: 'forking=true' })
+    }
+    for (const sessionId of new Set(this.inFlightChildWrites.values())) {
+      if (!activeSessionIds.has(sessionId)) work.push({ id: sessionId, summary: 'child-input=true' })
     }
     return work
   }
@@ -1650,10 +1680,19 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   async messageChild(sessionId: string, contextId: string, text: string): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) throw new Error('Session writes are paused')
     const entry = this.entries.get(sessionId)
     const connection = entry && this.currentConnection(entry)
     if (!connection?.messageChild) throw new Error('Child native owner is unavailable')
-    await connection.messageChild(contextId, text)
+    const writing = Promise.resolve().then(() => connection.messageChild!(contextId, text))
+    this.inFlightChildWrites.set(writing, sessionId)
+    this.syncRuntimeActivity()
+    try {
+      await writing
+    } finally {
+      this.inFlightChildWrites.delete(writing)
+      this.syncRuntimeActivity()
+    }
   }
 
   recordToolExecutionTiming(

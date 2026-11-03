@@ -224,7 +224,7 @@ owns the Agent-specific participants, using two stages:
 1. `pauseIngress()` holds Channel intake and rejects new lifecycle commands.
 2. `drainIngress()` waits for already accepted Channel admissions and lifecycle work.
 3. BackupManager pauses global AiStreamManager and JobManager; `pauseExecution()`
-   holds Delivery and Runtime autonomous launches.
+   holds Delivery and Runtime autonomous launches and rejects new child-panel input.
 4. All writers drain before snapshotting. A timeout aborts the backup attempt.
 
 Pausing execution before Channel admission drains could discard an already

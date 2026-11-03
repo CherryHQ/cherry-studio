@@ -49,6 +49,11 @@ as required by the behavior adapter's request accounting.
   released independently. Releasing a handle stops its observations. Shutdown closes the shared
   behavior instance, all native sessions and projections.
 
+`pi.settled()` waits for admitted native work; behavior-backed handles include the shared root,
+children and reporting jobs. It does not interrupt or close the owner, seal new admission, or flush
+host archives. A host using it for a write barrier must first block new input and join its admitted
+submissions, then drain its own archive writers after native work settles.
+
 This is an opt-in migration path: omitting `behavior` retains the existing native extension path.
 Combining it with legacy `subagents`, `offload` or a direct compaction summarizer is rejected.
 Host extensions must not install duplicate behavior tools or start native runs themselves.
