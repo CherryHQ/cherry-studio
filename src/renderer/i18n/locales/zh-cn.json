@@ -6287,6 +6287,7 @@
   "webview.browser.import_hint": "从其他浏览器导入历史记录和网站数据。",
   "webview.browser.load_failed": "页面无法加载，请确认本地服务仍在运行。",
   "webview.browser.loading": "正在加载页面…",
+  "webview.browser.recreated": "浏览器页面已自动重建。请重新打开页面以继续。",
   "webview.navigation.address": "网页地址",
   "webview.navigation.address_placeholder": "输入网址",
   "webview.navigation.back": "后退",

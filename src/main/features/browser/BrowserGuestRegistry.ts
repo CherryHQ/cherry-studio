@@ -33,17 +33,34 @@ export interface BrowserGuestTarget extends BrowserGuestContext {
 }
 
 export class BrowserGuestRegistry implements Disposable {
+  private readonly shutdown = new AbortController()
   private readonly targets = new Map<string, BrowserGuestTarget>()
+  private readonly identities = new Map<
+    string,
+    { ownerId: string; windowId: WindowId; webContentsId: number; tabId: string }
+  >()
+  private readonly repairs = new Map<
+    string,
+    {
+      requestId: string
+      kind: 'reattach' | 'recreate'
+      expiresAt: number
+      identity: { ownerId: string; windowId: WindowId; webContentsId: number; tabId: string }
+      finish: (target: BrowserGuestTarget) => void
+    }
+  >()
+  private readonly recovering = new Map<string, Promise<BrowserGuestTarget>>()
   private readonly changed = new Emitter<void>()
   private readonly pendingFocus = new Map<string, { target: BrowserGuestTarget; finish: (error?: unknown) => void }>()
 
   constructor(
     private readonly resolveOwner: (id: string) => string,
     readonly scope: 'agent' | 'topic',
-    private readonly claims = new Map<WebContents, BrowserGuestTarget>()
+    private readonly claims = new Map<WebContents, BrowserGuestTarget>(),
+    private readonly checkGuest?: (target: BrowserGuestTarget) => Promise<boolean>
   ) {}
 
-  attach(sessionId: string, webviewId: number, senderId: WindowId | null): { tabId: string } {
+  attach(sessionId: string, webviewId: number, senderId: WindowId | null, requestId?: string): { tabId: string } {
     const ownerId = this.getOwner(sessionId)
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     const guest = webContents.fromId(webviewId)
@@ -65,7 +82,23 @@ export class BrowserGuestRegistry implements Disposable {
       throw new BrowserSessionError('not_allowed')
     }
     const existing = this.targets.get(sessionId)
-    if (existing?.guest === guest && existing.windowId === senderId && !existing.abort.signal.aborted)
+    const repair = requestId ? this.repairs.get(sessionId) : undefined
+    if (
+      requestId &&
+      (!repair ||
+        repair.requestId !== requestId ||
+        repair.expiresAt <= Date.now() ||
+        repair.identity.ownerId !== ownerId ||
+        repair.identity.windowId !== senderId ||
+        this.identities.get(sessionId) !== repair.identity ||
+        (repair.kind === 'reattach'
+          ? webviewId !== repair.identity.webContentsId
+          : webviewId === repair.identity.webContentsId) ||
+        guest.session !== session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)))
+    ) {
+      throw new BrowserSessionError('not_allowed')
+    }
+    if (existing?.guest === guest && existing.windowId === senderId && !existing.abort.signal.aborted && !repair)
       return { tabId: existing.tabId }
     const claim = this.claims.get(guest)
     if (claim && claim !== existing) throw new BrowserSessionError('not_allowed')
@@ -146,9 +179,11 @@ export class BrowserGuestRegistry implements Disposable {
       beginExecution,
       dispose
     })
+    this.identities.set(sessionId, { ownerId, windowId: senderId, webContentsId: webviewId, tabId })
     this.claims.set(guest, this.targets.get(sessionId)!)
     guest.once('destroyed', dispose)
     this.changed.fire()
+    if (repair) repair.finish(this.targets.get(sessionId)!)
     return { tabId }
   }
 
@@ -229,6 +264,14 @@ export class BrowserGuestRegistry implements Disposable {
     }
     void guest.loadURL(url, { httpReferrer: details.referrer }).catch((error) => {
       logger.warn('Failed to navigate browser popup in the Agent pane', { error })
+      if (this.checkGuest && this.targets.get(target.sessionId) === target && !target.abort.signal.aborted) {
+        void this.checkGuest(target)
+          .then((healthy) => {
+            if (!healthy && this.targets.get(target.sessionId) === target && !target.abort.signal.aborted)
+              void this.recover(target, 'recreate').catch(() => undefined)
+          })
+          .catch(() => undefined)
+      }
     })
     return true
   }
@@ -261,6 +304,13 @@ export class BrowserGuestRegistry implements Disposable {
   async ensureGuest(context: BrowserGuestContext, signal: AbortSignal, url?: string): Promise<BrowserGuestTarget> {
     signal.throwIfAborted()
     const existing = this.get(context)
+    const pending = this.recovering.get(context.sessionId)
+    if (pending) return await pending
+    const identity = this.identities.get(context.sessionId)
+    if (!existing && identity && this.scope === 'agent' && !url?.startsWith('file:')) {
+      if (identity.ownerId !== context.ownerId) throw new BrowserSessionError('not_allowed')
+      return await this.recover(identity, 'reattach', signal)
+    }
     const isFile = url?.startsWith('file:')
     const expectedSession = session.fromPartition(
       getWebviewPartition(isFile ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser)
@@ -308,7 +358,82 @@ export class BrowserGuestRegistry implements Disposable {
     })
   }
 
+  private recover(
+    identity: {
+      ownerId: string
+      sessionId?: string
+      windowId: WindowId
+      webContentsId?: number
+      tabId: string
+      guest?: WebContents
+    },
+    kind: 'reattach' | 'recreate',
+    signal?: AbortSignal
+  ): Promise<BrowserGuestTarget> {
+    const sessionId = identity.sessionId ?? [...this.identities].find(([, value]) => value === identity)?.[0]
+    if (!sessionId) return Promise.reject(new BrowserSessionError('not_found'))
+    const current = this.recovering.get(sessionId)
+    if (current) return current
+    const expected = this.identities.get(sessionId)
+    if (!expected) return Promise.reject(new BrowserSessionError('not_found'))
+    const deadline = Date.now() + 10_000
+    signal = signal ? AbortSignal.any([signal, this.shutdown.signal]) : this.shutdown.signal
+    const request = (requestKind: 'reattach' | 'recreate', expiresAt: number) =>
+      new Promise<BrowserGuestTarget>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => finish(undefined, new BrowserSessionError('timeout')),
+          Math.max(0, expiresAt - Date.now())
+        )
+        const onAbort = () => finish(undefined, signal?.reason)
+        const finish = (target?: BrowserGuestTarget, error?: unknown) => {
+          clearTimeout(timeout)
+          signal?.removeEventListener('abort', onAbort)
+          if (this.repairs.get(sessionId)?.requestId === requestId) this.repairs.delete(sessionId)
+          if (target) resolve(target)
+          else reject(error)
+        }
+        const requestId = randomUUID()
+        this.repairs.set(sessionId, {
+          requestId,
+          kind: requestKind,
+          expiresAt,
+          identity: expected,
+          finish: (target) => finish(target)
+        })
+        signal?.addEventListener('abort', onAbort, { once: true })
+        try {
+          signal?.throwIfAborted()
+          application.get('IpcApiService').send(expected.windowId, 'browser.guest.ensure_requested', {
+            sessionId,
+            repair: { requestId, kind: requestKind, expiresAt }
+          })
+        } catch (error) {
+          finish(undefined, error)
+        }
+      })
+    const operation = (async () => {
+      if (kind === 'reattach') {
+        try {
+          return await request('reattach', Math.min(deadline, Date.now() + 2000))
+        } catch (error) {
+          if (signal?.aborted || !(error instanceof BrowserSessionError && error.code === 'timeout')) throw error
+        }
+      }
+      return await request('recreate', deadline)
+    })()
+    this.recovering.set(sessionId, operation)
+    void operation
+      .finally(() => {
+        if (this.recovering.get(sessionId) === operation) this.recovering.delete(sessionId)
+      })
+      .catch(() => undefined)
+    return operation
+  }
+
   dispose(): void {
+    this.shutdown.abort(new BrowserSessionError('not_found'))
+    this.identities.clear()
+    this.repairs.clear()
     for (const target of this.targets.values()) target.dispose()
     this.changed.dispose()
   }

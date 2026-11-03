@@ -1,5 +1,6 @@
 import type { WebviewTag } from 'electron'
-import { memo, useCallback, useEffect, useSyncExternalStore } from 'react'
+import { memo, useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
@@ -12,6 +13,7 @@ import {
   topicBrowserRuntimeService,
   type AgentBrowserRuntimeService
 } from '@renderer/services/AgentBrowserRuntimeService'
+import { toast } from '@renderer/services/toast'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -37,9 +39,9 @@ function clearMessageSelection(): void {
 
 /** Window composition mounts this outside page Activity; the runtime owns its instances. */
 export function AgentBrowserRuntimeHost() {
-  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope }) => {
+  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope, repair }) => {
     const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
-    runtime.ensure(sessionId, url)
+    runtime.ensure(sessionId, url, undefined, repair)
   })
   return (
     <>
@@ -105,16 +107,44 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
 }) {
   const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId))
   const guest = resource?.guest ?? null
-  const tabId = useAgentBrowserGuest(sessionId, guest, 0, scope)
+  const { t } = useTranslation()
+  const notified = useRef<string | undefined>(undefined)
+  const tabId = useAgentBrowserGuest(
+    sessionId,
+    guest,
+    resource?.bindingRevision ?? 0,
+    scope,
+    resource?.repair?.requestId,
+    resource?.repair?.expiresAt
+  )
+  useEffect(() => {
+    const repair = resource?.repair
+    if (
+      tabId &&
+      repair?.kind === 'recreate' &&
+      repair.expiresAt > Date.now() &&
+      notified.current !== repair.requestId
+    ) {
+      notified.current = repair.requestId
+      toast.warning(t('webview.browser.recreated'))
+    }
+  }, [tabId, resource?.repair, t])
   const onWebviewChange = useCallback(
-    (webview: WebviewTag | null) => runtime.update(sessionId, { guest: webview, ready: false, title: '' }),
-    [runtime, sessionId]
+    (webview: WebviewTag | null) => {
+      if (runtime.get(sessionId)?.guestGeneration !== resource?.guestGeneration) return
+      runtime.update(sessionId, { guest: webview, ready: false, title: '' })
+    },
+    [runtime, sessionId, resource?.guestGeneration]
   )
   const onOverlaysChange = useCallback(
     (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }),
     [runtime, sessionId]
   )
   if (!resource) return null
+  const generation = resource.guestGeneration
+  const updateCurrent = (patch: Parameters<typeof runtime.update>[1]) => {
+    if (runtime.get(sessionId)?.guestGeneration === generation) runtime.update(sessionId, patch)
+  }
   const { sourceUrl, securityProfile, anchor } = resource
   const authorization = getGuestAuthorizationKey(securityProfile, sourceUrl)
   return (
@@ -122,7 +152,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
       anchor={anchor}
       guest={
         <WebviewHost
-          key={authorization}
+          key={`${authorization}:${resource.guestGeneration}`}
           id={`agent-browser:${sessionId}`}
           src={sourceUrl}
           reloadKey={resource.reloadKey}
@@ -131,18 +161,16 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
           className="inline-flex h-full w-full bg-white"
           testId="webview-browser-guest"
           onWebviewChange={onWebviewChange}
-          onDomReady={(webview) =>
-            runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
-          }
-          onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
-          onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
+          onDomReady={(webview) => updateCurrent({ ready: true, url: webview.getURL(), title: webview.getTitle() })}
+          onDidStartLoading={() => updateCurrent({ loading: true, failed: false })}
+          onDidFinishLoad={() => updateCurrent({ ready: true, loading: false })}
           onDidNavigate={(event) => {
-            if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
+            if (!('isMainFrame' in event) || event.isMainFrame) updateCurrent({ url: event.url })
           }}
-          onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
+          onPageTitleUpdated={(event) => updateCurrent({ title: event.title })}
           onDidFailLoad={(event) => {
             if (event.isMainFrame && event.errorCode !== -3)
-              runtime.update(sessionId, { failed: true, ready: true, loading: false })
+              updateCurrent({ failed: true, ready: true, loading: false })
           }}
         />
       }

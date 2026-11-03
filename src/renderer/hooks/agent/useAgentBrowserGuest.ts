@@ -12,9 +12,11 @@ export function useAgentBrowserGuest(
   sessionId: string | undefined,
   guest: WebviewTag | null,
   revision: number,
-  scope?: 'agent' | 'topic'
+  scope?: 'agent' | 'topic',
+  requestId?: string,
+  expiresAt?: number
 ): string | undefined {
-  const [binding, setBinding] = useState<{ guest: WebviewTag; sessionId: string; tabId: string }>()
+  const [binding, setBinding] = useState<{ guest: WebviewTag; sessionId: string; tabId: string; revision: number }>()
   const operations = useRef(new Sequencer())
   useEffect(() => {
     if (!sessionId || !guest) return
@@ -59,18 +61,19 @@ export function useAgentBrowserGuest(
       attaching = true
       void queue.queue(async () => {
         try {
-          if (cancelled) return
+          if (cancelled || (expiresAt !== undefined && expiresAt <= Date.now())) return
           const webviewId = guest.getWebContentsId()
           if (!webviewId) return
           const result = await ipcApi.request('browser.pane.attach', {
             sessionId,
             webviewId,
-            ...(scope ? { scope } : {})
+            ...(scope ? { scope } : {}),
+            ...(requestId ? { requestId } : {})
           })
-          if (cancelled) await detach(result.tabId)
+          if (cancelled || (expiresAt !== undefined && expiresAt <= Date.now())) await detach(result.tabId)
           else {
             tabId = result.tabId
-            setBinding({ guest, sessionId, tabId })
+            setBinding({ guest, sessionId, tabId, revision })
           }
         } catch (error) {
           logger.debug('Browser guest is not ready to attach', { error })
@@ -92,6 +95,8 @@ export function useAgentBrowserGuest(
           .catch((error) => logger.debug('Browser guest already detached', { error }))
       }
     }
-  }, [sessionId, guest, revision, scope])
-  return binding?.guest === guest && binding?.sessionId === sessionId ? binding?.tabId : undefined
+  }, [sessionId, guest, revision, scope, requestId, expiresAt])
+  return binding?.guest === guest && binding?.sessionId === sessionId && binding.revision === revision
+    ? binding?.tabId
+    : undefined
 }

@@ -108,3 +108,59 @@ it.each(['focused', 'background', 'unavailable'] as const)(
     }
   }
 )
+
+it('forwards a repair request when reattaching the same guest', async () => {
+  const requests: unknown[] = []
+  vi.spyOn(ipcApi, 'request').mockImplementation(async (route, input) => {
+    if (route === 'browser.pane.attach') {
+      requests.push(input)
+      return { tabId: `tab-${requests.length}` }
+    }
+    return undefined
+  })
+  const guest = Object.assign(document.createElement('webview'), {
+    getWebContentsId: () => 42
+  }) as unknown as WebviewTag
+  const requestId = '11111111-1111-4111-8111-111111111111'
+  const hook = renderHook(
+    ({ revision, repair }) => useAgentBrowserGuest('session-a', guest, revision, undefined, repair),
+    {
+      initialProps: { revision: 0, repair: undefined as string | undefined }
+    }
+  )
+  await waitFor(() => expect(hook.result.current).toBe('tab-1'))
+  hook.rerender({ revision: 1, repair: requestId })
+  await waitFor(() => expect(hook.result.current).toBe('tab-2'))
+  expect(requests[1]).toMatchObject({ webviewId: 42, requestId })
+})
+
+it('skips attaching an expired repair request and attaches once the request is fresh again', async () => {
+  const routes: string[] = []
+  vi.spyOn(ipcApi, 'request').mockImplementation(async (route) => {
+    routes.push(route)
+    if (route === 'browser.pane.attach') return { tabId: 'tab-1' }
+    return undefined
+  })
+  const guest = Object.assign(document.createElement('webview'), {
+    getWebContentsId: () => 42
+  }) as unknown as WebviewTag
+  const hook = renderHook(
+    ({ expiresAt }) =>
+      useAgentBrowserGuest('session-a', guest, 0, undefined, '11111111-1111-4111-8111-111111111111', expiresAt),
+    { initialProps: { expiresAt: Date.now() - 1 } }
+  )
+  await act(async () => {
+    await Promise.resolve()
+  })
+  expect(routes).not.toContain('browser.pane.attach')
+  expect(hook.result.current).toBeUndefined()
+
+  hook.rerender({ expiresAt: Date.now() + 10000 })
+  await waitFor(() => expect(hook.result.current).toBe('tab-1'))
+  expect(routes.filter((route) => route === 'browser.pane.attach')).toHaveLength(1)
+
+  hook.unmount()
+  await act(async () => {
+    await Promise.resolve()
+  })
+})

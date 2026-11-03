@@ -6287,6 +6287,7 @@
   "webview.browser.import_hint": "他のブラウザーから履歴とサイトデータをインポートできます。",
   "webview.browser.load_failed": "ページを読み込めませんでした。ローカルサーバーが起動しているか確認してください。",
   "webview.browser.loading": "ページを読み込み中…",
+  "webview.browser.recreated": "ブラウザページが自動的に再作成されました。続行するにはページを開き直してください。",
   "webview.navigation.address": "ウェブアドレス",
   "webview.navigation.address_placeholder": "URL を入力",
   "webview.navigation.back": "戻る",

@@ -6287,6 +6287,7 @@
   "webview.browser.import_hint": "Nhập lịch sử và dữ liệu trang web từ trình duyệt khác.",
   "webview.browser.load_failed": "Không thể tải trang này. Hãy kiểm tra xem máy chủ cục bộ có còn đang chạy không.",
   "webview.browser.loading": "Đang tải trang…",
+  "webview.browser.recreated": "Trang trình duyệt đã được tạo lại tự động. Hãy mở lại trang để tiếp tục.",
   "webview.navigation.address": "Địa chỉ web",
   "webview.navigation.address_placeholder": "Nhập URL",
   "webview.navigation.back": "Quay lại",

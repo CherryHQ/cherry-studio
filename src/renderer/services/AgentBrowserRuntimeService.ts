@@ -12,6 +12,9 @@ export interface AgentBrowserResource {
   anchor: HTMLElement | null
   overlays: HTMLElement | null
   reloadKey?: number | string
+  guestGeneration: number
+  bindingRevision: number
+  repair?: { requestId: string; kind: 'reattach' | 'recreate'; expiresAt: number }
   guest: WebviewTag | null
   url: string
   title: string
@@ -50,9 +53,24 @@ export class AgentBrowserRuntimeService {
     this.turnSubscriptions.delete(sessionId)
   }
 
-  ensure(sessionId: string, url?: string, profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser): void {
+  ensure(
+    sessionId: string,
+    url?: string,
+    profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser,
+    repair?: AgentBrowserResource['repair']
+  ): void {
     if (!this.owners.has(sessionId)) return
     const existing = this.resources.get(sessionId)
+    if (repair) {
+      if (!existing || repair.expiresAt <= Date.now() || existing.repair?.requestId === repair.requestId) return
+      this.update(sessionId, {
+        repair,
+        bindingRevision: existing.bindingRevision + 1,
+        guestGeneration: existing.guestGeneration + (repair.kind === 'recreate' ? 1 : 0),
+        ...(repair.kind === 'recreate' ? { guest: null, sourceUrl: 'about:blank' } : {})
+      })
+      return
+    }
     if (existing && !url) return
     const sourceUrl = url ?? 'about:blank'
     const securityProfile = sourceUrl.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : profile
@@ -70,6 +88,8 @@ export class AgentBrowserRuntimeService {
       title: '',
       anchor: null,
       overlays: null,
+      guestGeneration: 0,
+      bindingRevision: 0,
       guest: null,
       ready: false,
       loading: true,
