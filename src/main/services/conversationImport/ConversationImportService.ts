@@ -24,6 +24,7 @@ import type {
 } from '@shared/ipc/schemas/conversationImport'
 
 import { claudeCodeAdapter } from './claudeCode'
+import { codexAdapter } from './codex'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
 interface Prepared {
@@ -62,13 +63,15 @@ export class ConversationImportService extends BaseService {
     this.scans.delete(owner)
   }
   async discover(owner: string, source: HistorySource, requestedRoot?: string) {
-    if (source !== 'claude-code') throw new Error('unsupported_source')
+    if (source !== 'claude-code' && source !== 'codex') throw new Error('unsupported_source')
     this.cancel(owner)
-    const root = await realpath(requestedRoot ?? application.getPath('external.claude.projects'))
+    const root = await realpath(
+      requestedRoot ?? application.getPath(source === 'codex' ? 'external.codex.home' : 'external.claude.projects')
+    )
     const scan: Scan = {
       id: randomUUID(),
       root,
-      adapter: claudeCodeAdapter,
+      adapter: source === 'codex' ? codexAdapter : claudeCodeAdapter,
       refs: new Map(),
       abort: new AbortController(),
       expiresAt: Date.now() + IMPORT_LIMITS.previewMs,

@@ -84,6 +84,64 @@ describe('local history atomic import', () => {
     )
     return { ...result, scan }
   }
+  it('imports Codex threads independently and rejects an index changed after preview', async () => {
+    const sourceRoot = path.join(root, 'source')
+    for (const id of ['one', 'two'])
+      await writeFile(
+        path.join(sourceRoot, 'rollout-' + id + '.jsonl'),
+        [
+          { type: 'session_meta', payload: { id, session_id: 'root', cli_version: '0.114.0' } },
+          {
+            type: 'response_item',
+            timestamp: '2026-01-01T00:00:00Z',
+            payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: id }] }
+          }
+        ]
+          .map((row) => JSON.stringify(row))
+          .join('\n')
+      )
+    const scan = await service.discover('window', 'codex', sourceRoot)
+    const before = counts()
+    const prepared = await service.preview(
+      'window',
+      scan.scanId,
+      'pi',
+      scan.candidates.map((c) => ({ ref: c.ref }))
+    )
+    expect(counts()).toEqual(before)
+    expect(prepared.items.every((item) => item.diagnostics.length === 0)).toBe(true)
+    const outcomes = await service.commit(
+      'window',
+      prepared.previewId,
+      prepared.items.map((item) => item.ref)
+    )
+    expect(outcomes.map((item) => item.status)).toEqual(['imported', 'imported'])
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionTable)
+        .all()
+        .map((row) => row.importMetadata?.originalSessionId)
+        .sort()
+    ).toEqual(['one', 'two'])
+    const next = await service.discover('window', 'codex', sourceRoot)
+    const preview = await service.preview(
+      'window',
+      next.scanId,
+      'pi',
+      next.candidates.map((c) => ({ ref: c.ref }))
+    )
+    await writeFile(path.join(sourceRoot, 'session_index.jsonl'), JSON.stringify({ id: 'one', thread_name: 'changed' }))
+    expect(
+      (
+        await service.commit(
+          'window',
+          preview.previewId,
+          preview.items.map((item) => item.ref)
+        )
+      ).every((item) => item.reason === 'source_changed')
+    ).toBe(true)
+  })
   it('renders already imported Claude tool results without rewriting stored history', async () => {
     await source()
     const prepared = await preview()
