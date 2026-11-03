@@ -13,9 +13,9 @@ import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
   agentSessionMessageTable as sessionMessagesTable,
+  type AgentSubmission,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
-import type { AgentSubmission } from '@data/db/schemas/agentSubmission'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'

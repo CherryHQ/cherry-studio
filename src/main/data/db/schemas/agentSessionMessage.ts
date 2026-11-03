@@ -1,13 +1,24 @@
 import { asc, desc, sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+import type { BusyPolicy, InputFact, InputState } from '@cherrystudio/agent-runtime'
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
-import type { AgentSubmission } from './agentSubmission'
 import { userModelTable } from './userModel'
+
+/** Main-only evidence attached to the retained user message, never a second input body. */
+export interface AgentSubmission {
+  readonly contextId: string
+  readonly whenBusy: BusyPolicy
+  readonly contentHash: string
+  readonly nativeInputId?: string
+  readonly facts: readonly InputFact[]
+  readonly outcome?: InputState['outcome']
+  readonly responseMessageId?: string
+}
 
 export const agentSessionMessageTable = sqliteTable(
   'agent_session_message',
