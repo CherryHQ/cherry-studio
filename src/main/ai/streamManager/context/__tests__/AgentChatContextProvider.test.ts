@@ -307,6 +307,15 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
   })
 
+  it('accepts job provenance only from internal turn authority', async () => {
+    const request = { ...openReq(), sourceJobId: 'renderer-spoof' }
+
+    expect((await provider.validateDispatch(request)).sourceJobId).toBeUndefined()
+    expect((await provider.validateDispatch(request, { sourceJobId: 'scheduled-job' })).sourceJobId).toBe(
+      'scheduled-job'
+    )
+  })
+
   it('forwards headless to the runtime when busy dispatch enqueues a follow-up', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(true)

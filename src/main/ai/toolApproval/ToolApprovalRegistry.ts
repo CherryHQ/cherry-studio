@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -41,6 +42,8 @@ type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'pres
  */
 class ToolApprovalRegistry {
   private readonly pending = new Map<string, PendingApproval>()
+  private readonly changed = new Emitter<string>()
+  readonly onChanged = this.changed.event
 
   /**
    * Register a pending approval. Returns `true` when the request is now pending a
@@ -70,6 +73,7 @@ class ToolApprovalRegistry {
     }
 
     this.pending.set(approvalId, stored)
+    this.changed.fire(entry.sessionId)
     return true
   }
 
@@ -91,6 +95,7 @@ class ToolApprovalRegistry {
     this.pending.delete(approvalId)
     this.detachAbort(entry)
     entry.resolve(decision)
+    this.changed.fire(entry.sessionId)
     return {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
@@ -107,7 +112,10 @@ class ToolApprovalRegistry {
       entry.resolve({ approved: false, reason })
       aborted++
     }
-    if (aborted > 0) logger.info('Aborted pending approvals', { sessionId, count: aborted, reason })
+    if (aborted > 0) {
+      this.changed.fire(sessionId)
+      logger.info('Aborted pending approvals', { sessionId, count: aborted, reason })
+    }
     return aborted
   }
 
@@ -119,11 +127,13 @@ class ToolApprovalRegistry {
   clear(reason = 'service-shutdown'): number {
     const count = this.pending.size
     if (count === 0) return 0
+    const sessionIds = new Set([...this.pending.values()].map((entry) => entry.sessionId))
     for (const [, entry] of this.pending) {
       this.detachAbort(entry)
       entry.resolve({ approved: false, reason })
     }
     this.pending.clear()
+    for (const sessionId of sessionIds) this.changed.fire(sessionId)
     logger.info('Cleared all pending approvals', { count, reason })
     return count
   }
