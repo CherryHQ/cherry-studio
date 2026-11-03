@@ -297,6 +297,273 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it('accepts the schema when the command exits non-zero on an experimental warning', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const schema = createRuntimeConfigSchema()
+      queueSpawnResult({
+        stdout: JSON.stringify(schema),
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).resolves.toEqual(schema)
+    })
+
+    it('reports the real stderr error instead of the experimental warning', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: node:sqlite: unsupported NUL in TEXT\n',
+        exitCode: 1
+      })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('config schema')
+      expect(error.message).toContain('exit code 1')
+      expect(error.message).toContain('Error: node:sqlite: unsupported NUL in TEXT')
+      expect(error.message).not.toContain('ExperimentalWarning')
+      expect(error.message).not.toContain('--trace-warnings')
+      expect(error.message).not.toMatch(/incompatible|Upgrade OpenClaw/i)
+    })
+
+    it('names the detected OpenClaw version in the schema failure', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: node:sqlite: unsupported NUL in TEXT\n',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({
+          path: resolvePath('/mock/bin/openclaw'),
+          version: '2026.10.2',
+          env: {}
+        })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('2026.10.2') })
+    })
+
+    it('falls back to the binary version when the runtime has none', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: node:sqlite: unsupported NUL in TEXT\n',
+        exitCode: 1
+      })
+      queueSpawnResult({ stdout: 'OpenClaw 2026.3.13 (61d171a)\n' })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('2026.3.13') })
+      expect(crossPlatformSpawnMock.mock.calls[1][1]).toEqual(['--version'])
+    })
+
+    it('keeps the schema failure when the version probe also fails', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'Error: node:sqlite: unsupported NUL in TEXT', exitCode: 1 })
+      queueSpawnResult({ stderr: 'boom', exitCode: 1 })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('unknown') })
+    })
+
+    it.each(['ExperimentalWarning', 'DeprecationWarning', 'TimeoutOverflowWarning', 'Warning'])(
+      'skips prefixed %s lines with a deprecation code',
+      (warning) => {
+        const stderr =
+          `  (node:28108) [DEP0005] ${warning}: notice\n  (Use ` +
+          '`node --trace-warnings ...` to show where the warning was created)\nError: actual failure'
+        expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+          kind: 'error',
+          line: 'Error: actual failure'
+        })
+      }
+    )
+
+    it('keeps the warning text when stderr carries only warnings', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({
+          path: resolvePath('/mock/bin/openclaw'),
+          version: '2026.10.2',
+          env: {}
+        })
+      ).rejects.toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining(
+          'stderr carried only warnings: (node:28108) ExperimentalWarning: SQLite is an experimental feature'
+        )
+      })
+    })
+
+    it('keeps warning continuations out of the schema failure', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          'Warning: first\ncontinuation of warning\n(Use `node --trace-warnings ...` to show where the warning was created)',
+        exitCode: 1
+      })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('stderr carried only warnings: Warning: first')
+      expect(error.message).not.toContain('continuation of warning')
+    })
+
+    it('does not report stack frames as warnings or errors', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr: 'node:internal/modules/cjs/loader:1404\n    at Module._load (node:internal/modules/cjs/loader:1030:12)',
+        exitCode: 1
+      })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('config schema check failed with exit code 1')
+      expect(error.message).not.toContain('only warnings')
+      expect(error.message).not.toContain('node:internal')
+    })
+
+    it('does not classify a command phrase in a warning as incompatibility', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr: '(node:1) Warning: plugin ignored unknown subcommand legacy\nError: EACCES: permission denied',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+      ).rejects.toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining('EACCES: permission denied')
+      })
+    })
+
+    it('prefers the version on stdout over a warning on stderr', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'Error: schema failed', exitCode: 1 })
+      queueSpawnResult({ stdout: '2026.3.13\n', stderr: '(node:9) Warning: OpenClaw uses Node.js v24.14.0\n' })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('2026.3.13') })
+      expect(error.message).not.toContain('24.14.0')
+    })
+
+    it.each([
+      [
+        'multiline warning',
+        '(node:1) Warning: first\ncontinuation of warning\nError: actual failure\n',
+        'Error: actual failure'
+      ],
+      ['node option error', 'node: bad option: --foo', 'node: bad option: --foo'],
+      [
+        'unrecognized configuration key',
+        'Error: unrecognized configuration key "foo"',
+        'unrecognized configuration key'
+      ]
+    ])('reports the actual schema failure for %s', async (_name, stderr, expected) => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr, exitCode: 1 })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining(expected) })
+    })
+
+    it.each([
+      "error: too many arguments for 'config'. Expected 0 arguments but got 1.",
+      'error: too many arguments for "config"',
+      'error: unknown subcommand schema',
+      'error: unrecognized subcommand schema',
+      'error: invalid subcommand schema'
+    ])('recognizes unsupported schema command: %s', async (stderr) => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr, exitCode: 1 })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+    })
+
+    it('rejects an array as a schema', async () => {
+      schemaCapabilitySpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValue({ stdout: '[]', stderr: '', exitCode: 0, outputTruncated: false })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+    })
+
+    it('reports truncated output even when the schema command fails', async () => {
+      schemaCapabilitySpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 1, outputTruncated: true })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({
+        kind: 'binary_incompatible',
+        message: expect.stringContaining('config schema output exceeded the capture limit')
+      })
+    })
+
+    it('does not attribute the Node.js version to OpenClaw', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'Error: schema failed', exitCode: 1 })
+      queueSpawnResult({ stderr: '(node:9) Warning: x\nNode.js v24.14.0\n' })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('unknown') })
+      expect(error.message).not.toContain('24.14.0')
+    })
+
+    it('propagates the managed binary version to the runtime', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        openclaw: { availability: { source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '2026.6.11' } }
+      })
+      await expect((service as any).resolveOpenClawRuntime()).resolves.toMatchObject({ version: '2026.6.11' })
+    })
+
+    it('returns unknown when the version probe times out', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.useFakeTimers()
+      const pending = (service as any).detectOpenClawVersion({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      await vi.advanceTimersByTimeAsync(5000)
+      await expect(pending).resolves.toBe('unknown')
+    })
+
+    it('reports binary incompatibility for invalid JSON with a zero exit code', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stdout: 'not json' })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({
+        kind: 'binary_incompatible',
+        message: expect.stringContaining('config schema did not return valid JSON')
+      })
+    })
+
     it('reports binary incompatibility when the schema command is unavailable', async () => {
       runOpenClawCommandSpy.mockRestore()
       schemaCapabilitySpy.mockRestore()
