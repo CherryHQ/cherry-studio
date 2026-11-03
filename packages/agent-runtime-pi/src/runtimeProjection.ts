@@ -7,6 +7,8 @@ import {
   ThreadFeed,
   RuntimeMessageStream,
   type RuntimeMessage,
+  type InputId,
+  type InputState,
   type ItemRef,
   type Thread
 } from '@cherrystudio/agent-runtime'
@@ -18,6 +20,7 @@ export class PiProjection {
   readonly feed: ThreadFeed
   private ids = new WeakMap<object, string>()
   private originals = new WeakMap<object, PiMessage>()
+  private inputIds = new WeakMap<object, InputId>()
   private active = new Map<string, string>()
   private calls = new Map<string, string>()
   private snapshotMessages: RuntimeMessage[] | undefined
@@ -44,7 +47,7 @@ export class PiProjection {
         coverage: 'current-view',
         messages: [],
         inputs: [],
-        ...(children ? { delegations: [] } : {}),
+        ...(children ? { subagents: [] } : {}),
         activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
       },
       report
@@ -65,6 +68,7 @@ export class PiProjection {
   private reset(session: AgentSession, context?: PiContext): void {
     this.session = session
     this.ids = new WeakMap()
+    this.inputIds = new WeakMap()
     this.active.clear()
     this.calls.clear()
     this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
@@ -98,6 +102,11 @@ export class PiProjection {
         this.originals.set(event.message, message)
         if (native.type === 'message_start') this.active.set(slot, id)
         if (native.type === 'message_end') this.active.delete(slot)
+        if (native.type === 'input_placed') {
+          const inputId = runtimeId<'input'>(native.inputId)
+          this.inputIds.set(message, inputId)
+          this.inputIds.set(event.message, inputId)
+        }
       }
       const context =
         event.type === 'entry_appended' &&
@@ -124,6 +133,14 @@ export class PiProjection {
     for (const { reader } of this.readers.values()) await reader.close()
     this.readers.clear()
     this.feed.close('shutdown')
+  }
+
+  recordInput(input: InputState & { readonly inputId: InputId }): void {
+    const previous = this.feed.snapshot.inputs.find((known) => known.inputId === input.inputId)
+    this.feed.publish({
+      type: 'input.changed',
+      input: { ...previous, ...input, facts: [...new Set([...(previous?.facts ?? []), ...input.facts])] }
+    })
   }
 
   private id(message: PiMessage): string {
@@ -217,7 +234,11 @@ export class PiProjection {
       id,
       role: message.role === 'custom' ? 'user' : message.role,
       parts: [],
-      metadata: { completeness }
+      metadata: {
+        completeness,
+        inputId:
+          this.inputIds.get(message) ?? this.feed.snapshot.messages.find((known) => known.id === id)?.metadata?.inputId
+      }
     }
     const state = completeness === 'complete' ? 'done' : 'streaming'
     if (typeof message.content === 'string') value.parts.push({ type: 'text', text: message.content, state })
@@ -304,6 +325,56 @@ export class PiProjection {
   }
 
   private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
+    if (event.type === 'input_settled') {
+      const reason = event.aborted ? 'aborted' : event.message.stopReason
+      const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
+      for (const inputId of event.inputIds) {
+        this.recordInput({
+          inputId: runtimeId(inputId),
+          facts: [],
+          response: this.itemRef(event.entryId),
+          outcome: completed
+            ? 'completed'
+            : reason === 'aborted'
+              ? 'aborted'
+              : reason === 'error'
+                ? 'failed'
+                : 'unanswered',
+          ...(!completed && {
+            error: {
+              operation: 'input',
+              code:
+                reason === 'length'
+                  ? 'output-truncated'
+                  : reason === 'error'
+                    ? 'model-error'
+                    : reason === 'aborted'
+                      ? 'aborted'
+                      : 'no-final-answer',
+              message: event.message.errorMessage ?? `Pi response ended: ${reason}`
+            }
+          })
+        })
+      }
+    }
+    if (event.type === 'input_placed') {
+      const inputId = runtimeId<'input'>(event.inputId)
+      this.inputIds.set(event.message, inputId)
+      this.write(event.message, this.id(event.message), 'complete')
+      this.recordInput({ inputId, facts: ['placed'] })
+    }
+    if (event.type === 'input_handled') {
+      this.recordInput({
+        inputId: runtimeId(event.inputId),
+        facts: ['locally-handled'],
+        ...(event.errorMessage === undefined
+          ? {}
+          : {
+              outcome: 'failed',
+              error: { operation: 'input', code: 'command-failed', message: event.errorMessage }
+            })
+      })
+    }
     if (
       (event.type === 'compaction_end' && event.result) ||
       (event.type === 'entry_appended' && (event.entry.type === 'compaction' || event.entry.type === 'context_edit'))
