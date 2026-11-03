@@ -29,7 +29,8 @@ export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
   for (const segment of segments) {
-    const trimmed = segment.trim()
+    // NUL bytes make child_process.spawn throw on `env.Path`; strip them.
+    const trimmed = segment.replace(/\u0000/g, '').trim()
     if (!trimmed) continue
     const canonical = canonicalPathSegment(trimmed)
     if (seen.has(canonical)) continue
