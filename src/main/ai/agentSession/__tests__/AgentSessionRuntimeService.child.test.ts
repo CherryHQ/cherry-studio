@@ -320,6 +320,7 @@ it('waits for an in-flight prewarm and delivers child updates without another at
     kind: 'child',
     contextId: f.context.id,
     sessionId: f.context.sessionId,
+    canSubmit: false,
     revision: 1,
     patches: [{ type: 'append', messageId: replyId, part: 0, text: ' continued' }],
     order: [replyId],

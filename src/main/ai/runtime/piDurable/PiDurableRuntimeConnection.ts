@@ -176,15 +176,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       try {
         const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
         if (compacted.status !== 'confirmed') throw new Error(compacted.error.message)
-        if (!this.closing && !compacted.value.compacted) {
-          const id = randomUUID()
-          this.events.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-          this.events.push({
-            type: 'chunk',
-            chunk: { type: 'text-delta', id, delta: t('common.agent_compaction_unchanged') }
-          })
-          this.events.push({ type: 'chunk', chunk: { type: 'text-end', id } })
-        }
+        if (!this.closing && !compacted.value.compacted) this.projection?.notice(t('common.agent_compaction_unchanged'))
         if (!this.closing)
           this.events.push({
             type: 'compaction-complete',
