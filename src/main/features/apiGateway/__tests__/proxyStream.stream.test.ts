@@ -95,7 +95,7 @@ vi.mock('../adapters', () => ({
   StreamAdapterFactory: {
     createAdapter: () => ({
       getMessageId: () => 'gateway-response',
-    transformChunk: (chunk: UIMessageChunk) => {
+      transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
       },
