@@ -82,7 +82,7 @@ import { AgentSessionEditError } from './AgentSessionEditError'
 import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
-import { presentCodexHistory } from './importedCodexText'
+import { isCodexContextMessage, presentCodexHistory } from './importedCodexText'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import {
   messageProvenanceSql,
