@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -62,7 +63,7 @@ describe('registerRuntimeDrivers', () => {
   })
 
   it('probes real Claude history through the registered driver', async () => {
-    const directory = await mkdtemp(path.join(process.env.TMPDIR!, 'registry-probe-'))
+    const directory = await mkdtemp(path.join(tmpdir(), 'registry-probe-'))
     try {
       const project = path.join(directory, 'projects', 'project')
       await mkdir(project, { recursive: true })

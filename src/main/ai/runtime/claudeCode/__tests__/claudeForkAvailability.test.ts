@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +15,7 @@ describe('Claude fork availability', () => {
     if (directory) await rm(directory, { recursive: true, force: true })
   })
   it.each([50, 200])('reads a shared file twice for %i candidates and preserves it', async (count) => {
-    directory = await mkdtemp(path.join(process.env.TMPDIR!, 'claude-probe-'))
+    directory = await mkdtemp(path.join(tmpdir(), 'claude-probe-'))
     const project = path.join(directory, 'projects', 'project')
     await mkdir(project, { recursive: true })
     const sessionId = randomUUID()
@@ -43,7 +44,7 @@ describe('Claude fork availability', () => {
     expect(await readdir(project)).toEqual([`${sessionId}.jsonl`])
   })
   it('isolates later malformed rows and distinguishes missing selected and ancestor', async () => {
-    directory = await mkdtemp(path.join(process.env.TMPDIR!, 'claude-probe-'))
+    directory = await mkdtemp(path.join(tmpdir(), 'claude-probe-'))
     const project = path.join(directory, 'projects', 'project')
     await mkdir(project, { recursive: true })
     const sessionId = randomUUID(),
@@ -69,7 +70,7 @@ describe('Claude fork availability', () => {
     expect(result.get('late')).toEqual({ enabled: false, reason: 'history_corrupt' })
   })
   it('allows appended history but rejects a changed prefix', async () => {
-    directory = await mkdtemp(path.join(process.env.TMPDIR!, 'claude-probe-'))
+    directory = await mkdtemp(path.join(tmpdir(), 'claude-probe-'))
     const project = path.join(directory, 'projects', 'project')
     await mkdir(project, { recursive: true })
     const session = randomUUID(),
