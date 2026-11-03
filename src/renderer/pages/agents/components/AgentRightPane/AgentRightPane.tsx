@@ -101,7 +101,7 @@ import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRunti
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import type { SelectionReference } from '@renderer/types/selectionReference'
+import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -1115,7 +1115,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
 
   const sessionId = meta.sessionId
   const insertSelectionReference = useCallback(
-    (reference: SelectionReference) => {
+    (reference: ComposerFileReference) => {
       if (!sessionId) return
       void EventEmitter.emit(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, {
         topicId: buildAgentSessionTopicId(sessionId),
@@ -1138,7 +1138,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   )
   const pane = (
     <ArtifactPaneView
-      headerVariant="pane"
       paneTitle={scope.filesTitle}
       paneActions={<RightPanelHeaderControls canMaximize />}
       workspacePath={state.workspacePath}
@@ -1149,7 +1148,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onRetainFileTab={actions.retainFileTab}
       onAttachPathToContext={attachPathToContext}
       onPreviewClose={actions.closeFilePreview}
-      enableFileSearch
       fileSession={state.fileSession}
       editMode={state.previewFileSelection?.readOnly ? 'preview' : state.editMode}
       onEditModeChange={actions.setFileEditMode}

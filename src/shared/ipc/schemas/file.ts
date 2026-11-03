@@ -173,10 +173,11 @@ export const fileRequestSchemas = {
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.validate_notes_directory': defineRoute({ input: AbsoluteFilePathSchema, output: z.boolean() }),
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
   // `activate` releases the buffered mutations once the renderer mirror is listening.
-  // See docs/references/file/directory-tree.md.
+  // See docs/dev/references/file/directory-tree.md.
   'file.tree.create': defineRoute({
     input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
     // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —

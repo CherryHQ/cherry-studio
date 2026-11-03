@@ -1,7 +1,12 @@
 import type { UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
-import { type ChannelAdapter, sanitizeChannelOutput, type SendMessageOptions } from '@main/ai/channels'
+import {
+  type ChannelAdapter,
+  sanitizeChannelOutput,
+  sanitizeChannelOutputSilently,
+  type SendMessageOptions
+} from '@main/ai/channels'
 import { t } from '@main/i18n'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -9,6 +14,8 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
+// Sanitizing re-scans the whole reply, so coalesce deltas instead of paying that per chunk.
+const LIVE_UPDATE_INTERVAL_MS = 250
 
 /** Bucket for text whose chunks carried no attempt id (direct feeds outside the stream manager). */
 const UNTAGGED_ATTEMPT = -1
@@ -49,6 +56,10 @@ export class ChannelAdapterListener implements StreamListener {
    * lands on the predecessor's card (Feishu) or is deleted by the predecessor's cleanup (Discord).
    */
   private updateChain: Promise<unknown> = Promise.resolve()
+  /** Last text pushed as a live draft, so a coalesced tick that changed nothing stays silent. */
+  private lastLiveText = ''
+  /** Coalesces deltas: sanitizing re-scans the whole reply, so do it per tick, not per chunk. */
+  private liveUpdateTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -135,27 +146,52 @@ export class ChannelAdapterListener implements StreamListener {
       // Fresh output owes the channel a delivery — a listener outlives one settle (a chain-hold gap
       // keeps the topic alive so the next turn carries this same listener).
       this.delivered = false
-      // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
-      // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
-      // be redacted before they leave. Queued behind `updateChain` like the terminal: the
-      // adapter keeps ONE live controller per chat, so an update emitted while a predecessor's
-      // finalize is still awaited would rewrite that predecessor's card content.
-      //
-      // One live slot per attempt: a superseded slot skips without touching the adapter and the
-      // snapshot text is read from the buffer when the slot runs — so generation faster than the
-      // network leaves one draft, not one per delta. Different attempts keep their queue order
-      // and their own buckets, so the chain never merges or reorders across attempts.
+      // One live slot per attempt: a newer delta supersedes the slot before it. The tick is
+      // coalesced (sanitizing re-scans the whole reply), and the slot only marks *which* attempt
+      // the draft belongs to — the text is read from the buffer when it runs, so generation faster
+      // than the network leaves one draft per tick, not one per delta. Different attempts keep
+      // their own buckets, so the chain never merges or reorders across attempts.
       const previous = this.liveUpdates.get(key)
       if (previous) previous.superseded = true
-      const slot: PendingUpdate = { superseded: false }
-      this.liveUpdates.set(key, slot)
-      const update = this.updateChain.then(() => {
-        if (slot.superseded) return
-        const { text } = sanitizeChannelOutput(this.ownedText(attemptId))
-        return this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
-      })
-      this.updateChain = update.catch(() => undefined)
+      // Re-insert so Map iteration order keeps the freshest attempt last — the tick reads the tail.
+      this.liveUpdates.delete(key)
+      this.liveUpdates.set(key, { superseded: false })
+      if (this.adapter.onTextUpdate && !this.liveUpdateTimer) {
+        this.liveUpdateTimer = setTimeout(() => this.pushLiveUpdate(), LIVE_UPDATE_INTERVAL_MS)
+      }
     }
+  }
+
+  private pushLiveUpdate(): void {
+    this.liveUpdateTimer = undefined
+    // The stream manager prunes a retired adapter without a terminal callback, so this timer can outlive it.
+    if (!this.isAlive()) return
+    // Every attempt with unshipped drafts gets one snapshot per tick, in insertion order: the slot
+    // was already superseded by any later delta of the same attempt, and the text is read here so
+    // the snapshot covers the whole tick. Different attempts keep their own buckets, so the chain
+    // never merges or reorders across attempts.
+    const drafts: string[] = []
+    for (const [key, slot] of this.liveUpdates) {
+      if (slot.superseded) continue
+      slot.superseded = true
+      // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
+      // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
+      // be redacted before they leave.
+      const text = sanitizeChannelOutputSilently(this.ownedText(key === UNTAGGED_ATTEMPT ? undefined : key))
+        .text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')
+      if (text === this.lastLiveText) continue
+      this.lastLiveText = text
+      drafts.push(text)
+    }
+    if (drafts.length === 0) return
+    // Queued behind `updateChain` like the terminal: the adapter keeps ONE live controller per
+    // chat, so an update emitted while a predecessor's finalize is still awaited would rewrite
+    // that predecessor's card content.
+    let update = this.updateChain
+    for (const text of drafts) {
+      update = update.then(() => (this.isAlive() ? this.updateStream(text) : undefined))
+    }
+    this.updateChain = update.catch(() => undefined)
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
@@ -201,6 +237,9 @@ export class ChannelAdapterListener implements StreamListener {
 
   private async finish(status: 'success' | 'paused', attemptId?: number): Promise<void> {
     this.noteTerminalAttempt(attemptId)
+    // A draft tick queued behind this terminal would render text the terminal already shipped.
+    clearTimeout(this.liveUpdateTimer)
+    this.liveUpdateTimer = undefined
     // Take this execution's text BEFORE yielding: a predecessor's finalize can still be in flight
     // when a wake emits through this carried listener, and text arriving during the await below
     // belongs to that wake, not to this execution.
@@ -234,6 +273,9 @@ export class ChannelAdapterListener implements StreamListener {
     // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
     // this carried listener during the await does not inherit or re-ship it.
     this.takeOwnText(result.attemptId)
+    // A draft tick queued behind this terminal would render text the terminal already shipped.
+    clearTimeout(this.liveUpdateTimer)
+    this.liveUpdateTimer = undefined
     // Same synchronous discipline as `finish`: decide delivery and reserve the terminal's chain
     // position before yielding — a wake chunk queued while the outstanding draft settles must land
     // behind this error terminal, not ahead of it on the chat's single controller.

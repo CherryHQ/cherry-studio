@@ -45,6 +45,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useLatest } from '@renderer/hooks/useLatest'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -96,6 +97,7 @@ import {
   replaceEditedMessageParts
 } from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
+import { useNoteReferenceMentionItems } from './chat/useNoteReferenceMentionItems'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -115,7 +117,6 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
-import { useLatest } from './shared/useLatest'
 import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('ChatComposer')
@@ -1108,9 +1109,22 @@ const ChatComposerInner = ({
     [reconcileTokens]
   )
 
+  const { getItems: getNoteReferenceItems, onExit: closeNoteReferences } = useNoteReferenceMentionItems({
+    files,
+    setFiles
+  })
+  const additionalReferenceItems = useMemo(
+    () => ({
+      getItems: getNoteReferenceItems,
+      onExit: closeNoteReferences,
+      title: t('chat.input.note_reference.title')
+    }),
+    [closeNoteReferences, getNoteReferenceItems, t]
+  )
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',
-    excludeId: topicId
+    excludeId: topicId,
+    additionalItems: additionalReferenceItems
   })
 
   const onPause = useCallback(() => {

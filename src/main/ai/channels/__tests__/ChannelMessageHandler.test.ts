@@ -60,7 +60,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../security/OutputSanitizer', () => ({
-  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
+  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false })),
+  sanitizeChannelOutputSilently: vi.fn((text: string) => ({ text, redactedPatterns: [] }))
 }))
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits

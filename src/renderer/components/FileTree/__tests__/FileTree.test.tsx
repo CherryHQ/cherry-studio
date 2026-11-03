@@ -248,15 +248,8 @@ describe('FileTree - icon behaviour', () => {
 
 describe('FileTree - search box', () => {
   it('does not render the search input when showSearch is omitted', () => {
-    render(
-      <FileTree
-        nodes={nodes}
-        searchToolbar={<span data-testid="search-toolbar">Tools</span>}
-        renderList={passthroughRenderList}
-      />
-    )
+    render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
     expect(screen.queryByTestId('file-tree-search-input')).toBeNull()
-    expect(screen.queryByTestId('search-toolbar')).toBeNull()
   })
 
   it('reflects the controlled keyword and reports input changes', () => {
@@ -276,7 +269,7 @@ describe('FileTree - search box', () => {
     expect(onSearchKeywordChange).toHaveBeenCalledWith('updated')
   })
 
-  it('renders the search toolbar and keeps the clear button usable', async () => {
+  it('labels the clear button with searchClearLabel', async () => {
     const onSearchKeywordChange = vi.fn()
     const user = userEvent.setup()
     render(
@@ -285,17 +278,11 @@ describe('FileTree - search box', () => {
         showSearch
         searchKeyword="abc"
         searchClearLabel="Clear files search"
-        searchToolbar={
-          <button type="button" data-testid="search-toolbar">
-            Refresh
-          </button>
-        }
         onSearchKeywordChange={onSearchKeywordChange}
         renderList={passthroughRenderList}
       />
     )
 
-    expect(screen.getByTestId('search-toolbar')).toBeInTheDocument()
     await user.click(screen.getByLabelText('Clear files search'))
     expect(onSearchKeywordChange).toHaveBeenCalledWith('')
   })
