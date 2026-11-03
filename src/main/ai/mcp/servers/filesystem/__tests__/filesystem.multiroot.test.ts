@@ -197,19 +197,20 @@ describe('filesystem multiple roots', () => {
 
   it('displays paths relative to the matching canonical root', async () => {
     const { roots } = await fixture()
+    const rel = path.join('sub', 'file.txt')
     for (const root of roots.slice(1)) {
       const file = path.join(root, 'sub', 'file.txt')
-      expect(await call(roots, 'write', { file_path: file, content: 'old' })).toContain('Created file: sub/file.txt')
-      expect(await call(roots, 'read', { file_path: file })).toContain('File: sub/file.txt')
+      expect(await call(roots, 'write', { file_path: file, content: 'old' })).toContain(`Created file: ${rel}`)
+      expect(await call(roots, 'read', { file_path: file })).toContain(`File: ${rel}`)
       expect(await call(roots, 'edit', { file_path: file, old_string: 'old', new_string: 'new' })).toContain(
-        'Edited: sub/file.txt'
+        `Edited: ${rel}`
       )
       expect(await call(roots, 'edit', { file_path: file, old_string: '', new_string: 'overwrite' })).toContain(
-        'Overwrote file: sub/file.txt'
+        `Overwrote file: ${rel}`
       )
-      expect(await call(roots, 'delete', { path: file })).toContain('File deleted: sub/file.txt')
+      expect(await call(roots, 'delete', { path: file })).toContain(`File deleted: ${rel}`)
       expect(await call(roots, 'edit', { file_path: file, old_string: '', new_string: 'create' })).toContain(
-        'Created new file: sub/file.txt'
+        `Created new file: ${rel}`
       )
     }
   })
