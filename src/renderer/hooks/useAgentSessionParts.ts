@@ -329,14 +329,19 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
   )
 
+  const loadOlder = useCallback(() => {
+    if (enabled && !error && !isLoading && !isRefreshing) loadNext()
+  }, [enabled, error, isLoading, isRefreshing, loadNext])
+
   return {
     messages,
     getMessageSiblings,
     setActiveBranch,
     persistedPartsByMessageId,
+    error,
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
-    loadOlder: loadNext,
+    loadOlder,
     selectAllPagination,
     refresh: refreshMessages,
     seedReservedMessages,

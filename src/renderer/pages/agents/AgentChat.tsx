@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
+import { Alert, Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
@@ -39,6 +39,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -275,6 +276,7 @@ const AgentChat = ({
     sessionMessagesEnabled &&
     !runtime.isLoading &&
     !runtime.isPending &&
+    !runtime.historyError &&
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
@@ -624,6 +626,7 @@ const AgentChatSessionCenter = ({
   composerLaunchOptions,
   openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
+  const { t } = useTranslation()
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
@@ -686,6 +689,14 @@ const AgentChatSessionCenter = ({
             title={homeWelcomeText ?? ''}
           />
         </div>
+      )}
+      {runtime.historyError && (
+        <Alert
+          type="error"
+          showIcon
+          message={t('common.error')}
+          description={formatErrorMessage(runtime.historyError)}
+        />
       )}
       {messageList}
     </div>
