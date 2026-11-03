@@ -155,6 +155,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </div>
   ),
   Skeleton: () => <div data-testid="skeleton" />,
+  Tooltip: (await importOriginal<typeof CherryUiModule>()).Tooltip,
   Switch: (await importOriginal<typeof CherryUiModule>()).Switch
 }))
 

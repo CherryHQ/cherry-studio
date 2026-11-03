@@ -17,7 +17,8 @@ import {
   EmptyState,
   Label,
   Skeleton,
-  Switch
+  Switch,
+  Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { SkillSourceBadge } from '@renderer/components/resourceCatalog/catalog'
@@ -257,20 +258,23 @@ export function SkillDetails({ skillId }: { skillId: string }) {
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={skill.mirrorEnabled}
-                disabled={isUpdating || isUpdatingMirror}
-                aria-label={t('settings.skills.externalAgents')}
-                aria-describedby={`${mirrorToggleId}-description`}
-                onSelect={(event) => event.preventDefault()}
-                onCheckedChange={(checked) => void handleMirrorToggle(checked)}>
-                <span className="flex max-w-64 flex-col gap-1">
-                  <span>{t('settings.skills.externalAgents')}</span>
-                  <span id={`${mirrorToggleId}-description`} className="text-xs text-muted-foreground">
+              <Tooltip
+                title={t('settings.skills.externalAgentsDescription', { path: '~/.agents/skills' })}
+                placement="right"
+                asChild>
+                <DropdownMenuCheckboxItem
+                  checked={skill.mirrorEnabled}
+                  disabled={isUpdating || isUpdatingMirror}
+                  aria-label={t('settings.skills.externalAgents')}
+                  aria-describedby={`${mirrorToggleId}-description`}
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={(checked) => void handleMirrorToggle(checked)}>
+                  {t('settings.skills.externalAgents')}
+                  <span id={`${mirrorToggleId}-description`} className="sr-only">
                     {t('settings.skills.externalAgentsDescription', { path: '~/.agents/skills' })}
                   </span>
-                </span>
-              </DropdownMenuCheckboxItem>
+                </DropdownMenuCheckboxItem>
+              </Tooltip>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
                 <Trash2 size={14} />
