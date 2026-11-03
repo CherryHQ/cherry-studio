@@ -4,8 +4,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { createMcpSkillsFixture } from '@test-helpers/mcpSkills'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
+import {
+  callKeyOf,
+  createFakeHarness,
+  createScriptedHost,
+  install,
+  type GateHandlers
+} from '@cherrystudio/agent-behavior'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -22,7 +30,8 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CLAUDE_TOOL_GUARD_RULES } from '@main/ai/runtime/claudeCode/guardRules'
-import { createPiToolAuthorizer } from '@main/ai/runtime/pi/approvalExtension'
+import type { PiApprovalContext } from '@main/ai/runtime/pi/piApprovalFacts'
+import { createPiInteractionPorts } from '@main/ai/runtime/pi/piBehaviorHost'
 import { buildPiMcpToolName } from '@main/ai/runtime/pi/piMcpExtension'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -381,16 +390,11 @@ describe('session MCP skills through real protocol and persistence', () => {
     onRequest?: (approvalId: string) => void,
     mode: 'default' | 'auto' | 'bypassPermissions' = 'default'
   ) {
-    return createPiToolAuthorizer({
+    const approval: PiApprovalContext = {
       sessionId,
       workspacePath: '/tmp',
       agentDataPath: '/tmp/agent',
       additionalReadOnlyRoots: [],
-      emit: (event) => {
-        if (event.type !== 'tool-approval-request') return
-        if (onRequest) onRequest(event.request.approvalId)
-        else toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
-      },
       getPermissionMode: () => mode,
       getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
       isDisabled: () => false,
@@ -406,7 +410,63 @@ describe('session MCP skills through real protocol and persistence', () => {
           buildPiMcpToolName(serverName, toolName)
         )
       )
-    })
+    }
+    return async (event: { toolName: string; toolCallId: string; input: Record<string, unknown> }) => {
+      let gate!: GateHandlers
+      const host = createScriptedHost({
+        settings: {
+          permissionMode: mode,
+          attendance: 'stream',
+          goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+          autonomy: 'auto',
+          maxBackground: 4,
+          offloadThreshold: 20000
+        }
+      })
+      const interactions = await createPiInteractionPorts({
+        input: { sessionId, agentId, modelId: 'test::model' },
+        approval,
+        toolCallId: async () => event.toolCallId,
+        emit: (event) => {
+          if (event.type !== 'tool-approval-request') return
+          if (onRequest) onRequest(event.request.approvalId)
+          else toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
+        }
+      })
+      const fake = createFakeHarness({
+        install: (ports) =>
+          install(
+            {
+              ...ports,
+              lifecycle: { register: () => {} },
+              toolGate: {
+                register: (handlers) => {
+                  gate = handlers
+                }
+              }
+            },
+            { ...host, ...interactions }
+          )
+      })
+      const thread = await fake.createThread()
+      const result = await fake.withCall(thread, (ports) =>
+        gate.before(
+          {
+            thread,
+            key: callKeyOf(event.toolCallId),
+            tool: event.toolName,
+            args: z.json().parse(event.input),
+            nested: false,
+            signal: new AbortController().signal
+          },
+          { goalRound: false, callWindow: [], plan: undefined },
+          ports
+        )
+      )
+      if (result.block) return { block: true, reason: result.block }
+      if (result.args && typeof result.args === 'object') Object.assign(event.input, result.args)
+      return undefined
+    }
   }
 
   it('requires per-call code execution approval in both runtimes in default mode', async () => {
@@ -431,6 +491,26 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(skills.toolApproval(sessionId, 'read', {})).toBeUndefined()
     expect(skills.toolApproval(sessionId, 'mcp__example__lookup', {})).toBeUndefined()
   })
+
+  it.each(['subagent', 'message_subagent'])(
+    'gates native Pi %s after loading remote instructions',
+    async (toolName) => {
+      const call = { toolName, toolCallId: 'native-delegation', input: { prompt: 'Run a command' } }
+      await expect(authorizer(false, undefined, 'auto')(call)).resolves.toBeUndefined()
+      await skills.load(sessionId, serverId, fixture.uri)
+      await expect(authorizer(false, undefined, 'auto')(call)).resolves.toMatchObject({ block: true })
+      await expect(authorizer(true, undefined, 'auto')(call)).resolves.toBeUndefined()
+      await expect(
+        authorizer(
+          false,
+          () => {
+            throw new Error('Unexpected approval')
+          },
+          'bypassPermissions'
+        )(call)
+      ).resolves.toBeUndefined()
+    }
+  )
 
   describe.each([
     {

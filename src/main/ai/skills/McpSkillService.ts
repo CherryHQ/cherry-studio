@@ -55,6 +55,8 @@ const executionTools = new Set([
   'Skill',
   'Agent',
   'Task',
+  'subagent',
+  'message_subagent',
   'mcp__cherry-tools__session_create',
   'mcp__cherry-tools__session_send',
   'mcp__cherry_tools__session_create',

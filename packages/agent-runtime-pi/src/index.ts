@@ -69,6 +69,7 @@ export {
   createPiRuntime,
   type PiRuntime,
   type PiRuntimeOptions,
+  type PiRuntimeBehavior,
   type PiSessionOptions,
   type PiThreadHandle
 } from './runtime'
