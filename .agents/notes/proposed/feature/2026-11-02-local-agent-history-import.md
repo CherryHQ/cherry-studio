@@ -133,7 +133,7 @@ All adapters allow explicit store selection. Register default store paths under 
 | File/image references | Historical reference text with missing, unsupported, and not-copied findings; no automatic download |
 | Unknown types or invalid JSON | Diagnose the location and continue parsing recoverable content |
 
-Match tool results by call ID, never as user speech. Unmatched results remain labeled historical notes. Do not import pending tools, approvals, or generation state. Explicitly completed, failed, and interrupted messages use `success`, `error`, and `paused`.
+Keep historical tools as inert persisted text. Present supported tool-call/result markers as completed, display-only tool items under the existing Processed disclosure, including older imported records. Match tool results by call ID when available, never as user speech. Unmatched results remain labeled historical notes. Do not import pending tools, approvals, or generation state. Explicitly completed, failed, and interrupted messages use `success`, `error`, and `paused`.
 
 Project one selected source branch into the flat Agent Session. Use an explicit active branch when available; otherwise require a preview choice. Report other branches as not imported. Independently recoverable subagent sessions are separate candidates under the selected target Agent. Never concatenate mutually exclusive branches.
 
@@ -168,23 +168,24 @@ interface AgentSessionImportMetadata {
 }
 ```
 
-Keep the active directory in `workspaceId`; the original path is provenance, not a parallel workspace state. Add a unique expression index on `source + originalSessionId`, including sessions in the recycle bin, independent of the chosen Agent. Changing targets does not create a second copy or move an existing import; report the existing session and its current owner. Existing sessions without metadata remain unaffected. Paths and content hashes are not identities. Reject sources without a verified stable ID.
+Keep the active directory in `workspaceId`; the original path is provenance, not a parallel workspace state. Index `source + originalSessionId` for active sessions, independent of the chosen Agent. Check this identity inside the synchronous write transaction to serialize repeated imports. The lookup index is non-unique so restoring an archived copy can coexist with a later import. Changing targets does not create a second copy or move an existing import; report the existing session and its current owner. Existing sessions without metadata remain unaffected. Paths and content hashes are not identities. Reject sources without a verified stable ID.
 
 | Case | Result |
 |---|---|
 | Reimport an existing session, including with another target | Return the existing session and owner; do not copy or move it |
 | Source history grows | Report already imported; no automatic append or overwrite |
-| Selected Agent or existing imported session is in the recycle bin | Require an active target or restoration as applicable; do not silently recreate imported history |
+| Selected Agent is in the recycle bin | Require an active target |
+| Imported session is archived | Preserve the archived copy and import a new session under the selected Agent; restoring the old copy remains supported |
 | Session was permanently deleted | Allow reimport under the selected valid Agent |
 | User renamed an Agent or moved a session | Preserve those changes; reimport does not move it back |
 | User duplicates or forks a session | Clear the new session's unique import identity |
 | Conflicting copies claim one source ID | Report a conflict without merging silently |
 
-Use one synchronous `DbService.withWriteTx` per source session. Each transaction revalidates the selected Agent's active state and runtime compatibility, then creates necessary workspace records, the session with that `agentId`, messages, provenance, and the initialization marker together. Failure rolls back that session's writes; the existing Agent and its other sessions remain intact. Sessions commit independently. Cancellation or target invalidation stops subsequent sessions; report what was already committed.
+Use one synchronous `DbService.withWriteTx` per source session. Each transaction revalidates the selected Agent's active state and runtime compatibility, then creates necessary workspace records, the session with that `agentId`, messages, provenance, and the initialization marker together. Failure rolls back that session's writes; the existing Agent and its other sessions remain intact. Sessions commit independently. In a mixed batch, skip blocked sessions and commit valid sessions. Keep successes visible and retry only unresolved selections with a fresh preview. Cancellation or target invalidation stops subsequent sessions; report what was already committed.
 
 Read files, parse, validate directories, and calculate fingerprints outside the write transaction. No `await`, file writes, or network calls occur inside it. Compose the owning services' Tx methods and publish their events only after commit. Never break a large session into separately committed chunks to evade transaction limits.
 
-Append migrations for session metadata, typed message provenance, and uniqueness constraints, without Agent source markers or an import-ledger table. Cover populated databases, trash, duplication, and existing full/slim backup restoration. Preserve source identity. Missing native files require reliable reconstruction from persisted history before continuation; otherwise block explicitly. Session-level backup merging is outside this change.
+Append migrations for session metadata, typed message provenance, and the active identity lookup index, without Agent source markers or an import-ledger table. Cover populated databases, trash, duplication, and existing full/slim backup restoration. Preserve source identity. Missing native files require reliable reconstruction from persisted history before continuation; otherwise block explicitly. Session-level backup merging is outside this change.
 
 ### Implementation ownership and stack
 
@@ -238,18 +239,18 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC4 — Recorded working directories bind correctly, and equivalent normalized paths reuse a user workspace. (verification: unit workspace and session relations)
 - AC5 — Absent working directories display No work directory and use the existing system-workspace semantics. (verification: unit and renderer)
 - AC6 — Missing, inaccessible, and foreign-platform directories require preview mapping or skipping, without silent fallback. (verification: unit and Electron directory fixtures)
-- AC7 — Repeated/concurrent imports, including different target selections, create no duplicate sessions; selection uses Agent IDs despite equal names, and existing imports retain their owner. (verification: unit concurrency, cross-target, rename, and namesake fixtures)
+- AC7 — Repeated/concurrent imports, including different target selections, create no duplicate active imports while an active matching session exists; archived copies do not block a new import; selection uses Agent IDs despite equal names, and existing imports retain their owner. (verification: unit concurrency, cross-target, rename, and namesake fixtures)
 - AC8 — Empty input, cancelled previews, all-duplicate batches, and failed transactions leave no empty session or workspace and do not create or alter Agent configuration. (verification: unit state and source-directory comparisons)
 - AC9 — Imported content, valid timestamps, and supported source order remain consistent through persistence, pagination, and reload. With source timestamps one day ahead of the local clock, either new user/assistant turns remain after all imported history without changing timestamps, or preview rejects the session and commit rechecks before any session writes. (verification: unit clock-skew/ordering fixtures with controlled time and renderer paging/reload)
 - AC10 — Invalid JSON and unknown records have actionable locations/reasons while recoverable messages still import. (verification: unit mixed-record fixtures)
-- AC11 — A failed session rolls back atomically; cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection and cancellation)
+- AC11 — A failed session rolls back atomically while valid sessions in the batch are saved. Retrying unresolved selections does not duplicate successes. Cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection and cancellation)
 - AC12 — Changed sources/directories, a changed or deleted target, incompatible runtime changes, or expired previews require renewed selection/preview; foreign-window tokens and substituted target IDs are rejected. (verification: unit and renderer boundary checks)
 - AC13 — Codex indexes/events do not duplicate content, and shared root-session IDs do not merge distinct threads. (verification: unit missing-index and fork fixtures)
 - AC14 — OpenCode reads supported schemas including committed WAL data and clearly rejects unknown schemas. (verification: unit real SQLite fixtures)
 - AC15 — WorkBuddy support is limited to desktop formats and directory fields verified by declared versioned samples. (verification: unit versioned adapter fixtures)
-- AC16 — Opening/importing history never executes historical tools, requests approvals, or starts generation. (verification: unit runtime boundaries and Electron)
+- AC16 — Historical tool calls/results display as completed tool items under Processed, including old imports. Opening/importing or expanding them never executes historical tools, requests approvals, or starts generation. (verification: unit runtime boundaries and Electron)
 - AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
-- AC18 — Imported sessions support search, duplication, trash, and restore; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
+- AC18 — Imported sessions support search, duplication, trash, and restore; reimport preserves archived copies, and restoring one after reimport keeps both histories; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
 - AC19 — Forward migration and existing full/slim backup round trips retain provenance, ownership, and workspaces; missing native history is reliably rebuilt or continuation explicitly blocked. No backup merging is added. (verification: unit populated-database migration and restore fixtures)
 - AC20 — Windows, macOS, and Linux satisfy path mapping and read-only source access, with simulations and native evidence distinguished. (verification: unit platform cases and platform-native Electron)
 - AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
@@ -270,4 +271,4 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Backup restoration | Preserve identity through existing full/slim backups; no new merge capability |
 | Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the four-source implementation sequence |
 
-The first version fixes Pi targets, timestamp-conflict rejection, historical tool text, attachment references, and existing backup restoration. Reimports skip; incremental sync is separate work. Complete declared source-version matrices and boundary fixtures before enabling each source. WorkBuddy desktop samples are a prerequisite for layer four. Earlier layers can ship independently without samples, but WorkBuddy stays disabled and #22728 remains incomplete.
+The first version fixes Pi targets, timestamp-conflict rejection, historical tool text, attachment references, and existing backup restoration. Reimports skip active matches; archived copies remain intact and allow a new import. Incremental sync is separate work. Complete declared source-version matrices and boundary fixtures before enabling each source. WorkBuddy desktop samples are a prerequisite for layer four. Earlier layers can ship independently without samples, but WorkBuddy stays disabled and #22728 remains incomplete.
