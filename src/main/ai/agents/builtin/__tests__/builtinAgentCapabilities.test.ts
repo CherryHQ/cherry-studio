@@ -7,6 +7,7 @@ import { AGENT_TYPES, type AgentType } from '@shared/data/api/schemas/agents'
 import {
   hostToolsEnabled,
   resolveAgentCapabilities,
+  resolveAgentUserMcpIds,
   resolveHostTools,
   resolveMountedMcpServers
 } from '../builtinAgentCapabilities'
@@ -135,5 +136,28 @@ describe('Agent memory mounting', () => {
         { channelLinked: false }
       ).has('agent-memory')
     ).toBe(true)
+  })
+})
+
+describe('resolveAgentUserMcpIds', () => {
+  it.each(['doctor', 'support', 'assistant', undefined, 'unknown'])(
+    'projects user bindings without mutating storage for role %s',
+    (role) => {
+      const mcps = Object.freeze(['second', 'first', 'second']) as unknown as string[]
+      const configuration = role === undefined ? undefined : Object.freeze({ builtin_role: role })
+      const agent = Object.freeze({ mcps, configuration }) as Parameters<typeof resolveAgentUserMcpIds>[0]
+      const ids = resolveAgentUserMcpIds(agent)
+      if (role === 'doctor' || role === 'support') expect(ids).toEqual([])
+      else expect(ids).toBe(mcps)
+      expect(agent.mcps).toBe(mcps)
+      expect(agent.mcps).toEqual(['second', 'first', 'second'])
+      expect(agent.configuration).toBe(configuration)
+    }
+  )
+
+  it('keeps an ordinary agent open and defaults absent bindings to empty', () => {
+    const mcps = ['second', 'first']
+    expect(resolveAgentUserMcpIds({ mcps, configuration: {} })).toBe(mcps)
+    expect(resolveAgentUserMcpIds({})).toEqual([])
   })
 })
