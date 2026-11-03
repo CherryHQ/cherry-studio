@@ -200,8 +200,8 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    turn, no queue entry. If the turn ends before the steer is injected
    (it called no tool after the steer arrived), the connection emits
    `steer-undelivered` and the host queues it as the next turn. Pi consumes its own
-   queue: unplaced inputs remaining after stop/error become aborted submission
-   facts and are not automatically resent.
+   queue: unplaced inputs remaining after stop/error are marked aborted in the live
+   projection and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
@@ -544,12 +544,17 @@ the shared prefix's original context. Confirmed native progress marks the
 binding as `bound`; the product message tree owns the published branch head.
 
 For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
-Main records submission facts privately on the existing user message; final response persistence
-commits response associations in the same transaction. Observation snapshots establish the live
+Main stores the native context binding and placed input entry ID on the existing user message.
+Input outcomes and response associations remain in the live projection; assistant persistence
+confirms the branch binding and saves its resume token and checkpoint atomically.
+Observation snapshots establish the live
 projection baseline and never replace or replay the product archive. Lost observations fail closed.
 A bound or previously submitted context requires exactly one existing native file with the expected
 ID. A missing or ambiguous file is an error, not permission to recreate from display history.
-Only a never-submitted intent can stay unflushed; its resume token is published after native persistence.
+Only a never-submitted intent can stay unflushed; local commands persist their native state before
+acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
+On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
+identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file

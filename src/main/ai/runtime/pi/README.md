@@ -70,16 +70,20 @@ Observation loss fails the turn and retires the owner.
 persistence, branch bindings, UI chunks, trace context and configuration reconciliation. Retiring the
 class requires moving those consumers to `ThreadHandle`; installing behavior alone does not remove it.
 
-Before dispatch, Main records submission identity and facts on the existing user row. Native placement
-and settlement update those facts; final assistant persistence commits response associations in the
-same database transaction. Attachments retain Cherry's existing file-path input representation.
+Before dispatch, Main binds the existing user row to its native context; placement adds the native
+input entry ID. Input outcomes and response associations remain in the live runtime projection.
+Saving an assistant row confirms its branch binding and stores its resume token and checkpoint in
+the same transaction. Attachments retain Cherry's existing file-path input representation.
 
 A root opens only the native identity bound to its captured product branch. Confirmed or previously
 submitted contexts require one existing, identity-checked file. Only a never-submitted creation intent
-may have no file yet; Pi flushes lazily and Cherry publishes its resume token after that evidence.
+may have no file yet; Pi flushes lazily, except that locally handled commands explicitly persist
+their native state before acknowledgement. Cherry publishes its resume token after native persistence.
 There is no reconstruction from product messages. The connection stays owned while idle until explicit
-retirement or application shutdown; stopping aborts native work and flushes observed input facts.
-Queued inputs Pi never placed are marked aborted and are not automatically resent after a stop/error.
+retirement or application shutdown; stopping cancels native execution and manual compaction before
+waiting for admission to finish. Queued inputs Pi never placed are marked aborted in the live projection
+and are not automatically resent after a stop/error. Startup terminalizes Pi's abandoned product
+placeholders while preserving native bindings and history; delivery recovery owns persisted delivery turns.
 
 ## Verification boundaries
 

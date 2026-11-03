@@ -35,6 +35,7 @@ as required by the behavior adapter's request accounting.
 
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
   `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
+  Local handling flushes native state before acknowledgement, including a fresh plan-held goal.
 - Child `input.submit` supports `steer` through `entries.messageSubagent`, using the same admission,
   continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
   carries the caller's `inputId`, including when a background report job starts the continuation.
@@ -45,6 +46,7 @@ as required by the behavior adapter's request accounting.
 - `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
   `pi.compact(instructions)` uses its summary acceptance and compaction lifecycle. A declined
   summary returns `rejected` with code `declined`; no native summary fallback runs.
+  Interrupt and shutdown cancel native compaction even when no behavior run is active.
 - Subagent relations are projected onto the parent; each live child can be opened, observed and
   released independently. Releasing a handle stops its observations. Shutdown closes the shared
   behavior instance, all native sessions and projections.
@@ -116,7 +118,9 @@ context edits, branch entries, system state and extension entries. Extensions se
 at `session_start`. Activated tools are recorded as a native `cherry.tool-loadout` entry and restored
 beside the host's current base tools. Reopening context does not resume work automatically.
 
-Pi creates the file lazily, once a user or assistant message exists. Pi's low-level `open` also
+Pi creates the file lazily, once a user or assistant message exists. The pinned `SessionManager.flush()`
+also persists local-command state without adding a model-visible message; in-memory sessions stay in memory.
+Pi's low-level `open` also
 accepts a missing path as a new session; hosts loading an existing association must check its
 existence and verify the native session ID instead of silently replacing it.
 
@@ -157,7 +161,7 @@ Only final native settlement publishes outcomes, so continuation failure cannot 
 answer marked completed. Queued or subsequently placed inputs are excluded from the preceding response.
 
 `input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
-forwards `input-settled` with typed `stopReason`, `hasToolCalls`, native entry ID, input IDs, and optional error.
+forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
 The common projection links each input's `response` to the observed item. Several inputs may
 share it; assistant messages do not receive a guessed single `inputId`. Normal final replies map
 to `completed`, errors to `failed`, and interruption to `aborted`. Truncation and settlement
@@ -534,7 +538,7 @@ or stop comes from the handlers `install` registers and the steps they decide. T
 | --- | --- | --- |
 | D1 | Runs, jobs, waits and memo do not survive a restart; the contract's five `restart` cases are skipped. | coding-agent resumes nothing after the process ends (H4, H6, H12 `@harness coding-agent`; see "Native session storage"). |
 | D2 | `onOpen(reopened: true)` finds no run to stop: `turns.stop` there, and `helpers.stop` of a child of an earlier process (D5), do nothing and resolve at once; `live.runEnd` stays absent until a run ends in this process. | D1; H12 `@harness coding-agent`: no stop before resume. |
-| D3 | A child session that fails to build after its commit leaves both spawn records and is not in `children`; `transact` rejects with the build error. | H1 `@harness coding-agent`: the session is built right after the commit. |
+| D3 | A child session that fails to build after its commit leaves both spawn records and is not in `children`. The adapter calls `onChildOpenFailed` before starting the commit's jobs, then `transact` rejects with the build error. Shared behavior records the first run as failed and releases its capacity. | H1 `@harness coding-agent`: the session is built right after the commit; the adapter reports the failure and behavior owns terminalization. |
 | D5 | Temporary: children of an earlier process are not in `children`, and their finished runs cannot be continued yet. | The adapter does not load them; PR-2b loads them with `SessionManager.findById` and `open`. |
 | D6 | Temporary: `ChildFacts.runUsage` includes replies and reported summary accounting, but not usage Pi puts on tool results (calls made through `ctx.executeTool`). | The adapter adds up each reply's usage at `message_end`; PR-2b completes it with the usage reporting. |
 

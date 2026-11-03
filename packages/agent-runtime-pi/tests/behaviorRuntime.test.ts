@@ -377,6 +377,53 @@ it('routes manual compaction to the host and preserves the native identity on re
   expect(errors).toEqual([])
 })
 
+// Catches manual compaction surviving Stop or blocking shutdown before native cancellation.
+it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compaction on %s', async (action) => {
+  const provider = respondingModel(() => assistantReply('answer'))
+  const { runtime, config, host } = await setup(provider.model)
+  let started!: (signal: AbortSignal) => void
+  const summaryStarted = new Promise<AbortSignal>((resolve) => {
+    started = resolve
+  })
+  const summary = gate()
+  const root = confirmed(
+    await runtime.create({
+      ...config,
+      behavior: {
+        ...config.behavior!,
+        host: {
+          ...host,
+          summarizer: {
+            summarize: (_request, signal) => {
+              started(signal)
+              signal.addEventListener('abort', summary.open, { once: true })
+              return summary.wait('')
+            }
+          }
+        }
+      }
+    })
+  )
+  const events = await observe(root)
+  await root.input.submit(draft('question'))
+  await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
+  const compacting = root.pi.compact()
+  const signal = await summaryStarted
+  try {
+    const stopping = action === 'interrupt' ? root.interrupt!() : runtime.shutdown()
+    await expect.poll(() => signal.aborted).toBe(true)
+    expect(await stopping).toMatchObject({
+      status: 'confirmed',
+      value: { effect: action === 'interrupt' ? 'requested' : 'closed' }
+    })
+    expect((await compacting).status).not.toBe('confirmed')
+    expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
+  } finally {
+    summary.open()
+    await compacting
+  }
+})
+
 // Catches reporting a declined compaction as successful, or falling back to the native model for its summary.
 it('rejects an empty host summary without changing native history', async () => {
   const provider = respondingModel(() => assistantReply('answer'))

@@ -547,6 +547,35 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  // Catches local commands binding a product input without saving the native state needed to reopen it.
+  it.each(['/goal', '/goal check the files'])(
+    'persists a first local command %s before acknowledging it',
+    async (command) => {
+      snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'plan' }
+      const first = await connect()
+      const user = message(command)
+      await first.connection.send({ message: user })
+      await done(first.events)
+      expect(first.events.filter((event) => event.type === 'error')).toEqual([])
+      expect(script.calls).toHaveLength(0)
+      expect(nativeFiles()).toHaveLength(1)
+      const context = preparePiBranch(input.sessionId)
+      expect(messages.inputBinding(input.sessionId, user.id)?.contextId).toBe(context.id)
+      await first.connection.close()
+      const reopened = await connect()
+      expect(preparePiBranch(input.sessionId).nativeThreadId).toBe(context.nativeThreadId)
+      if (command !== '/goal') {
+        const handle = (reopened.connection as unknown as { handle: PiThreadHandle }).handle
+        expect(JSON.stringify(handle.pi.history())).toContain('check the files')
+      }
+      await reopened.connection.send({ message: message('next question') })
+      await done(reopened.events)
+      expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+      expect(text(reopened.events)).toBe('Hello world')
+      expect(nativeFiles()).toHaveLength(1)
+    }
+  )
+
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()
     await first.connection.send({ message: message('first question') })

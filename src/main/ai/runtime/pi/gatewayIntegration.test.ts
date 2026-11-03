@@ -70,6 +70,7 @@ describe('native Pi through the production gateway', () => {
   let session: AgentRuntimeSession | undefined
   let holdResponse = false
   let upstreamClosed = false
+  let responsesProtocol = false
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   beforeEach(async () => {
@@ -86,8 +87,8 @@ describe('native Pi through the production gateway', () => {
         for (const [name, value] of Object.entries(request.headers)) if (value) headers.set(name, String(value))
         const result = await processMessage({
           params: JSON.parse(raw),
-          inputFormat: 'openai',
-          outputFormat: 'openai',
+          inputFormat: responsesProtocol ? 'openai-responses' : 'openai',
+          outputFormat: responsesProtocol ? 'openai-responses' : 'openai',
           signal: abort.signal,
           requestHeaders: headers
         })
@@ -104,6 +105,7 @@ describe('native Pi through the production gateway', () => {
     requests.length = 0
     holdResponse = false
     upstreamClosed = false
+    responsesProtocol = false
     mocks.messageId = 'original-answer'
     call = () => ({ content: 'Model answer' })
     server = createServer(async (req, res) => {
@@ -111,6 +113,47 @@ describe('native Pi through the production gateway', () => {
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
       requests.push(body)
+      if (responsesProtocol) {
+        const reasoning = {
+          type: 'reasoning',
+          id: `rs_native_${requests.length}`,
+          summary: [],
+          encrypted_content: 'encrypted-native-state'
+        }
+        const message = {
+          type: 'message',
+          id: `msg_native_${requests.length}`,
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: 'answer', annotations: [] }]
+        }
+        const events = [
+          { type: 'response.output_item.added', output_index: 0, item: { ...reasoning, encrypted_content: null } },
+          { type: 'response.output_item.done', output_index: 0, item: reasoning },
+          { type: 'response.output_item.added', output_index: 1, item: { ...message, content: [] } },
+          {
+            type: 'response.output_text.delta',
+            item_id: message.id,
+            output_index: 1,
+            content_index: 0,
+            delta: 'answer'
+          },
+          { type: 'response.output_item.done', output_index: 1, item: message },
+          {
+            type: 'response.completed',
+            response: {
+              id: `resp_${requests.length}`,
+              model: 'wire-model',
+              status: 'completed',
+              output: [reasoning, message],
+              usage: { input_tokens: 100, output_tokens: 25 }
+            }
+          }
+        ]
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        res.end(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''))
+        return
+      }
       const delta = call(body)
       const payload = {
         id: `response-${requests.length}`,
@@ -356,6 +399,44 @@ describe('native Pi through the production gateway', () => {
       expect(executed).toEqual([{}])
       expect(lastAssistant(session.session).content).toEqual([{ type: 'text', text: 'complete' }])
     }
+  })
+
+  // Catches metadata stripped by the production stream pipeline before native Pi can replay it.
+  it('replays encrypted-only reasoning through native Pi and the production Responses gateway', async () => {
+    responsesProtocol = true
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: url } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const directory = tempDir('gateway-responses')
+    session = await createAgentRuntimeSession({
+      ...binding,
+      cwd: directory,
+      agentDir: directory,
+      settings: { retry: { enabled: false } }
+    })
+    await session.prompt('first question')
+    expect(lastAssistant(session.session).stopReason).toBe('stop')
+    await session.prompt('continue')
+    expect(lastAssistant(session.session).stopReason).toBe('stop')
+    expect(requests).toHaveLength(2)
+    expect(requests[1].input).toContainEqual({
+      type: 'reasoning',
+      id: 'rs_native_1',
+      summary: [],
+      encrypted_content: 'encrypted-native-state'
+    })
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
   })
 
   it('freezes message attribution before gateway dispatch', async () => {

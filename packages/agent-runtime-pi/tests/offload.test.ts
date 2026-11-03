@@ -118,9 +118,7 @@ describe('tool output offload', () => {
       }
     })
     const { model } = windowedModel(100_000, (_prompt, call) =>
-      call === 1
-        ? assistantReply([toolCall('figures', 'illustrated', {})], 'toolUse')
-        : assistantReply('Done.')
+      call === 1 ? assistantReply([toolCall('figures', 'illustrated', {})], 'toolUse') : assistantReply('Done.')
     )
     const host = hostStore()
     const { session } = await createTestSession({

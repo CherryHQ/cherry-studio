@@ -448,6 +448,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
                 streamingBehavior: input.whenBusy === 'follow-up' ? 'followUp' : 'steer'
               }),
               preflightResult: (disposition) => {
+                if (disposition === 'handled') entry.session.sessionManager.flush()
                 acknowledged = true
                 const facts: InputFact[] = [
                   disposition === 'started'
@@ -507,8 +508,9 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       async interrupt(): Promise<OperationResult<InterruptReceipt>> {
         if (unavailable()) return rejected('interrupt', 'closed')
         try {
-          const pending = entry.messages.size > 0
+          const pending = entry.messages.size > 0 || entry.session.isCompacting
           for (const controller of entry.messages) controller.abort()
+          entry.session.abortCompaction()
           if (entry.behavior) {
             const { harness, entries } = entry.behavior
             await harness.withCall(entry.ref.id, async (ports) => {
@@ -582,7 +584,10 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         try {
           await Promise.all(entries.values())
           const owners = [...live].filter((entry) => entry.owner)
-          for (const entry of live) for (const controller of entry.messages) controller.abort()
+          for (const entry of live) {
+            for (const controller of entry.messages) controller.abort()
+            entry.session.abortCompaction()
+          }
           await Promise.all([...live].map((entry) => entry.admission))
           await Promise.all(
             owners.map((entry) => (entry.behavior ? entry.behavior.harness.close() : entry.session.abort()))

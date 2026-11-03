@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-pi-desktop-owner-recovery.md
+2026-11-04-pi-desktop-owner-recovery.md: 1f3da301050e9e18b5b9dcfe96bd52222e77465f
+2026-11-04-pi-desktop-owner-recovery.zh.md: fc51b1ac2e4fff7b953eb42ca3b40639af5c3cc0

@@ -498,11 +498,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const blockedSessions = await relocateSystemWorkspaces()
     await this.forks.recover()
 
-    // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
-    // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
-    // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
-    // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
-    // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
+    // Pi execution dies with Main; terminalize its product placeholders while retaining native history.
+    // Delivery recovery owns rows with a persisted delivery turn, and other native owners recover separately.
     this.reconcileStalePendingMessages(blockedSessions)
     recoverSessionDeliveries()
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
@@ -519,7 +516,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private reconcileStalePendingMessages(protectedSessions = new Set<string>()): void {
     try {
       const stale = agentSessionMessageService
-        .findCrashOrphanedAssistantMessages()
+        .findCrashOrphanedAssistantMessages(['pi'])
         .filter((row) => !protectedSessions.has(row.sessionId))
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
@@ -527,9 +524,7 @@ export class AgentSessionRuntimeService extends BaseService {
         count: stale.length,
         sessionCount: sessionIds.length
       })
-      // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
-      // tasks, unanswerable approval requests) so history renders settled, and discard the
-      // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
+      // Pending approvals and tool parts lost their in-memory owner; native identities remain valid.
       agentSessionMessageService.resolveCrashOrphanedMessages(
         stale.map(({ id, data }) => ({
           id,
