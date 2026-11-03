@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Eroare necunoscută",
   "message.error.yuque.export": "Nu s-a putut exporta în Yuque. Te rugăm să verifici starea conexiunii și configurarea conform documentației",
   "message.error.yuque.no_config": "Tokenul Yuque sau Url-ul Yuque nu sunt configurate",
+  "message.finish_reason.length": "Limita de ieșire a fost atinsă. Răspunsul poate fi incomplet.",
   "message.group.delete.content": "Ștergeți toate răspunsurile asistentului din acest grup? Întrebarea utilizatorului și mesajele ulterioare vor fi păstrate.",
   "message.group.delete.title": "Șterge răspunsurile grupate",
   "message.group.retry_failed": "Reîncearcă mesajele eșuate",

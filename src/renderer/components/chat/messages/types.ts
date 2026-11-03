@@ -215,6 +215,7 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  finishReason?: NonNullable<CherryUIMessage['metadata']>['finishReason']
   id: string
   role: CherryUIMessage['role']
   assistantId?: string

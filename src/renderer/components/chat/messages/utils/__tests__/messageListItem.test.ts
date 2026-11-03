@@ -10,6 +10,16 @@ import {
 } from '../messageListItem'
 
 describe('toMessageListItem', () => {
+  it('projects a streamed finish reason while pending', () => {
+    const message: CherryUIMessage = {
+      id: 'm',
+      role: 'assistant',
+      parts: [],
+      metadata: { finishReason: 'length', status: 'pending' }
+    }
+    expect(toMessageListItem(message, { topicId: 'topic' }).finishReason).toBe('length')
+  })
+
   it('projects the top-level totalTokens mirror into message stats', () => {
     const message = {
       id: 'message-1',

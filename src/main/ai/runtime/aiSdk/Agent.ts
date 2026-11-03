@@ -322,6 +322,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        messageMetadata: ({ part }) => (part.type === 'finish' ? { finishReason: part.finishReason } : undefined),
         sendSources: true,
         onError: (error) => {
           capturedUiErrors.push({ error })

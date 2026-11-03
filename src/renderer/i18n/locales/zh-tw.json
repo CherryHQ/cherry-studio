@@ -2338,6 +2338,7 @@
   "message.error.unknown": "未知錯誤",
   "message.error.yuque.export": "匯出語雀失敗，請檢查連線狀態並參考說明文件確認設定",
   "message.error.yuque.no_config": "未設定語雀 Token 或知識庫 URL",
+  "message.finish_reason.length": "已達到輸出上限，回答可能不完整。",
   "message.group.delete.content": "是否刪除此群組中的所有助理回覆？使用者的提問與後續訊息將會保留。",
   "message.group.delete.title": "刪除群組回覆",
   "message.group.retry_failed": "重試出錯的訊息",

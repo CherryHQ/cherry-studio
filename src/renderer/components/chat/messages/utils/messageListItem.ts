@@ -45,6 +45,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
 
   return {
     id: message.id,
+    finishReason: metadata.finishReason,
     role: message.role,
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,

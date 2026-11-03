@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Unbekannter Fehler",
   "message.error.yuque.export": "Export nach Yuque fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
   "message.error.yuque.no_config": "Yuque Token oder Wissensdatenbank-URL nicht konfiguriert",
+  "message.finish_reason.length": "Das Ausgabelimit wurde erreicht. Die Antwort ist möglicherweise unvollständig.",
   "message.group.delete.content": "Alle Assistentenantworten in dieser Gruppe löschen? Die Benutzerfrage und nachfolgenden Nachrichten bleiben erhalten.",
   "message.group.delete.title": "Gruppenantworten löschen",
   "message.group.retry_failed": "Fehlgeschlagene Nachricht wiederholen",

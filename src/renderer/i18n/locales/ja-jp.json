@@ -2338,6 +2338,7 @@
   "message.error.unknown": "未知のエラー",
   "message.error.yuque.export": "Yuque へのエクスポートに失敗しました。接続状態と設定を確認してください",
   "message.error.yuque.no_config": "Yuque の API アドレスまたはトークンが設定されていません",
+  "message.finish_reason.length": "出力上限に達しました。回答が不完全な可能性があります。",
   "message.group.delete.content": "このグループ内のアシスタントの回答をすべて削除しますか？ユーザーの質問と後続のメッセージは保持されます。",
   "message.group.delete.title": "グループの回答を削除",
   "message.group.retry_failed": "エラーになったメッセージを再試行",

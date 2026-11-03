@@ -1,5 +1,6 @@
 import { isEmpty } from 'es-toolkit/compat'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Flex } from '@cherrystudio/ui'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
+  const { t } = useTranslation()
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -25,6 +27,11 @@ const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
         </Flex>
       )}
       <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
+      {message.role === 'assistant' && message.finishReason === 'length' && (
+        <Flex role="status" aria-live="polite" className="mt-2 text-sm text-muted-foreground">
+          {t('message.finish_reason.length')}
+        </Flex>
+      )}
     </>
   )
 }

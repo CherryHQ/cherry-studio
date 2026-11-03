@@ -28,3 +28,18 @@ describe('MessageDataSchema', () => {
     expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { serviceTier: 'turbo' } }).success).toBe(false)
   })
 })
+
+describe('MessageDataSchema finishReason', () => {
+  it.each([undefined, 'stop', 'length', 'content-filter', 'tool-calls', 'error', 'other'])(
+    'accepts %s',
+    (finishReason) => {
+      expect(MessageDataSchema.safeParse({ finishReason }).success).toBe(true)
+    }
+  )
+  it('accepts historical data without the field', () => {
+    expect(MessageDataSchema.safeParse({ parts: [] }).success).toBe(true)
+  })
+  it.each([null, 1, '', 'max_tokens'])('rejects %s', (finishReason) => {
+    expect(MessageDataSchema.safeParse({ finishReason }).success).toBe(false)
+  })
+})

@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Неизвестная ошибка",
   "message.error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
   "message.error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+  "message.finish_reason.length": "Достигнут предел вывода. Ответ может быть неполным.",
   "message.group.delete.content": "Удалить все ответы помощника в этой группе? Вопрос пользователя и последующие сообщения будут сохранены.",
   "message.group.delete.title": "Удалить сгруппированные ответы",
   "message.group.retry_failed": "Повторить неудавшиеся сообщения",

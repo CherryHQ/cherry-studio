@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Erreur inconnue",
   "message.error.yuque.export": "Erreur lors de l'exportation vers Yuque, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
   "message.error.yuque.no_config": "Aucun jeton Yuque ou URL de base de connaissances configuré",
+  "message.finish_reason.length": "La limite de sortie est atteinte. La réponse peut être incomplète.",
   "message.group.delete.content": "Supprimer toutes les réponses de l’assistant de ce groupe ? La question de l’utilisateur et les messages suivants seront conservés.",
   "message.group.delete.title": "Supprimer les réponses groupées",
   "message.group.retry_failed": "message d'erreur de nouvelle tentative",

@@ -31,6 +31,13 @@ export const REGRESSION_CASES = [
     task: 'chat-stream-failure'
   },
   {
+    id: 'C-04',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Mark a chat response that ended at the output limit',
+    task: 'chat-stream-failure'
+  },
+  {
     id: 'SET-05',
     capabilities: [],
     phase: '03-models-and-assistants',

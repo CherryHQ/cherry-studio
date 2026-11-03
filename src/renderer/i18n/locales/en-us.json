@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Unknown error",
   "message.error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
   "message.error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+  "message.finish_reason.length": "Output limit reached. This response may be incomplete.",
   "message.group.delete.content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
   "message.group.delete.title": "Delete Group Replies",
   "message.group.retry_failed": "Retry one failed message per model",

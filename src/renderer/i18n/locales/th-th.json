@@ -2338,6 +2338,7 @@
   "message.error.unknown": "ข้อผิดพลาดที่ไม่ทราบสาเหตุ",
   "message.error.yuque.export": "ไม่สามารถส่งออกไปยัง Yuque โปรดตรวจสอบสถานะการเชื่อมต่อและการตั้งค่าตามเอกสาร",
   "message.error.yuque.no_config": "ไม่ได้กำหนดค่า Yuque Token หรือ Yuque Url",
+  "message.finish_reason.length": "ถึงขีดจำกัดการแสดงผลแล้ว คำตอบอาจไม่สมบูรณ์",
   "message.group.delete.content": "ลบคำตอบของผู้ช่วยทั้งหมดในกลุ่มนี้? คำถามของผู้ใช้และข้อความถัดไปจะถูกเก็บไว้",
   "message.group.delete.title": "ลบคำตอบกลุ่ม",
   "message.group.retry_failed": "ลองใหม่หนึ่งข้อความที่ล้มเหลวต่อโมเดล",

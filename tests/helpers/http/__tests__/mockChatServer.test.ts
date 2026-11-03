@@ -58,6 +58,28 @@ describe('mock chat HTTP server', () => {
       expect(() => request.complete('duplicate')).toThrow('already closed')
     })
 
+    it('reports length for JSON and streaming completions', async () => {
+      const result = create(server.baseUrl).doGenerate({ prompt })
+      const request = await server.nextRequest()
+      request.complete('partial', 'length')
+      expect((await result).finishReason.unified).toBe('length')
+      const streamed = create(server.baseUrl).doStream({ prompt })
+      const streamRequest = await server.nextRequest()
+      streamRequest.sendText('partial')
+      const reader = (await streamed).stream.getReader()
+      await readText(reader)
+      streamRequest.complete('', 'length')
+      const parts: LanguageModelV3StreamPart[] = []
+      while (true) {
+        const next = await reader.read()
+        if (next.done) break
+        parts.push(next.value)
+      }
+      expect(parts).toContainEqual(
+        expect.objectContaining({ type: 'finish', finishReason: { unified: 'length', raw: 'length' } })
+      )
+    })
+
     it('delivers text before completion and ends with a normal finish', async () => {
       const result = create(server.baseUrl).doStream({ prompt })
       const request = await server.nextRequest()

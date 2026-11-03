@@ -473,6 +473,151 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
   }
 })
 
+test(...caseDefinition('C-04'), async ({ app, mainWindow: page }, testInfo) => {
+  const server = await startMockChatServer()
+  const providerId = `regression-length-${Date.now()}`
+  const assistantName = app.resourceName('Output limit')
+  const prompt = 'Explain the sky.'
+  const partialText = 'The sky appears blue because'
+  const notice = 'Output limit reached. This response may be incomplete.'
+  let assistantId: string | undefined
+  const namingEnabled = await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))
+  try {
+    await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
+    const provider = await page.evaluate(
+      ({ providerId, baseUrl }) =>
+        window.api.dataApi.request({
+          id: `${providerId}-create`,
+          method: 'POST',
+          path: '/providers',
+          body: {
+            providerId,
+            name: 'Output limit mock',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+            apiKeys: [{ id: 'mock-key', key: 'mock-api-key', isEnabled: true }]
+          }
+        }),
+      { providerId, baseUrl: server.baseUrl }
+    )
+    expect(provider.status).toBe(201)
+    const enabled = await page.evaluate(
+      (providerId) =>
+        window.api.dataApi.request({
+          id: `${providerId}-enable`,
+          method: 'PATCH',
+          path: `/providers/${providerId}`,
+          body: { isEnabled: true }
+        }),
+      providerId
+    )
+    expect(enabled.status).toBe(200)
+    const models = await page.evaluate(
+      ({ providerId, modelId }) =>
+        window.api.dataApi.request({
+          id: `${providerId}-model`,
+          method: 'POST',
+          path: '/models',
+          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+        }),
+      { providerId, modelId: server.modelId }
+    )
+    expect(models.status).toBe(201)
+    const assistant = await page.evaluate(
+      ({ name, modelId }) =>
+        window.api.dataApi.request({
+          id: 'stream-failure-assistant',
+          method: 'POST',
+          path: '/assistants',
+          body: { name, modelId }
+        }),
+      { name: assistantName, modelId: createUniqueModelId(providerId, server.modelId) }
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    await page.reload()
+    await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
+    const assistantRow = page
+      .locator('[data-ui~="chat.view"]:visible')
+      .locator('[data-ui~="chat.group-header"]')
+      .filter({ hasText: assistantName })
+      .first()
+    await assistantRow.hover()
+    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(server.modelId)
+    await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill(prompt)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+
+    const request = await server.nextRequest()
+    expect(request.body).toMatchObject({
+      model: server.modelId,
+      stream: true,
+      messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: prompt })])
+    })
+    request.sendText(partialText)
+    const response = page
+      .locator('[data-ui~="chat.message"][data-message-id]:visible')
+      .filter({ hasText: partialText })
+      .last()
+    await expect(response.getByText(partialText, { exact: true })).toBeVisible()
+    await expect(response.getByRole('status')).toHaveCount(0)
+    const messageId = await response.getAttribute('data-message-id')
+    if (!messageId) throw new Error('Response has no message ID')
+    request.complete('', 'length')
+    await expect(response.getByRole('status')).toHaveText(notice)
+    await expect(response.getByRole('status')).toBeVisible()
+    await expect
+      .poll(async () => {
+        const stored = await page.evaluate(
+          (id) => window.api.dataApi.request({ id: 'length-read', method: 'GET', path: `/messages/${id}` }),
+          messageId
+        )
+        if (stored.status !== 200) return false
+        const message = MessageSchema.parse(stored.data)
+        return (
+          message.status === 'success' &&
+          message.data.finishReason === 'length' &&
+          message.data.parts?.some((part) => part.type === 'text' && part.text === partialText) &&
+          !message.data.parts?.some((part) => part.type === 'data-error')
+        )
+      })
+      .toBe(true)
+    await page.reload()
+    const restored = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]:visible`)
+    await expect(restored.getByRole('status')).toHaveText(notice)
+    await expect(restored.getByRole('status')).toBeVisible()
+    await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill('Continue.')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    const next = await server.nextRequest()
+    next.complete('A normal answer.', 'stop')
+    const normal = page
+      .locator('[data-ui~="chat.message"][data-message-id]:visible')
+      .filter({ hasText: 'A normal answer.' })
+      .last()
+    await expect(normal.getByText('A normal answer.', { exact: true })).toBeVisible()
+    await expect(normal.getByRole('status')).toHaveCount(0)
+    await expect(restored.getByRole('status')).toHaveText(notice)
+    await testInfo.attach('Output limit marker', { body: await page.screenshot(), contentType: 'image/png' })
+  } finally {
+    await server.close()
+    await page.evaluate(
+      async ({ assistantId, providerId, namingEnabled }) => {
+        await window.api.preference.set('topic.naming.enabled', namingEnabled)
+        if (assistantId) {
+          await window.api.ipcApi.request('trash.assistant.archive', { assistantId, deleteTopics: true })
+          await window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true })
+        }
+        await window.api.dataApi.request({
+          id: `${providerId}-delete`,
+          method: 'DELETE',
+          path: `/providers/${providerId}`
+        })
+      },
+      { assistantId, providerId, namingEnabled }
+    )
+  }
+})
+
 test(...caseDefinition('SET-05'), async ({ app, mainWindow: page }) => {
   await openSettingsSection(page, 'About')
 

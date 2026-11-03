@@ -2338,6 +2338,7 @@
   "message.error.unknown": "Lỗi không xác định",
   "message.error.yuque.export": "Không thể xuất ra Yuque. Vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu.",
   "message.error.yuque.no_config": "Token Yuque hoặc URL Yuque chưa được cấu hình",
+  "message.finish_reason.length": "Đã đạt giới hạn đầu ra. Câu trả lời có thể chưa đầy đủ.",
   "message.group.delete.content": "Xóa tất cả câu trả lời của trợ lý trong nhóm này? Câu hỏi của người dùng và các tin nhắn sau đó sẽ được giữ lại.",
   "message.group.delete.title": "Xóa câu trả lời theo nhóm",
   "message.group.retry_failed": "Thử lại các tin nhắn không gửi được",

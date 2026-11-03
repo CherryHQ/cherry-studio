@@ -11,6 +11,7 @@ describe('sharedMessageToUIMessage', () => {
       role: 'assistant',
       data: {
         parts: [],
+        finishReason: 'length',
         modelSelection: 'explicit',
         turnOptions: { reasoningEffort: 'high', fastMode: true }
       },
@@ -24,6 +25,7 @@ describe('sharedMessageToUIMessage', () => {
       updatedAt: '2026-01-01T00:00:00.000Z'
     })
 
+    expect(message.metadata?.finishReason).toBe('length')
     expect(message.metadata?.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
     expect(message.metadata?.modelSelection).toBe('explicit')
   })
