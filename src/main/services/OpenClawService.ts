@@ -49,7 +49,7 @@ const OPENCLAW_VERSION_TIMEOUT_MS = 5000
 const OPENCLAW_UNSUPPORTED_SCHEMA_COMMAND =
   /(?:unknown|unrecognized|invalid) (?:command|subcommand)\b|too many arguments for ['"]config['"]|not a command/i
 const OPENCLAW_WARNING_LINE =
-  /^\s*(?:(?:\(node:\d+\)\s+)?(?:\[DEP\d+\]\s+)?(?:ExperimentalWarning|DeprecationWarning|Warning|TimeoutOverflowWarning):|\(Use `node --trace-warnings .*\))/
+  /^\s*(?:(?:\(node:\d+\)\s+)?(?:\[DEP\d+\]\s+)?(?:ExperimentalWarning|DeprecationWarning|Warning|TimeoutOverflowWarning):|\(Use `node --trace-(?:warnings|deprecation) .*\))/
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
@@ -804,19 +804,19 @@ export class OpenClawService extends BaseService {
       if (OPENCLAW_WARNING_LINE.test(line)) {
         warning ??= line.trim()
         inWarning = true
-      } else if (
+        continue
+      }
+      const isStackFrame = /^\s+at\s|^\s*node:internal\//.test(line)
+      if (inWarning && /^\s/.test(line) && !isStackFrame) continue
+      inWarning = false
+      if (
         /^\s*(?:Error(?: \[[A-Z0-9_]+\])?:|TypeError:|RangeError:|SyntaxError:|ReferenceError:|ERR_[A-Z0-9_]+|error:|error |[A-Z][A-Z0-9_]{2,}:)/.test(
           line
         )
       ) {
         return { kind: 'error', line: line.trim() }
-      } else {
-        const isStackFrame = /^\s+at\s|^\s*node:internal\//.test(line)
-        if (inWarning && /^\s/.test(line) && !isStackFrame) continue
-        inWarning = false
-        if (!isStackFrame && !/^Node\.js v\d/.test(line)) {
-          other ??= line.trim()
-        }
+      } else if (!isStackFrame && !/^Node\.js v\d/.test(line)) {
+        other ??= line.trim()
       }
     }
     if (other) return { kind: 'other', line: other }

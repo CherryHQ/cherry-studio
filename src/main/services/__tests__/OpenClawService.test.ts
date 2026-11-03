@@ -458,6 +458,56 @@ describe('OpenClawService gateway status state machine', () => {
       expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({ kind, line })
     })
 
+    it('reports the fatal diagnostic after a deprecation trailer', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const line =
+        'openclaw: Node 24.14.0: node:sqlite truncates TEXT at embedded NUL (nodejs/node#61954); use 24.16+/26.1+ or a build with the fix'
+      const stderr =
+        '(node:78903) DeprecationWarning: SQLite is an experimental feature\n(Use `node --trace-deprecation ...` to show where the warning was created)\n' +
+        line
+      queueSpawnResult({ stderr, exitCode: 1 })
+
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect.soft((service as any).firstMeaningfulStderrLine(stderr)).toEqual({ kind: 'other', line })
+      expect.soft(error).toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining(`config schema check failed with exit code 1: ${line}`)
+      })
+      expect.soft(error.message).not.toMatch(/trace-deprecation|stderr carried only warnings/)
+    })
+
+    it('reports the actual error after an error-shaped warning continuation', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const stderr =
+        '(node:78907) Warning: first\n    Error: warning detail\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: actual schema failure'
+      queueSpawnResult({ stderr, exitCode: 1 })
+
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect.soft((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+        kind: 'error',
+        line: 'Error: actual schema failure'
+      })
+      expect.soft(error).toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining('Error: actual schema failure')
+      })
+      expect.soft(error.message).not.toContain('warning detail')
+    })
+
+    it('keeps an error-shaped warning continuation in a warnings-only block', () => {
+      const stderr = '(node:78907) Warning: first\n    Error: warning detail'
+      expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+        kind: 'warnings-only',
+        line: '(node:78907) Warning: first'
+      })
+    })
+
     it('ends warning continuations at a stack frame without reporting the frame', () => {
       const stderr = 'Warning: first\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1234:15)'
       expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
