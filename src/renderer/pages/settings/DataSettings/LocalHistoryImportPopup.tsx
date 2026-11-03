@@ -66,7 +66,6 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const [root, setRoot] = useState('')
   const [scan, setScan] = useState<{ scanId: string; candidates: ImportCandidate[] }>()
   const [selections, setSelections] = useState<ImportSelection[]>([])
-  const [preview, setPreview] = useState<{ previewId: string; items: ImportPreviewItem[] }>()
   const [results, setResults] = useState<ImportOutcome[]>()
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState(false)
@@ -85,7 +84,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
     setError(false)
     setScan(undefined)
     setSelections([])
-    setPreview(undefined)
+
     void ipcApi
       .request('conversation_import.discover', { source })
       .then((found) => {
@@ -117,14 +116,32 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   }
   function updateSelection(ref: string, patch: Partial<ImportSelection>) {
     setSelections((current) => current.map((item) => (item.ref === ref ? { ...item, ...patch } : item)))
-    setPreview(undefined)
   }
   async function chooseFolder() {
     return window.api.file.selectFolder({ title: t('history_import.folder'), properties: ['openDirectory'] })
   }
   const selectedTarget = agents?.items.find((agent) => agent.id === target)
   const targetValid = selectedTarget?.type === 'pi'
-  const canCommit = preview?.items.some((item) => !item.diagnostics.some((d) => d.severity === 'error'))
+  const visibleCandidates = (scan?.candidates ?? [])
+    .filter((item) => (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase()))
+    .slice(0, 100)
+  const selectedRefs = new Set(selections.map((item) => item.ref))
+  const visibleSelected = visibleCandidates.filter((item) => selectedRefs.has(item.ref)).length
+  async function importSelected() {
+    if (!scan || !targetValid || !selections.length) return
+    const checked = await ipcApi.request('conversation_import.preview', {
+      scanId: scan.scanId,
+      targetAgentId: target,
+      selections
+    })
+    setReviewItems(checked.items)
+    if (checked.items.some((item) => item.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))) return
+    const outcomes = await ipcApi.request('conversation_import.commit', {
+      previewId: checked.previewId,
+      refs: checked.items.map((item) => item.ref)
+    })
+    setResults(outcomes)
+  }
   return (
     <Dialog
       open={open}
@@ -155,7 +172,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                 disabled={busy}
                 onValueChange={(value) => {
                   setTarget(value)
-                  setPreview(undefined)
+                  setReviewItems([])
                 }}>
                 <SelectTrigger id="history-import-target">
                   <SelectValue placeholder={t('history_import.target')} />
@@ -163,7 +180,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                 <SelectContent>
                   {agents?.items.map((agent) => (
                     <SelectItem key={agent.id} value={agent.id} disabled={agent.type !== 'pi'}>
-                      {agent.name} · {agent.type}
+                      {agent.name}
                       {agent.type !== 'pi' ? ' · ' + t('history_import.unsupported_target') : ''}
                     </SelectItem>
                   ))}
@@ -186,7 +203,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                     setRoot(event.target.value)
                     setScan(undefined)
                     setSelections([])
-                    setPreview(undefined)
+
                     setReviewItems([])
                   }}
                 />
@@ -200,7 +217,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                         setRoot(directory)
                         setScan(undefined)
                         setSelections([])
-                        setPreview(undefined)
+
                         setReviewItems([])
                       }
                     })
@@ -211,7 +228,6 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
-                      setPreview(undefined)
                       setReviewItems([])
                       setSelections([])
                       setScan(undefined)
@@ -237,11 +253,42 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                   <p className="text-sm text-muted-foreground">
                     {t('history_import.selection', { selected: selections.length, total: scan.candidates.length })}
                   </p>
-                  {scan.candidates
-                    .filter((item) => (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase()))
-                    .slice(0, 100)
-                    .map((item) => (
-                      <div key={item.ref} className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="history-select-all"
+                      checked={
+                        visibleCandidates.length > 0 && visibleSelected === visibleCandidates.length
+                          ? true
+                          : visibleSelected > 0
+                            ? 'indeterminate'
+                            : false
+                      }
+                      disabled={
+                        busy || !visibleCandidates.length || (selections.length >= 100 && visibleSelected === 0)
+                      }
+                      onCheckedChange={(checked) => {
+                        const visibleRefs = new Set(visibleCandidates.map((item) => item.ref))
+                        setSelections((current) =>
+                          checked === true
+                            ? [
+                                ...current,
+                                ...visibleCandidates
+                                  .filter((item) => !selectedRefs.has(item.ref))
+                                  .map((item) => ({ ref: item.ref }))
+                              ].slice(0, 100)
+                            : current.filter((item) => !visibleRefs.has(item.ref))
+                        )
+                        setReviewItems([])
+                      }}
+                    />
+                    <Label htmlFor="history-select-all">{t('common.select_all')}</Label>
+                  </div>
+                  <div className="space-y-3">
+                    {visibleCandidates.map((item) => (
+                      <div
+                        key={item.ref}
+                        className="flex min-h-20 items-center gap-3 rounded-lg border bg-card px-4 py-3 text-card-foreground transition-shadow hover:shadow-md motion-reduce:transition-none"
+                        data-selected={selectedRefs.has(item.ref)}>
                         <Checkbox
                           id={item.ref}
                           checked={selections.some((s) => s.ref === item.ref)}
@@ -252,21 +299,28 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                                 ? [...current, { ref: item.ref }]
                                 : current.filter((s) => s.ref !== item.ref)
                             )
-                            setPreview(undefined)
+
                             setReviewItems([])
                           }}
                         />
-                        <Label htmlFor={item.ref} className="block min-w-0 break-all">
-                          {item.title}
-                          <span className="block text-xs text-muted-foreground">{item.sourcePath}</span>
+                        <Label htmlFor={item.ref} className="block min-w-0 flex-1 cursor-pointer space-y-2">
+                          <span className="block truncate text-sm font-medium" title={item.title}>
+                            {item.title}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground" title={item.sourcePath}>
+                            {item.sourcePath}
+                          </span>
                         </Label>
                       </div>
                     ))}
+                  </div>
                 </>
               )}
               {reviewItems.map((item) => (
                 <section key={item.ref} className="space-y-2 rounded-md border p-3">
-                  <p className="font-medium">{item.title}</p>
+                  <p className="truncate font-medium" title={item.title}>
+                    {item.title}
+                  </p>
                   <p className="text-sm">
                     {t('history_import.details', {
                       count: item.messageCount,
@@ -341,7 +395,9 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
           )}
           {results?.map((result) => (
             <section key={result.ref} className="space-y-2 rounded-md border p-3">
-              <p>{reviewItems.find((item) => item.ref === result.ref)?.title}</p>
+              <p className="truncate font-medium" title={reviewItems.find((item) => item.ref === result.ref)?.title}>
+                {reviewItems.find((item) => item.ref === result.ref)?.title}
+              </p>
               <p>{t(resultLabels[result.status])}</p>
               {result.reason && <p>{t(problem(result.reason))}</p>}
               {result.initialization === 'failed' && (
@@ -391,35 +447,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
           {!results && (
             <Button
               disabled={busy || !targetValid || !scan || !selections.length}
-              onClick={() =>
-                void run(async () => {
-                  const next = await ipcApi.request('conversation_import.preview', {
-                    scanId: scan!.scanId,
-                    targetAgentId: target,
-                    selections
-                  })
-                  setPreview(next)
-                  setReviewItems(next.items)
-                })
-              }>
-              {t('history_import.preview')}
-            </Button>
-          )}
-          {!results && (
-            <Button
-              disabled={busy || !canCommit || !targetValid}
-              onClick={() =>
-                void run(async () => {
-                  const result = await ipcApi.request('conversation_import.commit', {
-                    previewId: preview!.previewId,
-                    refs: preview!.items
-                      .filter((item) => !item.diagnostics.some((d) => d.severity === 'error'))
-                      .map((item) => item.ref)
-                  })
-                  setResults(result)
-                  setPreview(undefined)
-                })
-              }>
+              onClick={() => void run(importSelected)}>
               {busy ? t('common.loading') : t('history_import.confirm')}
             </Button>
           )}
