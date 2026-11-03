@@ -6,6 +6,8 @@ import { getCherryCloudSignInErrorMessage } from '@renderer/utils/cherryCloudSig
 
 import { openCherryCloudAccountPortal } from './cherryCloudAccountPortal'
 
+let cancelPendingSignIn: (() => void) | undefined
+
 /**
  * The single action behind every Subscribe touchpoint: dismiss the account-avatar dot and open the
  * edition's account portal, signing in with a Cherry Account first when needed.
@@ -21,12 +23,15 @@ export async function startCherryCloudSubscription(): Promise<void> {
   }
   if (status.phase === 'signed-in') return openPortal()
 
-  // Sign-in completes in the browser; the touchpoint may unmount before the session arrives.
+  // Sign-in completes in the browser; the touchpoint may unmount before the session arrives. A later
+  // click replaces this wait, so the portal opens once however often Subscribe was pressed.
+  cancelPendingSignIn?.()
   const unsubscribe = ipcApi.on('cherry_cloud.status_changed', (next) => {
     if (next.phase === 'authorizing') return
     unsubscribe()
     if (next.phase === 'signed-in') void openPortal()
   })
+  cancelPendingSignIn = unsubscribe
   try {
     const started = await ipcApi.request('cherry_cloud.login.start')
     if (started.phase === 'signed-in') {

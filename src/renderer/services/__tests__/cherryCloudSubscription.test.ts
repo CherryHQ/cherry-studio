@@ -62,6 +62,24 @@ describe('startCherryCloudSubscription', () => {
     await vi.waitFor(() => expect(portalOpened()).toBe(true))
   })
 
+  it('opens the portal once when Subscribe is pressed again while signing in', async () => {
+    status = signedOut
+    const handlers = new Set<(next: CherryCloudStatus) => void>()
+    vi.mocked(window.api.ipcApi.on).mockImplementation((_event, handler) => {
+      handlers.add(handler)
+      return () => handlers.delete(handler)
+    })
+
+    await startCherryCloudSubscription()
+    await startCherryCloudSubscription()
+    handlers.forEach((handler) => handler(signedIn))
+
+    await vi.waitFor(() => expect(portalOpened()).toBe(true))
+    expect(
+      request.mock.calls.filter(([route, url]) => route === 'system.shell.open_external_website' && url === PORTAL)
+    ).toHaveLength(1)
+  })
+
   it('explains a sign-in rejected because the client must be upgraded', async () => {
     status = signedOut
     request.mockImplementation(async (route) => {
