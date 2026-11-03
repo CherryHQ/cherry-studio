@@ -944,3 +944,128 @@ it.skipIf(process.platform === 'win32')(
     }
   }
 )
+
+it('handles Node flat raw-header arrays without interpreting numeric indices as header names', () => {
+  expect(
+    describeHttpRequest('http', [
+      'http://example.test',
+      { headers: ['Content-Type', 'text/plain', 'Authorization', 'Bearer private-marker'] }
+    ]).requestHeaders
+  ).toEqual({ 'Content-Type': 'text/plain', Authorization: '<redacted>' })
+})
+it('does not mark an exactly full Node JSON capture as truncated on empty decoder flush', async () => {
+  const body = JSON.stringify({ prompt: 'x'.repeat(131072 - '{"prompt":""}'.length) })
+  expect(body.length).toBe(131072)
+  BaseService.resetInstances()
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as {
+    events: MainNetworkDevtoolsEvent[]
+    wrapHttpMethod: (original: (...args: unknown[]) => unknown, source: 'http') => (...args: unknown[]) => unknown
+  }
+  const request = createMockClientRequest()
+  state.wrapHttpMethod(() => request, 'http')('http://example.test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  request.end(body)
+  await Promise.resolve()
+  expect(state.events[0].requestBody).toMatchObject({ text: body, replayable: true })
+  expect(state.events[0].requestBody?.truncated).not.toBe(true)
+  await service._doStop()
+})
+it('uses replacement Fetch init headers rather than restoring removed Request headers', async () => {
+  BaseService.resetInstances()
+  vi.mocked(net.fetch).mockResolvedValue(new Response('ok'))
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchNetFetch: () => void }
+  state.patchNetFetch()
+  try {
+    const request = new Request('https://example.test', {
+      method: 'POST',
+      headers: { 'X-Removed': 'old', 'Content-Type': 'application/json' },
+      body: '{"ok":true}'
+    })
+    await net.fetch(request, { headers: { 'X-Kept': 'new' } })
+    expect(state.events[0].requestHeaders).toEqual({ 'x-kept': 'new' })
+  } finally {
+    await service._doStop()
+  }
+})
+
+it.skipIf(process.platform === 'win32')(
+  'matches actual Fetch replacement headers and flat Node headers during replay',
+  async () => {
+    const received: { removed: string | undefined; kept: string | undefined; body: string }[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push({
+          removed: req.headers['x-removed'] as string | undefined,
+          kept: req.headers['x-kept'] as string | undefined,
+          body: Buffer.concat(chunks).toString()
+        })
+        res.statusCode = req.headers['x-removed'] ? 409 : 200
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      patchFetch: () => void
+      wrapHttpMethod: (
+        original: (...args: unknown[]) => unknown,
+        source: 'http'
+      ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+    }
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+    state.patchFetch()
+    try {
+      const request = new Request(url, { method: 'POST', headers: { 'X-Removed': 'old' }, body: 'hi' })
+      const response = await fetch(request, { headers: { 'X-Kept': 'new' } })
+      await response.text()
+      expect(response.status).toBe(200)
+      await waitFor(() => state.events[0]?.requestBody !== undefined)
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      await promisify(execFile)('/bin/sh', ['-c', sandbox.buildCurlCommand?.(state.events[0]) as string], {
+        timeout: 5000
+      })
+      expect(received[1]).toEqual(received[0])
+      const nodeRequest = state.wrapHttpMethod(httpRequest as (...args: unknown[]) => unknown, 'http')(url, {
+        method: 'POST',
+        headers: ['Host', new URL(url).host, 'X-Kept', 'flat', 'Content-Type', 'text/plain']
+      })
+      await new Promise<void>((resolve, reject) => {
+        nodeRequest.on('response', (res) => {
+          res.resume()
+          res.on('end', resolve)
+        })
+        nodeRequest.on('error', reject)
+        nodeRequest.end('node')
+      })
+      expect(received.at(-1)).toEqual({ removed: undefined, kept: 'flat', body: 'node' })
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
+it('still truncates a Node body with one character beyond the capture limit', async () => {
+  BaseService.resetInstances()
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as {
+    events: MainNetworkDevtoolsEvent[]
+    wrapHttpMethod: (original: (...args: unknown[]) => unknown, source: 'http') => (...args: unknown[]) => unknown
+  }
+  const request = createMockClientRequest()
+  state.wrapHttpMethod(() => request, 'http')('http://example.test', { headers: { 'Content-Type': 'text/plain' } })
+  request.write('x'.repeat(131072))
+  request.end('y')
+  await Promise.resolve()
+  expect(state.events[0].requestBody).toMatchObject({ truncated: true, replayable: false, size: 131073 })
+  await service._doStop()
+})

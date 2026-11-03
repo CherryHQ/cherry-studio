@@ -79,14 +79,19 @@ export function redactUrl(rawUrl: string): string {
 }
 
 export function redactHeaders(
-  headers: Headers | Record<string, unknown> | undefined
+  headers: Headers | Record<string, unknown> | string[] | undefined
 ): Record<string, string> | undefined {
   if (!headers) return undefined
 
   const result: Record<string, string> = {}
   const entries: [string, unknown][] = []
 
-  if (typeof (headers as Headers).forEach === 'function') {
+  if (Array.isArray(headers)) {
+    // Node accepts a flat raw-header array; array.forEach's numeric index is not a name.
+    for (let index = 0; index + 1 < headers.length; index += 2) {
+      entries.push([headers[index], headers[index + 1]])
+    }
+  } else if (typeof (headers as Headers).forEach === 'function') {
     ;(headers as Headers).forEach((value, key) => entries.push([key, value]))
   } else {
     entries.push(...Object.entries(headers))
@@ -582,11 +587,8 @@ function describeFetchRequest(
   init?: Parameters<typeof globalThis.fetch>[1]
 ) {
   const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined
-  const headers = request ? new Headers(request.headers) : new Headers()
-
-  if (init?.headers) {
-    new Headers(init.headers).forEach((value, key) => headers.set(key, value))
-  }
+  // Fetch init.headers replaces the Request header list, including an empty list.
+  const headers = new Headers(init?.headers !== undefined ? init.headers : request?.headers)
 
   const requestHeaders = redactHeaders(headers)
   const requestContentType = getEffectiveFetchRequestContentType(requestHeaders, init?.body)
@@ -784,6 +786,7 @@ function createBodyAccumulator(contentType?: string, requestHeaders?: Record<str
   }
 
   const appendText = (value: string) => {
+    if (value.length === 0) return
     size += value.length
     if (text.length >= MAX_BODY_CHARS) {
       truncated = true
