@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import * as z from 'zod'
 
+import { formatCodexHistoryText, formatCodexTool, isCodexContextText } from '@data/services/importedCodexText'
 import type { MessageData } from '@shared/data/types/message'
 
 import { discoverJsonl, readJsonl } from './files'
@@ -194,6 +195,13 @@ export const codexAdapter: HistorySourceAdapter = {
           continue
         }
         role = item.role
+        if (
+          role === 'user' &&
+          Array.isArray(item.content) &&
+          item.content.length &&
+          item.content.every((block) => block && typeof block.text === 'string' && isCodexContextText(block.text))
+        )
+          role = 'system'
         if (!Array.isArray(item.content)) {
           diagnose('invalid_record', line, 'error')
           continue
@@ -204,7 +212,7 @@ export const codexAdapter: HistorySourceAdapter = {
             continue
           }
           if (['input_text', 'output_text'].includes(block.type) && typeof block.text === 'string')
-            parts.push({ type: 'text', text: block.text })
+            parts.push({ type: 'text', text: formatCodexHistoryText(block.text) })
           else {
             const reference =
               typeof block.file_id === 'string'
@@ -237,7 +245,7 @@ export const codexAdapter: HistorySourceAdapter = {
           'web_search_call'
         ].includes(String(item.type))
       ) {
-        parts.push({ type: 'text', text: '[Historical tool activity]\n' + JSON.stringify(item) })
+        parts.push({ type: 'text', text: formatCodexTool(item) })
         result.downgradedParts++
       } else {
         diagnose('unsupported_record', line)

@@ -164,4 +164,24 @@ describe('Codex raw rollout contract', () => {
     expect(result.downgradedParts).toBe(1)
     expect(JSON.stringify(result.messages)).not.toContain('opaque')
   })
+  it('does not treat generated environment context as the first user request', async () => {
+    const p = await file('rollout-context.jsonl', [
+      meta(),
+      message('<environment_context><cwd>D:/project</cwd><shell>powershell</shell></environment_context>'),
+      message('Read the handoff'),
+      row('response_item', {
+        type: 'custom_tool_call_output',
+        output: [
+          { type: 'input_text', text: JSON.stringify({ chunk_id: 'chunk', exit_code: 0, output: 'first\nsecond' }) }
+        ]
+      })
+    ])
+    const result = await codexAdapter.read({ path: p }, signal())
+    expect(result.title).toBe('Read the handoff')
+    expect(result.messages[0].role).toBe('system')
+    expect(result.messages[0].data.parts).toEqual([
+      { type: 'text', text: expect.stringContaining('[Historical environment]') }
+    ])
+    expect(result.messages[2].data.parts).toEqual([{ type: 'text', text: expect.stringContaining('first\nsecond') }])
+  })
 })
