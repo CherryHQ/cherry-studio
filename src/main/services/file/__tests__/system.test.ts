@@ -1,3 +1,7 @@
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -20,7 +24,10 @@ vi.mock('../internal/system/shell', () => ({
   showInFolder: internalShowInFolderMock
 }))
 
-import { safeOpen, showInFolder } from '../system'
+const writer = vi.hoisted(() => vi.fn())
+vi.mock('../internal/system/clipboard', () => ({ writeFileToClipboard: writer }))
+
+import { copyFileToClipboard, getClipboardCopyStatus, safeOpen, showInFolder } from '../system'
 
 describe('file system helpers', () => {
   beforeEach(() => {
@@ -63,5 +70,34 @@ describe('file system helpers', () => {
     await showInFolder('/tmp/report.md' as AbsoluteFilePath)
 
     expect(internalShowInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
+  })
+})
+
+describe('clipboard target availability', () => {
+  it('refuses a missing path before writing', async () => {
+    const path = '/tmp/issue-23362-definitely-missing/file' as AbsoluteFilePath
+    expect(await getClipboardCopyStatus(path)).toEqual({ ok: false, reason: 'missing' })
+    await expect(copyFileToClipboard(path)).rejects.toMatchObject({
+      code: 'FILE_COPY_TARGET_UNAVAILABLE',
+      data: { reason: 'missing', path }
+    })
+    expect(writer).not.toHaveBeenCalled()
+  })
+  it('checks readable files, directories, and unreadable files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'clipboard-test-'))
+    const path = join(dir, 'file.cmd') as AbsoluteFilePath
+    try {
+      await writeFile(path, 'data')
+      for (const target of [path, dir as AbsoluteFilePath]) {
+        expect(await getClipboardCopyStatus(target)).toEqual({ ok: true })
+        await copyFileToClipboard(target)
+        expect(writer).toHaveBeenCalledWith(target)
+      }
+      await chmod(path, 0)
+      expect(await getClipboardCopyStatus(path)).toEqual({ ok: false, reason: 'inaccessible' })
+    } finally {
+      await chmod(path, 0o600)
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })
