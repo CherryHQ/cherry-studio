@@ -17,6 +17,7 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
+import { ensureImportedSessionHistory } from './importedSessionHistory'
 import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
@@ -32,6 +33,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
+    await ensureImportedSessionHistory(session.id)
     await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
@@ -79,6 +81,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     const migration = getRetiredAgentSessionMigration(application.get('DbService').getDb(), input.sessionId)
+    await ensureImportedSessionHistory(input.sessionId)
     await ensureRetiredSessionHistory(input.sessionId)
     const migratedInput = migration
       ? {
