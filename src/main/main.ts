@@ -55,7 +55,7 @@ const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
   // Reset before backup, migration, or services open user data.
-  runDataReset()
+  await runDataReset()
 
   // userData relocation: a pending/failed relocation makes this a dedicated
   // relocation launch (execute or explain, then relaunch) before any service

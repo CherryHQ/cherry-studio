@@ -147,12 +147,12 @@ const makeSession = () => ({
 let defaultSession = makeSession()
 let webviewSession = makeSession()
 
-function stubElectron() {
+function stubElectron(whenReady = () => Promise.resolve()) {
   defaultSession = makeSession()
   webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
-    app: { isPackaged: false },
+    app: { isPackaged: false, whenReady },
     dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
     session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
   }))
@@ -358,7 +358,7 @@ function completedMarker(): CompletedMarker {
 
 async function runReset() {
   const { runDataReset } = await import('../dataReset')
-  runDataReset()
+  await runDataReset()
 }
 
 async function requestReset() {
@@ -381,6 +381,46 @@ beforeEach(() => {
 })
 
 describe('runDataReset', () => {
+  it('waits for the app to be ready before it reports a reset failure, then exits', async () => {
+    stubAll(pendingMarker())
+    const ready = Promise.withResolvers<void>()
+    stubElectron(() => ready.promise)
+    fsCtl.failWrite = true
+    const { runDataReset } = await import('../dataReset')
+
+    const reset = runDataReset()
+
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+
+    ready.resolve()
+    await reset
+
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Failed', expect.any(String))
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+
+  it('relaunches only after the app is ready', async () => {
+    stubAll(pendingMarker())
+    const ready = Promise.withResolvers<void>()
+    stubElectron(() => ready.promise)
+    const { runDataReset } = await import('../dataReset')
+
+    const reset = runDataReset()
+
+    expect(wipedEntries()).toContain(`${USER_DATA}/Data`)
+    expect(markerExists()).toBe(false)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+
+    ready.resolve()
+    await reset
+
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+  })
+
   it('does nothing without a pending marker', async () => {
     stubAll(null)
     await runReset()
