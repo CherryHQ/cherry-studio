@@ -257,6 +257,9 @@ describe('background subagent delivery', () => {
 
     await runtime.compact()
     await waitFor(() => calls.some((call) => call.lastText.startsWith(NOTE)))
+    await waitFor(() =>
+      parent.events.some((event) => event.type === 'session-append' && notifications(event.entries).length > 0)
+    )
 
     const order = parent.events.flatMap((event) =>
       event.type === 'compaction-end'

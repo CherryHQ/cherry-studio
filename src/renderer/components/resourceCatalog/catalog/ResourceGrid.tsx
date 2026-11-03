@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   FolderSearch,
   Import,
   LayoutGrid,
@@ -74,6 +75,7 @@ interface Props {
   onExport: (r: ResourceItem) => void
   onCreate: (type: ResourceType) => void
   onImportAssistant: () => void
+  onExportAssistants: () => void
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
   onOpenSkillMarketplace: () => void
@@ -133,13 +135,14 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 interface AssistantAddActionsProps {
   onNew: () => void
   onImport: () => void
+  onExportAssistants: () => void
   onOpenLibrary?: () => void
 }
 
 /**
  * Assistant creation actions are intentionally flat so each entry point stays visible in the toolbar.
  */
-function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddActionsProps) {
+function AssistantAddActions({ onNew, onImport, onExportAssistants, onOpenLibrary }: AssistantAddActionsProps) {
   const { t } = useTranslation()
 
   return (
@@ -157,6 +160,10 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
       <Button variant="outline" size="sm" onClick={onImport} className="shrink-0">
         <Import size={12} />
         <span>{t('assistants.presets.import.action')}</span>
+      </Button>
+      <Button variant="outline" size="sm" onClick={onExportAssistants} className="shrink-0">
+        <Download size={12} />
+        <span>{t('assistants.presets.export.action')}</span>
       </Button>
     </>
   )
@@ -225,6 +232,7 @@ export const ResourceGrid: FC<Props> = ({
   onExport,
   onCreate,
   onImportAssistant,
+  onExportAssistants,
   onOpenAssistantLibrary,
   onOpenSkillMarketplace,
   onOpenSystemSkills,
@@ -354,6 +362,7 @@ export const ResourceGrid: FC<Props> = ({
       <AssistantAddActions
         onNew={() => onCreate('assistant')}
         onImport={onImportAssistant}
+        onExportAssistants={onExportAssistants}
         onOpenLibrary={onOpenAssistantLibrary}
       />
     ) : activeResourceType === 'skill' ? (
