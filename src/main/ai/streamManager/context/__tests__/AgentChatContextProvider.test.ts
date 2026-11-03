@@ -7,6 +7,8 @@ import type { MainDispatchRequest } from '../dispatch'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getTaskScheduleIdBySessionId: vi.fn(),
+  getSubscribedChannels: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
   captureHead: vi.fn(),
@@ -25,7 +27,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
+  agentSessionService: {
+    getById: mocks.getSession,
+    ensureTraceIdTx: mocks.ensureTraceIdTx,
+    getTaskScheduleIdBySessionId: mocks.getTaskScheduleIdBySessionId
+  }
+}))
+
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: { getSubscribedChannels: mocks.getSubscribedChannels }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -91,6 +101,8 @@ describe('AgentChatContextProvider', () => {
     provider = new AgentChatContextProvider()
 
     vi.clearAllMocks()
+    mocks.getTaskScheduleIdBySessionId.mockReturnValue(null)
+    mocks.getSubscribedChannels.mockReturnValue([])
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
@@ -375,6 +387,85 @@ describe('AgentChatContextProvider', () => {
       expect.anything(),
       expect.objectContaining({ trustedNotifyChannels: expected })
     )
+  })
+
+  // These assertions catch lost admission grants and accidental task elevation of headless work.
+  describe('task-session notification admission', () => {
+    beforeEach(() => {
+      mocks.getTaskScheduleIdBySessionId.mockReturnValue('schedule-task')
+      mocks.getSubscribedChannels.mockReturnValue([
+        { id: 'channel-z', type: 'feishu', agentId: 'agent-1', isActive: false, connected: false },
+        { id: 'channel-foreign', type: 'telegram', agentId: 'agent-2' },
+        { id: 'channel-a', type: 'telegram', agentId: 'agent-1', isActive: true }
+      ])
+    })
+
+    it.each([false, true])('passes sorted owned subscriptions to the runtime (busy: %s)', async (busy) => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(busy)
+      await provider.prepareDispatch(makeSubscriber(), openReq())
+
+      const options = busy ? mocks.runtimeEnqueueUserMessage.mock.calls[0][2] : mocks.runtimeBeginTurn.mock.calls[0][0]
+      expect(options.trustedNotifyChannels).toEqual([
+        { id: 'channel-a', type: 'telegram' },
+        { id: 'channel-z', type: 'feishu' }
+      ])
+      expect(mocks.getTaskScheduleIdBySessionId).toHaveBeenCalledExactlyOnceWith('session-1')
+      expect(mocks.getSubscribedChannels).toHaveBeenCalledExactlyOnceWith('schedule-task')
+    })
+
+    it.each([{ channels: [] }, { channels: [{ id: 'channel-foreign', type: 'telegram', agentId: 'agent-2' }] }])(
+      'grants an explicit empty set when there are no owned subscriptions: $channels',
+      async ({ channels }) => {
+        mocks.getSubscribedChannels.mockReturnValue(channels)
+        await provider.prepareDispatch(makeSubscriber(), openReq())
+        expect(mocks.runtimeBeginTurn.mock.calls[0][0].trustedNotifyChannels).toEqual([])
+      }
+    )
+
+    it('keeps unbound authority undefined for linked-channel fallback', async () => {
+      mocks.getTaskScheduleIdBySessionId.mockReturnValue(null)
+      await provider.prepareDispatch(makeSubscriber(), openReq())
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].trustedNotifyChannels).toBeUndefined()
+      expect(mocks.getSubscribedChannels).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [[], []],
+      [[{ id: 'caller-channel', type: 'telegram' }] as const, [{ id: 'caller-channel', type: 'telegram' }]]
+    ])('preserves explicit caller authority %j on a bound session', async (requested, expected) => {
+      const authority = Object.freeze({ trustedNotifyChannels: requested })
+      await provider.prepareAgentSessionDispatch(makeSubscriber(), openReq(), authority)
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].trustedNotifyChannels).toEqual(expected)
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].trustedNotifyChannels).toBe(requested)
+      expect(mocks.getTaskScheduleIdBySessionId).not.toHaveBeenCalled()
+      expect(mocks.getSubscribedChannels).not.toHaveBeenCalled()
+    })
+
+    it('does not inherit task authority for a headless submission', async () => {
+      await provider.prepareDispatch(makeSubscriber(), openReq({ headless: true }))
+      expect(mocks.runtimeBeginTurn.mock.calls[0][0].trustedNotifyChannels).toBeUndefined()
+      expect(mocks.getTaskScheduleIdBySessionId).not.toHaveBeenCalled()
+      expect(mocks.getSubscribedChannels).not.toHaveBeenCalled()
+    })
+
+    it('resolves the same snapshot for edit/resend admission', async () => {
+      const validated = await provider.validateDispatch(openReq({ trigger: 'edit-agent-message' }))
+      expect(validated.trustedNotifyChannels).toEqual([
+        { id: 'channel-a', type: 'telegram' },
+        { id: 'channel-z', type: 'feishu' }
+      ])
+    })
+
+    it('takes a new snapshot for later admissions without changing already admitted work', async () => {
+      const first = await provider.validateDispatch(openReq())
+      mocks.getSubscribedChannels.mockReturnValue([])
+      const second = await provider.validateDispatch(openReq())
+      expect(first.trustedNotifyChannels).toEqual([
+        { id: 'channel-a', type: 'telegram' },
+        { id: 'channel-z', type: 'feishu' }
+      ])
+      expect(second.trustedNotifyChannels).toEqual([])
+    })
   })
 
   it('uses persisted Agent turn controls when the request does not override them', async () => {

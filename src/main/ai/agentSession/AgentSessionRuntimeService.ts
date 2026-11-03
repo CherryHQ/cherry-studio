@@ -1026,6 +1026,7 @@ export class AgentSessionRuntimeService extends BaseService {
       turn.reasoningEffort === reasoningEffort &&
       turn.serviceTier === serviceTier &&
       turn.fastMode === fastMode &&
+      notifyChannelsEqual(turn.trustedNotifyChannels, trustedNotifyChannels) &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
@@ -1984,10 +1985,11 @@ export class AgentSessionRuntimeService extends BaseService {
           headless: this.currentTurn(entry)?.headless === true && event.inputs.every((input) => input.headless === true)
         })
         break
-      case 'steer-undelivered':
+      case 'steer-undelivered': {
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
         // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
         // drains the state-machine queue through the queued-turn launch.
+        const sourceTrustedNotifyChannels = this.currentTurn(entry)?.trustedNotifyChannels
         for (const input of event.inputs) {
           this.applyRuntimeStateEvent(entry, {
             type: 'queue-turn',
@@ -1998,12 +2000,16 @@ export class AgentSessionRuntimeService extends BaseService {
               knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
               fastMode: this.currentTurn(entry)?.fastMode ?? false,
               steer: true,
+              ...(sourceTrustedNotifyChannels !== undefined
+                ? { trustedNotifyChannels: sourceTrustedNotifyChannels }
+                : {}),
               ...(input.headless ? { headless: true } : {}),
               ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
             }
           })
         }
         break
+      }
       case 'compaction-start':
         this.handleCompactionStart(entry, event.trigger)
         break

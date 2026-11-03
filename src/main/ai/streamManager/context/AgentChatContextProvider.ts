@@ -10,6 +10,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -31,6 +32,16 @@ import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
+
+function resolveTaskSessionNotifyChannels(sessionId: string, agentId: string): readonly NotifyChannel[] | undefined {
+  const taskScheduleId = agentSessionService.getTaskScheduleIdBySessionId(sessionId)
+  if (!taskScheduleId) return undefined
+  return agentChannelService
+    .getSubscribedChannels(taskScheduleId)
+    .filter((channel) => channel.agentId === agentId)
+    .map((channel) => ({ id: channel.id, type: channel.type }))
+    .sort((left, right) => left.id.localeCompare(right.id))
+}
 
 function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
   return {
@@ -146,6 +157,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
+    const trustedNotifyChannels =
+      authority.trustedNotifyChannels !== undefined
+        ? authority.trustedNotifyChannels
+        : req.headless === true
+          ? undefined
+          : resolveTaskSessionNotifyChannels(sessionId, agentId)
     return {
       sessionId,
       parentMessageId,
@@ -159,9 +176,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
-      ...(authority.trustedNotifyChannels !== undefined
-        ? { trustedNotifyChannels: authority.trustedNotifyChannels }
-        : {}),
+      ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
       messageSnapshot: {
         id: agent.id,
         name: agent.name,
