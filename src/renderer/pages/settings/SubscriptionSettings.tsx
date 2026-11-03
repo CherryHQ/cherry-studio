@@ -13,8 +13,10 @@ export function SubscriptionSettings() {
   const {
     session: { status, loadState, login, cancelLogin, isAuthorizing, isCancellingLogin },
     plansQuery: { data: plans, error, isLoading: loading, mutate },
-    activePaid
+    activePaid,
+    upcomingPaid
   } = useCherryCloudPlans()
+  const paidPlan = activePaid ?? upcomingPaid
   const failed = Boolean(error)
 
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
@@ -94,14 +96,19 @@ export function SubscriptionSettings() {
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-sm font-medium">
-                {activePaid?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
+                {paidPlan?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
+                {!activePaid && upcomingPaid && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {t('settings.subscription.upcoming')}
+                  </span>
+                )}
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void (activePaid ? openCherryCloudAccountPortal() : startCherryCloudSubscription())}>
-              {activePaid ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
+              onClick={() => void (paidPlan ? openCherryCloudAccountPortal() : startCherryCloudSubscription())}>
+              {paidPlan ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
               <ExternalLink />
             </Button>
           </div>
@@ -120,11 +127,11 @@ export function SubscriptionSettings() {
                 {t('common.retry')}
               </Button>
             </div>
-          ) : activePaid?.quota_pools.length ? (
-            <CherryCloudQuotaUsage entitlement={activePaid} />
+          ) : paidPlan?.quota_pools.length ? (
+            <CherryCloudQuotaUsage entitlement={paidPlan} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {activePaid ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
+              {paidPlan ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
             </p>
           )}
         </div>

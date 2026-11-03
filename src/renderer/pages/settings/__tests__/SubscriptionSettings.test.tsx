@@ -134,7 +134,7 @@ describe('SubscriptionSettings', () => {
     )
   })
 
-  it('labels a 30-day rolling window as monthly usage without backend pool names or a total summary', async () => {
+  it('labels a 30-day rolling window by its length, as the web account page does, without backend pool names', async () => {
     requestMock.mockResolvedValue({
       measured_at: '2026-09-21T00:00:00Z',
       entitlements: [
@@ -179,13 +179,11 @@ describe('SubscriptionSettings', () => {
 
     renderSettings()
 
-    expect(await screen.findByText('settings.subscription.limit_monthly')).toBeInTheDocument()
+    expect(await screen.findByText('30-day limit')).toBeInTheDocument()
     expect(screen.queryByText('Flash quota')).not.toBeInTheDocument()
     expect(screen.getByText('100.00% remaining')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'settings.subscription.limit_monthly' })).toHaveAttribute(
-      'aria-valuenow',
-      '100'
-    )
+    expect(screen.getByText('settings.subscription.next_recovery')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '30-day limit' })).toHaveAttribute('aria-valuenow', '100')
     expect(screen.queryByText('US$8.00')).not.toBeInTheDocument()
   })
 
@@ -226,7 +224,7 @@ describe('SubscriptionSettings', () => {
     expect(session.cancelLogin).toHaveBeenCalledTimes(1)
   })
 
-  it('accepts a billing-period window and shows when it resets', async () => {
+  it('words a paid subscription month as ending with the period rather than recovering', async () => {
     const plans = paidPlans('国内订阅')
     plans.entitlements[0].quota_pools = [
       {
@@ -252,11 +250,25 @@ describe('SubscriptionSettings', () => {
 
     renderSettings()
 
-    expect(await screen.findByRole('progressbar', { name: 'settings.subscription.limit_monthly' })).toHaveAttribute(
-      'aria-valuenow',
-      '75'
-    )
-    expect(screen.getByText('settings.subscription.next_recovery')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('progressbar', { name: 'settings.subscription.limit_subscription_month' })
+    ).toHaveAttribute('aria-valuenow', '75')
+    expect(screen.getByText('settings.subscription.subscription_month_ends')).toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.next_recovery')).not.toBeInTheDocument()
+  })
+
+  it('manages a bought plan that has not started yet instead of offering Subscribe', async () => {
+    const plans = paidPlans('Cherry Plus')
+    plans.entitlements[0].state = 'upcoming'
+    requestMock.mockResolvedValue(plans)
+
+    renderSettings()
+
+    expect(await screen.findByText('settings.subscription.upcoming')).toBeInTheDocument()
+    expect(screen.getByText('Cherry Plus')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.subscription.manage' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.subscription.subscribe' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.no_plan')).not.toBeInTheDocument()
   })
 
   it('shows the backend plan name without a price or renewal interval', async () => {

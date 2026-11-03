@@ -351,6 +351,18 @@ describe('UserAccountPanel', () => {
     expect(await screen.findByRole('button', { name: `用量 剩余 ${percent}%` })).toBeEnabled()
   })
 
+  it('shows a bought plan that has not started yet without the subscribe prompt or reminder dot', async () => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    MockUseCacheUtils.setPersistCacheValue('ui.cherry_cloud.subscribe_prompt_seen', false)
+    plans = paidPlans('Plus')
+    plans.entitlements[0].state = 'upcoming'
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: '用量 即将生效' })).toBeEnabled()
+    expect(screen.queryByText('去订阅')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('subscribe-reminder-dot')).not.toBeInTheDocument()
+  })
+
   it('keeps usage details accessible without inventing a percentage when no quota is configured', async () => {
     plans = paidPlans('Pro')
     plans.entitlements[0].quota_pools = []
@@ -472,7 +484,7 @@ describe('UserAccountPanel', () => {
     const row = await screen.findByRole('button', { name: '用量 剩余 40.00%' })
     await user.hover(row)
 
-    expect(await screen.findByRole('progressbar', { name: '月度用量' })).toHaveAttribute('aria-valuenow', '92')
+    expect(await screen.findByRole('progressbar', { name: '30 天额度' })).toHaveAttribute('aria-valuenow', '92')
     await user.click(screen.getByRole('button', { name: '查看用量详情' }))
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(

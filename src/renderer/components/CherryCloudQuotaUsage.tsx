@@ -2,10 +2,10 @@ import { useTranslation } from 'react-i18next'
 
 import {
   type CherryCloudEntitlement,
-  getQuotaRecoveryTime,
   formatQuotaPercent,
   getQuotaRemainingPercent,
-  getQuotaWindowLabel
+  getQuotaWindowLabel,
+  getQuotaWindowNote
 } from '@renderer/utils/cherryCloudQuota'
 
 /** Remaining quota per window of a Cherry Cloud entitlement, as progress bars with recovery times. */
@@ -17,7 +17,6 @@ export function CherryCloudQuotaUsage({ entitlement }: { entitlement: CherryClou
       {pool.windows.map((window) => {
         const label = getQuotaWindowLabel(window, t)
         const remainingPercent = getQuotaRemainingPercent(window)
-        const recoversAt = getQuotaRecoveryTime(window)
         return (
           <div key={`${pool.allocation_id}-${window.window_type}-${window.duration_seconds}`}>
             <div className="flex items-baseline justify-between gap-3 text-xs">
@@ -35,13 +34,7 @@ export function CherryCloudQuotaUsage({ entitlement }: { entitlement: CherryClou
               aria-valuemax={100}>
               <div className="h-full bg-primary" style={{ width: `${remainingPercent}%` }} />
             </div>
-            {recoversAt && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {t('settings.subscription.next_recovery', {
-                  time: new Date(recoversAt).toLocaleString(i18n.language)
-                })}
-              </p>
-            )}
+            <p className="mt-1 text-[11px] text-muted-foreground">{getQuotaWindowNote(window, t, i18n.language)}</p>
           </div>
         )
       })}

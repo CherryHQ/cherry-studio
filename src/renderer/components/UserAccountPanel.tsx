@@ -77,7 +77,11 @@ export function UserAccountPanel({
   }
 
   const activePaidPlan = plans?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
-  const paidPlanName = activePaidPlan?.plan.display_name
+  // A bought plan that has not started yet is shown as such, not offered again.
+  const upcomingPaidPlan = activePaidPlan
+    ? undefined
+    : plans?.entitlements.find((item) => item.state === 'upcoming' && !item.plan.is_free)
+  const paidPlanName = (activePaidPlan ?? upcomingPaidPlan)?.plan.display_name
   const remainingPercent = activePaidPlan ? (getLowestRemainingPercent(activePaidPlan) ?? null) : null
   const cloudSubtitle = isCloudSignedIn
     ? paidPlanName || cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
@@ -96,6 +100,8 @@ export function UserAccountPanel({
     t('common.loading')
   ) : subscriptionFailed ? (
     t('common.retry')
+  ) : upcomingPaidPlan ? (
+    t('settings.subscription.upcoming')
   ) : paidPlanName ? (
     remainingPercent === null ? (
       t('settings.subscription.no_quota')
