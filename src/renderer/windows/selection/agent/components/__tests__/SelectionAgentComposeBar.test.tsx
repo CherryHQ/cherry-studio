@@ -68,6 +68,8 @@ function renderBar(props: Partial<Parameters<typeof SelectionAgentComposeBar>[0]
       selectedText="ubiquity"
       programName="Chrome"
       target={{ agentId: null, workspace: { type: 'system' } }}
+      text=""
+      onTextChange={() => undefined}
       sending={false}
       error={null}
       onSend={onSend}
@@ -86,7 +88,7 @@ describe('SelectionAgentComposeBar', () => {
     mocks.surface = null
   })
 
-  it('sends the selection as a leading quote naming its source app, ahead of the instruction', () => {
+  it('sends the selection as a leading quote ahead of the instruction, adding nothing else', () => {
     const { onSend } = renderBar()
     const link = { id: 'l', kind: 'link' as const, label: 'docs', promptText: 'https://x.dev', index: 0, textOffset: 4 }
 
@@ -96,7 +98,7 @@ describe('SelectionAgentComposeBar', () => {
     const [quote, shifted] = draft.tokens
     expect(quote).toMatchObject({ kind: 'quote', description: 'ubiquity', index: 0, textOffset: 0 })
     expect(quote.promptText).toContain('ubiquity')
-    expect(quote.promptText?.endsWith('\nselection.agent.source:Chrome')).toBe(true)
+    expect(draft.text).not.toContain('Chrome')
     expect(draft.text).toBe(`${quote.promptText}\nSee https://x.dev`)
     expect(draft.text.slice(shifted.textOffset).startsWith('https://x.dev')).toBe(true)
     expect(shifted.index).toBe(1)

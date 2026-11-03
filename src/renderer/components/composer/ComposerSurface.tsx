@@ -462,8 +462,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         width: '100%',
         ...(props.railGutterPx != null
           ? {
-              paddingLeft: COMPOSER_SIDE_PADDING_PX + props.railGutterPx,
-              paddingRight: COMPOSER_SIDE_PADDING_PX + props.railGutterPx
+              paddingLeft: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx,
+              paddingRight: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
             }
           : {})
       }}>

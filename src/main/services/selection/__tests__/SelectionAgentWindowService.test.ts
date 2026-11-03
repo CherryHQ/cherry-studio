@@ -43,6 +43,9 @@ function createWindow() {
     show(this: { visible: boolean }) {
       this.visible = true
     },
+    isVisible(this: { visible: boolean }) {
+      return this.visible
+    },
     isDestroyed: () => false
   }
   return mockWindow
@@ -108,6 +111,71 @@ describe('SelectionAgentWindowService', () => {
     svc.resize('mock-window-id', { mode: 'compose', height: 200 })
 
     expect(window.getBounds().height).toBe(250)
+  })
+
+  describe('next selection trigger', () => {
+    let windows: Record<string, ReturnType<typeof createWindow>>
+    let wm: { open: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }
+
+    beforeEach(() => {
+      windows = { w1: createWindow(), w2: createWindow() }
+      wm = application.get('WindowManager') as unknown as typeof wm
+      ;(
+        application.get('WindowManager') as unknown as { getWindow: ReturnType<typeof vi.fn> }
+      ).getWindow.mockImplementation((id: string) => windows[id])
+      wm.close.mockImplementation((id: string) => {
+        windows[id].visible = false
+        return true
+      })
+    })
+
+    it('closes the windows that hold nothing to lose and keeps the rest', () => {
+      wm.open.mockReturnValueOnce('w1').mockReturnValueOnce('w2').mockReturnValueOnce('w3')
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+      svc.open(RESEARCH, { anchor: TOOLBAR, isFullScreen: false })
+      svc.setReplaceable('w1', true)
+      svc.setReplaceable('w2', true)
+      svc.setReplaceable('w2', false)
+
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+
+      expect(wm.close.mock.calls).toEqual([['w1']])
+      expect(wm.close.mock.invocationCallOrder[0]).toBeLessThan(wm.open.mock.invocationCallOrder[2])
+    })
+
+    it('leaves a window alone once it is back in the pool', () => {
+      wm.open.mockReturnValueOnce('w1').mockReturnValueOnce('w2')
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+      svc.setReplaceable('w1', true)
+      windows.w1.visible = false
+
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+
+      expect(wm.close).not.toHaveBeenCalled()
+    })
+
+    it('ignores replaceable reports from windows it did not open', () => {
+      wm.open.mockReturnValueOnce('w1')
+      svc.setReplaceable('w2', true)
+      windows.w2.visible = true
+
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+
+      expect(wm.close).not.toHaveBeenCalled()
+    })
+
+    it('does not carry a recycled window over to its next content', () => {
+      wm.open.mockReturnValue('w1')
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+      svc.setReplaceable('w1', true)
+      // Replaced: the pool hands the same window back for the new action.
+      svc.open(RESEARCH, { anchor: TOOLBAR, isFullScreen: false })
+      wm.close.mockClear()
+
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: false })
+
+      expect(wm.close).not.toHaveBeenCalled()
+    })
   })
 
   it('ignores layout requests from windows it did not open', () => {
