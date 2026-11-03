@@ -93,7 +93,7 @@ export function presentImportedTools(source: HistorySource, messageId: string, r
       toolName: 'historical_tool',
       state: 'output-available' as const,
       input,
-      output: { content: text ? [{ type: 'text', text }] : [] },
+      output: text,
       callProviderMetadata: {
         cherry: { tool: { type: 'mcp', name, serverId: 'history-import', serverName: source } }
       }

@@ -16,7 +16,7 @@ describe('Claude imported history presentation', () => {
       type: 'dynamic-tool',
       toolName: 'historical_tool',
       state: 'output-available',
-      output: { content: [{ type: 'text', text: 'file content' }] }
+      output: 'file content'
     })
     expect(result.data.parts?.[0]).not.toHaveProperty('approval')
     expect(data.parts[0].text).toContain('[Historical tool result: Read]')
