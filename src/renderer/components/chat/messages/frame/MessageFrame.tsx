@@ -92,6 +92,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
   const isAssistantMessage = message.role === 'assistant'
+  const isUserMessage = message.role === 'user'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
     actions.canEditMessage?.(message) ??
@@ -116,7 +117,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isStreamTarget = activityState.isStreamTarget
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
-  const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
+  const isUserBubbleMessage = messageStyle === 'bubble' && isUserMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
@@ -292,7 +293,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         classNames({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
           'message-assistant': isAssistantMessage,
-          'message-user': !isAssistantMessage,
+          'message-user': isUserMessage,
+          'message-system': message.role === 'system',
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
         })

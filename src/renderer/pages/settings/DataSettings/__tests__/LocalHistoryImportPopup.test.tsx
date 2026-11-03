@@ -1,5 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -130,7 +130,12 @@ describe('local history import dialog', () => {
       const result = await original(...args)
       if (args[0] === 'conversation_import.preview') {
         result.previewId = blocked ? 'blocked' : 'fresh'
-        if (blocked) result.items[0].diagnostics = [{ code: 'unsupported_history_layout', severity: 'error' }]
+        if (blocked)
+          result.items[0].diagnostics = [
+            { code: 'unsupported_history_layout', severity: 'error' },
+            { code: 'unsupported_history_layout', severity: 'error', line: 25 },
+            { code: 'reasoning_compatibility', severity: 'warning' }
+          ]
       }
       return result
     })
@@ -140,9 +145,14 @@ describe('local history import dialog', () => {
     await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
     await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
     await screen.findByText(enUS['history_import.problems.unsupported'])
-    expect(screen.getByRole('alert')).toHaveTextContent('1 conversations could not be imported')
-    expect(screen.getByRole('region', { name: 'Original task' })).toHaveFocus()
+    const issues = screen.getByRole('dialog', { name: enUS['history_import.error_title'] })
+    expect(issues).toHaveTextContent('1 conversations could not be imported')
+    expect(within(issues).getByRole('heading')).toHaveFocus()
+    expect(within(issues).getAllByRole('listitem')).toHaveLength(1)
     expect(request.mock.calls.some(([route]) => route === 'conversation_import.commit')).toBe(false)
+    await user.click(within(issues).getByText(enUS['common.close'], { selector: 'button' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: enUS['history_import.error_title'] })).toBeNull())
+    expect(screen.getByRole('checkbox', { name: /Original task/ })).toBeChecked()
     blocked = false
     await user.click(screen.getByRole('combobox'))
     await user.click(screen.getByRole('option', { name: 'Beta' }))
@@ -154,6 +164,25 @@ describe('local history import dialog', () => {
       selections: [{ ref: 'ref' }]
     })
     expect(request).toHaveBeenCalledWith('conversation_import.commit', { previewId: 'fresh', refs: ['ref'] })
+  })
+  it('opens commit failures separately and keeps the result summary available after closing', async () => {
+    agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (...args) =>
+      args[0] === 'conversation_import.commit'
+        ? [{ ref: 'ref', status: 'failed', reason: 'source_changed' }]
+        : original(...args)
+    )
+    const user = userEvent.setup()
+    render(<LocalHistoryImportDialog open source="codex" resolve={() => {}} />)
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    const issues = await screen.findByRole('dialog', { name: enUS['history_import.error_title'] })
+    expect(within(issues).getByText(enUS['history_import.problems.changed'])).toBeInTheDocument()
+    await user.click(within(issues).getByText(enUS['common.close'], { selector: 'button' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: enUS['history_import.error_title'] })).toBeNull())
+    expect(screen.getByText(enUS['history_import.results.failed'])).toBeInTheDocument()
   })
   it('supports select all, mixed selection and deselect all', async () => {
     agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
@@ -195,7 +224,9 @@ describe('local history import dialog', () => {
     agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
     const user = userEvent.setup()
     render(<LocalHistoryImportDialog open source="claude-code" resolve={() => {}} />)
-    await screen.findByRole('alert')
+    const issues = await screen.findByRole('dialog', { name: enUS['history_import.error_title'] })
+    await user.click(within(issues).getByText(enUS['common.close'], { selector: 'button' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: enUS['history_import.error_title'] })).toBeNull())
     await user.type(screen.getByLabelText(enUS['history_import.storage']), '/custom')
     await user.click(screen.getByRole('button', { name: enUS['history_import.scan'] }))
     expect(await screen.findByText('Original task')).toBeInTheDocument()

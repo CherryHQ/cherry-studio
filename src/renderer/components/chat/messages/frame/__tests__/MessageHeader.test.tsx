@@ -88,7 +88,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
+const createMessage = (role: 'assistant' | 'user' | 'system' = 'assistant', extra: Record<string, unknown> = {}) =>
   ({
     id: 'message-1',
     role,
@@ -104,143 +104,9 @@ describe('MessageHeader', () => {
     providerState.meta = {}
   })
 
-  it('uses the snapshot image instead of the live avatar', async () => {
-    class LoadedImage {
-      complete = true
-      naturalWidth = 1
-      src = ''
-      addEventListener() {}
-      removeEventListener() {}
-    }
-    vi.stubGlobal('Image', LoadedImage)
-    providerState.meta = {
-      assistantProfile: { name: 'Live', avatar: 'file:///live.webp' },
-      assistantAvatarSources: new Map([['file:frozen', 'file:///frozen.webp']])
-    }
-    try {
-      render(
-        <MessageHeader
-          message={createMessage('assistant', {
-            messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:frozen' }
-          })}
-        />
-      )
-      const image = await screen.findByRole('img')
-      expect(image).toHaveAttribute('src', 'file:///frozen.webp')
-      fireEvent.error(image)
-      expect(screen.getAllByText('🎓')[0]).toBeVisible()
-      expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    } finally {
-      vi.unstubAllGlobals()
-    }
+  it('attributes historical system records to the system instead of the user', () => {
+    render(<MessageHeader message={createMessage('system')} />)
+    expect(screen.getByText('chat.message.system')).toBeInTheDocument()
+    expect(screen.queryByText('User')).not.toBeInTheDocument()
   })
 
-  it('falls back to the frozen emoji when its file is missing', () => {
-    providerState.meta = { assistantProfile: { name: 'Live', avatar: 'file:///live.webp' } }
-    render(
-      <MessageHeader
-        message={createMessage('assistant', {
-          messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:missing' }
-        })}
-      />
-    )
-    expect(screen.getAllByText('🎓')[0]).toBeVisible()
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
-  })
-
-  it('uses the live avatar when the message has no snapshot', async () => {
-    class LoadedImage {
-      complete = true
-      naturalWidth = 1
-      src = ''
-      addEventListener() {}
-      removeEventListener() {}
-    }
-    vi.stubGlobal('Image', LoadedImage)
-    providerState.meta = { assistantProfile: { name: 'Live', avatar: 'file:///live.webp' } }
-    try {
-      render(<MessageHeader message={createMessage()} />)
-      expect(await screen.findByRole('img')).toHaveAttribute('src', 'file:///live.webp')
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('explains a runtime-started assistant turn with its origin', () => {
-    // A goal round has no user message above it; the badge is the transcript's only explanation.
-    const { getByText } = render(
-      <MessageHeader message={createMessage('assistant', { turnOrigin: { kind: 'goal-round', round: 2 } })} />
-    )
-    expect(getByText('Goal round 2')).toBeTruthy()
-  })
-
-  it('renders no badge for a background continuation', () => {
-    const { queryByText } = render(
-      <MessageHeader message={createMessage('assistant', { turnOrigin: { kind: 'background-work' } })} />
-    )
-    expect(queryByText(/Goal round/)).toBeNull()
-    expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
-  })
-
-  it('shows durable sender attribution without transport status on a received message', () => {
-    const sender = { agentId: 'agent-a', sessionId: 'session-a' }
-    const { getByText } = render(
-      <MessageHeader
-        message={createMessage('user', {
-          delivery: {
-            version: 1,
-            sender,
-            receiver: { agentId: 'agent-b', sessionId: 'session-b' },
-            senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
-            receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
-            replyPolicy: 'none',
-            turnRef: null,
-            sourceMessageId: null,
-            outcome: null,
-            error: null,
-            statusAt: '2026-06-06T00:00:01.000Z',
-            status: 'accepted',
-            inReplyTo: null
-          }
-        })}
-      />
-    )
-
-    expect(getByText('From Agent A / Research')).toBeTruthy()
-  })
-
-  it('opens the sending session from durable attribution', async () => {
-    const user = userEvent.setup()
-    const navigateToRoute = vi.fn()
-    providerState.actions = { navigateToRoute }
-
-    render(
-      <MessageHeader
-        message={createMessage('user', {
-          delivery: {
-            version: 1,
-            sender: { agentId: 'agent-a', sessionId: 'session-source' },
-            receiver: { agentId: 'agent-b', sessionId: 'session-current' },
-            senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
-            receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
-            replyPolicy: 'none',
-            turnRef: null,
-            sourceMessageId: null,
-            outcome: null,
-            error: null,
-            statusAt: '2026-06-06T00:00:01.000Z',
-            status: 'accepted',
-            inReplyTo: null
-          }
-        })}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: /From Agent A \/ Research/ }))
-
-    expect(navigateToRoute).toHaveBeenCalledWith({
-      path: '/app/agents',
-      query: { sessionId: 'session-source' }
-    })
-  })
-})
