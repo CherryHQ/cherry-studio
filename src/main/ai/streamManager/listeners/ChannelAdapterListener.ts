@@ -92,7 +92,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   private updateStream(text: string): Promise<void> {
-    return this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
+    return this.adapter.onTextUpdate?.(this.platformChatId, text, this.responseOptions) ?? Promise.resolve()
   }
 
   /**
@@ -177,8 +177,9 @@ export class ChannelAdapterListener implements StreamListener {
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
-      const text = sanitizeChannelOutputSilently(this.ownedText(key === UNTAGGED_ATTEMPT ? undefined : key))
-        .text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')
+      const text = sanitizeChannelOutputSilently(
+        this.ownedText(key === UNTAGGED_ATTEMPT ? undefined : key)
+      ).text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')
       if (text === this.lastLiveText) continue
       this.lastLiveText = text
       drafts.push(text)
