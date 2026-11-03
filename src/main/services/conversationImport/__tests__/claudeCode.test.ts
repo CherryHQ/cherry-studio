@@ -132,4 +132,40 @@ describe('Claude history projection', () => {
       native.map((message) => message.uuid)
     )
   })
+  it('uses a source title, then the first real user request, including discovery', async () => {
+    const records = [
+      {
+        ...record('c', null),
+        message: {
+          content:
+            '<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args></command-args>'
+        }
+      },
+      { ...record('u', 'c'), message: { content: 'Explain models.py briefly' } }
+    ]
+    expect((await read(records)).title).toBe('Explain models.py briefly')
+    const refs: { title?: string }[] = []
+    for await (const ref of claudeCodeAdapter.discover(root, new AbortController().signal)) refs.push(ref)
+    expect(refs[0].title).toBe('Explain models.py briefly')
+    expect((await read([...records, { type: 'custom-title', customTitle: 'My task' }])).title).toBe('My task')
+  })
+  it('classifies local commands as historical system text and skips CLI caveats', async () => {
+    const result = await read([
+      {
+        ...record('c', null),
+        isMeta: true,
+        message: { content: '<local-command-caveat>transport notice</local-command-caveat>' }
+      },
+      {
+        ...record('o', 'c'),
+        message: { content: '<local-command-stdout>Set model to \u001b[1mmodel\u001b[22m</local-command-stdout>' }
+      },
+      { ...record('u', 'o'), message: { content: 'Actual request' } }
+    ])
+    expect(result.messages.map((m) => m.role)).toEqual(['system', 'user'])
+    expect(result.messages[0].data.parts).toEqual([
+      { type: 'text', text: expect.stringContaining('Set model to model') }
+    ])
+    expect(result.title).toBe('Actual request')
+  })
 })

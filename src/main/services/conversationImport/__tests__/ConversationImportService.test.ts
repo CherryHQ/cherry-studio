@@ -84,6 +84,33 @@ describe('local history atomic import', () => {
     )
     return { ...result, scan }
   }
+  it('renders already imported Claude tool results without rewriting stored history', async () => {
+    await source()
+    const prepared = await preview()
+    const [outcome] = await service.commit(
+      'window',
+      prepared.previewId,
+      prepared.items.map((item) => item.ref)
+    )
+    const stored = dbh.db.select().from(agentSessionMessageTable).all()[0]
+    const data = {
+      parts: [
+        {
+          type: 'text' as const,
+          text:
+            '[Historical tool result: Read]\n' +
+            JSON.stringify({ type: 'tool_result', content: 'line one\nline two', tool_use_id: 'call' })
+        }
+      ]
+    }
+    dbh.db.update(agentSessionMessageTable).set({ data }).where(eq(agentSessionMessageTable.id, stored.id)).run()
+    const visible = agentSessionMessageService.getSessionMessage(outcome.sessionId!, stored.id)
+    expect(visible.data.parts).toEqual([{ type: 'text', text: expect.stringContaining('line one\nline two') }])
+    expect(JSON.stringify(visible.data)).not.toContain('tool_use_id')
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, stored.id)).get()!.data
+    ).toEqual(data)
+  })
   function counts() {
     return [agentSessionTable, agentSessionMessageTable, agentWorkspaceTable, appStateTable].map(
       (table) => dbh.db.select().from(table).all().length
