@@ -757,7 +757,7 @@ describe('desktop Pi root connection', () => {
     expect(script.calls.at(-1)!.tools).toEqual([])
   })
 
-  it('forwards attachment paths through the input boundary while retaining private input facts', async () => {
+  it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
     const user = messages.saveMessage({
       sessionId: input.sessionId,
       message: {
@@ -776,7 +776,10 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
-    expect(messages.getSessionMessage(input.sessionId, user.id)).not.toHaveProperty('submission')
+    expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
+    const saved = messages.getSessionMessage(input.sessionId, user.id)
+    expect(saved).not.toHaveProperty('inputContextId')
+    expect(saved).not.toHaveProperty('nativeInputId')
   })
 
   it('blocks disabled native tools before they can modify the workspace', async () => {

@@ -523,16 +523,17 @@ The note remains proposed: independent child owner/projection wiring, Durable de
 #### Pi root integration evidence
 
 The root connection now owns a configured Pi Runtime and retained access. Native history and live
-snapshots remain separate from the product archive. Main writes submission facts on existing user
-rows, then commits final response associations with the assistant row. Native Pi providers call
+snapshots remain separate from the product archive. Main binds existing user rows to the captured
+context and evidenced native input ID. The connection consumes native outcomes, and projection saves
+the response content. Native Pi providers call
 Cherry's internal gateway, which owns upstream provider selection, credentials and billing;
 Pi owns native history, streaming, tools and the execution loop.
 The Pi facet keeps history, context usage, tool lookup and manual compaction outside the common API.
 Queued inputs left unplaced after stop/error receive aborted evidence and are not automatically resent.
 
 Real native-loop/SQLite fixtures cover create, strict reopen, streamed output, tools, steering,
-interruption, missing/ambiguous files, attachments, disabled tools, compaction, and response-transaction
-rollback. The gateway integration fixture uses a local HTTP provider, executes a native tool and verifies
+interruption, missing/ambiguous files, attachments, disabled tools, compaction, and input-identity write
+recovery. The gateway integration fixture uses a local HTTP provider, executes a native tool and verifies
 one billing row per model call. These fixtures do not prove live-provider or forced-process recovery.
 Reasoning replay and provider metadata follow Pi's native provider implementation and transcript;
 Cherry does not encode a separate replay format. Existing attachment file paths remain in the
