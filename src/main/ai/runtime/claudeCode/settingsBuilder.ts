@@ -28,6 +28,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { resolveAgentMcpServerKeys } from '@main/ai/runtime/agentMcpServers'
 import {
   type AgentNotificationContext,
   type LinkedChannelSnapshot,
@@ -63,6 +64,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { translateLegacyMcpToolRules } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Provider } from '@shared/data/types/provider'
@@ -112,9 +114,10 @@ export function registerMcpSessionCatalogSync(
   sessionId: string,
   agentId: string,
   mcpIds: readonly string[],
-  metadata: Record<string, McpToolDisplayMetadata> | undefined
+  metadata: Record<string, McpToolDisplayMetadata> | undefined,
+  serverAllocation?: ReadonlyMap<string, string>
 ): void {
-  sessionState().registerMcpSessionCatalogSync(sessionId, agentId, mcpIds, metadata)
+  sessionState().registerMcpSessionCatalogSync(sessionId, agentId, mcpIds, metadata, serverAllocation)
 }
 
 // ── Input types ─────────────────────────────────────────────────────
@@ -218,6 +221,12 @@ export async function buildClaudeCodeSessionSettings(
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
   const steerHolder = sessionState().getSteerHolder(session.id)
+  // The running connection's server allocation, captured once: legacy denial translation
+  // (step 4), tool metadata (step 6 + the reconciliation in step 7), and the live catalog sync
+  // registration all attribute tools under the exact keys THIS build registers until a rebuild
+  // replaces the connection — a mid-turn mount change must not re-allocate a removed server's
+  // configured-name key to a same-named survivor.
+  const serverAllocation = resolveAgentMcpServerKeys(agent, options?.mcpServerSnapshots)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -226,7 +235,10 @@ export async function buildClaudeCodeSessionSettings(
     mountedServers,
     agentDataPath,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    // Same allocation the step-6 record build consumes, so legacy id-keyed denials translate
+    // onto the exact runtime keys the servers register under.
+    serverAllocation
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -253,7 +265,7 @@ export async function buildClaudeCodeSessionSettings(
     options?.knowledgeBaseIds,
     notificationContext
   )
-  let mcpToolMetadata = await buildMcpToolMetadata(agent)
+  let mcpToolMetadata = await buildMcpToolMetadata(agent, { serverAllocation })
   if (agent.mcps?.length) mcpToolMetadata ??= {}
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
@@ -269,8 +281,12 @@ export async function buildClaudeCodeSessionSettings(
       .then(async () => {
         const liveAgent = agentService.getAgent(agent.id)
         if (!liveAgent) return
-        await sessionState().getToolPolicySnapshot(session.id)?.update(liveAgent)
-        const freshMetadata = await buildMcpToolMetadata(liveAgent)
+        // Same-connection refresh: the warm landing fills THIS connection's catalog while its
+        // replacement is still deferred, so a rename reconcile's retained denials (the old
+        // identities the live connection still serves) must stay blocking. Only the replacement
+        // connection's connect refresh releases them — never this warm path.
+        await sessionState().getToolPolicySnapshot(session.id)?.update(liveAgent, { keepRetainedDenied: true })
+        const freshMetadata = await buildMcpToolMetadata(liveAgent, { serverAllocation })
         if (!metadataRef || !freshMetadata) return
         for (const key of Object.keys(metadataRef)) delete metadataRef[key]
         Object.assign(metadataRef, freshMetadata)
@@ -364,6 +380,7 @@ export async function buildClaudeCodeSessionSettings(
     toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
+    ...(serverAllocation.size ? { mcpServerAllocation: Object.fromEntries(serverAllocation) } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
@@ -481,7 +498,9 @@ async function buildToolPermissions(
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  /** Mounted-server id → runtime record key, for translating legacy id-keyed denial rules. */
+  serverNameById: ReadonlyMap<string, string>
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -507,7 +526,8 @@ async function buildToolPermissions(
     autoAllowRuntimeNames: listBuiltinToolPolicies({ approval: 'auto', mountedServers }).map(toMcpRuntimeName),
     // Side-effecting and local-data-reading built-in tools must still prompt for approval.
     autoAllowRuntimeNameExceptions: approvalRequiredTools,
-    conditionContext
+    conditionContext,
+    serverNameById
   })
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
@@ -640,7 +660,12 @@ async function buildToolPermissions(
   return {
     canUseTool,
     hooks,
-    disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
+    // Rewrite legacy id-keyed denials first: the SDK hard-block list matches exact runtime names,
+    // so a rule saved under the pre-#21322 id namespace must reach the SDK in its current form.
+    disallowedTools: resolveDisallowedTools(
+      { disabledTools: translateLegacyMcpToolRules(agent.disabledTools, serverNameById) },
+      conditionContext
+    ),
     toolPolicySnapshot
   }
 }

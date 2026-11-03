@@ -63,6 +63,12 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   warmQueryInitializeTimeoutMs?: number
   /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
+  /**
+   * The running connection's MCP server allocation (mounted id/name → runtime record key).
+   * Freezes tool-metadata attribution until a rebuild replaces the connection. Not passed to
+   * the SDK.
+   */
+  mcpServerAllocation?: Record<string, string>
 }
 
 export type ToolApprovalEmitterHolder = {
