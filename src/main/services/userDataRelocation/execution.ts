@@ -189,6 +189,15 @@ function persistFailedRelocation(pending: PendingRelocation | FailedRelocation, 
   return failed
 }
 
+/**
+ * Lets preboot callers that await app.whenReady() check whether this launch
+ * still needs the source tree quiescent for a pending copy.
+ */
+export function hasPendingCopyRelocation(): boolean {
+  const relocation = readUserDataRelocationState()
+  return relocation?.status === 'pending' && relocation.copy === true
+}
+
 function readUserDataRelocationState(): RelocationState | null {
   // Unpackaged dev runs use the suffixed dev userData and never execute
   // relocations (mirrors the request-side isPackaged gate in ipc/handlers).

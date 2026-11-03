@@ -15,6 +15,7 @@ const VERSION_LOG_FILE = `${USER_DATA}/version.log`
 const REGISTRY_OVERRIDE = `${USER_DATA}/Runtime/provider-registry-override`
 
 let applicationMock: ReturnType<typeof createMockApplication>
+let pendingCopyRelocation = false
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const appendFileSyncMock = vi.fn()
@@ -306,9 +307,13 @@ function stubPath() {
 }
 
 function stubAll(marker: DataResetMarker) {
+  pendingCopyRelocation = false
   stubElectron()
   stubApplication()
   stubI18n()
+  vi.doMock('@main/services/userDataRelocation', () => ({
+    hasPendingCopyRelocation: () => pendingCopyRelocation
+  }))
   stubFs()
   stubPath()
   if (marker) seedMarker(marker)
@@ -622,6 +627,23 @@ describe('runDataReset', () => {
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
     expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('defers a pending relocation copy after a path mismatch notice', async () => {
+    stubAll(pendingMarker({ canonicalPath: '/mock/old-target', attempts: 1 }))
+    realpathNativeMock.mockImplementation(() => '/mock/new-target')
+    pendingCopyRelocation = true
+    await runReset()
+
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
+    expect(markerExists()).toBe(false)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(showErrorBoxMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.relaunch.mock.invocationCallOrder[0]
+    )
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -683,6 +705,23 @@ describe('runDataReset', () => {
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
     expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('defers a pending relocation copy after an attempt cap notice', async () => {
+    stubAll(pendingMarker({ attempts: 2 }))
+    pendingCopyRelocation = true
+    await runReset()
+
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Incomplete', expect.any(String))
+    expect(markerExists()).toBe(false)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(showErrorBoxMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.relaunch.mock.invocationCallOrder[0]
+    )
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('quits rather than booting writable when abandoning a marker fails', async () => {

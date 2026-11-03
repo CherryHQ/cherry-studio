@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
+import { hasPendingCopyRelocation } from '@main/services/userDataRelocation'
 
 const logger = loggerService.withContext('DataReset')
 
@@ -454,11 +455,21 @@ function wipeNestedUserDataTargets(failures: string[]): void {
 async function refuseResetForPathMismatch(): Promise<void> {
   deleteMarker()
   await showPathMismatchWarning()
+  deferPendingCopyRelocation('data reset path mismatch')
 }
 
 async function abandonIncompleteReset(): Promise<void> {
   deleteMarker()
   await showIncompleteResetWarning()
+  deferPendingCopyRelocation('data reset attempt cap')
+}
+
+// The readiness-gated notice opened Chromium sessions on the source profile (services/userDataRelocation/README.md).
+// An executable pending copy must end this launch via application.relaunch() before copying.
+function deferPendingCopyRelocation(reason: string): void {
+  if (!hasPendingCopyRelocation()) return
+  logger.warn(`${reason}: pending relocation copy is deferred to a fresh launch`)
+  application.relaunch()
 }
 
 async function showPrebootNotice(title: string, message: string): Promise<void> {
