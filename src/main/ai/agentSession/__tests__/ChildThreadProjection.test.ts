@@ -14,6 +14,7 @@ import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 
 import { ChildThreadProjection, savedChildView } from '../ChildThreadProjection'
+import { prepareNativeSubmission } from '../nativeSubmission'
 import type { MessageDecorator } from '../ThreadMessageProjection'
 
 const dbh = setupTestDatabase()
@@ -428,4 +429,117 @@ it('projects legacy split rows in native order and preserves their persisted ide
   expect(after).toEqual(before)
   const context = contexts.context(f.context.id)
   expect(savedChildView(context).messages).toEqual(restored.snapshot().messages)
+})
+
+// Catches transformed native input overwriting retained content or reusing another branch's message.
+it.each(['same-context', 'other-context', 'other-session'] as const)(
+  'reuses child input only within its captured owner (%s)',
+  async (target) => {
+    const f = fixture()
+    const owner =
+      target === 'other-session'
+        ? contexts.context(f.context.parentContextId!)
+        : target === 'other-context'
+          ? contexts.allocateContext(f.context.sessionId, f.context.backendId, 'another-branch')
+          : f.context
+    const user = messages.saveMessage({
+      sessionId: owner.sessionId,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original user input' }] } }
+    })
+    prepareNativeSubmission(owner.sessionId, user.id, owner.id, 'steer')
+    await f.projection.attach()
+    await f.projection.refresh()
+    const nativeUser: RuntimeMessage = {
+      id: 'native-input',
+      role: 'user',
+      parts: [{ type: 'text', text: 'wrapped native input' }],
+      metadata: { inputId: runtimeId(user.id), completeness: 'complete' }
+    }
+    f.archive.messages = [nativeUser, f.item('answer', 'shared answer')]
+    f.archive.aliases = { 'native-input': 'native-input', answer: 'answer' }
+    await f.send({
+      type: 'input.changed',
+      input: {
+        inputId: runtimeId(user.id),
+        nativeInput: { session: f.handle.thread, id: runtimeId('native-input') },
+        facts: ['placed'],
+        outcome: 'completed',
+        response: { session: f.handle.thread, id: runtimeId('answer') }
+      }
+    })
+    for (const message of f.archive.messages) await f.send({ type: 'message.upsert', message })
+    await f.projection.flush()
+    await f.projection.refresh()
+    expect(messages.getSessionMessage(owner.sessionId, user.id).data.parts).toEqual([
+      { type: 'text', text: 'original user input' }
+    ])
+    const view = f.projection.snapshot().messages
+    expect(view.filter((message) => message.role === 'assistant')).toMatchObject([
+      { parts: [{ type: 'text', text: 'shared answer' }] }
+    ])
+    if (target === 'same-context') {
+      expect(view.filter((message) => message.role === 'user')).toMatchObject([
+        { id: user.id, parts: [{ type: 'text', text: 'original user input' }] }
+      ])
+      expect(messages.inputBinding(owner.sessionId, user.id)?.nativeInputId).toBe('native-input')
+    } else {
+      const projected = view.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'wrapped native input')
+      )
+      expect(projected).toBeDefined()
+      expect(projected!.id).not.toBe(user.id)
+      expect(messages.inputBinding(owner.sessionId, user.id)?.nativeInputId).toBeNull()
+    }
+  }
+)
+
+it('keeps two retained inputs and one shared answer across archive replay and reopen', async () => {
+  const f = fixture()
+  const users = ['first', 'second'].map((text) => {
+    const user = messages.saveMessage({
+      sessionId: f.context.sessionId,
+      message: { role: 'user', data: { parts: [{ type: 'text', text }] } }
+    })
+    prepareNativeSubmission(f.context.sessionId, user.id, f.context.id, 'steer')
+    return user
+  })
+  await f.projection.attach()
+  await f.projection.refresh()
+  f.archive.messages = [
+    ...users.map(
+      (user, index): RuntimeMessage => ({
+        id: `input-${index}`,
+        role: 'user',
+        parts: [{ type: 'text', text: `wrapped ${index}` }],
+        metadata: { inputId: runtimeId(user.id), completeness: 'complete' }
+      })
+    ),
+    f.item('answer', 'combined answer')
+  ]
+  for (const [index, user] of users.entries())
+    await f.send({
+      type: 'input.changed',
+      input: {
+        inputId: runtimeId(user.id),
+        facts: ['placed'],
+        outcome: 'completed',
+        nativeInput: { session: f.handle.thread, id: runtimeId(`input-${index}`) },
+        response: { session: f.handle.thread, id: runtimeId('answer') }
+      }
+    })
+  for (const message of f.archive.messages) await f.send({ type: 'message.upsert', message })
+  await f.projection.flush()
+  const expected = f.projection.snapshot().messages
+  expect(expected.filter((message) => message.role === 'user').map((message) => message.id)).toEqual(
+    users.map((user) => user.id)
+  )
+  expect(expected.filter((message) => message.role === 'assistant')).toMatchObject([
+    { parts: [{ type: 'text', text: 'combined answer' }] }
+  ])
+  await f.projection.stop()
+  projections.splice(projections.indexOf(f.projection), 1)
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, () => f.archive)
+  projections.push(reopened)
+  await reopened.attach()
+  expect(reopened.snapshot().messages).toEqual(expected)
 })

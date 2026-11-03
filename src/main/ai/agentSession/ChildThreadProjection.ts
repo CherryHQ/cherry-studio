@@ -217,7 +217,10 @@ export class ChildThreadProjection {
     for (const [id, live] of Object.entries(this.history?.aliases ?? {}))
       if (this.removed.has(id)) this.removed.add(live)
     for (const item of archive?.messages ?? [])
-      if (item.metadata?.inputId && messages.inputBinding(this.context.sessionId, item.metadata.inputId)?.contextId === this.context.id)
+      if (
+        item.metadata?.inputId &&
+        messages.inputBinding(this.context.sessionId, item.metadata.inputId)?.contextId === this.context.id
+      )
         this.nativeIds[item.id] = item.metadata.inputId
     for (const [nativeId, liveId] of Object.entries(archive?.aliases ?? {})) {
       const id = this.nativeIds[nativeId] ?? this.productIds.get(liveId) ?? uuid()
@@ -242,7 +245,11 @@ export class ChildThreadProjection {
           const rows = this.materialize(message, id)
           for (const row of rows) {
             committed.add(row.id)
-            if (row.role === 'user' && next.has(row.id) && messages.inputBinding(this.context.sessionId, row.id)?.contextId === this.context.id)
+            if (
+              row.role === 'user' &&
+              next.has(row.id) &&
+              messages.inputBinding(this.context.sessionId, row.id)?.contextId === this.context.id
+            )
               continue
             const saved = next.get(row.id)
             next.set(row.id, {
@@ -266,7 +273,9 @@ export class ChildThreadProjection {
       if (
         ((committed.has(id) || this.committedLiveIds.has(message.id)) &&
           next.get(id)?.metadata?.status !== 'pending') ||
-        (message.role === 'user' && next.has(id) && messages.inputBinding(this.context.sessionId, id)?.contextId === this.context.id)
+        (message.role === 'user' &&
+          next.has(id) &&
+          messages.inputBinding(this.context.sessionId, id)?.contextId === this.context.id)
       )
         continue
       for (const row of this.materialize(message, id)) next.set(row.id, row)
@@ -329,7 +338,6 @@ export class ChildThreadProjection {
           [...this.removed],
           this.composition
         )
-
       })
       for (const [responseId, nativeId] of Object.entries(archive?.responseIds ?? {})) {
         const messageId = this.nativeIds[nativeId]
