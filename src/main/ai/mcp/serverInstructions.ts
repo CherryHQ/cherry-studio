@@ -1,6 +1,30 @@
 import { application } from '@application'
+import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { MCP_SERVER_INSTRUCTIONS_MAX_CHARS, type McpServerInstructions } from '@shared/types/mcp'
+import { MCP_SERVER_INSTRUCTIONS_MAX_CHARS, type McpServerInstructions, type McpTool } from '@shared/types/mcp'
+import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+
+export function buildFetchPreferenceContext(
+  servers: Iterable<McpServer | undefined>,
+  resolveName: (tool: McpTool, server: McpServer) => string | undefined
+): string | undefined {
+  const names: string[] = []
+  for (const server of servers) {
+    if (!server?.isActive || !isInMemoryBuiltinMcpServer(server) || server.name !== BuiltinMcpServerNames.fetch)
+      continue
+    for (const tool of application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })) {
+      if (isMcpToolDisabledBySource(server, tool)) continue
+      const name = resolveName(tool, server)
+      if (name) names.push(name)
+    }
+  }
+  if (names.length === 0) return undefined
+  return [
+    '## Cherry Fetch preference',
+    `For reading a provided URL, prefer the available Cherry Fetch tools: ${JSON.stringify(names)}. Choose the tool matching the requested output format.`,
+    'Use another tool when Cherry Fetch is unavailable, fails, or cannot meet the task requirements. Respect an explicit user choice of another source and all tool permissions. This is a preference, not a restriction on other tools.'
+  ].join('\n')
+}
 
 export function projectServerInstructions(
   server: Pick<McpServer, 'id' | 'name'>,

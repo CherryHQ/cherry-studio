@@ -16,6 +16,7 @@ import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@an
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
@@ -28,6 +29,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { buildFetchPreferenceContext } from '@main/ai/mcp/serverInstructions'
 import {
   type AgentNotificationContext,
   type LinkedChannelSnapshot,
@@ -63,6 +65,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Provider } from '@shared/data/types/provider'
@@ -239,7 +242,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    options?.mcpServerSnapshots
   )
 
   // 6. MCP servers (session + built-in)
@@ -654,7 +658,8 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  mcpServerSnapshots?: McpServerSnapshotMap
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -675,6 +680,19 @@ export async function buildSystemPrompt(
     agentDataPath,
     agent,
     citationsGuidance,
+    mcpInstructions: buildFetchPreferenceContext(
+      (agent.mcps ?? []).map((id) =>
+        mcpServerSnapshots ? mcpServerSnapshots.get(id) : mcpServerService.findByIdOrName(id)
+      ),
+      (tool, server) => {
+        const name = `mcp__${server.id}__${tool.name}`
+        return [name, buildFunctionCallToolName(server.name, tool.name)].some((alias) =>
+          isToolDisallowed(alias, disallowedTools)
+        )
+          ? undefined
+          : name
+      }
+    ),
     customBaseContext,
     effectiveLanguage
   })

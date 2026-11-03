@@ -1,5 +1,7 @@
 import {
   isInputRequiredResult,
+  SdkError,
+  SdkErrorCode,
   SdkHttpError,
   SseError,
   UnauthorizedError,
@@ -27,6 +29,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main/ai/mcp/servers/factory'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
+import { redactToShape } from '@main/ai/utils/redactToShape'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -39,7 +42,7 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
-import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
+import { isSensitiveKey, REDACTED, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { createExternalMcpConnection } from './connections/ExternalMcpConnection'
@@ -704,6 +707,31 @@ export class McpRuntimeService extends BaseService {
     interactionContext
   }: RuntimeCallToolArgs): Promise<CallToolResult> {
     const toolCallId = callId || uuidv4()
+    const invocationId = uuidv4()
+    const startedAt = Date.now()
+    const recordCall = (phase: 'start' | 'end', data: Record<string, unknown>) => {
+      const entry = {
+        eventId: `${invocationId}:${phase}`,
+        timestamp: Date.now(),
+        level: phase === 'end' && (data.status === 'error' || data.status === 'timeout') ? 'error' : 'info',
+        message: phase === 'start' ? 'Tool call started' : 'Tool call finished',
+        source: 'client',
+        data: {
+          invocationId,
+          callId: toolCallId,
+          tool: name,
+          topicId: interactionContext?.topicId,
+          sessionId: interactionContext?.sessionId,
+          ...data
+        }
+      } satisfies McpServerLogEntry
+      getServerLogger(server)[entry.level === 'error' ? 'error' : 'info'](entry.message, entry.data)
+      try {
+        this.emitServerLog(server, entry)
+      } catch (error) {
+        logger.warn('Failed to publish MCP call log', { eventId: entry.eventId, error })
+      }
+    }
     const registrationKey = toolCallKey(toolCallId, scope)
     const controller = new AbortController()
     const effectiveSignal = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal
@@ -713,6 +741,10 @@ export class McpRuntimeService extends BaseService {
     this.activeToolCalls.set(registrationKey, activeCalls)
 
     const run = async (): Promise<CallToolResult> => {
+      let status: 'success' | 'error' | 'timeout' | 'cancelled' = 'error'
+      let resultSummary: unknown
+      let errorSummary: unknown
+      recordCall('start', { status: 'started', input: redactToShape(args) })
       try {
         if (effectiveSignal.aborted) throw getAbortReason(effectiveSignal)
 
@@ -732,9 +764,6 @@ export class McpRuntimeService extends BaseService {
           throw new Error(`MCP tool is disabled: ${name}`)
         }
 
-        getServerLogger(server, { tool: name, callId: toolCallId }).debug('Calling tool', {
-          args: redactSensitive(normalizedArgs)
-        })
         const host = this.resolveInteractionContext(server.id, { ...interactionContext, requestId: toolCallId })
         const connection = await this.getOrCreateConnection(server, host ?? null, effectiveSignal)
         const policy = resolveMcpRequestOptions(server)
@@ -757,16 +786,32 @@ export class McpRuntimeService extends BaseService {
             }
           }
         })
+        resultSummary = redactToShape(response)
         if (response.isError) return response
-        return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
+        const result = await clampToolResultImages(
+          response,
+          getServerLogger(server, { tool: name, callId: toolCallId })
+        )
+        status = 'success'
+        return result
       } catch (error) {
-        if (isMcpCancellation(error, effectiveSignal)) {
-          getServerLogger(server, { tool: name, callId: toolCallId }).debug('Tool call aborted')
-        } else {
-          getServerLogger(server, { tool: name, callId: toolCallId }).error('Error calling tool', error as Error)
+        const cancelled = isMcpCancellation(error, effectiveSignal)
+        status = cancelled
+          ? 'cancelled'
+          : error instanceof SdkError && error.code === SdkErrorCode.RequestTimeout
+            ? 'timeout'
+            : 'error'
+        errorSummary = {
+          name: redactSecretTokens(redactSecretText(error instanceof Error ? error.name : 'Error')),
+          message: redactSecretTokens(redactSecretText(error instanceof Error ? error.message : String(error))).slice(
+            0,
+            500
+          ),
+          ...(error instanceof SdkError ? { code: error.code } : {})
         }
         throw error
       } finally {
+        recordCall('end', { status, durationMs: Date.now() - startedAt, result: resultSummary, error: errorSummary })
         const registered = this.activeToolCalls.get(registrationKey)
         registered?.delete(activeCall)
         if (registered?.size === 0) this.activeToolCalls.delete(registrationKey)

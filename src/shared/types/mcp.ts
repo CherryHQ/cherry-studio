@@ -26,6 +26,7 @@ export type McpProgressEvent = {
 }
 
 export type McpServerLogEntry = {
+  eventId?: string
   timestamp: number
   level: 'debug' | 'info' | 'warn' | 'error' | 'stderr' | 'stdout'
   message: string
