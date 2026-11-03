@@ -251,7 +251,10 @@ function ModelRow({
       </div>
     ) : null
 
-  const pinAction = showPinActions ? (
+  const pinAction = !showPinActions ? null : item.locked ? (
+    // A locked row cannot be pinned, but keeps the slot so its tags line up with the other rows.
+    <span aria-hidden="true" className="size-4 shrink-0" />
+  ) : (
     <ModelSelectorRowActionButton
       disabled={isPinActionDisabled}
       aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
@@ -261,7 +264,7 @@ function ModelRow({
       onClick={() => onPin(item.modelId)}>
       <Pin className="size-3" />
     </ModelSelectorRowActionButton>
-  ) : null
+  )
   const actions =
     pinAction || hasDescription ? (
       <>
@@ -951,7 +954,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
             showCheckbox={multiple && multiSelectMode}
-            showPinActions={showPinActions && !item.locked}
+            showPinActions={showPinActions}
             detailPortalContainer={detailPortalContainer}
             t={t}
           />
