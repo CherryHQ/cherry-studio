@@ -32,6 +32,7 @@ import { useScrollAnchor } from './useScrollAnchor'
 interface Props {
   id: string
   content: string
+  plainText?: boolean
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   citations?: Citation[]
@@ -347,6 +348,7 @@ function CollapsibleUserMessageContent({
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
+  plainText,
   inlineHtmlPreviewMode,
   isStreaming,
   citations = EMPTY_CITATIONS,
@@ -486,7 +488,11 @@ const MainTextBlock: React.FC<Props> = ({
           ))}
         </Flex>
       )}
-      {role === 'user' ? (
+      {plainText === true ? (
+        <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+          {block.content}
+        </p>
+      ) : role === 'user' ? (
         <CollapsibleUserMessageContent
           isCollapsible={isUserContentCollapsible}
           isExpanded={isUserContentExpanded}

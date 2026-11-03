@@ -1416,7 +1416,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     const id = generateId()
-    ctx.sink.enqueue({ type: 'text-start', id })
+    ctx.sink.enqueue({ type: 'text-start', id, providerMetadata: { cherry: { plainText: true } } })
     ctx.sink.enqueue({ type: 'text-delta', id, delta: message.content })
     ctx.sink.enqueue({ type: 'text-end', id })
   }

@@ -797,6 +797,7 @@ function renderPart(
           key={partId}
           id={partId}
           content={part.text || ''}
+          plainText={cherryMeta?.plainText}
           isStreaming={isStreaming}
           citations={converted?.citations}
           citationReferences={converted?.citationReferences}

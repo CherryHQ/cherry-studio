@@ -348,8 +348,12 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
       await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
 
-      expect(finalMessage.parts).toEqual([{ type: 'text', text: banner, state: 'done' }])
-      expect(persisted.map((message) => message.parts)).toEqual([[{ type: 'text', text: banner, state: 'done' }]])
+      expect(finalMessage.parts).toEqual([
+        { type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
+      expect(persisted.map((message) => message.parts)).toEqual([
+        [{ type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }]
+      ])
       expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
       expect(parts.filter((part) => part.type === 'data-error')).toEqual([])
       expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
@@ -371,9 +375,27 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       expect(result).toEqual({ type: 'continue' })
       expect(parts.map((part) => part.type)).toEqual(['text-start', 'text-delta', 'text-end'])
-      expect((await accumulateMessage(parts)).parts).toEqual([{ type: 'text', text: `  ${banner}\n`, state: 'done' }])
+      expect((await accumulateMessage(parts)).parts).toEqual([
+        { type: 'text', text: `  ${banner}\n`, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
       expect(statusEvents).toEqual([])
       expect(adapter.isTurnActive).toBe(true)
+    })
+
+    it('accumulates Markdown and HTML banner syntax verbatim with plaintext metadata', async () => {
+      const { adapter, parts } = createAdapter()
+      const banner = '  hook blocked\n![audit](https://example.com/pixel)\n<!-- hidden -->\n'
+      adapter.handleMessage({ ...informational, content: banner } as any)
+
+      expect(parts[0]).toEqual({
+        type: 'text-start',
+        id: expect.any(String),
+        providerMetadata: { cherry: { plainText: true } }
+      })
+      const finalMessage = await accumulateMessage(parts)
+      expect(finalMessage.parts).toEqual([
+        { type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
     })
 
     it('keeps the next ordinary streamed answer unchanged after a blocked turn', async () => {
