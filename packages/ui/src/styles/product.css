@@ -86,10 +86,11 @@
   --chat-user: rgba(0, 0, 0, 0.045);
 
   /* Stable product domain: cross-surface resource-list rows */
-  --resource-list-row-hover: var(--background-subtle);
+  /* Hover and selected share one fill */
+  --resource-list-row-hover: var(--resource-list-row-selected);
   --resource-list-row-active: var(--accent);
   --resource-list-row-active-foreground: var(--accent-foreground);
-  --resource-list-row-selected: var(--accent);
+  --resource-list-row-selected: oklch(0 0 0 / 0.08);
   --resource-list-row-selected-foreground: var(--accent-foreground);
 }
 
@@ -136,4 +137,6 @@
    * Sits between the well and the composer so a sent message never reads as
    * the still-editable input. */
   --chat-user: oklch(0.2393 0 0);
+
+  --resource-list-row-selected: oklch(1 0 0 / 0.14);
 }

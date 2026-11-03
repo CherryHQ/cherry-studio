@@ -67,6 +67,7 @@ export default function ProviderListGroup({
         aria-controls={bodyId}
         data-testid={`provider-list-group-${presetProviderId}`}
         data-has-selected={containsSelected ? 'true' : 'false'}
+        data-dnd-row-control
         onClick={onToggle}
         className={cn(providerListClasses.groupHeader, headerHighlight && providerListClasses.groupHeaderHasSelected)}>
         <div className={providerListClasses.itemMain}>
@@ -106,11 +107,7 @@ export default function ProviderListGroup({
         </div>
       </button>
       {expanded && (
-        <div
-          id={bodyId}
-          className={providerListClasses.groupBody}
-          onPointerDown={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}>
+        <div id={bodyId} className={providerListClasses.groupBody} data-no-dnd>
           <ReorderableList
             items={items}
             visibleItems={members}

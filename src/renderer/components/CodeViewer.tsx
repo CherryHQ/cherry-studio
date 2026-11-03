@@ -1,4 +1,4 @@
-import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
+import { elementScroll, observeElementOffset, useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { EditorState } from '@uiw/react-codemirror'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -9,6 +9,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useIsScrollViewportOwned } from '@renderer/hooks/useScrollViewportOwnership'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
 import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
@@ -389,30 +390,46 @@ const CodeViewer = ({
     while (parent && !/(auto|scroll|overlay)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement
     if (parent === document.body || parent === document.documentElement) parent = null
     setScrollParent(parent)
+    let previousMargin: number | undefined
     const updateMargin = () => {
       const list = listRef.current
       if (!list) return
-      setScrollMargin(
+      const nextMargin =
         list.getBoundingClientRect().top -
-          (parent?.getBoundingClientRect().top ?? 0) +
-          (parent?.scrollTop ?? window.scrollY) -
-          (parent?.clientTop ?? 0)
-      )
+        (parent?.getBoundingClientRect().top ?? 0) +
+        (parent?.scrollTop ?? window.scrollY) -
+        (parent?.clientTop ?? 0)
+      if (nextMargin === previousMargin) return
+      previousMargin = nextMargin
+      setScrollMargin(nextMargin)
     }
     updateMargin()
-    const observer = new ResizeObserver(updateMargin)
-    let ancestor = listRef.current?.parentElement ?? null
-    while (ancestor) {
-      observer.observe(ancestor)
-      if (ancestor === parent) break
-      ancestor = ancestor.parentElement
+    const resizeObserver = new ResizeObserver(updateMargin)
+    const mutationObserver = new MutationObserver((records) => {
+      if (records.some((record) => record.type === 'childList')) observeLayout()
+      updateMargin()
+    })
+    const observeLayout = () => {
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+      // Watch the layout around the viewer, excluding its virtual rows and syntax tokens.
+      for (let element: HTMLElement | null = shikiThemeRef.current; element; element = element.parentElement) {
+        resizeObserver.observe(element)
+        mutationObserver.observe(element, { attributeFilter: ['style', 'class'], childList: true })
+        if (element === parent) break
+        // A preceding sibling can move the viewer without resizing a fixed-height ancestor.
+        for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+          resizeObserver.observe(sibling)
+          mutationObserver.observe(sibling, { attributeFilter: ['style', 'class'] })
+        }
+      }
     }
+    observeLayout()
     const target = parent ?? window
-    target.addEventListener('scroll', updateMargin, { passive: true })
     target.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
-      observer.disconnect()
-      target.removeEventListener('scroll', updateMargin)
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
       target.removeEventListener('scroll', handleScroll)
     }
   }, [expanded, handleScroll])
@@ -449,6 +466,8 @@ const CodeViewer = ({
     [estimateWrappedVisualRows, getWrapContentWidth, lineHeight, rawLines]
   )
 
+  const isViewportOwned = useIsScrollViewportOwned()
+
   // 创建 virtualizer 实例
   const elementVirtualizer = useVirtualizer({
     count: rawLines.length,
@@ -457,7 +476,17 @@ const CodeViewer = ({
     estimateSize,
     overscan: 20,
     scrollMargin,
-    enabled: !expanded || scrollParent !== null
+    enabled: !expanded || scrollParent !== null,
+    observeElementOffset: (instance, callback) => {
+      const element = instance.scrollElement
+      instance.shouldAdjustScrollPositionOnItemSizeChange = isViewportOwned(element) ? () => false : undefined
+      // Attachment restores the cached offset after subscribing, so seed it from the actual viewport first.
+      if (element) callback(element.scrollTop, false)
+      return observeElementOffset(instance, callback)
+    },
+    scrollToFn: (offset, options, instance) => {
+      if (!isViewportOwned(instance.scrollElement)) elementScroll(offset, options, instance)
+    }
   })
   const windowVirtualizer = useWindowVirtualizer({
     count: rawLines.length,

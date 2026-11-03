@@ -90,6 +90,34 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('renders Groq entitlement copy and opens its provider settings', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateErrorTarget, openErrorDetail }
+    mocks.translations = new Map(Object.entries(enUS))
+    const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: groqBody, statusCode: 400, stack: null }}
+        message={{ ...message, model: { ...message.model!, provider: 'groq' } }}
+      />
+    )
+    expect(screen.getByText(enUS['error.diagnosis.permission'], { exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.quota'], { exact: true })).not.toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/recharge/i)
+    expect(container).not.toHaveTextContent(/quota exhausted/i)
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=groq')
+    await user.click(screen.getByText(enUS['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: groqBody }) })
+    )
+  })
+
   // Main-side copy and mapping are asserted in src/main/features/apiGateway/__tests__/bindError.test.ts.
   // This only guards that providerErrorText keeps the serialized message visible.
   it.each([
