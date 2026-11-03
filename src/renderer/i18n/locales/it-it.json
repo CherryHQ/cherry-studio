@@ -5915,6 +5915,7 @@
   "settings.tool.websearch.provider_description.searchapi": "API di ricerca in tempo reale SearchApi che restituisce i risultati di Google in JSON strutturato.",
   "settings.tool.websearch.provider_description.searxng": "Metamotore di ricerca Internet gratuito, installabile su server propri, che consulta molte fonti.",
   "settings.tool.websearch.provider_description.serply": "API di ricerca Serply che restituisce risultati Google in JSON strutturato per le app IA.",
+  "settings.tool.websearch.provider_description.sofya": "API di ricerca web Sofya per app IA che restituisce ogni risultato con il testo della sua pagina.",
   "settings.tool.websearch.provider_description.tavily": "Motore di ricerca ottimizzato per LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "API di ricerca Tencent Yuanbao. Richiede una chiave API del servizio. Il numero di risultati è un limite massimo; il servizio potrebbe restituirne meno.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search per il recupero web in tempo reale e informazioni aggiornate.",

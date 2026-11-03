@@ -20,6 +20,7 @@ export default defineConfig({
     'providers/deepseek': 'src/providers/deepseek.ts',
     'providers/desearch': 'src/providers/desearch.ts',
     'providers/searchapi': 'src/providers/searchapi.ts',
+    'providers/sofya': 'src/providers/sofya.ts',
     'tools/config': 'src/tools/config.ts',
     'tools/url-filter': 'src/tools/urlFilter.ts',
     'tools/content': 'src/tools/content.ts'

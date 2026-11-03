@@ -64,6 +64,9 @@ describe('webSearchProviderMeta', () => {
     expect(getWebSearchProviderIconRef('desearch')).toMatchObject({ kind: 'provider', key: 'desearch' })
     expect(getWebSearchProviderOfficialWebsite('desearch')).toBe('https://desearch.ai')
     expect(getWebSearchProviderApiKeyWebsite('desearch')).toBe('https://console.desearch.ai/api-keys')
+    expect(getWebSearchProviderIconRef('sofya')).toMatchObject({ kind: 'provider', key: 'sofya' })
+    expect(getWebSearchProviderOfficialWebsite('sofya')).toBe('https://sofya.co')
+    expect(getWebSearchProviderApiKeyWebsite('sofya')).toBe('https://sofya.co/dashboard')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 

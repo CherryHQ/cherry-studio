@@ -47,6 +47,7 @@ import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
+import { SofyaProvider } from '../api/SofyaProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { createWebSearchProvider } from '../factory'
@@ -89,6 +90,7 @@ describe('createWebSearchProvider', () => {
       'searchapi',
       'searxng',
       'serply',
+      'sofya',
       'tavily',
       'yuanbao',
       'zhipu'
@@ -127,6 +129,7 @@ describe('createWebSearchProvider', () => {
       DuckduckgoProvider
     )
     expect(createWebSearchProvider(createProvider({ id: 'serply' }), rotationState)).toBeInstanceOf(SerplyProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'sofya' }), rotationState)).toBeInstanceOf(SofyaProvider)
     expect(
       createWebSearchProvider(
         createProvider({
