@@ -69,7 +69,8 @@ const requestedPaths = () => authenticatedFetch.mock.calls.map(([path]) => path)
 const broadcast = () => vi.mocked(application.get('IpcApiService').broadcast)
 const refreshesAnnounced = () =>
   broadcast().mock.calls.filter(([event]) => event === 'cherry_cloud.account_refreshed').length
-const storedCursor = () => application.get('CacheService').getPersist('cherry_cloud.notification_cursor')
+const storedCursors = () => application.get('CacheService').getPersist('cherry_cloud.notification_cursors')
+const storedCursor = () => storedCursors()['account-1'] ?? null
 
 function reply(path: string, ...replies: Reply[]) {
   routes.set(path, [...(routes.get(path) ?? []), ...replies])
@@ -126,7 +127,7 @@ describe('CherryCloudNotificationService', () => {
 
     await vi.waitFor(() => expect(refreshesAnnounced()).toBe(1))
     expect(refreshEntitledModels).toHaveBeenCalledOnce()
-    expect(storedCursor()).toEqual({ accountId: 'account-1', cursor: 'c-0' })
+    expect(storedCursor()).toBe('c-0')
   })
 
   it('refreshes once per notification id and still advances the cursor for duplicates', async () => {
@@ -140,15 +141,13 @@ describe('CherryCloudNotificationService', () => {
     stream.send('notification', notification('n-1', 'c-2'))
     stream.send('notification', notification('n-2', 'c-3', []))
 
-    await vi.waitFor(() => expect(storedCursor()).toEqual({ accountId: 'account-1', cursor: 'c-3' }))
+    await vi.waitFor(() => expect(storedCursor()).toBe('c-3'))
     expect(refreshEntitledModels).toHaveBeenCalledTimes(2)
     expect(refreshesAnnounced()).toBe(2)
   })
 
   it('catches up from the stored cursor before reconnecting to the stream', async () => {
-    application
-      .get('CacheService')
-      .setPersist('cherry_cloud.notification_cursor', { accountId: 'account-1', cursor: 'c-5' })
+    application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'c-5' })
     reply(
       '/api/v1/notifications',
       page([notification('n-6', 'c-6'), notification('n-7', 'c-7')], 'c-7', true),
@@ -164,7 +163,7 @@ describe('CherryCloudNotificationService', () => {
       ])
     )
     expect(refreshEntitledModels).toHaveBeenCalledOnce()
-    expect(storedCursor()).toEqual({ accountId: 'account-1', cursor: 'c-8' })
+    expect(storedCursor()).toBe('c-8')
   })
 
   it.each([
@@ -172,9 +171,7 @@ describe('CherryCloudNotificationService', () => {
     [410, 'RESYNC_REQUIRED'],
     [410, 'UNDOCUMENTED']
   ])('rebuilds the baseline when the cursor is rejected with %i %s', async (code, errorCode) => {
-    application
-      .get('CacheService')
-      .setPersist('cherry_cloud.notification_cursor', { accountId: 'account-1', cursor: 'stale' })
+    application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'stale' })
     reply('/api/v1/notifications', jsonError(code, errorCode))
     await start()
 
@@ -185,9 +182,7 @@ describe('CherryCloudNotificationService', () => {
   })
 
   it('rebuilds the baseline when the stream ends with a cursor error frame, without advancing the cursor', async () => {
-    application
-      .get('CacheService')
-      .setPersist('cherry_cloud.notification_cursor', { accountId: 'account-1', cursor: 'c-5' })
+    application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'c-5' })
     reply('/api/v1/notifications', page([], 'c-5'))
     const stream = eventStream()
     reply('/api/v1/notifications/stream', stream.response)
@@ -260,13 +255,26 @@ describe('CherryCloudNotificationService', () => {
   })
 
   it("never reuses another account's cursor", async () => {
-    application
-      .get('CacheService')
-      .setPersist('cherry_cloud.notification_cursor', { accountId: 'account-1', cursor: 'c-9' })
+    application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'c-9' })
     status = signedIn('account-2')
     await start()
 
     await vi.waitFor(() => expect(requestedPaths()).toEqual(['/api/v1/notifications/stream']))
+  })
+
+  it("keeps each account's cursor, so switching back catches that account up", async () => {
+    application
+      .get('CacheService')
+      .setPersist('cherry_cloud.notification_cursors', { 'account-1': 'a-9', 'account-2': 'b-3' })
+    status = signedIn('account-2')
+    await start()
+    await vi.waitFor(() => expect(requestedPaths()).toEqual(['/api/v1/notifications?after=b-3&limit=50']))
+
+    statusListener?.(signedOut)
+    statusListener?.(signedIn('account-1'))
+
+    await vi.waitFor(() => expect(requestedPaths()).toContain('/api/v1/notifications?after=a-9&limit=50'))
+    expect(storedCursors()).toEqual({ 'account-1': 'a-9', 'account-2': 'b-3' })
   })
 
   it('opens a fresh baseline for the next account after a sign-in change', async () => {
@@ -296,13 +304,13 @@ describe('CherryCloudNotificationService', () => {
       reply('/api/v1/notifications', page([notification('n-1', 'c-1')], 'c-1'))
       stream.send('notification', notification('n-1', 'c-1'))
       await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledTimes(2))
-      expect(storedCursor()).toEqual({ accountId: 'account-1', cursor: 'c-0' })
+      expect(storedCursor()).toBe('c-0')
 
       await vi.advanceTimersByTimeAsync(2_000)
 
       await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledTimes(3))
       expect(requestedPaths()).toContain('/api/v1/notifications?after=c-0&limit=50')
-      await vi.waitFor(() => expect(storedCursor()).toEqual({ accountId: 'account-1', cursor: 'c-1' }))
+      await vi.waitFor(() => expect(storedCursor()).toBe('c-1'))
     } finally {
       vi.useRealTimers()
     }

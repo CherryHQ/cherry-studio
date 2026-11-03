@@ -252,14 +252,16 @@ export class CherryCloudNotificationService extends BaseService {
     throw new Error(`Cherry Cloud notification request failed (${response.status})`)
   }
 
+  // Cursors are account-scoped, so switching accounts keeps the other account's catch-up position.
   private storedCursor(accountId: string): string | null {
-    const stored = application.get('CacheService').getPersist('cherry_cloud.notification_cursor')
-    return stored?.accountId === accountId ? stored.cursor : null
+    return application.get('CacheService').getPersist('cherry_cloud.notification_cursors')[accountId] ?? null
   }
 
   private saveCursor(accountId: string, cursor: string | null): void {
-    application
-      .get('CacheService')
-      .setPersist('cherry_cloud.notification_cursor', cursor ? { accountId, cursor } : null)
+    const cache = application.get('CacheService')
+    const cursors = { ...cache.getPersist('cherry_cloud.notification_cursors') }
+    if (cursor) cursors[accountId] = cursor
+    else delete cursors[accountId]
+    cache.setPersist('cherry_cloud.notification_cursors', cursors)
   }
 }
