@@ -19,12 +19,13 @@ const mockUseModelSelectorData = vi.fn(() => ({
   cloudAvailabilityError: undefined as Error | undefined
 }))
 const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
-const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
+const { ipcRequestMock, translationSpy } = vi.hoisted(() => ({ ipcRequestMock: vi.fn(), translationSpy: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
     t: (key: string, options?: { address?: string; route?: string }) => {
+      translationSpy(key, options)
       const translations: Record<string, string> = {
         'settings.developer.cdp.title': 'Local automation (CDP)',
         'settings.developer.cdp.description': `Local tools can connect at ${options?.address}. Requires a restart.`,
@@ -591,6 +592,73 @@ describe('GeneralSettings', () => {
     expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
     expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
   })
+
+  it.each([
+    { ready: false, error: undefined },
+    { ready: false, error: new Error('sync failed') },
+    { ready: true, error: new Error('refresh failed') }
+  ])('still warns on known stale non-Cloud selections with Cloud state %j', ({ ready, error }) => {
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: [],
+      isLoading: false,
+      modelsError: undefined,
+      providersError: undefined,
+      cloudAvailabilityReady: ready,
+      cloudAvailabilityError: error
+    })
+    const configuredIds: UniqueModelId[] = ['openai::deleted-model', 'openai::deleted-model']
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': configuredIds
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByText('settings.models.retry.fallback_models_unavailable').closest('button')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    expect(translationSpy).toHaveBeenCalledWith('settings.models.retry.fallback_models_unavailable', { count: 1 })
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.fallback_model_ids')).toEqual(configuredIds)
+  })
+
+  it.each([false, true])(
+    'keeps unknown Cloud IDs neutral alongside known stale IDs (resolved non-Cloud: %s)',
+    (hasResolved) => {
+      mockUseModelSelectorData.mockReturnValue({
+        resolvedSelectedModelIds: hasResolved ? ['openai::available-model'] : [],
+        isLoading: false,
+        modelsError: undefined,
+        providersError: undefined,
+        cloudAvailabilityReady: false,
+        cloudAvailabilityError: new Error('sync failed')
+      })
+      const configuredIds = [
+        ...(hasResolved ? ['openai::available-model'] : []),
+        'cherryai-subscription::managed::model',
+        'cherryai-subscription::managed::model',
+        'openai::deleted-model',
+        'malformed-id',
+        'malformed-id'
+      ] as UniqueModelId[]
+      MockUsePreferenceUtils.setMultiplePreferenceValues({
+        'chat.retry.enabled': true,
+        'chat.retry.fallback_model_ids': configuredIds
+      })
+
+      render(<GeneralSettings />)
+
+      expect(
+        screen.getByText('settings.models.retry.fallback_models_count_with_invalid').closest('button')
+      ).toHaveAttribute('aria-invalid', 'true')
+      expect(translationSpy).toHaveBeenCalledWith('settings.models.retry.fallback_models_count_with_invalid', {
+        valid: hasResolved ? 2 : 1,
+        invalid: 2
+      })
+      expect(screen.queryByText('settings.models.retry.fallback_models_unavailable')).not.toBeInTheDocument()
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.fallback_model_ids')).toEqual(configuredIds)
+    }
+  )
 
   it('marks configured Cherry Cloud fallback models unavailable once availability is ready', () => {
     mockUseModelSelectorData.mockReturnValue({

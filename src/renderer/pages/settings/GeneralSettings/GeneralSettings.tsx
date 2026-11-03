@@ -32,7 +32,8 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -129,20 +130,25 @@ const GeneralSettings: FC = () => {
     showTagFilter: false,
     showPinnedModels: false
   })
-  // Cloud availability readiness is part of the stale contract: until the first
-  // cherry_cloud.models.sync snapshot arrives (or after a failed sync) managed Cloud
-  // models are hidden from the selector, so classifying then would falsely mark
-  // configured Cloud fallbacks stale. Defer to the count label while it is unknown.
+  // Catalog failures make all selections unknown. Cloud sync only affects managed
+  // Cloud IDs, so it must not hide known stale non-Cloud selections.
   const canEvaluateFallbackStale =
-    !isFallbackSelectorDataLoading &&
-    fallbackModelsCatalogError == null &&
-    fallbackProvidersCatalogError == null &&
-    fallbackCloudAvailabilityReady &&
-    fallbackCloudAvailabilityError == null
+    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null && fallbackProvidersCatalogError == null
+  const isFallbackCloudAvailabilityKnown = fallbackCloudAvailabilityReady && fallbackCloudAvailabilityError == null
+  const classifiedRetryFallbackModelIds = useMemo(() => {
+    if (isFallbackCloudAvailabilityKnown) return resolvedRetryFallbackModelIds
+    const unknownCloudIds = configuredRetryFallbackModelIds.filter(
+      (id) => isUniqueModelId(id) && isManagedCherryCloudModel(parseUniqueModelId(id).providerId)
+    )
+    // Presentation-only: keep unknown Cloud selections neutral. Do not change
+    // selector resolution, persisted IDs, or runtime fallback behavior.
+    return [...new Set([...resolvedRetryFallbackModelIds, ...unknownCloudIds])]
+  }, [configuredRetryFallbackModelIds, isFallbackCloudAvailabilityKnown, resolvedRetryFallbackModelIds])
   const hasInvalidRetryFallbackModels =
-    canEvaluateFallbackStale && hasStaleSelectedModelIds(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds)
+    canEvaluateFallbackStale &&
+    hasStaleSelectedModelIds(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds)
   const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
-    ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, resolvedRetryFallbackModelIds, t)
+    ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds, t)
     : configuredRetryFallbackModelIds.length > 0
       ? t('settings.models.retry.fallback_models_count', { count: configuredRetryFallbackModelIds.length })
       : t('settings.models.empty')
