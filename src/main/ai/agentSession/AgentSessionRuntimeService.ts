@@ -761,6 +761,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    if (application.isQuitting || this.isShuttingDown || this.isWriteQuiesced) return
     if (this.forks.edits.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
@@ -1097,6 +1098,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  closeAllSessions(): Promise<void> {
+    const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
+    const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
+    return Promise.allSettled(closings).then(() => undefined)
+  }
+
   closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
@@ -1183,6 +1190,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * connection if nothing else holds it.
    */
   acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    if (application.isQuitting || this.isShuttingDown || this.isWriteQuiesced) return
     const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
     if (pendingTeardown) {
       clearTimeout(pendingTeardown)
@@ -1616,14 +1624,14 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    await this.closeAll()
+    await this.closeAllSessions()
   }
 
   protected async onDestroy(): Promise<void> {
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
-    await this.closeAll()
+    await this.closeAllSessions()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-destroy')
     } catch (error) {
@@ -3440,12 +3448,6 @@ export class AgentSessionRuntimeService extends BaseService {
       clearTimeout(entry.idleTimer)
       entry.idleTimer = undefined
     }
-  }
-
-  private closeAll(): Promise<void> {
-    const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
-    const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
-    return Promise.allSettled(closings).then(() => undefined)
   }
 
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {

@@ -30,9 +30,9 @@ vi.unmock('@application')
 /**
  * Reset the Application singleton between cases.
  *
- * `Application` has no reset API and `isShuttingDown` is one-way: once true,
- * `shutdown()` early-returns forever, so a second scenario would silently not
- * run at all. The private static is cleared directly — same escape hatch the
+ * `Application` has no reset API and memoizes shutdown for the process lifetime,
+ * so a second scenario would silently reuse the first result.
+ * The private static is cleared directly — same escape hatch the
  * lifecycle tests use for `manager['container']`.
  */
 function resetApplication(): void {
@@ -59,7 +59,7 @@ describe('Application shutdown', () => {
     // listeners Application registers.
     appOn = vi.fn()
     appExit = vi.fn()
-    Object.assign(app, { on: appOn, exit: appExit, quit: vi.fn() })
+    Object.assign(app, { on: appOn, exit: appExit, quit: vi.fn(), isPackaged: false })
 
     exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
     vi.spyOn(bootConfigService, 'flush').mockImplementation(() => {})
@@ -235,4 +235,237 @@ describe('Application shutdown', () => {
     expect(messages('info')).toContainEqual(expect.stringContaining('Shutdown complete ('))
     expect(messages('warn')).not.toContainEqual(expect.stringContaining('not cleanly'))
   })
+
+  it('releases service resources before exiting for a packaged relaunch', async () => {
+    let stopped = false
+    let destroyed = false
+    const exitStates: { stopped: boolean; destroyed: boolean }[] = []
+
+    @Injectable('RelaunchResourceService')
+    class RelaunchResourceService extends BaseService {
+      protected override onStop() {
+        stopped = true
+      }
+      protected override onDestroy() {
+        destroyed = true
+      }
+    }
+
+    const application = Application.getInstance()
+    ServiceContainer.getInstance().register(RelaunchResourceService)
+    application['setupQuitHandlers']()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    const willQuit = appOn.mock.calls.find(([event]) => event === 'will-quit')?.[1] as QuitListener
+    Object.assign(app, {
+      isPackaged: true,
+      relaunch: vi.fn(),
+      quit: () => willQuit({ preventDefault: () => {} })
+    })
+    appExit.mockImplementation(() => exitStates.push({ stopped, destroyed }))
+
+    application.relaunch()
+    await vi.runAllTimersAsync()
+
+    expect(exitStates).toEqual([{ stopped: true, destroyed: true }])
+  })
+
+  it('does not leave a restart queued when a quit hold rejects relaunch', async () => {
+    const application = Application.getInstance()
+    application['setupQuitHandlers']()
+    const scheduledRestarts: unknown[] = []
+    Object.assign(app, {
+      isPackaged: true,
+      relaunch: (options: unknown) => scheduledRestarts.push(options),
+      quit: () => {
+        let prevented = false
+        const event = { preventDefault: () => (prevented = true) }
+        const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1] as QuitListener
+        beforeQuit(event)
+        if (!prevented) {
+          const willQuit = appOn.mock.calls.find(([name]) => name === 'will-quit')?.[1] as QuitListener
+          willQuit(event)
+        }
+      }
+    })
+    const hold = application.preventQuit('backup in progress')
+
+    application.relaunch()
+    await vi.runAllTimersAsync()
+    expect(application.isQuitting).toBe(false)
+    expect(scheduledRestarts).toEqual([])
+
+    hold.dispose()
+    application.quit()
+    await vi.runAllTimersAsync()
+    expect(scheduledRestarts).toEqual([])
+  })
+
+  it('commits one restart only after an already-running shutdown finishes', async () => {
+    const stopping = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    let destroyed = false
+    const outcomes: unknown[] = []
+
+    @Injectable('PendingShutdownService')
+    class PendingShutdownService extends BaseService {
+      protected override async onStop() {
+        stopping.resolve()
+        await release.promise
+      }
+      protected override onDestroy() {
+        destroyed = true
+      }
+    }
+
+    const application = Application.getInstance()
+    ServiceContainer.getInstance().register(PendingShutdownService)
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    application['setupQuitHandlers']()
+    Object.assign(app, {
+      isPackaged: true,
+      relaunch: (options: unknown) => outcomes.push({ options, destroyed })
+    })
+    appExit.mockImplementation(() => outcomes.push('exit'))
+    const shutdown = application.shutdown()
+    await stopping.promise
+
+    application.relaunch({ args: ['--first'] })
+    application.relaunch({ args: ['--second'] })
+    const willQuit = appOn.mock.calls.find(([event]) => event === 'will-quit')?.[1] as QuitListener
+    let quitPrevented = false
+    willQuit({ preventDefault: () => (quitPrevented = true) })
+    expect(quitPrevented).toBe(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(outcomes).toEqual([])
+
+    release.resolve()
+    await shutdown
+    await vi.runAllTimersAsync()
+    expect(outcomes).toEqual([{ options: { args: ['--first'] }, destroyed: true }, 'exit'])
+  })
+
+  it('exits synchronously before bootstrap without relying on Electron quit handlers', () => {
+    const outcomes: unknown[] = []
+    Object.assign(app, {
+      isPackaged: true,
+      relaunch: (options: unknown) => outcomes.push(options)
+    })
+    appExit.mockImplementation(() => outcomes.push('exit'))
+
+    Application.getInstance().relaunch({ args: ['--preboot'] })
+
+    expect(outcomes).toEqual([{ args: ['--preboot'] }, 'exit'])
+  })
+
+  it('relaunches once at the shutdown deadline even if cleanup finishes later', async () => {
+    const outcomes: string[] = []
+    const container = ServiceContainer.getInstance()
+    const stuckCount = Math.ceil(SHUTDOWN_TIMEOUT_MS / SERVICE_STOP_TIMEOUT_MS) + 1
+    for (let i = 0; i < stuckCount; i++) {
+      const StuckService = class extends BaseService {
+        protected override onStop() {
+          return neverSettles()
+        }
+      }
+      Injectable(`RelaunchStuck${i}Service`)(StuckService)
+      container.register(StuckService)
+    }
+    const application = Application.getInstance()
+    application['setupQuitHandlers']()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    Object.assign(app, { isPackaged: true, relaunch: () => outcomes.push('relaunch') })
+    appExit.mockImplementation(() => outcomes.push('exit'))
+
+    application.relaunch()
+    await vi.advanceTimersByTimeAsync(SHUTDOWN_TIMEOUT_MS - 1)
+    expect(outcomes).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(outcomes).toEqual(['relaunch', 'exit'])
+    await vi.runAllTimersAsync()
+    expect(outcomes).toEqual(['relaunch', 'exit'])
+  })
+
+  it.each([10_000, SHUTDOWN_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS + 5_000])(
+    'does not renew the shutdown deadline when relaunch arrives after %i ms',
+    async (delay) => {
+      const outcomes: string[] = []
+      const container = ServiceContainer.getInstance()
+      const stuckCount = Math.ceil((SHUTDOWN_TIMEOUT_MS + 10_000) / SERVICE_STOP_TIMEOUT_MS)
+      for (let i = 0; i < stuckCount; i++) {
+        const StuckService = class extends BaseService {
+          protected override onStop() {
+            return neverSettles()
+          }
+        }
+        Injectable(`DeadlineStuck${i}Service`)(StuckService)
+        container.register(StuckService)
+      }
+      const application = Application.getInstance()
+      application['setupQuitHandlers']()
+      await application.getLifecycleManager().startPhase(Phase.WhenReady)
+      Object.assign(app, { isPackaged: true, relaunch: () => outcomes.push('relaunch') })
+      appExit.mockImplementation(() => outcomes.push('exit'))
+
+      const shutdown = application.shutdown()
+      await vi.advanceTimersByTimeAsync(delay)
+      application.relaunch()
+      await vi.advanceTimersByTimeAsync(Math.max(0, SHUTDOWN_TIMEOUT_MS - delay))
+
+      expect(outcomes).toEqual(['relaunch', 'exit'])
+      await vi.runAllTimersAsync()
+      await shutdown
+      expect(outcomes).toEqual(['relaunch', 'exit'])
+    }
+  )
+
+  it.each(['SIGINT', 'SIGTERM', 'will-quit'] as const)(
+    'preserves a relaunch accepted during %s shutdown and exits only once',
+    async (trigger) => {
+      const release = Promise.withResolvers<void>()
+      const stopping = Promise.withResolvers<void>()
+      let destroyed = false
+      const outcomes: unknown[] = []
+
+      @Injectable('ExitOwnerService')
+      class ExitOwnerService extends BaseService {
+        protected override async onStop() {
+          stopping.resolve()
+          await release.promise
+        }
+        protected override onDestroy() {
+          destroyed = true
+        }
+      }
+
+      const application = Application.getInstance()
+      ServiceContainer.getInstance().register(ExitOwnerService)
+      await application.getLifecycleManager().startPhase(Phase.WhenReady)
+      application['setupQuitHandlers']()
+      const signalOn = vi.spyOn(process, 'on').mockReturnValue(process)
+      application['setupSignalHandlers']()
+      const signal = signalOn.mock.calls.find(([event]) => event === trigger)?.[1] as () => void
+      signalOn.mockRestore()
+      Object.assign(app, {
+        isPackaged: true,
+        relaunch: (options: unknown) => outcomes.push({ restart: options, destroyed })
+      })
+      appExit.mockImplementation((code) => outcomes.push({ exit: code, destroyed }))
+
+      if (trigger === 'will-quit') {
+        const willQuit = appOn.mock.calls.find(([event]) => event === trigger)?.[1] as QuitListener
+        willQuit({ preventDefault: () => {} })
+      } else {
+        signal()
+      }
+      await stopping.promise
+      application.relaunch({ args: ['--resume'] })
+      release.resolve()
+      await vi.runAllTimersAsync()
+
+      expect(outcomes).toEqual([
+        { restart: { args: ['--resume'] }, destroyed: true },
+        { exit: 0, destroyed: true }
+      ])
+    }
+  )
 })

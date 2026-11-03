@@ -59,8 +59,13 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
 
   const requestRestart = () => {
     if (restartRequested) return
-    options.onRestart()
     restartRequested = true
+    try {
+      options.onRestart()
+    } catch (error) {
+      restartRequested = false
+      throw error
+    }
     close()
   }
 
