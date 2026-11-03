@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatCodexHistoryText, formatCodexTool, presentCodexHistory } from '../importedCodexText'
+import {
+  formatCodexHistoryText,
+  formatCodexTool,
+  isCodexContextMessage,
+  presentCodexHistory
+} from '../importedCodexText'
 
 describe('Codex imported text presentation', () => {
+  it('recognizes generated context in old imports without classifying real user text as context', () => {
+    const parts = [
+      { type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Project notes</INSTRUCTIONS>' },
+      { type: 'text' as const, text: '[Historical environment]\n\ncwd: D:/project' }
+    ]
+    expect(isCodexContextMessage({ parts })).toBe(true)
+    expect(isCodexContextMessage(presentCodexHistory({ parts }))).toBe(true)
+    expect(isCodexContextMessage({ parts: [...parts, { type: 'text', text: 'What is the charging power?' }] })).toBe(
+      false
+    )
+    expect(isCodexContextMessage({ parts: [] })).toBe(false)
+    expect(
+      formatCodexHistoryText('<external_codex_apps_open_page>{"page_id":null}</external_codex_apps_open_page>')
+    ).toBe('[Historical app context]\n\n{"page_id":null}')
+  })
   it('shows command input instead of serialized tool metadata', () => {
     const result = formatCodexTool({
       type: 'function_call',

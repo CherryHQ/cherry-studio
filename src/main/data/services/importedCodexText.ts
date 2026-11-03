@@ -75,8 +75,14 @@ export function formatCodexTool(item: Record<string, unknown>): string {
 
 export function isCodexContextText(text: string): boolean {
   return (
-    /^\s*<(recommended_plugins|environment_context)>/.test(text) || text.startsWith('# AGENTS.md instructions for ')
+    /^\s*<(recommended_plugins|environment_context|external_codex_apps_open_page)>/.test(text) ||
+    /^# AGENTS\.md instructions(?: for [^\r\n]+)?\r?\n/.test(text) ||
+    /^\[Historical (environment|plugin context|project instructions|app context)\]\n/.test(text)
   )
+}
+
+export function isCodexContextMessage(data: MessageData): boolean {
+  return !!data.parts?.length && data.parts.every((part) => part.type === 'text' && isCodexContextText(part.text))
 }
 
 export function formatCodexHistoryText(text: string): string {
@@ -100,7 +106,9 @@ export function formatCodexHistoryText(text: string): string {
   }
   const plugins = /^\s*<recommended_plugins>([\s\S]*?)<\/recommended_plugins>\s*$/.exec(clean)
   if (plugins) return '[Historical plugin context]\n\n' + plugins[1].trim()
-  if (clean.startsWith('# AGENTS.md instructions for '))
+  const appContext = /^\s*<external_codex_apps_open_page>([\s\S]*?)<\/external_codex_apps_open_page>\s*$/.exec(clean)
+  if (appContext) return '[Historical app context]\n\n' + appContext[1].trim()
+  if (/^# AGENTS\.md instructions(?: for [^\r\n]+)?\r?\n/.test(clean))
     return '[Historical project instructions]\n\n' + clean.replace(/<\/?INSTRUCTIONS>/g, '').trim()
   return clean.replace(/<oai-mem-citation>([\s\S]*?)<\/oai-mem-citation>/g, (original, body: string) => {
     const entries = /<citation_entries>([\s\S]*?)<\/citation_entries>/.exec(body)?.[1].trim()
