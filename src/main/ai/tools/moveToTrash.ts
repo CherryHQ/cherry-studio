@@ -199,14 +199,14 @@ export async function moveWorkspaceItemToTrash(
 ): Promise<{ path: string; type: 'file' | 'directory'; destination: 'trash' }> {
   signal.throwIfAborted()
   const validatedInput = moveToTrashInputSchema.parse(input)
-  const resolvedWorkspacePath = AbsoluteFilePathSchema.parse(await validatePath('.', workspacePath))
+  const resolvedWorkspacePath = AbsoluteFilePathSchema.parse(await validatePath('.', [workspacePath]))
   const lexicalTargetPath = AbsoluteFilePathSchema.parse(
     path.isAbsolute(validatedInput.path)
       ? path.resolve(validatedInput.path)
       : path.resolve(resolvedWorkspacePath, validatedInput.path)
   )
   const resolvedTargetPath = AbsoluteFilePathSchema.parse(
-    await validatePath(validatedInput.path, resolvedWorkspacePath)
+    await validatePath(validatedInput.path, [resolvedWorkspacePath])
   )
 
   const protectionContext: TrashProtectionContext = {

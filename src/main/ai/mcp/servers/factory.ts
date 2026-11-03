@@ -69,8 +69,8 @@ export async function createBuiltinMcpEndpoint(
       return statelessEndpoint(createFetchServer)
     }
     case BuiltinMcpServerNames.filesystem: {
-      const { createFileSystemServer, resolveFilesystemBaseDir } = await import('./filesystem')
-      return statelessEndpoint(() => createFileSystemServer(resolveFilesystemBaseDir(args, envs)))
+      const { createFileSystemServer, resolveFilesystemBaseDirs } = await import('./filesystem')
+      return statelessEndpoint(() => createFileSystemServer(resolveFilesystemBaseDirs(args, envs)))
     }
     case BuiltinMcpServerNames.difyKnowledge: {
       const { createDifyKnowledgeServer } = await import('./difyKnowledge')

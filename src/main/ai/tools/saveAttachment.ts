@@ -63,8 +63,10 @@ export async function saveAttachmentToWorkspace(
     throw new Error(`No attached file named "${validatedInput.filename}". Available: ${available}`)
   }
 
-  const resolvedWorkspacePath = await validatePath('.', workspacePath)
-  const outputPath = AbsoluteFilePathSchema.parse(await validatePath(validatedInput.output_path, resolvedWorkspacePath))
+  const resolvedWorkspacePath = await validatePath('.', [workspacePath])
+  const outputPath = AbsoluteFilePathSchema.parse(
+    await validatePath(validatedInput.output_path, [resolvedWorkspacePath])
+  )
   signal.throwIfAborted()
   const outputDirectory = path.dirname(outputPath)
   const outputDirectoryStatus = await getPathStatus(outputDirectory)
