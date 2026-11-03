@@ -255,7 +255,7 @@ flowchart LR
     Projection["Main thread projection"]
     subgraph CherryDB["Cherry SQLite / DbService"]
         Records["Backend and native associations"]
-        Messages["Product messages + private submission facts"]
+        Messages["Product messages + private input identities"]
     end
     Host --> Records
     Host --> Adapter
@@ -381,7 +381,7 @@ Main 从操作开始时明确捕获的产品所有者和锚点解析输入，不
 ##### Schema 实现前需要验证的四条流程
 
 1. **首次会话与输入：**创建产品占位会话，启用树后同时创建虚拟根；提交原生创建意图；在 DB 事务外经所选适配器创建；发布已验证绑定；保存用户消息及已捕获的输入 context，再派发。Pi 分配 session ID 可能早于文件落盘，因此重开能力在取得受支持证据前仍未确认。原生成功而 Cherry 写入失败时需要对账，不能据此再次创建或提交。
-2. **正常继续输入：**捕获选中锚点及绑定，验证原生末端，保存用户消息、必要私有元数据及投影占位行，提交并处理任意顺序到达的回执/事件。最终投影与有证据的输入结果共同提交。并发窗口可选择不同路径，但不改变已捕获输入目标。
+2. **正常继续输入：**捕获选中锚点及绑定，验证原生末端，保存用户消息、必要私有元数据及投影占位行，提交并处理任意顺序到达的回执/事件。最终投影保存后，才依据原生终态证据结束投递。并发窗口可选择不同路径，但不改变已捕获输入目标。
 3. **编辑或分支续写：**读取一致来源/checkpoint，准备独立原生 fork，或在空根显式 create，重新校验来源版本，原子发布分支/绑定及选择，之后才提交新输入。未解决的操作不能发布成功分支或自动再次创建原生上下文。旧分支保留绑定；复制历史不产生新的用量、审批、投递所有权或 child 控制权限。
 4. **重启与选择分支：**先恢复产品历史和选中节点，验证 backend/原生身份并恢复所有者关系，严格打开并观察，对账保存的输入及有证据的投影映射，之后才允许执行。选择旧路径是只读操作；之后在该路径发送时，使用已确认末端或显式 fork 边界。未知 Pi 接纳仍保持未知；Durable 查询/去重使用原 key 和草稿。
 
@@ -481,7 +481,7 @@ Seeder 事务只操作数据库，不读取原生文件、不创建 harness、�
 
 未迁移上下文保持既有执行路径。切换在原生派发前选定唯一写入者；发生错误或未知结果后，不能退回旧 driver 再调用一次。对于已迁移上下文，用原生对账替代现有 crash-orphan 扫描的一律报错／清 token 行为。无法验证原生上下文的既有 v2 历史仍可读取；这不是 v1 迁移兼容路径。
 
-切换前失败，只有尚未发生新的原生派发时，才可继续保留现有执行所有者。已迁移所有者一旦写入分支或原生输入，关闭新路径不能将其交回不兼容的旧版本/写入者。应停止接纳并向前修复，或恢复协调备份；不能通过压平分支、清空回执或重复原生工作“回滚”。
+切换前失败，只有尚未发生新的原生派发时，才可继续保留现有执行所有者。已迁移所有者一旦写入分支或原生输入，关闭新路径不能将其交回不兼容的旧版本/写入者。应停止接纳并向前修复，或恢复协调备份；不能通过压平分支、清空输入绑定或重复原生工作“回滚”。
 
 重启顺序为 **加载 backend／context 记录 → 验证原生存储与所有权 → 打开并观察 → 对账输入和产品映射 → 决定是否调度**。Pi 重开恢复已保存的上下文，不恢复中断执行或未落盘队列。Durable 对账保持被动，只有之后明确的宿主决策才能对整个 Harness 启用 submit／interrupt／resume，其中包括其他 conversation。不额外制造 reporter 或父通知。
 
@@ -510,7 +510,7 @@ P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要�
 
 P1 基础现已包含 backend/context 的增量 migration、现有消息上的私有 `inputContextId` 和 `nativeInputId` 列、已提交内容保护、显式原生创建、严格打开和被动对账。[原生存储 fixture](../../../../src/main/ai/agentSession/__tests__/nativeContext.test.ts)、[消息提交测试](../../../../src/main/data/services/__tests__/AgentSessionSubmission.test.ts) 和[已有数据迁移 fixture](../../../../src/main/data/db/__tests__/agentNativeContextMigration.test.ts) 使用真实适配器和 SQLite。[Seeder 测试](../../../../src/main/data/db/seeding/seeders/__tests__/AgentSessionContextSeeder.test.ts) 覆盖已注册的升级路径、初始化时机、事务回滚、重复执行和待转换 DSH 的目标身份。原生 fixture 单独验证 Seeder 完成后的确认与重试。Durable 会话创建后的关联若丢失且无法恢复原生身份，则保留未解决的创建意图。
 
-严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Main 观察器保留写入失败的事实供 `flush()` 补写，由调用者持有至停止；这些辅助模块不注册第二个生命周期服务，也不切换桌面执行。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
+严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Runtime 所有者对账身份关联与投影写入；写入失败不能授权重新提交。原生创建与观察 fixture 不引入第二个生命周期服务，也不切换桌面执行。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
 
 文档仍为 proposed：产品消息树、桌面所有者/投影接线、原生备份/删除集成及强制退出进程后的崩溃验收仍属于 P2–P4。原生正常关闭/重开和数据库故障注入不能替代应用崩溃门槛。
 

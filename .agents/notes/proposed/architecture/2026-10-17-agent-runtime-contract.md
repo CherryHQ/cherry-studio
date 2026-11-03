@@ -255,7 +255,7 @@ flowchart LR
     Projection["Main thread projection"]
     subgraph CherryDB["Cherry SQLite / DbService"]
         Records["Backend and native associations"]
-        Messages["Product messages + private submission facts"]
+        Messages["Product messages + private input identities"]
     end
     Host --> Records
     Host --> Adapter
@@ -481,7 +481,7 @@ The native context layer separately verifies the native header and location befo
 
 Keep each unmigrated context on its existing execution path. Cutover selects one writer before native dispatch; it cannot fall back to the old driver after an error or unknown result. For migrated contexts, replace the existing crash-orphan sweep's blanket failure/token clearing with native reconciliation. Existing v2 history with no verifiable native context remains readable; this is not a v1 migration fallback.
 
-A pre-cutover failure can leave the current execution owner in place only if no new native dispatch occurred. Once a migrated owner has written branches or native inputs, disabling the new path cannot hand it to an incompatible old binary/writer. Stop admission and repair forward, or restore a coordinated backup; never “roll back” by flattening branches, clearing receipts, or repeating native work.
+A pre-cutover failure can leave the current execution owner in place only if no new native dispatch occurred. Once a migrated owner has written branches or native inputs, disabling the new path cannot hand it to an incompatible old binary/writer. Stop admission and repair forward, or restore a coordinated backup; never “roll back” by flattening branches, clearing input bindings, or repeating native work.
 
 Restart in this order: **load backend/context records → verify native store and ownership → open and observe → reconcile inputs and product mapping → decide whether to schedule**. Pi reopening restores saved context, not interrupted execution or an unflushed queue. Durable reconciliation stays passive. Only afterward may an explicit host decision enable submit/interrupt/resume for the entire Harness, including its other conversations. No extra reporter or parent notification is synthesized.
 
@@ -510,7 +510,7 @@ P1 covers backend/native associations, necessary message-owned input identities,
 
 The P1 foundation now includes the additive backend/context migration, private `inputContextId` and `nativeInputId` columns on the existing message, immutable submitted content, explicit native creation, strict opening and passive reconciliation. [Native storage fixtures](../../../../src/main/ai/agentSession/__tests__/nativeContext.test.ts), [message submission tests](../../../../src/main/data/services/__tests__/AgentSessionSubmission.test.ts) and the [populated migration fixture](../../../../src/main/data/db/__tests__/agentNativeContextMigration.test.ts) exercise real adapters and SQLite. [Seeder tests](../../../../src/main/data/db/seeding/seeders/__tests__/AgentSessionContextSeeder.test.ts) cover the registered upgrade path, initialization timing, atomic rollback, replay, and pending DSH conversion identities. Native fixtures separately verify confirmation and retry after seed completion. A lost Durable conversation-creation binding remains an unresolved intent when its native identity cannot be recovered.
 
-Strict opening uses small pinned dependency patches: `SessionManager.openExisting` validates a current-format header without initialization, and `SqliteStorage.openExisting` reads an already initialized schema without migrations. Node SQLite uses [`mode=rw`](https://www.sqlite.org/uri.html) so missing files cannot be created. Unsupported native format versions remain unavailable pending explicit migration. The Main observer retains failed fact writes for `flush()` and must remain owned until its caller stops it; these helpers do not register a second lifecycle service or switch desktop execution. The initial input path accepts retained text-only content and rejects other parts rather than storing a transformed-payload copy.
+Strict opening uses small pinned dependency patches: `SessionManager.openExisting` validates a current-format header without initialization, and `SqliteStorage.openExisting` reads an already initialized schema without migrations. Node SQLite uses [`mode=rw`](https://www.sqlite.org/uri.html) so missing files cannot be created. Unsupported native format versions remain unavailable pending explicit migration. Runtime owners reconcile identity and projection writes; a failed write does not authorize resubmission. Native creation and observation fixtures do not introduce a second lifecycle service or switch desktop execution. The initial input path accepts retained text-only content and rejects other parts rather than storing a transformed-payload copy.
 
 The note remains proposed: product message trees, desktop owner/projection wiring, native backup/deletion integration and forced-process crash acceptance remain P2–P4 work. Graceful native close/reopen and injected DB failures do not satisfy the application crash gate.
 
