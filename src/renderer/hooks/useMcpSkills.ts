@@ -16,18 +16,21 @@ export function useMcpSkills(serverIds: readonly string[], enabled: boolean): re
     if (!enabled) return
     const ids: string[] = JSON.parse(key)
     const requests = ids.map((serverId) => ({ serverId, requestId: crypto.randomUUID() }))
+    const catalogs = new Map<string, SkillCatalogResult>()
     let cancelled = false
-    void Promise.all(
-      requests.map(async ({ serverId, requestId }): Promise<SkillCatalogResult> => {
+    for (const { serverId, requestId } of requests) {
+      void (async () => {
+        let catalog: SkillCatalogResult
         try {
-          return { serverId, skills: await ipcApi.request('mcp.server.list_skills', { serverId, requestId }) }
+          catalog = { serverId, skills: await ipcApi.request('mcp.server.list_skills', { serverId, requestId }) }
         } catch (error) {
-          return { serverId, skills: [], error: error instanceof Error ? error.message : String(error) }
+          catalog = { serverId, skills: [], error: error instanceof Error ? error.message : String(error) }
         }
-      })
-    ).then((catalogs) => {
-      if (!cancelled) setResult({ key, catalogs })
-    })
+        if (cancelled) return
+        catalogs.set(serverId, catalog)
+        setResult({ key, catalogs: ids.flatMap((id) => catalogs.get(id) ?? []) })
+      })()
+    }
     return () => {
       cancelled = true
       for (const { requestId } of requests) {
