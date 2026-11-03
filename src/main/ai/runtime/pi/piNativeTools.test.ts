@@ -169,6 +169,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           getPermissionMode: () => 'bypassPermissions',
           isDisabled: (name) => name === `${nativePrefix}forbidden`,
+          requiresSourceApproval: () => false,
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set(),

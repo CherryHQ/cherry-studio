@@ -38,6 +38,17 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('signs in to EvoLink with OAuth and keeps its paid tools on manual approval', () => {
+    const server = preset(BuiltinMcpServerNames.evolink)
+    expect(server).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://mcp.evolink.ai/mcp', isActive: false })
+    )
+    // A preset Authorization header would replace the OAuth sign-in this endpoint expects.
+    expect(Object.keys(server?.headers ?? {}).map((name) => name.toLowerCase())).not.toContain('authorization')
+    // These tools spend the user's EvoLink balance, so auto-approve must not cover them.
+    expect(server?.disabledAutoApproveTools).toEqual(['generate_image', 'generate_video', 'generate_audio'])
+  })
+
   it('gives every non in-memory preset what it needs to connect', () => {
     // The seeder copies these fields onto installed rows, so a preset missing them
     // would migrate a working server into an unconnectable one.

@@ -192,6 +192,7 @@ it.each([
           getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           getPermissionMode: () => mode,
           isDisabled: (name) => disabled && name === 'vcc_recall',
+          requiresSourceApproval: () => false,
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set(),

@@ -27,6 +27,7 @@ const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerP
   )
 
 const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
+const evolinkManualApprovalTools = ['generate_image', 'generate_video', 'generate_audio'] as const
 
 export const PRESET_MCP_SERVERS = freezePresets([
   {
@@ -52,6 +53,19 @@ export const PRESET_MCP_SERVERS = freezePresets([
     },
     shouldConfig: true,
     provider: 'QVeris',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    name: BuiltinMcpServerNames.evolink,
+    reference: 'https://evolink.ai/mcp',
+    type: 'streamableHttp',
+    baseUrl: 'https://mcp.evolink.ai/mcp',
+    headers: { APP: 'Cherry Studio' },
+    // Every call to these tools spends the user's EvoLink balance, so each one asks for approval.
+    disabledAutoApproveTools: [...evolinkManualApprovalTools],
+    isActive: false,
+    provider: 'EvoLink',
     installSource: 'builtin',
     isTrusted: true
   },
