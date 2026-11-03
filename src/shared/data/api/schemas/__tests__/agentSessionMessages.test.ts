@@ -64,4 +64,11 @@ describe('AgentSessionMessage schemas', () => {
     })
     expect(AgentSessionMessagesListQuerySchema.safeParse({ messageId: '' }).success).toBe(false)
   })
+  it('accepts the maximum list limit of 200', () => {
+    expect(AgentSessionMessagesListQuerySchema.parse({ limit: 200 }).limit).toBe(200)
+  })
+
+  it.each([201, 0, -1, 1.5])('rejects invalid list limit %s', (limit) => {
+    expect(AgentSessionMessagesListQuerySchema.safeParse({ limit }).success).toBe(false)
+  })
 })

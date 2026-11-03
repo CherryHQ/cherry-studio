@@ -130,6 +130,7 @@ export interface AgentChatRuntimeState {
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
+  historyError?: Error
   hasOlder?: boolean
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
@@ -203,6 +204,7 @@ export function useAgentChatRuntimeState({
   const {
     messages: uiMessages,
     persistedPartsByMessageId,
+    error: historyError,
     isLoading,
     hasOlder,
     loadOlder,
@@ -501,6 +503,7 @@ export function useAgentChatRuntimeState({
     loadOlder,
     selectAllPagination,
     isPending,
+    historyError,
     stop,
     sendMessage,
     deleteMessage,

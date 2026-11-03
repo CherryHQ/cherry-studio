@@ -8,7 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
@@ -26,6 +28,9 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
+import { DataApiError } from '@shared/data/api/errors'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -86,6 +91,520 @@ describe('AgentSessionMessageService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  describe('history read protection', () => {
+    const MESSAGE_BUDGET = 16_777_216
+    const DEFERRED_PAGE_BUDGET = 536_870_912
+
+    function insertHistorical(id: string, createdAt = 100, parts: CherryMessagePart[] = []) {
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          id,
+          sessionId: SESSION_ID,
+          role: 'assistant',
+          status: 'success',
+          createdAt,
+          updatedAt: createdAt,
+          data: { parts, runtimeAnchor: 'x'.repeat(2048), nativeSessionId: 'private-session' }
+        })
+        .run()
+    }
+
+    // Independently enumerate the migrated TEXT columns, including private fields not in the entity.
+    function inputBytes(id: string): number {
+      const columns = dbh.sqlite.prepare('PRAGMA table_info(agent_session_message)').all() as Array<{
+        name: string
+        type: string
+      }>
+      const sum = columns
+        .filter((c) => c.type === 'TEXT')
+        .map((c) => `coalesce(length(cast("${c.name}" as blob)), 0)`)
+        .join(' + ')
+      return (
+        dbh.sqlite.prepare(`SELECT ${sum} AS bytes FROM agent_session_message WHERE id = ?`).get(id) as {
+          bytes: number
+        }
+      ).bytes
+    }
+
+    function padTo(id: string, total: number, column = 'data') {
+      const jsonPath = column === 'data' ? '$.runtimeAnchor' : '$.padding'
+      const isJson = ['data', 'message_snapshot', 'stats', 'delivery'].includes(column)
+      dbh.sqlite
+        .prepare(
+          isJson
+            ? `UPDATE agent_session_message SET "${column}" = json_set(coalesce("${column}", '{}'), ?, '') WHERE id = ?`
+            : `UPDATE agent_session_message SET "${column}" = '' WHERE id = ?`
+        )
+        .run(...(isJson ? [jsonPath, id] : [id]))
+      const padding = total - inputBytes(id)
+      expect(padding).toBeGreaterThan(0)
+      dbh.sqlite
+        .prepare(
+          isJson
+            ? `UPDATE agent_session_message SET "${column}" = json_set("${column}", ?, replace(hex(zeroblob(?)), '00', 'x')) WHERE id = ?`
+            : `UPDATE agent_session_message SET "${column}" = replace(hex(zeroblob(?)), '00', 'x') WHERE id = ?`
+        )
+        .run(...(isJson ? [jsonPath, padding, id] : [padding, id]))
+      expect(inputBytes(id)).toBe(total)
+    }
+
+    function expectBudget(
+      read: () => unknown,
+      scope: string,
+      messageId: string,
+      bytes: number,
+      budget: number,
+      deferToolOutputs: boolean
+    ) {
+      let error: unknown
+      try {
+        read()
+      } catch (caught) {
+        error = caught
+      }
+      expect(error).toBeInstanceOf(DataApiError)
+      expect(error).toMatchObject({
+        code: 'INVALID_OPERATION',
+        status: 400,
+        isRetryable: false,
+        details: {
+          operation: 'listSessionMessages',
+          reason: 'AGENT_SESSION_MESSAGE_READ_BUDGET_EXCEEDED',
+          scope,
+          sessionId: SESSION_ID,
+          messageId,
+          bytes,
+          budget,
+          deferToolOutputs
+        }
+      })
+    }
+
+    it('rejects an oversized historical row before payload decoding and keeps the connection usable', () => {
+      insertHistorical('huge')
+      padTo('huge', 64 * 1024 * 1024)
+      // Invalid historical JSON makes premature Drizzle decoding observable without a decoder mock.
+      dbh.sqlite.prepare("UPDATE agent_session_message SET stats = '{' WHERE id = ?").run('huge')
+      const before = dbh.sqlite
+        .prepare('SELECT status, length(data) AS bytes FROM agent_session_message WHERE id = ?')
+        .get('huge')
+      const sessionBefore = dbh.db.select().from(agentSessionTable).get()
+      insertHistorical('small', 200, [{ type: 'text', text: 'still usable' }])
+      const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+      expectBudget(
+        () => agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true }),
+        'message',
+        'huge',
+        64 * 1024 * 1024 + 1,
+        MESSAGE_BUDGET,
+        true
+      )
+      expect(
+        prepare.mock.calls.filter(
+          ([query]) => /^select/i.test(query) && query.includes('"data"') && !query.includes('octet_length')
+        )
+      ).toHaveLength(0)
+      prepare.mockRestore()
+      expect(dbh.sqlite.inTransaction).toBe(false)
+      expect(
+        dbh.sqlite.prepare('SELECT status, length(data) AS bytes FROM agent_session_message WHERE id = ?').get('huge')
+      ).toEqual(before)
+      expect(dbh.db.select().from(agentSessionTable).get()).toEqual(sessionBefore)
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1 }).items).toMatchObject([
+        { id: 'small', status: 'success', data: { parts: [{ type: 'text', text: 'still usable' }] } }
+      ])
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('enforces inclusive message and page budgets across every text column', () => {
+      expect(dbh.sqlite.pragma('encoding', { simple: true })).toBe('UTF-8')
+      dbh.db.insert(userProviderTable).values({ providerId: 'budget', name: 'Budget', orderKey: 'p0' }).run()
+      dbh.db
+        .insert(userModelTable)
+        .values({ id: 'budget::model', providerId: 'budget', modelId: 'model', presetModelId: 'model', orderKey: 'm0' })
+        .run()
+      dbh.db
+        .insert(agentRuntimeBackendTable)
+        .values({ id: 'backend-budget', locator: { version: 1, kind: 'pi' }, state: 'bound' })
+        .run()
+      dbh.db
+        .insert(agentSessionContextTable)
+        .values({ id: 'context-budget', sessionId: SESSION_ID, backendId: 'backend-budget' })
+        .run()
+      for (const column of [
+        'data',
+        'message_snapshot',
+        'stats',
+        'delivery',
+        'searchable_text',
+        'runtime_resume_token',
+        'native_input_id',
+        'delivery_turn_ref',
+        'delivery_in_reply_to',
+        'delivery_sender_session_id'
+      ]) {
+        insertHistorical('boundary')
+        dbh.sqlite
+          .prepare(`UPDATE agent_session_message SET model_id = 'budget::model', input_context_id = 'context-budget',
+          native_input_id = 'native', delivery = '{}', delivery_status = 'delivering', delivery_turn_ref = 'turn',
+          delivery_in_reply_to = 'reply', delivery_sender_session_id = 'sender', message_snapshot = '{}', stats = '{}', runtime_resume_token = 'token'
+          WHERE id = 'boundary'`)
+          .run()
+        padTo('boundary', MESSAGE_BUDGET, column)
+        expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items.map((m) => m.id)).toEqual(['boundary'])
+        padTo('boundary', MESSAGE_BUDGET + 1, column)
+        for (const deferToolOutputs of [false, true]) {
+          expectBudget(
+            () => agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs }),
+            'message',
+            'boundary',
+            MESSAGE_BUDGET + 1,
+            MESSAGE_BUDGET,
+            deferToolOutputs
+          )
+        }
+        dbh.sqlite.prepare("UPDATE agent_session_message SET searchable_text = '' WHERE id = 'boundary'").run()
+        dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'boundary')).run()
+      }
+      insertHistorical('page-new', 200)
+      insertHistorical('page-old', 100)
+      padTo('page-new', MESSAGE_BUDGET / 2)
+      padTo('page-old', MESSAGE_BUDGET / 2)
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items.map((m) => m.id)).toEqual([
+        'page-new',
+        'page-old'
+      ])
+      padTo('page-old', MESSAGE_BUDGET / 2 + 1)
+      expectBudget(
+        () => agentSessionMessageService.listSessionMessages(SESSION_ID),
+        'page-input',
+        'page-old',
+        MESSAGE_BUDGET + 1,
+        MESSAGE_BUDGET,
+        false
+      )
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true }).items).toHaveLength(
+        2
+      )
+      dbh.db.delete(agentSessionMessageTable).run()
+      for (let i = 0; i < 33; i++) {
+        const id = `page-${i.toString().padStart(2, '0')}`
+        insertHistorical(id, 100 - i)
+        padTo(id, i === 32 ? 3000 : MESSAGE_BUDGET)
+      }
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 32, deferToolOutputs: true })
+      expect(page.items).toHaveLength(32)
+      expect(page.nextCursor).toBe('69:page-31')
+      expectBudget(
+        () => agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 33, deferToolOutputs: true }),
+        'page-input',
+        'page-32',
+        DEFERRED_PAGE_BUDGET + 3000,
+        DEFERRED_PAGE_BUDGET,
+        true
+      )
+      padTo('page-31', MESSAGE_BUDGET - 2999)
+      expectBudget(
+        () => agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 33, deferToolOutputs: true }),
+        'page-input',
+        'page-32',
+        DEFERRED_PAGE_BUDGET + 1,
+        DEFERRED_PAGE_BUDGET,
+        true
+      )
+      padTo('page-31', MESSAGE_BUDGET - 3000)
+      expect(
+        agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 33, deferToolOutputs: true }).items
+      ).toHaveLength(33)
+    }, 120_000)
+
+    it('does not read or charge an oversized sentinel', () => {
+      insertHistorical('sentinel', 100)
+      padTo('sentinel', 64 * 1024 * 1024)
+      dbh.sqlite.prepare("UPDATE agent_session_message SET stats = '{' WHERE id = 'sentinel'").run()
+      for (let i = 0; i < 50; i++) insertHistorical(`small-${i.toString().padStart(2, '0')}`, 200)
+      for (const deferToolOutputs of [false, true]) {
+        const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs })
+        expect(page.items.map((m) => m.id)).toEqual(
+          Array.from({ length: 50 }, (_, i) => `small-${(49 - i).toString().padStart(2, '0')}`)
+        )
+        expect(page.nextCursor).toBe('200:small-00')
+        expectBudget(
+          () =>
+            agentSessionMessageService.listSessionMessages(SESSION_ID, { cursor: page.nextCursor, deferToolOutputs }),
+          'message',
+          'sentinel',
+          64 * 1024 * 1024 + 1,
+          MESSAGE_BUDGET,
+          deferToolOutputs
+        )
+      }
+    })
+
+    it('rejects an oversized final page without returning a partial page', () => {
+      for (let i = 0; i < 2; i++) {
+        insertHistorical(`result-${i}`, 100 - i)
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ data: { parts: [{ type: 'reasoning', text: 'é' }] } })
+          .where(eq(agentSessionMessageTable.id, `result-${i}`))
+          .run()
+      }
+      const initialBytes = ['result-0', 'result-1'].reduce(
+        (bytes, id) =>
+          bytes + Buffer.byteLength(JSON.stringify(agentSessionMessageService.getSessionMessage(SESSION_ID, id))),
+        0
+      )
+      const padding = MESSAGE_BUDGET - initialBytes
+      const setText = dbh.sqlite.prepare(
+        "UPDATE agent_session_message SET data = json_set(data, '$.parts[0].text', ?) WHERE id = ?"
+      )
+      setText.run('é' + 'x'.repeat(Math.floor(padding / 2)), 'result-0')
+      setText.run('é' + 'x'.repeat(Math.ceil(padding / 2)), 'result-1')
+      for (const deferToolOutputs of [false, true]) {
+        const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs })
+        expect(page.items.map((m) => m.id)).toEqual(['result-0', 'result-1'])
+        expect(page.items.reduce((bytes, item) => bytes + Buffer.byteLength(JSON.stringify(item)), 0)).toBe(
+          MESSAGE_BUDGET
+        )
+      }
+      setText.run('é' + 'x'.repeat(Math.ceil(padding / 2) + 1), 'result-1')
+      for (const deferToolOutputs of [false, true]) {
+        expectBudget(
+          () => agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs }),
+          'page-result',
+          'result-1',
+          MESSAGE_BUDGET + 1,
+          MESSAGE_BUDGET,
+          deferToolOutputs
+        )
+      }
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id, status: agentSessionMessageTable.status })
+          .from(agentSessionMessageTable)
+          .all()
+      ).toEqual([
+        { id: 'result-0', status: 'success' },
+        { id: 'result-1', status: 'success' }
+      ])
+    })
+
+    it('projects only opt-in reads while retaining stored tool results', () => {
+      const output = { content: 'x'.repeat(64 * 1024) }
+      const citation = [{ id: 'citation-1', title: 'Page', url: 'https://example.com', content: 'c'.repeat(64 * 1024) }]
+      const persisted = {
+        $persistedToolOutput: {
+          fileEntryId: 'missing-file',
+          vfsFilename: 'missing.txt',
+          shape: 'text',
+          head: 'head',
+          tail: 'tail',
+          totalChars: 64 * 1024 * 1024,
+          totalLines: 42
+        }
+      }
+      const tool = (toolCallId: string, output: unknown): CherryMessagePart => ({
+        type: 'dynamic-tool',
+        toolName: 'probe',
+        toolCallId,
+        state: 'output-available',
+        input: {},
+        output
+      })
+      const parts = [
+        tool('large', output),
+        tool('small', { a: 1 }),
+        tool('citation', citation),
+        tool('persisted', persisted)
+      ]
+      insertHistorical('assistant', 200, parts)
+      insertHistorical('user', 100, [tool('user-tool', output)])
+      dbh.db.update(agentSessionMessageTable).set({ role: 'user' }).where(eq(agentSessionMessageTable.id, 'user')).run()
+      const messageSnapshot = {
+        id: 'snapshot-agent',
+        name: 'Snapshot',
+        model: { id: 'model', provider: 'provider', name: 'Model' }
+      }
+      const stats = { inputTokens: 10, outputTokens: 20, totalTokens: 30 }
+      const delivery = {
+        version: 1 as const,
+        sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
+        receiver: { agentId: 'receiver-agent', sessionId: SESSION_ID },
+        replyPolicy: 'completion' as const,
+        sourceMessageId: null,
+        outcome: null,
+        error: null,
+        statusAt: '1970-01-01T00:00:00.200Z'
+      }
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({
+          messageSnapshot,
+          stats,
+          delivery,
+          runtimeResumeToken: 'resume',
+          deliveryStatus: 'delivering',
+          deliveryTurnRef: 'turn',
+          deliveryInReplyTo: 'request',
+          updatedAt: 200
+        })
+        .where(eq(agentSessionMessageTable.id, 'assistant'))
+        .run()
+      const publicFields = {
+        messageSnapshot,
+        stats,
+        runtimeResumeToken: 'resume',
+        delivery: { ...delivery, status: 'delivering', turnRef: 'turn', inReplyTo: 'request' },
+        createdAt: '1970-01-01T00:00:00.200Z',
+        updatedAt: '1970-01-01T00:00:00.200Z'
+      }
+      const before = dbh.sqlite.prepare('SELECT * FROM agent_session_message ORDER BY id').all()
+      for (const options of [{}, { deferToolOutputs: false }]) {
+        const page = agentSessionMessageService.listSessionMessages(SESSION_ID, options)
+        expect(page.items[0]).toMatchObject(publicFields)
+        expect(page.items[0].data.parts).toEqual(parts)
+        expect(page.items[0].data).not.toHaveProperty('runtimeAnchor')
+        expect(page.items[0].data).not.toHaveProperty('nativeSessionId')
+      }
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      expect(page.items[0]).toMatchObject(publicFields)
+      const ref = (toolCallId: string) => ({
+        topicId: `agent-session:${SESSION_ID}`,
+        messageId: 'assistant',
+        toolCallId
+      })
+      expect(page.items[0].data.parts).toEqual([
+        tool('large', { $deferredToolResult: ref('large') }),
+        tool('small', { a: 1 }),
+        tool('citation', {
+          $deferredToolResult: ref('citation'),
+          skeleton: [{ ...citation[0], content: `${'c'.repeat(CITATION_SNIPPET_MAX_CHARS)}…` }]
+        }),
+        tool('persisted', {
+          $deferredToolResult: ref('persisted'),
+          excerpt: { head: 'head', tail: 'tail', totalChars: 64 * 1024 * 1024, totalLines: 42 }
+        })
+      ])
+      expect(page.items[1].data.parts).toEqual([tool('user-tool', output)])
+      expect(dbh.sqlite.prepare('SELECT * FROM agent_session_message ORDER BY id').all()).toEqual(before)
+    })
+
+    it('uses primary-key lookups for each selected message', () => {
+      insertHistorical('lookup-new', 200)
+      insertHistorical('lookup-old', 100)
+      const nativePrepare = dbh.sqlite.prepare.bind(dbh.sqlite)
+      const readsInTransaction: boolean[] = []
+      const prepare = vi.spyOn(dbh.sqlite, 'prepare').mockImplementation((query) => {
+        if (/^select/i.test(query)) readsInTransaction.push(dbh.sqlite.inTransaction)
+        return nativePrepare(query)
+      })
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items.map((m) => m.id)).toEqual([
+        'lookup-new',
+        'lookup-old'
+      ])
+      const queries = prepare.mock.calls.map(([query]) => query)
+      prepare.mockRestore()
+      expect(readsInTransaction.length).toBeGreaterThan(0)
+      expect(readsInTransaction.every(Boolean)).toBe(true)
+      expect(dbh.sqlite.inTransaction).toBe(false)
+      const reads = queries.filter(
+        (query) => /^select/i.test(query) && query.includes('"data"') && !query.includes('octet_length')
+      )
+      expect(reads).toHaveLength(2)
+      for (const query of reads) {
+        const plan = dbh.sqlite.prepare(`EXPLAIN QUERY PLAN ${query}`).all(SESSION_ID, 'lookup-new') as Array<{
+          detail: string
+        }>
+        expect(plan.some(({ detail }) => /SEARCH .* USING INDEX .*\(id=\?\)/.test(detail))).toBe(true)
+        expect(plan.some(({ detail }) => /SCAN /.test(detail))).toBe(false)
+      }
+    })
+
+    it('recognizes native allocation codes through causes without rewriting unrelated errors', () => {
+      insertHistorical('healthy')
+      for (const code of ['SQLITE_NOMEM', 'SQLITE_IOERR_NOMEM']) {
+        for (const depth of [0, 2]) {
+          let error: Error = Object.assign(new Error('native diagnostic'), { code })
+          for (let i = 0; i < depth; i++) error = new Error('wrapper', { cause: error })
+          vi.spyOn(dbh.db, 'transaction').mockImplementationOnce(() => {
+            throw error
+          })
+          expect(() => agentSessionMessageService.listSessionMessages(SESSION_ID)).toThrowError(
+            expect.objectContaining({
+              code: 'INVALID_OPERATION',
+              status: 400,
+              isRetryable: false,
+              details: {
+                operation: 'listSessionMessages',
+                reason: 'AGENT_SESSION_MESSAGE_READ_ALLOCATION_FAILED',
+                sessionId: SESSION_ID,
+                nativeCode: code,
+                stage: 'transaction'
+              }
+            })
+          )
+          expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items[0].id).toBe('healthy')
+        }
+      }
+      const nativePrepare = dbh.sqlite.prepare.bind(dbh.sqlite)
+      const payloadFailure = Object.assign(new Error('private native diagnostic'), { code: 'SQLITE_NOMEM' })
+      const prepare = vi.spyOn(dbh.sqlite, 'prepare').mockImplementation((query) => {
+        if (/^select/i.test(query) && query.includes('"data"') && !query.includes('octet_length')) {
+          throw new Error('driver wrapper', { cause: payloadFailure })
+        }
+        return nativePrepare(query)
+      })
+      expect(() => agentSessionMessageService.listSessionMessages(SESSION_ID)).toThrowError(
+        expect.objectContaining({
+          code: 'INVALID_OPERATION',
+          isRetryable: false,
+          details: {
+            operation: 'listSessionMessages',
+            reason: 'AGENT_SESSION_MESSAGE_READ_ALLOCATION_FAILED',
+            sessionId: SESSION_ID,
+            nativeCode: 'SQLITE_NOMEM',
+            stage: 'payload',
+            messageId: 'healthy'
+          }
+        })
+      )
+      prepare.mockRestore()
+      expect(dbh.sqlite.inTransaction).toBe(false)
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items[0].id).toBe('healthy')
+      for (const error of [new Error('out of memory'), Object.assign(new Error('locked'), { code: 'SQLITE_BUSY' })]) {
+        vi.spyOn(dbh.db, 'transaction').mockImplementationOnce(() => {
+          throw error
+        })
+        let caught: unknown
+        try {
+          agentSessionMessageService.listSessionMessages(SESSION_ID)
+        } catch (error) {
+          caught = error
+        }
+        expect(caught).toBe(error)
+      }
+    })
+
+    it('preserves default and clamped limits, tied cursors and missing-anchor fallback', () => {
+      for (let i = 0; i < 201; i++) insertHistorical(`tie-${i.toString().padStart(3, '0')}`, 100)
+      const expected = Array.from({ length: 201 }, (_, i) => `tie-${(200 - i).toString().padStart(3, '0')}`)
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items.map((m) => m.id)).toEqual(
+        expected.slice(0, 50)
+      )
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 999 })
+      expect(page.items.map((m) => m.id)).toEqual(expected.slice(0, 200))
+      expect(page.nextCursor).toBe('100:tie-001')
+      expect(
+        agentSessionMessageService.listSessionMessages(SESSION_ID, { cursor: page.nextCursor }).items.map((m) => m.id)
+      ).toEqual(['tie-000'])
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID, { messageId: 'missing' })).toEqual(
+        agentSessionMessageService.listSessionMessages(SESSION_ID)
+      )
+    })
   })
 
   it('reports message existence per session', async () => {
