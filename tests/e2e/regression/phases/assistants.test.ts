@@ -712,10 +712,12 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
       window.api.dataApi.request({ id: 'mp23-list', method: 'GET', path: '/assistants' })
     )
     expect(result.status).toBe(200)
-    return (result.data as { items: { name?: string }[] }).items
-      // Filter before parsing: an unrelated pre-existing row must not fail this case's schema check.
-      .filter((item) => item.name?.startsWith(name))
-      .map((item) => AssistantSchema.parse(item))
+    return (
+      (result.data as { items: { name?: string }[] }).items
+        // Filter before parsing: an unrelated pre-existing row must not fail this case's schema check.
+        .filter((item) => item.name?.startsWith(name))
+        .map((item) => AssistantSchema.parse(item))
+    )
   }
   try {
     // Persisted local fixtures only; export/import does not require model inference.
@@ -842,7 +844,11 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     expect(afterRepeat).toHaveLength(3)
     expect(afterRepeat.find(({ id }) => id === original.id)).toEqual(original)
     expect(afterRepeat.find(({ id }) => id === imported.id)).toEqual(imported)
-    expect(afterRepeat.find(({ id }) => id !== original.id && id !== imported.id)).toMatchObject({ name, prompt, emoji })
+    expect(afterRepeat.find(({ id }) => id !== original.id && id !== imported.id)).toMatchObject({
+      name,
+      prompt,
+      emoji
+    })
   } finally {
     await rm(exportedPath, { force: true })
     await page.keyboard.press('Escape').catch(() => undefined)

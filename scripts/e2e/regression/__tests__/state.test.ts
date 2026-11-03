@@ -133,7 +133,7 @@ describe('Playwright run state', () => {
         platform: 'windows',
         ref: 'main',
         runner: 'windows-2022',
-        task: 'code-cli-permissions' as TaskSelection
+        task: 'code-cli-permissions'
       })
     )
 

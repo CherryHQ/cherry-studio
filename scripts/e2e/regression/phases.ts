@@ -39,7 +39,9 @@ export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
     writeRun(
       paths.runState,
       updatePhase(result, phase, 'failed', [
-        code !== 0 ? `Test executor exited abnormally (exit code ${code})` : 'Phase did not report successful completion'
+        code !== 0
+          ? `Test executor exited abnormally (exit code ${code})`
+          : 'Phase did not report successful completion'
       ])
     )
     process.exitCode = 1
