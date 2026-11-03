@@ -1,4 +1,3 @@
-import { applyNativeSubmissionResult, bindNativeInput } from '@main/ai/agentSession/nativeSubmission'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -11,6 +10,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
+import { applyNativeSubmissionResult, bindNativeInput } from '@main/ai/agentSession/nativeSubmission'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 
@@ -365,9 +365,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
-      ...(request.options.resume || this.context.nativeThreadId
+      ...(request.options.resume || this.context.bindingState === 'bound'
         ? { resume: request.options.resume ?? this.context.nativeThreadId! }
-        : { sessionId: this.context.intendedThreadId! }),
+        : { sessionId: this.context.nativeThreadId! }),
       ...(traceEnv
         ? {
             env: {
@@ -896,7 +896,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private restoreChildren(parent: ReturnType<typeof contexts.context>, thread: Thread): void {
     for (const context of contexts.children(parent.id)) {
-      if (!context.subagentId || !context.nativeThreadId) continue
+      if (!context.subagentId || context.bindingState !== 'bound' || !context.nativeThreadId) continue
       this.discoverChild({
         id: runtimeId(context.subagentId),
         parent: thread,
@@ -952,9 +952,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                   for (const native of batch.native) {
                     if (native.source !== 'live' || native.message.type !== 'assistant') continue
                     await projection.flush()
-                    const productId = contexts.context(context.id).checkpointMapping?.projection as
-                      | Record<string, string>
-                      | undefined
+                    const productId = contexts.context(context.id).checkpointMapping?.child?.sources
                     const ownerId = productId?.[native.message.uuid]
                     if (ownerId && !responseOwners.has(native.message.message.id)) {
                       responseOwners.add(native.message.message.id)

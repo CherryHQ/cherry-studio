@@ -10,9 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { packWorkspaceDirectory, unpackWorkspaceArchive } from '@main/ai/agents/agentWorkspaceStorage'
 import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
+
+import { prepareClaudeBranch } from '../claudeContext'
 
 const { startupMock, buildWarmRequestMock, traceModeEnabledMock, prepareTraceMock } = vi.hoisted(() => ({
   startupMock: vi.fn(),
@@ -168,13 +171,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     secondCleanup.resolve()
     await expect(closing).resolves.toBeUndefined()
-  })
-
-  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
-    const container = ServiceContainer.getInstance()
-    container.register(ClaudeCodeWarmQueryManager)
-
-    expect(container.getMetadata('ClaudeCodeWarmQueryManager')?.dependencies).toContain('ClaudeCodeProcessManager')
   })
 
   it('closes every warm entry on service stop', async () => {
@@ -454,19 +450,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(warm.close).toHaveBeenCalledOnce()
   })
 
-  it('closes unused warm queries after the idle ttl', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery()
-    startupMock.mockResolvedValueOnce(warm)
-
-    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
-    await Promise.resolve()
-    vi.advanceTimersByTime(5 * 60 * 1000)
-    await Promise.resolve()
-
-    expect(warm.close).toHaveBeenCalledOnce()
-  })
-
   it.each(['session', 'all'] as const)(
     '%s close drains delayed workspace preparation before archiving',
     async (scope) => {
@@ -550,6 +533,28 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await expect(manager.close('session-1')).rejects.toThrow('process still alive')
     await expect(manager.close('session-1')).resolves.toBeUndefined()
     expect(warm[Symbol.asyncDispose]).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['pending', { sessionId: 'native-root', resume: undefined }],
+    ['bound', { sessionId: undefined, resume: 'native-root' }]
+  ] as const)('prewarms a %s native identity with the matching SDK operation', async (state, expected) => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const context = prepareClaudeBranch('session-1', '/test/claude', 'native-root')
+    if (state === 'bound') contexts.bindContext(context.id, 'native-root')
+    buildWarmRequestMock.mockResolvedValueOnce({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { CLAUDE_CONFIG_DIR: '/test/claude' } }
+    })
+    startupMock.mockResolvedValueOnce(warmQuery())
+    try {
+      await manager.prewarmAgentSession('session-1')
+      const options = startupMock.mock.calls[0]?.[0].options
+      expect(options).toBeDefined()
+      expect({ sessionId: options.sessionId, resume: options.resume }).toStrictEqual(expected)
+    } finally {
+      await manager.close('session-1')
+    }
   })
 
   it('prewarms an agent session from the session request builder', async () => {

@@ -23,7 +23,7 @@ export class RootMessageProjection {
 
   constructor(readonly contextId: string) {
     const context = contexts.context(contextId)
-    const saved = context.checkpointMapping?.root as RootProjectionCheckpoint['root'] | undefined
+    const saved = context.checkpointMapping?.root
     for (const id of saved?.removed ?? []) this.removed.add(id)
     const bodies = new Map<string, CherryUIMessage['parts']>()
     const ranges = new Map<string, { offset: number; count: number }[]>()

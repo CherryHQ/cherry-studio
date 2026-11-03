@@ -28,8 +28,8 @@ beforeEach(() => {
 
 it('reuses a reserved Claude identity only within its captured backend', () => {
   const context = prepareClaudeBranch(sessionId, '/test/claude')
-  expect(context.nativeThreadId).toBeNull()
-  expect(context.intendedThreadId).toBeTruthy()
+  expect(context.bindingState).toBe('pending')
+  expect(context.nativeThreadId).toBeTruthy()
   expect(prepareClaudeBranch(sessionId, '/test/claude').id).toBe(context.id)
   expect(() => prepareClaudeBranch(sessionId, '/test/another-config')).toThrow('another runtime backend')
   expect(contexts.forSession(sessionId).map((row) => row.id)).toEqual([context.id])
@@ -70,8 +70,8 @@ it('rolls back an edit binding with its message metadata and then captures the s
   expect(prepareClaudeBranch(sessionId, '/test/claude')).toMatchObject({
     id: branch.id,
     backendId: original.backendId,
-    intendedThreadId: nativeId,
-    nativeThreadId: null
+    nativeThreadId: nativeId,
+    bindingState: 'pending'
   })
-  expect(contexts.context(original.id).intendedThreadId).toBe(original.intendedThreadId)
+  expect(contexts.context(original.id).nativeThreadId).toBe(original.nativeThreadId)
 })

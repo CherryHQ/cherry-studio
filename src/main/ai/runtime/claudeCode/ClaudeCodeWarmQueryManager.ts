@@ -199,9 +199,9 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       )
       warmRequest.options = {
         ...warmRequest.options,
-        ...(warmRequest.options.resume || context.nativeThreadId
+        ...(warmRequest.options.resume || context.bindingState === 'bound'
           ? { resume: warmRequest.options.resume ?? context.nativeThreadId! }
-          : { sessionId: context.intendedThreadId! })
+          : { sessionId: context.nativeThreadId! })
       }
       await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {

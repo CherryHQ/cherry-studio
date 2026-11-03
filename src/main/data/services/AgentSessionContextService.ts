@@ -8,7 +8,11 @@ import {
   type AgentRuntimeLocator
 } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
-import { agentSessionContextTable as contexts, type AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import {
+  agentSessionContextTable as contexts,
+  type AgentSessionContextRow,
+  type AgentSessionCheckpoints
+} from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 
 import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
@@ -26,11 +30,7 @@ const locatorSchema = z.discriminatedUnion('kind', [
 
 export interface RootProjectionCheckpoint {
   contextId: string
-  root: {
-    version?: 2
-    sources: Record<string, { messageId: string; offset: number; count: number }>
-    removed: string[]
-  }
+  root: NonNullable<AgentSessionCheckpoints['root']>
 }
 
 class AgentSessionContextService {

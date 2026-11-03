@@ -239,7 +239,7 @@ it('adopts a real warm process with its captured credential receipt', async () =
   const warm = await startup({
     options: {
       ...test.options,
-      sessionId: context.intendedThreadId!,
+      sessionId: context.nativeThreadId!,
       env: { ...test.options.env, CLAUDE_CONFIG_DIR: test.configDir }
     }
   })
@@ -482,7 +482,7 @@ it('submits native image blocks and local document paths through the common owne
 it('creates a reserved empty Claude branch and reopens it after its first answer', async () => {
   const test = await desktop()
   const original = prepareClaudeBranch(test.sessionId, test.configDir)
-  contexts.bindContext(original.id, original.intendedThreadId!)
+  contexts.bindContext(original.id, original.nativeThreadId!)
   const edited = test.input('Edited first request')
   const nativeId = randomUUID()
   dbh.db.transaction((tx) => {
@@ -503,8 +503,8 @@ it('creates a reserved empty Claude branch and reopens it after its first answer
   await connection.closeForEdit!()
   expect(messages.getLastRuntimeResumeToken(test.sessionId, edited.message.id)).toBe(nativeId)
   const selected = prepareClaudeBranch(test.sessionId, test.configDir)
-  expect(selected).toMatchObject({ intendedThreadId: nativeId, nativeThreadId: nativeId })
-  expect(contexts.context(original.id).nativeThreadId).toBe(original.intendedThreadId)
+  expect(selected).toMatchObject({ nativeThreadId: nativeId, bindingState: 'bound' })
+  expect(contexts.context(original.id).nativeThreadId).toBe(original.nativeThreadId)
   test.events.length = 0
   const reopened = await test.connect(nativeId, edited.message.id)
   await reopened.send(test.input('Continue edited branch'))

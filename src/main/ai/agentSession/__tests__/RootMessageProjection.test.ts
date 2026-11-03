@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { setupTestDatabase } from '@test-helpers/db'
 import { expect, it } from 'vitest'
 
+import { application } from '@application'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -52,6 +53,10 @@ const text = (id: string, value: string): CherryUIMessage => ({
 
 it('updates only the owning reply across interleaved sources, replacements, removal and retain', () => {
   const f = fixture()
+  const fork = { prefix: { runtime: 'claude-code', sessionId: 'original', messageId: 'boundary' } }
+  application
+    .get('DbService')
+    .withWriteTx((tx) => contexts.publishBranchTx(tx, f.sessionId, f.context.nativeThreadId!, fork))
   const first = f.reply()
   const second = f.reply()
   f.projection.accept(f.update([text('a', 'A')]), first)
@@ -81,6 +86,7 @@ it('updates only the owning reply across interleaved sources, replacements, remo
   ])
   expect(restored.parts(second)).toEqual(text('', 'B').parts)
   expect(Object.keys(restored.checkpoint().root.sources)).toEqual(['b', 'c', 'd'])
+  expect(contexts.context(f.context.id).checkpointMapping?.fork).toEqual(fork)
 })
 
 it('keeps root history when incremental thread reconciliation drops compacted sources', async () => {

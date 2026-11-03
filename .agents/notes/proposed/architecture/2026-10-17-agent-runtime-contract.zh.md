@@ -602,7 +602,7 @@ P1 基础现已包含 backend/context 的增量 migration、现有消息上的�
 
 严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Runtime 所有者对账身份关联与投影写入；写入失败不能授权重新提交。原生创建与观察 fixture 保留在测试中，不再暴露并行的生产提交路径。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
 
-Agent 树阶段现已增加追加式 schema migration 和注册的 `AgentSessionMessageTreeSeeder`。它保留消息 ID、时间戳、附件、用量及投递元数据，再选中迁移后的末端，不补造提交事实。待完成回复的投递会捕获发送分支。既有 context 行增加 `anchorMessageId` 和 `checkpointMapping.fork` 命名空间；共享前缀行保留原始原生来源。
+Agent 树阶段现已增加追加式 schema migration 和注册的 `AgentSessionMessageTreeSeeder`。它保留消息 ID、时间戳、附件、用量及投递元数据，再选中迁移后的末端，不补造提交事实。待完成回复的投递会捕获发送分支。既有 context 行增加 `anchorMessageId` 和 `checkpointMapping.fork` 命名空间；共享前缀行保留原始原生来源。根会话展示映射使用强类型的 `checkpointMapping.root` 命名空间，保存来源范围与移除记录；根投影写入保留 fork checkpoint。
 
 既有桌面 driver 路径复用共享兄弟分支导航。选择兄弟节点会选中其最新后代，不打开 harness；后续发送再解析该分支的原生目标。发送在异步校验前捕获父节点，父节点已被推进则拒绝，不跟随后来的 UI 选择。Runtime 输出、排队轮次及完成/失败回复保持所捕获的分支。Renderer 收到确认后刷新 Main 选中路径，不将其他分支的预留消息插入缓存。
 
