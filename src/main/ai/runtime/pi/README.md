@@ -92,6 +92,8 @@ which proves native entry/live-item aliases and excludes inherited parent contex
 input through its native owner. Archive messages use the existing shared message model, with stable
 product IDs and source mappings saved atomically. IPC sends a snapshot on attach and ordered patches
 afterward; detaching a window leaves the native observer and archive writer alive.
+An attachment during child creation waits for its native projection, including pending model
+configuration. Terminal tool output or owner/turn completion ends an unavailable child's wait.
 
 Reopening a parent restores identity-checked child files without starting work. Missing owners leave
 saved child output readable. A restored parent's stop policy still applies to child continuation;

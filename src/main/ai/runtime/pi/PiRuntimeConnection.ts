@@ -163,6 +163,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     { parentToolCallId: string; parentThreadId: string; description: string }
   >()
   private readonly childTaskStates = new Map<string, AgentTaskEventPartData>()
+  private readonly childReadiness = new Map<string, PromiseWithResolvers<void>>()
   private readonly childHandles = new Map<string, Promise<PiThreadHandle | undefined>>()
   private readonly childProjections = new Map<string, ChildThreadProjection>()
   private failure?: unknown
@@ -194,6 +195,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         })
         if (span) this.toolSpans.set(id, span)
         this.toolNames.set(id, part.toolName)
+        if (part.toolName === 'subagent') this.childReadiness.set(id, Promise.withResolvers<void>())
         this.adapter.handleToolStart(id, part.toolName, part.input)
       }
       if (part.state !== 'output-available' && part.state !== 'output-error') return
@@ -206,6 +208,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         const result = childResultSchema.safeParse(output)
         if (result.success)
           this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
+        this.resolveChildReady(id)
       }
       const span = this.toolSpans.get(id)
       if (span) endAgentRuntimeSpan(span, { code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK })
@@ -638,14 +641,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.childProjections.set(id, projection)
         await projection.attach()
         return handle
-      })().catch((error) => {
-        logger.error('Failed to observe Pi child', { id, error })
-        return undefined
-      })
+      })()
+        .catch((error) => {
+          logger.error('Failed to observe Pi child', { id, error })
+          return undefined
+        })
+        .finally(() => this.resolveChildReady(origin.parentToolCallId))
     )
   }
 
+  private resolveChildReady(toolCallId: string): void {
+    this.childReadiness.get(toolCallId)?.resolve()
+    this.childReadiness.delete(toolCallId)
+  }
+
   async childProjection(toolCallId: string) {
+    await this.childReadiness.get(toolCallId)?.promise
+    if (this.closing) return undefined
     const id = [...this.childOrigins].find(([, origin]) => origin.parentToolCallId === toolCallId)?.[0]
     if (!id) return undefined
     this.observeChild(id)
@@ -747,6 +759,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false
+    for (const id of this.childReadiness.keys()) this.resolveChildReady(id)
     this.endToolSpans('Pi turn ended before tool completion')
     if (this.failure) this.eventQueue.push({ type: 'error', error: this.failure })
     else {
@@ -896,6 +909,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   close(): Promise<void> {
     this.closing = true
+    for (const id of this.childReadiness.keys()) this.resolveChildReady(id)
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined
       throw error

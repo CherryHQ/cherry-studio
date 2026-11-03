@@ -163,6 +163,36 @@ it.each(['detach', 'destroy', 'close'] as const)(
   }
 )
 
+// Catches a late child projection subscribing a detached panel or a retired owner.
+it.each(['detach', 'destroy', 'close'] as const)(
+  'does not subscribe after %s while the child is opening',
+  async (action) => {
+    const f = fixture()
+    const reached = Promise.withResolvers<void>()
+    const ready = Promise.withResolvers<void>()
+    const project = f.connection.childProjection!.bind(f.connection)
+    vi.spyOn(f.connection, 'childProjection').mockImplementation(async (toolCallId) => {
+      reached.resolve()
+      await ready.promise
+      return project(toolCallId)
+    })
+    try {
+      f.ready.resolve(f.connection)
+      await f.service.primeConnection('root')
+      const attaching = f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
+      await reached.promise
+      if (action === 'detach') f.service.detachChild(f.sender, 'subscription')
+      if (action === 'destroy') f.destroy()
+      if (action === 'close') await f.service.closeSession('root')
+      ready.resolve()
+      expect(await attaching).toBeNull()
+      expect(f.listeners.size).toBe(0)
+    } finally {
+      ready.resolve()
+    }
+  }
+)
+
 // Catches losing readable persisted output when the native owner cannot be opened.
 it('returns the saved read-only child when connection fails', async () => {
   const f = fixture()

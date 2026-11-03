@@ -835,7 +835,8 @@ renderer. Parent parts retain task metadata and the navigation entry; they no lo
 carry child output. Foreground completion can continue the same child in the background.
 User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
-Child attachment waits for the shared connection attempt before subscribing. A detached or
+Child attachment waits for the shared root connection and an executing subagent's native projection
+before subscribing. Failed child creation or owner/turn completion ends the wait. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.
