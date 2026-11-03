@@ -99,7 +99,9 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
     dbh.db
       .update(agentSessionMessageTable)
-      .set({ provenance: { source: 'codex', originalMessageId: 'source-message', sourceOrder: 1 } })
+      .set({
+        provenance: { source: 'codex', originalMessageId: 'source-message', sourceOrder: 1, inferredTimestamp: false }
+      })
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
       .run()
     const presented = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
