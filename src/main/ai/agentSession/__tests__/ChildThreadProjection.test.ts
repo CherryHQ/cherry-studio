@@ -223,6 +223,92 @@ it('publishes incremental text before completion and keeps previously delivered 
   ])
 })
 
+// Catches the first committed prompt moving behind its uncommitted live reply.
+it('keeps a committed prompt before its streaming reply through completion and reopen', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  const prompt = { ...f.item('prompt', 'question'), role: 'user' as const }
+  f.archive.messages = [prompt]
+  await f.send({
+    type: 'snapshot',
+    coverage: 'current-view',
+    messages: [prompt, f.item('preview', 'answer', 'partial')],
+    inputs: [],
+    activity: { scope: 'foreground', state: 'active' }
+  })
+  await f.projection.flush()
+  const view = f.projection.snapshot()
+  expect(view.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+  const ids = view.messages.map((message) => message.id)
+  expect(readAgentSessionPath(dbh.db, f.context.sessionId).map((row) => [row.id, row.parentId])).toEqual([
+    [ids[0], f.context.anchorMessageId],
+    [ids[1], ids[0]]
+  ])
+
+  await f.send({
+    type: 'snapshot',
+    coverage: 'current-view',
+    messages: [f.item('preview', 'answer', 'partial'), prompt],
+    inputs: [],
+    activity: { scope: 'foreground', state: 'active' }
+  })
+  await f.projection.flush()
+  await f.send({ type: 'message.upsert', message: f.item('preview', 'answer more', 'partial') })
+  await f.projection.flush()
+  expect(f.projection.snapshot().messages.map((message) => message.id)).toEqual(ids)
+
+  f.archive.messages = [prompt, f.item('answer', 'answer done')]
+  f.archive.aliases = { answer: 'preview' }
+  await f.send({ type: 'gap', reason: 'overflow' })
+  await f.projection.flush()
+  expect(f.projection.snapshot().messages.map((message) => message.id)).toEqual(ids)
+  await f.projection.stop()
+  projections.splice(projections.indexOf(f.projection), 1)
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, () => f.archive)
+  projections.push(reopened)
+  await reopened.attach()
+  expect(reopened.snapshot().messages.map((message) => message.id)).toEqual(ids)
+  expect(savedChildView(contexts.context(f.context.id)).messages.map((message) => message.role)).toEqual([
+    'user',
+    'assistant'
+  ])
+})
+
+// Catches a persisted wrong parent chain being treated as authoritative on every later reopen.
+it('repairs saved message order from native history without changing product identities', async () => {
+  const f = fixture()
+  f.archive.messages = [
+    { ...f.item('prompt', 'first'), role: 'user' },
+    f.item('reply', 'second'),
+    { ...f.item('follow-up', 'third'), role: 'user' }
+  ]
+  await f.projection.attach()
+  const ids = f.projection.snapshot().messages.map((message) => message.id)
+  await f.projection.stop()
+  projections.splice(projections.indexOf(f.projection), 1)
+  const uncovered = randomUUID()
+  application.get('DbService').withWriteTx((tx) => {
+    messages.saveMessagesTx(tx, {
+      sessionId: f.context.sessionId,
+      parentId: ids[2],
+      messages: [
+        { id: uncovered, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Older archive' }] } }
+      ]
+    })
+    messages.orderChildArchiveTx(tx, f.context.sessionId, [ids[2], uncovered, ids[1], ids[0]])
+  })
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, () => f.archive)
+  projections.push(reopened)
+  await reopened.attach()
+  expect(reopened.snapshot().messages.map((message) => message.id)).toEqual([ids[0], uncovered, ids[1], ids[2]])
+  expect(readAgentSessionPath(dbh.db, f.context.sessionId).map((row) => [row.id, row.parentId])).toEqual([
+    [ids[0], f.context.anchorMessageId],
+    [uncovered, ids[0]],
+    [ids[1], uncovered],
+    [ids[2], ids[1]]
+  ])
+})
+
 // Catches late committed entries becoming hidden sibling branches or duplicating their live preview.
 it('archives public observations and restores source order from committed evidence without a Pi handle', async () => {
   const f = fixture()

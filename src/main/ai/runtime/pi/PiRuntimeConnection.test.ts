@@ -17,6 +17,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -35,6 +36,7 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
@@ -449,6 +451,48 @@ describe('desktop Pi root connection', () => {
     await reopened.messageChild(archived.contextId, 'continue after new turn')
     await expect.poll(() => childRuns).toBe(3)
     expect(child).toBe(firstChild)
+  })
+
+  // Catches a recovered root being rebuilt forever after one historical child reports a startup error.
+  it('keeps a reopened parent usable and its child archive readable when child configuration fails', async () => {
+    let root = ''
+    script = respondingModel((call) => {
+      if (call.sessionId !== root) return assistantReply('saved child answer')
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('parent answer')
+    })
+    const first = await connect()
+    await first.connection.send({ message: message('initialize') })
+    await done(first.events)
+    root = script.calls[0].sessionId!
+    first.events.length = 0
+    await first.connection.send({ message: message('delegate now') })
+    await done(first.events)
+    const child = await first.connection.childProjection('spawn')
+    expect(child).toBeDefined()
+    const archive = child!.snapshot()
+    await first.connection.close()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => ({
+      ...(await createHost(options)),
+      configureChild: async () => {
+        throw new Error('Historical child model is unavailable')
+      }
+    }))
+    const before = script.calls.length
+    const reopened = await connect()
+    expect(script.calls).toHaveLength(before)
+    expect(await reopened.connection.reconcile(input)).toBe('current')
+    expect(await reopened.connection.childProjection('spawn')).toBeUndefined()
+    const saved = savedChildView(contexts.context(archive.contextId))
+    expect(saved.available).toBe(false)
+    expect(saved.messages).toEqual(archive.messages)
+    await expect(reopened.connection.messageChild(archive.contextId, 'continue child')).rejects.toThrow('unavailable')
+    await reopened.connection.send({ message: message('continue parent') })
+    await done(reopened.events)
+    expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+    expect(text(reopened.events)).toBe('parent answer')
   })
 
   // Catches native streaming updates disappearing between the first preview and the final archive.

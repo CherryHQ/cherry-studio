@@ -59,6 +59,10 @@ Reopening a root restores its child graph from saved run/origin entries and iden
 without resuming work. Missing or ambiguous child files are not replaced. A loader cannot reopen a
 stored child as an independent root: that returns `child-owner-unavailable`. Restored child input
 still passes the parent's continuation policy, including its persisted stopped-turn state.
+If a historical child's native session cannot initialize, its temporary registration is removed
+and the error is reported without preventing the parent or healthy siblings from opening. The saved
+relationship and completed results remain intact; recovery never substitutes another model or
+records the initialization failure as a new task result. A later owner reopen can retry that child.
 
 `tests/behaviorRuntime.test.ts` exercises these public accesses against real Pi execution with
 scripted native providers and host ports, rather than calling the harness ports directly.

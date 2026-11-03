@@ -286,16 +286,15 @@ export class ChildThreadProjection {
       const id = mappings.get(source)
       if (id && !retained.has(id)) next.delete(id)
     }
-    const order = [...next.keys()]
-    const nativeOrder = [...committed]
-    for (const [index, id] of nativeOrder.entries()) {
-      if (this.saved.has(id)) continue
-      order.splice(order.indexOf(id), 1)
-      const following = nativeOrder.slice(index + 1).find((key) => this.saved.has(key))
-      const previous = nativeOrder[index - 1]
-      const at = following ? order.indexOf(following) : previous ? order.indexOf(previous) + 1 : order.length
-      order.splice(at, 0, id)
+    const sourceOrder = new Set<string>()
+    for (const message of [...(this.history?.messages ?? []), ...current.messages]) {
+      if (this.removed.has(message.id)) continue
+      for (const row of this.sourceRows.get(this.canonical(message.id)) ?? [])
+        if (next.has(row.messageId)) sourceOrder.add(row.messageId)
     }
+    const ordered = sourceOrder.values()
+    // Uncovered archive rows may outlive native coverage; their absence is not a removal.
+    const order = [...next.keys()].map((id) => (sourceOrder.has(id) ? ordered.next().value! : id))
     next = new Map(order.map((id) => [id, next.get(id)!]))
     this.composeSources(current.messages)
     const changed = [...next.values()].filter((message) => !isDeepStrictEqual(message, this.saved.get(message.id)))

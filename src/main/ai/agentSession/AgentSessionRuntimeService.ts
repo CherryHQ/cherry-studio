@@ -1628,10 +1628,19 @@ export class AgentSessionRuntimeService extends BaseService {
     const marker = () => {}
     subscriptions.set(id, marker)
     await this.primeConnection(sessionId)
+    if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
     const entry = this.entries.get(sessionId)
-    const connection = entry && this.currentConnection(entry)
+    let connection: AgentRuntimeConnection | undefined
+    try {
+      if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
+    } catch (error) {
+      logger.warn('Failed to connect child subscriber', { sessionId, error })
+    }
+    if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+    if (entry && this.entries.get(sessionId) !== entry) return null
     const child = await connection?.childProjection?.(toolCallId)
     if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+    if (entry && (this.entries.get(sessionId) !== entry || this.currentConnection(entry) !== connection)) return null
     if (child) {
       subscriptions.set(id, child.subscribe(send))
       return child.snapshot()

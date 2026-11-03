@@ -835,12 +835,19 @@ renderer. Parent parts retain task metadata and the navigation entry; they no lo
 carry child output. Foreground completion can continue the same child in the background.
 User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
+Child attachment waits for the shared connection attempt before subscribing. A detached or
+destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
+and orders evidenced rows by committed native history followed by live content, correcting saved
+parent links when necessary; rows outside current native/live coverage remain retained in place.
+
 `PiRuntimeConnection` remains responsible for product branch bindings, input
 persistence, UI chunks and configuration reconciliation. It can retire after
 `AgentSessionRuntimeService` consumes the common Runtime directly; enabling
 shared behavior does not by itself replace those responsibilities. A reopened root
 restores identity-checked child files without starting execution. Saved output remains
-readable when native access cannot be restored. Child input goes through that owner;
+readable when native access cannot be restored. A child's native initialization failure is isolated
+from the parent and healthy siblings and leaves completed task results unchanged. Successful root
+opening clears startup failure state while keeping diagnostics in the log. Child input goes through that owner;
 its archive cannot open as an independent writable root. Public projection code consumes
 `ThreadHandle`; Pi history reads and input dispatch stay in the Pi connection.
 

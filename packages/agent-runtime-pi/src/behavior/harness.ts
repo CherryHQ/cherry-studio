@@ -375,7 +375,15 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         true
       )
       conversations.set(id, child)
-      await openNative(child)
+      try {
+        await openNative(child)
+      } catch (error) {
+        conversations.delete(id)
+        await child.native?.dispose().catch(report)
+        accepting()
+        report(error)
+        continue
+      }
       await restoreChildren(child)
     }
   }

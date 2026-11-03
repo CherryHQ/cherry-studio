@@ -15,12 +15,12 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import {
   prepareNativeSubmission,
   bindNativeInput,
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
-import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { startAgentRuntimeChildSpan, endAgentRuntimeSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
@@ -438,6 +438,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(nativeId) })
         : await this.runtime.create(options)
       if (opened.status !== 'confirmed') throw this.failure ?? new Error(opened.error.message)
+      this.failure = undefined
       this.handle = opened.value
       if (files.length) this.context = contexts.bindContext(this.context.id, nativeId)
       const observed = await this.handle.observe((event) => this.handleObservation(event))

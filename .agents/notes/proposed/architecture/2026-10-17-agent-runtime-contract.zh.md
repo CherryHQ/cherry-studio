@@ -631,6 +631,10 @@ P3-B/C 现已把 [ChildThreadProjection](../../../../src/main/ai/agentSession/Ch
 
 ##### 最小 child 归档与迁移
 
+产品消息落库后，已提交原生历史仍然决定消息顺序：沿用插入顺序可能把提前到达的流式回复放到提问前，并在重开后保留错误父链。对账重排有证据的消息，不改变消息 ID，也不删除未被覆盖的归档行。[投影回归测试](../../../../src/main/ai/agentSession/__tests__/ChildThreadProjection.test.ts)覆盖已提交提问与实时回复的边界，以及已保存错误顺序的修复。
+
+预热只尽力完成，因此 [child 附着](../../../../src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.child.test.ts)等待共享连接任务，并在订阅前重新核对订阅及连接归属。历史 child 的原生初始化失败不使健康的父会话或兄弟会话失效，不替换其模型，也不改写已完成任务的结果。[原生重开测试](../../../../packages/agent-runtime-pi/tests/behaviorRuntime.test.ts)保留关系身份，并允许后续重开时重试；[桌面连接测试](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.test.ts)保留可读的产品历史，并防止可恢复的启动诊断导致父连接反复重建。这些聚焦检查不能替代 Electron 或强制崩溃验收。
+
 产品内容复用 `agent_session_message` 及其既有服务。首轮 child 归档采用独立 `agent_session` 容器和消息树根，仅沿用既有 `background` 分类使其不进入普通会话导航，不新增 `subagent` 会话类型。这是产品存储所有者，不是创建另一个原生 root、schedule 或跨会话投递。进入通用 session-open/input 路径前，先按 child 已保存的原生关系解析 Runtime 访问。不复制父消息前缀，也不把 child 节点合进父级普通选中路径。
 
 只保存重开和展示消费的事实：既定父级范围关系键 `(parentContextId, nativeSubagentId)`、可选的已验证 child 上下文和归档关联，以及有证据的来源到产品映射/断点。Child 来源映射、移除记录、组合关系和断点保存在强类型的 `checkpointMapping.child` 命名空间中；投影写入保留 `checkpointMapping.fork`。工具调用来源可以缺省，不能授权控制。不可访问的关系不需要虚构原生上下文或可写归档。真实 child 输入使用消息上的 context 与原生输入身份，不增加 input/attempt 表、原生 transcript 镜像或通用 run 表。
