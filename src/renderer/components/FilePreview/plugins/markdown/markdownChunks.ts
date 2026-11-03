@@ -2749,8 +2749,14 @@ export function splitMarkdownChunks(
     const emptyItemColumn = pendingEmptyItem
     pendingEmptyItem = null
     // An empty item holds only the line immediately below it; a blank ends the item, so the
-    // indented definition after it is document-level code.
-    if (blank && emptyItemColumn !== null) run = null
+    // indented definition after it is document-level code. A sibling marker below the blank keeps
+    // the list open — cutting there renumbered the items as a second list.
+    if (blank && emptyItemColumn !== null) {
+      const followedBy = nextContent[i]
+      const nextItem = followedBy >= 0 ? LIST_ITEM.exec(lines[followedBy]) : null
+      const siblingContinues = run !== null && nextItem !== null && (nextItem[2] ?? nextItem[4]) === run.marker
+      if (!siblingContinues) run = null
+    }
     bufferChars += line.length + 1
 
     if (fence) {

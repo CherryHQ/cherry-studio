@@ -1155,6 +1155,15 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('keeps a list open across the blank that ends an empty item', () => {
+    // The blank closes the empty item but not the list: a sibling marker below it kept numbering
+    // the list in the whole document, while a boundary there renumbered the last item as a new one.
+    const content = ['1. a', ...Array.from({ length: 250 }, () => '   ' + 'x'.repeat(100)), '1.', '', '1. c'].join('\n')
+
+    expect(renderedListNumbers(content)).toEqual([1, 2, 3])
+    expect(chunksOf(content, 1)).toHaveLength(1)
+  })
+
   it("keeps an empty item's fence open until an unindented line leaves the item", () => {
     // The fence is indented into the empty item, so the unindented definition ends it and is
     // carried; treating the fence as document-level swallowed the definition.
