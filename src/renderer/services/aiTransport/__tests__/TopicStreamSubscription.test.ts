@@ -170,6 +170,10 @@ async function readAll(stream: ReadableStream<UIMessageChunk>): Promise<UIMessag
   return out
 }
 
+async function readRoutedContent(stream: ReadableStream<UIMessageChunk>): Promise<UIMessageChunk[]> {
+  return (await readAll(stream)).filter((chunk) => chunk.type !== 'text-start' && chunk.type !== 'reasoning-start')
+}
+
 const TOPIC = 'topic-1'
 const A = 'openai::gpt-4o' as UniqueModelId
 const B = 'anthropic::claude' as UniqueModelId
@@ -204,7 +208,7 @@ describe('TopicStreamSubscription', () => {
     mock.emitDone(TOPIC, A, 'success')
     mock.emitDone(TOPIC, B, 'success')
 
-    const [ca, cb] = await Promise.all([readAll(sa), readAll(sb)])
+    const [ca, cb] = await Promise.all([readRoutedContent(sa), readRoutedContent(sb)])
     expect(ca).toEqual([textChunk('helloA')])
     expect(cb).toEqual([textChunk('helloB')])
     sub.dispose()
@@ -217,7 +221,7 @@ describe('TopicStreamSubscription', () => {
     mock.emitChunk(TOPIC, A, textChunk('one'))
     mock.emitChunk(TOPIC, A, textChunk('two'))
     mock.emitDone(TOPIC, A, 'success')
-    expect(await readAll(sa)).toEqual([textChunk('one'), textChunk('two')])
+    expect(await readRoutedContent(sa)).toEqual([textChunk('one'), textChunk('two')])
     sub.dispose()
   })
 
@@ -229,7 +233,7 @@ describe('TopicStreamSubscription', () => {
     const sa = sub.register(A, undefined, 1)
     mock.emitDone(TOPIC, A, 'success')
 
-    expect(await readAll(sa)).toEqual([textChunk('early')])
+    expect(await readRoutedContent(sa)).toEqual([textChunk('early')])
     sub.dispose()
   })
 
@@ -247,8 +251,8 @@ describe('TopicStreamSubscription', () => {
     const second = sub.register(A, 'assistant-2', 2)
     mock.emitDone(TOPIC, A, 'success', true, 'assistant-2', 2)
 
-    expect(await readAll(first)).toEqual([textChunk('before-steer')])
-    expect(await readAll(second)).toEqual([textChunk('after-steer')])
+    expect(await readRoutedContent(first)).toEqual([textChunk('before-steer')])
+    expect(await readRoutedContent(second)).toEqual([textChunk('after-steer')])
     sub.dispose()
   })
 
@@ -263,7 +267,7 @@ describe('TopicStreamSubscription', () => {
     mock.emitChunk(TOPIC, A, textChunk('-continued'), 'assistant-1', 2)
     mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 2)
 
-    expect(await readAll(retry)).toEqual([textChunk('retry'), textChunk('-continued')])
+    expect(await readRoutedContent(retry)).toEqual([textChunk('retry'), textChunk('-continued')])
     sub.dispose()
   })
 
@@ -283,7 +287,7 @@ describe('TopicStreamSubscription', () => {
     mock.emitChunk(TOPIC, A, textChunk('continued'), 'assistant-2', 2)
     const second = sub.register(A, 'assistant-2', 2)
     mock.emitDone(TOPIC, A, 'success', true, 'assistant-2', 2)
-    expect(await readAll(second)).toEqual([textChunk('continued')])
+    expect(await readRoutedContent(second)).toEqual([textChunk('continued')])
     sub.unregister(A, 'assistant-2', 2)
     await tick()
 
@@ -323,8 +327,8 @@ describe('TopicStreamSubscription', () => {
     mock.emitChunk(TOPIC, B, textChunk('b1'))
     mock.emitChunk(TOPIC, B, textChunk('b2'))
     mock.emitDone(TOPIC, B, 'success', true)
-    expect(await readAll(sb)).toEqual([textChunk('b1'), textChunk('b2')])
-    expect(await readAll(sa)).toEqual([textChunk('a1')])
+    expect(await readRoutedContent(sb)).toEqual([textChunk('b1'), textChunk('b2')])
+    expect(await readRoutedContent(sa)).toEqual([textChunk('a1')])
     sub.dispose()
   })
 
@@ -410,8 +414,8 @@ describe('TopicStreamSubscription', () => {
     mock.emitChunk(TOPIC, B, textChunk('replayB'), undefined, 2, 1)
     mock.emitChunk(TOPIC, B, textChunk('liveB'), undefined, 2, 2)
     mock.emitDone(TOPIC, undefined, 'success', true)
-    expect(await readAll(sa)).toEqual([textChunk('replayA')])
-    expect(await readAll(sb)).toEqual([textChunk('replayB'), textChunk('liveB')])
+    expect(await readRoutedContent(sa)).toEqual([textChunk('replayA')])
+    expect(await readRoutedContent(sb)).toEqual([textChunk('replayB'), textChunk('liveB')])
     sub.dispose()
   })
 
@@ -464,6 +468,22 @@ describe('TopicStreamSubscription', () => {
       sub.dispose()
     }
   )
+
+  it.each(['text', 'reasoning'] as const)('preserves partial %s output when an unmatched end arrives', async (kind) => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const stream = sub.register(A, 'answer', 1)
+    await tick()
+
+    mock.emitChunk(TOPIC, A, { type: `${kind}-delta`, id: 't', delta: 'partial' }, 'answer')
+    mock.emitChunk(TOPIC, A, { type: `${kind}-end`, id: 'orphan' }, 'answer')
+    mock.emitChunk(TOPIC, A, { type: `${kind}-end`, id: 't' }, 'answer')
+    mock.emitDone(TOPIC, A, 'success', true, 'answer')
+
+    let message
+    for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+    expect(message?.parts).toEqual([{ type: kind, text: 'partial', state: 'done' }])
+    sub.dispose()
+  })
 
   it.each(['success', 'paused', 'error'] as const)(
     'retains the complete output when %s arrives during attach',
@@ -606,7 +626,7 @@ describe('TopicStreamSubscription', () => {
 
     mock.emitDone(TOPIC, B, 'success', true, 'assistant-b', 1, 2)
 
-    expect(await readAll(live)).toEqual([textChunk('replayB')])
+    expect(await readRoutedContent(live)).toEqual([textChunk('replayB')])
     expect(onRetired).toHaveBeenCalledWith([{ executionId: A, attemptId: 2, anchorMessageId: 'assistant-a' }])
     expect(onTerminal).toHaveBeenCalledTimes(1)
     expect(onTerminal).toHaveBeenCalledWith(
@@ -649,7 +669,7 @@ describe('TopicStreamSubscription', () => {
     })
     await tick()
 
-    expect(await readAll(live)).toEqual([textChunk('replayB')])
+    expect(await readRoutedContent(live)).toEqual([textChunk('replayB')])
     expect(sub.hasAnyOpenBranch()).toBe(false)
     sub.dispose()
   })
@@ -688,7 +708,7 @@ describe('TopicStreamSubscription', () => {
 
     mock.emitChunk(TOPIC, A, textChunk('x'))
     mock.emitDone(TOPIC, A, 'paused')
-    expect(await readAll(sa)).toEqual([textChunk('x')]) // stream closed → read ends
+    expect(await readRoutedContent(sa)).toEqual([textChunk('x')]) // stream closed → read ends
     expect(terminals).toEqual([{ id: A, attemptId: 1, isAbort: true, isError: false }])
     sub.dispose()
   })

@@ -79,7 +79,6 @@ export class TopicStreamSubscription {
   #terminalAttemptWatermark: number | undefined
   #pendingEvents: Array<() => void> = []
   #pendingCoverage = new Map<number, { first: number; last: number }>()
-  #liveReplayAttempts = new Set<number>()
   #replayThrough: Record<number, number> = {}
 
   constructor(topicId: string) {
@@ -255,11 +254,12 @@ export class TopicStreamSubscription {
     const chunk = payload.chunk
     if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
       branch.openedParts.add(`${chunk.type}:${chunk.id}`)
-    } else if (
-      live &&
-      this.#liveReplayAttempts.has(attemptId) &&
-      (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta')
-    ) {
+    } else if (chunk.type === 'text-end' || chunk.type === 'reasoning-end') {
+      const startType = chunk.type === 'text-end' ? 'text-start' : 'reasoning-start'
+      const key = `${startType}:${chunk.id}`
+      if (!branch.openedParts.has(key)) return
+      branch.openedParts.delete(key)
+    } else if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
       const type = chunk.type === 'text-delta' ? 'text-start' : 'reasoning-start'
       const key = `${type}:${chunk.id}`
       if (!branch.openedParts.has(key)) {
@@ -542,9 +542,7 @@ export class TopicStreamSubscription {
             for (const payload of res.bufferedChunks) {
               if (payload.attemptId === undefined || !liveAttempts.has(payload.attemptId)) this.#routeChunk(payload)
             }
-            this.#liveReplayAttempts = liveAttempts
             this.#drainPendingEvents()
-            this.#liveReplayAttempts.clear()
             this.#replayThrough = res.replayThrough
             break
           }
