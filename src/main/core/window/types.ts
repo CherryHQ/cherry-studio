@@ -13,6 +13,7 @@ export enum WindowType {
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction',
   SelectionAgent = 'selectionAgent',
+  SelectionCapsule = 'selectionCapsule',
   McpBrowser = 'mcpBrowser',
   Screenshot = 'screenshot'
 }

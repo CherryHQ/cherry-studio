@@ -11,6 +11,8 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const mocks = vi.hoisted(() => ({
   status: undefined as TopicStreamStatus | undefined,
+  approvalAnchors: [] as { executionId: string }[],
+  ipcHandlers: new Map<string, (payload: never) => void>(),
   editing: undefined as { messageId: string } | undefined,
   stop: vi.fn(async () => undefined),
   ipcRequest: vi.fn(),
@@ -41,8 +43,13 @@ vi.mock('@renderer/pages/agents/useAgentChatRuntimeState', () => ({
     editing: mocks.editing
   })
 }))
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({ useTopicStreamStatus: () => ({ status: mocks.status }) }))
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({ status: mocks.status, awaitingApprovalAnchors: mocks.approvalAnchors })
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest },
+  useIpcOn: (event: string, handler: (payload: never) => void) => mocks.ipcHandlers.set(event, handler)
+}))
 vi.mock('@renderer/pages/agents/components/AgentSessionMessages', () => ({ default: () => null }))
 vi.mock('@renderer/pages/agents/AgentComposerSlot', () => ({ default: () => null }))
 vi.mock('../SelectionAgentHeader', () => ({
@@ -80,6 +87,7 @@ describe('SelectionAgentConversation', () => {
     mocks.agent = { id: 'agent-1', name: 'Dev', type: 'claude-code', model: 'openai::gpt-5', modelName: 'GPT-5' }
     mocks.model = { id: 'openai::gpt-5' }
     mocks.status = undefined
+    mocks.approvalAnchors = []
     mocks.editing = undefined
     mocks.ipcRequest.mockReset()
     MockUseCacheUtils.resetMocks()
@@ -163,7 +171,12 @@ describe('SelectionAgentConversation', () => {
   })
 
   describe('state rules', () => {
-    const closeRequests = () => mocks.ipcRequest.mock.calls.filter(([route]) => route === 'window.close').length
+    const requests = (route: string, input?: string) =>
+      mocks.ipcRequest.mock.calls.filter(([name, value]) => name === route && (input === undefined || value === input))
+        .length
+    const closeRequests = () => requests('window.close') + requests('selection.dismiss_blurred_agent_window', 'close')
+    const collapseRequests = () =>
+      requests('selection.collapse_agent_window') + requests('selection.dismiss_blurred_agent_window', 'collapse')
     const lastReplaceable = () =>
       mocks.ipcRequest.mock.calls.filter(([route]) => route === 'selection.set_agent_window_replaceable').at(-1)?.[1]
     const pressEscape = () => act(() => void fireEvent.keyDown(window, { key: 'Escape' }))
@@ -185,17 +198,18 @@ describe('SelectionAgentConversation', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_close', true)
     })
 
-    it('stays open until the first turn shows up', () => {
+    it('collapses on blur until the first turn shows up', () => {
       renderAt(undefined)
 
       fireEvent.blur(window)
       pressEscape()
 
       expect(closeRequests()).toBe(0)
+      expect(collapseRequests()).toBe(1)
       expect(lastReplaceable()).toBe(false)
     })
 
-    it('stops a running turn on Esc and keeps it on blur', () => {
+    it('stops a running turn on Esc and collapses it on blur', () => {
       renderAt('streaming')
 
       pressEscape()
@@ -203,6 +217,7 @@ describe('SelectionAgentConversation', () => {
 
       expect(mocks.stop).toHaveBeenCalledOnce()
       expect(closeRequests()).toBe(0)
+      expect(collapseRequests()).toBe(1)
     })
 
     it('leaves Esc to the approval prompt while a tool waits for approval', () => {
@@ -213,7 +228,37 @@ describe('SelectionAgentConversation', () => {
 
       expect(mocks.stop).not.toHaveBeenCalled()
       expect(closeRequests()).toBe(0)
+      expect(collapseRequests()).toBe(1)
       expect(lastReplaceable()).toBe(false)
+    })
+
+    it('collapses rather than closes an MCP approval that outlived its stream', () => {
+      mocks.approvalAnchors = [{ executionId: 'exec-1' }]
+      renderAt('done')
+
+      fireEvent.blur(window)
+
+      expect(closeRequests()).toBe(0)
+      expect(collapseRequests()).toBe(1)
+      expect(lastReplaceable()).toBe(false)
+    })
+
+    it('ignores blur while pinned', () => {
+      mocks.status = 'streaming'
+      render(
+        <SelectionAgentConversation
+          sessionId="session-1"
+          firstMessage={QUOTE_DRAFT}
+          isPinned
+          onTogglePin={() => undefined}
+          opacity={100}
+          onOpacityChange={() => undefined}
+        />
+      )
+
+      fireEvent.blur(window)
+
+      expect(collapseRequests()).toBe(0)
     })
 
     it('closes a settled turn on blur once the stream entry is gone', () => {
@@ -252,6 +297,7 @@ describe('SelectionAgentConversation', () => {
       fireEvent.blur(window)
 
       expect(closeRequests()).toBe(0)
+      expect(collapseRequests()).toBe(0)
       expect(lastReplaceable()).toBe(false)
     })
 
@@ -272,6 +318,47 @@ describe('SelectionAgentConversation', () => {
       pressEscape()
 
       expect(closeRequests()).toBe(1)
+    })
+  })
+
+  describe('capsule summary', () => {
+    const lastSummary = () =>
+      mocks.ipcRequest.mock.calls.filter(([route]) => route === 'selection.update_agent_summary').at(-1)?.[1]
+    const emit = (event: string, payload: unknown) => act(() => mocks.ipcHandlers.get(event)?.(payload as never))
+    const interaction = (requestId: string, topicId: string) => ({
+      serverId: 'mcp-1',
+      serverName: 'Docs',
+      requestId,
+      topicId,
+      kind: 'elicitation',
+      payload: {}
+    })
+
+    it('reports the agent and the turn status for the capsule', () => {
+      mocks.status = 'error'
+      renderConversation()
+
+      expect(lastSummary()).toEqual({
+        agentName: 'Dev',
+        agentAvatar: expect.any(String),
+        sessionTitle: undefined,
+        status: 'failed',
+        steps: 0
+      })
+    })
+
+    it('asks for input while an MCP server waits on this session, and only this one', () => {
+      mocks.status = 'streaming'
+      renderConversation()
+
+      emit('mcp.interaction.requested', interaction('other', 'agent-session:session-2'))
+      expect(lastSummary()?.status).toBe('running')
+
+      emit('mcp.interaction.requested', interaction('mine', 'agent-session:session-1'))
+      expect(lastSummary()?.status).toBe('needs-input')
+
+      emit('mcp.interaction.ended', { requestId: 'mine' })
+      expect(lastSummary()?.status).toBe('running')
     })
   })
 
@@ -351,6 +438,44 @@ describe('SelectionAgentConversation', () => {
 
       expect(closeRequests()).toHaveLength(0)
       expect(mocks.toastError).toHaveBeenCalledWith('selection.agent.open_in_main_window_failed')
+    })
+
+    describe('with auto-close on', () => {
+      const dismissRequests = () =>
+        mocks.ipcRequest.mock.calls.filter(([route]) => route === 'selection.dismiss_blurred_agent_window')
+
+      beforeEach(() => {
+        MockUsePreferenceUtils.setPreferenceValue('feature.selection.auto_close', true)
+        mocks.status = 'streaming'
+      })
+
+      it('ignores the blur from the main window taking focus, so the hand-off closes the window', async () => {
+        let acknowledge = () => {}
+        mocks.ipcRequest.mockImplementation(async (route: string) => {
+          if (route === 'navigation.focus_or_open_conversation') await new Promise<void>((done) => (acknowledge = done))
+        })
+        renderConversation()
+
+        act(() => mocks.openInMainWindow?.())
+        fireEvent.blur(window)
+        await act(async () => acknowledge())
+
+        expect(dismissRequests()).toHaveLength(0)
+        expect(closeRequests()).toHaveLength(1)
+      })
+
+      it('collapses on blur again once a failed hand-off leaves it open', async () => {
+        mocks.ipcRequest.mockImplementation(async (route: string) => {
+          if (route === 'navigation.focus_or_open_conversation')
+            throw new Error('Conversation navigation was not completed')
+        })
+        renderConversation()
+
+        await act(async () => mocks.openInMainWindow?.())
+        fireEvent.blur(window)
+
+        expect(dismissRequests()).toEqual([['selection.dismiss_blurred_agent_window', 'collapse']])
+      })
     })
   })
 })

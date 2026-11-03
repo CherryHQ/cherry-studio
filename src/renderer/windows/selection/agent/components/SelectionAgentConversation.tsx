@@ -28,6 +28,12 @@ import { getSelectionAgentIssue } from '@renderer/utils/selectionAction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
+import {
+  countTurnSteps,
+  getSelectionAgentTurnStatus,
+  usePendingMcpInteraction,
+  useSelectionAgentSummary
+} from '../useSelectionAgentSummary'
 import { useSelectionAgentWindowRules } from '../useSelectionAgentWindowRules'
 import { SelectionAgentHeader } from './SelectionAgentHeader'
 
@@ -84,21 +90,41 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   }, [agent, firstMessage, model, sendMessage, session, sessionId])
 
   // Until the first turn shows up the window is still starting, even though nothing streams yet.
-  const { status } = useTopicStreamStatus(buildAgentSessionTopicId(sessionId))
+  const topicId = buildAgentSessionTopicId(sessionId)
+  const { status, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
   const [turnSeen, setTurnSeen] = useState(false)
   if (status && !turnSeen) setTurnSeen(true)
   const turn = classifyTurn(status)
+  // An MCP approval can outlive its stream, which ends as done while the anchor still waits.
+  const awaitingApproval = turn.isAwaitingApproval || awaitingApprovalAnchors.length > 0
+  const needsInput = usePendingMcpInteraction(topicId)
+  const waitsOnUser = awaitingApproval || needsInput
   const [draft] = useCache(getAgentDraftCacheKey(sessionId))
   const hasDraft = Boolean(draft.text.trim() || draft.tokens.length || draft.files.length)
+  const [handingOff, setHandingOff] = useState(false)
   useSelectionAgentWindowRules({
     // An edit of a sent message is unsaved work too, though it never reaches the draft cache.
-    idle: turnSeen && !turn.isTurnActive && !hasDraft && !runtime.editing,
-    pinned: headerProps.isPinned,
+    idle: turnSeen && !turn.isTurnActive && !waitsOnUser && !hasDraft && !runtime.editing,
+    collapsible: !turnSeen || turn.isTurnActive || waitsOnUser,
+    // The main window takes focus during a hand-off; collapsing on that blur would strand a capsule.
+    pinned: headerProps.isPinned || handingOff,
     onEscape: turn.isStreamLive ? () => void runtime.stop() : undefined
   })
+  useSelectionAgentSummary(
+    agent
+      ? {
+          agentName: agent.name,
+          agentAvatar: getAgentAvatarFromConfiguration(agent.configuration),
+          sessionTitle: session?.name || undefined,
+          status: getSelectionAgentTurnStatus({ turnSeen, status, awaitingApproval, needsInput }),
+          steps: countTurnSteps(runtime.uiMessages, runtime.partsByMessageId)
+        }
+      : null
+  )
 
   // The main window composer receives the unsent draft; this window closes only once it has landed.
   const openInMainWindow = async () => {
+    setHandingOff(true)
     try {
       await ipcApi.request('navigation.focus_or_open_conversation', {
         target: { conversationType: 'agent', conversationId: sessionId },
@@ -107,6 +133,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
       })
       void ipcApi.request('window.close')
     } catch (error) {
+      setHandingOff(false)
       logger.error('Failed to open the session in the main window', error as Error)
       toast.error(t('selection.agent.open_in_main_window_failed'))
     }
