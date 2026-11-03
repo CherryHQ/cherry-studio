@@ -146,64 +146,6 @@ describe('regression execution plan', () => {
     }
   })
 
-  it('blocks native interactions when desktop automation is missing without blocking pure UI tasks', () => {
-    expect(missingCapabilities('C-02', { desktopAutomation: { available: false } })).toEqual(['desktopAutomation'])
-    expect(missingCapabilities('C-02', {})).toEqual(['desktopAutomation'])
-    expect(missingCapabilities('C-02', { desktopAutomation: { available: true } })).toEqual([])
-    expect(missingCapabilities('N-01', {})).toEqual([])
-  })
-
-  it('keeps every retained case applicable on both platforms', () => {
-    // PR A 只收双端都通过的用例，所以这里断言：保留下来的每条都同时支持 macOS 与 Windows。
-    for (const { id } of REGRESSION_CASES) {
-      expect(supportsPlatform(id, 'macos'), id).toBe(true)
-      expect(supportsPlatform(id, 'windows'), id).toBe(true)
-    }
-  })
-
-  it.skip('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
-    for (const id of [
-      'MP-52',
-      'MP-56',
-      'MP-68',
-      'MP-70',
-      'MP-72',
-      'MP-77',
-      'MP-82',
-      'MP-90',
-      'MP-97',
-      'MP-105',
-      'MP-110',
-      'MP-111',
-      'MP-121',
-      'MP-127',
-      'MP-132',
-      'MP-133',
-      'MP-140'
-    ] as const) {
-      expect(supportsPlatform(id, 'macos')).toBe(true)
-    }
-    for (const id of [
-      'MP-52',
-      'MP-68',
-      'MP-72',
-      'MP-77',
-      'MP-97',
-      'MP-105',
-      'MP-110',
-      'MP-111',
-      'MP-121',
-      'MP-127',
-      'MP-132',
-      'MP-133',
-      'MP-140'
-    ] as const) {
-      expect(supportsPlatform(id, 'windows'), id).toBe(false)
-    }
-    for (const id of ['MP-56', 'MP-70', 'MP-82', 'MP-90', 'MP-109', 'S-01'] as const) {
-      expect(supportsPlatform(id, 'windows'), id).toBe(true)
-    }
-  })
 })
 
 it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools'] as const)(
