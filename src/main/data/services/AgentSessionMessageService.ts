@@ -97,7 +97,7 @@ import {
   validateAgentSessionParent
 } from './agentSessionMessageTree'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
-import { presentCodexHistory } from './importedCodexText'
+import { isCodexContextMessage, presentCodexHistory } from './importedCodexText'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import {
   messageProvenanceSql,
