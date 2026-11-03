@@ -2338,6 +2338,7 @@
   "message.error.unknown": "未知错误",
   "message.error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
   "message.error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+  "message.finish_reason.length": "已达到输出上限，回答可能不完整。",
   "message.group.delete.content": "是否删除该分组中的所有助手回答？用户提问和后续消息将保留。",
   "message.group.delete.title": "删除分组回答",
   "message.group.retry_failed": "每个模型重试一条出错消息",
