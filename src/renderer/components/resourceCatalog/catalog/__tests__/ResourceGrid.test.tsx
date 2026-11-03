@@ -50,6 +50,7 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
+          'settings.skills.globalEnabled': '全局启用',
           'settings.skills.globalToggle': '全局启用技能',
           'settings.skills.source.local': '本地',
           'settings.skills.tryNow': '立即试用',
@@ -519,7 +520,7 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
-  it('keeps the settings grid single-column with a little more space below the header', async () => {
+  it('defaults the settings grid to a single column', async () => {
     const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
 
     try {
@@ -527,8 +528,6 @@ describe('ResourceGrid empty state copy', () => {
 
       const loadingGrid = screen.getByTestId('resource-grid-loading')
       await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
-      expect(loadingGrid.parentElement).toBe(screen.getByTestId('shared-scrollbar'))
-      expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
     } finally {
       clientWidthSpy.mockRestore()
     }
@@ -575,6 +574,13 @@ describe('ResourceGrid empty state copy', () => {
 
   it('uses the no-match copy when search has no results', () => {
     renderResourceGrid({ search: 'missing' })
+
+    expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
+
+  it('uses the no-match copy when an external filter hides installed resources', () => {
+    renderResourceGrid({ hasHiddenResources: true })
 
     expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
     expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
@@ -834,6 +840,14 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('shows only the visibly labeled global switch on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.getAllByRole('switch')).toHaveLength(1)
+    expect(screen.getByText('全局启用')).toBeVisible()
+    expect(screen.queryByRole('switch', { name: '同步技能到外部目录' })).not.toBeInTheDocument()
+  })
+
   it('does not expose a sidebar shortcut action on Skill settings cards', () => {
     render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
 

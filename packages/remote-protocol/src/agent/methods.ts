@@ -10,7 +10,7 @@ import {
   interactionSchema,
   interactionResponseSchema,
   workspaceSelectionSchema,
-  messageSchema,
+  messageListItemSchema,
   modelSummarySchema,
   partSchema,
   sessionSchema
@@ -73,8 +73,8 @@ export const agentMethods = {
     commandReceiptSchema
   ),
   'agent.messages.list': method(
-    z.strictObject({ ...session, historyRevision: decimal, ...pageParams }),
-    pageOf(messageSchema)
+    z.strictObject({ ...session, historyRevision: decimal, partsMode: z.literal('paged').optional(), ...pageParams }),
+    pageOf(messageListItemSchema)
   ),
   'agent.parts.list': method(
     z.strictObject({ ...session, messageId: opaqueId, messageRevision: decimal, ...pageParams }),

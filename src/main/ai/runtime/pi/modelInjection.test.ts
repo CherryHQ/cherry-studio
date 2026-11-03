@@ -1,7 +1,16 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+
 import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import type { ReasoningWireProfile } from '@cherrystudio/provider-registry'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -41,6 +50,7 @@ import {
   assertPiProviderUsable,
   buildPiGatewayInjection,
   buildPiProviderInjection,
+  materializePiProviderStream,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
@@ -61,7 +71,9 @@ const GATEWAY = {
   usageHeaders: GATEWAY_USAGE_HEADERS
 }
 
-function makeProvider(overrides: Partial<Provider>): Provider {
+function makeProvider(
+  overrides: Omit<Partial<Provider>, 'presetProviderId'> & { presetProviderId?: string | null }
+): Provider {
   return {
     id: 'p',
     name: 'P',
@@ -83,6 +95,23 @@ function makeModel(overrides: Partial<Model>): Model {
     ...overrides
   }
 }
+
+beforeEach(() => {
+  const getPath = vi.mocked(application.getPath).getMockImplementation()
+  vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
+    key === 'feature.provider_registry.data' && filename
+      ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+      : key === 'app.root'
+        ? resolve(process.cwd(), filename ?? '')
+        : (getPath?.(key, filename) ?? `/mock/${key}`)
+  )
+  providerRegistryService.clearCache()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  providerRegistryService.clearCache()
+})
 
 describe('buildPiProviderInjection', () => {
   it('maps an Anthropic provider', () => {
@@ -212,6 +241,387 @@ describe('buildPiProviderInjection', () => {
     expect(injection.modelId).toBe('deepseek-chat')
   })
 
+  function completionsProvider(baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai') {
+    return makeProvider({
+      id: 'custom-gemini',
+      presetProviderId: undefined,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl } }
+    })
+  }
+
+  function reportedModel(apiModelId = 'models/gemini-3.1-flash-lite') {
+    return makeModel({
+      id: `custom-gemini::${apiModelId}`,
+      providerId: 'custom-gemini',
+      apiModelId,
+      endpointTypes: ['openai-chat-completions']
+    })
+  }
+
+  async function captureRequest(
+    injection: ReturnType<typeof buildPiProviderInjection> | ReturnType<typeof buildPiGatewayInjection>,
+    rejectOwnStore = false
+  ) {
+    const { streamSimple } = await materializePiProviderStream(injection)
+    const target = {
+      ...injection.providerConfig.models![0],
+      api: injection.api,
+      provider: injection.providerName,
+      baseUrl: injection.providerConfig.baseUrl
+    } as PiModel<PiApi>
+    const captures: { url: string; method: string; body: Record<string, unknown> }[] = []
+    const result = await streamSimple(
+      target,
+      normalizeContext({ messages: [{ role: 'user', content: 'Reply with OK.', timestamp: 1 }] }),
+      {
+        apiKey: 'fixture-only',
+        maxRetries: 0,
+        timeoutMs: 2_000,
+        fetch: async (input, init) => {
+          const request = new Request(input, init)
+          const body = JSON.parse(await request.text())
+          captures.push({ url: request.url, method: request.method, body })
+          if (rejectOwnStore && Object.hasOwn(body, 'store')) {
+            return new Response(
+              JSON.stringify({
+                error: {
+                  message:
+                    "fixture: [{'type': 'extra_forbidden', 'loc': ('body', 'store'), 'msg': 'Extra inputs are not permitted', 'input': false}]",
+                  type: 'invalid_request_error'
+                }
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            )
+          }
+          const chunk =
+            injection.api === 'google-generative-ai'
+              ? { candidates: [{ content: { role: 'model', parts: [{ text: 'fixture-ok' }] }, finishReason: 'STOP' }] }
+              : {
+                  id: 'fixture',
+                  object: 'chat.completion.chunk',
+                  created: 1,
+                  model: target.id,
+                  choices: [{ index: 0, delta: { role: 'assistant', content: 'fixture-ok' }, finish_reason: 'stop' }]
+                }
+          return new Response(
+            `data: ${JSON.stringify(chunk)}\n\n${injection.api === 'google-generative-ai' ? '' : 'data: [DONE]\n\n'}`,
+            { headers: { 'Content-Type': 'text/event-stream' } }
+          )
+        }
+      }
+    ).result()
+    return { captures, result }
+  }
+
+  it.each(['models/gemini-3.1-flash-lite', 'models/gemini-3.5-flash'])(
+    'disables store for custom Google Completions model %s',
+    (apiModelId) => {
+      const injection = buildPiProviderInjection(completionsProvider(), reportedModel(apiModelId), REAL_KEY)
+      const registered = injection.providerConfig.models![0]
+
+      expect(injection.api).toBe('openai-completions')
+      expect(injection.providerConfig.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta/openai')
+      expect(registered.compat).toHaveProperty('supportsStore', false)
+    }
+  )
+
+  it.each(['models/gemini-3.1-flash-lite', 'models/gemini-3.5-flash'])(
+    'omits store from the serialized Google Completions request for %s',
+    async (apiModelId) => {
+      const injection = buildPiProviderInjection(completionsProvider(), reportedModel(apiModelId), 'fixture-only')
+      const { captures, result } = await captureRequest(injection)
+
+      expect(captures).toHaveLength(1)
+      expect(captures[0].method).toBe('POST')
+      expect(captures[0].url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+      expect(captures[0].body.model).toBe(apiModelId)
+      expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+      expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+    }
+  )
+
+  it('preserves the Google Completions developer-role dialect while disabling store', () => {
+    const provider = completionsProvider()
+    provider.endpointConfigs!['openai-chat-completions']!.dialect = { developerRole: true }
+    const injection = buildPiProviderInjection(provider, reportedModel(), REAL_KEY)
+
+    expect(injection.providerConfig.models![0].compat).toMatchObject({
+      supportsDeveloperRole: true,
+      supportsStore: false
+    })
+  })
+
+  it('leaves store compatibility inferred for the exact OpenAI host', () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://api.openai.com/v1'),
+      reportedModel(),
+      REAL_KEY
+    )
+
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it('disables store compatibility for a custom non-OpenAI target', () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://third-party.example/v1'),
+      reportedModel(),
+      REAL_KEY
+    )
+
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it('retains store false in the serialized Completions request to the exact OpenAI host', async () => {
+    const baseUrl = 'https://api.openai.com/v1'
+    const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), 'fixture-only')
+    const { captures, result } = await captureRequest(injection)
+
+    expect(captures).toHaveLength(1)
+    expect(captures[0].method).toBe('POST')
+    expect(captures[0].url).toBe(`${baseUrl}/chat/completions`)
+    expect(captures[0].body.model).toBe('models/gemini-3.1-flash-lite')
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(true)
+    expect(captures[0].body.store).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('omits store from the serialized Completions request to a custom non-OpenAI target', async () => {
+    const baseUrl = 'https://third-party.example/v1'
+    const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), 'fixture-only')
+    const { captures, result } = await captureRequest(injection)
+
+    expect(captures).toHaveLength(1)
+    expect(captures[0].method).toBe('POST')
+    expect(captures[0].url).toBe(`${baseUrl}/chat/completions`)
+    expect(captures[0].body.model).toBe('models/gemini-3.1-flash-lite')
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('uses the loopback target for store compatibility on a Google upstream gateway route', () => {
+    const injection = buildPiGatewayInjection(completionsProvider(), reportedModel(), GATEWAY)
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333/v1')
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it('omits store in the serialized loopback request for a Google upstream', async () => {
+    const injection = buildPiGatewayInjection(completionsProvider(), reportedModel(), GATEWAY)
+    const { captures, result } = await captureRequest(injection)
+
+    expect(captures).toHaveLength(1)
+    expect(captures[0].method).toBe('POST')
+    expect(captures[0].url).toBe('http://127.0.0.1:23333/v1/chat/completions')
+    expect(captures[0].body.model).toBe('custom-gemini:models/gemini-3.1-flash-lite')
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('leaves native Google store compatibility unchanged', () => {
+    const provider = makeProvider({
+      ...completionsProvider(),
+      defaultChatEndpoint: 'google-generate-content',
+      endpointConfigs: {
+        'google-generate-content': { adapterFamily: 'google', baseUrl: 'https://generativelanguage.googleapis.com' }
+      }
+    })
+    const model = reportedModel()
+    model.endpointTypes = ['google-generate-content']
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.api).toBe('google-generative-ai')
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it('preserves native Google contents and streaming without a store field', async () => {
+    const provider = makeProvider({
+      ...completionsProvider(),
+      defaultChatEndpoint: 'google-generate-content',
+      endpointConfigs: {
+        'google-generate-content': { adapterFamily: 'google', baseUrl: 'https://generativelanguage.googleapis.com' }
+      }
+    })
+    const model = reportedModel()
+    model.endpointTypes = ['google-generate-content']
+    const injection = buildPiProviderInjection(provider, model, 'fixture-only')
+    const { captures, result } = await captureRequest(injection)
+
+    expect(captures).toHaveLength(1)
+    expect(injection.api).toBe('google-generative-ai')
+    expect(captures[0].method).toBe('POST')
+    expect(captures[0].url).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse'
+    )
+    expect(captures[0].body.contents).toEqual([{ role: 'user', parts: [{ text: 'Reply with OK.' }] }])
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('does not apply the Google store override to OpenAI Responses', () => {
+    const provider = makeProvider({
+      ...completionsProvider(),
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: {
+        'openai-responses': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai'
+        }
+      }
+    })
+    const model = reportedModel()
+    model.endpointTypes = ['openai-responses']
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.api).toBe('openai-responses')
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it.each([
+    'https://GENERATIVELANGUAGE.GOOGLEAPIS.COM/v1beta/openai',
+    'https://generativelanguage.googleapis.com:443/v1beta/openai',
+    'https://generativelanguage.googleapis.com:8443/v1beta/openai',
+    'https://generativelanguage.googleapis.com./v1beta/openai',
+    'http://generativelanguage.googleapis.com/v1beta/openai',
+    'https://generativelanguage.googleapis.com/v2/other-prefix'
+  ])('disables store for the exact Google host at %s', (baseUrl) => {
+    const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), REAL_KEY)
+
+    expect(injection.providerConfig.baseUrl).toBe(baseUrl)
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it.each([
+    'https://third-party.example/v1',
+    'https://aiplatform.googleapis.com/v1',
+    'https://us-central1-aiplatform.googleapis.com/v1',
+    'generativelanguage.googleapis.com/v1beta/openai',
+    'https://[invalid/v1',
+    'ftp://generativelanguage.googleapis.com/v1',
+    'https://generativelanguage.googleapis.com.evil.test/v1',
+    'https://evil.generativelanguage.googleapis.com/v1',
+    'https://generativelanguage.googleapis.com@evil.test/v1',
+    'https://relay.test/v1/generativelanguage.googleapis.com'
+  ])('omits store for a custom non-OpenAI target at %s', (baseUrl) => {
+    const injection = buildPiProviderInjection(completionsProvider(baseUrl), reportedModel(), REAL_KEY)
+
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it('completes the reported glm request at a strict endpoint', async () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://strict.example/v1'),
+      reportedModel('glm'),
+      REAL_KEY
+    )
+    const { captures, result } = await captureRequest(injection, true)
+    expect(captures).toHaveLength(1)
+    expect(captures[0]).toMatchObject({
+      url: 'https://strict.example/v1/chat/completions',
+      method: 'POST',
+      body: { model: 'glm' }
+    })
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(captures[0].body.messages).toContainEqual({ role: 'user', content: 'Reply with OK.' })
+    expect(result.stopReason).toBe('stop')
+    expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: 'fixture-ok' }))
+  })
+
+  it('disables store for the reported glm configuration', () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://strict.example/v1'),
+      reportedModel('glm'),
+      REAL_KEY
+    )
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it.each([
+    ['zhipu', 'https://open.bigmodel.cn/api/paas/v4'],
+    ['deepseek', 'https://api.deepseek.com/v1'],
+    ['moonshot', 'https://api.moonshot.ai/v1'],
+    ['together', 'https://api.together.xyz/v1'],
+    ['nvidia', 'https://integrate.api.nvidia.com/v1'],
+    ['grok', 'https://api.x.ai/v1'],
+    ['cerebras', 'https://api.cerebras.ai/v1'],
+    ['zai', 'https://api.z.ai/api/paas/v4'],
+    ['opencode', 'https://opencode.ai/zen/v1']
+  ])('preserves store omission for %s at its normal host', async (id, url) => {
+    const provider = { ...completionsProvider(url), id, presetProviderId: id }
+    const injection = buildPiProviderInjection(provider, reportedModel('glm'), REAL_KEY)
+    injection.providerName = `${id}:session:1`
+    const { captures, result } = await captureRequest(injection)
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(false)
+    expect(result.stopReason).toBe('stop')
+  })
+
+  it('strict endpoint rejects even store false', async () => {
+    const injection = buildPiProviderInjection(
+      completionsProvider('https://api.openai.com/v1'),
+      reportedModel('glm'),
+      REAL_KEY
+    )
+    const { captures, result } = await captureRequest(injection, true)
+    expect(captures[0].body.store).toBe(false)
+    expect(Object.hasOwn(captures[0].body, 'store')).toBe(true)
+    expect(result.stopReason).toBe('error')
+    expect(result.errorMessage).toContain('extra_forbidden')
+  })
+
+  it.each([
+    'https://API.OPENAI.COM/v1',
+    'http://api.openai.com/v1',
+    'https://api.openai.com:443/v1',
+    'https://api.openai.com:8443/v1',
+    'https://api.openai.com./v1',
+    'https://api.openai.com/alternate'
+  ])('preserves inference for OpenAI host %s', (url) => {
+    const injection = buildPiProviderInjection(completionsProvider(url), reportedModel('glm'), REAL_KEY)
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it.each([
+    'https://api.openai.com.evil.test/v1',
+    'https://evil.api.openai.com/v1',
+    'https://api.openai.com@evil.test/v1',
+    'https://evil.test/api.openai.com',
+    'https://api.openai.com../v1'
+  ])('omits for deceptive OpenAI target %s', (url) => {
+    const injection = buildPiProviderInjection(completionsProvider(url), reportedModel('glm'), REAL_KEY)
+    expect(injection.providerConfig.models![0].compat).toHaveProperty('supportsStore', false)
+  })
+
+  it.each([
+    'https://generativelanguage.googleapis.com.evil.test/v1',
+    'https://evil.generativelanguage.googleapis.com/v1',
+    'https://generativelanguage.googleapis.com@evil.test/v1',
+    'https://evil.test/generativelanguage.googleapis.com'
+  ])('does not match deceptive Google target %s', (url) => {
+    const provider = { ...completionsProvider(url), presetProviderId: 'openai' }
+    const injection = buildPiProviderInjection(provider, reportedModel('glm'), REAL_KEY)
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
+  it.each([
+    { id: 'openai', presetProviderId: undefined },
+    { id: 'clone-id', presetProviderId: 'openai' },
+    { id: 'cherryin', presetProviderId: undefined }
+  ])('preserves inference for non-custom provider $id', (identity) => {
+    const provider = { ...completionsProvider('https://strict.example/v1'), ...identity }
+    const injection = buildPiProviderInjection(provider, reportedModel('glm'), REAL_KEY)
+    expect(Object.hasOwn(injection.providerConfig.models![0].compat ?? {}, 'supportsStore')).toBe(false)
+  })
+
   it('maps a Gemini provider', () => {
     const provider = makeProvider({
       id: 'gemini',
@@ -230,6 +640,62 @@ describe('buildPiProviderInjection', () => {
 
     expect(injection.providerConfig.api).toBe('google-generative-ai')
     expect(injection.providerConfig.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
+  })
+
+  it('materializes a Google stream that preserves tool signatures behind a dispatch alias (#22810)', async () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'google-generate-content',
+      endpointConfigs: {
+        'google-generate-content': { adapterFamily: 'google', baseUrl: 'https://gemini.test' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ apiModelId: 'gemini-4-argon', capabilities: ['function-call'] }),
+      'fixture-only'
+    )
+    const { streamSimple } = await materializePiProviderStream(injection)
+    const target = {
+      ...injection.providerConfig.models![0],
+      api: 'cherry-fixture-google-generative-ai',
+      provider: 'p:fixture-connection',
+      baseUrl: injection.providerConfig.baseUrl
+    } as PiModel<PiApi>
+    const signature = Buffer.from('fixture-signature').toString('base64')
+    const history = normalizeContext({ messages: [{ role: 'user', content: 'Read fixture.', timestamp: 1 }] })
+    const requests: Array<{ contents: Array<{ parts: Array<Record<string, unknown>> }> }> = []
+    const options = {
+      apiKey: 'fixture-only',
+      maxRetries: 0,
+      fetch: async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        requests.push(JSON.parse(String(init?.body)))
+        const parts =
+          requests.length === 1
+            ? [{ functionCall: { id: 'call_a', name: 'read', args: {} }, thoughtSignature: signature }]
+            : [{ text: 'complete' }]
+        return new Response(
+          `data: ${JSON.stringify({ candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP' }] })}\n\n`,
+          { headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      }
+    }
+    const first = await streamSimple(target, history, options).result()
+    history.messages.push(first, {
+      role: 'toolResult',
+      toolCallId: 'call_a',
+      toolName: 'read',
+      content: [{ type: 'text', text: 'fixture content' }],
+      isError: false,
+      timestamp: 3
+    })
+    const second = await streamSimple(target, history, options).result()
+
+    expect(second.stopReason).toBe('stop')
+    expect(requests[1].contents.flatMap((content) => content.parts)).toContainEqual({
+      functionCall: { id: 'call_a', name: 'read', args: {} },
+      thoughtSignature: signature
+    })
+    expect(target.api).toBe('cherry-fixture-google-generative-ai')
   })
 
   it.each([
@@ -280,8 +746,14 @@ describe('buildPiProviderInjection', () => {
     )
 
     expect(unsupported.providerConfig.api).toBe(expectedApi)
-    expect(unsupported.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: false })
-    expect(supported.providerConfig.models?.[0]?.compat).toEqual({ supportsDeveloperRole: true })
+    expect(unsupported.providerConfig.models?.[0]?.compat).toEqual({
+      ...(expectedApi === 'openai-completions' ? { supportsStore: false } : {}),
+      supportsDeveloperRole: false
+    })
+    expect(supported.providerConfig.models?.[0]?.compat).toEqual({
+      ...(expectedApi === 'openai-completions' ? { supportsStore: false } : {}),
+      supportsDeveloperRole: true
+    })
   })
 
   it('maps Azure OpenAI through its responses endpoint (non-4-family)', () => {
@@ -741,14 +1213,6 @@ describe('Pi gateway fallback', () => {
     serviceMocks.resolveApiGatewayRuntime.mockResolvedValue({ ...GATEWAY, apiKey: 'rotated-local-key' })
     expect((await resolvePiProviderInjectionForSession('session-1', provider, model)).apiKey).toBe('rotated-local-key')
   })
-
-  it('surfaces the gateway enablement error before a gateway-only model starts', async () => {
-    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: false })
-    await expect(assertPiProviderUsable('azure::deployment')).rejects.toMatchObject({
-      name: 'ApiGatewayNotRunningError'
-    })
-    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: true })
-  })
 })
 
 function stubGrokCliServices(): void {
@@ -1043,5 +1507,667 @@ describe('pi thinking level ladder', () => {
     )
 
     expect(piModel).not.toHaveProperty('thinkingLevelMap')
+  })
+})
+
+// These requests catch loss of the catalog dialect between Cherry injection, pi registration and serialization.
+describe('Anthropic adaptive thinking projection', () => {
+  const levels = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+  const provider = () =>
+    makeProvider({
+      presetProviderId: null,
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://example.invalid' } }
+    })
+  const model = (apiModelId = 'claude-opus-5-5', presetModelId?: string) =>
+    makeModel({
+      id: `p::${apiModelId}`,
+      apiModelId,
+      ...(presetModelId ? { presetModelId } : {}),
+      capabilities: ['reasoning'],
+      maxOutputTokens: 32768,
+      contextWindow: 200000,
+      reasoning: { selectableEfforts: [...levels] }
+    })
+
+  async function serialize(
+    injection: ReturnType<typeof buildPiProviderInjection> | ReturnType<typeof buildPiGatewayInjection>,
+    reasoning: (typeof levels)[number]
+  ) {
+    const { ModelRuntime, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai')
+    const { streamSimple } = await import('@earendil-works/pi-ai/api/anthropic-messages')
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    await runtime.setRuntimeApiKey(injection.providerName, injection.apiKey)
+    const registry = new ModelRegistry(runtime)
+    registry.registerProvider(injection.providerName, injection.providerConfig)
+    const resolved = registry.find(injection.providerName, injection.modelId)
+    if (!resolved || resolved.api !== 'anthropic-messages') throw new Error('Expected registered Anthropic model')
+    const auth = await registry.getApiKeyAndHeaders(resolved)
+    if (!auth.ok) throw new Error(auth.error)
+    let body: any
+    let headers: Headers | undefined
+    const stream = streamSimple(
+      resolved as PiModel<'anthropic-messages'>,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 0 }] }),
+      {
+        apiKey: auth.apiKey,
+        reasoning,
+        maxRetries: 0,
+        fetch: async (_input, init) => {
+          body = JSON.parse(init?.body as string)
+          headers = new Headers(init?.headers)
+          return new Response(
+            JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'captured' } }),
+            { status: 400, headers: { 'content-type': 'application/json' } }
+          )
+        }
+      }
+    )
+    await stream.result()
+    expect(body).toBeDefined()
+    return { body, headers, resolved }
+  }
+
+  it.each(levels)('serializes custom catalog-matched Opus 5.5 at %s', async (level) => {
+    const row = model()
+    expect(row).not.toHaveProperty('presetModelId')
+    expect(row.reasoning).not.toHaveProperty('wireDialect')
+    const profile = providerRegistryService.resolveReasoningProfile(provider(), row, 'anthropic-messages')
+    expect(profile.support?.wireDialect).toBeUndefined()
+    const injection = buildPiProviderInjection(provider(), row, REAL_KEY)
+    expect(injection.providerConfig.models?.[0]).toMatchObject({
+      compat: { forceAdaptiveThinking: true },
+      reasoning: true,
+      input: ['text'],
+      contextWindow: 200000,
+      maxTokens: 32768,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    })
+    const { body, headers, resolved } = await serialize(injection, level)
+    expect(resolved.compat).toMatchObject({ forceAdaptiveThinking: true })
+    expect(body.thinking.type).toBe('adaptive')
+    expect(body.output_config.effort).toBe(level)
+    expect(body.thinking).not.toHaveProperty('budget_tokens')
+    expect(headers?.get('anthropic-beta') ?? '').not.toContain('interleaved-thinking-2025-05-14')
+  })
+
+  it.each(levels)('serializes catalog-backed Opus 5.5 at %s', async (level) => {
+    const injection = buildPiProviderInjection(provider(), model('claude-opus-5-5', 'claude-opus-5-5'), REAL_KEY)
+    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ forceAdaptiveThinking: true })
+    const { body } = await serialize(injection, level)
+    expect(body.thinking.type).toBe('adaptive')
+    expect(body.output_config.effort).toBe(level)
+    expect(body.thinking).not.toHaveProperty('budget_tokens')
+  })
+
+  it.each(['claude-opus-4-5', 'claude-haiku-4-5'])('keeps budget serialization for %s', async (id) => {
+    const injection = buildPiProviderInjection(provider(), model(id), REAL_KEY)
+    expect(injection.providerConfig.models?.[0]?.compat ?? {}).not.toHaveProperty('forceAdaptiveThinking')
+    const { body, headers } = await serialize(injection, 'high')
+    expect(body.thinking).toMatchObject({ type: 'enabled', budget_tokens: 16384 })
+    expect(body.output_config?.effort).toBeUndefined()
+    expect(headers?.get('anthropic-beta')).toContain('interleaved-thinking-2025-05-14')
+  })
+
+  it.each(['claude-opus-4-6', 'claude-sonnet-5-5', 'unknown-model'])('does not widen the dialect fence to %s', (id) => {
+    expect(
+      buildPiProviderInjection(provider(), model(id), REAL_KEY).providerConfig.models?.[0]?.compat ?? {}
+    ).not.toHaveProperty('forceAdaptiveThinking')
+  })
+
+  it('composes CherryIN signature compatibility with adaptive thinking', () => {
+    expect(
+      buildPiProviderInjection({ ...provider(), id: 'cherryin' }, model(), REAL_KEY).providerConfig.models?.[0]?.compat
+    ).toEqual({ allowEmptySignature: true, forceAdaptiveThinking: true })
+  })
+
+  it('preserves the gateway model namespace while resolving the original catalog id', async () => {
+    const injection = buildPiGatewayInjection(provider(), model(), GATEWAY)
+    expect(injection.modelId).toBe('p:claude-opus-5-5')
+    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ forceAdaptiveThinking: true })
+    const { body } = await serialize(injection, 'high')
+    expect(body.model).toBe('p:claude-opus-5-5')
+    expect(body.thinking.type).toBe('adaptive')
+    expect(body.output_config.effort).toBe('high')
+    expect(body.thinking).not.toHaveProperty('budget_tokens')
+  })
+
+  it('withholds the flag when an Anthropic endpoint uses the OpenAI gateway fallback', () => {
+    const fallback = provider()
+    fallback.endpointConfigs!['anthropic-messages']!.adapterFamily = 'bedrock'
+    const injection = buildPiGatewayInjection(fallback, model(), GATEWAY)
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ supportsStore: false, supportsDeveloperRole: false })
+  })
+
+  // Fixture wires catch dialect-only predicates and first-write-wins regressions without mocking resolution.
+  describe.each(['endpoint', 'model-contract'] as const)('%s wire precedence', (scope) => {
+    const adaptiveOperation = { target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } } as const
+    const wires: [string, ReasoningWireProfile][] = [
+      [
+        'enabled budget',
+        {
+          effort: {
+            operations: [
+              adaptiveOperation,
+              { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+              { target: 'thinking.budget_tokens', value: { source: 'budget' } }
+            ],
+            budget: { missing: { type: 'omit-mode' } }
+          }
+        }
+      ],
+      ['disabled', { disabled: true, effort: { operations: [adaptiveOperation] } }],
+      [
+        'non-adaptive literal',
+        {
+          effort: {
+            operations: [
+              adaptiveOperation,
+              { target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }
+            ]
+          }
+        }
+      ],
+      [
+        'non-literal type',
+        { effort: { operations: [adaptiveOperation, { target: 'thinking.type', value: { source: 'effort' } }] } }
+      ],
+      ['no effort mode', { default: { operations: [adaptiveOperation] } }]
+    ]
+    it.each(wires)('withholds the adaptive flag for %s', (_name, wire) => {
+      const directory = mkdtempSync(join(tmpdir(), 'pi-reasoning-'))
+      try {
+        const dataRoot = resolve(process.cwd(), 'packages/provider-registry/data')
+        const providers = JSON.parse(readFileSync(join(dataRoot, 'providers.json'), 'utf8'))
+        const overrides = JSON.parse(readFileSync(join(dataRoot, 'provider-models.json'), 'utf8'))
+        providers.providers.push({
+          id: 'p',
+          name: 'Fixture',
+          metadata: { website: {} },
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': {
+              baseUrl: 'https://example.invalid',
+              reasoningFormat: {
+                type: 'anthropic',
+                wire: scope === 'endpoint' ? wire : { effort: { operations: [adaptiveOperation] } }
+              }
+            }
+          }
+        })
+        if (scope === 'model-contract')
+          overrides.overrides.push({
+            providerId: 'p',
+            modelId: 'claude-opus-5-5',
+            reasoningContracts: { 'anthropic-messages': { wire } }
+          })
+        writeFileSync(join(directory, 'providers.json'), JSON.stringify(providers))
+        writeFileSync(join(directory, 'provider-models.json'), JSON.stringify(overrides))
+        const getPath = vi.mocked(application.getPath).getMockImplementation()!
+        vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
+          key === 'feature.provider_registry.data' && filename && filename !== 'models.json'
+            ? join(directory, filename)
+            : getPath(key, filename)
+        )
+        providerRegistryService.clearCache()
+        const context = { ...provider(), presetProviderId: undefined }
+        const profile = providerRegistryService.resolveReasoningProfile(context, model(), 'anthropic-messages')
+        expect(profile.wireDialect).toBe('adaptive-always')
+        expect(profile.wire).toEqual(wire)
+        expect(
+          buildPiProviderInjection(context, model(), REAL_KEY).providerConfig.models?.[0]?.compat ?? {}
+        ).not.toHaveProperty('forceAdaptiveThinking')
+      } finally {
+        providerRegistryService.clearCache()
+        rmSync(directory, { recursive: true, force: true })
+      }
+    })
+  })
+})
+
+describe('Gateway issue 22785 core', () => {
+  const provider = makeProvider({
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://ai-gateway.vercel.sh/v1/ai' }
+    }
+  })
+  const model = makeModel({
+    id: 'gateway::openai/gpt-6-astra',
+    providerId: 'gateway',
+    apiModelId: 'openai/gpt-6-astra'
+  })
+
+  it('projects the Chat config without changing the stored Gateway base', () => {
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://ai-gateway.vercel.sh/v1')
+    expect(injection.modelId).toBe('openai/gpt-6-astra')
+    expect(provider.endpointConfigs?.['openai-chat-completions']?.baseUrl).toBe('https://ai-gateway.vercel.sh/v1/ai')
+  })
+
+  it('projects the Responses fallback from the Chat config', () => {
+    const injection = buildPiProviderInjection(provider, { ...model, endpointTypes: ['openai-responses'] }, REAL_KEY)
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://ai-gateway.vercel.sh/v1')
+  })
+
+  it('sends real Chat wire requests to /v1/chat/completions', async () => {
+    const requests: { method: string | undefined; url: string | undefined; body: { model?: string } }[] = []
+    const marker = 'gateway-chat-22785'
+    const server = createServer(async (req, res) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      requests.push({ method: req.method, url: req.url, body })
+      if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
+        res.writeHead(404, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'Unknown endpoint', type: 'invalid_request_error' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      const chunk = {
+        id: 'chat-22785',
+        object: 'chat.completion.chunk',
+        created: 1,
+        model: 'openai/gpt-6-astra',
+        choices: [{ index: 0, delta: { content: marker }, finish_reason: null }]
+      }
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      res.write(`data: ${JSON.stringify({ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`)
+      res.end('data: [DONE]\n\n')
+    })
+    server.requestTimeout = 3_000
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      const injection = buildPiProviderInjection(
+        {
+          ...provider,
+          endpointConfigs: {
+            'openai-chat-completions': {
+              adapterFamily: 'gateway',
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/ai`
+            }
+          }
+        },
+        model,
+        'test-key'
+      )
+      const materialized = await materializePiProviderStream(injection)
+      const piModel = {
+        ...injection.providerConfig.models![0],
+        api: injection.api,
+        provider: injection.providerName,
+        baseUrl: injection.providerConfig.baseUrl
+      } as PiModel<'openai-completions'>
+      const result = await materialized
+        .streamSimple(piModel, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
+          apiKey: 'test-key',
+          maxRetries: 0,
+          timeoutMs: 2_000
+        })
+        .result()
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].url).toBe('/v1/chat/completions')
+      expect(requests[0].body.model).toBe('openai/gpt-6-astra')
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: marker }))
+      expect(requests[0].method).toBe('POST')
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+
+  it('sends real Responses fallback wire requests to /v1/responses', async () => {
+    const requests: { method: string | undefined; url: string | undefined; body: { model?: string } }[] = []
+    const marker = 'gateway-responses-22785'
+    const server = createServer(async (req, res) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      requests.push({ method: req.method, url: req.url, body })
+      if (req.method !== 'POST' || req.url !== '/v1/responses') {
+        res.writeHead(404, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'Unknown endpoint', type: 'invalid_request_error' } }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      const events = [
+        { type: 'response.created', response: { id: 'resp-22785', status: 'in_progress' } },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { id: 'msg-22785', type: 'message', role: 'assistant', content: [] }
+        },
+        { type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: marker },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-22785',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 }
+          }
+        }
+      ]
+      for (const event of events) res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      res.end()
+    })
+    server.requestTimeout = 3_000
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      const injection = buildPiProviderInjection(
+        {
+          ...provider,
+          endpointConfigs: {
+            'openai-chat-completions': {
+              adapterFamily: 'gateway',
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/ai`
+            }
+          }
+        },
+        { ...model, endpointTypes: ['openai-responses'] },
+        'test-key'
+      )
+      const materialized = await materializePiProviderStream(injection)
+      const piModel = {
+        ...injection.providerConfig.models![0],
+        api: injection.api,
+        provider: injection.providerName,
+        baseUrl: injection.providerConfig.baseUrl
+      } as PiModel<'openai-responses'>
+      const result = await materialized
+        .streamSimple(piModel, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
+          apiKey: 'test-key',
+          maxRetries: 0,
+          timeoutMs: 2_000
+        })
+        .result()
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].url).toBe('/v1/responses')
+      expect(requests[0].body.model).toBe('openai/gpt-6-astra')
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: marker }))
+      expect(requests[0].method).toBe('POST')
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+})
+
+describe('Gateway issue 22785 boundaries', () => {
+  const provider = makeProvider({
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/v1/ai' }
+    }
+  })
+  const model = makeModel({
+    id: 'gateway::openai/gpt-6-astra',
+    providerId: 'gateway',
+    apiModelId: 'openai/gpt-6-astra'
+  })
+
+  it.each([
+    ['https://proxy.example/v1/ai/', 'https://proxy.example/v1'],
+    ['https://proxy.example/v1/ai#', 'https://proxy.example/v1'],
+    ['https://proxy.example', 'https://proxy.example/v1']
+  ])('formats Gateway base %s as %s', (baseUrl, expectedBaseUrl) => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          'openai-chat-completions': { adapterFamily: 'gateway', baseUrl }
+        }
+      },
+      model,
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe(expectedBaseUrl)
+  })
+
+  it('preserves the proxy prefix for a preset-derived Gateway', () => {
+    const derivedProvider = makeProvider({
+      ...provider,
+      id: 'my-gateway',
+      presetProviderId: 'gateway',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/prefix/v1/ai' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      derivedProvider,
+      { ...model, id: 'my-gateway::openai/gpt-6-astra', providerId: 'my-gateway' },
+      REAL_KEY
+    )
+
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/prefix/v1')
+  })
+
+  it('honors an explicit Responses base with the no-version sentinel', () => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          'openai-responses': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/compat#' }
+        }
+      },
+      { ...model, endpointTypes: ['openai-responses'] },
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/compat')
+  })
+
+  it('projects an explicit Responses base using the OpenAI adapter', () => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://proxy.example/v1/ai' }
+        }
+      },
+      { ...model, endpointTypes: ['openai-responses'] },
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/v1')
+  })
+
+  it('preserves a Gateway base with a path after /v1/ai', () => {
+    const injection = buildPiProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          'openai-chat-completions': { adapterFamily: 'gateway', baseUrl: 'https://proxy.example/v1/ai/extra' }
+        }
+      },
+      model,
+      REAL_KEY
+    )
+
+    expect(injection.providerConfig.baseUrl).toBe('https://proxy.example/v1/ai/extra')
+  })
+
+  it('preserves /v1/ai for a non-Gateway OpenAI-compatible provider', () => {
+    const relay = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://relay.example/v1/ai' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      relay,
+      { ...model, id: 'relay::openai/gpt-6-astra', providerId: 'relay' },
+      REAL_KEY
+    )
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://relay.example/v1/ai')
+  })
+
+  it('preserves the local gateway base, credentials, usage headers and model namespace', () => {
+    const injection = buildPiGatewayInjection(provider, model, GATEWAY)
+
+    expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333/v1')
+    expect(injection.apiKey).toBe(GATEWAY_KEY)
+    expect(injection.providerConfig.headers).toEqual(GATEWAY_USAGE_HEADERS)
+    expect(injection.modelId).toBe('gateway:openai/gpt-6-astra')
+  })
+})
+
+describe('Responses summary permission through production materialization', () => {
+  it.each([
+    { id: 'doubao', summary: undefined, suppressed: true },
+    { id: 'openai', summary: true, suppressed: false },
+    { id: 'unlinked-custom', summary: undefined, suppressed: true }
+  ])('applies the merged endpoint policy for $id on the wire', async ({ id, summary, suppressed }) => {
+    const requests: { body: Record<string, any>; status: number }[] = []
+    const marker = `materialized-${id}-22480`
+    const server = createServer(async (req, res) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      const hasSummary = body.reasoning && Object.hasOwn(body.reasoning, 'summary')
+      const status = suppressed && hasSummary ? 400 : 200
+      requests.push({ body, status })
+      if (status === 400) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ code: 'InvalidParameter', message: 'json: unknown field "summary"' }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      const events = [
+        { type: 'response.created', response: { id: 'resp-22480', status: 'in_progress' } },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { id: 'msg-22480', type: 'message', role: 'assistant', content: [] }
+        },
+        { type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: marker },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-22480',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 }
+          }
+        }
+      ]
+      for (const event of events) res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      res.end()
+    })
+    server.requestTimeout = 3_000
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      const provider = makeProvider({
+        id,
+        presetProviderId: null,
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-responses': {
+            adapterFamily: 'openai',
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+            ...(summary === undefined ? {} : { dialect: { reasoningSummary: summary } })
+          }
+        }
+      })
+      const model = makeModel({
+        id: `${id}::doubao-seed-evolving`,
+        providerId: id,
+        apiModelId: 'doubao-seed-evolving',
+        capabilities: ['reasoning'],
+        endpointTypes: ['openai-responses', 'openai-chat-completions']
+      })
+      const injection = buildPiProviderInjection(provider, model, 'test-key')
+      expect(injection.suppressReasoningSummary).toBe(suppressed)
+      const materialized = await materializePiProviderStream(injection)
+      const registered = injection.providerConfig.models![0]
+      const piModel = {
+        ...registered,
+        api: injection.api,
+        provider: injection.providerName,
+        baseUrl: injection.providerConfig.baseUrl
+      } as PiModel<'openai-responses'>
+      const result = await materialized
+        .streamSimple(piModel, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
+          apiKey: 'test-key',
+          reasoning: 'medium',
+          maxRetries: 0,
+          timeoutMs: 2_000
+        })
+        .result()
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].status).toBe(200)
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: marker }))
+      expect(requests[0].body.reasoning.effort).toBe('medium')
+      expect(Object.hasOwn(requests[0].body.reasoning, 'summary')).toBe(!suppressed)
+      if (!suppressed) {
+        expect(requests[0].body.reasoning.summary).toBe('auto')
+        expect(materialized.providerConfig).toBe(injection.providerConfig)
+      }
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+
+  it('keeps chat-completions and gateway configs and builtin streams unchanged', async () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://example.com' },
+        'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-chat-completions'] })
+    const injections = [
+      buildPiProviderInjection(provider, model, REAL_KEY),
+      buildPiGatewayInjection(provider, makeModel({ endpointTypes: ['openai-responses'] }), GATEWAY)
+    ]
+    const { loadPiApiStreamSimple } = await import('./piSdk')
+    for (const injection of injections) {
+      expect(injection.suppressReasoningSummary).toBe(false)
+      const materialized = await materializePiProviderStream(injection)
+      expect(materialized.providerConfig).toBe(injection.providerConfig)
+      expect(materialized.streamSimple).toBe(await loadPiApiStreamSimple(injection.api))
+    }
   })
 })

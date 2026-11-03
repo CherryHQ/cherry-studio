@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
-import { getFileExtension, isSupportedExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
+import { getFileExtension, isSupportedExtension, isSupportedFile } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
@@ -148,7 +148,7 @@ export const handlePaste = async (
                     ...prevFiles,
                     toComposerAttachment({
                       ...selectedFile,
-                      origin_name: removeFileExtension(file.name)
+                      origin_name: file.name
                     })
                   ])
                 } else if (t) {

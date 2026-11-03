@@ -189,12 +189,13 @@ it.each([
           emit: () => {
             throw new Error('Session recall must not request approval')
           },
-          getInteractionState: () => ({ userResponse: 'unavailable' }),
+          getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           getPermissionMode: () => mode,
           isDisabled: (name) => disabled && name === 'vcc_recall',
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
-          nonBypassableApprovalTools: new Set()
+          nonBypassableApprovalTools: new Set(),
+          delegationTools: new Set()
         }),
         piVccExtension
       ]

@@ -45,6 +45,7 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   const now = new Date().toISOString()
 
   return {
+    orderKey: 'a0',
     id: '11111111-1111-4111-8111-111111111111',
     name: 'Knowledge Base',
     groupId: null,

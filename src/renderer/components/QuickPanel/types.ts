@@ -25,6 +25,10 @@ export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
   getSelectionEndOffset?: () => number
+  /** Live selection in this adapter's native coordinates, used by delayed input such as dictation. */
+  captureReplaceRange?: () => { from: number; to: number } | null
+  /** Replaces a range from this adapter's `captureReplaceRange`; coordinates are not portable between adapters. */
+  replaceRange?: (range: { from: number; to: number }, text: string) => boolean
   /**
    * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
    * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that

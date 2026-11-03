@@ -10,6 +10,8 @@ import { useResourceCatalogController } from '../useResourceCatalogController'
 
 type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 
+const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
 const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
@@ -78,9 +80,14 @@ vi.mock('../useResourceLibrary', () => ({
   }
 }))
 
-vi.mock('../assistantAdapter', () => ({
+vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({
-    createAssistant: controllerMocks.createAssistant,
+    createAssistant: controllerMocks.createAssistant
+  })
+}))
+
+vi.mock('../assistantAdapter', () => ({
+  useDuplicateAssistantMutation: () => ({
     duplicateAssistant: controllerMocks.duplicateAssistant
   })
 }))
@@ -141,6 +148,7 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
       sourceTags: [],
       contentHash: 'hash',
       isGlobalEnabled: true,
+      mirrorEnabled: true,
       isEnabled: false,
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z'
@@ -151,6 +159,10 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.dataApiGet.mockResolvedValue([])
@@ -396,7 +408,7 @@ describe('useResourceCatalogController', () => {
     })
   })
 
-  it('moves protected Agent sessions directly without opening the owner confirmation', async () => {
+  it('confirms before archiving protected Agent sessions without opening the owner confirmation', async () => {
     const protectedAgent = {
       id: 'agent-protected',
       type: 'agent',
@@ -411,13 +423,20 @@ describe('useResourceCatalogController', () => {
         configuration: { builtin_role: 'assistant' }
       }
     } as unknown as ResourceItem
-    const { result } = renderHook(() => useResourceCatalogController('agent'))
+    const { result } = renderHook(() =>
+      useResourceCatalogController('agent', {
+        onConfirmArchiveAgentSessions: (agentName, action) => archiveSessionsPopupMocks.show({ agentName, action })
+      })
+    )
 
     act(() => {
       result.current.gridProps.onDelete(protectedAgent)
     })
 
     expect(result.current.dialogs.deleteConfirm).toBeNull()
+    expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'Cherry Assistant' })
+    )
     await waitFor(() =>
       expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', {
         agentId: 'agent-protected'

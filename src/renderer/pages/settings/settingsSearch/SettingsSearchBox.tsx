@@ -32,17 +32,16 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   const { listboxId, optionDomId } = useSettingsSearchDomIds()
   const hasResults = isSearchPage && resultCount > 0
   const [value, setValue] = useState(urlQuery)
-  // Tracks the previous input value across effect passes — distinguishes a
-  // user-initiated clear from a deep-link seed still in flight
-  const prevValueRef = useRef(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // URL seeds, Activity re-shows and pathname resets are not user clears.
+  const clearIntentRef = useRef(false)
   // A deep link lands on the search page with the URL already on the history
   // stack, so the first debounced navigate must replace, not push
   const hasPushedRef = useRef(isSearchPage)
   // Distinguishes a new external URL value from an <Activity> re-show re-run
   // (unchanged urlQuery) that must not clobber input typed during the hide
   const appliedUrlRef = useRef(urlQuery)
-  // One leave per clear: Escape and the debounced empty-pass both want to
-  // leave; a second navigation would overwrite the panel back() returns to
+  // A second dismissal would overwrite the panel that back() returns to.
   const leaveInFlightRef = useRef(false)
   // Debounce handle kept reachable so Enter can flush the navigation early
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -94,8 +93,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Single leave funnel: only one navigation may leave per clear — the
-  // fallback push after back() would overwrite the panel back() returns to
+  // Only one dismissal may navigate while back() is still in flight.
   const performLeave = useCallback(() => {
     if (leaveInFlightRef.current) return
     leaveInFlightRef.current = true
@@ -114,15 +112,28 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     performLeave()
   }
 
+  const hasUrlQueryRef = useRef(false)
+  // Snapshot before the mirror effect so it reads the current URL presence.
+  useEffect(() => {
+    hasUrlQueryRef.current = isSearchPage && 'q' in (search as Record<string, unknown>)
+  }, [isSearchPage, search])
+
   useEffect(() => {
     const trimmed = value.trim()
-    const wasNonEmpty = prevValueRef.current.trim().length > 0
-    prevValueRef.current = value
     if (!trimmed) {
-      // Guard: a deep-link dispatch lands with the seed setValue still in
-      // flight (value reads '' for one pass); only a real user clear may go back.
-      if (isSearchPage && wasNonEmpty) {
-        performLeave()
+      const wasUserClear = clearIntentRef.current
+      clearIntentRef.current = false
+      if (wasUserClear) setLiveQuery('')
+      if (isSearchPage && wasUserClear && !leaveInFlightRef.current && hasUrlQueryRef.current) {
+        void navigate({
+          to: '/settings/search',
+          replace: true,
+          search: (prev: Record<string, unknown>) => {
+            const rest = { ...prev }
+            delete rest.q
+            return rest
+          }
+        })
       }
       return
     }
@@ -140,12 +151,13 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [value, navigate, isSearchPage, router, performLeave])
+  }, [value, navigate, isSearchPage])
 
   // Expands horizontally over the header row at the standing box's width
   return (
     <div className="fade-in slide-in-from-right-2 w-full animate-in duration-150">
       <SearchInput
+        ref={inputRef}
         autoFocus
         size="sm"
         // h-8 matches the header row height; sm keeps the compact text
@@ -160,14 +172,18 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
         aria-activedescendant={hasResults ? optionDomId(activeIndex) : undefined}
         className={cn(isSearchPage && 'border-primary')}
         onChange={(e) => {
-          setValue(e.target.value)
+          const next = e.target.value
+          if (!next.trim()) clearIntentRef.current = true
+          setValue(next)
           // Immediate pre-debounce mirror: the results page ranks against the
           // live query so Enter never jumps on stale (pre-keystroke) results
-          setLiveQuery(e.target.value)
+          setLiveQuery(next)
         }}
         onClear={() => {
-          exitSearch()
-          if (!isSearchPage) onCollapse()
+          clearIntentRef.current = true
+          setValue('')
+          setLiveQuery('')
+          inputRef.current?.focus()
         }}
         clearLabel={t('common.clear')}
         onBlur={() => {

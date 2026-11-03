@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,7 +7,7 @@ import { vi } from 'vitest'
 const { execFileSync, spawn } = vi.hoisted(() => ({ execFileSync: vi.fn(), spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 
-import { launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
+import { launchApp, readAppRecord, restartApp, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
@@ -47,7 +47,7 @@ it.each(['macos', 'windows'] as const)(
         process.execPath,
         join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
         '--',
-        '--inspect',
+        '--inspect=9229',
         '--sourcemap',
         '--remote-debugging-port=9222',
         '--disable-backgrounding-occluded-windows'
@@ -56,6 +56,12 @@ it.each(['macos', 'windows'] as const)(
       expect(options.env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
       expect(options.cwd).toBe(directory)
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
+      // The app writes CLI provider config against `sys.home`; it must point into the run directory
+      // so CODE-02 cannot rewrite the machine owner's real ~/.codex credentials.
+      expect(options.env.HOME).toBe(join(paths.home, 'authenticated'))
+      expect(options.env.CODEX_HOME).toBe(join(paths.home, 'authenticated', '.codex'))
+      expect(options.env.CLAUDE_CONFIG_DIR).toBe(join(paths.home, 'authenticated', '.claude'))
+      expect(existsSync(join(paths.home, 'authenticated', '.codex'))).toBe(true)
       expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
     } finally {
       vi.restoreAllMocks()
@@ -106,6 +112,30 @@ it('starts Windows installers with both owned inspector and renderer CDP ports',
   } finally {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('refuses to launch when another process owns the inspector port', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-owned-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  execFileSync.mockImplementation((file: string, args: string[]) =>
+    file === 'lsof' && args[1] === '-iTCP:9229' ? '9999' : ''
+  )
+  try {
+    await expect(
+      launchApp(paths, {
+        mode: 'branch',
+        platform: 'macos',
+        profile: 'clean',
+        targetRoot: directory,
+        runKey: 'inspector-owned'
+      })
+    ).rejects.toThrow('Inspector port 9229 is already owned by process 9999')
+    expect(spawn).not.toHaveBeenCalled()
+  } finally {
+    vi.restoreAllMocks()
     rmSync(directory, { recursive: true, force: true })
   }
 })
@@ -205,3 +235,50 @@ it.each([true, false])(
     }
   }
 )
+
+it('restarts the isolated profile after an owned pre-main launch has exited', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  writeFileSync(
+    paths.appRecord,
+    JSON.stringify({
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'authenticated',
+      runKey: 'promotion',
+      targetRoot: directory,
+      runnerPid: 42000,
+      cdpPort: 9222,
+      logPath: join(paths.logs, 'electron.log'),
+      restartCount: 1
+    })
+  )
+  let launched = false
+  execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+  spawn.mockImplementation(() => {
+    launched = true
+    return { pid: 42001, unref() {} }
+  })
+  vi.spyOn(process, 'kill').mockImplementation((pid) => {
+    if (pid === 42001) return true
+    throw new Error('Process not found')
+  })
+  vi.stubGlobal('fetch', async () => ({
+    ok: true,
+    json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+  }))
+  try {
+    expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+    const ready = await restartApp(paths)
+    expect(ready).toMatchObject({ electronPid: 42001, profile: 'authenticated', runKey: 'promotion', restartCount: 2 })
+    expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

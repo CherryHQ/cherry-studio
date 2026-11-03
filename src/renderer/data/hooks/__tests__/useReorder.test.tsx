@@ -20,6 +20,7 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
   return { ...actual, isDev: false }
 })
 
+import { useInfiniteQuery, useQuery } from '../useDataApi'
 import { useReorder } from '../useReorder'
 
 // --- dataApiService mock ---
@@ -101,12 +102,27 @@ describe('useReorder - move()', () => {
   it('applies optimistic update then issues PATCH /:id/order with anchor body, revalidating on success', async () => {
     const initial: CollectionValue = { items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }
     const { Wrapper, cache } = makeWrapper(initial)
-    patchMock.mockResolvedValue({})
+    let finish!: () => void
+    patchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({})
+        })
+    )
+    const serverValue = { items: [{ id: 'c' }, { id: 'a' }, { id: 'b' }] }
+    getMock.mockResolvedValue(serverValue)
 
     const { result } = renderReorder(COLLECTION, Wrapper)
 
+    let operation!: Promise<void>
+    act(() => {
+      operation = result.current.move('c', { position: 'first' })
+    })
+    await waitFor(() => expect(readCollection(cache)).toEqual(serverValue))
+    await waitFor(() => expect(patchMock).toHaveBeenCalled())
     await act(async () => {
-      await result.current.move('c', { position: 'first' })
+      finish()
+      await operation
     })
 
     // PATCH was called with the concrete URL + body
@@ -119,9 +135,7 @@ describe('useReorder - move()', () => {
       expect(getMock).toHaveBeenCalledWith(COLLECTION, expect.any(Object))
     })
 
-    // Optimistic items were persisted in cache at some point (order: c, a, b)
-    // and the final cached shape matches what the server revalidation returned.
-    expect(readCollection(cache)).toBeDefined()
+    expect(readCollection(cache)).toEqual(serverValue)
   })
 
   it('rolls back on failure by revalidating the collection and rethrows', async () => {
@@ -129,6 +143,7 @@ describe('useReorder - move()', () => {
     const { Wrapper, cache } = makeWrapper(initial)
     const failure = new Error('server rejected')
     patchMock.mockRejectedValue(failure)
+    getMock.mockResolvedValue(initial)
 
     const { result } = renderReorder(COLLECTION, Wrapper)
 
@@ -142,8 +157,7 @@ describe('useReorder - move()', () => {
     await waitFor(() => {
       expect(getMock).toHaveBeenCalledWith(COLLECTION, expect.any(Object))
     })
-    // And cache key still exists (the provider was written by revalidation).
-    expect(readCollection(cache)).toBeDefined()
+    expect(readCollection(cache)).toEqual(initial)
   })
 
   it('passes { before: X } straight through as the request body', async () => {
@@ -657,5 +671,98 @@ describe('useReorder - custom accessors', () => {
     } finally {
       errSpy.mockRestore()
     }
+  })
+})
+
+describe('useReorder - query and infinite caches', () => {
+  it('updates subscribers of the selected query without changing a sibling collection', async () => {
+    const query = { entityType: 'knowledge' } as const
+    const initial = [{ id: 'a' }, { id: 'b' }]
+    const sibling = [{ id: 'x' }]
+    const { Wrapper, cache } = createSWRTestWrapper([
+      [['/groups', query], initial],
+      [['/groups', { entityType: 'agent' }], sibling]
+    ])
+    patchMock.mockResolvedValue({})
+    const { result } = renderHook(
+      () => {
+        const first = useQuery('/groups', { query, swrOptions: { revalidateOnMount: false } })
+        const second = useQuery('/groups', { query, swrOptions: { revalidateOnMount: false } })
+        return { first, second, reorder: useReorder('/groups', { query, revalidateOnSuccess: false }) }
+      },
+      { wrapper: Wrapper }
+    )
+
+    await act(async () => {
+      await result.current.reorder.move('b', { position: 'first' })
+    })
+
+    expect(result.current.first.data?.map((item) => item.id)).toEqual(['b', 'a'])
+    expect(result.current.second.data?.map((item) => item.id)).toEqual(['b', 'a'])
+    expect(cache.get(unstable_serialize(['/groups', { entityType: 'agent' }]))?.data).toEqual(sibling)
+  })
+
+  it.each([false, true])('shares a move across infinite pages and restores server truth (failure=%s)', async (fail) => {
+    const query = { sortBy: 'orderKey', sortOrder: 'asc' } as const
+    const initial = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
+    let serverItems = initial
+    getMock.mockImplementation(async (_path, options) => {
+      const offset = (options?.query as { cursor?: string })?.cursor ? 2 : 0
+      return { items: serverItems.slice(offset, offset + 2), total: 4, nextCursor: offset === 0 ? 'page-2' : null }
+    })
+    let finishPatch!: () => void
+    patchMock.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          finishPatch = () => (fail ? reject(new Error('rejected')) : resolve({}))
+        })
+    )
+    const { Wrapper } = createSWRTestWrapper()
+    const options = { query, limit: 2, swrOptions: { initialSize: 2, revalidateAll: true } }
+    const { result } = renderHook(
+      () => {
+        const first = useInfiniteQuery('/knowledge-bases', options)
+        const second = useInfiniteQuery('/knowledge-bases', options)
+        const page = useQuery('/knowledge-bases', { query: { ...query, limit: 2 } })
+        return { first, second, page, reorder: useReorder('/knowledge-bases', { query, infinite: { limit: 2 } }) }
+      },
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.first.pages).toHaveLength(2))
+    const request = { anchor: { before: 'a' }, groupId: 'destination' }
+    let operation!: Promise<void>
+    act(() => {
+      operation = result.current.reorder.move('d', request).catch((error) => {
+        if (!fail) throw error
+      })
+    })
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith('/knowledge-bases/d/order', { body: request, query: undefined })
+    )
+
+    expect(result.current.first.pages.flatMap((page) => page.items.map((item) => item.id))).toEqual([
+      'd',
+      'a',
+      'b',
+      'c'
+    ])
+    expect(result.current.second.pages.flatMap((page) => page.items.map((item) => item.id))).toEqual([
+      'd',
+      'a',
+      'b',
+      'c'
+    ])
+    expect(result.current.page.data?.items.map((item) => item.id)).toEqual(['d', 'a'])
+    expect(result.current.first.pages.map((page) => page.nextCursor)).toEqual(['page-2', null])
+    expect(result.current.reorder.isPending).toBe(true)
+
+    serverItems = fail ? initial : [initial[3], initial[0], initial[1], initial[2]]
+    await act(async () => {
+      finishPatch()
+      await operation
+    })
+    await waitFor(() => expect(result.current.first.pages.flatMap((page) => page.items)).toEqual(serverItems))
+    expect(result.current.second.pages.flatMap((page) => page.items)).toEqual(serverItems)
+    expect(result.current.reorder.isPending).toBe(false)
   })
 })

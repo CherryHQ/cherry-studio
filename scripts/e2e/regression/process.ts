@@ -4,8 +4,14 @@ import { join } from 'node:path'
 import type { AppRecord } from './lifecycle'
 import type { Platform } from './types'
 
-export const CDP_PORT = 9222
-export const MAIN_INSPECTOR_PORT = 9229
+function portFromEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name])
+  return Number.isInteger(value) && value > 0 && value < 65536 ? value : fallback
+}
+
+// Overridable so a second regression run can share the host (CI and a local session used to fight over 9222).
+export const CDP_PORT = portFromEnv('CHERRY_CDP_PORT', 9222)
+export const MAIN_INSPECTOR_PORT = portFromEnv('CHERRY_INSPECTOR_PORT', 9229)
 
 export function isAlive(pid: number): boolean {
   try {
@@ -195,4 +201,17 @@ export function findListeningPid(platform: Platform, port: number): number | und
 
 export function findCdpPid(platform: Platform): number | undefined {
   return findListeningPid(platform, CDP_PORT)
+}
+
+/** Process group of a live process; the group is what macOS cleanup signals. */
+export function findProcessGroupId(pid: number, platform: Platform): number | undefined {
+  if (platform === 'windows') return undefined
+  try {
+    const groupId = Number(
+      execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
+    )
+    return Number.isSafeInteger(groupId) && groupId > 0 ? groupId : undefined
+  } catch {
+    return undefined
+  }
 }

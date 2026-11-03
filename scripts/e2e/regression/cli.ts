@@ -1,18 +1,16 @@
-import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
 import { createFixtures } from './fixtureFiles'
-import { installReleaseArtifact } from './installation'
+import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
 import { createRedactor } from './redaction'
-import { parseRemoteRefs, resolveTrustedRef } from './ref'
+import { resolveRepositoryRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
 import { PLATFORMS, RUN_MODES } from './types'
@@ -74,13 +72,7 @@ function redactLogs(paths: ReturnType<typeof getRunPaths>): void {
 async function resolveRefCommand(): Promise<void> {
   const requested = argument('requested') ?? ''
   const repository = argument('repository') ?? ''
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error('Invalid GitHub repository slug')
-  const remote = `https://github.com/${repository}.git`
-  const output = execFileSync('git', ['ls-remote', '--heads', '--tags', remote], {
-    encoding: 'utf8',
-    timeout: 60_000
-  })
-  const resolvedRef = resolveTrustedRef(requested, parseRemoteRefs(output))
+  const resolvedRef = resolveRepositoryRef(requested, repository)
   outputLine('mode', resolvedRef.kind)
   outputLine('name', resolvedRef.name)
   outputLine('ref', resolvedRef.ref)
@@ -123,41 +115,13 @@ async function releaseCommand(): Promise<void> {
   let run = readRun(paths.runState)
   if (run.metadata.mode !== 'tag') throw new Error('Release preparation is only valid for a tag run')
   const repository = argument('repository') ?? ''
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error('Invalid GitHub repository slug')
-  const arch = normalizeRunnerArch(argument('arch') ?? '')
-  const releaseJson = execFileSync(
-    'gh',
-    ['api', `repos/${repository}/releases/tags/${encodeURIComponent(run.metadata.ref)}`],
-    { encoding: 'utf8', timeout: 60_000 }
-  )
-  const release = JSON.parse(releaseJson) as {
-    assets: Array<{ name: string }>
-  }
-  const artifactName = selectReleaseAsset(
-    release.assets.map(({ name }) => name),
-    run.metadata.platform,
-    arch
-  )
-  execFileSync(
-    'gh',
-    [
-      'release',
-      'download',
-      run.metadata.ref,
-      '--repo',
-      repository,
-      '--pattern',
-      artifactName,
-      '--dir',
-      paths.artifacts,
-      '--clobber'
-    ],
-    { stdio: 'inherit', timeout: 300_000 }
-  )
-  const artifactPath = join(paths.artifacts, artifactName)
-  const artifactSha256 = await sha256File(artifactPath)
-  installReleaseArtifact(paths, run.metadata.platform, artifactPath, artifactSha256)
-  run = updateRunMetadata(run, { artifactName, artifactSha256 })
+  const installation = await prepareRelease(paths, {
+    repository,
+    ref: run.metadata.ref,
+    platform: run.metadata.platform,
+    arch: argument('arch') ?? ''
+  })
+  run = updateRunMetadata(run, { artifactName: installation.artifactName, artifactSha256: installation.artifactSha256 })
   writeRun(paths.runState, run)
 }
 

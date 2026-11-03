@@ -50,6 +50,15 @@ diff --git a/dist/index.js b/dist/index.js
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
+@@ -867,7 +893,7 @@
+                 controller.enqueue({
+                   type: "tool-input-delta",
+                   id: toolCall.id,
+-                  delta: (_v = toolCallDelta.function.arguments) != null ? _v : ""
++                  delta: (_v = toolCallDelta.function?.arguments) != null ? _v : ""
+                 });
+               }
+             }
 @@ -983,6 +1009,14 @@
                }).nullish()
              }).nullish()
@@ -65,6 +74,15 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
+@@ -1011,7 +1045,7 @@
+             function: import_v43.z.object({
+               name: import_v43.z.string().nullish(),
+               arguments: import_v43.z.string().nullish()
+-            }),
++            }).optional(),
+             // Support for Google Gemini thought signatures via OpenAI compatibility
+             extra_content: import_v43.z.object({
+               google: import_v43.z.object({
 @@ -1019,6 +1053,14 @@
                }).nullish()
              }).nullish()
@@ -238,6 +256,15 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
+@@ -853,7 +879,7 @@
+                 controller.enqueue({
+                   type: "tool-input-delta",
+                   id: toolCall.id,
+-                  delta: (_v = toolCallDelta.function.arguments) != null ? _v : ""
++                  delta: (_v = toolCallDelta.function?.arguments) != null ? _v : ""
+                 });
+               }
+             }
 @@ -969,6 +995,14 @@
                }).nullish()
              }).nullish()
@@ -253,6 +280,15 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
+@@ -997,7 +1031,7 @@
+             function: z3.object({
+               name: z3.string().nullish(),
+               arguments: z3.string().nullish()
+-            }),
++            }).optional(),
+             // Support for Google Gemini thought signatures via OpenAI compatibility
+             extra_content: z3.object({
+               google: z3.object({
 @@ -1005,6 +1039,14 @@
                }).nullish()
              }).nullish()

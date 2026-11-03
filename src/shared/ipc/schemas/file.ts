@@ -22,6 +22,7 @@ import { type CreateTreeIpcResult, DirectoryTreeOptionsSchema, type TreeMutation
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
+import { fileEditRequestSchemas } from './fileEdit'
 
 /** Maximum entry ids accepted by one file batch IPC call. */
 export const FILE_IPC_MAX_BATCH_IDS = 500
@@ -130,6 +131,7 @@ const treeIdSchema = z.string().min(1)
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  ...fileEditRequestSchemas,
   'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
   'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: FileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
@@ -171,10 +173,11 @@ export const fileRequestSchemas = {
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.validate_notes_directory': defineRoute({ input: AbsoluteFilePathSchema, output: z.boolean() }),
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
   // `activate` releases the buffered mutations once the renderer mirror is listening.
-  // See docs/references/file/directory-tree.md.
+  // See docs/dev/references/file/directory-tree.md.
   'file.tree.create': defineRoute({
     input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
     // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —

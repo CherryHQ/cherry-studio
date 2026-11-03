@@ -34,16 +34,18 @@ export function getFileExtension(filePath: string): string {
 }
 
 /**
- * 从文件路径中移除文件扩展名。
+ * 从文件路径中移除文件扩展名。前导点是隐藏文件名（`.env`）而非扩展名，
+ * 目录名里也可能带点（`/srv/app.d/file`），故只按基名的最后一个点判断。
+ *
  * @param {string} filePath 文件路径
  * @returns {string} 移除扩展名后的文件路径
  */
 export function removeFileExtension(filePath: string): string {
-  const parts = filePath.split('.')
-  if (parts.length > 1) {
-    return parts.slice(0, -1).join('.')
-  }
-  return filePath
+  const separatorIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  const baseName = separatorIndex === -1 ? filePath : filePath.slice(separatorIndex + 1)
+  const dotIndex = baseName.lastIndexOf('.')
+  if (dotIndex <= 0) return filePath
+  return filePath.slice(0, filePath.length - (baseName.length - dotIndex))
 }
 
 /**

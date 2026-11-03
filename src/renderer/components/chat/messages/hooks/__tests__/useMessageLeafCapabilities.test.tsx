@@ -124,3 +124,16 @@ describe('useMessageLeafCapabilities', () => {
     ).toEqual({ displayName: 'report.pdf' })
   })
 })
+
+it('sends application links through the typed main route while preserving web window.open', async () => {
+  const request = vi.fn().mockResolvedValue({ ok: true, data: undefined })
+  Object.assign(window.api, { ipcApi: { request } })
+  const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+  const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+  await result.current.openExternalUrl?.('obsidian://new?file=Note')
+  expect(request).toHaveBeenCalledExactlyOnceWith('system.shell.open_external_website', 'obsidian://new?file=Note')
+  expect(open).not.toHaveBeenCalled()
+  await result.current.openExternalUrl?.('http://example.test')
+  expect(open).toHaveBeenCalledExactlyOnceWith('http://example.test', '_blank', 'noopener,noreferrer')
+  open.mockRestore()
+})
