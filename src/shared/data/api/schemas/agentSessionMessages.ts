@@ -5,6 +5,7 @@
 import * as z from 'zod'
 
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
+import { MessageProvenanceSchema } from '@shared/data/types/conversationImport'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -54,6 +55,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   id: z.string(),
   /** Session ID this message belongs to */
   sessionId: z.string(),
+  provenance: MessageProvenanceSchema.nullable().optional(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),

@@ -986,6 +986,7 @@ export class AgentSessionMessageService {
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
       data: publicMessageData(row.data),
+      ...(row.provenance ? { provenance: row.provenance } : {}),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
@@ -1276,6 +1277,29 @@ export class AgentSessionMessageService {
       agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
     }
     return saved
+  }
+
+  setImportedAnchorsTx(tx: DbOrTx, sessionId: string, anchors: ReadonlyMap<string, unknown>): void {
+    for (const [id, anchor] of anchors) {
+      const row = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.id, id), eq(sessionMessagesTable.sessionId, sessionId)))
+        .get()
+      if (!row) throw new Error('source_changed')
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...row.data, runtimeAnchor: anchor }, updatedAt: row.updatedAt })
+        .where(eq(sessionMessagesTable.id, id))
+        .run()
+    }
+  }
+
+  importMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly Omit<InsertSessionMessageRow, 'sessionId'>[]): void {
+    if (this.hasSessionMessages(sessionId)) throw new Error('session_not_empty')
+    for (const row of rows)
+      tx.insert(sessionMessagesTable)
+        .values({ ...row, sessionId })
+        .run()
   }
 
   saveMessagesTx(
