@@ -254,7 +254,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           (projection) => this.events.push({ type: 'message-projection', projection }),
           (message) => this.adapter.decorate(message)
         )
-        await this.projection.accept(event, !initial, this.handle!.durable.aliases())
+        await this.projection.accept(event, this.baseline, this.handle!.durable.aliases())
         this.baseline = true
         this.active = nowActive
         for (const relation of event.subagents ?? [])

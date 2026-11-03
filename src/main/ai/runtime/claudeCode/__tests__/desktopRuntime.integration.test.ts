@@ -9,6 +9,8 @@ import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
+import type { ClaudeThreadHandle } from '@cherrystudio/agent-runtime-claude-code'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -80,6 +82,7 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   })
   let connection: AgentRuntimeConnection | undefined
   const events: AgentRuntimeEvent[] = []
+  const nativeInputs: InputState[] = []
   const input = (text: string) => ({
     message: messages.saveMessage({
       sessionId,
@@ -95,6 +98,11 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
       branchHead
     })
     const current = connection
+    const handle = (current as unknown as { handle: ClaudeThreadHandle }).handle
+    await handle.observe((event) => {
+      if (event.type === 'snapshot') nativeInputs.push(...event.inputs)
+      if (event.type === 'input.changed') nativeInputs.push(event.input)
+    })
     const reading = (async () => {
       for await (const event of current.events) events.push(event)
     })()
@@ -117,7 +125,7 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     return find()!
   }
-  return { ...test, sessionId, input, connect, events, wait }
+  return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
 
 // A native priority input must roll the host only when consumed; the child owns its own stored output.
@@ -133,8 +141,10 @@ it('joins native steer to the shared answer while keeping foreground child histo
   const second = test.input('Use the revised requirement')
   expect(connection.redirect!(second)).toBe(true)
   await expect
-    .poll(() => messages.readSubmission(test.sessionId, second.message.id).submission.facts)
-    .toContain('dispatch-started')
+    .poll(() =>
+      test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
+    )
+    .toBe(true)
   child.reply.block({ type: 'text', text: 'Independent child answer' })
   child.reply.finish()
   const response = await test.request()
@@ -144,10 +154,11 @@ it('joins native steer to the shared answer while keeping foreground child histo
   const boundary = await test.wait('steer-boundary')
   expect(boundary.inputs.map((input) => input.message.id)).toEqual([second.message.id])
   await test.wait('turn-complete')
-  const replies = test.events.filter((event) => event.type === 'input-response')
-  expect(replies.map((event) => event.input.inputId)).toContain(first.message.id)
-  expect(replies.map((event) => event.input.inputId)).toContain(second.message.id)
-  expect(new Set(replies.map((event) => event.input.response?.id)).size).toBe(1)
+  const replies = [
+    ...new Map(test.nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
+  ]
+  expect(replies.map((state) => state.inputId)).toEqual(expect.arrayContaining([first.message.id, second.message.id]))
+  expect(new Set(replies.map((state) => state.response?.id)).size).toBe(1)
   const context = contexts.findChild(test.sessionId, 'toolu_desktop')!
   expect(context).toBeDefined()
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Independent child answer')
@@ -475,8 +486,39 @@ it('submits native image blocks and local document paths through the common owne
   request.reply.finish()
   await test.wait('turn-complete')
   const saved = dbh.db.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, input.message.id)).get()
-  expect(saved?.submission?.outcome).toBe('completed')
+  expect(saved).toMatchObject({ inputContextId: expect.any(String), nativeInputId: expect.any(String) })
+  expect(test.nativeInputs.some((state) => state.inputId === input.message.id && state.outcome === 'completed')).toBe(
+    true
+  )
 }, 30000)
+
+it.each(['rejected', 'unsupported', 'unknown'] as const)(
+  'retains only uncertain Claude input bindings after %s',
+  async (status) => {
+    const test = await desktop()
+    const connection = await test.connect()
+    const user = test.input('not accepted')
+    const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+    vi.spyOn(handle.claude, 'submit').mockResolvedValue({
+      status,
+      inputId: runtimeId(user.message.id),
+      error: { operation: 'submit', code: 'fixture', message: status }
+    })
+    await expect(connection.send(user)).rejects.toThrow(status)
+    if (status === 'unknown') {
+      expect(messages.inputBinding(test.sessionId, user.message.id)?.contextId).toBeDefined()
+      expect(() => messages.deleteSessionMessage(test.sessionId, user.message.id)).toThrow('native input binding')
+    } else {
+      expect(messages.inputBinding(test.sessionId, user.message.id)).toBeUndefined()
+      messages.updateSessionMessage(test.sessionId, user.message.id, {
+        data: { parts: [{ type: 'text', text: 'corrected' }] }
+      })
+      messages.deleteSessionMessage(test.sessionId, user.message.id)
+      expect(() => messages.getSessionMessage(test.sessionId, user.message.id)).toThrow()
+    }
+  },
+  30000
+)
 
 // Editing the first user turn reserves a new native identity, without creating an archive to resume.
 it('creates a reserved empty Claude branch and reopens it after its first answer', async () => {

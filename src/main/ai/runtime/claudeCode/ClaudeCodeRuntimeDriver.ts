@@ -10,8 +10,11 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
-import { applyNativeSubmissionResult, bindNativeInput } from '@main/ai/agentSession/nativeSubmission'
-import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import {
+  prepareNativeSubmission,
+  applyNativeSubmissionResult,
+  bindNativeInput
+} from '@main/ai/agentSession/nativeSubmission'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 
 import { canSalvageClaudeOutput } from './processExitDiagnostics'
@@ -471,12 +474,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, 'follow-up', {
+    const contextId = this.context!.id
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
-    applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
+    applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
 
@@ -492,12 +496,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, 'steer', {
+    const contextId = this.context!.id
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'steer')
-    applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
+    applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
 
