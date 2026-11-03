@@ -2,4 +2,4 @@
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-02-local-agent-history-import.md
 2026-11-02-local-agent-history-import.md: 36500a3200c05721b79761d4866319ba6a1fe752
-2026-11-02-local-agent-history-import.zh.md: cccd78315660bdd94d3f16a88d473d83e7983033
+2026-11-02-local-agent-history-import.zh.md: 261fa665b64fa3e16b0df8e3bde198dc834e26ce
