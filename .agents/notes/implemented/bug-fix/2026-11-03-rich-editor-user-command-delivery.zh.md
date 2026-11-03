@@ -12,7 +12,7 @@ Status: implemented
 
 用户命令入口在格式操作所在的同一事务上标记意图。编辑器 hook 统一读取该意图，即使焦点尚未到达也交付文档变更。编辑器仍须可编辑且文档必须发生变化；未标记事务继续受焦点条件过滤。
 
-本决定与负责会话身份和快照交付的[笔记会话隔离及静默快照加载](2026-10-22-notes-session-isolation.zh.md)互补。
+本决定与负责会话身份和快照交付的[笔记会话隔离及静默快照加载](2026-10-22-notes-session-isolation.md)互补。
 
 ## Alternatives considered
 
