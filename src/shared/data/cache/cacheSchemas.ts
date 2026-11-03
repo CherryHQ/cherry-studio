@@ -2,6 +2,7 @@ import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/da
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
+import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
@@ -370,9 +371,12 @@ export type SharedCacheSchema = {
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
   // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
-  // mirrors the progress of the job the item waits on here when it changes, so the row can
-  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  // mirrors the progress of the task the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means the conversion has not started.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
+  // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.
+  'file_processing.task.${taskId}': FileProcessingTask | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -416,7 +420,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-  'knowledge.item.file_processing_progress.${itemId}': null
+  'knowledge.item.file_processing_progress.${itemId}': null,
+  'file_processing.task.${taskId}': null
 }
 
 /**

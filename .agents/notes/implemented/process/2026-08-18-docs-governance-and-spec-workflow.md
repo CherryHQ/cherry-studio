@@ -8,9 +8,9 @@ English | [中文](2026-08-18-docs-governance-and-spec-workflow.zh.md)
 
 The repository's developer documentation has four connected defects, and no mechanism catches any of them.
 
-**Docs rot silently.** `docs/guides/middleware.md` teaches the deleted v1 `AiProviderMiddlewareTypes` middleware system (zero hits in `src/`). `docs/references/messaging/message-system.md` documents a Redux + IndexedDB message store that no longer exists: the repo has no `@reduxjs/toolkit` dependency, no `messageThunk.ts`, no `src/renderer/store/`. Both read as current authority to contributors and agents. The only doc gate, `docs:check-links`, validates that link targets exist — nothing more — and CI never runs it: `ci:basic-check` covers lint, format, typecheck, i18n, and skills, not docs.
+**Docs rot silently.** `docs/guides/middleware.md` teaches the deleted v1 `AiProviderMiddlewareTypes` middleware system (zero hits in `src/`). `docs/dev/references/messaging/message-system.md` documents a Redux + IndexedDB message store that no longer exists: the repo has no `@reduxjs/toolkit` dependency, no `messageThunk.ts`, no `src/renderer/store/`. Both read as current authority to contributors and agents. The only doc gate, `docs:check-links`, validates that link targets exist — nothing more — and CI never runs it: `ci:basic-check` covers lint, format, typecheck, i18n, and skills, not docs.
 
-**The hierarchy misleads.** The `guides/` vs `references/` split does not hold: `guides/` mostly holds process policy (contributing, branching-strategy, test-plan) and usage references (logging, i18n, diagnostics), not tutorials. The `references/` top level is an open set mixing 17 domain directories with 10 loose files. The docs split one domain into `chat/` and `messaging/` where the code has only chat. `docs/README.md` is a hand-maintained index that has already drifted: `main-process-architecture.md`, `renderer-architecture.md`, `shared-layer-architecture.md`, and `naming-conventions.md` are not listed at all, and `chat/message-tree.md` is listed under the Messaging section. Root `CONTRIBUTING.md` has a drifted near-copy at `docs/guides/contributing.md` whose "中文" language switcher links to itself — the Chinese version does not exist.
+**The hierarchy misleads.** The `guides/` vs `references/` split does not hold: `guides/` mostly holds process policy (contributing, branching-strategy, test-plan) and usage references (logging, i18n, diagnostics), not tutorials. The `references/` top level is an open set mixing 17 domain directories with 10 loose files. The docs split one domain into `chat/` and `messaging/` where the code has only chat. `docs/dev/README.md` is a hand-maintained index that has already drifted: `main-process-architecture.md`, `renderer-architecture.md`, `shared-layer-architecture.md`, and `naming-conventions.md` are not listed at all, and `chat/message-tree.md` is listed under the Messaging section. Root `CONTRIBUTING.md` has a drifted near-copy at `docs/guides/contributing.md` whose "中文" language switcher links to itself — the Chinese version does not exist.
 
 **Decisions evaporate.** Rationale and rejected alternatives live only in PR threads and chat. With multiple agents working in parallel, the same declined idea gets re-proposed and re-litigated because nothing records that it lost, or why.
 
@@ -40,7 +40,7 @@ Rules:
 - Every domain directory has a `README.md` that owns the domain: full detail about its own subject, children summarized with links. One fact, one home.
 - Files inside a domain directory do not repeat the domain prefix (`window-manager-usage.md` → `usage.md`); existing prefixed files are renamed during their domain's Phase 0b move, when inbound links are being rewritten anyway. **Superseded for Phase 0b:** the [implemented audit outcomes](./2026-08-19-phase-0b-doc-audit-outcomes.md) preserve existing basenames unless a move or ambiguity requires a rename.
 - Division of labor with code-adjacent READMEs (`src/main/core/paths/README.md`, `tests/__mocks__/README.md`, …): cross-cutting or multi-module material lives in `docs/`; module-private facts live next to the module.
-- `docs/README.md` becomes a generated thin index; the hand-maintained table is retired.
+- `docs/dev/README.md` becomes a generated thin index; the hand-maintained table is retired.
 
 Disposition of current files (decided here; executed in Phase 0b):
 
@@ -56,13 +56,13 @@ Disposition of current files (decided here; executed in Phase 0b):
 | `references/{architecture-overview,main-process-architecture,renderer-architecture,shared-layer-architecture,naming-conventions}.md` | Move → `references/architecture/`. |
 | `guides/{logging,i18n}.md` | Move → their subject domains under `references/`. |
 | `guides/diagnostics.md` | Placement (contrib vs reference) decided during its Phase 0b audit. |
-| `docs/sponsor.md` | **Stays at the `docs/` root** — a user-facing page linked from the root README, not a developer doc; outside the reference tree, the gates, and bilingual pairing. |
+| `docs/dev/sponsor.md` | **Stays at the `docs/` root** — a user-facing page linked from the root README, not a developer doc; outside the reference tree, the gates, and bilingual pairing. |
 | `references/chat/{adapters,conventions}.md` | **Keep in place** — explicitly marked target-architecture design docs; their home is re-decided when the adapters code lands. Out of Phase 0b scope. **Superseded by the [implemented audit outcomes](./2026-08-19-phase-0b-doc-audit-outcomes.md).** |
 | `references/file/architecture.md` + `file-manager-architecture.md` | **Keep both** — deliberately layered with mutual SoT-scope declarations, not rot. |
 
 ### P2 — Frontmatter
 
-Every doc under `docs/references/**` carries:
+Every doc under `docs/dev/references/**` carries:
 
 ```yaml
 ---
@@ -72,7 +72,7 @@ sources: # code paths this document describes; directories preferred
 ---
 ```
 
-`docs/contrib/**` requires only `description`. Agent Notes carry **no frontmatter** — their path and header block already encode their metadata, as in dsh. `docs/sponsor.md` is a user-facing page linked from the root README, not a developer doc: it stays at the `docs/` root and is outside every gate's scan scope (which covers `references/` and `contrib/` only) and outside bilingual pairing.
+`docs/dev/contrib/**` requires only `description`. Agent Notes carry **no frontmatter** — their path and header block already encode their metadata, as in dsh. `docs/dev/sponsor.md` is a user-facing page linked from the root README, not a developer doc: it stays at the `docs/` root and is outside every gate's scan scope (which covers `references/` and `contrib/` only) and outside bilingual pairing.
 
 A `sources` entry is a **path prefix**: a diff path is attributed to a doc when it equals the entry or lies beneath it, so a directory entry covers all its descendants. That is what makes the Phase 4 reverse lookup work on subtree changes; it is also why a broad entry weakens the signal, and why an entry names the narrowest directory that still holds the doc's whole subject.
 
@@ -84,7 +84,7 @@ The documentation-governance commands live together under `scripts/docsGovernanc
 
 - `verify-doc-structure` — closed set at the `references/` root; every domain directory has a `README.md`.
 - `verify-doc-frontmatter` — required fields present; every `sources` path exists. This catches one specific class of rot — the doc whose subject was deleted or moved away, which is exactly what `middleware.md` and `message-system.md` were — on the day the code moves. **It is an existence test, not a freshness test**: a doc that goes stale while its paths survive (behavior changed in place, or a file moved within a broad directory entry) stays green. Semantic staleness is caught by the Phase 4 reverse lookup and by review, not here.
-- `gen-doc-index` (with `--check`) — regenerates `docs/README.md` from frontmatter; drift fails.
+- `gen-doc-index` (with `--check`) — regenerates `docs/dev/README.md` from frontmatter; drift fails.
 
 Wiring: a new aggregate `pnpm docs:check` = `docs:check-links` + the three above; it replaces the bare `docs:check-links` inside `build:check`. Closing the CI gap takes a **workflow** edit, not only a script edit: `.github/workflows/ci.yml` does not invoke `pnpm ci:basic-check` — its `basic-checks` job inlines the individual commands through `concurrently`, so `docs:check` must be added to that step to run in CI at all. The `ci:basic-check` script is updated alongside it to keep the local equivalent honest.
 
@@ -108,7 +108,7 @@ The full rules live in `.agents/notes/README.md`; subtree `AGENTS.md` files load
 
 Every in-scope document is an English/Chinese pair plus a consistency sidecar: `foo.md` + `foo.zh.md` + `foo.i18n.yaml` recording the git blob hash of each side as of the last confirmed-consistent state (a port of dsh's `verify-translation-pairing`). Either language may be authored first; an out-of-sync pair is repaired by patching the counterpart against the edited side's diff, never by re-translating whole files.
 
-Scope rolls out by discovery root — a deliberate deviation from dsh's no-rollout-list stance: active `.agents/notes/**`, root `CONTRIBUTING.md`, and new `docs/i18n/**` governance first, extending to the audited documentation corpus only after the final translation backfill. `scripts/i18n-glossary.json` remains the machine terminology owner; `docs/i18n/terminology.md` is its generated bilingual agent view.
+Scope rolls out by discovery root — a deliberate deviation from dsh's no-rollout-list stance: active `.agents/notes/**`, root `CONTRIBUTING.md`, and new `docs/dev/i18n/**` governance first, extending to the audited documentation corpus only after the final translation backfill. `scripts/i18n-glossary.json` remains the machine terminology owner; `docs/dev/i18n/terminology.md` is its generated bilingual agent view.
 
 The routine gate checks hashes, switchers, Markdown structure, and Cherry frontmatter. Its staged-index mode discovers pair artifacts from Git's staged diff, including deletions and both sides of renames, then validates index blobs to prevent partial commits. Merge drivers, snapshot refs, translation brief generation, and automated semantic translation remain deferred until a measured need exists.
 
@@ -116,7 +116,7 @@ The routine gate checks hashes, switchers, Markdown structure, and Cherry frontm
 
 Five public skills make the policy operational: `agent-notes`, `docs-governance`, `translate-docs`, `find-simplifications`, and `gh-stack`. The repository-owned stack skill makes extension installation and non-interactive stack operation available on a fresh checkout, while `gh-create-pr` retains ownership of Cherry's PR template and lifecycle checks. Root and subtree instructions route ordinary work into these skills without relying on memory or developer-global setup.
 
-One zero-dependency `change:scope` report owns base/head resolution and committed/staged/unstaged/untracked paths. `docs:affected`, PR creation, PR review, lifecycle transition checks, and post-stack validation consume it. The generated `docs/sources-index.json` maps source prefixes to candidate docs; `gh-pr-review` treats matches as mandatory semantic inspection, never as an automatic CI failure.
+One zero-dependency `change:scope` report owns base/head resolution and committed/staged/unstaged/untracked paths. `docs:affected`, PR creation, PR review, lifecycle transition checks, and post-stack validation consume it. The generated `docs/dev/sources-index.json` maps source prefixes to candidate docs; `gh-pr-review` treats matches as mandatory semantic inspection, never as an automatic CI failure.
 
 ### Delivery state
 

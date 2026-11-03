@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f37c16fe-d3c0-45f7-9545-32505fce0e9d",
+  "id": "ca035856-20b9-4247-82bb-24a464a1ee80",
   "prevId": "fbdcebe7-a527-4ca9-94cd-c825f652f31b",
   "tables": {
     "agent": {
@@ -59,13 +59,6 @@
         },
         "small_model": {
           "name": "small_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "expert_model": {
-          "name": "expert_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -172,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_expert_model_user_model_id_fk": {
-          "name": "agent_expert_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": [
-            "expert_model"
           ],
           "columnsTo": [
             "id"
@@ -596,6 +576,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "mirror_enabled": {
+          "name": "mirror_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         },
         "created_at": {
           "name": "created_at",

@@ -1,4 +1,5 @@
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -131,14 +132,14 @@ describe('ExternalAppService', () => {
     ])
     await service.openTarget('/tmp/a.txt', 'system_default')
     await service.openTarget('/tmp/a.txt', 'file_manager')
-    expect(mocks.safeOpen).toHaveBeenCalledWith('/tmp/a.txt')
-    expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/a.txt')
+    expect(mocks.safeOpen).toHaveBeenCalledWith(path.resolve('/tmp/a.txt'))
+    expect(mocks.showInFolder).toHaveBeenCalledWith(path.resolve('/tmp/a.txt'))
   })
 
   it('opens a discovered application using its private native identity', async () => {
     const service = new ExternalAppService()
     await service.openTarget('/tmp/中文 a.txt', nativeTargetId(editor.id))
-    expect(mocks.openNativeApplication).toHaveBeenCalledExactlyOnceWith('/tmp/中文 a.txt', editor.id)
+    expect(mocks.openNativeApplication).toHaveBeenCalledExactlyOnceWith(path.resolve('/tmp/中文 a.txt'), editor.id)
     expect(mocks.openExternal).not.toHaveBeenCalled()
   })
 
@@ -199,8 +200,9 @@ describe('ExternalAppService', () => {
     })
     await expect(service.openTarget('/tmp/project', nativeTargetId(editor.id))).rejects.toThrow('is not available')
     await service.openTarget('/tmp/My Workspace/开发', 'known:vscode')
+    const drive = process.platform === 'win32' ? `${path.parse(process.cwd()).root[0]}%3A` : ''
     expect(mocks.openExternal).toHaveBeenCalledWith(
-      'vscode://file//tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank'
+      `vscode://file/${drive}/tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank`
     )
     expect(mocks.listNativeApplications).not.toHaveBeenCalled()
   })
@@ -208,7 +210,8 @@ describe('ExternalAppService', () => {
   it('keeps saved controlled editor IDs usable and validates their URLs', async () => {
     const service = new ExternalAppService()
     await service.openTarget('/tmp/README.md', 'known:vscode', 'file')
-    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith('vscode://file//tmp/README.md?windowId=_blank')
+    const drive = process.platform === 'win32' ? `${path.parse(process.cwd()).root[0]}%3A` : ''
+    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(`vscode://file/${drive}/tmp/README.md?windowId=_blank`)
     mocks.isSafeExternalUrl.mockReturnValue(false)
     await expect(service.openTarget('/tmp/a.txt', 'known:vscode')).rejects.toThrow('failed safety validation')
     expect(mocks.openExternal).toHaveBeenCalledTimes(1)

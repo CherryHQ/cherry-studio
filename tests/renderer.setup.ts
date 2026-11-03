@@ -919,6 +919,7 @@ vi.mock('@cherrystudio/ui', async () => {
         : tag
     },
     Spinner: ({ text, ...props }) => React.createElement('div', { ...props, 'data-testid': 'spinner' }, text),
+    IndicatorLight: () => React.createElement('div', { 'data-testid': 'indicator-light' }),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
     Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),

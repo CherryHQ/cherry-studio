@@ -350,6 +350,18 @@ vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
   ...recycleBinFeedbackMocks
 }))
 
+const stableAgents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
+
+// The real hooks keep these references stable; row memo assertions depend on that.
+const stableReferences = vi.hoisted(() => ({
+  preferences: new Map<string, Record<string, unknown>>(),
+  setters: new Map<string, (value: unknown) => Promise<void>>(),
+  once: <T,>(create: () => T) => {
+    let value: T | undefined
+    return () => (value ??= create())
+  }
+}))
+
 const topicStreamStatusMocks = vi.hoisted(() => ({
   useTopicStreamStatus: vi.fn(() => ({
     activeExecutions: [],
@@ -428,18 +440,25 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [
-    preferenceMocks.values.get(key),
-    (value: unknown) => {
-      preferenceMocks.values.set(key, value)
-      preferenceMocks.setPreference(key, value)
-      return Promise.resolve()
-    }
-  ],
-  useMultiplePreferences: (keys: Record<string, string>) => [
-    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
-    vi.fn()
-  ]
+  usePreference: (key: string) => {
+    const setter =
+      stableReferences.setters.get(key) ??
+      ((value: unknown) => {
+        preferenceMocks.values.set(key, value)
+        preferenceMocks.setPreference(key, value)
+        return Promise.resolve()
+      })
+    stableReferences.setters.set(key, setter)
+    return [preferenceMocks.values.get(key), setter]
+  },
+  useMultiplePreferences: (keys: Record<string, string>) => {
+    const values = Object.fromEntries(
+      Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])
+    )
+    const cacheKey = JSON.stringify(values)
+    if (!stableReferences.preferences.has(cacheKey)) stableReferences.preferences.set(cacheKey, values)
+    return [stableReferences.preferences.get(cacheKey), vi.fn()]
+  }
 }))
 
 vi.mock('@renderer/data/PreferenceService', () => ({
@@ -620,7 +639,7 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
     type: '3rdParty'
   },
-  useTranslation: () => ({
+  useTranslation: stableReferences.once(() => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add task',
@@ -730,7 +749,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'agent.session.hover.last_activity') return `Last activity: ${options?.time ?? ''}`
       return labels[key] ?? key
     }
-  })
+  }))
 }))
 
 import {
@@ -890,6 +909,14 @@ function deleteSessionRow(row: HTMLElement) {
   })
 }
 
+function readSessionListItems() {
+  const { pinIdBySessionId, sessions } = sessionDataMocks.source as {
+    pinIdBySessionId: Map<string, string>
+    sessions: AgentSessionEntity[]
+  }
+  return sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) }))
+}
+
 function setupSessions(overrides: Record<string, unknown> = {}) {
   const source = {
     sessions: [
@@ -909,6 +936,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isLoadingMore: false,
     isPinsLoading: false,
     isValidating: false,
+    readSessionListItems,
     reload: sessionDataMocks.reload,
     reorderSession: sessionDataMocks.reorderSession,
     togglePin: sessionDataMocks.togglePin,
@@ -2218,6 +2246,144 @@ describe('Sessions', () => {
       await vi.advanceTimersByTimeAsync(1)
     })
     expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
+  })
+
+  it.each(['time', 'agent', 'workdir'] as const)('re-renders only the changed row in %s mode', (mode) => {
+    const rendersOf = (sessionId: string) =>
+      (topicStreamStatusMocks.useTopicStreamStatus.mock.calls as unknown as [string][]).filter(
+        ([topicId]) => topicId === `agent-session:${sessionId}`
+      ).length
+    preferenceMocks.values.set('agent.session.display_mode', mode)
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: stableAgents,
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    const stableSession = createSession({ id: 'session-b', name: 'Beta session' })
+    setupSessions({ sessions: [createSession({ id: 'session-a', name: 'Alpha session' }), stableSession] })
+    const { rerender } = render(<SessionsForTest />)
+    const changedRowRenders = rendersOf('session-a')
+    const stableRowRenders = rendersOf('session-b')
+
+    setupSessions({ sessions: [createSession({ id: 'session-a', name: 'Renamed session' }), { ...stableSession }] })
+    rerender(<SessionsForTest />)
+
+    expect(rendersOf('session-a')).toBeGreaterThan(changedRowRenders)
+    expect(rendersOf('session-b')).toBe(stableRowRenders)
+  })
+
+  it('picks the replacement from the latest list when deleting the active session', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    const activeSession = createSession({ id: 'session-a', name: 'Alpha session' })
+    setupSessions({ sessions: [activeSession, createSession({ id: 'session-b', name: 'Beta session' })] })
+    const { rerender } = render(<SessionsForTest />)
+
+    setupSessions({ sessions: [activeSession, createSession({ id: 'session-c', name: 'Gamma session' })] })
+    rerender(<SessionsForTest />)
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+
+    cacheMocks.setActiveSessionId.mockClear()
+    deleteSessionRow(screen.getByText('Alpha session').closest('[role="option"]') as HTMLElement)
+
+    await vi.waitFor(() =>
+      expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(
+        'session-c',
+        expect.objectContaining({ id: 'session-c' })
+      )
+    )
+  })
+
+  it('names the archived session as displayed while its rename is still saving', async () => {
+    sessionDataMocks.updateSession.mockReturnValueOnce(new Promise(() => {}))
+    render(<SessionsForTest />)
+
+    fireEvent.doubleClick(screen.getByText('Alpha session'))
+    const input = screen.getByLabelText('Edit task name')
+    fireEvent.change(input, { target: { value: 'Renamed session' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText('Renamed session')
+
+    deleteSessionRow(screen.getByText('Renamed session').closest('[role="option"]') as HTMLElement)
+
+    await vi.waitFor(() =>
+      expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith(
+        expect.objectContaining({ itemName: 'Renamed session' })
+      )
+    )
+  })
+
+  it('picks the replacement from the dragged order while the move is unconfirmed', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: stableAgents,
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-c', name: 'Gamma session', agentId: 'agent-a', orderKey: 'c' })
+      ]
+    })
+    render(<SessionsForTest />)
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-c'),
+          id: 'item:session-c',
+          rect: { current: { initial: null, translated: { top: 0, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 100, height: 20 } }
+      })
+    })
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-c', { before: 'session-b' })
+    )
+
+    cacheMocks.setActiveSessionId.mockClear()
+    deleteSessionRow(screen.getByText('Alpha session').closest('[role="option"]') as HTMLElement)
+
+    await vi.waitFor(() =>
+      expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(
+        'session-c',
+        expect.objectContaining({ id: 'session-c' })
+      )
+    )
+  })
+
+  it('keeps rows stable through same-day refreshes and regroups them after midnight', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date(2026, 0, 7, 23, 58))
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          lastActivityAt: new Date(2026, 0, 7, 12).toISOString()
+        }),
+        createSession({ id: 'session-b', name: 'Beta session', lastActivityAt: new Date(2025, 11, 1).toISOString() })
+      ]
+    })
+    render(<SessionsForTest />)
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    const rowRenders = topicStreamStatusMocks.useTopicStreamStatus.mock.calls.length
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000)
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(topicStreamStatusMocks.useTopicStreamStatus.mock.calls.length).toBe(rowRenders)
+
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.getByText('Yesterday')).toBeInTheDocument()
   })
 
   it('renames sessions optimistically and rolls back when the update fails', async () => {

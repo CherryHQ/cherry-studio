@@ -109,6 +109,12 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps external skill exports under the user home without creating the shared directory', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.agents.skills']).toBe(path.join(registry['sys.home'], '.agents', 'skills'))
+    expect(shouldAutoEnsure('external.agents.skills')).toBe(false)
+  })
+
   it('keeps conditional Code Mate skill templates in read-only app resources', () => {
     const registry = buildPathRegistry()
 
@@ -151,6 +157,30 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps the uv cache under Cherry home', () => {
+    const registry = buildPathRegistry()
+    const cacheRoot = path.join(registry['cherry.home'], 'cache', 'uv')
+
+    expect(path.relative(cacheRoot, registry['feature.binary.data.uv_cache'])).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('leaves uv cache materialization to binary management', () => {
+    expect(shouldAutoEnsure('feature.binary.data.uv_cache')).toBe(false)
+  })
+
+  it('separates uv caches by resolved profile identity without copying a spaced suffix into the cache leaf', () => {
+    const uvCache = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.binary.data.uv_cache']
+    }
+
+    const first = uvCache('/profiles/first/Dev Oslo')
+    expect(uvCache('/profiles/second/Dev Oslo')).not.toBe(first)
+    expect(uvCache('/profiles/first/./Dev Oslo')).toBe(first)
+    expect(path.basename(first)).toMatch(/^[a-f0-9]{64}$/)
+    expect(path.relative(path.join(buildPathRegistry()['cherry.home'], 'cache', 'uv'), first)).not.toMatch(/\s/u)
   })
 
   it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {

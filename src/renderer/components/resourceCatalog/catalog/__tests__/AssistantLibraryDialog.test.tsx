@@ -50,7 +50,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US' } })
 }))
 
-vi.mock('@renderer/hooks/resourceCatalog', () => ({
+vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({ createAssistant: createAssistantMock })
 }))
 
