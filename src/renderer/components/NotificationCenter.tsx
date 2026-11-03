@@ -304,13 +304,13 @@ export function NotificationCenterButton({
         variant="ghost"
         size="icon"
         data-notification-trigger
-        className={`relative size-8 text-muted-foreground ${className}`}
+        className={`shell-navigation-item relative size-9 rounded-full ${className}`}
         aria-label={t('notification.center.title')}
         aria-describedby={center.hasUnread ? unreadDescriptionId : undefined}
         aria-expanded={center.open}
         aria-controls="notification-center"
         onClick={center.toggle}>
-        <Bell className="size-4" />
+        <Bell className="size-4.5" strokeWidth={1.6} />
         {center.hasUnread && (
           <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary">
             <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
