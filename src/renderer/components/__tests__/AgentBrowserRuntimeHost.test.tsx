@@ -8,11 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@renderer/data/CacheService'
 import {
+  AgentBrowserRuntimeService,
   agentBrowserRuntimeService as runtime,
   topicBrowserRuntimeService as topicRuntime
 } from '@renderer/services/AgentBrowserRuntimeService'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { BrowserCursorState } from '@shared/types/browserCursor'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
 
@@ -135,6 +137,30 @@ describe('AgentBrowserRuntimeHost', () => {
     runtime.dispose()
     topicRuntime.dispose()
     vi.unstubAllGlobals()
+  })
+
+  it('creates a blank ordinary guest only in the window that owns a token-free broadcast session', async () => {
+    const previousWindow = new AgentBrowserRuntimeService()
+    previousWindow.declare('session-a', 'old-tab')
+    previousWindow.reconcileOwners(new Set())
+    const view = render(<AgentBrowserRuntimeHost />)
+    const request = { sessionId: 'session-a' }
+    act(() => {
+      previousWindow.ensure(request.sessionId)
+      bridge.listeners.get('browser.guest.ensure_requested')?.(request)
+    })
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    expect(previousWindow.getIds()).toEqual([])
+    expect(previousWindow.get('session-a')).toBeUndefined()
+    expect(runtime.get('session-a')).toMatchObject({
+      sourceUrl: 'about:blank',
+      securityProfile: WebviewSecurityProfile.AgentBrowser
+    })
+    const guest = view.getByTestId('webview-browser-guest')
+    expect(guest).toHaveAttribute('src', 'about:blank')
+    expect(guest).toHaveAttribute('partition', getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    expect(bridge.attaches.at(-1)).not.toHaveProperty('requestId')
+    previousWindow.dispose()
   })
 
   it.each([

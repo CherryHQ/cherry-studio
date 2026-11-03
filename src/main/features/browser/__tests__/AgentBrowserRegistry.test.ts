@@ -347,6 +347,183 @@ describe('Agent browser authority and control lifetime', () => {
     }
   })
 
+  it('creates a usable guest for the current owner after an idle session is reassigned', async () => {
+    const nextAgentId = '44444444-4444-4444-8444-444444444444'
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    dbh.db
+      .insert(agentTable)
+      .values({ id: nextAgentId, name: 'Next Agent', type: 'claude-code', instructions: '', orderKey: 'a1' })
+      .run()
+    dbh.db.update(agentSessionTable).set({ agentId: nextAgentId }).where(eq(agentSessionTable.id, sessionId)).run()
+    service.agentBrowser.detach(sessionId, tabId, windowId)
+    const abort = new AbortController()
+    const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+    broadcast.mockImplementationOnce((event) => {
+      if (event === 'browser.guest.ensure_requested') service.agentBrowser.attach(sessionId, 1, windowId)
+    })
+    try {
+      const pending = service.agentBrowser.ensureGuest({ agentId: nextAgentId, sessionId }, abort.signal)
+      await expect(pending).resolves.toMatchObject({ ownerId: nextAgentId, guest: fixture.guest })
+      const target = await pending
+      expect(target.abort.signal.aborted).toBe(false)
+      expect(target.tabId).not.toBe(tabId)
+      await expect(service.agentBrowser.ensureGuest({ agentId, sessionId }, abort.signal)).rejects.toMatchObject({
+        code: 'not_allowed'
+      })
+    } finally {
+      abort.abort()
+    }
+  })
+
+  it.each(['released', 'destroyed'] as const)(
+    'broadcasts within the original budget when the previous window no longer owns a %s guest',
+    async (previous) => {
+      vi.useFakeTimers()
+      const abort = new AbortController()
+      try {
+        const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+        if (previous === 'destroyed') fixture.mock.close()
+        else service.agentBrowser.detach(sessionId, tabId, windowId)
+        const nextWindowId = 'main:next-browser-test' as WindowId
+        const nextHost = { getZoomFactor: () => 1 } as Electron.WebContents
+        const replacement = createGuest(2)
+        Object.assign(replacement.mock, {
+          getType: () => 'webview',
+          getZoomFactor: () => 1,
+          hostWebContents: nextHost,
+          session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+        })
+        const oldWindow = application.get('WindowManager').getWindow(windowId)!
+        vi.mocked(application.get('WindowManager').getWindow).mockImplementation((id) =>
+          id === nextWindowId ? ({ ...oldWindow, webContents: nextHost } as Electron.BrowserWindow) : oldWindow
+        )
+        vi.mocked(webContents.fromId).mockImplementation((id) => (id === 2 ? replacement.guest : fixture.guest))
+        const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+        broadcast.mockClear()
+        const started = Date.now()
+        let outcome: unknown
+        const pending = service.agentBrowser.ensureGuest({ agentId, sessionId }, abort.signal).then(
+          (target) => (outcome = target),
+          (error) => (outcome = error)
+        )
+        await vi.advanceTimersByTimeAsync(4000)
+        const request = broadcast.mock.calls.find(([event]) => event === 'browser.guest.ensure_requested')
+        expect(request, 'the new owning window must receive a token-free creation request before the deadline').toEqual(
+          ['browser.guest.ensure_requested', expect.objectContaining({ sessionId })]
+        )
+        expect(request![1]).not.toHaveProperty('repair')
+        expect(request![1]).not.toHaveProperty('requestId')
+        expect(outcome).toBeUndefined()
+        const repairCalls = vi
+          .mocked(application.get('IpcApiService').send)
+          .mock.calls.filter((call) => call[1] === 'browser.guest.ensure_requested')
+        const { requestId } = (repairCalls.at(-1)![2] as { repair: { requestId: string } }).repair
+        const attached = service.agentBrowser.attach(sessionId, 2, nextWindowId)
+        await pending
+        expect(outcome).toMatchObject({ tabId: attached.tabId, guest: replacement.guest, windowId: nextWindowId })
+        expect(Date.now() - started).toBeLessThan(10000)
+        expect(() => service.agentBrowser.attach(sessionId, 1, windowId, requestId)).toThrow(
+          expect.objectContaining({ code: 'not_allowed' })
+        )
+        expect(() => service.agentBrowser.attach(sessionId, 1, windowId)).toThrow(
+          expect.objectContaining({ code: 'not_allowed' })
+        )
+        expect(service.agentBrowser.get({ agentId, sessionId })?.tabId).toBe(attached.tabId)
+      } finally {
+        abort.abort()
+        await vi.advanceTimersByTimeAsync(10000)
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('opens the requested artifact profile after joining an in-flight popup recovery', async () => {
+    service.agentBrowser.attach(sessionId, 1, windowId)
+    vi.mocked(fixture.guest.loadURL).mockRejectedValueOnce(new Error('aborted'))
+    let frameRequests = 0
+    vi.mocked(fixture.guest.debugger.sendCommand).mockImplementation(async (method) =>
+      method === 'Page.getFrameTree'
+        ? ++frameRequests === 1
+          ? { frameTree: { frame: { id: 'main' } } }
+          : { frameTree: {} }
+        : {}
+    )
+    service.agentBrowser.handlePopup(fixture.guest, { url: 'https://example.com/popup' } as Electron.HandlerDetails)
+    const send = vi.mocked(application.get('IpcApiService').send)
+    await vi.waitFor(() =>
+      expect(send.mock.calls.some((call) => call[1] === 'browser.guest.ensure_requested')).toBe(true)
+    )
+    const call = send.mock.calls.findLast((entry) => entry[1] === 'browser.guest.ensure_requested')!
+    const { requestId } = (call[2] as { repair: { requestId: string } }).repair
+    const repaired = createGuest(2)
+    const artifact = createGuest(3)
+    const url = 'file:///browser-test/report.html'
+    for (const [guest, profile, source] of [
+      [repaired, WebviewSecurityProfile.AgentBrowser, 'about:blank'],
+      [artifact, WebviewSecurityProfile.AgentHtmlArtifact, url]
+    ] as const) {
+      Object.assign(guest.mock, {
+        getType: () => 'webview',
+        getZoomFactor: () => 1,
+        hostWebContents: host,
+        session: session.fromPartition(getWebviewPartition(profile)),
+        isLoadingMainFrame: () => false
+      })
+      guest.mock.getURL.mockReturnValue(source)
+    }
+    vi.mocked(webContents.fromId).mockImplementation((id) => (id === 3 ? artifact.guest : repaired.guest))
+    const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+    broadcast.mockImplementationOnce((event, input) => {
+      if (event === 'browser.guest.ensure_requested' && (input as { url?: string }).url === url)
+        service.agentBrowser.attach(sessionId, 3, windowId)
+    })
+    const pending = controller.open(url)
+    void pending.catch(() => undefined)
+    service.agentBrowser.attach(sessionId, 2, windowId, requestId)
+    const opened = await pending
+    expect(
+      service.agentBrowser.get({ agentId, sessionId })?.guest.session,
+      'file opens must use the artifact profile after recovery'
+    ).toBe(session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact)))
+    expect(opened.currentUrl).toBe(url)
+    expect(service.agentBrowser.get({ agentId, sessionId })?.guest).toBe(artifact.guest)
+  })
+
+  it('keeps a late artifact waiter on the original recovery deadline after an ordinary guest arrives', async () => {
+    vi.useFakeTimers()
+    const callers = [new AbortController(), new AbortController()]
+    try {
+      const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+      service.agentBrowser.detach(sessionId, tabId, windowId)
+      const first = service.agentBrowser.ensureGuest({ agentId, sessionId }, callers[0].signal)
+      void first.catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(1000)
+      let outcome: unknown
+      const late = service.agentBrowser
+        .ensureGuest({ agentId, sessionId }, callers[1].signal, 'file:///browser-test/late.html')
+        .then(
+          (target) => (outcome = target),
+          (error) => (outcome = error)
+        )
+      await vi.advanceTimersByTimeAsync(500)
+      const call = vi
+        .mocked(application.get('IpcApiService').send)
+        .mock.calls.findLast((entry) => entry[1] === 'browser.guest.ensure_requested')!
+      const { requestId } = (call[2] as { repair: { requestId: string } }).repair
+      service.agentBrowser.attach(sessionId, 1, windowId, requestId)
+      await expect(first).resolves.toMatchObject({ guest: fixture.guest })
+      await vi.advanceTimersByTimeAsync(8499)
+      expect(outcome, 'an ordinary guest cannot satisfy the artifact waiter').toBeUndefined()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(outcome, 'joining recovery must not restart the ten-second budget').toMatchObject({ code: 'timeout' })
+      await late
+    } finally {
+      for (const caller of callers) caller.abort()
+      await vi.advanceTimersByTimeAsync(10000)
+      vi.useRealTimers()
+    }
+  })
+
   it('escalates an unacknowledged reattach repair to one recreate request', async () => {
     vi.useFakeTimers()
     try {
