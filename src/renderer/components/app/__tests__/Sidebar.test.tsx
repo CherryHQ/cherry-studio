@@ -218,6 +218,23 @@ describe('app Sidebar', () => {
     expect(labels.indexOf('notification.center.title')).toBeLessThan(labels.indexOf('settings.title'))
   })
 
+  it('keeps the notification action in the expanded account row beside settings', () => {
+    mocks.isMac = true
+    render(<Sidebar />)
+
+    const footer = within(screen.getByTestId('sidebar-footer-user'))
+    const account = footer.getByRole('button', { name: 'User' })
+    const commonRow = (element: Element) => {
+      let node = element.parentElement
+      while (node && !node.contains(account)) node = node.parentElement
+      return node
+    }
+
+    expect(commonRow(footer.getByRole('button', { name: 'notification.center.title' }))).toBe(
+      commonRow(footer.getByRole('button', { name: 'settings.title' }))
+    )
+  })
+
   it('opens and closes the anchored account menu from the sidebar identity', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
