@@ -182,4 +182,26 @@ describe('durable delivery native branch admission', () => {
     expect(messages.getSessionMessage('target', delivery.id).delivery?.status).toBe('failed')
     expect(completion).toBeUndefined()
   })
+
+  it('keeps B history when a warm lease recreates A while its old connection closes', async () => {
+    const { delivery, b } = await prepare()
+    const closing = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    closeBarrier = async () => {
+      closing.resolve()
+      await release.promise
+    }
+    const service = new AgentSessionDeliveryService()
+    service.kick('target')
+    await closing.promise
+    runtime.acquireWarmLease('target', undefined)
+    release.resolve()
+    await service.drainSessionQueues(['target'])
+
+    expect(await completion).toBe('history:native-B')
+    expect(consumed).toEqual(['native-B'])
+    const claimed = messages.getSessionMessage('target', delivery.id)
+    expect(claimed.delivery?.status).toBe('delivering')
+    expect(messages.sharesBranch('target', b.id, claimed.delivery!.turnRef!)).toBe(true)
+  })
 })

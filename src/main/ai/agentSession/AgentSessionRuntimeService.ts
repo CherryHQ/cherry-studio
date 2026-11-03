@@ -662,10 +662,13 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(input.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: input.trustedNotifyChannels } : {})
     }
 
-    if (existing && this.runtimeStatus(existing) === 'idle') {
-      // A warm connection is always safe to reuse: per-turn headless enforcement lives in `canUseTool`
-      // and PreToolUse hooks (resolved by session id at fire-time via `getInteractionState`), so the
-      // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
+    // Prewarming can replace the entry while prepareBranch awaits closure, so recheck before reuse.
+    if (
+      existing &&
+      this.runtimeStatus(existing) === 'idle' &&
+      existing.branchHead &&
+      agentSessionMessageService.sharesBranch(input.sessionId, existing.branchHead, input.assistantMessageId)
+    ) {
       this.clearIdleTimer(existing)
       existing.topicId = input.topicId
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
