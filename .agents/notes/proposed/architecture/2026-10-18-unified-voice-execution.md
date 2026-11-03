@@ -278,7 +278,7 @@ ASR adapters normalize vendor deltas, cumulative text, or segments into full rev
 
 #### Main and Renderer
 
-Initially use IpcApi targeted events and acknowledged requests, without native channels or a dedicated preload voice bridge. The repository's [IPC escape hatch rules](../../../../docs/references/ipc/ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out) do not permit bypassing IpcApi for Main → Renderer traffic merely because it is frequent.
+Initially use IpcApi targeted events and acknowledged requests, without native channels or a dedicated preload voice bridge. The repository's [IPC escape hatch rules](../../../../docs/dev/references/ipc/ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out) do not permit bypassing IpcApi for Main → Renderer traffic merely because it is frequent.
 
 Proposed routes all pass existing sender validation and `VoiceSessionService` ownership checks:
 
@@ -355,7 +355,7 @@ Long text cannot retain “submit the next segment only when the current segment
 | `src/preload/ipc.ts` | Initially retain the generic bridge, without voice-specific branches |
 | `packages/aiCore/src/core/runtime/voice.ts` | Retain complete-result APIs without Electron; adapters call them, without moving sessions, IPC, or installation into aiCore |
 
-Use named file imports for new Main files rather than hastily adding an `ai/voice` barrel. Renderer retains `services/voice/index.ts`, exposing only consumer-needed services/types while playback, capture, and worklets stay private. Extend `localModel/index.ts` only for actual external consumers; do not deep-import its protocols externally. See [naming conventions](../../../../docs/references/architecture/naming-conventions.md#64-barrel--index-files).
+Use named file imports for new Main files rather than hastily adding an `ai/voice` barrel. Renderer retains `services/voice/index.ts`, exposing only consumer-needed services/types while playback, capture, and worklets stay private. Extend `localModel/index.ts` only for actual external consumers; do not deep-import its protocols externally. See [naming conventions](../../../../docs/dev/references/architecture/naming-conventions.md#64-barrel--index-files).
 
 aiCore is not an application service container. The initial unified interfaces belong in Main because current session and local execution consumers are there. Extract a pure runtime contract into a separate package only when desktop and mobile actually share it. `packages/aiCore` must not import `src/shared`, `@application`, or Cherry model-installation services.
 
@@ -368,7 +368,7 @@ aiCore is not an application service container. The initial unified interfaces b
 | C Continuous ASR | PCM capture, continuous input, MLX ASR adapter, and text revisions | Bounded input without silent drops, revisable intermediate results, correct tail flush, exactly one final insertion, no wrong-focus insertion or old results after cancellation |
 | D Incremental text and other backends | Stable LLM body input and actual-model-based Sherpa online or VAD segment adapters | Input end differs from audio end; exclude reasoning, avoid duplicate submissions, and add backends without engine branches in business consumers |
 
-ASR requires matching model packages, JS APIs, and native runtime versions. The fork's [Qwen3-ASR stream interface](https://github.com/CherryHQ/mlx-node/blob/f4c21043f557965345b527bc04179ad26d08378f/packages/asr/README.md) provides rolling input and text revisions, but successful TTS packaging does not validate ASR delivery. Multi-model work follows [Local Models](../../../../docs/references/ai/local-models.md) installation/shared-runtime boundaries; a default capability mapping is not the user's selection for this execution.
+ASR requires matching model packages, JS APIs, and native runtime versions. The fork's [Qwen3-ASR stream interface](https://github.com/CherryHQ/mlx-node/blob/f4c21043f557965345b527bc04179ad26d08378f/packages/asr/README.md) provides rolling input and text revisions, but successful TTS packaging does not validate ASR delivery. Multi-model work follows [Local Models](../../../../docs/dev/references/ai/local-models.md) installation/shared-runtime boundaries; a default capability mapping is not the user's selection for this execution.
 
 Inspect scope with `pnpm check --plan` for each stage, then select explicit test files; do not run unfiltered repository suites. Existing regression entry points include:
 
@@ -378,7 +378,7 @@ Inspect scope with `pnpm check --plan` for each stage, then select explicit test
 - Renderer: `src/renderer/services/voice/__tests__/{VoiceService,SpeechPlaybackService,DictationService,AutoReadService,VoiceTargetManager}.test.ts`, plus new PCM output/capture tests.
 - aiCore: run `packages/aiCore/src/core/runtime/__tests__/voice.test.ts` when migrating complete-result wrappers; move still-valid contract assertions from `AiService.voice.test.ts`.
 
-New tests must catch real failures: capacity overflow, duplicate samples, lost tails, false pause timeouts, revival after stop, unload races, duplicate final text, or cross-window authorization violations. Follow [frontend testing guidance](../../../../docs/references/testing/frontend-testing.md) and [unified mock rules](../../../../tests/__mocks__/README.md).
+New tests must catch real failures: capacity overflow, duplicate samples, lost tails, false pause timeouts, revival after stop, unload races, duplicate final text, or cross-window authorization violations. Follow [frontend testing guidance](../../../../docs/dev/references/testing/frontend-testing.md) and [unified mock rules](../../../../tests/__mocks__/README.md).
 
 Record actual Electron first-audible latency, source/consumed-frame continuity, underruns, peak queue occupancy, pause stability, cold/warm startup, and restart after cancellation separately. Cover development and packaged resource paths. Historical first-PCM-chunk data proves engine output only, not speaker latency, streaming playback, or real-device ASR acceptance.
 
@@ -509,7 +509,7 @@ Merge gate: existing system TTS/ASR, FunASR, Qwen3-TTS, and Kokoro paths require
 
 Preserve ordinary request/event behavior, review core protocol changes separately, and validate with the streaming playback prototype.
 
-The bounded process-stream implementation uses per-request `StreamChannel` shared by host and child, host-only `StreamRequest` for result/closure ownership, and `streamFrame.ts` for bounded scalar-metadata / byte-view encoding. It adds no lifecycle service or voice dependency. Limits are explicit per direction; protocol version 2 rejects stale bundles. The [consumer reference](../../../../docs/references/utility-process/README.md#bounded-request-streams) owns the delivered API.
+The bounded process-stream implementation uses per-request `StreamChannel` shared by host and child, host-only `StreamRequest` for result/closure ownership, and `streamFrame.ts` for bounded scalar-metadata / byte-view encoding. It adds no lifecycle service or voice dependency. Limits are explicit per direction; protocol version 2 rejects stale bundles. The [consumer reference](../../../../docs/dev/references/utility-process/README.md#bounded-request-streams) owns the delivered API.
 
 #### Interface and protocol design
 
@@ -764,7 +764,7 @@ both execution and input lifetime. No lifecycle service or same-phase dependency
 Qwen3 reuses the pinned native package's incremental text input and segmentation. Shared
 operation types discriminate text versus text-stream inputs; complete adapters cannot
 accidentally receive an async input. Transport budgets and public behavior are documented in
-[Local Models](../../../../docs/references/ai/local-models.md).
+[Local Models](../../../../docs/dev/references/ai/local-models.md).
 
 Focused tests cover stable Markdown boundaries, reasoning exclusion, duplicate snapshots,
 EOF tail drain, cumulative overflow, cancellation during capability discovery, late updates,
@@ -795,7 +795,7 @@ Each capability records actual interface/ownership changes, same-phase dependenc
 
 Run `pnpm install` before implementation, then inspect scope with `pnpm check --plan`. Select `pnpm test:main <完整测试文件路径...>`, `pnpm test:renderer <完整测试文件路径...>`, or equivalent commands for the cases above. Type changes run affected-project typechecks; format/lint only changed files without automatically running unfiltered repository tests. New schemas, IPC events, and utility contracts require compilation checks for producers and consumers.
 
-For changes only to this note, run `pnpm docs:index`, `pnpm docs:check`, and `git diff --check`. Repository Oxfmt ignores Markdown; separately check final newlines, trailing whitespace, and closed fences. No Vitest run is needed. Update generated `docs/README.md` only through its index script.
+For changes only to this note, run `pnpm docs:index`, `pnpm docs:check`, and `git diff --check`. Repository Oxfmt ignores Markdown; separately check final newlines, trailing whitespace, and closed fences. No Vitest run is needed. Update generated `docs/dev/README.md` only through its index script.
 
 ### Apple system TTS streaming extension
 

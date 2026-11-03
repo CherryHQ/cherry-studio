@@ -23,6 +23,15 @@ describe('getFileIconName', () => {
     expect(getFileIconName('Globals.D.TS')).toBe('typescript-def')
   })
 
+  it('uses the Claude icon for CLAUDE.md instead of the generic Markdown icon', () => {
+    expect(getFileIconName('packages/ui/CLAUDE.md')).toBe('claude')
+  })
+
+  it('uses the Mermaid icon for both Mermaid file extensions', () => {
+    expect(getFileIconName('docs/flow.mmd')).toBe('mermaid')
+    expect(getFileIconName('docs/Flow.MERMAID')).toBe('mermaid')
+  })
+
   it('strips the directory part before looking at the name', () => {
     expect(getFileIconName('src/types/globals.D.ts')).toBe('typescript-def')
     expect(getFileIconName('packages/core/src/index.ts')).toBe('typescript')

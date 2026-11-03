@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
 import type { WebSearchFetchUrlsRequest, WebSearchSearchKeywordsRequest } from '@shared/data/types/webSearch'
 
@@ -9,9 +10,8 @@ import { defineRoute } from '../define'
  * Web-search IPC schemas — caller-facing runtime operations that delegate to the
  * stateful WebSearchService in main (which owns API-key rotation across calls).
  *
- * Only a Request block: these are zod *values* (renderer→main, untrusted → always
- * parsed). The web-search domain pushes nothing main→renderer, so there is no Event
- * block (unlike window.ts/selection.ts).
+ * Requests are zod values (renderer→main, untrusted → always parsed). Events are
+ * trusted main→renderer payload types.
  *
  * Both routes return `output: z.void()`: the sole renderer caller
  * (useWebSearchProviderCheck) only awaits success/failure and never reads the
@@ -41,4 +41,12 @@ const fetchUrlsRequestSchema: z.ZodType<WebSearchFetchUrlsRequest> = z.object({
 export const webSearchRequestSchemas = {
   'web_search.search_keywords': defineRoute({ input: searchKeywordsRequestSchema, output: z.void() }),
   'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: z.void() })
+}
+
+export type WebSearchEventSchemas = {
+  'web_search.fallback': {
+    primaryProviderId: WebSearchProviderId
+    fallbackProviderId: WebSearchProviderId
+    capability: WebSearchCapability
+  }
 }

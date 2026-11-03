@@ -1,73 +1,48 @@
-import { CreditCard, LogIn, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunMoon } from 'lucide-react'
+import { ChevronRight, CreditCard, Gauge, LogIn, RotateCcw, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
-import {
-  Avatar,
-  AvatarImage,
-  Button,
-  ColFlex,
-  ConfirmDialog,
-  EmojiAvatar,
-  RowFlex,
-  SegmentedControl
-} from '@cherrystudio/ui'
+import { Avatar, AvatarImage, Button, ColFlex, EmojiAvatar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandShortcut } from '@renderer/components/command'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
-import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
+import { AppearanceMenu } from './layout/AppearanceMenu'
 import UserPopup from './UserPopup'
 
-type SubscriptionLookup = { status: 'loading' } | { status: 'ready'; planName: string | null } | { status: 'error' }
-
-export function UserAccountPanel({ active = true, onRequestClose }: { active?: boolean; onRequestClose?: () => void }) {
+export function UserAccountPanel({ onRequestClose, children }: { onRequestClose?: () => void; children?: ReactNode }) {
   const [userName] = usePreference('app.user.name')
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
-  const [subscriptionLookup, setSubscriptionLookup] = useState<SubscriptionLookup>({ status: 'loading' })
-  const [planRequestVersion, setPlanRequestVersion] = useState(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
-  const { settedTheme, setTheme } = useTheme()
   const {
     status: cloudStatus,
     loadState: cloudStatusLoadState,
     reload: loadCloudStatus,
     login: handleCloudLogin,
     cancelLogin: handleCloudLoginCancel,
-    revokeSession: handleCloudLogout,
     isCancellingLogin,
-    isRevokingSession,
     isAuthorizing
-  } = useCherryAccountSession(active)
+  } = useCherryAccountSession()
   const isGlobalEdition = getAppEdition() === 'global'
   const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
 
-  useEffect(() => {
-    if (!active || !isGlobalEdition || !isCloudSignedIn) return
-    let cancelled = false
-    setSubscriptionLookup({ status: 'loading' })
-    void ipcApi
-      .request('cherry_cloud.account_plans.get')
-      .then((plans) => {
-        if (cancelled) return
-        const paidPlan = plans.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
-        setSubscriptionLookup({ status: 'ready', planName: paidPlan?.plan.display_name ?? null })
-      })
-      .catch(() => {
-        if (!cancelled) setSubscriptionLookup({ status: 'error' })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [active, cloudStatus?.displayName, isCloudSignedIn, isGlobalEdition, planRequestVersion])
+  const accountId = isCloudSignedIn ? cloudStatus.accountId : null
+  const {
+    data: plans,
+    error: plansError,
+    mutate: reloadPlans
+  } = useSWR(
+    isGlobalEdition && accountId ? ['cherry-cloud/account-plans', accountId] : null,
+    () => ipcApi.request('cherry_cloud.account_plans.get'),
+    { shouldRetryOnError: false }
+  )
 
   const handleOpenAccountDetails = () => {
     onRequestClose?.()
@@ -83,38 +58,48 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     openSettingsTab()
   }
 
+  const activePaidPlan = plans?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
+  const paidPlanName = activePaidPlan?.plan.display_name
+  const quotaWindows = activePaidPlan?.quota_pools.flatMap((pool) => pool.windows) ?? []
+  const remainingPercent = quotaWindows.length
+    ? Math.min(
+        ...quotaWindows.map((window) =>
+          window.limit_units > 0 ? Math.min(100, Math.round((window.remaining_units / window.limit_units) * 100)) : 0
+        )
+      )
+    : null
   const cloudSubtitle = isCloudSignedIn
-    ? cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
+    ? paidPlanName || cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
     : isAuthorizing
       ? t('settings.provider.cherry_cloud.signing_in')
       : cloudStatusLoadState === 'error'
         ? t('error.http.503')
-        : t('settings.provider.cherry_cloud.title')
+        : null
   const cloudSubtitleRole =
     isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
-  const useCloudSubtitleAsTitle = !userName
-  const paidPlanName = isCloudSignedIn && subscriptionLookup.status === 'ready' ? subscriptionLookup.planName : null
+  const accountDisplayName = userName || t('settings.profile.title')
   const subscriptionLoading =
-    cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && subscriptionLookup.status === 'loading')
-  const subscriptionFailed =
-    cloudStatusLoadState === 'error' || (isCloudSignedIn && subscriptionLookup.status === 'error')
+    cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && !plans && !plansError)
+  const subscriptionFailed = cloudStatusLoadState === 'error' || (isCloudSignedIn && plansError && !plans)
   const subscriptionAction = subscriptionLoading
     ? t('common.loading')
     : subscriptionFailed
       ? t('common.retry')
       : paidPlanName
-        ? t('settings.subscription.view_usage')
+        ? remainingPercent === null
+          ? t('settings.subscription.no_quota')
+          : t('settings.subscription.remaining', { percent: remainingPercent })
         : t('settings.subscription.go_to_subscribe')
   const handleSubscriptionClick = () => {
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
     } else if (!isCloudSignedIn) {
       void handleCloudLogin()
-    } else if (subscriptionLookup.status === 'error') {
-      setPlanRequestVersion((version) => version + 1)
-    } else if (subscriptionLookup.status === 'ready') {
+    } else if (plansError && !plans) {
+      void reloadPlans().catch(() => {})
+    } else if (plans) {
       onRequestClose?.()
-      if (subscriptionLookup.planName) {
+      if (paidPlanName) {
         openSettingsTab('/settings/profile')
       } else {
         void openCherryCloudAccountPortal()
@@ -142,41 +127,14 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
             onClick: loadCloudStatus,
             icon: <RotateCcw className="!text-muted-foreground size-4" aria-hidden />
           }
-        : {
-            label: t('settings.provider.cherry_cloud.login'),
-            loading: cloudStatusLoadState === 'loading',
-            onClick: handleCloudLogin,
-            icon: <LogIn className="!text-muted-foreground size-4" aria-hidden />
-          }
-  const themeOptions = [
-    {
-      value: ThemeMode.light,
-      label: (
-        <>
-          <Sun className="size-3" aria-hidden />
-          <span className="sr-only">{t('settings.theme.light')}</span>
-        </>
-      )
-    },
-    {
-      value: ThemeMode.dark,
-      label: (
-        <>
-          <Moon className="size-3" aria-hidden />
-          <span className="sr-only">{t('settings.theme.dark')}</span>
-        </>
-      )
-    },
-    {
-      value: ThemeMode.system,
-      label: (
-        <>
-          <Monitor className="size-3" aria-hidden />
-          <span className="sr-only">{t('settings.theme.system')}</span>
-        </>
-      )
-    }
-  ]
+        : !isGlobalEdition
+          ? {
+              label: t('settings.provider.cherry_cloud.login'),
+              loading: cloudStatusLoadState === 'loading',
+              onClick: handleCloudLogin,
+              icon: <LogIn className="!text-muted-foreground size-4" aria-hidden />
+            }
+          : null
 
   return (
     <ColFlex className="w-56 p-1.5">
@@ -188,22 +146,22 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
           className="h-auto min-h-9 w-full items-center justify-start gap-2 px-2 py-1 text-left"
           onClick={handleOpenAccountDetails}
           size="sm">
-          {isEmoji(avatar) ? (
-            <EmojiAvatar size={28} fontSize={14} className="shrink-0">
-              {avatar}
-            </EmojiAvatar>
-          ) : (
-            <Avatar className="size-7 shrink-0 rounded-full">
-              <AvatarImage src={avatar} className="object-cover" />
-            </Avatar>
-          )}
+          <span className="flex w-4 shrink-0 items-center justify-center">
+            {isEmoji(avatar) ? (
+              <EmojiAvatar size={20} fontSize={12} className="shrink-0">
+                {avatar}
+              </EmojiAvatar>
+            ) : (
+              <Avatar className="size-5 shrink-0 rounded-full">
+                <AvatarImage src={avatar} className="object-cover" />
+              </Avatar>
+            )}
+          </span>
           <ColFlex className="min-w-0 flex-1 gap-0">
-            <span
-              role={useCloudSubtitleAsTitle ? cloudSubtitleRole : undefined}
-              className="truncate font-medium text-[13px] text-foreground leading-[18px]">
-              {userName || (useCloudSubtitleAsTitle ? cloudSubtitle : t('settings.general.user_name.placeholder'))}
+            <span className="truncate font-medium text-[13px] text-foreground leading-[18px]">
+              {accountDisplayName}
             </span>
-            {!useCloudSubtitleAsTitle && cloudSubtitle ? (
+            {cloudSubtitle && cloudSubtitle !== accountDisplayName ? (
               <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
                 {cloudSubtitle}
               </span>
@@ -211,48 +169,35 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
           </ColFlex>
         </Button>
       </ColFlex>
-      <ColFlex className="border-border-subtle gap-0.5 border-t pt-1 pb-2">
+      <ColFlex className="border-border-subtle gap-0.5 border-t py-1">
         {isGlobalEdition ? (
           <Button
             type="button"
-            className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
+            className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
             disabled={subscriptionLoading}
             onClick={handleSubscriptionClick}
             size="sm"
             variant="ghost">
-            <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-left" title={paidPlanName ?? undefined}>
-              {paidPlanName ?? t('settings.subscription.card_label')}
+            {paidPlanName ? (
+              <Gauge className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+            ) : (
+              <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+            )}
+            <span className="shrink-0">
+              {paidPlanName ? t('settings.subscription.usage') : t('settings.subscription.card_label')}
             </span>
-            <span className="shrink-0 text-muted-foreground">{subscriptionAction}</span>
+            <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
+              <span className="truncate">{subscriptionAction}</span>
+              <ChevronRight className="size-4 shrink-0" aria-hidden />
+            </span>
           </Button>
         ) : null}
-        <Button
-          className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
-          onClick={handleOpenSettings}
-          size="sm"
-          variant="ghost">
-          <Settings className="!text-muted-foreground size-4" aria-hidden />
-          {t('common.settings')}
-        </Button>
-        <RowFlex className="min-h-7 items-center gap-2 px-2">
-          <SunMoon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-[13px] text-foreground leading-5">
-            {t('settings.appearance.title')}
-          </span>
-          <SegmentedControl
-            aria-label={t('settings.appearance.title')}
-            className="p-px [&_[role=radio]]:h-6 [&_[role=radio]]:px-1.5"
-            options={themeOptions}
-            size="sm"
-            value={settedTheme}
-            onValueChange={setTheme}
-          />
-        </RowFlex>
+        <AppearanceMenu onRequestClose={onRequestClose} />
+        {children}
         {cloudHeaderAction ? (
           <Button
             type="button"
-            className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
+            className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
             loading={cloudHeaderAction.loading}
             onClick={() => void cloudHeaderAction.onClick()}
             size="sm"
@@ -262,38 +207,20 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
           </Button>
         ) : null}
       </ColFlex>
-      {isCloudSignedIn ? (
-        <div className="border-border-subtle border-t pt-1">
-          <Button
-            className="min-h-8 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
-            loading={isRevokingSession}
-            onClick={() => setLogoutConfirmOpen(true)}
-            size="sm"
-            variant="ghost">
-            {!isRevokingSession ? <LogOut className="!text-muted-foreground size-4" aria-hidden /> : null}
-            {t('settings.provider.cherry_cloud.logout')}
-          </Button>
-        </div>
-      ) : null}
-      <ConfirmDialog
-        contentClassName="gap-3 p-4 sm:max-w-sm"
-        open={logoutConfirmOpen}
-        onOpenChange={setLogoutConfirmOpen}
-        title={t('settings.provider.cherry_cloud.logout_confirm_title')}
-        description={
-          cloudStatus?.displayName
-            ? t('settings.provider.cherry_cloud.logout_confirm_account', { displayName: cloudStatus.displayName })
-            : undefined
-        }
-        content={
-          <p className="text-foreground text-sm">{t('settings.provider.cherry_cloud.logout_confirm_description')}</p>
-        }
-        cancelText={t('common.cancel')}
-        confirmText={t('settings.provider.cherry_cloud.logout')}
-        confirmLoading={isRevokingSession}
-        destructive
-        onConfirm={handleCloudLogout}
-      />
+      <ColFlex className="border-border-subtle border-t pt-1">
+        <Button
+          className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+          onClick={handleOpenSettings}
+          size="sm"
+          variant="ghost">
+          <Settings className="!text-muted-foreground size-4" aria-hidden />
+          <span className="min-w-0 flex-1 text-left">{t('common.settings')}</span>
+          <CommandShortcut
+            command="app.settings.open"
+            className="ml-auto h-auto min-w-0 rounded-none bg-transparent p-0 text-[13px] shadow-none"
+          />
+        </Button>
+      </ColFlex>
     </ColFlex>
   )
 }

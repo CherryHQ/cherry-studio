@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-03-mcp-and-assistant-export.md
+2026-11-03-mcp-and-assistant-export.md: b0c588b629d733e76c4c7b8aa2b21f123d579fbf
+2026-11-03-mcp-and-assistant-export.zh.md: 5e2a1e0e92fe9a3413a3a8a9683b768a6edc0ed6
