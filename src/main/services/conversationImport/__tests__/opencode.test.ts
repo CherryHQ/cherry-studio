@@ -206,4 +206,13 @@ describe('OpenCode read-only source snapshots', () => {
     message('a', 0, 'user', { text: 'x'.repeat(IMPORT_LIMITS.line) })
     await expect(read()).rejects.toThrow('line_limit')
   })
+  it('uses the first user sentence when the source title is absent', async () => {
+    schema()
+    db.prepare('UPDATE session_v2 SET title = NULL').run()
+    message('user', 0, 'user', { text: 'Explain my project' })
+    const refs: SessionRef[] = []
+    for await (const ref of opencodeAdapter.discover(root, signal())) refs.push(ref)
+    expect(refs[0].title).toBe('Explain my project')
+    expect((await read()).title).toBe('Explain my project')
+  })
 })

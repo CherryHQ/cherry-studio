@@ -81,13 +81,23 @@ export const opencodeAdapter: HistorySourceAdapter = {
               signal.throwIfAborted()
               const row = z.object({ id: z.string(), title: z.string().nullable() }).parse(raw)
               if (!candidates.has(row.id))
-                candidates.set(row.id, { path: file, originalSessionId: row.id, title: row.title ?? row.id })
+                candidates.set(row.id, { path: file, originalSessionId: row.id, title: row.title?.trim() ?? '' })
               if (candidates.size > 10_000) throw new Error('scan_limit')
             }
           }
           return [...candidates.values()]
         })()
-        yield* candidates
+        for (const candidate of candidates) {
+          if (!candidate.title) {
+            try {
+              candidate.title = (await opencodeAdapter.read(candidate, signal)).title
+            } catch {
+              signal.throwIfAborted()
+              candidate.title = candidate.originalSessionId
+            }
+          }
+          yield candidate
+        }
       } finally {
         db.close()
       }
@@ -321,6 +331,21 @@ export const opencodeAdapter: HistorySourceAdapter = {
                   }
                 : null
           })
+        }
+        if (!session.title?.trim()) {
+          const firstUser = result.messages.find((message) => message.role === 'user')
+          result.title =
+            firstUser?.data.parts
+              ?.filter((part) => part.type === 'text')
+              .map((part) => part.text)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 255) ||
+            'OpenCode · ' +
+              (result.messages[0] ? new Date(result.messages[0].timestamp).toISOString().slice(0, 10) : session.id)
+          for (const message of result.messages)
+            if (message.messageSnapshot) message.messageSnapshot.name = result.title
         }
         result.sourceFingerprint = hash.digest('hex')
         if (!result.messages.length) diagnose('empty_session', undefined, 'error')
