@@ -250,7 +250,7 @@ main
 - AC15 — WorkBuddy 仅支持已声明版本样本验证过的桌面格式和目录字段。（验证：unit versioned adapter fixtures）
 - AC16 — 历史工具调用和结果作为已完成工具项折叠到“已处理”，旧导入记录也适用。打开、导入或展开历史不会执行历史工具、发起审批或自动生成。（验证：unit runtime boundaries and Electron）
 - AC17 — 首次续聊使用目标智能体配置，模型输入中导入历史位于新用户消息之前，包含已接受的时钟偏差场景；导入前说明不支持的目标运行时，初始化失败可重试且不重复历史。（验证：unit captured model input with controlled time, target-runtime compatibility, and recovery faults）
-- AC18 — 导入会话可搜索、复制、回收和恢复；副本不继承唯一导入身份。（验证：unit existing data-service integration）
+- AC18 — 导入会话可搜索、复制、回收和恢复。重新导入保留归档副本，之后恢复旧副本时两份历史均保留。副本不继承唯一导入身份。（验证：unit existing data-service integration）
 - AC19 — 向前迁移和现有完整及精简备份往返保留来源、归属与工作目录；缺少原生历史时可靠重建或明确阻止续聊。不新增备份合并。（验证：unit populated-database migration and restore fixtures）
 - AC20 — Windows、macOS 和 Linux 满足目录映射与只读来源访问要求，区分模拟和实机证据。（验证：unit platform cases and platform-native Electron）
 - AC21 — 方案之后按 Claude Code、Codex、OpenCode、WorkBuddy 顺序形成四个 gh-stack 实现层，各层差异范围明确。（验证：docs gate and gh stack topology/diff inspection）
