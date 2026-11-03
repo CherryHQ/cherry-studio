@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `api_key_id` text;

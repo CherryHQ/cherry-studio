@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -9,6 +10,7 @@ import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets, isFileConfiguredCli } f
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
+import { CLAUDE_MODEL_ROLES, stripClaudeOneMMarker } from './claudeModels'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import { readConfigFiles } from './file'
 import type {
@@ -18,7 +20,7 @@ import type {
   CliConfigWriteArgs,
   ResolvedCliConfigContext
 } from './types'
-import { firstApiKey } from './values'
+import { effectiveBoundKeyId, modelApiKey, stringValue } from './values'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
 
@@ -75,18 +77,19 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
     dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
-    // Model metadata only tunes optional fields (endpoint pick, context window),
-    // so a fetch failure degrades the config quietly — leave a breadcrumb.
-    dataApiService.get(`/models/${args.modelId}`).catch((error) => {
-      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-      return null
+    // The model record carries its per-model key binding, so it is required for credential
+    // selection: a failed read must abort rather than look like an unset binding and silently
+    // pick the first enabled key (wrong account / quota).
+    dataApiService.get(`/models/${args.modelId}`).catch((error: unknown) => {
+      logger.error(`Failed to load model record for ${args.modelId}`, error as Error)
+      throw new Error(`Failed to load model ${args.modelId} for credential selection`, { cause: error })
     })
   ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
   }
 
-  const apiKey = firstApiKey(apiKeysRes?.keys)
+  const apiKey = modelApiKey(apiKeysRes?.keys, modelRecord?.apiKeyId)
   // Keyless local servers (authOptional, e.g. Ollama, oMLX) need no real credential,
   // but the CLI SDKs still require a non-empty auth token — same per-provider
   // stand-in OpenClaw injects. Ollama-endpoint custom providers keep the
@@ -105,7 +108,74 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     model,
     modelLabel: modelRecord?.name ?? model,
     modelRecord,
-    configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
+    configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob),
+    apiKeys: apiKeysRes?.keys
+  }
+}
+
+/**
+ * Role-binding mismatch on a Claude CLI config write. Dedicated type so the UI can present
+ * this specific, user-actionable message while every other write failure keeps the generic
+ * toast; the message carries only the env key and the user-typed model value, never key material.
+ */
+export class CliConfigRoleBindingError extends Error {
+  override readonly name = 'CliConfigRoleBindingError'
+}
+
+export function isCliConfigRoleBindingError(error: unknown): error is CliConfigRoleBindingError {
+  return error instanceof CliConfigRoleBindingError
+}
+
+/** Bound a value for the role-binding toast: single line, capped length. */
+function displayToken(raw: string): string {
+  const flat = raw.replace(/\s+/g, ' ').trim()
+  return flat.length > 60 ? flat.slice(0, 57) + '...' : flat
+}
+
+/**
+ * Write-time credential guard for the direct (non-gateway) Claude path: the generated settings
+ * file carries a single ANTHROPIC_AUTH_TOKEN, so every configured role model shares it. Abort
+ * when a role model's effective key binding differs from the context model's — silently writing
+ * would send that role's requests under the wrong account/quota. The gateway path enforces
+ * per-model bindings server-side and is exempt; so are absent bindings on both sides, where the
+ * single automatic credential is exactly what every role would use. Preview stays tolerant:
+ * this runs only on the immediate-write path, after credentials are asserted and before any
+ * file is built or written, so a rejection can never leave a partial config behind.
+ */
+async function assertClaudeRoleKeyBindings(
+  args: CliConfigDraftBuildArgs,
+  context: ResolvedCliConfigContext
+): Promise<void> {
+  if (args.cliTool !== CodeCli.CLAUDE_CODE || args.gateway || !context.apiKeys) return
+  const env =
+    context.configBlob.env && typeof context.configBlob.env === 'object' && !Array.isArray(context.configBlob.env)
+      ? (context.configBlob.env as Record<string, unknown>)
+      : {}
+  const contextBinding = effectiveBoundKeyId(context.apiKeys, context.modelRecord?.apiKeyId)
+  for (const role of CLAUDE_MODEL_ROLES) {
+    const value = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
+    if (!value) continue
+    const roleUniqueId = isUniqueModelId(value) ? value : `${context.provider.id}::${value}`
+    // Genuine absence (unknown alias) carries no verifiable binding; treat it like an absent
+    // one. A real read failure is not absence: propagate it so the write aborts instead of
+    // silently writing a credential whose role bindings could not be verified.
+    const roleRecord = await dataApiService
+      .get(`/models/${roleUniqueId}`)
+      .then((record) => (record ?? null) as Model | null)
+      .catch((error: unknown) => {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return null
+        throw error
+      })
+    const roleBinding = roleRecord ? effectiveBoundKeyId(context.apiKeys, roleRecord.apiKeyId) : null
+    if (roleBinding !== contextBinding) {
+      // Toast-bound message: carries only the env key, the role's display name and the
+      // user-typed model value (never key material), each bounded so the toast stays usable.
+      throw new CliConfigRoleBindingError(
+        `Cannot write Claude CLI config: ${displayToken(role.model)} ('${displayToken(value)}') does not share ` +
+          "the context model's API key binding, but the config file carries a single credential for every role. " +
+          'Align the per-model key bindings or remove the role override.'
+      )
+    }
   }
 }
 
@@ -163,6 +233,7 @@ export async function writeCliConfigDraft(args: {
     const context = await resolveContext(writeArgs)
     if (!context) return
     assertCliConfigCredentials(args.cliTool, context)
+    await assertClaudeRoleKeyBindings(writeArgs, context)
     // Gateway: always rebuild so the freshly-resolved gateway key/model is (re)injected — the preview
     // draft may carry a stale/empty key built before the gateway started. Passing `args.files` as the
     // merge base keeps the user's hand-edited unmanaged fields (managed credential/model are

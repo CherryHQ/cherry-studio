@@ -1,5 +1,5 @@
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { Provider, ApiKeyEntry } from '@shared/data/types/provider'
 import type { CliConfigLanguage, CliConfigTarget } from '@shared/utils/cliConfig'
 
 export type { CliConfigLanguage, CliConfigTarget }
@@ -61,4 +61,9 @@ export interface ResolvedCliConfigContext {
   modelLabel?: string
   modelRecord: Model | null
   configBlob: Record<string, any>
+  /**
+   * The provider's stored keys, populated on the direct (non-gateway) path so the write-time
+   * credential checks can compare per-model bindings. Undefined where keys were not fetched.
+   */
+  apiKeys?: ApiKeyEntry[]
 }

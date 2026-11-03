@@ -376,6 +376,33 @@ describe('ProviderService API keys', () => {
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
   })
 
+  it('uses a preferred key id for model routing without advancing rotation', async () => {
+    await seedProvider()
+
+    const resolved = providerService.resolveApiKey('openai', undefined, 'key-b')
+
+    expect(resolved).toEqual({
+      value: 'sk-b',
+      apiKeySelection: {
+        attribution: 'explicit',
+        id: 'key-b',
+        label: 'B',
+        masked: expect.stringContaining('****')
+      }
+    })
+    expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBeUndefined()
+  })
+
+  it('falls back to automatic rotation when the preferred key is disabled or missing', async () => {
+    await seedProvider()
+
+    expect(providerService.resolveApiKey('openai', undefined, 'missing-key').value).toBe('sk-a')
+    expect(providerService.resolveApiKey('openai', undefined, 'key-a').value).toBe('sk-a')
+
+    providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
+    expect(providerService.resolveApiKey('openai', undefined, 'key-b').value).toBe('sk-a')
+  })
+
   it('matches an explicit override to its stored identity without advancing rotation', async () => {
     await seedProvider()
 

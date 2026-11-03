@@ -76,6 +76,11 @@ describe('Model handler validation', () => {
     expect(() => UpdateModelSchema.parse({ contextWindow: 0 })).toThrow()
   })
 
+  it('rejects empty apiKeyId strings while allowing null to clear a binding', () => {
+    expect(UpdateModelSchema.parse({ apiKeyId: null })).toEqual({ apiKeyId: null })
+    expect(() => UpdateModelSchema.parse({ apiKeyId: '' })).toThrow()
+  })
+
   it('accepts create payload arrays up to the configured limit', () => {
     const items = Array.from({ length: MODELS_BATCH_MAX_ITEMS }, (_, index) => ({
       providerId: 'openai',

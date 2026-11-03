@@ -9,6 +9,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
+import { resolveEffectivePreferredKeyId } from '@data/services/providerApiKeySelection'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
@@ -79,7 +80,11 @@ interface RuntimeModelRef {
 }
 
 /** Why one model slot cannot take the direct branch — mirrors the gateway predicate. */
-type GatewayDegradeReason = 'agent-gateway-provider' | 'cross-provider' | 'non-anthropic-endpoint'
+type GatewayDegradeReason =
+  | 'agent-gateway-provider'
+  | 'cross-provider'
+  | 'non-anthropic-endpoint'
+  | 'model-api-key-binding'
 
 interface GatewayDegradedSlot {
   slot: 'sonnet' | 'haiku'
@@ -727,11 +732,18 @@ function deriveRouteFacts(
     }
   }
 
+  const providerApiKeys = providerService.getApiKeys(primaryProvider.id)
+  const primaryEffectiveKeyId = resolveEffectivePreferredKeyId(providerApiKeys, primaryModel.apiKeyId)
   const gatewayReasons = (ref: RuntimeModelRef): GatewayDegradeReason[] => {
     const reasons: GatewayDegradeReason[] = []
     if (requiresAgentGateway(ref.providerId)) reasons.push('agent-gateway-provider')
     if (ref.providerId !== primaryProvider.id) reasons.push('cross-provider')
     if (!usesAnthropicMessagesEndpoint(ref)) reasons.push('non-anthropic-endpoint')
+    // The direct spawn exports one ANTHROPIC_API_KEY for every alias, so a sub-model with its own
+    // key binding needs the gateway to serve it.
+    if (resolveEffectivePreferredKeyId(providerApiKeys, ref.model?.apiKeyId) !== primaryEffectiveKeyId) {
+      reasons.push('model-api-key-binding')
+    }
     return reasons
   }
   const primaryReasons = gatewayReasons(primaryRef)
@@ -793,12 +805,19 @@ function deriveRouteFacts(
     sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
     haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
   }
+  const modelKeyBindings = [primaryRef, opusRef, sonnetRef, haikuRef]
+    .map(
+      (ref) =>
+        `${ref.providerId}/${ref.modelId}:${resolveEffectivePreferredKeyId(providerApiKeys, ref.model?.apiKeyId) ?? ''}`
+    )
+    .join(';')
   return {
     facts: {
       branch: 'direct',
       baseUrl: anthropicBaseUrl,
       credentialsFingerprint: fingerprintCredentials([
         ...enabledKeys.map((key) => `api-key:${key}`),
+        `model-api-key-bindings:${modelKeyBindings}`,
         ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
       ]),
       toolSearchCompatible,
@@ -866,7 +885,7 @@ async function resolveClaudeCodeRuntimeRoute(
       }
     }
     case 'direct': {
-      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id, undefined, primaryModel.apiKeyId)
       // Keyless local servers (registry authOptional) carry no credential; the
       // SDK still needs a non-empty token. Ollama-endpoint custom providers
       // keep their established stand-in.

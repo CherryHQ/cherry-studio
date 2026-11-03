@@ -11,14 +11,15 @@ import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import {
   clearCliConfig,
-  type CliConfigConnection,
-  type CliConfigFileDraft,
-  type CliConfigGatewayContext,
   extractConnectionFromCliConfigDraft,
+  isCliConfigRoleBindingError,
   isOwnLoginConfigurable,
   parseConfiguredModelId,
   resolveCliConfigApplyContext,
   sanitizeCliConfigBlob,
+  type CliConfigConnection,
+  type CliConfigFileDraft,
+  type CliConfigGatewayContext,
   writeCliConfigDraft,
   writeOwnLoginCliConfigDraft
 } from '../cliConfig'
@@ -340,7 +341,13 @@ export function useConfigPanelController({
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
-          toast.error(t('code.apply_failed'))
+          // The role-binding guard's message is user-actionable and carries no secrets;
+          // every other write failure keeps the generic toast.
+          toast.error(
+            isCliConfigRoleBindingError(err)
+              ? { title: t('code.apply_failed'), description: err.message }
+              : t('code.apply_failed')
+          )
         }
       })().finally(() => {
         inFlightToolsRef.current.delete(selectedCliTool)

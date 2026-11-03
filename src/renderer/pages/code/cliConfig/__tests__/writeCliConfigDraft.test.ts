@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
 import { dataApiService } from '@data/DataApiService'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
@@ -562,6 +563,177 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env).not.toHaveProperty('ANTHROPIC_MODEL')
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-5')
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('claude-sonnet-4-5')
+    })
+
+    // Fail-closed credential guard: the generated settings file carries one ANTHROPIC_AUTH_TOKEN
+    // for every Claude role, so a role model whose effective key binding differs from the context
+    // model's must abort the write instead of silently authenticating under the wrong
+    // account/quota. The gateway path enforces bindings server-side and is not covered here.
+    describe('role key binding guard', () => {
+      const mainKey: ApiKeyEntry = { id: 'k1', key: 'sk-bound-main', isEnabled: true }
+      const otherKey: ApiKeyEntry = { id: 'k2', key: 'sk-bound-other', isEnabled: true }
+      const boundProviders = {
+        '/providers/anthropic/api-keys': () => ({ keys: [mainKey, otherKey] }),
+        '/providers/anthropic': () => anthropicProvider
+      }
+      const detailedBlob = (haiku: string, extra: Record<string, string> = {}) => ({
+        env: {
+          ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-main',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: haiku,
+          ...extra
+        }
+      })
+
+      it('rejects when a detailed role model is bound to a different key, writing nothing', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: 'k1' }),
+          '/models/anthropic::claude-fast': () => ({ id: 'anthropic::claude-fast', name: 'Fast', apiKeyId: 'k2' })
+        })
+
+        await expect(
+          writeCliConfigDraft({
+            cliTool: CodeCli.CLAUDE_CODE,
+            modelId: 'anthropic::claude-main',
+            configBlob: detailedBlob('claude-fast'),
+            writePrimaryModel: false
+          })
+        ).rejects.toThrow('single credential')
+        expect(writes).toEqual([])
+      })
+
+      it('rejects when the context model is bound but a role model is not', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: 'k1' }),
+          '/models/anthropic::claude-fast': () => ({ id: 'anthropic::claude-fast', name: 'Fast', apiKeyId: null })
+        })
+
+        await expect(
+          writeCliConfigDraft({
+            cliTool: CodeCli.CLAUDE_CODE,
+            modelId: 'anthropic::claude-main',
+            configBlob: detailedBlob('claude-fast'),
+            writePrimaryModel: false
+          })
+        ).rejects.toThrow('single credential')
+        expect(writes).toEqual([])
+      })
+
+      it('rejects an unverifiable role value while the context model is pinned to a key', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: 'k1' }),
+          '/models/': () => null
+        })
+
+        await expect(
+          writeCliConfigDraft({
+            cliTool: CodeCli.CLAUDE_CODE,
+            modelId: 'anthropic::claude-main',
+            configBlob: detailedBlob('claude-not-in-cherry'),
+            writePrimaryModel: false
+          })
+        ).rejects.toThrow('single credential')
+        expect(writes).toEqual([])
+      })
+
+      it('writes when every configured role shares the context binding', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: 'k1' }),
+          '/models/anthropic::claude-fast': () => ({ id: 'anthropic::claude-fast', name: 'Fast', apiKeyId: 'k1' }),
+          '/models/anthropic::claude-agent': () => ({ id: 'anthropic::claude-agent', name: 'Agent', apiKeyId: 'k1' })
+        })
+
+        await writeCliConfigDraft({
+          cliTool: CodeCli.CLAUDE_CODE,
+          modelId: 'anthropic::claude-main',
+          configBlob: detailedBlob('claude-fast', { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-agent' }),
+          writePrimaryModel: false
+        })
+
+        const parsed = JSON.parse(written!.content)
+        expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bound-main')
+        expect(parsed.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-fast')
+        expect(parsed.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-agent')
+      })
+
+      it('preserves automatic selection when neither the context model nor a role binds a key', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: null }),
+          '/models/anthropic::claude-fast': () => ({ id: 'anthropic::claude-fast', name: 'Fast', apiKeyId: null })
+        })
+
+        await writeCliConfigDraft({
+          cliTool: CodeCli.CLAUDE_CODE,
+          modelId: 'anthropic::claude-main',
+          configBlob: detailedBlob('claude-fast'),
+          writePrimaryModel: false
+        })
+
+        const parsed = JSON.parse(written!.content)
+        expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bound-main')
+      })
+
+      it('treats a NOT_FOUND role model read as genuine absence, bound context still rejects', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: 'k1' }),
+          '/models/anthropic::claude-fast': () => {
+            throw DataApiErrorFactory.notFound('Model', 'anthropic/claude-fast')
+          }
+        })
+
+        await expect(
+          writeCliConfigDraft({
+            cliTool: CodeCli.CLAUDE_CODE,
+            modelId: 'anthropic::claude-main',
+            configBlob: detailedBlob('claude-fast'),
+            writePrimaryModel: false
+          })
+        ).rejects.toThrow('single credential')
+        expect(writes).toEqual([])
+      })
+
+      it('aborts the write when a role model read fails with a real error, writing nothing', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: null }),
+          '/models/anthropic::claude-fast': () => {
+            throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'database offline')
+          }
+        })
+
+        // The context model is unbound, so swallowing this failure would silently write.
+        await expect(
+          writeCliConfigDraft({
+            cliTool: CodeCli.CLAUDE_CODE,
+            modelId: 'anthropic::claude-main',
+            configBlob: detailedBlob('claude-fast'),
+            writePrimaryModel: false
+          })
+        ).rejects.toThrow('database offline')
+        expect(writes).toEqual([])
+      })
+
+      it('keeps writing unknown role aliases when the context model is unbound', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/': () => null
+        })
+
+        await writeCliConfigDraft({
+          cliTool: CodeCli.CLAUDE_CODE,
+          modelId: 'anthropic::claude-main',
+          configBlob: detailedBlob('claude-not-in-cherry'),
+          writePrimaryModel: false
+        })
+
+        const parsed = JSON.parse(written!.content)
+        expect(parsed.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-not-in-cherry')
+      })
     })
 
     it('round-trips a primary model together with an independent Subagent override', async () => {

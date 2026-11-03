@@ -5,15 +5,24 @@ import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
-const mocks = vi.hoisted(() => ({
-  clearCliConfig: vi.fn(),
-  writeCliConfigDraft: vi.fn(),
-  writeOwnLoginCliConfigDraft: vi.fn(),
-  isOwnLoginConfigurable: vi.fn(),
-  resolveCliConfigApplyContext: vi.fn(),
-  parseConfiguredModelId: vi.fn(),
-  sanitizeCliConfigBlob: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  // Mirrors cliConfig/draft's CliConfigRoleBindingError: the draft module is mocked below, so the
+  // hook's `isCliConfigRoleBindingError` guard must come from the same mocked class to see these.
+  class CliConfigRoleBindingError extends Error {
+    override readonly name = 'CliConfigRoleBindingError'
+  }
+  return {
+    clearCliConfig: vi.fn(),
+    writeCliConfigDraft: vi.fn(),
+    writeOwnLoginCliConfigDraft: vi.fn(),
+    isOwnLoginConfigurable: vi.fn(),
+    resolveCliConfigApplyContext: vi.fn(),
+    parseConfiguredModelId: vi.fn(),
+    sanitizeCliConfigBlob: vi.fn(),
+    CliConfigRoleBindingError,
+    isCliConfigRoleBindingError: (error: unknown) => error instanceof CliConfigRoleBindingError
+  }
+})
 
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
@@ -29,7 +38,8 @@ vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }
 vi.mock('../../cliConfig/draft', () => ({
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
-  isOwnLoginConfigurable: mocks.isOwnLoginConfigurable
+  isOwnLoginConfigurable: mocks.isOwnLoginConfigurable,
+  isCliConfigRoleBindingError: mocks.isCliConfigRoleBindingError
 }))
 vi.mock('../../cliConfig/applyContext', () => ({
   parseConfiguredModelId: mocks.parseConfiguredModelId,
@@ -760,6 +770,34 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+
+    it('surfaces the role-binding guard message as a titled toast with description', async () => {
+      // The role-binding guard's message is user-actionable and secret-free, so it rides in the
+      // toast description; the title stays the generic key (string titles truncate in the toast UI).
+      const message = 'ANTHROPIC_DEFAULT_OPUS_MODEL binds key k2; the context model binds key k1'
+      mocks.writeCliConfigDraft.mockRejectedValue(new mocks.CliConfigRoleBindingError(message))
+      const options = {
+        ...baseOptions(),
+        currentProviderId: null,
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'cs-sk-old',
+          ensureRunning: vi.fn().mockResolvedValue(undefined),
+          getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith({ title: 'code.apply_failed', description: message })
     })
   })
 })
