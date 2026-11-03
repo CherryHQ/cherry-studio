@@ -24,17 +24,17 @@ export const REGRESSION_CASES = [
     task: 'custom-assistant'
   },
   {
-    id: 'C-04',
-    capabilities: [],
-    phase: '03-models-and-assistants',
-    title: 'Mark a chat response that ended at the output limit',
-    task: 'chat-stream-failure'
-  },
-  {
     id: 'C-03',
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Preserve a partial chat response after disconnect and restart',
+    task: 'chat-stream-failure'
+  },
+  {
+    id: 'C-04',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Mark a chat response that ended at the output limit',
     task: 'chat-stream-failure'
   },
   {
