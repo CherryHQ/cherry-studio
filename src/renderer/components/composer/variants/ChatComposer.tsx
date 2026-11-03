@@ -892,7 +892,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
-  const quotaExhaustion = useCherryCloudQuotaExhaustion(runtimeModel)
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(effectiveSubmittedModel)
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -1444,7 +1444,8 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    blocked: !!quotaExhaustion
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1452,8 +1453,9 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      !!quotaExhaustion || ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, isPending, quotaExhaustion]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1648,6 +1650,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        // Save-only edits stay available out of quota; only the resend is held.
+        if (quotaExhaustion) return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1708,6 +1712,7 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
+      quotaExhaustion,
       runtimeModel,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
@@ -1859,7 +1864,7 @@ const ChatComposerInner = ({
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage ||
-            !!quotaExhaustion
+            (!!quotaExhaustion && !editingMessageForCurrentTopic)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference

@@ -3104,6 +3104,41 @@ describe('ChatComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
+  it('keeps save-only edits available out of quota while holding the resend', async () => {
+    mocks.quotaExhaustion = { isFreeModel: true, isSubscribed: false }
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend: vi.fn() }
+    const message = {
+      id: 'msg-quota-edit',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'original' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('msg-quota-edit'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'edited and resent', tokens: [] })
+    })
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    await act(async () => {
+      await mocks.surfaceProps?.editingState?.onSave?.({ text: 'edited only', tokens: [] })
+    })
+    expect(editMessage).toHaveBeenCalledTimes(1)
+    expect(resend).not.toHaveBeenCalled()
+  })
+
   it('saves an answer-only edit when the existing reasoning part is empty', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend: vi.fn() }
