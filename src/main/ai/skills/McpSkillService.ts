@@ -62,7 +62,9 @@ const executionTools = new Set([
   'mcp__automation__js',
   'mcp__skills__install_skill',
   'mcp__mcp-manager__install_mcp_server',
-  'mcp__cherry-tools__cli_install'
+  'mcp__mcp_manager__install_mcp_server',
+  'mcp__cherry-tools__cli_install',
+  'mcp__cherry_tools__cli_install'
 ])
 
 @Injectable('McpSkillService')

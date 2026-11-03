@@ -553,6 +553,67 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(result).toMatchObject({ block: true })
   })
 
+  describe.each([
+    { server: 'mcp-manager', name: 'install_mcp_server', input: { name: 'reports', command: 'node' } },
+    { server: 'cherry-tools', name: 'cli_install', input: { name: 'jq', tool: 'jq' } }
+  ])('remote-skill installer approval for $name', ({ server, name, input }) => {
+    const piName = buildPiMcpToolName(server, name)
+
+    it.each([piName, `mcp__${server}__${name}`])(
+      'cancels pending %s approval when another session discovers a replacement',
+      async (toolName) => {
+        await skills.load(sessionId, serverId, fixture.uri)
+        const requested = Promise.withResolvers<string>()
+        const result = authorizer(true, requested.resolve)({ toolName, toolCallId: 'install', input: { ...input } })
+        const approvalId = await requested.promise
+
+        skills.openSession('other-session', agentId)
+        fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+        fixture.refresh()
+        await skills.get('other-session', serverId, fixture.uri)
+
+        const dispatched = toolApprovalRegistry.dispatch(approvalId, { approved: true })
+        await expect(result).resolves.toMatchObject({ block: true })
+        expect(dispatched).toBeUndefined()
+        expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+      }
+    )
+
+    it('allows the pending Pi call after unchanged discovery and approval', async () => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      const requested = Promise.withResolvers<string>()
+      const result = authorizer(
+        true,
+        requested.resolve
+      )({
+        toolName: piName,
+        toolCallId: 'install',
+        input: { ...input }
+      })
+      const approvalId = await requested.promise
+
+      skills.openSession('other-session', agentId)
+      await skills.get('other-session', serverId, fixture.uri)
+
+      expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toBeDefined()
+      await expect(result).resolves.toBeUndefined()
+      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
+    })
+
+    it('passes the Pi call without approval in Full Access', async () => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      await expect(
+        authorizer(
+          false,
+          () => {
+            throw new Error('Full Access must not request approval')
+          },
+          'bypassPermissions'
+        )({ toolName: piName, toolCallId: 'install', input: { ...input } })
+      ).resolves.toBeUndefined()
+    })
+  })
+
   it('restores provenance without prompting on resume and detects changed manifests', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
     skills.closeSession(sessionId)
