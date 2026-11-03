@@ -1733,6 +1733,7 @@
   "history.records.table.session": "任务",
   "history.records.table.time": "时间",
   "history.records.title": "对话历史记录",
+  "history_import.blocked": "有 {{count}} 个会话无法导入。请处理下方问题后重试。",
   "history_import.branch": "选择会话分支",
   "history_import.confirm": "导入选中对话",
   "history_import.default_location": "使用应用默认位置",

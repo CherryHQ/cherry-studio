@@ -1733,6 +1733,7 @@
   "history.records.table.session": "Задача",
   "history.records.table.time": "Время",
   "history.records.title": "История разговора",
+  "history_import.blocked": "Не удалось импортировать {{count}} диалогов. Устраните указанные ниже проблемы и повторите попытку.",
   "history_import.branch": "Выбрать ветку",
   "history_import.confirm": "Импортировать выбранные диалоги",
   "history_import.default_location": "Стандартное расположение приложения",

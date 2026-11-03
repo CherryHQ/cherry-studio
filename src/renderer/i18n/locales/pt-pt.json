@@ -1733,6 +1733,7 @@
   "history.records.table.session": "Tarefa",
   "history.records.table.time": "Tempo",
   "history.records.title": "Histórico de Conversa",
+  "history_import.blocked": "Não foi possível importar {{count}} conversas. Resolva os problemas abaixo e tente novamente.",
   "history_import.branch": "Escolher ramo",
   "history_import.confirm": "Importar conversas selecionadas",
   "history_import.default_location": "Localização predefinida da aplicação",

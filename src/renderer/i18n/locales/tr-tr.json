@@ -1733,6 +1733,7 @@
   "history.records.table.session": "Görev",
   "history.records.table.time": "Zaman",
   "history.records.title": "Konuşma Geçmişi",
+  "history_import.blocked": "{{count}} konuşma içe aktarılamadı. Aşağıdaki sorunları giderip tekrar deneyin.",
   "history_import.branch": "Konuşma dalını seç",
   "history_import.confirm": "Seçilen konuşmaları içe aktar",
   "history_import.default_location": "Uygulamanın varsayılan konumu",

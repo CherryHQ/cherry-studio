@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, RowFlex } from '@cherrystudio/ui'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import {
   SettingDivider,
   SettingGroup,
@@ -10,6 +11,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { CodeCli } from '@shared/types/codeCli'
 
 import ImportPopup from './ImportPopup'
 import LocalHistoryImportPopup from './LocalHistoryImportPopup'
@@ -44,8 +46,11 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingTitle>{t('history_import.title')}</SettingTitle>
       </SettingRow>
-      <SettingRow id="setting-data-import-local-claude-code" className="scroll-mt-6">
-        <SettingRowTitle>Claude Code</SettingRowTitle>
+      <SettingRow id="setting-data-import-local-claude-code" className="scroll-mt-6 py-4">
+        <SettingRowTitle className="gap-3">
+          <CliIcon id={CodeCli.CLAUDE_CODE} />
+          {t('history_import.source.claude_code')}
+        </SettingRowTitle>
         <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'claude-code' })}>
           {t('history_import.start')}
         </Button>

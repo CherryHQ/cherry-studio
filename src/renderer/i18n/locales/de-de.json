@@ -1733,6 +1733,7 @@
   "history.records.table.session": "Aufgabe",
   "history.records.table.time": "Zeit",
   "history.records.title": "Konversationsverlauf",
+  "history_import.blocked": "{{count}} Gespräche konnten nicht importiert werden. Beheben Sie die folgenden Probleme und versuchen Sie es erneut.",
   "history_import.branch": "Chat-Zweig wählen",
   "history_import.confirm": "Ausgewählte Gespräche importieren",
   "history_import.default_location": "Standardpfad der Anwendung",
