@@ -500,7 +500,7 @@
     }
   ],
   "providers": {
-    "version": "26a014e34810030f",
+    "version": "867503c6f1b3bd07",
     "count": 67,
     "entries": [
       {
@@ -770,6 +770,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "demonroute",
+        "name": "DemonRoute"
       }
     ]
   },
