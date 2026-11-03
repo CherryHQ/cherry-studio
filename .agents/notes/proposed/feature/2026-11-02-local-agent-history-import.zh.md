@@ -56,7 +56,9 @@ Status: proposed
 | [AgentWorkspaceService](../../../../src/main/data/services/AgentWorkspaceService.ts) | 复用 `findOrCreateByPathTx` 和 `createSystemWorkspaceForSessionTx` |
 | [AgentSessionMessageService](../../../../src/main/data/services/AgentSessionMessageService.ts) | 增加用于历史时间、来源身份和顺序的专用批量导入契约 |
 
-现有消息批量写入使用当前时间，分页按 `createdAt, id` 排序。来源时间非递减时，保留时间，并为相同时间的消息生成顺序一致的本地主键。来源顺序与时间冲突时，首层需确定共用顺序契约。实现该扩展，或在预览中明确报告格式不受支持。不能改写有效历史时间，也不能只在渲染进程补排序。
+现有消息批量写入使用当前时间，分页按 `createdAt, id` 排序。来源时间非递减时，保留时间，并为相同时间的消息生成顺序一致的本地主键。来源顺序与时间冲突时，首层需确定共用顺序契约。该契约必须同时覆盖导入历史和后续用户、助手消息。实现该扩展，或在预览中明确报告输入不受支持。不能改写有效时间，也不能只在渲染进程补排序。
+
+来源时间即使有效且内部有序，也可能晚于本机时间，例如来源电脑的时钟快了一天。接受导入后，即使新消息时间更早，后续对话也必须在存储、分页、重新加载和运行时原生历史中排在全部导入消息之后。这种情况需要独立于时间戳的顺序。尚未支持该顺序时，在预览中拒绝受影响会话并说明时钟偏差；提交前按本机当前时间再次检查，失败时不创建会话记录。保留历史消息和新消息的时间，不能为排序而压低或抬高时间戳。
 
 复用智能体会话列表、搜索、生命周期和数据变化通知。各数据服务管理自身表，导入器不能绕过这些约束。
 
@@ -238,7 +240,7 @@ main
 - AC6 — 目录缺失、不可访问或属于其他平台时，预览要求映射或跳过，不能静默降级。（验证：unit and Electron directory fixtures）
 - AC7 — 重复与并发导入，包括选择不同目标时，不新增重复会话；同名智能体仍按 ID 选择，已导入会话保留原归属。（验证：unit concurrency, cross-target, rename, and namesake fixtures）
 - AC8 — 空输入、取消预览、全部重复和事务失败时，不遗留空会话或工作目录，不新建或改写智能体配置。（验证：unit state and source-directory comparisons）
-- AC9 — 导入正文、有效原时间及受支持的来源顺序，在存储和分页中保持一致。（验证：unit ordering and renderer paging）
+- AC9 — 导入正文、有效原时间及受支持的来源顺序，在存储、分页和重新加载中保持一致。来源时间比本机快一天时，要么保留时间并将后续用户、助手消息排在全部历史之后，要么在预览中拒绝，并在写入任何会话数据前再次检查。（验证：unit clock-skew/ordering fixtures with controlled time and renderer paging/reload）
 - AC10 — 坏 JSON 和未知记录有可定位的原因，其余可还原消息仍可导入。（验证：unit mixed-record fixtures）
 - AC11 — 失败会话完整回滚，取消时保留已提交会话，且不启动后续会话。（验证：unit fault injection and cancellation）
 - AC12 — 来源或目录变化、目标更换或被删除、运行时变为不兼容、预览过期时，重新选择或预览；拒绝其他窗口的令牌和替换的目标 ID。（验证：unit and renderer boundary checks）
@@ -246,7 +248,7 @@ main
 - AC14 — OpenCode 正确读取支持结构及 WAL 已提交数据，并明确拒绝未知结构。（验证：unit real SQLite fixtures）
 - AC15 — WorkBuddy 仅支持已声明版本样本验证过的桌面格式和目录字段。（验证：unit versioned adapter fixtures）
 - AC16 — 打开或导入历史不会执行历史工具、发起审批或自动生成。（验证：unit runtime boundaries and Electron）
-- AC17 — 首次续聊使用目标智能体配置，模型输入包含导入历史；导入前说明不支持的目标运行时，初始化失败可重试且不重复历史。（验证：unit captured model input, target-runtime compatibility, and recovery faults）
+- AC17 — 首次续聊使用目标智能体配置，模型输入中导入历史位于新用户消息之前，包含已接受的时钟偏差场景；导入前说明不支持的目标运行时，初始化失败可重试且不重复历史。（验证：unit captured model input with controlled time, target-runtime compatibility, and recovery faults）
 - AC18 — 导入会话可搜索、复制、回收和恢复；副本不继承唯一导入身份。（验证：unit existing data-service integration）
 - AC19 — 向前迁移和备份往返保留来源、归属与工作目录，合并冲突有明确结果。（验证：unit populated-database migration and restore fixtures）
 - AC20 — Windows、macOS 和 Linux 满足目录映射与只读来源访问要求，区分模拟和实机证据。（验证：unit platform cases and platform-native Electron）
@@ -259,7 +261,7 @@ main
 | 风险或未定选择 | 处理要求 |
 |---|---|
 | 目标运行时兼容性 | 使用所选智能体的运行时，完成并验证历史初始化后才允许选择，不静默修改智能体配置 |
-| 时间回拨 | 第一实现层开始前决定共用顺序扩展或明确格式限制，不能伪造时间 |
+| 时间回拨或来源时钟超前 | 第一实现层开始前决定共用顺序扩展或明确拒绝输入；覆盖历史到续聊的衔接和提交前复查，不伪造时间戳 |
 | 目录缺失 | 写消息前解决，因为现有带消息会话不能更换工作目录 |
 | 原生文件与数据库一致性 | 使用持久初始化标记、稳定原生身份、验证后的输出和重试恢复 |
 | WorkBuddy 与上游变化 | 获取桌面样本并固定支持版本，开发版结构不代表所有发布版本 |
@@ -268,4 +270,4 @@ main
 | 备份合并 | 保留身份约束，报告冲突，不能静默合并或移除来源信息 |
 | 与 #19002 的交集 | 在合适位置复用预览和目录映射能力，保持四来源实现顺序 |
 
-尚待确定的实现选择包括支持的目标运行时清单、来源时间回退的处理方式，以及首版工具和附件的保真范围。不论选择哪个目标，重导入默认跳过；增量同步另行设计。声明支持前，必须补齐来源版本清单、WorkBuddy 样本和输入上限。四个来源满足完整验收标准前，不将 #22728 标记为已交付。
+尚待确定的实现选择包括支持的目标运行时清单、来源时间回退及晚于本机时间的处理方式，以及首版工具和附件的保真范围。不论选择哪个目标，重导入默认跳过；增量同步另行设计。声明支持前，必须补齐来源版本清单、WorkBuddy 样本和输入上限。四个来源满足完整验收标准前，不将 #22728 标记为已交付。
