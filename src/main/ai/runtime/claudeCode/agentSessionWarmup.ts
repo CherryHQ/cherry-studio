@@ -100,12 +100,12 @@ interface ClaudeCodeRouteFacts {
     haiku: string
   }
   /**
-   * Whether the primary model accepts dynamically-loaded tool declarations — the mechanism behind
+   * Whether all effective model slots accept dynamically-loaded tool declarations — the mechanism behind
    * the SDK's ToolSearch, which Cherry force-enables via `ENABLE_TOOL_SEARCH=auto`
    * (settingsBuilder). False means `mergeRuntimeSettings` must strip that env var, or providers
    * that reject the injected blocks (Moonshot's Anthropic endpoint on non-K3 models) fail every
-   * turn with `400 Invalid request: tokenization failed`. Computed from the effective connection
-   * model in `deriveRouteFacts`, not `agent.model` — a per-turn connection can override it.
+   * turn with `400 Invalid request: tokenization failed`. Computed from the effective slots in
+   * `deriveRouteFacts`, after captured-connection and external-cli pinning.
    */
   toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
@@ -683,12 +683,8 @@ function deriveRouteFacts(
   const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
   const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
 
-  // ToolSearch is gated on the *primary* model only: it is the only one that can emit ToolSearch
-  // calls, and every dynamically-loaded tool declaration lands in the shared conversation the
-  // primary model must parse. Sub-models are pinned to the primary whenever they differ from
-  // `agent.model` (see `pinSubModelsToPrimary`), so keying on the primary never misses a
-  // per-turn model override.
-  const toolSearchCompatible = supportsDynamicallyLoadedTools(primaryRef.apiModelId)
+  // The CLI's ToolSearch environment policy is process-wide, so check every effective slot.
+  // Captured connections and external-cli pinning determine which slots remain effective.
 
   // External-cli (e.g. claude-code) authenticates only through the SDK's
   // subscription login, which can serve *only* this provider's own models. A
@@ -705,6 +701,10 @@ function deriveRouteFacts(
       sonnet: pinToPrimary(sonnetRef),
       haiku: pinToPrimary(haikuRef)
     }
+    const toolSearchCompatible =
+      supportsDynamicallyLoadedTools(externalRefs.primary.apiModelId) &&
+      supportsDynamicallyLoadedTools(externalRefs.sonnet.apiModelId) &&
+      supportsDynamicallyLoadedTools(externalRefs.haiku.apiModelId)
     const modelIds = {
       primary: externalRefs.primary.apiModelId,
       opus: externalRefs.opus.apiModelId,
@@ -739,6 +739,11 @@ function deriveRouteFacts(
   const sonnetReasons = sonnetRef === primaryRef ? [] : gatewayReasons(sonnetRef)
   const haikuReasons = haikuRef === primaryRef ? [] : gatewayReasons(haikuRef)
   const shouldUseGateway = primaryReasons.length > 0 || sonnetReasons.length > 0 || haikuReasons.length > 0
+
+  const toolSearchCompatible =
+    supportsDynamicallyLoadedTools(primaryRef.apiModelId) &&
+    supportsDynamicallyLoadedTools(sonnetRef.apiModelId) &&
+    supportsDynamicallyLoadedTools(haikuRef.apiModelId)
 
   if (shouldUseGateway) {
     const degradedSlot = (
@@ -1027,6 +1032,7 @@ function mergeRuntimeSettings(
   // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models
   // other than K3 on Moonshot's Anthropic endpoint → `400 Invalid request: tokenization failed`),
   // drop it here so the SDK falls back to loading every tool upfront.
+  // Incompatible models can also occupy plan/small slots; the check covers all effective slots.
   if (!route.toolSearchCompatible) {
     delete env.ENABLE_TOOL_SEARCH
   }
