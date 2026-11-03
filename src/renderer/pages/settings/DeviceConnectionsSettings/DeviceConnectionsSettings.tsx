@@ -47,6 +47,7 @@ import type { OutputFor } from '@shared/ipc/types'
 import { MobileAppDownload } from './MobileAppDownload'
 import { MobileAppShowcase } from './MobileAppShowcase'
 import { RemoteEndpointSettings } from './RemoteEndpointSettings'
+import { RemoteRelaySettings } from './RemoteRelaySettings'
 
 const ENDPOINT_PREFERENCE_OPTIONS = { optimistic: false }
 const LAN_HOST = '0.0.0.0'
@@ -75,6 +76,8 @@ const DeviceConnectionsSettings: FC = () => {
   )
   const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
+  const relayStatus = useSharedCacheValue('feature.remote_access.relay_status') ?? 'disabled'
+  const [relayOrigin] = usePreference('feature.remote_access.relay_origin')
   const {
     data: devices = [],
     isLoading: isLoadingDevices,
@@ -95,7 +98,8 @@ const DeviceConnectionsSettings: FC = () => {
 
   const lanEnabled = apiGatewayConfig.host === LAN_HOST
   const gatewayAvailable = apiGatewayConfig.enabled && apiGatewayRunning
-  const connectionReady = lanEnabled && lanRunning && gatewayAvailable
+  const directReady = lanEnabled && lanRunning && gatewayAvailable
+  const connectionReady = directReady || relayStatus === 'connected'
   const [invitation, setInvitation] = useState<Invitation>()
   const [selectedAddress, setSelectedAddress] = useState('auto')
   const [endpointDialogOpen, setEndpointDialogOpen] = useState(false)
@@ -157,7 +161,7 @@ const DeviceConnectionsSettings: FC = () => {
       invitationRequestId.current += 1
       claimRequestId.current += 1
     }
-  }, [refreshClaims, clearInvitation, showPairingQr, endpointKey])
+  }, [refreshClaims, clearInvitation, showPairingQr, endpointKey, relayStatus, relayOrigin, directReady])
 
   useEffect(() => {
     if (!invitation) return
@@ -218,22 +222,33 @@ const DeviceConnectionsSettings: FC = () => {
   }
 
   const selectedAddressAvailable =
+    !!invitation?.relay ||
     !!invitation?.advertisedEndpoint ||
     selectedAddress === 'auto' ||
     invitation?.addressOptions.some(({ address }) => address === selectedAddress)
   const qrPayload =
     invitation &&
-    JSON.stringify(invitation.advertisedEndpoint ?? null) === endpointKey &&
+    (invitation.relay || JSON.stringify(invitation.advertisedEndpoint ?? null) === endpointKey) &&
+    (!invitation.relay || (relayStatus === 'connected' && invitation.relay.origin === relayOrigin)) &&
     selectedAddressAvailable &&
     !isCreatingInvitation
       ? JSON.stringify({
-          ...(invitation.advertisedEndpoint
-            ? { v: 3, endpoints: invitation.endpoints }
-            : {
-                v: 2,
-                port: invitation.port,
-                ips: selectedAddress === 'auto' ? invitation.addresses : [selectedAddress]
-              }),
+          ...(invitation.relay
+            ? {
+                v: 4,
+                endpoints:
+                  selectedAddress === 'auto' || invitation.advertisedEndpoint
+                    ? invitation.endpoints
+                    : invitation.endpoints.filter((endpoint) => endpoint.host === selectedAddress),
+                relay: invitation.relay
+              }
+            : invitation.advertisedEndpoint
+              ? { v: 3, endpoints: invitation.endpoints }
+              : {
+                  v: 2,
+                  port: invitation.port,
+                  ips: selectedAddress === 'auto' ? invitation.addresses : [selectedAddress]
+                }),
           t: 'cherry-studio-pair',
           name: invitation.hostname,
           invitationId: invitation.invitationId,
@@ -247,13 +262,16 @@ const DeviceConnectionsSettings: FC = () => {
     : lanEnabled
       ? 'deviceConnections.status.stopped'
       : 'deviceConnections.status.disabled'
-  const statusDescriptionKey = !gatewayAvailable
-    ? 'deviceConnections.gateway.required'
-    : !lanEnabled
-      ? 'deviceConnections.toggle.description'
-      : connectionReady
-        ? 'deviceConnections.toggle.enabled'
-        : 'deviceConnections.pairing.requiresRunning'
+  const statusDescriptionKey =
+    relayStatus === 'connected' && !directReady
+      ? 'deviceConnections.relay.status.connected'
+      : !gatewayAvailable
+        ? 'deviceConnections.gateway.required'
+        : !lanEnabled
+          ? 'deviceConnections.toggle.description'
+          : connectionReady
+            ? 'deviceConnections.toggle.enabled'
+            : 'deviceConnections.pairing.requiresRunning'
 
   const connectionAction = !gatewayAvailable ? (
     <Button
@@ -291,6 +309,8 @@ const DeviceConnectionsSettings: FC = () => {
         </SettingTitle>
         <PageDescription>{t('deviceConnections.description')}</PageDescription>
       </div>
+
+      <RemoteRelaySettings />
 
       <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
         <DialogContent closeLabel={t('common.close')}>

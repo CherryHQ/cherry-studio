@@ -1,7 +1,7 @@
 import { powerMonitor } from 'electron'
 
 import { application } from '@application'
-import { isUploadChunk } from '@cherrystudio/remote-protocol'
+import { isUploadChunk, relayOriginSchema, type RelayEndpoint } from '@cherrystudio/remote-protocol'
 import { remoteLimits, type RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   acceptSecureChannel,
@@ -17,12 +17,15 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 
 import { RemoteAgentHub } from './agentJournal'
 import { loadDesktopIdentity } from './deviceIdentity'
+import { maintainRelayConnection } from './relayConnection'
+import { loadRelayHostKey } from './relayHostKey'
 import { RemoteAdvertisement } from './RemoteAdvertisement'
 import { RemoteConnection } from './RemoteConnection'
 import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
 
 const logger = loggerService.withContext('RemoteAccessService')
+type MessageStream = Parameters<typeof acceptSecureChannel>[0]
 const transportLog: ChannelOptions['logger'] = {
   forComponent: () =>
     Object.assign(() => {}, {
@@ -45,6 +48,9 @@ const transportLog: ChannelOptions['logger'] = {
 ])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
+  private relayController?: AbortController
+  private relayEndpoint: RelayEndpoint | null = null
+  private relayReady = false
   private readonly advertisement = new RemoteAdvertisement((status) => {
     application.get('CacheService').setShared('feature.remote_access.discovery_status', status)
   })
@@ -54,11 +60,25 @@ export class RemoteAccessService extends BaseService {
   private readonly tokens = new RemoteTokens()
   private readonly hub = new RemoteAgentHub()
   private readonly connections = new Map<
-    RemoteSocket,
-    { address: string; openedAt: number; abort: AbortController; remote?: RemoteConnection }
+    MessageStream,
+    {
+      ingress: 'direct' | 'relay'
+      address: string
+      openedAt: number
+      abort: AbortController
+      remote?: RemoteConnection
+    }
   >()
 
   protected async onInit(): Promise<void> {
+    const preferences = application.get('PreferenceService')
+    this.registerDisposable(
+      preferences.subscribeChange('feature.remote_access.relay_enabled', () => this.refreshRelay())
+    )
+    this.registerDisposable(
+      preferences.subscribeChange('feature.remote_access.relay_origin', () => this.refreshRelay())
+    )
+    this.refreshRelay()
     remoteCommandService.interruptPending()
     this.registerDisposable(agentSessionService.onSessionUpdated(({ sessionId }) => this.hub.publishSession(sessionId)))
     const refreshAdvertisement = () => {
@@ -71,27 +91,30 @@ export class RemoteAccessService extends BaseService {
     this.registerInterval(() => {
       this.tokens.sweep()
       this.hub.sweep()
-      for (const [socket, entry] of this.connections) {
+      for (const [stream, entry] of this.connections) {
         try {
           entry.remote?.sweep()
           if (!entry.remote?.isAuthenticated() && Date.now() - entry.openedAt > remoteLimits.invitationMs)
             throw new Error('Pairing timeout')
         } catch {
-          socket.close(1008, 'Remote session expired')
+          stream.abort(new Error('Remote session expired'))
         }
       }
     }, 1000)
     this.registerDisposable(() => {
+      this.relayController?.abort()
       this.updateDirectEndpoint(undefined)
       this.pairing.clear()
       this.tokens.clear()
       this.hub.dispose()
-      for (const socket of this.connections.keys()) socket.close(1001, 'Service stopping')
+      for (const stream of this.connections.keys()) stream.abort(new Error('Service stopping'))
     })
   }
 
   protected onStop(): void {
+    this.relayController?.abort()
     this.closeIngress()
+    for (const stream of this.connections.keys()) stream.abort(new Error('Service stopping'))
   }
 
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
@@ -121,8 +144,59 @@ export class RemoteAccessService extends BaseService {
 
   async getConnectionEndpoints() {
     const desktopIdentity = deviceIdentityId(await this.getIdentity())
-    const { endpoints } = await application.get('ApiGatewayService').getRemoteEndpoint()
-    return { desktopIdentity, endpoints }
+    const endpoints = this.endpoint ? (await application.get('ApiGatewayService').getRemoteEndpoint()).endpoints : []
+    return { desktopIdentity, endpoints, relay: this.relayEndpoint }
+  }
+
+  getRelayEndpoint(): RelayEndpoint | null {
+    return this.relayReady ? this.relayEndpoint : null
+  }
+
+  private refreshRelay(): void {
+    this.relayController?.abort()
+    this.relayEndpoint = null
+    this.relayReady = false
+    const controller = new AbortController()
+    this.relayController = controller
+    const preferences = application.get('PreferenceService')
+    const publish = (status: 'disabled' | 'connecting' | 'connected' | 'unavailable') => {
+      if (controller.signal.aborted) return
+      this.relayReady = status === 'connected'
+      application.get('CacheService').setShared('feature.remote_access.relay_status', status)
+    }
+    if (!preferences.get('feature.remote_access.relay_enabled')) {
+      publish('disabled')
+      return
+    }
+    const origin = relayOriginSchema.safeParse(preferences.get('feature.remote_access.relay_origin'))
+    if (!origin.success) {
+      publish('unavailable')
+      return
+    }
+    publish('connecting')
+    void loadRelayHostKey(origin.data)
+      .then(async (hostKey) => {
+        if (controller.signal.aborted) return
+        await maintainRelayConnection({
+          origin: origin.data,
+          hostKey,
+          signal: controller.signal,
+          log: transportLog.forComponent('relay'),
+          onStatus: (status, endpoint) => {
+            if (controller.signal.aborted) return
+            this.relayEndpoint = endpoint
+            publish(status)
+          },
+          onStream: (stream) => {
+            if (controller.signal.aborted) stream.abort(new Error('Relay disabled'))
+            else this.acceptStream(stream, 'relay', origin.data)
+          }
+        })
+      })
+      .catch(() => {
+        publish('unavailable')
+        logger.warn('Relay key or connection unavailable')
+      })
   }
 
   async createInvitation() {
@@ -149,36 +223,53 @@ export class RemoteAccessService extends BaseService {
       socket.close(1008, 'Remote access is disabled')
       return
     }
-    const sameAddress = [...this.connections.values()].filter((value) => value.address === address).length
+    const sameAddress = [...this.connections.values()].filter(
+      (value) => value.ingress === 'direct' && value.address === address
+    ).length
     if (this.connections.size >= 32 || sameAddress >= 4) {
       socket.close(1013, 'Too many remote connections')
       return
     }
     socket.binaryType = 'arraybuffer'
+    this.acceptStream(new RemoteSocketStream(socket, transportLog.forComponent('remote'), 'inbound'), 'direct', address)
+  }
+
+  private acceptStream(stream: MessageStream, ingress: 'direct' | 'relay', address: string): void {
+    if (this.connections.size >= 32) {
+      stream.abort(new Error('Too many remote connections'))
+      return
+    }
     const entry = {
+      ingress,
       address,
       openedAt: Date.now(),
       abort: new AbortController(),
       remote: undefined as RemoteConnection | undefined
     }
-    this.connections.set(socket, entry)
-    socket.addEventListener('close', () => {
+    this.connections.set(stream, entry)
+    const dispose = () => {
+      stream.removeEventListener('close', dispose)
       entry.abort.abort()
       entry.remote?.dispose()
-      this.connections.delete(socket)
-    })
-    void this.run(socket, entry).catch((error: unknown) => {
-      if (entry.abort.signal.aborted && error === entry.abort.signal.reason) return
-      logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
-      socket.close(1011, 'Remote session failed')
-    })
+      this.connections.delete(stream)
+    }
+    stream.addEventListener('close', dispose)
+    void this.run(stream, entry)
+      .catch((error: unknown) => {
+        if (entry.abort.signal.aborted && error === entry.abort.signal.reason) return
+        logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
+        stream.abort(new Error('Remote session failed'))
+      })
+      .finally(dispose)
   }
 
-  /** The LAN listener is going away: pending invitations and live sessions go with it. */
+  /** The LAN listener is going away; other ingress lifetimes remain independent. */
   closeIngress(): void {
     this.updateDirectEndpoint(undefined)
-    this.pairing.clear()
-    for (const socket of this.connections.keys()) socket.close(1001, 'Gateway stopping')
+    if (!this.relayEndpoint) this.pairing.clear()
+    for (const [stream, entry] of this.connections) {
+      if (entry.ingress === 'direct') stream.abort(new Error('Gateway stopping'))
+    }
   }
 
   private getIdentity(): Promise<Uint8Array> {
@@ -189,14 +280,17 @@ export class RemoteAccessService extends BaseService {
     return this.identity
   }
 
-  private async run(socket: RemoteSocket, entry: { abort: AbortController; remote?: RemoteConnection }): Promise<void> {
-    const stream = new RemoteSocketStream(socket, transportLog.forComponent('remote'), 'inbound')
+  private async run(
+    stream: MessageStream,
+    entry: { abort: AbortController; remote?: RemoteConnection }
+  ): Promise<void> {
     const channel = await acceptSecureChannel(stream, {
       identity: await this.getIdentity(),
       logger: transportLog,
       protocolVersions: [1],
       signal: AbortSignal.any([entry.abort.signal, AbortSignal.timeout(10_000)])
     })
+    entry.abort.signal.throwIfAborted()
     const remote = new RemoteConnection(
       channel,
       this.pairing,
@@ -212,7 +306,7 @@ export class RemoteAccessService extends BaseService {
     while (!entry.abort.signal.aborted) {
       const input = await channel.read(entry.abort.signal)
       if (isUploadChunk(input)) {
-        void remote.receiveUpload(input).catch(() => socket.close(1011, 'Remote upload failed'))
+        void remote.receiveUpload(input).catch(() => stream.abort(new Error('Remote upload failed')))
         continue
       }
       if (Date.now() - windowStart >= 1000) {
@@ -229,7 +323,7 @@ export class RemoteAccessService extends BaseService {
           message: 'Request rate exceeded',
           retryAfterMs: Math.max(1, windowStart + 1000 - Date.now())
         })
-        if (refusal) await remote.send(refusal).catch(() => socket.close(1011, 'Remote request failed'))
+        if (refusal) await remote.send(refusal).catch(() => stream.abort(new Error('Remote request failed')))
         continue
       }
       void remote.rpc
@@ -237,7 +331,7 @@ export class RemoteAccessService extends BaseService {
         .then(async (response) => {
           if (response !== null) await remote.send(response)
         })
-        .catch(() => socket.close(1011, 'Remote request failed'))
+        .catch(() => stream.abort(new Error('Remote request failed')))
     }
   }
 }

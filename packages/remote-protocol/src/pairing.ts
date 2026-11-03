@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { directEndpointSchema } from './discovery'
+import { relayEndpointSchema } from './relay'
 
 const pairingProofShape = {
   t: z.literal('cherry-studio-pair'),
@@ -25,7 +26,15 @@ export const pairingQrSchema = z.discriminatedUnion('v', [
     ...pairingProofShape,
     v: z.literal(3),
     endpoints: z.array(directEndpointSchema).min(1).max(32)
-  })
+  }),
+  z
+    .object({
+      ...pairingProofShape,
+      v: z.literal(4),
+      endpoints: z.array(directEndpointSchema).max(32),
+      relay: relayEndpointSchema.optional()
+    })
+    .refine((value) => value.endpoints.length > 0 || value.relay !== undefined, 'No connection address is available')
 ])
 
 export type PairingQr = z.infer<typeof pairingQrSchema>

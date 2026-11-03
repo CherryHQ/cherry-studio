@@ -1022,6 +1022,20 @@
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "feature.remote_access.relay_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable outbound Relay connections independently of the LAN listener."
+    },
+    {
+      "targetKey": "feature.remote_access.relay_origin",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Explicit HTTPS origin of the Relay service; contains no credentials."
+    },
+    {
       "targetKey": "feature.remote_access.advertised_endpoint",
       "type": "PreferenceTypes.AdvertisedRemoteEndpoint",
       "defaultValue": "VALUE: null",

@@ -332,6 +332,7 @@ export type SharedCacheSchema = {
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
   'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
+  'feature.remote_access.relay_status': 'disabled' | 'connecting' | 'connected' | 'unavailable'
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
@@ -407,6 +408,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
   'feature.remote_access.discovery_status': 'inactive',
+  'feature.remote_access.relay_status': 'disabled',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
   'selection.agent_capsules.${displayId}': [],

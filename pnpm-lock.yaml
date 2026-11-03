@@ -163,6 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@cherrystudio/relay-protocol': file:.context/relay-packages/relay-protocol.tgz
   '@aiany/sqlite-vec-linux-x64': npm:sqlite-vec-linux-x64@0.1.9
   '@earendil-works/pi-ai@1.4.0>@google/genai': 2.23.0
   picomatch: 4.0.4
@@ -284,6 +285,12 @@ importers:
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
+      '@cherrystudio/relay-client':
+        specifier: file:.context/relay-packages/relay-client.tgz
+        version: file:.context/relay-packages/relay-client.tgz
+      '@cherrystudio/relay-protocol':
+        specifier: file:.context/relay-packages/relay-protocol.tgz
+        version: file:.context/relay-packages/relay-protocol.tgz
       '@cherrystudio/remote-protocol':
         specifier: workspace:*
         version: link:packages/remote-protocol
@@ -2365,6 +2372,15 @@ importers:
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
 packages:
+
+  '@cherrystudio/relay-client@file:.context/relay-packages/relay-client.tgz':
+    resolution: {integrity: sha512-ZF0V3ITdgvkZuWc5ZnUzoPjMOLhGWQqksggicG4VuOdBED9mCLygFH88vGVbu8VOIYJerxQq50iYpYitldp5QQ==, tarball: file:.context/relay-packages/relay-client.tgz}
+    version: 0.0.0
+
+  '@cherrystudio/relay-protocol@file:.context/relay-packages/relay-protocol.tgz':
+    resolution: {integrity: sha512-3dsaOZl+fDVm2CRbtGIPn7A+uXfhE8jl/s5APdmIYc0xVI3QSjdZ9WJUQsh0Lk/MeUe3eZZjWQ/VgCV3EMzruQ==, tarball: file:.context/relay-packages/relay-protocol.tgz}
+    version: 0.0.0
+
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
@@ -15950,6 +15966,15 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@cherrystudio/relay-client@file:.context/relay-packages/relay-client.tgz':
+    dependencies:
+      '@cherrystudio/relay-protocol': file:.context/relay-packages/relay-protocol.tgz
+      '@libp2p/interface': 3.3.0
+      '@libp2p/utils': 7.4.1
+
+  '@cherrystudio/relay-protocol@file:.context/relay-packages/relay-protocol.tgz': {}
+
 
   '@adobe/css-tools@4.4.4': {}
 

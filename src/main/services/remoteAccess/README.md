@@ -1,8 +1,10 @@
 # Remote access
 
-Direct remote access over the API Gateway's existing HTTP listener, using reachable LAN,
-company or VPN addresses. The lifecycle
-service owns encrypted WebSocket connections, pairing invitations and delivery.
+Remote access uses the API Gateway's direct listener or an outbound Relay connection.
+`RemoteAccessService` owns both ingress lifetimes, one Noise identity, pairing and delivery.
+Turning off LAN closes only direct streams; disabling Relay or changing its origin cancels
+its listener, pending attaches and active Relay streams. A lost listener alone preserves
+already admitted data streams.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
 
@@ -23,6 +25,7 @@ listener flushes pending text while the session still exists.
 | File | Owns |
 |---|---|
 | `RemoteAccessService.ts` | Accepts sockets from the gateway's `/v1/remote/connect` ws route, identity, sweep, connection registry |
+| `relayConnection.ts` / `relayHostKey.ts` | Outbound listen/offer/attach, bounded reconnect and one persisted host key per canonical origin |
 | `RemoteAdvertisement.ts` | Publishes the actual Gateway port and public identity while LAN access is enabled; refreshes interface changes and withdraws on shutdown |
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
@@ -56,7 +59,11 @@ stored unencrypted with mode `0600`. An existing identity is never regenerated: 
 key store disappears is an error, since replacing it would unpair every device.
 
 SQLite writes stay in their owning data services. Agent execution stays in the
-existing stream manager and runtime. No relay service is provided here.
+existing stream manager and runtime. The Relay runtime remains a separate service with no account database dependency.
+Relay settings default off. Main stores host keys under `feature.remote_access.relay_keys`,
+using safeStorage or mode 0600 fallback, independently of the Noise identity. Invitations
+include only the public Relay origin/targetId and use QR v4 when Relay is available. The
+App still pins the Noise identity and obtains grants through existing desktop approval.
 
 Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
 The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.

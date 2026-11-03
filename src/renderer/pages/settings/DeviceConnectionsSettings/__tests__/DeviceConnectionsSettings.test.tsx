@@ -112,6 +112,23 @@ afterAll(() => {
 })
 
 describe('DeviceConnectionsSettings', () => {
+  it('offers a v4 invitation through Relay when LAN is off', async () => {
+    const relay = { origin: 'https://relay.example.com', targetId: 'a'.repeat(64) }
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
+    MockUseCacheUtils.setSharedCacheValue('feature.remote_access.relay_status', 'connected')
+    MockUsePreferenceUtils.setPreferenceValue('feature.remote_access.relay_origin', relay.origin)
+    invitationMock.mockResolvedValue({
+      ...createInvitation('relay'),
+      relay,
+      endpoints: [],
+      addresses: [],
+      addressOptions: []
+    })
+    render(<DeviceConnectionsSettings />)
+    const qr = await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })
+    expect(JSON.parse(qr.getAttribute('data-value')!)).toMatchObject({ v: 4, endpoints: [], relay })
+  })
+
   afterEach(() => {
     vi.useRealTimers()
     vi.stubGlobal('__APP_EDITION__', 'global')

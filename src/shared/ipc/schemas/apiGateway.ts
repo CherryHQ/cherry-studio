@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { directEndpointSchema, remoteCapabilitiesSchema } from '@cherrystudio/remote-protocol'
+import { directEndpointSchema, relayEndpointSchema, remoteCapabilitiesSchema } from '@cherrystudio/remote-protocol'
 import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 
 import { defineRoute } from '../define'
@@ -29,6 +29,7 @@ export const apiGatewayRequestSchemas = {
     output: z.object({
       advertisedEndpoint: directEndpointSchema.nullable(),
       endpoints: z.array(directEndpointSchema).max(32),
+      relay: relayEndpointSchema.nullable().optional(),
       invitationId: z.string(),
       invitationSecret: z.string(),
       desktopIdentity: z.string(),

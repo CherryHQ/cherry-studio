@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { AdvertisedRemoteEndpoint } from '@shared/data/preference/preferenceTypes'
 
@@ -100,6 +101,7 @@ vi.mock('@application', async () => {
     CacheService: { setShared: mockSetShared },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext },
     RemoteAccessService: {
+      getRelayEndpoint: vi.fn(() => null),
       updateDirectEndpoint: vi.fn(),
       closeIngress: vi.fn(),
       createInvitation: vi.fn(async () => ({
@@ -737,4 +739,13 @@ describe('ApiGatewayService running-state publication', () => {
     expect(service.isActivated).toBe(false)
     expect(mockStop).toHaveBeenCalledTimes(1)
   })
+})
+
+it('creates a Relay-only invitation without starting the local gateway or LAN listener', async () => {
+  const service = new ApiGatewayService()
+  const remote = application.get('RemoteAccessService')
+  const relay = { origin: 'https://relay.example.com', targetId: 'a'.repeat(64) }
+  vi.mocked(remote.getRelayEndpoint).mockReturnValueOnce(relay)
+  await expect(service.createRemoteInvitation()).resolves.toMatchObject({ relay, endpoints: [], addresses: [] })
+  expect(mockStart).not.toHaveBeenCalled()
 })

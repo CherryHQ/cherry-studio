@@ -8,6 +8,7 @@ import {
   uploadTransferLimits,
   type UploadChunk,
   type DirectEndpoint,
+  type RelayEndpoint,
   type RemoteAuthorization,
   type RemoteCapability
 } from '@cherrystudio/remote-protocol'
@@ -42,7 +43,7 @@ export class RemoteConnection {
     tokens: RemoteTokens,
     onClaim: () => void,
     private readonly hub: RemoteAgentHub,
-    getEndpoints: () => Promise<{ desktopIdentity: string; endpoints: DirectEndpoint[] }>
+    getEndpoints: () => Promise<{ desktopIdentity: string; endpoints: DirectEndpoint[]; relay?: RelayEndpoint | null }>
   ) {
     this.subscriptions = new AgentSubscriptions(hub, (notification) => this.send(notification))
     // The reply is queued on the write chain in a microtask; setImmediate runs after it, keeping events behind the response.

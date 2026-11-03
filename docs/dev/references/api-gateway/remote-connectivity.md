@@ -18,6 +18,24 @@ sources:
 [Agent API](../ai/remote-agent-access.md)继续负责业务 RPC、事件、checkpoint 与命令回执；本文不复制或改变这些业务契约。
 [API Gateway](./README.md)继续负责本机 HTTP 服务与直接 WebSocket 入口。
 
+## Relay 接入增量（2026-11-04）
+
+本节记录后续已实现的接入代码；下文“首期”仍指 2026-09-23 的发现与直连基线。
+实际跨网 Electron/iOS/Android 验收和依赖发布尚未完成。
+
+- 桌面 `RemoteAccessService` 同时接收 direct 和 Relay `MessageStream`，共用 Noise、配对与 grants。
+  LAN 开关只管理 direct 和 Bonjour；Relay 使用独立的默认关闭设置与出站 WSS listener。
+- 每个 canonical HTTPS origin 保留一个 Main 私有 host key；仅公开 origin 与 targetId。
+  listener 断线退避重连；已 ready 的 data stream 独立存活；停用或更换 origin 取消相关流。
+- QR v4 可表达纯 Relay 或直连加 Relay；QR v2/v3 继续可读。`connection.endpoints` 的 capability
+  版本仍为 1，新增可选 relay；缺字段保留既有地址，显式 null 表示移除。
+- App 沿用 `DesktopConnectionManager` 串行拨号。一轮仍最多 15 秒；有 Relay 时 direct 最多占用
+  前 5 秒，失败或无 direct 候选后立即尝试 Relay，不等待 mDNS 用尽整轮预算。
+- App 在身份验证和配对批准后保存 origin/targetId。增量 SQLite 列不改动设备身份、grants、历史
+  或用户直连地址。所有路径继续共用租约、AppState、重试与取消 owner。
+- 原生 `RelaySocket` 计量 JS 队列加一个原生在途写入，并对桥接消息逐条确认；不使用 RN 未维护的
+  bufferedAmount。原生构建、慢网内存和 OS 挂起仍须独立验证。
+
 ## 首期实施边界
 
 - 桌面 `RemoteAdvertisement` 使用现有 Bonjour 库发布 `_cherry-remote._tcp`；TXT 仅公开身份与发现版本，
