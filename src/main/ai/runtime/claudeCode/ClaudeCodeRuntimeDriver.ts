@@ -761,7 +761,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(observation.error.message)
     }
     this.observations.push(observation.value)
-    this.restoreChildren(this.context!, handle.thread)
+    this.restoreChildren(this.context!)
   }
 
   private async acceptRoot(
@@ -899,37 +899,44 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.observeChild(relation.id)
   }
 
-  private restoreChildren(parent: ReturnType<typeof contexts.context>, thread: Thread): void {
+  private restoreChildren(parent: ReturnType<typeof contexts.context>): void {
     for (const context of contexts.children(parent.id)) {
-      if (!context.subagentId || context.bindingState !== 'bound' || !context.nativeThreadId) continue
-      this.discoverChild({
-        id: runtimeId(context.subagentId),
-        parent: thread,
-        child: { backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) }
-      })
+      if (context.bindingState !== 'bound' || !context.nativeThreadId || !context.spawnToolCallId) continue
+      this.attachChild(
+        parent,
+        { backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) },
+        { toolCallId: context.spawnToolCallId, name: 'Agent' }
+      )
     }
   }
 
   private observeChild(id: string): void {
     const relation = this.childRelations.get(id)
-    if (this.closing || !relation?.child || this.childHandles.has(id)) return
+    if (this.closing || !relation?.child) return
     const parent =
       this.rootContexts.get(relation.parent.id) ??
       [...this.childProjections.values()].find((projection) => projection.thread.id === relation.parent.id)?.context
     if (!parent) return
-    const saved = contexts.children(parent.id).find((child) => child.subagentId === id)
-    const origin =
-      this.childOrigins.get(id) ??
-      (saved?.spawnToolCallId ? { toolCallId: saved.spawnToolCallId, name: 'Agent' } : undefined)
-    if (!origin) return
-    this.childOrigins.set(id, origin)
+    const saved = contexts.children(parent.id).find((child) => child.nativeThreadId === relation.child!.id)
+    const origin = saved?.spawnToolCallId
+      ? { toolCallId: saved.spawnToolCallId, name: 'Agent' }
+      : this.childOrigins.get(id)
+    if (origin) this.attachChild(parent, relation.child, origin)
+  }
+
+  private attachChild(
+    parent: ReturnType<typeof contexts.context>,
+    thread: Thread,
+    origin: { toolCallId: string; name: string }
+  ): void {
+    if (this.closing || this.childHandles.has(origin.toolCallId)) return
     this.childHandles.set(
-      id,
+      origin.toolCallId,
       (async () => {
-        const opened = await this.runtime!.open(relation.child!)
+        const opened = await this.runtime!.open(thread)
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         const handle = opened.value
-        const context = saved ?? contexts.child(parent.id, id, handle.thread.id, origin.toolCallId, origin.name)
+        const context = contexts.child(parent.id, handle.thread.id, origin.toolCallId, origin.name)
         // The SDK stores the child prompt without forwarding it in the live conversation feed.
         await handle.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
@@ -984,24 +991,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           () => metadata.archive(),
           metadata.decorate
         )
-        this.childProjections.set(id, projection)
+        this.childProjections.set(origin.toolCallId, projection)
         await projection.attach()
-        this.restoreChildren(context, handle.thread)
+        this.restoreChildren(context)
         for (const child of this.childRelations.keys()) this.observeChild(child)
         return handle
       })().catch((error) => {
-        logger.error('Claude child observation failed', { id, error })
+        logger.error('Claude child observation failed', { thread, error })
         return undefined
       })
     )
   }
 
   async childProjection(toolCallId: string) {
-    const id = [...this.childOrigins].find(([, origin]) => origin.toolCallId === toolCallId)?.[0]
-    if (!id) return undefined
-    this.observeChild(id)
-    await this.childHandles.get(id)
-    const projection = this.childProjections.get(id)
+    await this.childHandles.get(toolCallId)
+    const projection = this.childProjections.get(toolCallId)
     return projection && { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
   }
 

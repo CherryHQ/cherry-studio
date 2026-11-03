@@ -501,7 +501,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       if (part.state !== 'output-error' && (part.state !== 'output-available' || part.preliminary)) continue
       if (part.toolName === 'subagent') {
-        const output = part.state === 'output-error' ? (part.resultProviderMetadata?.pi?.result ?? part.errorText) : part.output
+        const output =
+          part.state === 'output-error' ? (part.resultProviderMetadata?.pi?.result ?? part.errorText) : part.output
         const result = childResultSchema.safeParse(output)
         if (result.success)
           this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))

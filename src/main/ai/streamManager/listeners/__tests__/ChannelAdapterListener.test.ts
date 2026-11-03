@@ -69,7 +69,13 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    for (const text of ['Claim ', 'Claim [ci', 'Claim [cite:source-', 'Claim [cite:source-1]', 'Claim [cite:source-1] confirmed']) {
+    for (const text of [
+      'Claim ',
+      'Claim [ci',
+      'Claim [cite:source-',
+      'Claim [cite:source-1]',
+      'Claim [cite:source-1] confirmed'
+    ]) {
       listener.onMessage(message(text))
       vi.runOnlyPendingTimers()
     }

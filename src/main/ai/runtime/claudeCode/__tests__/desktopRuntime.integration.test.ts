@@ -339,9 +339,11 @@ it('stops one background child while its sibling persists its answer', async () 
   parent.reply.block({ type: 'text', text: 'Parent done' })
   parent.reply.finish()
   await test.wait('turn-complete')
-  await expect.poll(() => contexts.findChild(test.sessionId, 'toolu_stop')?.subagentId).toBeDefined()
-  const task = contexts.findChild(test.sessionId, 'toolu_stop')!.subagentId!
-  expect(await connection.stopTask!(task)).toBe(true)
+  const { tasks } = await test.wait('background-tasks', (event) =>
+    event.tasks.some((task) => task.toolCallId === 'toolu_stop')
+  )
+  const task = tasks.find((task) => task.toolCallId === 'toolu_stop')!
+  expect(await connection.stopTask!(task.id)).toBe(true)
   await stopped.reply.closed
   kept.reply.block({ type: 'text', text: 'Sibling survived' })
   kept.reply.finish()
