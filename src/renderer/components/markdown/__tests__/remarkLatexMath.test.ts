@@ -146,6 +146,12 @@ describe('remarkLatexMath', () => {
     expect(textValue(tree)).toContain('，')
   })
 
+  it.each(['=', '---'])('keeps an environment with a lone %s line as one block', (line) => {
+    const source = `\\begin{align}\na\n${line}\nb\n\\end{align}`
+
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
   it('balances nested environments with the same name', () => {
     const source = '\\begin{aligned}\na\\begin{aligned}b\\end{aligned}c\n\\end{aligned}。'
     expect(mathNodes(source)).toMatchObject([

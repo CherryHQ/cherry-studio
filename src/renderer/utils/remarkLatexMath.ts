@@ -876,6 +876,32 @@ function promoteDisplayMath(tree: Root, source: string): void {
   })
 }
 
+// A lone `=`/`-` line inside an environment makes CommonMark read the preceding lines as a setext heading.
+function repairSetextEnvironments(tree: Root, source: string): void {
+  visit(tree, (parent) => {
+    if (!('children' in parent)) return
+    const children = parent.children as RootContent[]
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i]
+      const start = node.position?.start.offset
+      if (node.type !== 'heading' || start === undefined) continue
+      const name = /^ {0,3}\\begin\{([^}\r\n]+)\}/.exec(source.slice(start, node.position?.end.offset))?.[1]
+      if (!name || !ENVIRONMENT_NAMES.has(name)) continue
+
+      const closing = `\\end{${name}}`
+      for (let j = i; j < children.length; j++) {
+        const end = children[j].position?.end.offset
+        if (end === undefined) break
+        const raw = source.slice(start, end).trim()
+        if (!raw.endsWith(closing)) continue
+        const position = { start: node.position!.start, end: children[j].position!.end }
+        children.splice(i, j - i + 1, createDisplayMath({ type: 'inlineMath', value: raw, position }))
+        break
+      }
+    }
+  })
+}
+
 function repairMathMeta(tree: Root, source: string): void {
   visit(tree, 'math', (node) => {
     if (!/^\\(?:begin|tag)\b/.test(node.meta ?? '')) return
@@ -913,6 +939,7 @@ export const remarkLatexMath: Plugin<[], Root> = function remarkLatexMath() {
   return (tree, file) => {
     const source = String(file)
     visit(tree, 'link', demoteLinkMath)
+    repairSetextEnvironments(tree, source)
     demoteEmbeddedEnvironments(tree, source)
     promoteDisplayMath(tree, source)
     repairMathMeta(tree, source)
