@@ -206,6 +206,28 @@ describe('AnalyticsService data collection preference', () => {
     }
   )
 
+  it.each([
+    ['a release build against a test backend', 'https://cloud-dev.cherry-ai.com', 'development', true],
+    ['a release build against production', '', 'production', false]
+  ] as const)('marks events from %s as that environment', async (_case, apiOrigin, environment, test) => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', apiOrigin)
+    vi.mocked(getAppEdition).mockReturnValue('cn')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackEvent('subscription_entry_clicked', { source: 'settings' }, 'account-1')
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distinctId: `cloud-api:cn:${environment}:account:account-1`,
+        properties: expect.objectContaining({ environment, test })
+      })
+    )
+  })
+
   it('sends no product events from a development build without a PostHog key', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
     const service = new AnalyticsService()

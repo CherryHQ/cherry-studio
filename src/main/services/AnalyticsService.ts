@@ -29,6 +29,11 @@ function resolvePostHogKey(): string {
   return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
 }
 
+// A build pointed at a non-production Cherry Cloud backend reports as that backend's test traffic, so the two join.
+function isTestTraffic(): boolean {
+  return import.meta.env.DEV || !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+}
+
 // Distinct name so the SDK retry classifier treats it as non-retriable.
 class ConsentRevokedError extends Error {
   constructor() {
@@ -209,7 +214,8 @@ export class AnalyticsService extends BaseService implements Activatable {
     accountId?: string | null
   ): void {
     if (!this.isActivated || !this.desiredEnabled || !this.posthog) return
-    const environment = import.meta.env.DEV ? 'development' : 'production'
+    const testTraffic = isTestTraffic()
+    const environment = testTraffic ? 'development' : 'production'
     const accountDistinctId =
       accountId && getAppEdition() === 'cn' ? `cloud-api:cn:${environment}:account:${accountId}` : null
     this.posthog.capture({
@@ -227,7 +233,7 @@ export class AnalyticsService extends BaseService implements Activatable {
         entry: 'desktop',
         region: getAppEdition(),
         environment,
-        test: import.meta.env.DEV,
+        test: testTraffic,
         schema_version: 1,
         // Pinned so PostHog does not record the sender's address in place of a missing one.
         $ip: '0.0.0.0',
