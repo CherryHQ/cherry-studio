@@ -919,7 +919,7 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     // such as blockquote `>` prefixes. Skip that entire subtree rather
     // than passing those prefixes to KaTeX as mathematical operators.
     if (parent.type === 'blockquote') return SKIP
-    if (!('children' in parent)) return
+    if (!('children' in parent)) return undefined
     const children = parent.children as RootContent[]
     const repaired: RootContent[] = []
     for (let i = 0; i < children.length; i++) {
@@ -960,6 +960,7 @@ function repairSetextEnvironments(tree: Root, source: string): void {
       i = lo
     }
     parent.children = repaired
+    return undefined
   })
 }
 
