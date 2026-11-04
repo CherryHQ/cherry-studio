@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag, SubscriptionTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -892,6 +893,8 @@ export function ModelSelector(props: ModelSelectorProps) {
       if (item.type === 'group') {
         const groupTitle =
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
+        // Ends where the row tags end: rows keep a pin slot plus gap (20px) inside 6px of padding.
+        const groupActionInset = showPinActions && 'mr-2.5'
 
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
@@ -914,13 +917,20 @@ export function ModelSelector(props: ModelSelectorProps) {
             )}
             {item.isCherryAiGroup &&
               (subscribedPlanName ? (
-                <span className="ml-auto truncate rounded-full border border-border px-1.5 font-medium text-[10px] text-foreground leading-4">
+                <span
+                  className={cn(
+                    'ml-auto truncate rounded-full border border-border px-1.5 font-medium text-[10px] text-foreground leading-4',
+                    groupActionInset
+                  )}>
                   {subscribedPlanName}
                 </span>
               ) : (
                 <button
                   type="button"
-                  className="ml-auto cursor-pointer border-0 bg-transparent p-0 text-[11px] text-link hover:underline"
+                  className={cn(
+                    'ml-auto cursor-pointer border-0 bg-transparent p-0 text-[11px] text-link hover:underline',
+                    groupActionInset
+                  )}
                   onClick={(event) => {
                     event.stopPropagation()
                     setOpen(false)
