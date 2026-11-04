@@ -745,7 +745,7 @@ duplicated; the rest are stream-manager-specific.
 | Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; terminal overlays yield to refreshed history; attach never changes runtime state |
 | Raw-stream reconnect | `ai.stream.attach` | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | bounded raw replay or terminal result for consumers that still require chunks |
 | Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
-| Abort — no raw listeners | last listener dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')`; desktop projection detach does not remove the manager-owned projection listener | partial persisted as **`paused`** |
+| Abort — no observers | `backgroundMode === 'abort'`, no non-projection listeners and no projection observers | After pruning dead listeners, `onChunk` excludes the manager-owned projection listener from the raw-listener check and checks `projection.observed`; when both are empty it calls `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** |
 | Multi-window | window B opens a live topic | B sends `ai.projection.attach` → baseline + its own subscription; Main delivers the same message revisions to A and B | both windows render the same current messages |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
 
@@ -975,12 +975,12 @@ still completes, but a stale callback cannot mutate its replacement.
 |---|---|
 | User sends again on the same topic mid-stream (chat) | provider persists the steer row + `enqueuePendingSteer`; the running turn yields (`steerYield`) and persists as `success`, then `onExecutionDone` chains a `steer-continuation` |
 | Retry immediately after stream ends | `send` takes start; `evictStream` clears the grace-period entry first |
-| Window closes mid-stream | Next broadcast sees `WebContentsListener.isAlive() === false` and removes it; `PersistenceListener` doesn't depend on a window |
+| Window closes mid-stream | Window destruction removes its projection subscriptions; the next raw broadcast prunes dead `WebContentsListener`s. `PersistenceListener` doesn't depend on a window |
 | All windows closed + `backgroundMode='continue'` | Stream continues; `PersistenceListener` persists when done |
-| All windows closed + `backgroundMode='abort'` | `onChunk` finds `stream.listeners.size === 0` → `abort(topicId, 'no-subscribers')`; partial persisted as `paused` |
-| Multi-window on same topic | Each window has its own `WebContentsListener`; chunks fan out to all alive listeners |
-| Same window re-attaches | Listener id is stable (`wc:${wc.id}:${topicId}`); `addListener` upserts by id |
-| Attach mid-stream | `attach` returns compact ring replay per execution; observer fills in the available tail without changing runtime state |
+| All windows closed + `backgroundMode='abort'` | `onChunk` aborts only when no non-projection listener and no projection observer remain; partial persisted as `paused` |
+| Multi-window on same topic | Each window has its own `ai.projection.attach` subscription; all receive the same current message revisions |
+| Same window re-attaches | Desktop views use a fresh subscription ID and ignore events from the old subscription; raw listeners use stable `wc:${wc.id}:${topicId}` IDs and upsert by ID |
+| Attach mid-stream | `ai.projection.attach` returns the current message baseline; raw `ai.stream.attach` returns compact ring replay per execution. Neither changes runtime state |
 | Ring overflow with pending approval | Eviction pauses while `pendingApprovalToolCallIds` is non-empty, so the approval's tool-input chunks stay replayable; it resumes with the chunk that resolves the approval |
 | Multi-model + resubmit | the steer is queued once per topic; every model's execution yields via `steerYield`, and the single continuation answers it after the turn completes |
 | Stream emits `tool-approval-request` | Its `toolCallId` enters `exec.pendingApprovalToolCallIds`; on stream end the topic surfaces `awaiting-approval` via the shared cache |

@@ -74,8 +74,8 @@ it('retains terminal content, deduplicates completion, and protects a newer atte
   service.release(topic, consumer)
 })
 
-// No successful handoff is allowed when the source reports a failed archive write.
-it('keeps unresolved output visible and never reports it as a successful finish', async () => {
+// A failed archive write must settle recovery without discarding the only readable output.
+it('reports unresolved output as a failure once and retains it through history handoff', async () => {
   const ipc = projectionIpc()
   const service = new ExecutionStreamOverlayService()
   const topic = 'write-failure'
@@ -85,9 +85,11 @@ it('keeps unresolved output visible and never reports it as a successful finish'
   ipc.attachments[0].resolve(view(topic, 3))
   await flush()
   ipc.emit(ipc.attachments[0].subscriptionId, update(topic, 3, 1, ' readable', 'unresolved'))
+  ipc.emit(ipc.attachments[0].subscriptionId, update(topic, 3, 2, '', 'unresolved'))
   service.reset(topic)
+  service.disposeOverlay(topic, 'anchor')
   expect(service.getView(topic).overlay.anchor[0]).toMatchObject({ text: 'prefix readable' })
-  expect(finishes).toEqual([])
+  expect(finishes).toEqual([expect.objectContaining({ attemptId: 3, isAbort: false, isError: true })])
   service.release(topic, {})
 })
 

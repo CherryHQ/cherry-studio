@@ -12,7 +12,10 @@ afterEach(() => vi.restoreAllMocks())
 
 const queued = [{ id: 'queued-user', role: 'user' as const, parts: [] }]
 const error = { name: 'Error', message: 'queued execution failed', stack: '' }
-function terminal(topicId: string, failed: boolean): MessageProjectionView<TopicProjectionState> {
+function terminal(
+  topicId: string,
+  status: 'done' | 'error' | 'unresolved'
+): MessageProjectionView<TopicProjectionState> {
   return {
     kind: 'topic',
     topicId,
@@ -23,14 +26,17 @@ function terminal(topicId: string, failed: boolean): MessageProjectionView<Topic
         attemptId: 10,
         userMessageId: 'queued-user',
         messageId: 'reply',
-        status: failed ? 'error' : 'done'
+        status
       }
     ],
     messages: [
       {
         id: 'reply',
         role: 'assistant',
-        parts: failed ? [{ type: 'data-error', data: error }] : [{ type: 'text', text: 'answer' }]
+        parts: [
+          { type: 'text', text: 'answer' },
+          ...(status === 'done' ? [] : [{ type: 'data-error' as const, data: error }])
+        ]
       }
     ]
   }
@@ -38,13 +44,15 @@ function terminal(topicId: string, failed: boolean): MessageProjectionView<Topic
 
 // A queued ACK has no assistant attempt; only the projected user identity can settle its waiter.
 it.each([
-  { beforeAck: false, failed: false },
-  { beforeAck: false, failed: true },
-  { beforeAck: true, failed: false },
-  { beforeAck: true, failed: true }
-])('settles queued recovery from projection alone: %j', async ({ beforeAck, failed }) => {
+  { beforeAck: false, status: 'done' },
+  { beforeAck: false, status: 'error' },
+  { beforeAck: false, status: 'unresolved' },
+  { beforeAck: true, status: 'done' },
+  { beforeAck: true, status: 'error' },
+  { beforeAck: true, status: 'unresolved' }
+] as const)('settles queued recovery from projection alone: %j', async ({ beforeAck, status }) => {
   const ipc = projectionIpc()
-  const topic = `queued-${beforeAck}-${failed}`
+  const topic = `queued-${beforeAck}-${status}`
   const { result } = renderHook(() => {
     const feedback = useConversationErrorToasts(topic)
     useExecutionOverlay(topic, [], { onFinish: feedback.onFinish })
@@ -68,26 +76,26 @@ it.each([
         }
       )
   })
-  const finish = () => ipc.attachments[0].resolve(terminal(topic, failed))
+  const finish = () => ipc.attachments[0].resolve(terminal(topic, status))
   if (beforeAck) await act(async () => finish())
   await act(async () => accepted.resolve())
   if (!beforeAck) await act(async () => finish())
-  await waitFor(() => expect(outcomes).toEqual([failed ? error : true]))
+  await waitFor(() => expect(outcomes).toEqual([status === 'done' ? true : error]))
   await completion
 })
 
 // Ordinary queued errors must show recovery feedback without any raw ai.stream.error event.
-it('reports an ordinary queued failure once from its projected terminal', async () => {
+it.each(['error', 'unresolved'] as const)('reports an ordinary queued %s failure once', async (status) => {
   const ipc = projectionIpc()
-  const topic = 'queued-notification'
+  const topic = `queued-notification-${status}`
   const { result } = renderHook(() => {
     const feedback = useConversationErrorToasts(topic)
     useExecutionOverlay(topic, [], { onFinish: feedback.onFinish })
     return feedback
   })
   act(() => result.current.track([], queued))
-  await act(async () => ipc.attachments[0].resolve(terminal(topic, true)))
+  await act(async () => ipc.attachments[0].resolve(terminal(topic, status)))
   await waitFor(() => expect(toast.errorFromException).toHaveBeenCalledWith(error, expect.anything()))
-  act(() => ipc.emit(ipc.attachments[0].subscriptionId, { ...terminal(topic, true), patches: [], order: ['reply'] }))
+  act(() => ipc.emit(ipc.attachments[0].subscriptionId, { ...terminal(topic, status), patches: [], order: ['reply'] }))
   expect(toast.errorFromException).toHaveBeenCalledTimes(1)
 })

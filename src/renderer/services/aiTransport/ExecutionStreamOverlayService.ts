@@ -58,19 +58,14 @@ export class ExecutionStreamOverlayService {
         const event = { attemptId: execution.attemptId, userMessageId: execution.userMessageId, message }
         if (previous?.messages.find((item) => item.id === message.id) !== message)
           for (const listener of entry.updates) this.deliver(() => listener(execution.executionId, event))
-        if (
-          execution.status === 'active' ||
-          execution.status === 'unresolved' ||
-          entry.finished.has(execution.attemptId)
-        )
-          continue
+        if (execution.status === 'active' || entry.finished.has(execution.attemptId)) continue
         entry.finished.add(execution.attemptId)
         for (const listener of entry.finishes)
           this.deliver(() =>
             listener(execution.executionId, {
               ...event,
               isAbort: execution.status === 'paused',
-              isError: execution.status === 'error'
+              isError: execution.status === 'error' || execution.status === 'unresolved'
             })
           )
       }

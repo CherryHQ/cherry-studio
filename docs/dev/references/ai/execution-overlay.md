@@ -54,7 +54,7 @@ The store shares one transport subscription among consumers of the same target i
 `ExecutionStreamOverlayService` turns a topic projection into message-ID-to-parts overlays and live assistant messages. `useExecutionOverlay` binds that facade to React and forwards update/finish notifications for speech and error presentation. It does not seed a reader from renderer history.
 
 - Update routing retains the execution attempt and anchor. A stale active-execution cache cannot overwrite a newer attempt.
-- Finish callbacks occur once per observed attempt. Replayed or duplicate revisions do not repeat completion.
+- Finish callbacks occur once per observed attempt, including failure completion for `unresolved` attempts. Failed persistence settles recovery requests and reports errors while retaining readable output. Replayed or duplicate revisions do not repeat completion.
 - A completed overlay stays readable until the consumer refreshes its existing message store and calls `reset` or `disposeOverlay`. Home and Agent Chat also perform this handoff for an initially terminal baseline, whether topic status or projection content arrives first, so retained snapshots cannot override saved edits or deletions.
 - A delayed handoff leaves active and unresolved attempts intact. Explicit `clear` hides the current attempt even if it continues producing frames.
 - Topic status and approval indicators still use the existing shared-cache status entries. Those entries do not contain the streamed body.

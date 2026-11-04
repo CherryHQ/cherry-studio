@@ -279,13 +279,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
     exposeAiStreamAdmission(async () => {
       const wc = senderWebContents(senderId)
-      if (!wc) throw new Error('Edit and resend requires a managed window')
+      if (!senderId || !wc) throw new Error('Edit and resend requires a managed window')
       try {
         return await application.get('AiStreamManager').dispatchCommand({
           ...input,
           trigger: 'edit-agent-message',
           topicId: buildAgentSessionTopicId(sessionId),
-          editTarget: target
+          editTarget: target,
+          interactionWindowId: senderId
         })
       } catch (error) {
         if (error instanceof AgentSessionForkError) {
