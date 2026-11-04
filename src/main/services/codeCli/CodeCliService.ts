@@ -110,7 +110,17 @@ export class CodeCliService extends BaseService {
     if (available?.source === 'system' || available?.source === 'mise') {
       const removed = await application.get('LocalAgentInstallService').uninstallCli(preset.executable, available.path)
       if (!removed.ok)
-        return { status: 'cleanup_blocked', reason: 'cleanup_failed', message: removed.detail ?? removed.reason }
+        return {
+          status: 'cleanup_blocked',
+          reason: 'cleanup_failed',
+          message:
+            removed.reason === 'partial'
+              ? t('code_cli.uninstall_partial', {
+                  removed: removed.removed?.join(', ') ?? '',
+                  remaining: removed.remaining?.join(', ') ?? ''
+                })
+              : (removed.detail ?? removed.reason)
+        }
     } else {
       const result = await manager.removeTool(request)
       if (result.status === 'cleanup_blocked') return result

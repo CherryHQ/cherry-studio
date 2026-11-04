@@ -13,6 +13,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle'
 
+import { installBinaryAgent } from '../installBinary'
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
 import { resolveRequiredRuntime } from '../runtimeDependency'
 
@@ -141,7 +142,7 @@ else {
 fs.appendFileSync(root + '/sources', (process.env.NPM_CONFIG_REGISTRY || process.env.UV_DEFAULT_INDEX || 'original') + '\\n');
 if (process.env.FAIL_MIRROR && (process.env.NPM_CONFIG_REGISTRY || process.env.UV_DEFAULT_INDEX)) process.exit(1);
 fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
-if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/' + process.env.INSTALL_NAME); fs.rmSync(root + '/' + process.argv[4], {recursive:true}); }
+if (process.argv[2] === 'uninstall') { const pkg = process.argv[4]; if (process.env.KEEP_PACKAGE !== pkg) { const meta = JSON.parse(fs.readFileSync(process.env.INSTALL_TARGET + '/' + pkg + '/package.json')); for (const name of Object.keys(meta.bin)) fs.unlinkSync(root + '/' + name); if (process.env.KEEP_PACKAGE_FILES !== pkg) fs.rmSync(process.env.INSTALL_TARGET + '/' + pkg, {recursive:true}); } }
 else if (process.env.INSTALL_EXIT === '0') {
 const dependencies = {'bun':'bun','@ampcode/cli':'amp','@earendil-works/pi-coding-agent':'pi'};
 const dependency = process.argv.find(arg => dependencies[arg]);
@@ -163,7 +164,8 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
         json: async () => ({
           agents: [
             { id: 'kilo', distribution: { npx: { package: '@kilocode/cli@7.8.1' } } },
-            { id: 'pi-acp', distribution: { npx: { package: 'pi-acp@0.0.34' } } }
+            { id: 'pi-acp', distribution: { npx: { package: 'pi-acp@0.0.34' } } },
+            { id: 'amp-acp', distribution: { npx: { package: 'amp-acp' } } }
           ]
         })
       }))
@@ -595,6 +597,137 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(state.openSessions).toEqual([other])
     expect(fs.existsSync(directory)).toBe(false)
   })
+
+  // Removing an adapter must also remove its independently installed CLI, in either entry direction.
+  it.skipIf(process.platform === 'win32').each([
+    ['pi-acp', 'pi', '@earendil-works/pi-coding-agent', false],
+    ['pi-acp', 'pi', '@earendil-works/pi-coding-agent', true],
+    ['amp-acp', 'amp', '@ampcode/cli', false]
+  ] as const)('removes both components of %s (native entry=%s)', async (presetId, native, nativePackage, viaCli) => {
+    const adapter = await npmEntry(presetId, presetId)
+    const cli = await npmEntry(native, nativePackage)
+    const result = viaCli
+      ? await new LocalAgentInstallService().uninstallCli(native, cli)
+      : await new LocalAgentInstallService().uninstall(presetId, adapter)
+    expect(result).toEqual({ ok: true })
+    expect(fs.existsSync(adapter)).toBe(false)
+    expect(fs.existsSync(cli)).toBe(false)
+    expect(fs.existsSync(path.join(state.target, nativePackage))).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'retains all components when native CLI ownership cannot be verified',
+    async () => {
+      const adapter = await npmEntry('pi-acp', 'pi-acp')
+      await writeFile(path.join(state.root, 'pi'), 'manual CLI')
+      expect(await new LocalAgentInstallService().uninstall('pi-acp', adapter)).toMatchObject({
+        ok: false,
+        reason: 'unsupported'
+      })
+      expect(fs.existsSync(adapter)).toBe(true)
+      expect(await readFile(path.join(state.root, 'pi'), 'utf8')).toBe('manual CLI')
+      expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+    }
+  )
+
+  it.skipIf(process.platform === 'win32').each(['KEEP_PACKAGE', 'KEEP_PACKAGE_FILES'])(
+    'reports partial removal when a successful package command leaves files behind (%s)',
+    async (retention) => {
+      const adapter = await npmEntry('pi-acp', 'pi-acp')
+      const cli = await npmEntry('pi', '@earendil-works/pi-coding-agent')
+      state.env[retention] = '@earendil-works/pi-coding-agent'
+      expect(await new LocalAgentInstallService().uninstall('pi-acp', adapter)).toMatchObject({
+        ok: false,
+        reason: 'partial',
+        removed: ['pi-acp'],
+        remaining: ['pi']
+      })
+      expect(fs.existsSync(adapter)).toBe(false)
+      expect(fs.existsSync(cli)).toBe(retention === 'KEEP_PACKAGE')
+      expect(fs.existsSync(path.join(state.target, '@earendil-works/pi-coding-agent'))).toBe(true)
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a changed component list before deleting any confirmed installation',
+    async () => {
+      const adapter = await npmEntry('pi-acp', 'pi-acp')
+      const service = new LocalAgentInstallService()
+      const components = await service.getUninstallComponents('pi-acp', adapter)
+      expect(components).toEqual([{ executable: 'pi-acp', path: adapter }])
+      const cli = await npmEntry('pi', '@earendil-works/pi-coding-agent')
+      expect(await service.uninstall('pi-acp', adapter, components)).toEqual({ ok: false, reason: 'changed' })
+      expect(fs.existsSync(adapter)).toBe(true)
+      expect(fs.existsSync(cli)).toBe(true)
+      expect(fs.existsSync(path.join(state.target, '@earendil-works/pi-coding-agent'))).toBe(true)
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'removes Antigravity ACP and its verified standalone CLI without touching configuration',
+    async () => {
+      vi.mocked(application.getPath).mockImplementation((key, file) => {
+        const directory = key === 'sys.home' || key === 'external.acp.bin' ? state.root : path.join(state.root, key)
+        return key === 'external.antigravity.cli.file'
+          ? path.join(state.root, 'agy')
+          : file
+            ? path.join(directory, file)
+            : directory
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('#!/bin/sh\necho acp\n'))
+      )
+      const adapter = await installBinaryAgent(
+        'agy_acp_server.par',
+        { manager: 'binary', version: '1.0', archive: 'https://example.com/adapter', cmd: 'adapter' },
+        new AbortController().signal
+      )
+      const cli = path.join(state.root, 'agy')
+      await writeFile(
+        cli,
+        '#!/usr/bin/env node\nconsole.log(process.argv.includes("--version") ? "1.2.3" : "Antigravity CLI")\n'
+      )
+      await chmod(cli, 0o755)
+      const config = path.join(state.root, 'settings.json')
+      await writeFile(config, '{"keep":true}')
+      expect(await new LocalAgentInstallService().uninstall('antigravity-acp', adapter)).toEqual({ ok: true })
+      expect(fs.existsSync(adapter)).toBe(false)
+      expect(fs.existsSync(cli)).toBe(false)
+      expect(await readFile(config, 'utf8')).toBe('{"keep":true}')
+      expect(await fs.promises.readdir(path.join(state.root, 'feature.acp.agents'))).toEqual([])
+    }
+  )
+
+  it.skipIf(process.platform === 'win32').each([false, true])(
+    'removes only the verified standalone Kiro binary (symlink=%s)',
+    async (linked) => {
+      vi.mocked(application.getPath).mockImplementation((key, file) => {
+        const directory = key === 'sys.home' || key === 'external.acp.bin' ? state.root : path.join(state.root, key)
+        return file ? path.join(directory, file) : directory
+      })
+      const binary = path.join(state.root, linked ? 'foreign-kiro' : 'kiro-cli')
+      await writeFile(binary, '#!/usr/bin/env node\nconsole.log("kiro-cli 3.0.0")\n')
+      await chmod(binary, 0o755)
+      const entry = path.join(state.root, 'kiro-cli')
+      if (linked) await symlink(binary, entry)
+      expect(await new LocalAgentInstallService().uninstall('kiro', entry)).toEqual(
+        linked ? { ok: false, reason: 'unsupported' } : { ok: true }
+      )
+      expect(fs.existsSync(binary)).toBe(linked)
+    }
+  )
+
+  async function npmEntry(executable: string, name: string) {
+    state.target = path.join(state.root, 'node_modules')
+    const directory = path.join(state.target, name)
+    await mkdir(directory, { recursive: true })
+    await writeFile(path.join(directory, 'package.json'), JSON.stringify({ name, bin: { [executable]: 'cli.js' } }))
+    await writeFile(path.join(directory, 'cli.js'), 'installed')
+    const entry = path.join(state.root, executable)
+    await symlink(path.join(directory, 'cli.js'), entry)
+    return entry
+  }
 
   it('serializes removal against pending installation', async () => {
     const service = new LocalAgentInstallService()

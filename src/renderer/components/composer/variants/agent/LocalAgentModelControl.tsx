@@ -73,7 +73,7 @@ export function LocalAgentModelControl({
       models={models}
       sourceRestrictions={selection.sourceRestrictions}
       value={value}
-      disabled={disabled || saving || !LOCAL_AGENT_MODEL_CONFIG[config.presetId ?? '']}
+      disabled={disabled || saving}
       loading={loading}
       loaded={!!freshCatalog || !!info?.models?.length}
       error={refreshError}

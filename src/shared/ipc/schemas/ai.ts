@@ -9,6 +9,7 @@ import {
   LocalAgentInstallResultSchema,
   LocalAgentModelCatalogSchema,
   LocalAgentUninstallResultSchema,
+  LocalAgentUninstallComponentSchema,
   LocalAgentCheckResultSchema,
   type LocalAgentSessionInfo,
   type LocalAgentNotice,
@@ -400,8 +401,16 @@ export const aiRequestSchemas = {
     output: z.custom<CodeBuddyWebUiStatus>()
   }),
   'ai.codebuddy_web.stop': defineRoute({ input: z.void(), output: z.void() }),
-  'ai.local_agents.uninstall': defineRoute({
+  'ai.local_agents.uninstall_components': defineRoute({
     input: z.object({ presetId: z.string().min(1), expectedPath: z.string().min(1) }),
+    output: z.array(LocalAgentUninstallComponentSchema)
+  }),
+  'ai.local_agents.uninstall': defineRoute({
+    input: z.object({
+      presetId: z.string().min(1),
+      expectedPath: z.string().min(1),
+      expectedComponents: z.array(LocalAgentUninstallComponentSchema).min(1)
+    }),
     output: LocalAgentUninstallResultSchema
   }),
   'ai.local_agents.version': defineRoute({

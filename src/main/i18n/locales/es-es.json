@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Borra la configuración del proveedor antes de elegir un modelo nativo.",
   "code_cli.model.provider_config_missing": "Falta la configuración del proveedor.",
   "code_cli.model.unsupported": "Este agente no permite guardar un modelo nativo predeterminado.",
+  "code_cli.uninstall_partial": "No se pudieron desinstalar algunos componentes. Desinstalados: {{removed}} No eliminados por completo: {{remaining}}",
   "common.channel_available_commands": "Comandos disponibles:",
   "common.channel_command_processing_error": "⚠️ Se produjo un error al procesar el comando. Inténtalo de nuevo más tarde.",
   "common.channel_error": "Error: {{error}}",

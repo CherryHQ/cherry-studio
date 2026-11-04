@@ -28,14 +28,14 @@ export function LocalAgentModelTabList({
           <Tooltip
             key={source}
             content={
-              disabled
-                ? (sourceRestrictions?.[source] ??
-                  t(
+              sourceRestrictions?.[source] ??
+              (disabled
+                ? t(
                     source === 'native'
                       ? 'local_agents.model_sources.native_unavailable'
                       : 'local_agents.model_sources.gateway_unavailable'
-                  ))
-                : undefined
+                  )
+                : undefined)
             }
             classNames={{ placeholder: 'inline-flex flex-1' }}>
             <TabsTrigger value={source} disabled={disabled} className="text-xs">

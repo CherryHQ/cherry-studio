@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Cancella la configurazione del provider prima di scegliere un modello nativo.",
   "code_cli.model.provider_config_missing": "Manca la configurazione del provider.",
   "code_cli.model.unsupported": "Questo agente non supporta il salvataggio di un modello nativo predefinito.",
+  "code_cli.uninstall_partial": "Impossibile disinstallare alcuni componenti. Disinstallati: {{removed}} Non rimossi completamente: {{remaining}}",
   "common.channel_available_commands": "Comandi disponibili:",
   "common.channel_command_processing_error": "⚠️ Si è verificato un errore durante l'elaborazione del comando. Riprova più tardi.",
   "common.channel_error": "Errore: {{error}}",

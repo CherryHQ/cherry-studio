@@ -458,7 +458,6 @@ const AgentChat = ({
             <AgentTopBarControls
               agent={activeAgent}
               localSessionId={sessionSnapshot.id}
-              localModelDisabled={runtime.isPending}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}

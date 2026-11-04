@@ -10,6 +10,41 @@ import { LocalAgentModelList } from '../LocalAgentModelList'
 vi.unmock('@cherrystudio/ui')
 
 describe('local agent model search', () => {
+  it('allows browsing and refreshing restricted model sources without changing the default', async () => {
+    const user = userEvent.setup()
+    const onLoad = vi.fn(async () => {})
+    const onSelect = vi.fn(async () => true)
+    render(
+      <LocalAgentModelList
+        models={[
+          { id: 'native', name: 'Native model', source: 'native' },
+          { id: 'gateway', name: 'Gateway model', source: 'gateway' }
+        ]}
+        sourceRestrictions={{ native: 'Default switching unavailable', gateway: 'Provider switching unavailable' }}
+        loaded
+        loading={false}
+        disabled={false}
+        loadDisabled={false}
+        onLoad={onLoad}
+        onSelect={onSelect}
+      />
+    )
+    const native = screen.getByRole('tab', { name: '智能体模型' })
+    expect(native).toBeEnabled()
+    expect(native).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: '跟随 CLI' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Native model$/ })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: /Native model$/ }))
+    await user.click(screen.getByRole('button', { name: '刷新' }))
+    expect(onLoad).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('tab', { name: '服务商模型' }))
+    expect(screen.getByRole('tab', { name: '服务商模型' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: /Gateway model$/ })).toBeDisabled()
+    await user.click(native)
+    expect(screen.getByRole('button', { name: /Native model$/ })).toBeVisible()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('keeps unavailable provider models visible, explains the disabled state, and enables them after loading', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn(async () => true)

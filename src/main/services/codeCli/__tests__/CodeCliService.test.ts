@@ -263,6 +263,20 @@ describe('CodeCliService', () => {
       expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
     })
 
+    it('reports which CLI components were removed when uninstall is incomplete', async () => {
+      installerMock.uninstallCli.mockResolvedValue({
+        ok: false,
+        reason: 'partial',
+        removed: ['pi-acp'],
+        remaining: ['pi']
+      })
+      const { codeCliService } = await loadModules()
+      const result = await codeCliService.removeCli({ name: 'pi' })
+      expect(result).toMatchObject({ status: 'cleanup_blocked', reason: 'cleanup_failed' })
+      expect('message' in result && result.message).toContain('pi-acp')
+      expect('message' in result && result.message).toMatch(/Not fully removed: pi/)
+    })
+
     it('removes the owned skill when no CLI remains after removal', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
         codex: { name: 'codex', availability: { source: 'none' }, application: { status: 'absent' } }

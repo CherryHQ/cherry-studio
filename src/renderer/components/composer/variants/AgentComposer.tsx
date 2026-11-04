@@ -1613,7 +1613,6 @@ const AgentComposerInner = ({
   const controlSlots = renderControls({
     localInfo,
     localSessionId: sessionId,
-    localModelDisabled: isStreaming,
     agent,
     model,
     workspace,

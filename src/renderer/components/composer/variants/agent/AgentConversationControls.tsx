@@ -39,7 +39,6 @@ export interface AgentConversationControlsProps {
   model?: Model
   localInfo?: LocalAgentSessionInfo | null
   localSessionId?: string
-  localModelDisabled?: boolean
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
   workspaceChanging?: boolean
@@ -367,7 +366,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
           agent={props.agent}
           info={props.localInfo}
           sessionId={props.localSessionId}
-          disabled={props.localModelDisabled === true}
+          disabled={!props.canChangeModel}
           side={props.side}
           iconOnly={props.iconOnly}
         />

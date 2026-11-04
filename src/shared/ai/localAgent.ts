@@ -468,12 +468,17 @@ export const LocalAgentInstallResultSchema = z.discriminatedUnion('ok', [
 ])
 export type LocalAgentInstallResult = z.infer<typeof LocalAgentInstallResultSchema>
 
+export const LocalAgentUninstallComponentSchema = z.object({ executable: z.string().min(1), path: z.string().min(1) })
+export type LocalAgentUninstallComponent = z.infer<typeof LocalAgentUninstallComponentSchema>
+
 export const LocalAgentUninstallResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true) }),
   z.object({
     ok: z.literal(false),
-    reason: z.enum(['busy', 'unsupported', 'changed', 'failed']),
-    detail: z.string().optional()
+    reason: z.enum(['busy', 'unsupported', 'changed', 'failed', 'partial']),
+    detail: z.string().optional(),
+    removed: z.array(z.string()).optional(),
+    remaining: z.array(z.string()).optional()
   })
 ])
 export type LocalAgentUninstallResult = z.infer<typeof LocalAgentUninstallResultSchema>

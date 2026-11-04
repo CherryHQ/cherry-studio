@@ -62,7 +62,6 @@ import {
   type LocalAgentInstallResult,
   type LocalAgentPreset
 } from '@shared/ai/localAgent'
-import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
@@ -698,13 +697,22 @@ export function LocalAgentDetails({
     const expectedPath = detection.path
     setBusyAction('confirm-uninstall')
     try {
+      const components = await ipcApi.request('ai.local_agents.uninstall_components', {
+        presetId: preset.id,
+        expectedPath
+      })
+      if (!components.length) throw new Error(t('local_agents.uninstall_error.changed'))
       if (
         !(await popup.confirm({
           title: t('local_agents.uninstall_title', { name: preset.name }),
           content: (
             <div className="space-y-3">
               <p>{t('local_agents.uninstall_confirm')}</p>
-              <p className="break-all text-xs text-muted-foreground">{expectedPath}</p>
+              {components.map(({ executable, path }) => (
+                <p key={executable} className="break-all text-xs text-muted-foreground">
+                  <span className="font-medium">{executable}</span> · {path}
+                </p>
+              ))}
             </div>
           ),
           okText: t('local_agents.uninstall'),
@@ -714,12 +722,25 @@ export function LocalAgentDetails({
         return
       clearResult()
       setBusyAction('uninstall')
-      const response = await ipcApi.request('ai.local_agents.uninstall', { presetId: preset.id, expectedPath })
+      const response = await ipcApi.request('ai.local_agents.uninstall', {
+        presetId: preset.id,
+        expectedPath,
+        expectedComponents: components
+      })
       setResult({
         ok: response.ok,
         message: response.ok
           ? t('local_agents.uninstall_success')
-          : [t(`local_agents.uninstall_error.${response.reason}`), response.detail].filter(Boolean).join('\n')
+          : [
+              t(`local_agents.uninstall_error.${response.reason}`),
+              response.removed?.length &&
+                t('local_agents.uninstall_removed', { components: response.removed.join(', ') }),
+              response.remaining?.length &&
+                t('local_agents.uninstall_remaining', { components: response.remaining.join(', ') }),
+              response.detail
+            ]
+              .filter(Boolean)
+              .join('\n')
       })
     } catch (error) {
       showError(error)
@@ -1090,7 +1111,6 @@ export function LocalAgentDetails({
         <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pb-6">
           <div className="mx-auto w-full max-w-3xl space-y-3">
             {!editing && feedback}
-            {archived && <p className="text-xs text-muted-foreground">{t('local_agents.disable_archive.status')}</p>}
             {modelList ? (
               <LocalAgentModelList {...modelList} disabled={busy || archived || modelList.disabled} />
             ) : (
@@ -1100,7 +1120,7 @@ export function LocalAgentDetails({
                   sourceRestrictions={modelSelection.sourceRestrictions}
                   groupFallback={agent?.name ?? preset?.name}
                   value={modelSelection.value}
-                  disabled={busy || archived || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}
+                  disabled={busy || archived}
                   loading={modelsLoading}
                   loaded={!!catalog}
                   loadDisabled={!detection?.path && !initial.executableOverride}

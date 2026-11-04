@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Εκκαθαρίστε τη διαμόρφωση παρόχου πριν επιλέξετε εγγενές μοντέλο.",
   "code_cli.model.provider_config_missing": "Λείπει η διαμόρφωση παρόχου.",
   "code_cli.model.unsupported": "Αυτός ο πράκτορας δεν υποστηρίζει την αποθήκευση εγγενούς προεπιλεγμένου μοντέλου.",
+  "code_cli.uninstall_partial": "Δεν ήταν δυνατή η απεγκατάσταση ορισμένων στοιχείων. Απεγκαταστάθηκαν: {{removed}} Δεν αφαιρέθηκαν πλήρως: {{remaining}}",
   "common.channel_available_commands": "Διαθέσιμες εντολές:",
   "common.channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",
   "common.channel_error": "Σφάλμα: {{error}}",

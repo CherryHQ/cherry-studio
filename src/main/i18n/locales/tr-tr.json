@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Yerel bir model seçmeden önce sağlayıcı yapılandırmasını temizleyin.",
   "code_cli.model.provider_config_missing": "Sağlayıcı yapılandırması eksik.",
   "code_cli.model.unsupported": "Bu ajan yerel varsayılan modelin kaydedilmesini desteklemiyor.",
+  "code_cli.uninstall_partial": "Bazı bileşenler kaldırılamadı. Kaldırılanlar: {{removed}} Tamamen kaldırılamayanlar: {{remaining}}",
   "common.channel_available_commands": "Kullanılabilir komutlar:",
   "common.channel_command_processing_error": "⚠️ Komut işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
   "common.channel_error": "Hata: {{error}}",

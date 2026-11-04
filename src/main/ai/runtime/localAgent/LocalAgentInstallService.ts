@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
-import { access, realpath } from 'node:fs/promises'
+import { access, lstat, realpath, unlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -20,6 +20,7 @@ import {
   LOCAL_AGENT_PRESETS,
   type LocalAgentPreset,
   type LocalAgentInstallResult,
+  type LocalAgentUninstallComponent,
   type LocalAgentUninstallResult
 } from '@shared/ai/localAgent'
 import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE, type CodeCliToolPreset } from '@shared/data/presets/codeCliTools'
@@ -42,6 +43,8 @@ type InstallTarget = Pick<
   protocol?: LocalAgentPreset['protocol']
   cli?: CodeCliToolPreset
 }
+
+const NATIVE_NPM_PACKAGES: Record<string, string> = { amp: '@ampcode/cli' }
 
 const REGISTRY_URL = 'https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json'
 
@@ -84,12 +87,28 @@ export class LocalAgentInstallService extends BaseService {
 
   isUninstalling(presetId: string): boolean {
     const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    return !!preset && this.removals.has(preset.executable)
+    return !!preset && [preset.executable, preset.terminalExecutable].some((name) => name && this.removals.has(name))
   }
 
-  uninstall(presetId: string, expectedPath: string): Promise<LocalAgentUninstallResult> {
+  async getUninstallComponents(presetId: string, expectedPath: string): Promise<LocalAgentUninstallComponent[]> {
+    const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    return preset
+      ? (await this.resolveUninstallComponents(preset, expectedPath)).map(({ executable, path }) => ({
+          executable,
+          path
+        }))
+      : []
+  }
+
+  uninstall(
+    presetId: string,
+    expectedPath: string,
+    expectedComponents?: LocalAgentUninstallComponent[]
+  ): Promise<LocalAgentUninstallResult> {
     const target = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    return target ? this.uninstallTarget(target, expectedPath) : Promise.resolve({ ok: false, reason: 'unsupported' })
+    return target
+      ? this.uninstallTarget(target, expectedPath, expectedComponents)
+      : Promise.resolve({ ok: false, reason: 'unsupported' })
   }
 
   uninstallCli(name: string, expectedPath: string): Promise<LocalAgentUninstallResult> {
@@ -99,9 +118,44 @@ export class LocalAgentInstallService extends BaseService {
       : Promise.resolve({ ok: false, reason: 'unsupported' })
   }
 
-  private uninstallTarget(target: InstallTarget, expectedPath: string): Promise<LocalAgentUninstallResult> {
+  private async resolveUninstallComponents(target: InstallTarget, expectedPath: string) {
+    const primary = await this.detect(target)
+    if (primary.source === 'none' || primary.path !== expectedPath) return []
+    const presets = target.cli
+      ? LOCAL_AGENT_PRESETS.filter(
+          (preset) => preset.executable === target.executable || preset.terminalExecutable === target.executable
+        )
+      : [target]
+    const targets = new Map<string, InstallTarget>([[target.executable, target]])
+    for (const preset of presets) {
+      targets.set(preset.executable, preset)
+      if (preset.terminalExecutable) {
+        const executable = preset.terminalExecutable
+        targets.set(executable, {
+          id: preset.id,
+          executable,
+          cli: CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[executable],
+          npmPackage: NATIVE_NPM_PACKAGES[executable]
+        })
+      }
+    }
+    const installed = await Promise.all(
+      [...targets.values()].map(async (target) => ({ target, detected: await this.detect(target) }))
+    )
+    return installed.flatMap(({ target, detected }) =>
+      detected.source === 'none' ? [] : [{ executable: target.executable, path: detected.path, target }]
+    )
+  }
+
+  private uninstallTarget(
+    target: InstallTarget,
+    expectedPath: string,
+    expectedComponents?: LocalAgentUninstallComponent[]
+  ): Promise<LocalAgentUninstallResult> {
     if (this.operations.size || this.removals.size) return Promise.resolve({ ok: false, reason: 'busy' })
-    const operation = this.performUninstall(target, expectedPath).finally(() => this.removals.delete(target.executable))
+    const operation = this.performUninstall(target, expectedPath, expectedComponents).finally(() =>
+      this.removals.delete(target.executable)
+    )
     this.removals.set(target.executable, operation)
     return operation
   }
@@ -176,6 +230,8 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   private async recipe(target: InstallTarget, targetVersion?: string) {
+    if (target.npmPackage && !LOCAL_AGENT_PRESETS.some((preset) => preset.executable === target.executable))
+      return { manager: 'npm' as const, package: target.npmPackage, args: ['install', '--global', target.npmPackage] }
     const recipe = target.cli
       ? resolveCliInstallRecipe(target.cli, targetVersion)
       : (resolveInstallRecipe(target.id) ?? resolveInstallRecipe(target.id, await this.fetchRegistry()))
@@ -214,18 +270,114 @@ export class LocalAgentInstallService extends BaseService {
       : ownsUvExecutable(root, name.toLowerCase().replace(/[-_.]+/g, '-'), installedPath)
   }
 
-  private async performUninstall(preset: InstallTarget, expectedPath: string): Promise<LocalAgentUninstallResult> {
-    const presetId = preset.id
+  private async verifyRemoved(file: string) {
+    await lstat(file).then(
+      () => {
+        throw new Error('Installation files still exist after uninstall')
+      },
+      (error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') throw error
+      }
+    )
+  }
+
+  private async removalAction(target: InstallTarget, expectedPath: string, env: Record<string, string>) {
+    const detected = await this.detect(target)
+    if (detected.source === 'none' || detected.path !== expectedPath) return undefined
+    if (detected.source === 'mise') {
+      const names = [target.executable, ...(target.aliases ?? [])]
+      const manager = application.get('BinaryManager')
+      const snapshots = await manager.getToolSnapshots(names)
+      const name = names.find(
+        (name) => snapshots[name]?.availability.source === 'mise' && snapshots[name]?.availability.path === expectedPath
+      )
+      if (!name) return undefined
+      return async () => {
+        const result = await manager.removeTool({ name })
+        if (result.status !== 'removed') throw new Error(result.message ?? result.status)
+      }
+    }
+    if (detected.source !== 'system') return undefined
+    if (await getBinaryAgentInstallation(target.executable, expectedPath))
+      return async () => {
+        if (!(await uninstallBinaryAgent(target.executable, expectedPath))) throw new Error('Installation changed')
+      }
+    const recipe = await this.recipe(target)
+    if (!recipe || recipe.manager === 'binary') return undefined
+    if (recipe.manager === 'script') {
+      const standalone =
+        target.executable === 'agy'
+          ? application.getPath('external.antigravity.cli.file')
+          : target.executable === 'kiro-cli'
+            ? application.getPath('external.acp.bin', 'kiro-cli')
+            : undefined
+      if (!standalone || path.resolve(expectedPath) !== standalone || !(await lstat(expectedPath)).isFile())
+        return undefined
+      const version = await this.run(expectedPath, ['--version'], env, 8000)
+      const identity = target.executable === 'agy' ? /\b(?:antigravity|agy)\b/i : /\bkiro-cli\b/i
+      if (!/\d+\.\d+/.test(version)) return undefined
+      if (!identity.test(version) && !identity.test(await this.run(expectedPath, ['--help'], env, 8000)))
+        return undefined
+      const original = await lstat(expectedPath)
+      return async () => {
+        const current = await lstat(expectedPath)
+        if (
+          !current.isFile() ||
+          current.dev !== original.dev ||
+          current.ino !== original.ino ||
+          current.mtimeMs !== original.mtimeMs
+        )
+          throw new Error('Installation changed')
+        await unlink(expectedPath)
+      }
+    }
+    const command = await findExecutableInEnv(recipe.manager, { env })
+    if (!command || (await this.isManagedPath(command))) return undefined
+    const root = (
+      await this.run(command, recipe.manager === 'npm' ? ['root', '--global'] : ['tool', 'dir'], env)
+    ).trim()
+    if (await this.isManagedPath(root)) return undefined
+    const name = recipe.package.replace(recipe.manager === 'npm' ? /@[^@/]+$/ : /[=[].*$/, '')
+    const packageName = recipe.manager === 'uv' ? name.toLowerCase().replace(/[-_.]+/g, '-') : name
+    const owns = () =>
+      recipe.manager === 'npm'
+        ? ownsNpmExecutable(root, packageName, expectedPath)
+        : ownsUvExecutable(root, packageName, expectedPath)
+    if (!(await owns())) return undefined
+    return async () => {
+      if (!(await owns())) throw new Error('Installation changed')
+      await this.run(
+        command,
+        recipe.manager === 'npm' ? ['uninstall', '--global', packageName] : ['tool', 'uninstall', packageName],
+        env
+      )
+      await this.verifyRemoved(path.join(root, packageName))
+    }
+  }
+
+  private async performUninstall(
+    preset: InstallTarget,
+    expectedPath: string,
+    expectedComponents?: LocalAgentUninstallComponent[]
+  ): Promise<LocalAgentUninstallResult> {
+    const removed: string[] = []
+    let remaining: string[] = []
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
-      const detected = await this.detect(preset)
-      if (detected.source === 'none' || detected.path !== expectedPath) return { ok: false, reason: 'changed' }
-      const agents = preset.cli
-        ? LOCAL_AGENT_PRESETS.filter(
-            (entry) => entry.executable === preset.executable || entry.terminalExecutable === preset.executable
-          )
-        : [preset]
+      const components = await this.resolveUninstallComponents(preset, expectedPath)
+      if (
+        !components.length ||
+        (expectedComponents &&
+          JSON.stringify(components.map(({ executable, path }) => ({ executable, path }))) !==
+            JSON.stringify(expectedComponents))
+      )
+        return { ok: false, reason: 'changed' }
+      remaining = components.map(({ executable }) => executable)
+      const env = await getRawShellEnv(this.abort.signal)
+      const agents = LOCAL_AGENT_PRESETS.filter((agent) =>
+        components.some(({ executable }) => executable === agent.executable || executable === agent.terminalExecutable)
+      )
       if (!(await this.closeIdleAgentSessions(agents.map((agent) => agent.id)))) return { ok: false, reason: 'busy' }
       for (const agent of agents) {
         const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === agent.id)
@@ -238,48 +390,32 @@ export class LocalAgentInstallService extends BaseService {
           if (!stopped.success) return { ok: false, reason: 'busy' }
         }
       }
-      if (detected.source === 'mise') {
-        const manager = application.get('BinaryManager')
-        const names = [preset.executable, ...(preset.aliases ?? [])]
-        const snapshots = await manager.getToolSnapshots(names)
-        const name = names.find((name) => {
-          const availability = snapshots[name]?.availability
-          return availability?.source === 'mise' && availability.path === expectedPath
-        })
-        if (!name) return { ok: false, reason: 'changed' }
-        const result = await manager.removeTool({ name })
-        if (result.status !== 'removed') return { ok: false, reason: 'failed', detail: result.message }
-      } else if (detected.source !== 'system') {
-        return { ok: false, reason: 'unsupported' }
-      } else if (!(await uninstallBinaryAgent(preset.executable, expectedPath))) {
-        const recipe = await this.recipe(preset)
-        if (!recipe || recipe.manager === 'binary' || recipe.manager === 'script')
-          return { ok: false, reason: 'unsupported' }
-        const env = await getRawShellEnv(this.abort.signal)
-        const command = await findExecutableInEnv(recipe.manager, { env })
-        if (!command || (await this.isManagedPath(command))) return { ok: false, reason: 'unsupported' }
-        const root = (
-          await this.run(command, recipe.manager === 'npm' ? ['root', '--global'] : ['tool', 'dir'], env)
-        ).trim()
-        if (await this.isManagedPath(root)) return { ok: false, reason: 'unsupported' }
-        if (recipe.manager === 'npm') {
-          const packageName = recipe.package.replace(/@[^@/]+$/, '')
-          if (!(await ownsNpmExecutable(root, packageName, expectedPath))) return { ok: false, reason: 'unsupported' }
-          await this.run(command, ['uninstall', '--global', packageName], env)
-        } else {
-          const packageName = recipe.package
-            .split(/[=[]/)[0]
-            .toLowerCase()
-            .replace(/[-_.]+/g, '-')
-          if (!(await ownsUvExecutable(root, packageName, expectedPath))) return { ok: false, reason: 'unsupported' }
-          await this.run(command, ['tool', 'uninstall', packageName], env)
-        }
+      const actions: Array<{ component: (typeof components)[number]; action: () => Promise<void> }> = []
+      for (const component of components) {
+        const action = await this.removalAction(component.target, component.path, env)
+        if (!action) return { ok: false, reason: 'unsupported' }
+        actions.push({ component, action })
+      }
+      for (const { component, action } of actions) {
+        this.abort.signal.throwIfAborted()
+        const current = await this.detect(component.target)
+        if (current.source === 'none' || current.path !== component.path)
+          return { ok: false, reason: removed.length ? 'partial' : 'changed', removed, remaining }
+        await action()
+        await this.verifyRemoved(component.path)
+        removed.push(component.executable)
+        remaining = remaining.filter((name) => name !== component.executable)
       }
       return { ok: true }
     } catch (error) {
       const detail = redactSecretText(error instanceof Error ? error.message : String(error)).slice(-2000)
-      logger.warn('Local agent uninstall failed', { presetId, detail })
-      return { ok: false, reason: 'failed', detail }
+      logger.warn('Local agent uninstall failed', { presetId: preset.id, detail })
+      return {
+        ok: false,
+        reason: removed.length ? 'partial' : 'failed',
+        detail,
+        ...(removed.length ? { removed, remaining } : {})
+      }
     } finally {
       await refreshShellEnv()
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
@@ -316,7 +452,9 @@ export class LocalAgentInstallService extends BaseService {
       }
       const executableDependencies = [
         ...(preset.requiredRuntime ? [{ executable: preset.requiredRuntime.executable, package: 'bun' }] : []),
-        ...(presetId === 'amp-acp' ? [{ executable: 'amp', package: '@ampcode/cli' }] : [])
+        ...(preset.terminalExecutable && NATIVE_NPM_PACKAGES[preset.terminalExecutable]
+          ? [{ executable: preset.terminalExecutable, package: NATIVE_NPM_PACKAGES[preset.terminalExecutable] }]
+          : [])
       ]
       for (const dependency of executableDependencies) {
         const target = { id: presetId, executable: dependency.executable }

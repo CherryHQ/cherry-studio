@@ -8,6 +8,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentEntity } from '@shared/data/types/agent'
 
+import { AgentConversationControls } from '../AgentConversationControls'
 import { LocalAgentModelControl } from '../LocalAgentModelControl'
 
 vi.mock('@renderer/hooks/useModel', () => ({ useModels: () => ({ models: [] }) }))
@@ -54,6 +55,25 @@ beforeEach(async () => {
 })
 
 describe('local agent model persistence', () => {
+  it('respects the common model-editing permission for local agents', () => {
+    const props = {
+      agent,
+      localInfo: info,
+      selectAgentLabel: '选择智能体',
+      selectModelLabel: '选择模型',
+      selectWorkspaceLabel: '选择工作目录',
+      shouldAutoSelectCreatedAgent: false,
+      side: 'bottom' as const,
+      agentTriggerMode: 'edit' as const,
+      onAgentChange: () => {},
+      onModelSelect: () => {}
+    }
+    const { rerender } = render(<AgentConversationControls {...props} canChangeModel={false} />)
+    expect(screen.getByRole('button', { name: '选择模型' })).toBeDisabled()
+    rerender(<AgentConversationControls {...props} canChangeModel />)
+    expect(screen.getByRole('button', { name: '选择模型' })).toBeEnabled()
+  })
+
   it.each([
     ['cursor', 'Cursor CLI 当前不支持自定义服务商模型。'],
     ['auggie', '暂未适配此智能体的服务商模型。']
@@ -73,7 +93,8 @@ describe('local agent model persistence', () => {
     await user.click(screen.getByRole('button', { name: '选择模型' }))
     const native = screen.getByRole('tab', { name: '智能体模型' })
     const gateway = screen.getByRole('tab', { name: '服务商模型' })
-    expect(native).toBeDisabled()
+    expect(native).toBeEnabled()
+    expect(native).toHaveAttribute('aria-selected', 'true')
     expect(gateway).toBeDisabled()
     expect(screen.getByRole('option', { name: 'Second' })).toHaveAttribute('aria-disabled', 'true')
     await user.hover(native.parentElement!)

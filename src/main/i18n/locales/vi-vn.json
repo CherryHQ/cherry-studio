@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Xóa cấu hình nhà cung cấp trước khi chọn mô hình gốc.",
   "code_cli.model.provider_config_missing": "Thiếu cấu hình nhà cung cấp.",
   "code_cli.model.unsupported": "Tác nhân này không hỗ trợ lưu mô hình mặc định gốc.",
+  "code_cli.uninstall_partial": "Không thể gỡ cài đặt một số thành phần. Đã gỡ cài đặt: {{removed}} Chưa được gỡ hoàn toàn: {{remaining}}",
   "common.channel_available_commands": "Các lệnh có sẵn:",
   "common.channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",
   "common.channel_error": "Lỗi: {{error}}",

@@ -377,6 +377,39 @@ describe('local agent settings navigation', () => {
     expect(within(program).getByRole('button', { name: '检查连接' })).toBeEnabled()
   })
 
+  it('confirms both program paths and reports the components left after partial uninstall', async () => {
+    const user = userEvent.setup()
+    navigation.search = { id: 'pi-acp' }
+    const components = [
+      { executable: 'pi-acp', path: '/test/pi-acp' },
+      { executable: 'pi', path: '/test/pi' }
+    ]
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'pi-acp', path: '/test/pi-acp' }] as never
+      if (route === 'ai.local_agents.uninstall_components') return components
+      if (route === 'ai.local_agents.uninstall')
+        return { ok: false, reason: 'partial', removed: ['pi-acp'], remaining: ['pi'] }
+      return { models: [] } as never
+    })
+    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
+    render(<LocalAgentSettingsPage />)
+    await user.click(await screen.findByRole('button', { name: '高级设置' }))
+    await user.click(screen.getByRole('button', { name: '卸载' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.uninstall', {
+        presetId: 'pi-acp',
+        expectedPath: '/test/pi-acp',
+        expectedComponents: components
+      })
+    )
+    const confirmation = vi.mocked(popup.confirm).mock.calls.at(-1)![0]
+    const content = render(<>{confirmation.content}</>)
+    expect(within(content.container).getByText(/\/test\/pi-acp/)).toBeVisible()
+    expect(within(content.container).getByText(/\/test\/pi$/)).toBeVisible()
+    expect(screen.getAllByText(/已卸载：pi-acp/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/未完成卸载：pi/).length).toBeGreaterThan(0)
+  })
+
   it('keeps the drawer mounted for its exit animation and discards the draft before reopening', async () => {
     const user = userEvent.setup()
     render(<LocalAgentSettingsPage />)

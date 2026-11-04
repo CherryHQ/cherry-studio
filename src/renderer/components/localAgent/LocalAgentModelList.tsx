@@ -63,7 +63,7 @@ export function LocalAgentModelList({
     setQuery('')
     setSearchOpen(false)
   }
-  const tabs = useLocalAgentModelTabs(models, value, showFollowCli, sourceRestrictions)
+  const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
   const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
   const search = query.trim().toLowerCase()
   const filtered = tabs.models.filter((model) =>

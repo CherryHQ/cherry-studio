@@ -195,8 +195,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.local_agents.cancel_auth': ({ requestId }) => application.get('LocalAgentAuthService').cancel(requestId),
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),
-  'ai.local_agents.uninstall': ({ presetId, expectedPath }) =>
-    application.get('LocalAgentInstallService').uninstall(presetId, expectedPath),
+  'ai.local_agents.uninstall_components': ({ presetId, expectedPath }) =>
+    application.get('LocalAgentInstallService').getUninstallComponents(presetId, expectedPath),
+  'ai.local_agents.uninstall': ({ presetId, expectedPath, expectedComponents }) =>
+    application.get('LocalAgentInstallService').uninstall(presetId, expectedPath, expectedComponents),
   'ai.local_agents.version': ({ presetId, latest }) =>
     application.get('LocalAgentInstallService').getVersion(presetId, latest),
   'ai.local_agents.install': ({ presetId, targetVersion }) =>

@@ -64,7 +64,7 @@ export function LocalAgentModelSelector({
   const [searchText, setSearchText] = useState('')
   const [focusedKey, setFocusedKey] = useState('')
   const listboxId = useId()
-  const tabs = useLocalAgentModelTabs(models, value, true, sourceRestrictions)
+  const tabs = useLocalAgentModelTabs(models, value)
   const source = tabs.sources.includes(tabs.source) ? tabs.source : ''
   const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
   const options = tabs.source === 'native' ? [undefined, ...tabs.models] : tabs.models
@@ -152,7 +152,7 @@ export function LocalAgentModelSelector({
           onOpenSettings
             ? {
                 icon: <Settings2 className="size-3.5" />,
-                label: t('local_agents.manage_in_code_mate'),
+                label: t('local_agents.title'),
                 onClick: () => {
                   setOpen(false)
                   onOpenSettings()

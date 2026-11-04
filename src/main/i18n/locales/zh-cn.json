@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "选择原生模型前，请先清除服务商配置。",
   "code_cli.model.provider_config_missing": "缺少服务商配置。",
   "code_cli.model.unsupported": "此智能体不支持保存原生默认模型。",
+  "code_cli.uninstall_partial": "部分组件未能卸载。 已卸载：{{removed}} 未完成卸载：{{remaining}}",
   "common.channel_available_commands": "可用命令：",
   "common.channel_command_processing_error": "⚠️ 处理命令时发生错误，请稍后重试。",
   "common.channel_error": "错误：{{error}}",

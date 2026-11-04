@@ -1,20 +1,13 @@
 import { useState } from 'react'
 
-import type { LocalAgentModelOption, LocalAgentModelSourceRestrictions } from './useLocalAgentModelSelection'
+import type { LocalAgentModelOption } from './useLocalAgentModelSelection'
 
-export function useLocalAgentModelTabs(
-  models: LocalAgentModelOption[],
-  value?: string,
-  showFollowCli = true,
-  sourceRestrictions?: LocalAgentModelSourceRestrictions
-) {
+export function useLocalAgentModelTabs(models: LocalAgentModelOption[], value?: string, showFollowCli = true) {
   const [browsing, setBrowsing] = useState<{ model?: string; source?: string }>({})
   const options: LocalAgentModelOption[] =
     value && !models.some((model) => model.id === value) ? [{ id: value, name: value }, ...models] : models
   const sources = (['native', 'gateway'] as const).filter(
-    (source) =>
-      !sourceRestrictions?.[source] &&
-      ((source === 'native' && showFollowCli) || options.some((model) => (model.source ?? 'native') === source))
+    (source) => (source === 'native' && showFollowCli) || options.some((model) => (model.source ?? 'native') === source)
   )
   const selectedSource = options.find((model) => model.id === value)?.source ?? 'native'
   const requestedSource = browsing.model === value ? (browsing.source ?? selectedSource) : selectedSource

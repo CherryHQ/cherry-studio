@@ -17,11 +17,11 @@ sources:
 
 # Local Agent Runtime
 
-Code Mate manages local Agent installation, models and advanced
+Agent Services manages local Agent installation, models and advanced
 configuration. Model selection offers native Agent models and Cherry models through
 the unified gateway. Direct provider selection is not offered. Selecting a model applies its connection and native default for
 both chat and terminal use; there is no separate provider configuration panel.
-The Code Mate launchpad and sidebar shortcuts open Settings → Agent Services,
+The Agent Services launchpad and sidebar shortcuts open Settings → Agent Services,
 the sole manager for installation, model selection and CLI configuration.
 Legacy `/app/code` links and saved tabs redirect to settings, preserve the selected
 Agent, and reuse the existing settings tab.
@@ -49,7 +49,7 @@ only Agents whose configuration environment matches the global CLI root; unrelat
 and files remain user-owned.
 
 OpenClaw connects through `openclaw acp` to its local Gateway and uses the shared
-enable, archive and chat controls. It retains its Code Mate model list, native
+enable, archive and chat controls. It retains its Agent Services model list, native
 configuration entry and WebUI actions. Its configuration button opens the shared
 file editor for `~/.openclaw/openclaw.json` without requiring a selected Cherry
 model. Raw edits use the same Gateway write lock as model synchronization, with
@@ -89,7 +89,7 @@ controls and resume. Per-session MCP injection, client filesystem and terminal
 callbacks are not supported by the bridge. Native Gateway/Agent configuration
 continues to own those capabilities.
 DeepSeek Harness connects through `dsh --profile acp` and uses the shared enable,
-archive and chat controls, native file editor, model list and WebUI actions. New ACP connections apply the selected Code Mate model using
+archive and chat controls, native file editor, model list and WebUI actions. New ACP connections apply the selected Agent Services model using
 the same native settings and credentials as the WebUI. The ACP profile override is
 written and rolled back with the existing configuration transaction, preserving
 unrelated user entries. Disabling or uninstalling also stops its managed WebUI.
@@ -98,9 +98,9 @@ is not supported. Protocol features depend on the installed CLI: 0.2.1-rc.5 send
 committed assistant output and supports model/reasoning options, approvals and
 resume, without mode, command, plan, client file/terminal or elicitation callbacks.
 
-Interactive terminal actions open the shared Code Mate launch dialog to select a
+Interactive terminal actions open the shared Agent Services launch dialog to select a
 working directory and terminal application. Choices are saved per tool in
-`feature.code_cli.configs`, reusing existing Code Mate keys and using preset IDs
+`feature.code_cli.configs`, reusing existing Agent Services keys and using preset IDs
 for ACP-only tools. A per-tool recent-directory dropdown supports selection and
 removing history entries without changing files on disk. Launching moves the selected
 directory to the front; removing an entry saves immediately. The selected directory is checked before launch; an unavailable
@@ -190,7 +190,7 @@ Protocol implementations: [omp](https://github.com/can1357/oh-my-pi),
 
 ## Installation and connection
 
-Explicit executable overrides take precedence. Code Mate CLIs prefer a system
+Explicit executable overrides take precedence. Agent Services CLIs prefer a system
 installation over an existing managed copy; other ACP presets retain their
 existing installation discovery order. Explicit paths fail without fallback. Every connection
 resolves installation facts again, so upgrades do not pin an old version path.
@@ -199,19 +199,19 @@ retain the user's shell environment. Explicit environment overrides apply last a
 also participate in executable-name lookup. Windows environment names are matched
 without case sensitivity, including native configuration-directory overrides.
 
-New Code Mate installations, upgrades and lazy terminal installations use the
+New Agent Services installations, upgrades and lazy terminal installations use the
 system installer shared with Agent Services: global npm packages, `uv tool install`
 for Python tools, and the official system installer for the Antigravity CLI.
 ACP-only distributions still use registry recipes and user-directory binary
 installation. Package managers redirected into Cherry-managed directories are
 rejected. Existing mise installations remain discoverable and removable; no
-new Code Mate CLI is installed through mise. Hermes reuses its native Python
+new Agent Services CLI is installed through mise. Hermes reuses its native Python
 installation recipe, including WebUI dependencies, without requiring a registry entry.
 Kiro and Trae use their official installers on supported platforms; Vibe uses
 `uv tool install mistral-vibe`, avoiding unsupported registry archive entries.
 Install and reuse both check separate native CLI dependencies: Pi requires `pi`,
 Amp requires `amp`, and Antigravity's terminal entry requires `agy`. Existing system
-or Code Mate installations are reused; missing CLIs use the shared system installer.
+or Agent Services installations are reused; missing CLIs use the shared system installer.
 An adapter alone does not satisfy these installation checks. Dependency failures
 prevent an installation-success result. Adapter and terminal launches include the
 resolved dependency directories, including Bun for OMP, without replacing the user's
@@ -230,9 +230,17 @@ uses filesystem facts so a prior failed module lookup cannot hide a newly instal
 package.
 Binary upgrades retain prior resources for running terminal processes and record
 their ownership. Explicit uninstall removes the current bundle and verified recorded
-versions; unrecorded legacy directories are not deleted. Uninstallation verifies package
-ownership; externally installed binaries without a supported ownership check
-must be removed through their original installer.
+versions; unrecorded legacy directories are not deleted. Uninstall confirmation lists
+both the adapter and any separately installed native CLI, including their paths. The
+component list is checked again after confirmation. Every component must pass its
+installation ownership check before removal starts. Each command is followed by
+verification that the program and its package directory are gone; partial failures
+identify the components removed and those still requiring cleanup. Other installations,
+shared runtimes, model packages, credentials, settings and conversations are retained.
+Antigravity and standalone Kiro binaries in their default user installation locations
+are removed only after checking their identity and rejecting symlinked programs.
+Other script installations, including Trae's multi-directory layout, require their
+original installer or manual removal when ownership cannot be verified.
 
 Passive discovery queries BinaryManager without starting an agent. Check/enable
 starts a bounded protocol handshake with no model prompt or automatic login.
@@ -477,7 +485,7 @@ Protocol references: [ACP](https://agentclientprotocol.com/protocol/overview),
 
 ### CLI sign-in
 
-Code Mate shows sign-in for installed ACP Agents that advertise a protocol-driven
+Agent Services shows sign-in for installed ACP Agents that advertise a protocol-driven
 `agent` authentication method. Discovery and model refresh do not start login;
 only the user's explicit action sends `authenticate` with an advertised method ID.
 Agents offering terminal-only authentication keep their native terminal/help flow;

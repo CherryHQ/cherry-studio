@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Очистите конфигурацию провайдера перед выбором собственной модели.",
   "code_cli.model.provider_config_missing": "Отсутствует конфигурация провайдера.",
   "code_cli.model.unsupported": "Этот агент не поддерживает сохранение собственной модели по умолчанию.",
+  "code_cli.uninstall_partial": "Не удалось удалить некоторые компоненты. Удалены: {{removed}} Удалены не полностью: {{remaining}}",
   "common.channel_available_commands": "Доступные команды:",
   "common.channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",
   "common.channel_error": "Ошибка: {{error}}",

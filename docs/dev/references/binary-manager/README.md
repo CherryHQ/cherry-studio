@@ -18,7 +18,7 @@ sources:
 
 ## Scope
 
-Code Mate installation is a domain-owned exception: `LocalAgentInstallService`
+Agent Services installation is a domain-owned exception: `LocalAgentInstallService`
 installs Code CLI presets into the user system using their supported recipes.
 Do not route those installs through `installByName()` or create a shadow mise copy.
 BinaryManager snapshots still discover their runnable `availability`; managed-only

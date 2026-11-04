@@ -86,6 +86,7 @@
   "code_cli.model.provider_clear_required": "Entfernen Sie die Anbieterkonfiguration, bevor Sie ein natives Modell wählen.",
   "code_cli.model.provider_config_missing": "Die Anbieterkonfiguration fehlt.",
   "code_cli.model.unsupported": "Dieser Agent unterstützt das Speichern eines nativen Standardmodells nicht.",
+  "code_cli.uninstall_partial": "Einige Komponenten konnten nicht deinstalliert werden. Deinstalliert: {{removed}} Nicht vollständig entfernt: {{remaining}}",
   "common.channel_available_commands": "Verfügbare Befehle:",
   "common.channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
   "common.channel_error": "Fehler: {{error}}",
