@@ -124,6 +124,12 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
 
 const treeIdSchema = z.string().min(1)
 
+/** Availability probe result for file.copy_to_clipboard: ready or unavailable. */
+const clipboardCopyStatusSchema = z.union([
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), reason: z.enum(['missing', 'inaccessible']) })
+])
+
 /**
  * File IPC schemas — filesystem-backed FileManager operations.
  *
@@ -173,6 +179,8 @@ export const fileRequestSchemas = {
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.get_clipboard_status': defineRoute({ input: FileHandleSchema, output: clipboardCopyStatusSchema }),
+  'file.copy_to_clipboard': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.validate_notes_directory': defineRoute({ input: AbsoluteFilePathSchema, output: z.boolean() }),
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;

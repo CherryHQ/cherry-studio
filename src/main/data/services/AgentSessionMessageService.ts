@@ -529,7 +529,7 @@ export class AgentSessionMessageService {
     const rows = readAgentSessionPath(tx, sessionId)
     const index = rows.findIndex((row) => row.id === messageId)
     const user = rows[index]
-    if (!user || user.role !== 'user' || user.delivery || user.inputContextId || source.session.type !== 'conversation')
+    if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
       throw new AgentSessionEditError('invalid_target')
     if (
       tx
@@ -1144,8 +1144,8 @@ export class AgentSessionMessageService {
     return { rowsAffected: result.changes }
   }
 
-  /** Assistant rows whose in-memory owner cannot survive a main-process restart. */
-  findCrashOrphanedAssistantMessages(): Array<{
+  /** Legacy orphans plus native agent types whose caller owns restart terminalization. */
+  findCrashOrphanedAssistantMessages(includeNativeAgentTypes: readonly string[] = []): Array<{
     id: string
     sessionId: string
     data: AgentSessionMessageEntity['data']
@@ -1161,7 +1161,20 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.role, 'assistant'),
-          isLegacyMessage(),
+          or(
+            isLegacyMessage(),
+            includeNativeAgentTypes.length > 0
+              ? sql`EXISTS (
+                  SELECT 1 FROM agent_session AS owner_session
+                  JOIN agent AS owner_agent ON owner_agent.id = owner_session.agent_id
+                  WHERE owner_session.id = ${sessionMessagesTable.sessionId}
+                    AND owner_agent.type IN (${sql.join(
+                      includeNativeAgentTypes.map((type) => sql`${type}`),
+                      sql`, `
+                    )})
+                )`
+              : undefined
+          ),
           or(
             eq(sessionMessagesTable.status, 'pending'),
             sql<boolean>`exists (
@@ -1181,7 +1194,7 @@ export class AgentSessionMessageService {
 
   /**
    * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
-   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
+   * caller's terminalized `data`) and discard only legacy resume tokens, atomically.
    * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
    * a runaway execution (#18281) — so the next connection must start without a token.
    */
@@ -1195,7 +1208,7 @@ export class AgentSessionMessageService {
       for (const message of messages) {
         tx.update(sessionMessagesTable)
           .set({ status: 'error', data: message.data, updatedAt })
-          .where(and(eq(sessionMessagesTable.id, message.id), isLegacyMessage()))
+          .where(and(eq(sessionMessagesTable.id, message.id), eq(sessionMessagesTable.role, 'assistant')))
           .run()
       }
       if (sessionIds.length > 0) {
@@ -1295,24 +1308,42 @@ export class AgentSessionMessageService {
   listRuntimeResumeTokensBySession(sessionIds: readonly string[]): Map<string, Set<string>> {
     const tokensBySession = new Map<string, Set<string>>()
     if (sessionIds.length === 0) return tokensBySession
-
-    const rows = application
-      .get('DbService')
-      .getDb()
+    const db = application.get('DbService').getDb()
+    const owners = db
+      .select({ id: sessionTable.id, owner: sessionTable.ownerSessionId })
+      .from(sessionTable)
+      .where(or(inArray(sessionTable.id, sessionIds), inArray(sessionTable.ownerSessionId, sessionIds)))
+      .all()
+    if (!owners.length) return tokensBySession
+    const requested = new Set(sessionIds)
+    const destinations = new Map(
+      owners.map(({ id, owner }) => [id, [id, owner].filter((key): key is string => !!key && requested.has(key))])
+    )
+    const collect = (sessionId: string, token: string | null) => {
+      if (!token) return
+      for (const owner of destinations.get(sessionId) ?? []) {
+        const tokens = tokensBySession.get(owner) ?? new Set<string>()
+        tokens.add(token)
+        tokensBySession.set(owner, tokens)
+      }
+    }
+    const ownedIds = owners.map(({ id }) => id)
+    const rows = db
       .selectDistinct({
         sessionId: sessionMessagesTable.sessionId,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
       })
       .from(sessionMessagesTable)
-      .where(
-        and(inArray(sessionMessagesTable.sessionId, sessionIds), isNotNull(sessionMessagesTable.runtimeResumeToken))
-      )
+      .where(and(inArray(sessionMessagesTable.sessionId, ownedIds), isNotNull(sessionMessagesTable.runtimeResumeToken)))
       .all()
-    for (const { sessionId, runtimeResumeToken } of rows) {
-      if (!runtimeResumeToken) continue
-      const tokens = tokensBySession.get(sessionId) ?? new Set<string>()
-      tokens.add(runtimeResumeToken)
-      tokensBySession.set(sessionId, tokens)
+    for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
+    const bindings = db
+      .select()
+      .from(agentSessionContextTable)
+      .where(inArray(agentSessionContextTable.sessionId, ownedIds))
+      .all()
+    for (const binding of bindings) {
+      collect(binding.sessionId, binding.nativeThreadId)
     }
     return tokensBySession
   }
@@ -1503,8 +1534,12 @@ export class AgentSessionMessageService {
   ): AgentSessionMessageEntity {
     const { db, publishDataChange } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const persist = (tx: DbOrTx) => {
+      const saved = this.saveMessageTx(tx, params, timestampMs)
+      return saved
+    }
+    if (db) return persist(db).entity
+    const result = application.get('DbService').withWriteTx(persist)
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -1549,6 +1584,32 @@ export class AgentSessionMessageService {
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
+  }
+
+  /** Reconciles a child archive's proven source order without editing a product conversation branch. */
+  orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[], removed: readonly string[] = []): void {
+    const session = tx.select().from(sessionTable).where(eq(sessionTable.id, sessionId)).get()
+    if (!session?.ownerSessionId) throw new Error('Only owned child archives can reconcile message order')
+    const rows = tx.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).all()
+    const byId = new Map(rows.filter((row) => row.role !== 'root').map((row) => [row.id, row]))
+    const priorPath = new Set(
+      readAgentSessionAncestry(tx, sessionId, session.activeNodeId ?? ensureAgentSessionRootTx(tx, sessionId)).map(
+        (row) => row.id
+      )
+    )
+    if (
+      new Set(order).size !== order.length ||
+      order.some((id) => !byId.has(id)) ||
+      [...priorPath].some((id) => byId.has(id) && !order.includes(id) && !removed.includes(id))
+    )
+      throw new Error('Child archive order must retain messages without explicit removal')
+    let parentId = ensureAgentSessionRootTx(tx, sessionId)
+    for (const id of order) {
+      if (byId.get(id)!.parentId !== parentId)
+        tx.update(sessionMessagesTable).set({ parentId }).where(eq(sessionMessagesTable.id, id)).run()
+      parentId = id
+    }
+    tx.update(sessionTable).set({ activeNodeId: parentId }).where(eq(sessionTable.id, sessionId)).run()
   }
 
   private saveMessagesWithActivityTx(

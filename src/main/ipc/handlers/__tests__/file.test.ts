@@ -8,6 +8,8 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 const {
   appGetMock,
+  clipboardCopyMock,
+  clipboardStatusMock,
   assertOutsideManagedStorageMutationMock,
   copyNewMock,
   getMetadataByPathMock,
@@ -19,6 +21,8 @@ const {
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  clipboardCopyMock: vi.fn(),
+  clipboardStatusMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
   copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
@@ -62,6 +66,8 @@ vi.mock('@main/services/file', async () => {
     },
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
+    copyFileToClipboard: clipboardCopyMock,
+    getClipboardCopyStatus: clipboardStatusMock,
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
     readChunkByPath: readChunkByPathMock,
@@ -73,6 +79,7 @@ vi.mock('@main/services/file', async () => {
 
 import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -121,6 +128,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  fileManager.getPhysicalPath.mockReset()
   windowManager.getWindow.mockImplementation((id: string) =>
     id === 'win-1' ? { webContents: senderWebContents } : undefined
   )
@@ -136,6 +144,39 @@ const ctx = { senderId: null }
 const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
+  it('copies path handles and entry storage paths, and refuses unmanaged callers first', async () => {
+    const path = '/tmp/physical' as AbsoluteFilePath
+    const pathHandle = { kind: 'path' as const, path }
+    const entryHandle = { kind: 'entry' as const, entryId: ids[0] } as Parameters<
+      (typeof fileHandlers)['file.copy_to_clipboard']
+    >[0]
+    fileManager.getPhysicalPath.mockReturnValueOnce('/storage/actual')
+    await fileHandlers['file.copy_to_clipboard'](pathHandle, windowCtx)
+    await fileHandlers['file.copy_to_clipboard'](entryHandle, windowCtx)
+    expect(clipboardCopyMock.mock.calls.map(([target]) => target)).toEqual([path, '/storage/actual'])
+    vi.clearAllMocks()
+    await expect(fileHandlers['file.copy_to_clipboard'](entryHandle, ctx)).rejects.toThrow('managed window sender')
+    expect(appGetMock).not.toHaveBeenCalled()
+    expect(clipboardCopyMock).not.toHaveBeenCalled()
+  })
+
+  it('maps only removed entry errors to missing', async () => {
+    const handle = { kind: 'entry', entryId: ids[0] } as Parameters<
+      (typeof fileHandlers)['file.get_clipboard_status']
+    >[0]
+    fileManager.getPhysicalPath.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('FileEntry', ids[0])
+    })
+    await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).resolves.toEqual({
+      ok: false,
+      reason: 'missing'
+    })
+    fileManager.getPhysicalPath.mockImplementationOnce(() => {
+      throw new Error('database failure')
+    })
+    await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).rejects.toThrow('database failure')
+  })
+
   it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
     expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
     expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)

@@ -264,7 +264,7 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
   size: z.number().optional()
 })
 
-const ComposerMessageTokenKindSchema = z.enum([
+export const ComposerMessageTokenKindSchema = z.enum([
   'skill',
   'link',
   'file',
