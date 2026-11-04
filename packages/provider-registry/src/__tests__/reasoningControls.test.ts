@@ -72,6 +72,10 @@ describe('deriveLegacyReasoningFields', () => {
 })
 
 describe('inferReasoningControls (ingest-time heuristics)', () => {
+  it.each(['alibaba/qwen3.8-flash-next', 'qwen3-8-flash-next'])('infers selectable effort tiers for %s', (id) => {
+    expect(inferReasoningControls(id)).toContainEqual({ kind: 'effort', values: ['low', 'medium', 'xhigh'] })
+  })
+
   it.each(['step-5-preview', 'stepfun/step-5-preview', 'STEP-5-PREVIEW', 'StepFun/StEp-5-PrEvIeW'])(
     'infers only the documented effort control for %s',
     (id) => {

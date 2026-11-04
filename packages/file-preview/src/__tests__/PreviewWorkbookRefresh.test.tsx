@@ -22,6 +22,7 @@ class WorkbookWorker {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.stubGlobal('Worker', WorkbookWorker)
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(500)
@@ -29,8 +30,11 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
 })
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
+  // TanStack Virtual's scroll-reset timeout outlives unmount; drain it before jsdom is destroyed.
+  await vi.runOnlyPendingTimersAsync()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })

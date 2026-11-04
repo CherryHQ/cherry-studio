@@ -30,8 +30,17 @@ function stripCitationMarkers(text: string): string {
  * Returns the sanitized text and whether any redactions were made.
  */
 export function sanitizeChannelOutput(text: string): { text: string; redacted: boolean } {
+  const result = sanitizeChannelOutputSilently(text)
+  for (const pattern of result.redactedPatterns) {
+    logger.warn('Redacted sensitive content from channel output', { pattern })
+  }
+  return { text: result.text, redacted: result.redactedPatterns.length > 0 }
+}
+
+/** Same sanitization as {@link sanitizeChannelOutput}, without logging, for repeated live-preview passes. */
+export function sanitizeChannelOutputSilently(text: string): { text: string; redactedPatterns: string[] } {
   let result = stripCitationMarkers(text)
-  let redacted = false
+  const redactedPatterns: string[] = []
 
   for (const { name, re } of SECRET_TOKEN_PATTERNS) {
     // Reset lastIndex for global regexes
@@ -39,10 +48,9 @@ export function sanitizeChannelOutput(text: string): { text: string; redacted: b
     if (re.test(result)) {
       re.lastIndex = 0
       result = result.replace(re, REDACTED)
-      redacted = true
-      logger.warn('Redacted sensitive content from channel output', { pattern: name })
+      redactedPatterns.push(name)
     }
   }
 
-  return { text: result, redacted }
+  return { text: result, redactedPatterns }
 }

@@ -3,7 +3,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { WindowId } from '@shared/ipc/types'
-import type { ConversationNavigationTarget } from '@shared/types/navigation'
+import type { ConversationDraft, ConversationNavigationTarget } from '@shared/types/navigation'
 import { conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 import { openRouteInMainWindow } from './mainWindowNavigation'
@@ -69,7 +69,8 @@ export class ConversationNavigationService extends BaseService {
   public focusOrOpen(
     target: ConversationNavigationTarget,
     title: string,
-    requestingWindowId: WindowId | null = null
+    requestingWindowId: WindowId | null = null,
+    draft?: ConversationDraft
   ): Promise<void> {
     if (this.isStopping) return Promise.resolve()
 
@@ -77,7 +78,7 @@ export class ConversationNavigationService extends BaseService {
     const existing = this.inFlightTargets.get(targetKey)
     if (existing) return existing
 
-    const operation = this.focusOrOpenDirect(target, title, requestingWindowId).finally(() => {
+    const operation = this.focusOrOpenDirect(target, title, requestingWindowId, draft).finally(() => {
       if (this.inFlightTargets.get(targetKey) === operation) this.inFlightTargets.delete(targetKey)
     })
     this.inFlightTargets.set(targetKey, operation)
@@ -112,7 +113,8 @@ export class ConversationNavigationService extends BaseService {
   private async focusOrOpenDirect(
     target: ConversationNavigationTarget,
     title: string,
-    requestingWindowId: WindowId | null
+    requestingWindowId: WindowId | null,
+    draft: ConversationDraft | undefined
   ): Promise<void> {
     const discoveryDeadline = Date.now() + NAVIGATION_DISCOVERY_TIMEOUT_MS
     let coldRouteOpened = false
@@ -154,7 +156,9 @@ export class ConversationNavigationService extends BaseService {
       if (coldRouteOpened) {
         const mainOwner = owners.find((window) => window.type === WindowType.Main)
         if (mainOwner) {
-          this.focusWindow(mainOwner)
+          // Init data opened the route without the draft; the committed owner takes it like any focus request.
+          if (draft) await this.commitFocusOrOpen(mainOwner, query.requestId, target, title, draft)
+          else this.focusWindow(mainOwner)
           return
         }
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
@@ -178,11 +182,21 @@ export class ConversationNavigationService extends BaseService {
         continue
       }
 
-      const completed = await this.sendFocusOrOpenCommand(destination, query.requestId, target, title)
-      if (!completed && !this.isStopping) {
-        throw new Error(`Conversation navigation was not completed: ${conversationTargetKey(target)}`)
-      }
+      await this.commitFocusOrOpen(destination, query.requestId, target, title, draft)
       return
+    }
+  }
+
+  private async commitFocusOrOpen(
+    destination: WindowInfo,
+    requestId: string,
+    target: ConversationNavigationTarget,
+    title: string,
+    draft: ConversationDraft | undefined
+  ): Promise<void> {
+    const completed = await this.sendFocusOrOpenCommand(destination, requestId, target, title, draft)
+    if (!completed && !this.isStopping) {
+      throw new Error(`Conversation navigation was not completed: ${conversationTargetKey(target)}`)
     }
   }
 
@@ -190,7 +204,8 @@ export class ConversationNavigationService extends BaseService {
     destination: WindowInfo,
     requestId: string,
     target: ConversationNavigationTarget,
-    title: string
+    title: string,
+    draft: ConversationDraft | undefined
   ): Promise<boolean> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => this.settleNavigationCommand(requestId, false), NAVIGATION_COMMAND_TIMEOUT_MS)
@@ -200,7 +215,8 @@ export class ConversationNavigationService extends BaseService {
       application.get('IpcApiService').send(destination.id, 'navigation.conversation_focus_or_open_requested', {
         requestId,
         target,
-        title
+        title,
+        ...(draft && { draft })
       })
       this.focusWindow(destination)
     })
