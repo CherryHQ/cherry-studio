@@ -1657,3 +1657,33 @@ it.skipIf(process.platform === 'win32')(
     }
   }
 )
+
+it.each([
+  { socketPath: '/tmp/private-network-socket', path: '/' },
+  { auth: 'private-user:private-password', hostname: 'localhost', path: '/' }
+])('refuses export for Node-only connection options without retaining private details', (options) => {
+  const description = describeHttpRequest('http', [options]) as ReturnType<typeof describeHttpRequest> & {
+    requestReplayError?: string
+  }
+  expect(description.requestReplayError).toBeDefined()
+  expect(JSON.stringify(description)).not.toContain('private-')
+  const sandbox: { buildCurlCommand?: (event: unknown) => string } = {}
+  vm.createContext(sandbox)
+  vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+  const command = sandbox.buildCurlCommand?.(description) as string
+  expect(command.startsWith('#')).toBe(true)
+  expect(command).not.toContain('curl ')
+})
+
+it('refuses replay for URL userinfo without retaining the credentials', () => {
+  const description = describeHttpRequest('http', ['http://private-user:private-password@localhost/']) as ReturnType<
+    typeof describeHttpRequest
+  > & { requestReplayError?: string }
+  expect(description.requestReplayError).toBeDefined()
+  expect(JSON.stringify(description)).not.toContain('private-')
+})
+
+it('matches numeric zero default-port semantics without changing literal string zero', () => {
+  expect(new URL(describeHttpRequest('http', [{ port: 0 }]).url).port).toBe('')
+  expect(new URL(describeHttpRequest('http', [{ port: '0' }]).url).port).toBe('0')
+})

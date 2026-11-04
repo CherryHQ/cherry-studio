@@ -74,6 +74,7 @@ interface RequestDescription {
   requestHeaders?: Record<string, string>
   requestBody?: MainNetworkDevtoolsBody
   requestContentType?: string
+  requestReplayError?: string
 }
 
 // OAuth `code` is redacted across this request view (query/body/form) but stays out of the
@@ -134,7 +135,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   // Keep hostname and port separate so an override cannot retain the URL's old port.
   const effectiveOptions = { ...(parsedUrl ? urlToHttpOptions(parsedUrl) : {}), ...options }
   const host = normalizeOptionValue(effectiveOptions.hostname ?? effectiveOptions.host) || 'localhost'
-  const port = normalizeOptionValue(effectiveOptions.port)
+  const port = effectiveOptions.port ? normalizeOptionValue(effectiveOptions.port) : undefined
   const hostname = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
   const authority = port ? `${hostname}:${port}` : hostname
   const path = normalizeOptionValue(options.path) ?? getUrlPath(parsedUrl) ?? getFallbackPath(urlArg)
@@ -144,6 +145,11 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   const requestHeaders = redactHeaders(options.headers as Record<string, unknown> | undefined)
 
   return {
+    ...(effectiveOptions.socketPath
+      ? { requestReplayError: 'Unix socket request cannot faithfully replay through a URL.' }
+      : effectiveOptions.auth
+        ? { requestReplayError: 'Authenticated Node request cannot faithfully replay from redacted capture.' }
+        : {}),
     method: String(options.method ?? 'GET').toUpperCase(),
     url: redactUrl(`${protocol}//${authority}${normalizedPath}`),
     requestHeaders,
@@ -574,6 +580,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       url: description.url,
       requestHeaders: description.requestHeaders,
       requestBody: description.requestBody,
+      requestReplayError: description.requestReplayError,
       startedAt: Date.now()
     }
 
