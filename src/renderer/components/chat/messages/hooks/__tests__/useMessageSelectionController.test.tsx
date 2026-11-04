@@ -286,6 +286,50 @@ describe('useMessageSelectionController', () => {
     expect(cacheValues['chat.selected_message_ids']).toEqual(['a'])
   })
 
+  describe('delete messages before', () => {
+    it('deletes only selectable messages older than the target after confirmation', async () => {
+      const deleteMessage = vi.fn()
+      const messages: MessageListItem[] = [
+        message('u1'),
+        { ...message('divider'), isContextBoundary: true },
+        message('u2'),
+        message('u3')
+      ]
+      const { result } = renderHook(() =>
+        useMessageSelectionController({ topicId: 'topic-1', messages, partsByMessageId: {}, deleteMessage })
+      )
+      popupConfirm.mockResolvedValueOnce(true)
+
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('u3')
+      })
+
+      expect(popupConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'message.delete.confirm.content:2' })
+      )
+      expect(deleteMessage.mock.calls.map(([id]) => id)).toEqual(['u1', 'u2'])
+    })
+
+    it('warns and deletes nothing when no message precedes the target', async () => {
+      const deleteMessage = vi.fn()
+      const { result } = renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('u1'), message('u2')],
+          partsByMessageId: {},
+          deleteMessage
+        })
+      )
+
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('u1')
+      })
+
+      expect(popupConfirm).not.toHaveBeenCalled()
+      expect(deleteMessage).not.toHaveBeenCalled()
+    })
+  })
+
   describe('select all', () => {
     const renderController = (messages: MessageListItem[]) => {
       const utils = renderHook(

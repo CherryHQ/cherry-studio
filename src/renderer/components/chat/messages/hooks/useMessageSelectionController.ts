@@ -49,6 +49,7 @@ interface MessageSelectionController {
     | 'saveSelectedMessages'
     | 'exportSelectedMessages'
     | 'deleteSelectedMessages'
+    | 'deleteMessagesBefore'
   >
 }
 
@@ -324,11 +325,8 @@ export function useMessageSelectionController({
     [ensureSelection, exportMessages, t, toggleMultiSelectMode]
   )
 
-  const deleteSelectedMessages = useCallback(
-    async (messageIds?: readonly string[]) => {
-      const ids = ensureSelection(messageIds)
-      if (!ids) return
-
+  const confirmAndDeleteMessages = useCallback(
+    async (ids: readonly string[]) => {
       if (!deleteMessage) {
         toast.error(t('message.delete.failed'))
         return
@@ -354,7 +352,30 @@ export function useMessageSelectionController({
         toggleMultiSelectMode(false)
       }
     },
-    [deleteMessage, ensureSelection, t, toggleMultiSelectMode]
+    [deleteMessage, t, toggleMultiSelectMode]
+  )
+
+  const deleteSelectedMessages = useCallback(
+    async (messageIds?: readonly string[]) => {
+      const ids = ensureSelection(messageIds)
+      if (!ids) return
+      await confirmAndDeleteMessages(ids)
+    },
+    [confirmAndDeleteMessages, ensureSelection]
+  )
+
+  const deleteMessagesBefore = useCallback(
+    async (messageId: string) => {
+      const ids = latestSelectableIdsRef.current
+      const index = ids.indexOf(messageId)
+      const olderIds = index === -1 ? [] : ids.slice(0, index)
+      if (olderIds.length === 0) {
+        toast.warning(t('chat.multiple.select.empty'))
+        return
+      }
+      await confirmAndDeleteMessages(olderIds)
+    },
+    [confirmAndDeleteMessages, t]
   )
 
   const selection = useMemo<MessageListSelectionState>(
@@ -377,11 +398,13 @@ export function useMessageSelectionController({
       copySelectedMessages,
       saveSelectedMessages: saveTextFile ? saveSelectedMessages : undefined,
       exportSelectedMessages: exportMessages ? exportSelectedMessages : undefined,
-      deleteSelectedMessages: deleteMessage ? deleteSelectedMessages : undefined
+      deleteSelectedMessages: deleteMessage ? deleteSelectedMessages : undefined,
+      deleteMessagesBefore: deleteMessage ? deleteMessagesBefore : undefined
     }),
     [
       copySelectedMessages,
       deleteMessage,
+      deleteMessagesBefore,
       deleteSelectedMessages,
       exportSelectedMessages,
       exportMessages,

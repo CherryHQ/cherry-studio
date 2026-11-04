@@ -919,6 +919,7 @@
   "chat.message.token_details.waiting_first_token": "Ожидание",
   "chat.message.useful.label": "установить в качестве контекста",
   "chat.message.useful.tip": "В этой группе сообщений данное сообщение будет выбрано для включения в контекст",
+  "chat.multiple.select.delete_above": "Удалить все выше",
   "chat.multiple.select.empty": "Ничего не выбрано",
   "chat.multiple.select.label": "Множественный выбор",
   "chat.navigation.anchor.jump_to_turn": "Перейти к ходу {{number}}",
