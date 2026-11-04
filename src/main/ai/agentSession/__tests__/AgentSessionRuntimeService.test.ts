@@ -6327,9 +6327,11 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
       const controller = new AbortController()
-      const reader = service
-        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
-        .getReader()
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: controller.signal
+      }).getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await connecting.promise
       if (action === 'stop with failed cleanup')

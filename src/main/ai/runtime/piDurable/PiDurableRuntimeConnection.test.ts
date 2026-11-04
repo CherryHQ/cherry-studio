@@ -493,7 +493,9 @@ describe('desktop Pi Durable connection', () => {
           message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
         )!
       await expect
-        .poll(() => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'))
+        .poll(() =>
+          events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2')
+        )
         .toContainEqual({
           type: 'response-start',
           responseId: 'child-response-2',
