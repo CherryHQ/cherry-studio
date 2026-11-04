@@ -21,15 +21,17 @@ Open Scheduled tasks from the global sidebar. Select a task in Active or Paused 
 
 Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. A task with no execution shows a waiting state. Pausing affects future scheduling; it does not cancel an execution already in progress.
 
-Each group can collapse independently without changing the open conversation. The three-dot menu on each task offers Continue or Pause, Run now, Edit, and Delete. Delete uses destructive styling and requires confirmation. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
+Each group can collapse independently without changing the open conversation. The three-dot menu on each task offers Continue or Pause, Run now, Edit, and Delete. Delete uses destructive styling and requires confirmation. The dialog shows a short title and a separate description warning that all associated conversations move to the Recycle Bin. Deletion stops pending runs and archives both reused and per-run conversations. Task deletion and conversation archival commit together; a failed transaction preserves both. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
 
 ## Sidebar and conversation header
 
-The sidebar follows the Agents page's surface, spacing, and list interaction patterns. It uses the shared background token: white in the default light theme and theme-dependent in other modes. The selected global entry uses a filled calendar with contrasting clock details.
+The sidebar follows the Agents page's surface, spacing, and list interaction patterns. It uses the shared background token: white in the default light theme and theme-dependent in other modes. The selected global entry uses a filled clock with contrasting hands.
 
 Each task row shows its name, followed by its owning Agent and schedule. The secondary line shares the available width according to content instead of forcing equal halves. Long text stays on one line with an ellipsis; hovering exposes the full value. The task and its three-dot control share one hover and selection background. Actions appear on hover or keyboard focus and remain visible on touch devices.
 
 The right-side header contains the task name, execution summary, run selector, and applicable history actions. It replaces the Agent, model, and workspace controls on this page only. Message sender information and the conversation composer remain unchanged. Selecting a task or collapsing a group does not start an execution.
+
+Task conversations stay out of ordinary Agent topic lists and recent-topic restoration. After deleting a task, restoring one of its conversations from the Recycle Bin returns it to its owning Agent as an ordinary topic. Restoring a conversation does not recreate the task or change its historical run records.
 
 ## Conversation selection
 

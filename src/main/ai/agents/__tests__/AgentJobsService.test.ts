@@ -18,6 +18,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -161,6 +162,8 @@ describe('AgentJobsService', () => {
           return jobManager
         case 'AgentJobsService':
           return service
+        case 'AgentLifecycleService':
+          return lifecycle
         case 'AiStreamManager':
           return {
             isWriteQuiesced: false,
@@ -955,6 +958,80 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(subscriptionRows(task.id)).toHaveLength(0)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('archives every linked task conversation, cancels queued runs, and preserves ordinary and other task sessions', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      const other = service.createTask(AGENT_ID, { ...form, name: 'other' })
+      const create = (name: string) =>
+        agentSessionService.create({ agentId: AGENT_ID, name, workspace: { type: 'system' } })
+      const sticky = create('sticky')
+      const fresh = create('fresh')
+      const legacy = create('legacy')
+      const ordinary = create('ordinary')
+      const foreign = create('foreign task')
+      dbh.db.update(agentSessionTable).set({ taskScheduleId: task.id }).where(eq(agentSessionTable.id, sticky.id)).run()
+      for (const [id, scheduleId, metadata, output, status] of [
+        ['fresh', task.id, { sessionId: fresh.id }, null, 'completed'],
+        ['legacy', task.id, {}, { sessionId: legacy.id }, 'completed'],
+        ['foreign', other.id, { sessionId: foreign.id }, null, 'completed'],
+        ['queued', task.id, {}, null, 'pending']
+      ] as const) {
+        dbh.db
+          .insert(jobTable)
+          .values({
+            id,
+            scheduleId,
+            metadata,
+            output,
+            status,
+            type: 'agent.task',
+            queue: 'agent',
+            input: {},
+            scheduledAt: Date.now()
+          })
+          .run()
+      }
+      expect(await service.deleteTask(AGENT_ID, task.id)).toBe(true)
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(jobService.getById('queued')?.status).toBe('cancelled')
+      for (const session of [sticky, fresh, legacy]) {
+        expect(
+          dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+        ).toEqual(expect.any(Number))
+      }
+      for (const session of [ordinary, foreign]) {
+        expect(agentSessionService.getById(session.id).id).toBe(session.id)
+      }
+      expect(jobScheduleService.getById(other.id)).not.toBeNull()
+      for (const session of [sticky, fresh, legacy]) {
+        agentSessionService.restore(session.id)
+      }
+      const restoredIds = agentSessionService.listByCursor({ agentId: AGENT_ID }).items.map((session) => session.id)
+      expect(restoredIds.sort()).toEqual([ordinary.id, sticky.id, fresh.id, legacy.id].sort())
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(jobService.getById('fresh')?.metadata.sessionId).toBe(fresh.id)
+      expect(jobService.getById('legacy')?.output).toEqual({ sessionId: legacy.id })
+    })
+
+    it('rolls back conversation archival if deleting the task fails', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create({ agentId: AGENT_ID, name: 'task', workspace: { type: 'system' } })
+      dbh.db
+        .update(agentSessionTable)
+        .set({ taskScheduleId: task.id })
+        .where(eq(agentSessionTable.id, session.id))
+        .run()
+      const remove = vi.spyOn(jobScheduleService, 'deleteTx').mockImplementationOnce(() => {
+        throw new Error('delete failed')
+      })
+      await expect(service.deleteTask(AGENT_ID, task.id)).rejects.toThrow('delete failed')
+      remove.mockRestore()
+      expect(jobScheduleService.getById(task.id)?.enabled).toBe(true)
+      expect(agentSessionService.getById(session.id).id).toBe(session.id)
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toBeNull()
     })
 
     it('deletes every Agent task through JobManager while preserving other agents tasks', async () => {

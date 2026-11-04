@@ -155,6 +155,7 @@ function TaskRow({
           open
           onOpenChange={setDeleteOpen}
           title={t('agent.tasks.delete.confirm')}
+          description={t('agent.tasks.delete.description')}
           confirmText={t('agent.tasks.delete.label')}
           cancelText={t('agent.tasks.cancel')}
           destructive
