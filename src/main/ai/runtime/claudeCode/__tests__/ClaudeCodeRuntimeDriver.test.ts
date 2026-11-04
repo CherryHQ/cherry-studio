@@ -530,6 +530,23 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
   })
 
+  it('does not start a query or subprocess when building its environment fails', async () => {
+    const error = new Error('Claude Code requires an active Linux session bus')
+    mocks.buildRequest.mockRejectedValue(error)
+
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::sonnet'
+      })
+    ).rejects.toBe(error)
+
+    expect(mocks.consumeWarmQuery).not.toHaveBeenCalled()
+    expect(mocks.createClaudeQuery).not.toHaveBeenCalled()
+    expect(mocks.processManagerSpawn).not.toHaveBeenCalled()
+  })
+
   it('uses the serving receipt retained by a consumed warm process', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

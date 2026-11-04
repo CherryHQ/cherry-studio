@@ -29,6 +29,16 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
+export class ClaudeCodeSessionBusUnavailableError extends Error {
+  readonly i18nKey = 'claude_code_session_bus_missing'
+  readonly detailI18nKey = 'claude_code_session_bus_missing_detail'
+
+  constructor() {
+    super('Claude Code requires an active Linux session bus')
+    this.name = 'ClaudeCodeSessionBusUnavailableError'
+  }
+}
+
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 /**
@@ -253,6 +263,10 @@ export async function buildEnvironment(
     } else {
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
+  }
+
+  if (isLinux && !env.DBUS_SESSION_BUS_ADDRESS?.trim()) {
+    throw new ClaudeCodeSessionBusUnavailableError()
   }
 
   return mergeAgentLoopbackProxyBypass(env)

@@ -1474,6 +1474,8 @@
   "error.claude_code_exit.code": "Claude Code beklenmedik şekilde kapandı (kod {{code}}). Tanılama referansı: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code beklenmedik şekilde durdu (sinyal {{signal}}). Tanılama referansı: {{reference}}",
   "error.claude_code_exit.start": "Claude Code başlatılamadı. Tanılama referansı: {{reference}}",
+  "error.claude_code_session_bus_missing": "Claude Code için etkin bir Linux oturum veriyolu gerekir.",
+  "error.claude_code_session_bus_missing_detail": "Cherry Studio'yu başlatan masaüstü ortamında DBUS_SESSION_BUS_ADDRESS değişkenini ayarlayın ve ardından uygulamayı yeniden başlatın. Claude Code başlatılmadı.",
   "error.content": "İçerik",
   "error.data": "Veri",
   "error.detail": "Hata Ayrıntıları",
