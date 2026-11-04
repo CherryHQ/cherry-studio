@@ -187,7 +187,7 @@ overrides:
   prosemirror-view: 1.41.9
   prosemirror-transform: 1.12.0
   esbuild: ^0.25.0
-  node-abi: 4.33.0
+  node-abi: 4.40.0
   openai: npm:@cherrystudio/openai@6.15.0
   tar-fs: ^2.1.4
   tar@>=7.0.0 <7.5.19: 7.5.19
@@ -234,7 +234,7 @@ patchedDependencies:
   '@earendil-works/pi-agent-core@1.4.0': 473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee
   '@earendil-works/pi-ai@1.4.0': 4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9
   '@earendil-works/pi-coding-agent@1.4.0': de769c1386ed7f6109e8085a858d46738e28993f7421155875c65912850f5537
-  '@earendil-works/pi-durable@1.4.0': 5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91
+  '@earendil-works/pi-durable@1.4.0': 2a223507757bfd519f7ba228b13a5ad2d767642fcbece9566119ebc84ac850a3
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
@@ -266,54 +266,42 @@ importers:
 
   .:
     dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.284
-        version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/agent-behavior':
         specifier: workspace:*
         version: link:packages/agent-behavior
       '@cherrystudio/agent-runtime-pi':
         specifier: workspace:*
         version: link:packages/agent-runtime-pi
-      '@cherrystudio/computer-use':
-        specifier: 0.1.9
-        version: 0.1.9
+      '@cherrystudio/agent-runtime-pi-durable':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-pi-durable
       '@cherrystudio/mlx-asr':
         specifier: github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr
         version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
-      '@cherrystudio/remote-protocol':
-        specifier: workspace:*
-        version: link:packages/remote-protocol
-      '@cherrystudio/remote-transport':
-        specifier: workspace:*
-        version: link:packages/remote-transport
-      '@cherrystudio/system-speech':
-        specifier: workspace:*
-        version: link:native/system-speech
       '@earendil-works/chord':
         specifier: 1.4.0
         version: 1.4.0
       '@earendil-works/pi-ai':
         specifier: 1.4.0
         version: 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode':
+        specifier: 1.4.0
+        version: 1.4.0
       '@earendil-works/pi-coding-agent':
         specifier: 1.4.0
         version: 1.4.0(patch_hash=de769c1386ed7f6109e8085a858d46738e28993f7421155875c65912850f5537)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-durable':
         specifier: 1.4.0
-        version: 1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        version: 1.4.0(patch_hash=2a223507757bfd519f7ba228b13a5ad2d767642fcbece9566119ebc84ac850a3)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@firecrawl/anydoc':
         specifier: 0.2.4
         version: 0.2.4
       '@huggingface/transformers':
         specifier: 4.2.0
         version: 4.2.0(@types/node@24.10.4)
-      '@larksuiteoapi/node-sdk':
-        specifier: ^1.73.0
-        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -339,8 +327,8 @@ importers:
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)(supports-color@8.1.1)
       better-sqlite3:
-        specifier: 12.11.1
-        version: 12.11.1
+        specifier: 13.0.3
+        version: 13.0.3
       cross-spawn:
         specifier: 7.0.6
         version: 7.0.6
@@ -350,15 +338,9 @@ importers:
       graceful-fs:
         specifier: 4.2.11
         version: 4.2.11
-      grammy:
-        specifier: ^1.36.3
-        version: 1.41.1(encoding@0.1.13)(supports-color@8.1.1)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0(supports-color@8.1.1)
-      mediabunny:
-        specifier: 1.58.0
-        version: 1.58.0
       node-screenshots:
         specifier: ^0.2.8
         version: 0.2.8
@@ -368,12 +350,6 @@ importers:
       onnxruntime-node:
         specifier: 1.25.1
         version: 1.25.1(patch_hash=7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef)
-      opus-decoder:
-        specifier: 0.7.12
-        version: 0.7.12
-      os-proxy-config:
-        specifier: 1.1.2
-        version: 1.1.2
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
@@ -398,18 +374,12 @@ importers:
       sqlite-vec:
         specifier: npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2
         version: '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
-      systeminformation:
-        specifier: 5.33.8
-        version: 5.33.8
       tesseract.js:
         specifier: 6.0.1
         version: 6.0.1(patch_hash=a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e)(encoding@0.1.13)
       ts-ebml:
         specifier: 3.0.2
         version: 3.0.2(supports-color@8.1.1)
-      which:
-        specifier: 6.0.1
-        version: 6.0.1
       ws:
         specifier: ^8.21.0
         version: 8.21.3
@@ -483,6 +453,9 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.126
         version: 3.0.126(zod@4.4.3)
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 0.3.311
+        version: 0.3.311(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
@@ -510,15 +483,15 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:packages/agent-runtime
-      '@cherrystudio/agent-runtime-pi-durable':
-        specifier: workspace:*
-        version: link:packages/agent-runtime-pi-durable
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore
       '@cherrystudio/analytics-client':
         specifier: 1.4.0
         version: 1.4.0(typescript@5.9.3)
+      '@cherrystudio/computer-use':
+        specifier: 0.1.9
+        version: 0.1.9
       '@cherrystudio/extension-table-plus':
         specifier: workspace:^
         version: link:packages/extension-table-plus
@@ -531,9 +504,18 @@ importers:
       '@cherrystudio/provider-registry':
         specifier: workspace:*
         version: link:packages/provider-registry
+      '@cherrystudio/remote-protocol':
+        specifier: workspace:*
+        version: link:packages/remote-protocol
       '@cherrystudio/remote-protocol-v0':
         specifier: npm:@cherrystudio/remote-protocol@0.1.0
         version: '@cherrystudio/remote-protocol@0.1.0(zod@4.4.3)'
+      '@cherrystudio/remote-transport':
+        specifier: workspace:*
+        version: link:packages/remote-transport
+      '@cherrystudio/system-speech':
+        specifier: workspace:*
+        version: link:native/system-speech
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
@@ -578,10 +560,10 @@ importers:
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@44.9.3(supports-color@8.1.1))
+        version: 3.0.2(electron@45.2.2(supports-color@8.1.1))
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@44.9.3(supports-color@8.1.1))
+        version: 3.0.0(electron@45.2.2(supports-color@8.1.1))
       '@electron/asar':
         specifier: 3.4.1
         version: 3.4.1
@@ -633,6 +615,9 @@ importers:
       '@j178/prek':
         specifier: ^0.3.4
         version: 0.3.4(debug@4.4.3(supports-color@8.1.1))
+      '@larksuiteoapi/node-sdk':
+        specifier: ^1.73.0
+        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
@@ -1037,13 +1022,13 @@ importers:
         version: 0.31.8(supports-color@8.1.1)
       drizzle-orm:
         specifier: ^0.44.5
-        version: 0.44.7(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
+        version: 0.44.7(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.3)
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
       electron:
-        specifier: 44.9.3
-        version: 44.9.3(supports-color@8.1.1)
+        specifier: 45.2.2
+        version: 45.2.2(supports-color@8.1.1)
       electron-builder:
         specifier: 26.15.6
         version: 26.15.6(electron-builder-squirrel-windows@26.15.6)(supports-color@8.1.1)
@@ -1131,6 +1116,9 @@ importers:
       gpt-tokenizer:
         specifier: ^3.4.0
         version: 3.4.0
+      grammy:
+        specifier: ^1.36.3
+        version: 1.41.1(encoding@0.1.13)(supports-color@8.1.1)
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -1215,6 +1203,9 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.0.2
         version: 2.0.2(supports-color@8.1.1)
+      mediabunny:
+        specifier: 1.58.0
+        version: 1.58.0
       micromark-util-types:
         specifier: ^2.0.2
         version: 2.0.2
@@ -1260,6 +1251,12 @@ importers:
       open:
         specifier: ^8.4.2
         version: 8.4.2
+      opus-decoder:
+        specifier: 0.7.12
+        version: 0.7.12
+      os-proxy-config:
+        specifier: 1.1.2
+        version: 1.1.2
       oxc-parser:
         specifier: 0.142.0
         version: 0.142.0
@@ -1389,6 +1386,9 @@ importers:
       swr:
         specifier: ^2.3.6
         version: 2.3.8(react@19.2.3)
+      systeminformation:
+        specifier: 5.33.8
+        version: 5.33.8
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
@@ -1458,6 +1458,9 @@ importers:
       webdav:
         specifier: ^5.9.0
         version: 5.9.0
+      which:
+        specifier: 6.0.1
+        version: 6.0.1
       winston:
         specifier: ^3.17.0
         version: 3.19.0
@@ -1712,6 +1715,28 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
+  packages/agent-runtime-claude-code:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 0.3.311
+        version: 0.3.311(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(zod@4.4.3)
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
   packages/agent-runtime-pi:
     dependencies:
       '@cherrystudio/agent-behavior':
@@ -1742,6 +1767,9 @@ importers:
 
   packages/agent-runtime-pi-durable:
     dependencies:
+      '@cherrystudio/agent-behavior':
+        specifier: workspace:*
+        version: link:../agent-behavior
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
@@ -1754,7 +1782,7 @@ importers:
         version: 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-durable':
         specifier: 1.4.0
-        version: 1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+        version: 1.4.0(patch_hash=2a223507757bfd519f7ba228b13a5ad2d767642fcbece9566119ebc84ac850a3)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -2550,53 +2578,53 @@ packages:
   '@antfu/install-pkg@1.1.0':
     resolution: {integrity: sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==}
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.284':
-    resolution: {integrity: sha512-gKY9MUjY83398uCiPLHsd87kyzu7agIM7ApqWpJkpSINep6hxx4rNoR8bUbNWg49Aoe/PW/DJkQByAQuNzR9rg==}
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.311':
+    resolution: {integrity: sha512-pzlXQGLh3pH/oIAliApR79OIkTFTAGpWJpf1HLt5MocWPBxox/aoHVWOKHqbnYnmGrr54LwdG+E4V1boaQzyvA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.284':
-    resolution: {integrity: sha512-P+q6Z7sKeYz99uE7RJc4au1IK+4SiWe69pyHY3QXMnjZq8hSFU/5Mo8iSurLk9jRlihsMltV1rLA5naouYyCAQ==}
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.311':
+    resolution: {integrity: sha512-xVoQD+ZwScwbPitYBmedm1/j3dUIyyLFB1zgk3q99YQXac6r6wAKR4HP+QTrrEwsQa0slePbE/Ljj/5u2z14nw==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.284':
-    resolution: {integrity: sha512-U3/uAv1TS8sMWsgWQSxYbdND5AaRXXpP5RxHU1oYC5ZizlZE8/xAVum9dj1QX3rVZJg8EzsqZveq/AkEv5ABfQ==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.311':
+    resolution: {integrity: sha512-sXUjbaZCguGRUmTC5nJWbj7pmvT+RiUXxiGx7/o4Lj+V3BqL2YdQh33blYWFw+9HlVC2+sKSMWfEsVh0GHcA6A==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.284':
-    resolution: {integrity: sha512-LDpuYDaz+pCdG29iy1pw4P1D2YVtpZOb4rWOPxxSpg2fFyUeQ5WrfnuszOxhDWpNh1k1ekDiKm3A9OzGcrkdtA==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.311':
+    resolution: {integrity: sha512-iCic3eanG/Cb6MZan0uiGzBExwVu3ZDABih5uR0iBQ/bVF0yXiG79EwwJC7DPzgu2RQghtECR+q6wx/+Z2YUHg==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.284':
-    resolution: {integrity: sha512-4x0Q8CFkCNbeENE7pRhuUmkwh/sQfTq1yWi4ZE56stve9pgoKzu6ZDa1SEtvK1YIooGE/qM5rVS8xFLE1gbQ0w==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.311':
+    resolution: {integrity: sha512-BFSmzqnnVnNirnfy8EJ5f/S3G0JHjN+V0bBVJGDy3Mn1ptfV4/832Wh9hIkwYGVii+jA5aoanSVG3b9tK/I8ZA==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.284':
-    resolution: {integrity: sha512-yGytBCCwJvWeg1FzFpgnLM9BOM2vKVExtv6pMJHMtF82J5yhKHcxodRaYlQVd/HzJJ2nruKb9EnrhRBZ//4yRw==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.311':
+    resolution: {integrity: sha512-yq7zMyESMnznCLTre5NRmyfedDp24I2c94DdCq9TCMRUQEhhW1Zb2UC9QAQP28ZzncP2dSs70EM8Nvp2+VBSqg==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.284':
-    resolution: {integrity: sha512-zOXkdPHhElyxyFJ6eY5R+YGUswqBDZ+ZHNaRmQGJ28RkQYgwG5imNy/nfFR+/CPGlMnH9ZzbGc2rKYApm1K4Tg==}
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.311':
+    resolution: {integrity: sha512-DEWpHyDg86ffG3I0hHxLTfrOshzGBea4mrhNxj43jpbyO1vl9de8KYlnazhruNPi6u6mxL5ly5ihhxeWuutE1A==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.284':
-    resolution: {integrity: sha512-VGaFRDCOPloj5IjvJTyy5JsSl9sE2HR3W+A6f/cjgh23/7Y5vK7/ka+1JQD+AkoGO9tbHqP2O6god3IBrLvOaw==}
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.311':
+    resolution: {integrity: sha512-I92TwBhMkpc9pLwu1SwLiz6wqXkcmMPAdz4LgpwKAeyB5rum2GyZgYPIDTRYEpo3cX0nEP2qmyxtKEO/tLFfoA==}
     cpu: [x64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk@0.3.284':
-    resolution: {integrity: sha512-NSoJwEq6nFSf8dtaacYx37QdGgqApI3eHFUlxclMLYi8irb6ZJwEaUnPnLUCyAyg9W/tMkgZC0GXWLRCc01I0w==}
-    engines: {node: '>=18.0.0'}
+  '@anthropic-ai/claude-agent-sdk@0.3.311':
+    resolution: {integrity: sha512-8aKYcHGB3LsYP79e2EHNdwbpIvRJkMLd19qSx4u9+J9yDDAK7w9uy1GyvFUz8xa1A+xIEtTW1k/r419uE/Kbsw==}
+    engines: {node: '>=18.14.0'}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.93.0'
       '@modelcontextprotocol/sdk': ^1.29.0
@@ -9337,9 +9365,9 @@ packages:
     resolution: {integrity: sha512-Al3nHGQGqDYqqinXhQzmwmcRToe/3WyBv4N8aZc5Pef8xw2neZlR9VPi84Sa23JtgWcucu18HxVZrnI0fn2etw==}
     engines: {node: '>=0.8'}
 
-  better-sqlite3@12.11.1:
-    resolution: {integrity: sha512-dq9AtApgg5PGFtBzPFSBl3HZQjHok5gaQCM6zh2Yk0aSmDCs1CbnVI8/HgASQkNKsWFpseIO9beg5xxpYhbIfA==}
-    engines: {node: 20.x || 22.x || 23.x || 24.x || 25.x || 26.x}
+  better-sqlite3@13.0.3:
+    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
+    engines: {node: '>=22'}
 
   big-integer@1.6.52:
     resolution: {integrity: sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==}
@@ -10583,8 +10611,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.9.3:
-    resolution: {integrity: sha512-Cv9/yMnZxNWsMlIe8T4v//NKHdUvbeyoTJoXE3BIcRxus2meeFaO9h/P3zB5d4cBXum51IgAYrT2QjpIDWKpJA==}
+  electron@45.2.2:
+    resolution: {integrity: sha512-hxSYRX1YeijdPg4lDwXnDb3eB33zRsitd6DhwA7ElgLXjzHOqIERYKspGo8uhRkzI2KinIZhkuELVwq9+MyX4g==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -13054,9 +13082,6 @@ packages:
   napi-build-utils@1.0.2:
     resolution: {integrity: sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==}
 
-  napi-build-utils@2.0.0:
-    resolution: {integrity: sha512-GEbrYkbfF7MoNaoh2iGG84Mnf/WZfB0GdGEsM8wz7Expx/LlWf5U8t9nvJKXSp3qr5IsEbK04cBGhol/KwOsWA==}
-
   napi-postinstall@0.3.4:
     resolution: {integrity: sha512-PHI5f1O0EP5xJ9gQmFGMS6IZcrVvTjpXjz7Na41gTE7eE2hK11lg04CECCYEEjdc17EV4DO+fkGEtt7TpTaTiQ==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
@@ -13082,8 +13107,8 @@ packages:
   no-case@3.0.4:
     resolution: {integrity: sha512-fgAN3jGAh+RoxUGZHTSOLJIqUc2wmoBwGR4tbpNAKmmovFoWq0OdRkb0VkldReO2a2iBT/OEulG9XSUc10r3zg==}
 
-  node-abi@4.33.0:
-    resolution: {integrity: sha512-vLBWCKb+7LWsX+TbfzWOkw0W81m377tyx3hOweBTjO43CXZnRGS1/JPWs20fr0PgZyDXk6ROYrylsEycK8raDA==}
+  node-abi@4.40.0:
+    resolution: {integrity: sha512-GuvqvtrOk+AC27RidBxBsMzVNkwNl7PjHgc4NXbmdvSVLgIUjpaqcG1FjNRYnt2Yn9Ytq+Ln37XsBaglUcte/w==}
     engines: {node: '>=22.12.0'}
 
   node-addon-api@3.2.1:
@@ -13731,12 +13756,6 @@ packages:
   prebuild-install@5.3.6:
     resolution: {integrity: sha512-s8Aai8++QQGi4sSbs/M1Qku62PFK49Jm1CbgXklGz4nmHveDq0wzJkg7Na5QbnO1uNH8K7iqx2EQ/mV0MZEmOg==}
     engines: {node: '>=6'}
-    deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
-    hasBin: true
-
-  prebuild-install@7.1.3:
-    resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
-    engines: {node: '>=10'}
     deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
@@ -14645,9 +14664,6 @@ packages:
 
   simple-get@3.1.1:
     resolution: {integrity: sha512-CQ5LTKGfCpvE1K0n2us+kuMPbk/q0EKl82s4aheV9oXjFEz6W/Y7oQFVJuU6QG77hRT4Ghb5RURteF5vnWjupA==}
-
-  simple-get@4.0.1:
-    resolution: {integrity: sha512-brv7p5WgH0jmQJr1ZDDfKDOSeWWg+OVypG99A/5vYGPqJ6pxiaHLy8nxtFjBA7oMa01ebA9gfh1uMCFqOuXxvA==}
 
   simple-update-notifier@2.0.0:
     resolution: {integrity: sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w==}
@@ -16257,44 +16273,59 @@ snapshots:
       package-manager-detector: 1.6.0
       tinyexec: 1.3.0
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.284':
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.311':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)':
+  '@anthropic-ai/claude-agent-sdk@0.3.311(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(zod@4.4.3)':
+    dependencies:
+      '@anthropic-ai/sdk': 0.93.0(zod@4.4.3)
+      '@modelcontextprotocol/sdk': 1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)
+      zod: 4.4.3
+    optionalDependencies:
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.311
+
+  '@anthropic-ai/claude-agent-sdk@0.3.311(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.93.0(zod@4.4.3)
       '@modelcontextprotocol/sdk': 1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3)
       zod: 4.4.3
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.284
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.284
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.311
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.311
 
   '@anthropic-ai/sdk@0.129.0(zod@4.4.3)':
     dependencies:
@@ -17834,7 +17865,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-durable@1.4.0(patch_hash=2a223507757bfd519f7ba228b13a5ad2d767642fcbece9566119ebc84ac850a3)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@earendil-works/chord': 1.4.0
       '@earendil-works/pi-ai': 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
@@ -17852,7 +17883,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.4.0(patch_hash=5b0a2dd3894a430772a782894370df60aeee425893966d757bdb7964557fda91)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-durable@1.4.0(patch_hash=2a223507757bfd519f7ba228b13a5ad2d767642fcbece9566119ebc84ac850a3)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@earendil-works/chord': 1.4.0
       '@earendil-works/pi-ai': 1.4.0(patch_hash=4f7db6d3e21a8c9d5a52e16122e55fb9e048e828a03a7cf8bd7bd0a0586624c9)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
@@ -17895,13 +17926,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@44.9.3(supports-color@8.1.1))':
+  '@electron-toolkit/preload@3.0.2(electron@45.2.2(supports-color@8.1.1))':
     dependencies:
-      electron: 44.9.3(supports-color@8.1.1)
+      electron: 45.2.2(supports-color@8.1.1)
 
-  '@electron-toolkit/utils@3.0.0(electron@44.9.3(supports-color@8.1.1))':
+  '@electron-toolkit/utils@3.0.0(electron@45.2.2(supports-color@8.1.1))':
     dependencies:
-      electron: 44.9.3(supports-color@8.1.1)
+      electron: 45.2.2(supports-color@8.1.1)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -17965,7 +17996,7 @@ snapshots:
     dependencies:
       '@malept/cross-spawn-promise': 2.0.0
       debug: 4.4.3(supports-color@8.1.1)
-      node-abi: 4.33.0
+      node-abi: 4.40.0
       node-api-version: 0.2.1
       node-gyp: 12.4.0
       read-binary-file-arch: 1.0.6(supports-color@8.1.1)
@@ -19104,7 +19135,6 @@ snapshots:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3)':
     dependencies:
@@ -23972,10 +24002,9 @@ snapshots:
 
   bessel@1.0.2: {}
 
-  better-sqlite3@12.11.1:
+  better-sqlite3@13.0.3:
     dependencies:
-      bindings: 1.5.0
-      prebuild-install: 7.1.3
+      node-addon-api: 8.5.0
 
   big-integer@1.6.52: {}
 
@@ -23991,6 +24020,7 @@ snapshots:
   bindings@1.5.0:
     dependencies:
       file-uri-to-path: 1.0.0
+    optional: true
 
   birecord@0.1.1: {}
 
@@ -24024,7 +24054,6 @@ snapshots:
       type-is: 2.0.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   body-parser@2.2.1(supports-color@8.1.1):
     dependencies:
@@ -25154,11 +25183,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.44.7(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1):
+  drizzle-orm@0.44.7(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.3):
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/better-sqlite3': 7.6.13
-      better-sqlite3: 12.11.1
+      better-sqlite3: 13.0.3
 
   dts-resolver@3.0.0(oxc-resolver@11.21.2):
     optionalDependencies:
@@ -25304,7 +25333,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.9.3(supports-color@8.1.1):
+  electron@45.2.2(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0(supports-color@8.1.1)
@@ -25828,7 +25857,6 @@ snapshots:
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   express@5.2.1(supports-color@8.1.1):
     dependencies:
@@ -25982,7 +26010,8 @@ snapshots:
 
   file-type@6.2.0: {}
 
-  file-uri-to-path@1.0.0: {}
+  file-uri-to-path@1.0.0:
+    optional: true
 
   filelist@1.0.6:
     dependencies:
@@ -26002,7 +26031,6 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   finalhandler@2.1.1(supports-color@8.1.1):
     dependencies:
@@ -28508,8 +28536,6 @@ snapshots:
 
   napi-build-utils@1.0.2: {}
 
-  napi-build-utils@2.0.0: {}
-
   napi-postinstall@0.3.4: {}
 
   native-promise-only@0.8.1: {}
@@ -28527,7 +28553,7 @@ snapshots:
       lower-case: 2.0.2
       tslib: 2.8.1
 
-  node-abi@4.33.0:
+  node-abi@4.40.0:
     dependencies:
       semver: 7.7.1
 
@@ -29222,7 +29248,7 @@ snapshots:
       minimist: 1.2.8
       mkdirp-classic: 0.5.3
       napi-build-utils: 1.0.2
-      node-abi: 4.33.0
+      node-abi: 4.40.0
       noop-logger: 0.1.1
       npmlog: 4.1.2
       pump: 3.0.3
@@ -29231,21 +29257,6 @@ snapshots:
       tar-fs: 2.1.4
       tunnel-agent: 0.6.0
       which-pm-runs: 1.1.0
-
-  prebuild-install@7.1.3:
-    dependencies:
-      detect-libc: 2.1.2
-      expand-template: 2.0.3
-      github-from-package: 0.0.0
-      minimist: 1.2.8
-      mkdirp-classic: 0.5.3
-      napi-build-utils: 2.0.0
-      node-abi: 4.33.0
-      pump: 3.0.3
-      rc: 1.2.8
-      simple-get: 4.0.1
-      tar-fs: 2.1.4
-      tunnel-agent: 0.6.0
 
   prelude-ls@1.2.1: {}
 
@@ -30113,7 +30124,6 @@ snapshots:
       path-to-regexp: 8.4.0
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   router@2.2.0(supports-color@8.1.1):
     dependencies:
@@ -30219,7 +30229,6 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   send@1.2.1(supports-color@8.1.1):
     dependencies:
@@ -30260,7 +30269,6 @@ snapshots:
       send: 1.2.1(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   serve-static@2.2.1(supports-color@8.1.1):
     dependencies:
@@ -30406,12 +30414,6 @@ snapshots:
   simple-get@3.1.1:
     dependencies:
       decompress-response: 4.2.1
-      once: 1.4.0
-      simple-concat: 1.0.1
-
-  simple-get@4.0.1:
-    dependencies:
-      decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
 

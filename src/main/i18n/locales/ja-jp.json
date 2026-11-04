@@ -71,6 +71,7 @@
   "backup.restore.failed": "復元に失敗しました",
   "backup.restore.retry": "バックアップを復元できませんでした。元のデータは保持されています。復元を再試行してください。",
   "chat.conversation.new": "新しいチャット",
+  "common.agent_compaction_unchanged": "要約は保存されませんでした。会話は変更されていません。",
   "common.channel_available_commands": "利用可能なコマンド：",
   "common.channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
   "common.channel_error": "エラー: {{error}}",
