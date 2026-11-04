@@ -1763,13 +1763,17 @@ export class WindowManager extends BaseService {
    *   - window creation (in `createWindow`)
    *   - window destruction (in the 'closed' listener)
    *   - per-type override changes (in `wm.behavior.setMacShowInDockByType`)
+   *   - a Dock hold taken or released (`wm.behavior.hideMacDockWhileShown`)
    *
    * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
+   * The one exception is the hide that releases a Dock hold.
    */
   private updateDockVisibility(): void {
     if (!isMac) return
 
-    const shouldShow = Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
+    const shouldShow =
+      !this.behavior.isHidingMacDock() &&
+      Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
 
     if (shouldShow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true

@@ -161,8 +161,12 @@ export function buildPathRegistry() {
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 
-    'feature.pdfjs.cmaps': path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'cmaps'),
-    'feature.pdfjs.standard_fonts': path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'standard_fonts'),
+    'feature.pdfjs.cmaps': app.isPackaged
+      ? path.join(appExtraResources, 'pdfjs', 'cmaps')
+      : path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'cmaps'),
+    'feature.pdfjs.standard_fonts': app.isPackaged
+      ? path.join(appExtraResources, 'pdfjs', 'standard_fonts')
+      : path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'standard_fonts'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
@@ -243,8 +247,8 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
+    'feature.agents.outputs': path.join(appUserDataData, 'Agents', '.outputs'),
     'feature.agents.durable.stores': path.join(appUserDataData, 'Agents', '.durable'),
-    'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
@@ -454,7 +458,6 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
-  'feature.agents.pi.vcc_file',
   'feature.mini_app.builtin',
   'feature.binary.data.uv_cache',
   // AgentSessionService stores this path through DataApi. The runtime creates

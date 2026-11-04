@@ -7,6 +7,10 @@ its harness behaves as the ports promise. The decisions behind it are in the
 [Agent Note](../../.agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md); this README is the
 contract documentation adapters follow.
 
+When a committed child's native session fails to open, the adapter reports `onChildOpenFailed` before
+starting that commit's jobs. Behavior records the first run as failed through the normal run-end decision,
+freeing background capacity and allowing the idle driver to continue. Successful siblings retain their work.
+
 ## What this package is
 
 ```text

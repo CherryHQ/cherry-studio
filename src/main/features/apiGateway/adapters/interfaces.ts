@@ -191,7 +191,7 @@ export interface ISseFormatter<TEvent = unknown> {
  * Content block state for tracking streaming content
  */
 export interface ContentBlockState {
-  type: 'text' | 'tool_use' | 'thinking'
+  type: 'text' | 'tool_use' | 'thinking' | 'redacted_thinking'
   index: number
   started: boolean
   content: string

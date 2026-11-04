@@ -53,9 +53,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { ids, inTrash, search, page, limit, groupId } = parsed.data
+      const { ids, builtinRole, inTrash, search, page, limit, groupId } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = agentService.listAgents({ ids, limit, offset, search, inTrash, groupId })
+      const { agents, total } = agentService.listAgents({ ids, builtinRole, limit, offset, search, inTrash, groupId })
       return { items: agents, total, page }
     }
   },

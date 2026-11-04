@@ -332,6 +332,18 @@ describe('AgentService', () => {
       ])
     })
 
+    it('notifies live agent reads after an update, including main-process writers', () => {
+      const agent = createAgentForTest({ type: 'claude-code', name: 'Before', model: TEST_MODEL_ID })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.updateAgent(agent.id, { name: 'After' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'projection', entityIds: [agent.id] },
+        { endpoint: '/agents/:agentId', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -1919,8 +1931,9 @@ describe('AgentService', () => {
 
       agentService.updateAgent(created.id, { groupId: second.id })
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-        { endpoint: '/agents', kind: 'membership', entityIds: [created.id] }
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [created.id] },
+        { endpoint: '/agents/:agentId', entityIds: [created.id] }
       ])
     })
 
@@ -1933,7 +1946,10 @@ describe('AgentService', () => {
       agentService.updateAgent(created.id, { name: 'Renamed Only' })
       agentService.updateAgent(created.id, { groupId: group.id })
 
-      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      const membershipCalls = notifyDataApiDataChangeMock.mock.calls.filter(([changes]) =>
+        (changes as Array<{ kind?: string }>).some((change) => change.kind === 'membership')
+      )
+      expect(membershipCalls).toHaveLength(0)
     })
 
     it('rejects an unknown groupId on update and leaves the assignment unchanged', async () => {
@@ -1982,6 +1998,18 @@ describe('AgentService', () => {
   })
 
   describe('listAgents', () => {
+    it('filters by builtin role, matching Support only on its reserved ID', async () => {
+      await insertAgent({ id: 'plain' })
+      await insertAgent({ id: 'cherry', configuration: { builtin_role: 'assistant' } })
+      await insertAgent({ id: 'legacy-support', configuration: { builtin_role: 'support' } })
+      await insertAgent({ id: CHERRY_SUPPORT_AGENT_ID, configuration: { builtin_role: 'support' } })
+
+      const idsFor = (builtinRole: 'assistant' | 'support') =>
+        agentService.listAgents({ builtinRole }).agents.map((agent) => agent.id)
+      expect(idsFor('assistant')).toEqual(['cherry'])
+      expect(idsFor('support')).toEqual([CHERRY_SUPPORT_AGENT_ID])
+    })
+
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {
         await insertAgent({ name: `Agent ${i}` })

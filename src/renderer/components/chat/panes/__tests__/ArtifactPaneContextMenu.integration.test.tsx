@@ -24,9 +24,14 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
   clipboardWrite: vi.fn(),
+  ipcRequest: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
   readText: vi.fn(),
   readExternal: vi.fn()
 }))
+
+vi.mock('@renderer/services/toast', () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError } }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -67,7 +72,40 @@ vi.mock('@renderer/components/FilePreview', () => ({
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
-  FileTree: () => <div data-testid="file-tree" />
+  FileTree: ({
+    nodes = [],
+    getMenuItems
+  }: {
+    nodes?: Array<{ id: string; name: string }>
+    getMenuItems?: (
+      node: unknown
+    ) => Promise<
+      Array<{ type: string; children?: Array<{ id: string; label: string; onSelect: () => void; enabled?: boolean }> }>
+    >
+  }) => {
+    const [items, setItems] = React.useState<
+      Array<{ id: string; label: string; onSelect: () => void; enabled?: boolean }>
+    >([])
+    return (
+      <div data-testid="file-tree">
+        {nodes.map((node) => (
+          <button
+            type="button"
+            key={node.id}
+            onContextMenu={() =>
+              void getMenuItems?.(node).then((menu) => setItems(menu.flatMap((item) => item.children ?? [])))
+            }>
+            {node.name}
+          </button>
+        ))}
+        {items.map((item) => (
+          <button type="button" key={item.id} role="menuitem" disabled={item.enabled === false} onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/hooks/useIsTextFile', () => ({
@@ -193,6 +231,7 @@ function renderHarness(props: {
   workspacePath?: string
   selectedFile?: string | null
   previewFileSelection?: ArtifactPaneFileSelection | null
+  fileTabs?: ArtifactPaneFileSelection[]
   onPreviewClose?: () => void
   onSelectedFileChange?: (file: string | null) => void
   onEditModeChange?: (mode: 'preview' | 'edit') => void
@@ -212,7 +251,7 @@ function renderHarness(props: {
             selectedFile={props.selectedFile ?? null}
             onSelectedFileChange={props.onSelectedFileChange ?? vi.fn()}
             previewFileSelection={props.previewFileSelection}
-            fileTabs={props.previewFileSelection ? [props.previewFileSelection] : []}
+            fileTabs={props.fileTabs ?? (props.previewFileSelection ? [props.previewFileSelection] : [])}
             onPreviewClose={props.onPreviewClose ?? vi.fn()}
             model={model}
             searchKeyword=""
@@ -237,12 +276,17 @@ describe('ArtifactPane Context Menu Integration', () => {
       targets: defaultExternalTargets
     })
     mocks.openTarget.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockImplementation(async (route: string) => ({
+      ok: true,
+      data: route === 'file.get_clipboard_status' ? { ok: true } : undefined
+    }))
     mocks.clipboardWrite.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: mocks.clipboardWrite }
     })
     window.api = {
+      ipcApi: { request: mocks.ipcRequest },
       fs: { readText: mocks.readText },
       file: { readExternal: mocks.readExternal },
       command: {
@@ -267,6 +311,8 @@ describe('ArtifactPane Context Menu Integration', () => {
       model
     })
 
+    await waitFor(() => expect(mocks.listOpenTargets).toHaveBeenCalled())
+    await act(async () => {})
     const titleElement = breadcrumbTitle('README.md')
     fireEvent.contextMenu(titleElement)
 
@@ -399,6 +445,8 @@ describe('ArtifactPane Context Menu Integration', () => {
       </SWRConfig>
     )
 
+    await waitFor(() => expect(mocks.listOpenTargets).toHaveBeenCalled())
+    await act(async () => {})
     // Open context menu for file A
     fireEvent.contextMenu(breadcrumbTitle('a.md'))
     expect(await screen.findByRole('menuitem', { name: /reveal_in_finder/ })).toBeInTheDocument()
@@ -426,6 +474,8 @@ describe('ArtifactPane Context Menu Integration', () => {
       </SWRConfig>
     )
 
+    await waitFor(() => expect(mocks.listOpenTargets).toHaveBeenCalledWith('/tmp/workspace/b.md', 'file'))
+    await act(async () => {})
     // Open context menu for file B
     fireEvent.contextMenu(breadcrumbTitle('b.md'))
     const finderItem = await screen.findByRole('menuitem', { name: /reveal_in_finder/ })
@@ -436,6 +486,100 @@ describe('ArtifactPane Context Menu Integration', () => {
       expect(mocks.openTarget).toHaveBeenCalledWith('/tmp/workspace/b.md', 'file', 'file_manager')
     })
     expect(mocks.openTarget).not.toHaveBeenCalledWith('/tmp/workspace/a.md', expect.anything(), expect.anything())
+  })
+
+  it('copies the breadcrumb storage path and reports unavailable targets', async () => {
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed',
+        filePath: 'stored.md',
+        displayPath: '/original/file.md' as AbsoluteFilePath,
+        previewType: 'file',
+        readOnly: true
+      }
+    })
+    fireEvent.contextMenu(breadcrumbTitle('stored.md'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file' }))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('file.copy_to_clipboard', {
+        kind: 'path',
+        path: '/managed/stored.md'
+      })
+    )
+  })
+
+  it('copies the selected tree file', async () => {
+    const model = createMockModel()
+    model.filteredTree = [{ id: 'tree.md', name: 'tree.md', kind: 'file', path: 'tree.md' }]
+    renderHarness({ model })
+    fireEvent.contextMenu(screen.getByText('tree.md'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file' }))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('file.copy_to_clipboard', {
+        kind: 'path',
+        path: '/tmp/workspace/tree.md'
+      })
+    )
+  })
+
+  it('copies the inactive tab path', async () => {
+    const active = { workspacePath: '/tmp/workspace', filePath: 'active.md' }
+    const inactive = { workspacePath: '/tmp/workspace', filePath: 'other.md' }
+    renderHarness({ previewFileSelection: active, fileTabs: [active, inactive] })
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'other.md' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file' }))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('file.copy_to_clipboard', {
+        kind: 'path',
+        path: '/tmp/workspace/other.md'
+      })
+    )
+  })
+
+  it('waits for clipboard completion before showing success and reports failures', async () => {
+    let resolveCopy!: (value: unknown) => void
+    mocks.ipcRequest.mockImplementation((route: string) =>
+      route === 'file.get_clipboard_status'
+        ? Promise.resolve({ ok: true, data: { ok: true } })
+        : new Promise((resolve) => {
+            resolveCopy = resolve
+          })
+    )
+    renderHarness({ previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'README.md' } })
+    fireEvent.contextMenu(breadcrumbTitle('README.md'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file' }))
+    await waitFor(() => expect(resolveCopy).toBeTypeOf('function'))
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    await act(async () => resolveCopy({ ok: true, data: undefined }))
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('message.copy.success')
+    mocks.ipcRequest.mockImplementation((route: string) =>
+      route === 'file.get_clipboard_status'
+        ? Promise.resolve({ ok: true, data: { ok: true } })
+        : Promise.reject(new Error('copy failed'))
+    )
+    fireEvent.contextMenu(breadcrumbTitle('README.md'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file' }))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('message.copy.failed'))
+  })
+
+  it('disables copying when the status reports an unavailable file', async () => {
+    mocks.ipcRequest.mockResolvedValue({ ok: true, data: { ok: false, reason: 'missing' } })
+    renderHarness({ previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'README.md' } })
+    fireEvent.contextMenu(breadcrumbTitle('README.md'))
+    const item = await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file_unavailable' })
+    expect(item).toBeDisabled()
+    fireEvent.click(item)
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.copy_to_clipboard', expect.anything())
+  })
+
+  it('keeps other copy actions when the status query fails', async () => {
+    mocks.ipcRequest.mockRejectedValue(new Error('unavailable'))
+    renderHarness({ previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'README.md' } })
+    fireEvent.contextMenu(breadcrumbTitle('README.md'))
+    expect(
+      await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_menu.file_unavailable' })
+    ).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'agent.preview_pane.copy_menu.absolute_path' })).toBeInTheDocument()
   })
 
   it('opens with the copy actions right away while the open-target lookup hangs', async () => {
