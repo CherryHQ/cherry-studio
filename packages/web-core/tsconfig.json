@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.node.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "types": ["electron-vite/node", "vite/client"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "harness/**/*.ts",
+    "e2e/**/*.ts",
+    "vite.config.ts",
+    "playwright.config.ts",
+    "../../src/main/env.d.ts"
+  ]
+}

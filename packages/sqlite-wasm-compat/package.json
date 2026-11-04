@@ -1,0 +1,25 @@
+{
+  "name": "@cherrystudio/sqlite-wasm-compat",
+  "version": "0.0.0",
+  "private": true,
+  "description": "better-sqlite3-compatible synchronous facade over @sqlite.org/sqlite-wasm, for running the Cherry Studio data layer in a browser Worker.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.53.4-build2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "drizzle-orm": "^0.44.5",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1"
+  }
+}
