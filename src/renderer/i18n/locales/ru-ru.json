@@ -1823,6 +1823,8 @@
   "history_import.error": "Операция не выполнена. Проверьте расположение источника, целевого агента и рабочую папку, затем повторите попытку.",
   "history_import.error_title": "Импорт требует внимания",
   "history_import.existing": "Уже импортировано в {{owner}}. Диалог не будет скопирован или перемещён.",
+  "history_import.filtered_empty": "Нет разговоров для импорта. Исходные файлы и ранее импортированные разговоры не изменены.",
+  "history_import.filtered_summary": "Отфильтровано: {{guardian}} проверок Guardian · {{noTask}} сеансов без задач пользователя.",
   "history_import.folder": "Выбрать папку",
   "history_import.line": "Строка {{line}}",
   "history_import.losses": "Пропущено записей: {{skipped}} · Преобразовано блоков: {{downgraded}}",

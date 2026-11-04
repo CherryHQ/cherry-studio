@@ -43,17 +43,68 @@ const metadata = new Set([
   'permission-mode'
 ])
 
+// Only versioned local-command records are evidence of setup rather than a task.
+function userTask(record: RecordEntry): 'task' | 'generated' | 'unknown' {
+  if (record.type !== 'user') return 'generated'
+  if (!record.message) return 'unknown'
+  if (record.isMeta === true) return 'generated'
+  const content = record.message.content
+  const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : content
+  let unknown = false
+  for (const block of blocks) {
+    if (block.type === 'image' || block.type === 'document') return 'task'
+    if (block.type === 'tool_result') continue
+    if (block.type !== 'text' || typeof block.text !== 'string') {
+      unknown = true
+      continue
+    }
+    const text = block.text.trim()
+    if (!text) continue
+    if (/^<(local-command-caveat|local-command-stdout|local-command-stderr)>[\s\S]*<\/\1>$/.test(text)) continue
+    const command =
+      /^<command-name>\/(model|exit|recap)<\/command-name>\s*<command-message>[\s\S]*?<\/command-message>\s*<command-args>[\s\S]*?<\/command-args>$/.test(
+        text
+      )
+    if (command) continue
+    if (isClaudeLocalCommand(text)) unknown = true
+    else return 'task'
+  }
+  return unknown ? 'unknown' : 'generated'
+}
+
+function completeAncestry(records: RecordEntry[], nodes: Map<string, RecordEntry>, signal: AbortSignal) {
+  const complete = new Set<string>()
+  for (const record of records) {
+    signal.throwIfAborted()
+    if (record.message && (!record.uuid || record.parentUuid === undefined)) return false
+    const visiting = new Set<string>()
+    let cursor: RecordEntry | undefined = record
+    while (cursor?.uuid && !complete.has(cursor.uuid)) {
+      if (visiting.has(cursor.uuid)) return false
+      visiting.add(cursor.uuid)
+      if (!cursor.parentUuid) break
+      cursor = nodes.get(cursor.parentUuid)
+      if (!cursor) return false
+    }
+    for (const id of visiting) complete.add(id)
+  }
+  return true
+}
+
 export const claudeCodeAdapter: HistorySourceAdapter = {
   source: 'claude-code',
   async *discover(root, signal) {
     for await (const file of discoverJsonl(root, signal)) {
       let title: string | undefined
+      let filteredReason: NormalizedSession['filteredReason']
       try {
-        title = (await claudeCodeAdapter.read({ path: file }, signal)).title
+        const session = await claudeCodeAdapter.read({ path: file }, signal)
+        title = session.title
+        filteredReason = session.filteredReason
       } catch {
         signal.throwIfAborted()
       }
-      yield { path: file, title }
+      yield { path: file, title, filteredReason }
     }
   },
   async read(ref, signal, branchId) {
@@ -178,6 +229,23 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
       skippedRecords: unreadableRecords,
       downgradedParts: 0
     }
+    const classifications = records.map(userTask)
+    const classifiable =
+      unreadableRecords === 0 &&
+      versions.length > 0 &&
+      versions.every((version) => ['2.1.207', '2.1.211', '2.1.284'].includes(version)) &&
+      !diagnostics.some((d) => ['unstable_identity', 'duplicate_message_id'].includes(d.code)) &&
+      records.every(
+        (record) =>
+          metadata.has(record.type) ||
+          (record.type === 'system' && record.subtype === 'local_command' && typeof record.content === 'string') ||
+          (['user', 'assistant', 'system'].includes(record.type) && record.message)
+      ) &&
+      completeAncestry(records, nodes, signal) &&
+      !classifications.includes('unknown')
+    if (classifiable && !classifications.includes('task')) result.filteredReason = 'claude_no_user_task'
+    else if (classifiable && selectedBranchId && !selected.some((record) => userTask(record) === 'task'))
+      diagnose('branch_required', undefined, 'error')
     const calls = new Map<string, string>()
     let lastValid: number | undefined
     for (const [order, record] of selected.entries()) {

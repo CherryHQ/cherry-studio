@@ -1823,6 +1823,8 @@
   "history_import.error": "Thao tác thất bại. Hãy kiểm tra vị trí nguồn, tác nhân đích và thư mục làm việc, rồi thử lại.",
   "history_import.error_title": "Cần kiểm tra việc nhập dữ liệu",
   "history_import.existing": "Đã nhập vào {{owner}}. Không sao chép hoặc di chuyển cuộc trò chuyện.",
+  "history_import.filtered_empty": "Không còn cuộc trò chuyện nào để nhập. Tệp nguồn và các cuộc trò chuyện đã nhập không thay đổi.",
+  "history_import.filtered_summary": "Đã lọc: {{guardian}} phiên đánh giá Guardian · {{noTask}} phiên không có tác vụ của người dùng.",
   "history_import.folder": "Chọn thư mục",
   "history_import.line": "Dòng {{line}}",
   "history_import.losses": "Bản ghi bỏ qua: {{skipped}} · Khối đã chuyển đổi: {{downgraded}}",

@@ -437,4 +437,74 @@ describe('local history atomic import', () => {
       restored.close()
     }
   })
+  it('counts filtered sessions separately and revalidates stale selections without writes', async () => {
+    const setup = (id: string) =>
+      JSON.stringify({
+        type: 'user',
+        uuid: id,
+        parentUuid: null,
+        sessionId: id,
+        version: '2.1.284',
+        timestamp: '2026-01-01T00:00:00Z',
+        isMeta: true,
+        message: { content: 'generated setup' }
+      })
+    const excluded = path.join(root, 'source', 'setup.jsonl')
+    await writeFile(excluded, setup('setup'))
+    const changing = await source('changing')
+    await source('valid')
+    const scan = await service.discover('window', 'claude-code', path.join(root, 'source'))
+    expect(scan.candidates).toHaveLength(2)
+    expect(scan.filtered).toEqual({ claude_no_user_task: 1, codex_guardian_review: 0 })
+    const before = counts()
+    await writeFile(changing, setup('changing'))
+    const prepared = await service.preview(
+      'window',
+      scan.scanId,
+      'pi',
+      scan.candidates.map((c) => ({ ref: c.ref }))
+    )
+    expect(counts()).toEqual(before)
+    const outcomes = await service.commit(
+      'window',
+      prepared.previewId,
+      prepared.items.map((i) => i.ref)
+    )
+    expect(outcomes.map((o) => o.status).sort()).toEqual(['filtered', 'imported'])
+    expect(outcomes.find((o) => o.status === 'filtered')).toEqual(
+      expect.objectContaining({ reason: 'claude_no_user_task' })
+    )
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionTable)
+        .all()
+        .map((s) => s.importMetadata?.originalSessionId)
+    ).toEqual(['valid'])
+  })
+  it('keeps the source fingerprint guard when a prepared session becomes setup-only', async () => {
+    const file = await source()
+    const prepared = await preview()
+    const before = counts()
+    await writeFile(
+      file,
+      JSON.stringify({
+        type: 'user',
+        uuid: 'setup',
+        parentUuid: null,
+        sessionId: 'source',
+        version: '2.1.284',
+        isMeta: true,
+        message: { content: 'setup' }
+      })
+    )
+    expect(
+      await service.commit(
+        'window',
+        prepared.previewId,
+        prepared.items.map((i) => i.ref)
+      )
+    ).toEqual([expect.objectContaining({ status: 'failed', reason: 'source_changed' })])
+    expect(counts()).toEqual(before)
+  })
 })

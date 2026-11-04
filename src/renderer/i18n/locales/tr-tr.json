@@ -1823,6 +1823,8 @@
   "history_import.error": "İşlem başarısız oldu. Kaynak konumunu, hedef ajanı ve çalışma dizinini kontrol edip yeniden deneyin.",
   "history_import.error_title": "İçe aktarma dikkat gerektiriyor",
   "history_import.existing": "{{owner}} altında zaten aktarıldı. Konuşma kopyalanmaz veya taşınmaz.",
+  "history_import.filtered_empty": "İçe aktarılacak konuşma kalmadı. Kaynak dosyalar ve daha önce içe aktarılan konuşmalar değişmez.",
+  "history_import.filtered_summary": "Filtrelenen: {{guardian}} Guardian incelemesi · kullanıcı görevi içermeyen {{noTask}} oturum.",
   "history_import.folder": "Klasör seç",
   "history_import.line": "Satır {{line}}",
   "history_import.losses": "Atlanan kayıtlar: {{skipped}} · Dönüştürülen bloklar: {{downgraded}}",

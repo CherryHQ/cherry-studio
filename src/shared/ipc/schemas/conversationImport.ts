@@ -12,6 +12,14 @@ export const ImportDiagnosticSchema = z.object({
 })
 export type ImportDiagnostic = z.infer<typeof ImportDiagnosticSchema>
 
+export const ImportFilterReasonSchema = z.enum(['codex_guardian_review', 'claude_no_user_task'])
+export type ImportFilterReason = z.infer<typeof ImportFilterReasonSchema>
+export const ImportFilterCountsSchema = z.object({
+  codex_guardian_review: z.number().int().nonnegative(),
+  claude_no_user_task: z.number().int().nonnegative()
+})
+export type ImportFilterCounts = z.infer<typeof ImportFilterCountsSchema>
+
 export const ImportCandidateSchema = z.object({
   ref: z.string(),
   title: z.string(),
@@ -23,6 +31,7 @@ const ImportSelectionSchema = z.strictObject({
   directory: z.string().optional()
 })
 export const ImportPreviewItemSchema = ImportCandidateSchema.extend({
+  filteredReason: ImportFilterReasonSchema.optional(),
   originalSessionId: z.string(),
   branches: z.array(z.string()),
   branchId: z.string().optional(),
@@ -42,7 +51,7 @@ export type ImportSelection = z.infer<typeof ImportSelectionSchema>
 export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 const ImportOutcomeSchema = z.object({
   ref: z.string(),
-  status: z.enum(['imported', 'existing', 'failed', 'unprocessed']),
+  status: z.enum(['imported', 'existing', 'failed', 'unprocessed', 'filtered']),
   sessionId: z.string().optional(),
   agentId: z.string().nullable().optional(),
   initialization: z.enum(['ready', 'failed']).optional(),
@@ -52,7 +61,12 @@ export type ImportOutcome = z.infer<typeof ImportOutcomeSchema>
 export const conversationImportRequestSchemas = {
   'conversation_import.discover': defineRoute({
     input: z.strictObject({ source: HistorySourceSchema, root: z.string().min(1).optional() }),
-    output: z.object({ scanId: z.string(), root: z.string(), candidates: z.array(ImportCandidateSchema) })
+    output: z.object({
+      scanId: z.string(),
+      root: z.string(),
+      candidates: z.array(ImportCandidateSchema),
+      filtered: ImportFilterCountsSchema
+    })
   }),
   'conversation_import.preview': defineRoute({
     input: z.strictObject({

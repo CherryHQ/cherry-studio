@@ -25,6 +25,7 @@ import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { HistorySource } from '@shared/data/types/conversationImport'
 import type {
   ImportCandidate,
+  ImportFilterCounts,
   ImportOutcome,
   ImportPreviewItem,
   ImportSelection
@@ -34,7 +35,8 @@ const resultLabels = {
   imported: 'history_import.results.imported',
   existing: 'history_import.results.existing',
   failed: 'history_import.results.failed',
-  unprocessed: 'history_import.results.unprocessed'
+  unprocessed: 'history_import.results.unprocessed',
+  filtered: 'history_import.filtered_summary'
 } as const
 
 const sourceLabels = {
@@ -112,7 +114,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const { data: agents, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const [target, setTarget] = useState('')
   const [root, setRoot] = useState('')
-  const [scan, setScan] = useState<{ scanId: string; candidates: ImportCandidate[] }>()
+  const [scan, setScan] = useState<{ scanId: string; candidates: ImportCandidate[]; filtered?: ImportFilterCounts }>()
   const [selections, setSelections] = useState<ImportSelection[]>([])
   const [results, setResults] = useState<Result[]>()
   const [filter, setFilter] = useState('')
@@ -125,6 +127,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const errorTitle = useRef<HTMLHeadingElement>(null)
   const blockedItems = reviewItems.filter(
     (item) =>
+      !item.filteredReason &&
       (selections.some((selection) => selection.ref === item.ref) ||
         results?.some((result) => result.ref === item.ref && result.terminal)) &&
       item.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
@@ -132,7 +135,13 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const showPicker = !results || selections.length > 0
   const completedRefs = new Set(
     results
-      ?.filter((result) => result.status === 'imported' || result.status === 'existing' || result.terminal)
+      ?.filter(
+        (result) =>
+          result.status === 'imported' ||
+          result.status === 'existing' ||
+          result.status === 'filtered' ||
+          result.terminal
+      )
       .map((result) => result.ref)
   )
   useEffect(
@@ -155,6 +164,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
         if (active) {
           setRoot(found.root)
           setScan(found)
+          setResults((current) => current?.filter((result) => result.status !== 'filtered'))
         }
       })
       .catch(() => {
@@ -196,6 +206,17 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
         !completedRefs.has(item.ref) && (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase())
     )
     .slice(0, 100)
+  const filteredCounts: ImportFilterCounts = {
+    codex_guardian_review: scan?.filtered?.codex_guardian_review ?? 0,
+    claude_no_user_task: scan?.filtered?.claude_no_user_task ?? 0
+  }
+  for (const result of results ?? [])
+    if (
+      result.status === 'filtered' &&
+      (result.reason === 'codex_guardian_review' || result.reason === 'claude_no_user_task')
+    )
+      filteredCounts[result.reason]++
+  const filteredTotal = filteredCounts.codex_guardian_review + filteredCounts.claude_no_user_task
   const selectedRefs = new Set(selections.map((item) => item.ref))
   const visibleSelected = visibleCandidates.filter((item) => selectedRefs.has(item.ref)).length
   async function importSelected() {
@@ -227,7 +248,13 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
     ])
     const completed = new Set(
       nextResults
-        .filter((outcome) => outcome.status === 'imported' || outcome.status === 'existing' || outcome.terminal)
+        .filter(
+          (outcome) =>
+            outcome.status === 'imported' ||
+            outcome.status === 'existing' ||
+            outcome.status === 'filtered' ||
+            outcome.terminal
+        )
         .map((outcome) => outcome.ref)
     )
     setSelections((current) => current.filter((selection) => !completed.has(selection.ref)))
@@ -260,6 +287,17 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
           )}
           <div className="min-h-0 space-y-4 overflow-y-auto">
             <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
+            {filteredTotal > 0 && (
+              <p role="status" className="text-sm leading-6 text-muted-foreground">
+                {t('history_import.filtered_summary', {
+                  guardian: filteredCounts.codex_guardian_review,
+                  noTask: filteredCounts.claude_no_user_task
+                })}
+              </p>
+            )}
+            {scan && scan.candidates.every((item) => completedRefs.has(item.ref)) && filteredTotal > 0 && (
+              <p className="text-sm text-muted-foreground">{t('history_import.filtered_empty')}</p>
+            )}
             {showPicker && (
               <>
                 <Label htmlFor="history-import-target">{t('history_import.target')}</Label>
@@ -333,6 +371,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                           ...(root ? { root } : {})
                         })
                         setScan(found)
+                        setResults((current) => current?.filter((result) => result.status !== 'filtered'))
                       })
                     }>
                     {t('history_import.scan')}
@@ -415,48 +454,50 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                 )}
               </>
             )}
-            {results?.map((result) => (
-              <section key={result.ref} className="space-y-2 rounded-md border p-3">
-                <p className="truncate font-medium" title={result.title}>
-                  {result.title}
-                </p>
-                <p>{t(resultLabels[result.status])}</p>
-                {result.initialization === 'failed' && (
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await ipcApi.request('conversation_import.retry_initialization', {
-                          sessionId: result.sessionId!
-                        })
-                        setResults((current) =>
-                          current?.map((value) =>
-                            value.ref === result.ref ? { ...value, initialization: 'ready' } : value
+            {results
+              ?.filter((result) => result.status !== 'filtered')
+              .map((result) => (
+                <section key={result.ref} className="space-y-2 rounded-md border p-3">
+                  <p className="truncate font-medium" title={result.title}>
+                    {result.title}
+                  </p>
+                  <p>{t(resultLabels[result.status])}</p>
+                  {result.initialization === 'failed' && (
+                    <Button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await ipcApi.request('conversation_import.retry_initialization', {
+                            sessionId: result.sessionId!
+                          })
+                          setResults((current) =>
+                            current?.map((value) =>
+                              value.ref === result.ref ? { ...value, initialization: 'ready' } : value
+                            )
                           )
-                        )
-                      })
-                    }>
-                    {t('history_import.retry_history')}
-                  </Button>
-                )}
-                {result.sessionId && (
-                  <Button
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await ipcApi.request('navigation.focus_or_open_conversation', {
-                          target: { conversationType: 'agent', conversationId: result.sessionId! },
-                          title: result.title ?? ''
                         })
-                        resolve()
-                      })
-                    }>
-                    {t('common.open')}
-                  </Button>
-                )}
-              </section>
-            ))}
+                      }>
+                      {t('history_import.retry_history')}
+                    </Button>
+                  )}
+                  {result.sessionId && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await ipcApi.request('navigation.focus_or_open_conversation', {
+                            target: { conversationType: 'agent', conversationId: result.sessionId! },
+                            title: result.title ?? ''
+                          })
+                          resolve()
+                        })
+                      }>
+                      {t('common.open')}
+                    </Button>
+                  )}
+                </section>
+              ))}
           </div>
           <DialogFooter>
             <Button
