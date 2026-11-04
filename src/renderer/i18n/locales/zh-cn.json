@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "展开",
   "message.processing": "正在处理...",
   "message.reasoning.edit": "编辑思考过程",
-  "message.reasoning.edit_hint": "保存后会改写这条消息的思考内容；带供应商签名的思考无法编辑，因为修改后无法回放。",
+  "message.reasoning.edit_hint": "保存后会改写这条消息的思考内容；带供应商签名的思考会以 <think> 标签作为普通文本随后的对话发送。",
   "message.reasoning.edit_placeholder": "以 Markdown 格式编辑思考过程…",
   "message.reasoning.edit_title": "编辑思考过程",
   "message.reasoning.empty": "思考内容不能为空",

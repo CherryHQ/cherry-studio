@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "Espandi",
   "message.processing": "Elaborazione...",
   "message.reasoning.edit": "Modifica ragionamento",
-  "message.reasoning.edit_hint": "Il salvataggio riscrive il ragionamento di questo messaggio. Il ragionamento firmato non è modificabile perché non può essere riprodotto dopo una modifica.",
+  "message.reasoning.edit_hint": "Il salvataggio riscrive il ragionamento di questo messaggio. Il ragionamento firmato dal provider viene inviato ai turni successivi come testo semplice <think>.",
   "message.reasoning.edit_placeholder": "Scrivi il processo di ragionamento in Markdown…",
   "message.reasoning.edit_title": "Modifica il processo di ragionamento",
   "message.reasoning.empty": "Il ragionamento non può essere vuoto",

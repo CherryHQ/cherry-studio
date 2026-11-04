@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "拡大",
   "message.processing": "処理中...",
   "message.reasoning.edit": "思考を編集",
-  "message.reasoning.edit_hint": "保存するとこのメッセージの思考内容が書き換わります。署名付きの推論は変更後に再生できないため、編集できません。",
+  "message.reasoning.edit_hint": "保存するとこのメッセージの思考内容が書き換わります。プロバイダー署名付きの推論は、以降のターンでプレーンな <think> テキストとして送信されます。",
   "message.reasoning.edit_placeholder": "思考プロセスを Markdown で入力…",
   "message.reasoning.edit_title": "思考プロセスを編集",
   "message.reasoning.empty": "思考内容を空にはできません",

@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "Expandir",
   "message.processing": "A processar...",
   "message.reasoning.edit": "Editar raciocínio",
-  "message.reasoning.edit_hint": "Ao guardar, o raciocínio desta mensagem é reescrito. O raciocínio assinado não pode ser editado porque não pode ser reproduzido após uma alteração.",
+  "message.reasoning.edit_hint": "Ao guardar, o raciocínio desta mensagem é reescrito. O raciocínio assinado pelo fornecedor é enviado nos turnos seguintes como texto simples <think>.",
   "message.reasoning.edit_placeholder": "Escreva o processo de raciocínio em Markdown…",
   "message.reasoning.edit_title": "Editar processo de raciocínio",
   "message.reasoning.empty": "O raciocínio não pode estar vazio",

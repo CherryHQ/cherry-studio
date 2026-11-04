@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "Erweitern",
   "message.processing": "Wird verarbeitet...",
   "message.reasoning.edit": "Denkprozess bearbeiten",
-  "message.reasoning.edit_hint": "Beim Speichern wird der Denkprozess dieser Nachricht neu geschrieben. Signiertes Reasoning lässt sich nicht bearbeiten, da es nach einer Änderung nicht erneut gesendet werden kann.",
+  "message.reasoning.edit_hint": "Beim Speichern wird der Denkprozess dieser Nachricht neu geschrieben. Vom Anbieter signiertes Reasoning wird in späteren Runden als reiner <think>-Text gesendet.",
   "message.reasoning.edit_placeholder": "Denkprozess in Markdown schreiben …",
   "message.reasoning.edit_title": "Denkprozess bearbeiten",
   "message.reasoning.empty": "Der Denkprozess darf nicht leer sein",

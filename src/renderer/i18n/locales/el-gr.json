@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "Επέκταση",
   "message.processing": "Επεξεργασία...",
   "message.reasoning.edit": "Επεξεργασία σκέψης",
-  "message.reasoning.edit_hint": "Η αποθήκευση ξαναγράφει τη σκέψη αυτού του μηνύματος. Η υπογεγραμμένη συλλογιστική δεν μπορεί να επεξεργαστεί, καθώς δεν μπορεί να αναπαραχθεί μετά από αλλαγή.",
+  "message.reasoning.edit_hint": "Η αποθήκευση ξαναγράφει τη σκέψη αυτού του μηνύματος. Η υπογεγραμμένη συλλογιστική αποστέλλεται σε επόμενους γύρους ως απλό κείμενο <think>.",
   "message.reasoning.edit_placeholder": "Γράψτε τη διαδικασία σκέψης σε Markdown…",
   "message.reasoning.edit_title": "Επεξεργασία διαδικασίας σκέψης",
   "message.reasoning.empty": "Το περιεχόμενο σκέψης δεν μπορεί να είναι κενό",

@@ -2400,7 +2400,7 @@
   "message.message.user_content.expand": "展開",
   "message.processing": "正在處理...",
   "message.reasoning.edit": "編輯思考過程",
-  "message.reasoning.edit_hint": "儲存後會改寫這則訊息的思考內容；帶供應商簽章的思考無法編輯，因為修改後無法回放。",
+  "message.reasoning.edit_hint": "儲存後會改寫這則訊息的思考內容；帶供應商簽章的思考會以 <think> 標籤作為普通文字隨後的對話傳送。",
   "message.reasoning.edit_placeholder": "以 Markdown 格式編輯思考過程…",
   "message.reasoning.edit_title": "編輯思考過程",
   "message.reasoning.empty": "思考內容不能為空",
