@@ -61,6 +61,25 @@ Controls how AI replies appear in the chat area:
 | **Conversation navigation button** | How to jump around long conversations, such as **Conversation anchors** |
 | **Message font size** | Drag the slider to adjust the font size in the chat area |
 
+#### Reply Illustrations
+
+Configure **Reply illustrations** under `Settings → Appearance → Message`. The feature is off by default and currently supports ordinary chats with one model. Agent sessions and multi-model conversations do not generate reply illustrations. The mode and count settings are captured when a reply starts; changing them does not rewrite an in-progress reply.
+
+| Setting | Description |
+| --- | --- |
+| **Automatic** | Allows the answering model to decide whether illustrations help and where to place them |
+| **Forced on** | Adds a system-prompt requirement for at least one illustration in every reply |
+| **Forced off** | Adds no illustration instruction and does not process new illustration intents; saved images remain available |
+| **Maximum illustrations per reply** | Defaults to **1**, configurable from **1–10**; intents beyond the maximum are not submitted for image generation |
+| **Require exact count** | Off by default; when enabled, asks for exactly the **Target count**, which cannot exceed the maximum |
+| **Painting model** | Selects a configured image model, reusing the default painting model and its provider configuration |
+
+When enabled, the model writes image prompts within the same reply. A gray placeholder with a loading animation reserves each image's position. Generation starts as soon as its complete prompt is recognized while later text continues to appear; the image replaces the placeholder when ready. The full prompt stays out of the answer text. Use **Show prompt** beside an image or placeholder to expand it and **Hide prompt** to collapse it.
+
+You can cancel an unfinished illustration individually. If generation fails or is cancelled, the written answer remains. When a complete prompt is available, use **Retry** while illustrations are enabled. Reopening a saved answer does not generate its images again, and requests interrupted by an application restart do not resume automatically.
+
+**Forced on** and **Require exact count** instruct the answering model through its system prompt. A model may still omit or truncate image prompts; the application does not make another language-model request to fill the count. Configure a working painting model first. Actual image requests use the selected provider and are billed according to that provider's rules.
+
 ### Math Formulas
 
 * **Enable `$...$`**: when on, inline math wrapped in `$` is recognized and rendered as a formula.
