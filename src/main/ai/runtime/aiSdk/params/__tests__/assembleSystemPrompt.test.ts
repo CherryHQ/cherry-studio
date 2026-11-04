@@ -36,6 +36,37 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 const model = { id: 'openai::gpt-4' as UniqueModelId, providerId: 'openai', name: 'GPT-4' } as Model
 
 describe('assembleSystemPrompt', () => {
+  it('uses system instructions for the three illustration modes without changing the base prompt', async () => {
+    const assistant = makeAssistant({ prompt: 'Base instruction' })
+    expect(await assembleSystemPrompt({ model, assistant, illustrationMode: 'off' })).toBe('Base instruction')
+    expect(await assembleSystemPrompt({ model, assistant, illustrationMode: 'auto' })).toContain(
+      'You may include illustrations'
+    )
+    const forced = await assembleSystemPrompt({ model, assistant, illustrationMode: 'on' })
+    expect(forced).toContain('You must include at least one illustration')
+    expect(forced).toContain('[[IMAGE]]')
+    expect(forced).toContain('same reply')
+  })
+
+  it('asks for an exact count only when enabled and includes the configured maximum otherwise', async () => {
+    const automatic = await assembleSystemPrompt({
+      model,
+      assistant: makeAssistant({ prompt: '' }),
+      illustrationMode: 'auto',
+      illustrationMaxCount: 4
+    })
+    expect(automatic).toContain('no more than 4 illustrations')
+
+    const forcedCount = await assembleSystemPrompt({
+      model,
+      assistant: makeAssistant({ prompt: '' }),
+      illustrationMode: 'auto',
+      illustrationMaxCount: 4,
+      illustrationForceCount: true,
+      illustrationTargetCount: 3
+    })
+    expect(forcedCount).toContain('You must include exactly 3 illustrations in each reply')
+  })
   afterEach(() => {
     vi.clearAllMocks()
   })

@@ -1,5 +1,6 @@
 /** Finalizes a pending assistant placeholder without writing usage/cost. */
 
+import { application } from '@application'
 import { messageService } from '@main/data/services/MessageService'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
@@ -32,7 +33,11 @@ export class MessageServiceBackend implements PersistenceBackend {
     // Offload oversized tool outputs BEFORE the synchronous finalize tx (the
     // FileManager write is async); the tx then writes the envelope data and
     // its tool_output file refs together.
-    const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
+    let parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
+    const illustrations = parts.some((part) => part.type === 'data-illustration')
+      ? application.get('IllustrationService')
+      : undefined
+    if (illustrations) parts = illustrations.merge(this.opts.assistantMessageId, parts)
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
         parts,
@@ -41,6 +46,7 @@ export class MessageServiceBackend implements PersistenceBackend {
       status,
       runtimeStats
     })
+    illustrations?.didPersist(this.opts.assistantMessageId)
   }
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */

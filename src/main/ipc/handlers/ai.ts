@@ -103,6 +103,9 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.illustration.get': async (input) => application.get('IllustrationService').get(input),
+  'ai.illustration.retry': async (input) => application.get('IllustrationService').retry(input),
+  'ai.illustration.cancel': async (input) => application.get('IllustrationService').cancel(input),
   'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
   'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),

@@ -8,6 +8,7 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
+import { IllustrationService } from '@main/ai/IllustrationService'
 import { TtsInferenceService } from '@main/ai/localModel'
 import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
@@ -109,6 +110,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  IllustrationService,
   ComputerUseService,
   AutomationReplService,
   RemoteAccessService,

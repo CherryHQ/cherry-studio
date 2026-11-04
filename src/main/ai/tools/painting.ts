@@ -112,7 +112,7 @@ function resolveMode(input: GenerateImageToolInput): ImageGenerationMode {
   return input.image_ids && input.image_ids.length > 0 ? 'edit' : 'generate'
 }
 
-function extractParamValues(
+export function extractParamValues(
   input: GenerateImageToolInput,
   support: ImageGenerationSupport | null,
   mode: ImageGenerationMode

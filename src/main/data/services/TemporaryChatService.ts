@@ -22,11 +22,17 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
-import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  Message,
+  MessageRole,
+  MessageRuntimeStatsInput,
+  MessageStatus
+} from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
-import { messageService } from './MessageService'
+import { messageService, replaceChatMessageFileRefsTx } from './MessageService'
 import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
@@ -176,6 +182,14 @@ export class TemporaryChatService {
     return this.topics.has(topicId)
   }
 
+  /** Internal update for asynchronous illustrations; message identity and text stay immutable. */
+  updateIllustrationParts(topicId: string, messageId: string, parts: CherryMessagePart[]): void {
+    const row = this.messages.get(topicId)?.find((message) => message.id === messageId)
+    if (!row) throw DataApiErrorFactory.notFound('TemporaryMessage', messageId)
+    row.data = { ...row.data, parts }
+    row.updatedAt = Date.now()
+  }
+
   /** Main-process internal API — read-only topic accessor (returns ISO-timestamp Topic). */
   getTopic(topicId: string): Topic | null {
     const row = this.topics.get(topicId)
@@ -251,6 +265,7 @@ export class TemporaryChatService {
               updatedAt: m.updatedAt
             })
             .run()
+          replaceChatMessageFileRefsTx(tx, m.id, m.data)
           prevId = m.id
         }
 
