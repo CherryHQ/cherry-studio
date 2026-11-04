@@ -4,7 +4,7 @@ import type { CompileContext, Extension as FromMarkdownExtension } from 'mdast-u
 import type { Construct, Extension as MicromarkExtension, State, Token, Tokenizer } from 'micromark-util-types'
 import type { Plugin } from 'unified'
 import type { Parent, Position } from 'unist'
-import { visit } from 'unist-util-visit'
+import { SKIP, visit } from 'unist-util-visit'
 
 declare module 'micromark-util-types' {
   interface TokenTypeMap {
@@ -884,7 +884,17 @@ function repairSetextEnvironments(tree: Root, source: string): void {
   const openings = new Map<string, number[]>()
   const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
   for (let cursor = 0; cursor < source.length; cursor++) {
+    // TeX comments run through the physical line ending. Their marker text
+    // must not close a real environment. Escaped percent signs are data.
+    if (source[cursor] === '%') {
+      while (cursor < source.length && source[cursor] !== '\n' && source[cursor] !== '\r') cursor++
+      continue
+    }
     if (source.charCodeAt(cursor) !== BACKSLASH) continue
+    if (source[cursor + 1] === '%') {
+      cursor++
+      continue
+    }
     if (source.charCodeAt(cursor + 1) === BACKSLASH) {
       cursor++
       continue
@@ -905,6 +915,10 @@ function repairSetextEnvironments(tree: Root, source: string): void {
   }
 
   visit(tree, (parent) => {
+    // A raw source slice still contains continuation-line container syntax
+    // such as blockquote `>` prefixes. Skip that entire subtree rather
+    // than passing those prefixes to KaTeX as mathematical operators.
+    if (parent.type === 'blockquote') return SKIP
     if (!('children' in parent)) return
     const children = parent.children as RootContent[]
     const repaired: RootContent[] = []

@@ -177,6 +177,41 @@ describe('remarkLatexMath', () => {
     expect(textValue(tree)).toContain('b')
   })
 
+  it('leaves blockquote setext environments unrepaired rather than adding quote operators', () => {
+    const source = '> \\begin{align}\n> a\n> =\n> b\n> \\end{align}'
+    expect(mathNodes(source)).toEqual([])
+    expect(parse(source).children[0].type).toBe('blockquote')
+  })
+
+  it.each(['- ', '1. '])('preserves clean environment repair in %s list items', (prefix) => {
+    const indent = ' '.repeat(prefix.length)
+    const source = `${prefix}item\n\n${indent}\\begin{align}\n${indent}a\n${indent}=\n${indent}b\n${indent}\\end{align}`
+    expect(mathNodes(source)).toHaveLength(1)
+    expect(mathNodes(source)[0].value).toContain('\\begin{align}')
+  })
+
+  it('preserves clean repair inside nested list items', () => {
+    const source = '- outer\n  - inner\n\n    \\begin{align}\n    a\n    =\n    b\n    \\end{align}'
+    expect(mathNodes(source)).toHaveLength(1)
+  })
+
+  it.each([
+    '- item\n\n  > \\begin{align}\n  > a\n  > =\n  > b\n  > \\end{align}',
+    '> - item\n>\n>   \\begin{align}\n>   a\n>   =\n>   b\n>   \\end{align}'
+  ])('refuses quote prefixes through list or quote ancestors', (source) => {
+    expect(mathNodes(source)).toEqual([])
+  })
+
+  it('ignores a closer inside a TeX percent comment', () => {
+    const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
+  it('does not treat an escaped percent sign as a comment', () => {
+    const source = '\\begin{align}\na\n=\nb\n\\% \\end{align}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
   it('balances nested environments with the same name', () => {
     const source = '\\begin{aligned}\na\\begin{aligned}b\\end{aligned}c\n\\end{aligned}。'
     expect(mathNodes(source)).toMatchObject([
