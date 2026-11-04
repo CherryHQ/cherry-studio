@@ -19,7 +19,7 @@ vi.mock('../sidebarShortcuts', () => ({
   useSidebarShortcutRegistry: () => ({ resolve: vi.fn() })
 }))
 vi.mock('../../UserAccountPanel', () => ({ UserAccountPanel: () => null }))
-vi.mock('../../layout/ShellTabBarActions', () => ({
+vi.mock('../../layout/AppUpdateButton', () => ({
   AppUpdateButton: () => null
 }))
 

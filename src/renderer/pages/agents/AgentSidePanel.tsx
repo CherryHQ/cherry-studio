@@ -1,6 +1,7 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -44,9 +45,13 @@ const AgentSidePanel = ({
   revealRequest,
   setActiveSessionId
 }: AgentSidePanelProps) => {
+  const minimalContext = useMinimalMode()
+  const minimalMode = minimalContext?.enabled && minimalContext.isHome ? minimalContext : null
   return (
-    <ConversationNavigationPane>
+    <ConversationNavigationPane className={minimalMode?.enabled ? 'border-r-[0.5px] border-border' : undefined}>
+      {minimalMode?.sidebarHeader}
       <Sessions
+        className={minimalMode?.enabled ? 'border-r-0 bg-transparent pt-1' : undefined}
         agentSessionsSource={agentSessionsSource}
         activeSessionId={activeSessionId}
         dataEnabled={dataEnabled}
@@ -63,6 +68,7 @@ const AgentSidePanel = ({
         onCreateSession={onCreateSession}
         onShowMissingAgentSelection={onShowMissingAgentSelection}
       />
+      {minimalMode?.sidebarFooter}
     </ConversationNavigationPane>
   )
 }

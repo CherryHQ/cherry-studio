@@ -20,6 +20,7 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -98,6 +99,7 @@ export function AgentResourceList({
   onShowMissingAgentSelection,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -451,6 +453,7 @@ export function AgentResourceList({
         }),
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
+          availability: { visible: sidebarAvailable, enabled: sidebarAvailable },
           label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
           icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
@@ -492,6 +495,7 @@ export function AgentResourceList({
       assistantIconType,
       deletingAgentId,
       isAgentPinActionDisabled,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t
     ]

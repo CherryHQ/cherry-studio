@@ -27,7 +27,7 @@ import {
   ScrollOwnershipProvider
 } from './ScrollOwnershipContext'
 
-export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
+export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 12
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])

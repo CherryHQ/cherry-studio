@@ -113,7 +113,8 @@ export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@re
 const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
 const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
 const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
-const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
+const TOOLBAR_BUTTON_CLASS =
+  'text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!'
 const SPLIT_MIN_WIDTH_PX = 672
 
 type CopyFileState = 'ready' | 'checking' | 'unavailable'
@@ -646,7 +647,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             variant="ghost"
             size="icon-sm"
             className={cn(
-              'text-muted-foreground hover:bg-accent hover:text-foreground',
+              'text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!',
               pickerActive && 'bg-accent text-foreground'
             )}
             aria-label={t('agent.preview_pane.pick_selection')}

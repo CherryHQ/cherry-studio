@@ -29,8 +29,8 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { isMac } from '@renderer/utils/platform'
 
 import { CommandTooltip } from '../command'
+import { AppUpdateButton } from '../layout/AppUpdateButton'
 import { HelpMenu } from '../layout/HelpMenu'
-import { AppUpdateButton } from '../layout/ShellTabBarActions'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,

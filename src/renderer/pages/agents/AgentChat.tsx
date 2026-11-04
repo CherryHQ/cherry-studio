@@ -33,6 +33,7 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -120,6 +121,7 @@ interface AgentChatProps {
 }
 
 interface AgentChatLayoutProps {
+  onSidebarToggle?: () => void
   activeAgent?: GetAgentResponse
   /** Active model — the right pane needs it for the context-usage denominator. */
   model?: Model
@@ -522,6 +524,7 @@ const AgentChat = ({
     onFileNavigationRequestChange,
     onPaneAutoCollapseChange,
     onPaneCollapse,
+    onSidebarToggle,
     pane,
     paneOpen,
     panePosition,
@@ -708,6 +711,7 @@ function AgentChatLayout({
   onFileNavigationRequestChange,
   onPaneAutoCollapseChange,
   onPaneCollapse,
+  onSidebarToggle,
   pane,
   paneOpen,
   panePosition,
@@ -723,6 +727,8 @@ function AgentChatLayout({
   topBar,
   topRightTool
 }: AgentChatLayoutProps) {
+  const minimalContext = useMinimalMode()
+  const minimalMode = minimalContext?.enabled && minimalContext.isHome ? minimalContext : null
   return (
     <AgentRightPane.Scope
       model={model}
@@ -748,6 +754,9 @@ function AgentChatLayout({
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
+        transparentNavigation={minimalMode?.enabled}
+        navigationToggle={minimalMode?.renderSidebarToggle?.(!!paneOpen, onSidebarToggle)}
+        renderMainHeader={minimalMode?.enabled ? (bar) => minimalMode.renderHomeToolbar?.(!!paneOpen, bar) : undefined}
         className={className}
         pane={pane}
         paneOpen={paneOpen}

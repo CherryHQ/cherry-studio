@@ -8,6 +8,7 @@ import {
   Command,
   Crop,
   FileBox,
+  FlaskConical,
   FileCode,
   Globe,
   HardDrive,
@@ -208,6 +209,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/dependencies',
     titleKey: 'settings.dependencies.title',
     icon: createElement(Terminal),
+    groupKey: 'settings.menuGroups.system'
+  },
+  {
+    route: '/settings/labs',
+    titleKey: 'settings.labs.title',
+    icon: createElement(FlaskConical),
     groupKey: 'settings.menuGroups.system'
   },
   {

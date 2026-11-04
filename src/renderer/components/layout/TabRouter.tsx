@@ -23,6 +23,7 @@ const createTabRouter = (url: string): AppRouter =>
 interface TabRouterProps {
   tab: Tab
   isActive: boolean
+  preload?: boolean
   onUrlChange: (url: string) => void
 }
 
@@ -32,10 +33,15 @@ interface TabRouterProps {
  * Each tab maintains its own router instance with isolated history,
  * enabling true KeepAlive behavior via React 19's Activity component.
  */
-export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
+export const TabRouter = ({ tab, isActive, preload = false, onUrlChange }: TabRouterProps) => {
   // Create independent router instance per tab (only once)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const router = useMemo(() => createTabRouter(tab.url), [tab.id])
+
+  useEffect(() => {
+    // Hidden Activity defers RouterProvider effects, so warm its route before the first switch.
+    if (preload) void router.load()
+  }, [preload, router])
 
   // External retargets update tab.url before an async route can replace the outgoing page.
   // Cover that interval so teardown effects cannot repaint stale page loading UI.

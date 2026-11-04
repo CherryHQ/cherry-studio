@@ -10,20 +10,27 @@ import {
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useAccountSubmenu } from '@renderer/hooks/useAccountSubmenu'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
+import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('HelpMenu')
 
 export function HelpMenu({
+  iconOnly = false,
+  triggerClassName,
+  tooltipPlacement = 'right',
   onFeedbackClick,
   onRequestClose
 }: {
+  iconOnly?: boolean
+  triggerClassName?: string
+  tooltipPlacement?: string
   onFeedbackClick: () => void
   onRequestClose?: () => void
 }) {
@@ -58,7 +65,16 @@ export function HelpMenu({
     })
   }
 
-  const trigger = (
+  const trigger = iconOnly ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={t('help.title')}
+      className={cn('size-[30px] rounded-md text-muted-foreground! hover:text-foreground!', triggerClassName)}>
+      <CircleQuestionMark size={16} strokeWidth={1.6} />
+    </Button>
+  ) : (
     <Button
       type="button"
       variant="ghost"
@@ -75,7 +91,13 @@ export function HelpMenu({
   return (
     <>
       <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        {iconOnly ? (
+          <Tooltip content={t('help.title')} placement={tooltipPlacement} delay={800}>
+            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+          </Tooltip>
+        ) : (
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        )}
         <PopoverContent
           align="end"
           side="right"

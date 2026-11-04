@@ -178,13 +178,7 @@ const MessageHeader: FC<Props> = memo(
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
           <div className="flex w-full min-w-0 items-center gap-1.5">
-            <span
-              className="truncate font-semibold text-sm leading-5"
-              style={{
-                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
-              }}>
-              {username}
-            </span>
+            <span className="truncate font-medium text-muted-foreground text-sm leading-5">{username}</span>
             {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
             {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
             {isAssistantMessage && showModelIdentity && displayModelName && (

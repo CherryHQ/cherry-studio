@@ -322,5 +322,5 @@ const controlButtonClassName = (active = false) =>
     'rounded shadow-none active:scale-95',
     active
       ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-      : 'text-muted-foreground hover:text-foreground'
+      : 'text-muted-foreground! hover:text-foreground! focus-visible:text-foreground!'
   )
