@@ -24,7 +24,7 @@ import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared
 import { getSentryBuildContext } from './src/shared/utils/sentry'
 
 const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
-  './native/darwin/build'
+  './native/selection-panel/build'
 )
 
 const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(

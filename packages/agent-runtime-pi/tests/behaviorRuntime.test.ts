@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { expect, it, onTestFinished } from 'vitest'
@@ -196,6 +198,7 @@ it('correlates a steer placed in an already running child', async () => {
   if (initial?.type !== 'snapshot') throw new Error('No child snapshot')
   const task = initial.messages.find((message) => message.role === 'user')
   expect(task?.parts).toEqual([{ type: 'text', text: expect.stringContaining('task'), state: 'done' }])
+  expect(child.pi.archive().messages.find((message) => message.id === task?.id)).toEqual(task)
   const submitted = child.input.submit(draft('steer child', 'steer'))
   await expect
     .poll(() =>
@@ -211,6 +214,15 @@ it('correlates a steer placed in an already running child', async () => {
       outcome: 'completed',
       response: { session: child.thread }
     })
+  const archive = child.pi.archive().messages
+  const placed = archive.find(
+    (message) =>
+      message.role === 'user' && message.parts.some((part) => part.type === 'text' && part.text === 'steer child')
+  )
+  expect(placed?.metadata?.inputId).toBe('steer child')
+  expect(archive.findIndex((message) => message.id === placed?.id)).toBeLessThan(
+    archive.findIndex((message) => message.parts.some((part) => part.type === 'text' && part.text === 'steered answer'))
+  )
   expect(errors).toEqual([])
 })
 
@@ -596,4 +608,118 @@ it('restores child relations on reopen and refuses a child without its live owne
     status: 'rejected',
     error: { code: 'child-owner-unavailable' }
   })
+})
+
+// Catches an unavailable historical child model preventing the healthy parent and siblings from reopening.
+it('isolates child restore failures and recovers the same child after its model is available again', async () => {
+  const cwd = tempDir('behavior-child-restore')
+  const manager = SessionManager.create(cwd, join(cwd, 'sessions'))
+  const rootId = manager.getSessionId()
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) return assistantReply('child answer')
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply(
+        [
+          toolCallPart('missing-model', 'subagent', {
+            description: 'Unavailable',
+            prompt: 'first task',
+            model: 'Alternate'
+          }),
+          subagentCall('healthy', { description: 'Healthy', prompt: 'second task' })
+        ],
+        'toolUse'
+      )
+    return assistantReply('parent answer')
+  })
+  const alternate = await createTestBinding({ stream: provider.model, model: { ...MODEL, id: 'alternate' } })
+  const { runtime, config, host } = await setup(provider.model, { cwd, agentDir: cwd, sessionManager: manager })
+  const children = new Map<string, SessionManager>()
+  let unavailable = false
+  config.behavior = {
+    host: {
+      ...host,
+      models: {
+        ...host.models,
+        find: async () => [{ key: 'test/alternate', provider: 'test', model: 'Alternate', exact: true }]
+      }
+    },
+    configureChild: ({ origin }) => {
+      if (origin.modelKey === 'test/alternate' && unavailable) throw new Error('Unknown subagent model: test/alternate')
+      return {
+        ...(origin.modelKey === 'test/alternate' ? alternate : {}),
+        onSessionCreated: (session) => {
+          children.set(origin.description, session.sessionManager)
+        }
+      }
+    }
+  }
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit(draft('delegate'))
+  await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
+  expect(children.size).toBe(2)
+  const childManager = children.get('Unavailable')!
+  const healthyManager = children.get('Healthy')!
+  const childRef = { backendId: root.thread.backendId, id: runtimeId<'thread'>(childManager.getSessionId()) }
+  const child = confirmed(await runtime.open(childRef))
+  const archive = child.pi.archive()
+  const runs = () =>
+    manager.getBranch().filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-run')
+  const completedRuns = structuredClone(runs())
+  confirmed(await runtime.shutdown())
+  unavailable = true
+  const errors: unknown[] = []
+  const reopen = async () => {
+    const reopened = confirmed(
+      await createPiRuntime({
+        backendId: root.thread.backendId,
+        load: async (ref) => {
+          const saved =
+            ref.id === rootId ? manager : [...children.values()].find((child) => child.getSessionId() === ref.id)
+          return saved
+            ? { ...config, sessionManager: SessionManager.openExisting(saved.getSessionFile()!, ref.id) }
+            : undefined
+        },
+        onError: (error) => {
+          errors.push(error)
+        }
+      })
+    )
+    onTestFinished(async () => {
+      await reopened.shutdown()
+    })
+    return reopened
+  }
+  const reopened = await reopen()
+  const beforeRestore = provider.calls.length
+  const rootAgain = confirmed(await reopened.open(root.thread))
+  const restored = await observe(rootAgain)
+  expect(provider.calls).toHaveLength(beforeRestore)
+  expect(restored[0]).toMatchObject({
+    type: 'snapshot',
+    subagents: expect.arrayContaining([expect.objectContaining({ child: childRef })])
+  })
+  expect(await reopened.open(childRef)).toMatchObject({
+    status: 'rejected',
+    error: { code: 'child-owner-unavailable' }
+  })
+  const healthy = confirmed(await reopened.open({ ...childRef, id: runtimeId(healthyManager.getSessionId()) }))
+  expect(JSON.stringify(healthy.pi.archive().messages)).toContain('child answer')
+  expect(
+    rootAgain.pi.history().filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-run')
+  ).toEqual(completedRuns)
+  await rootAgain.input.submit(draft('continue parent'))
+  await expect.poll(() => inputs(restored, 'continue parent').at(-1)?.outcome).toBe('completed')
+  expect(errors).toHaveLength(1)
+  expect(errors[0]).toEqual(new Error('Unknown subagent model: test/alternate'))
+  confirmed(await reopened.shutdown())
+
+  unavailable = false
+  const recovered = await reopen()
+  confirmed(await recovered.open(root.thread))
+  const sameChild = confirmed(await recovered.open(childRef))
+  expect(sameChild.pi.archive().messages).toEqual(archive.messages)
+  const continued = await observe(sameChild)
+  expect(await sameChild.input.submit(draft('continue child', 'steer'))).toMatchObject({ status: 'acknowledged' })
+  await expect.poll(() => inputs(continued, 'continue child').at(-1)?.outcome).toBe('completed')
 })
