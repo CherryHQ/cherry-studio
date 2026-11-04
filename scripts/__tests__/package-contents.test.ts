@@ -132,4 +132,19 @@ describe('packaged dependency contents', () => {
       expect(includesFile(file), file).toBe(true)
     }
   })
+
+  it('keeps the files each trimmed package loads at runtime', () => {
+    for (const file of [
+      'node_modules/mammoth/lib/index.js',
+      'node_modules/selection-hook/index.js',
+      'node_modules/@earendil-works/pi-coding-agent/dist/index.js',
+      'node_modules/onnxruntime-node/dist/index.js',
+      'node_modules/sherpa-onnx-node/sherpa-onnx.js',
+      // tesseract.js defaults to the LSTM_ONLY OEM and picks the SIMD build wherever wasm SIMD exists.
+      'node_modules/tesseract.js-core/tesseract-core-simd-lstm.js',
+      'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm'
+    ]) {
+      expect(includesFile(file), file).toBe(true)
+    }
+  })
 })
