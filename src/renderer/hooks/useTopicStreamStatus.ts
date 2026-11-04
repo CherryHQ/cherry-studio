@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { loggerService } from '@logger'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
 
@@ -101,20 +102,14 @@ export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: ()
 }
 
 /**
- * Deterministic overlay→DB handoff at terminal. On the live→terminal edge the
- * live chunk overlay must yield to the DB row (which persistence already
- * finalized — e.g. an interrupted tool becomes `output-error`). The overlay's
- * own `onFinish` is suppressed when an execution leaves `activeExecutions`, so
- * disposal can't ride it; this fires `onHandoff` (refresh-then-dispose) off the
- * status edge instead.
- *
- * Excludes `awaiting-approval` (which is `isTerminal` but must KEEP the live
- * card — a continue stream will resume it). That distinction lives only here in
- * `classifyTurn`, not inside the status-agnostic overlay hook — hence the
- * handoff is decided at the consumer layer, separate from
- * `useTopicDbRefreshOnAwaitingApproval` (whose refresh-on-awaiting-approval is wanted).
+ * Refresh history before disposing settled overlays, including terminal baselines on attachment.
+ * Approval cards stay live; the overlay reset preserves active attempts and unresolved writes.
  */
-export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () => Promise<void> | void): void {
+export function useTopicOverlayHandoffOnTerminal(
+  topicId: string,
+  onHandoff: () => Promise<void> | void,
+  liveAssistants: readonly CherryUIMessage[] = []
+): void {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const onHandoffRef = useRef(onHandoff)
@@ -125,12 +120,12 @@ export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () 
     const prev = previous?.topicId === topicId ? previous.status : undefined
     prevRef.current = { status, topicId }
     const next = classifyTurn(status)
-    if (classifyTurn(prev).isStreamLive && next.isTerminal && !next.isAwaitingApproval) {
+    if ((classifyTurn(prev).isStreamLive || liveAssistants.length > 0) && next.isTerminal && !next.isAwaitingApproval) {
       void (async () => {
         await onHandoffRef.current()
       })().catch((error) => {
         logger.warn('Topic overlay handoff failed', error as Error, { topicId })
       })
     }
-  }, [status, topicId])
+  }, [liveAssistants, status, topicId])
 }

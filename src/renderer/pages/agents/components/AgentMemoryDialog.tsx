@@ -10,12 +10,12 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  ScrollArea,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
@@ -316,7 +316,7 @@ export function AgentMemoryDialog({
     }
 
     return (
-      <Scrollbar className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         {isMarkdown ? (
           <div className="markdown px-6 py-4 text-sm">
             <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
@@ -326,7 +326,7 @@ export function AgentMemoryDialog({
             {selected.content}
           </pre>
         )}
-      </Scrollbar>
+      </ScrollArea>
     )
   }
 

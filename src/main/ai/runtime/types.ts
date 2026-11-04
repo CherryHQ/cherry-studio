@@ -171,13 +171,19 @@ export type AgentRuntimeEvent =
    *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
    *  work have drained. Detached work never holds a reply open — user turns may start while it
    *  runs, and its results arrive via a later autonomous (receive-only) generation. */
-  | { type: 'background-work-state'; active: boolean }
+  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
   /** Spawn lineage of one admitted subagent — emitted for EVERY descendant, unlike the task-panel
    *  edges above (`publishTaskEdge` folds grandchildren into their ancestor's flow). `parentSessionId`
    *  is absent when the root session spawned the child. */
-  | { type: 'background-child-provenance'; childSessionId: string; parentSessionId?: string }
+  | {
+      type: 'background-child-provenance'
+      childSessionId: string
+      parentSessionId?: string
+      /** The spawning execution's authority when the runtime knows it; absent falls back to the host turn. */
+      headless?: boolean
+    }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
@@ -259,6 +265,8 @@ export interface AgentRuntimeConnection {
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */
   drainChildWrites?(): Promise<void>
+  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  interrupt?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>
