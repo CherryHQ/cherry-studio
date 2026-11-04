@@ -1,7 +1,10 @@
 import { execFile } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { readFileSync } from 'node:fs'
+import { createReadStream, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, get as httpGet, request as httpRequest } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
 import vm from 'node:vm'
 
@@ -1348,6 +1351,74 @@ it
     } finally {
       await service._doStop()
       await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
+
+it.skipIf(process.platform === 'win32').each(['file', 'node', 'async'] as const)(
+  'does not stringify or consume %s streaming uploads or export invented bytes',
+  async (kind) => {
+    const received: string[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push(Buffer.concat(chunks).toString())
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const dir = mkdtempSync(join(tmpdir(), 'network-stream-'))
+    const file = join(dir, 'upload.txt')
+    const bytes = 'actual-upload-bytes-é'
+    writeFileSync(file, bytes)
+    let pulls = 0
+    const body =
+      kind === 'file'
+        ? createReadStream(file)
+        : kind === 'node'
+          ? Readable.from([bytes])
+          : {
+              async *[Symbol.asyncIterator]() {
+                pulls++
+                yield Buffer.from(bytes)
+              }
+            }
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchFetch: () => void }
+    const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+    vm.createContext(sandbox)
+    vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+    try {
+      const capture = captureRequestBody(body, 'text/plain')
+      expect(pulls).toBe(0)
+      if (body instanceof Readable) {
+        expect(body.readableFlowing).toBeNull()
+        expect(body.readableLength).toBe(0)
+      }
+      state.patchFetch()
+      const init = {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body,
+        duplex: 'half'
+      } as unknown as RequestInit
+      await (await fetch(`http://127.0.0.1:${(server.address() as { port: number }).port}/`, init)).text()
+      expect(received[0]).toBe(bytes)
+      if (kind === 'async') expect(pulls).toBe(1)
+      const command = sandbox.buildCurlCommand?.(state.events[0]) as string
+      await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+      expect(received[1]).toBe('')
+      expect(command).not.toContain('--data-raw')
+      expect(command).not.toContain('[object Object]')
+      expect(capture).toMatchObject({ replayable: false, note: 'Streaming request body is not captured.' })
+      expect(capture?.text).toBeUndefined()
+    } finally {
+      if (body instanceof Readable) body.destroy()
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      rmSync(dir, { recursive: true, force: true })
     }
   }
 )

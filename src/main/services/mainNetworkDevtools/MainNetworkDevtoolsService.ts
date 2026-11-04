@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from 'node:http'
 import https from 'node:https'
+import { Stream } from 'node:stream'
 
 import { net } from 'electron'
 import type WebSocket from 'ws'
@@ -770,8 +771,13 @@ export function captureRequestBody(
       requestHeaders
     )
   }
-  if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
-    return { contentType, note: 'Streaming request body is not captured.' }
+  // Never coerce streaming uploads to an invented body or consume them for diagnostics.
+  if (
+    (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) ||
+    body instanceof Stream ||
+    (typeof body === 'object' && Symbol.asyncIterator in body && typeof body[Symbol.asyncIterator] === 'function')
+  ) {
+    return { contentType, replayable: false, note: 'Streaming request body is not captured.' }
   }
 
   return applyContentEncodingReplayConstraint(createCapturedTextBody(String(body), contentType), requestHeaders)
