@@ -12,6 +12,44 @@ import { runtimeId } from '@cherrystudio/agent-runtime'
 import { createClaudeCodeRuntime } from '../src'
 import { confirmed, inputId, observe } from './nativeFixture'
 
+export function assistantMessage(
+  sessionId: string,
+  content: SDKAssistantMessage['message']['content'],
+  extras: Partial<SDKAssistantMessage> = {}
+): SDKAssistantMessage {
+  return {
+    type: 'assistant',
+    uuid: randomUUID(),
+    session_id: sessionId,
+    parent_tool_use_id: null,
+    message: {
+      id: 'msg_wire',
+      type: 'message',
+      role: 'assistant',
+      model: 'test',
+      content,
+      container: null,
+      context_management: null,
+      stop_details: null,
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_creation: null,
+        cache_creation_input_tokens: null,
+        cache_read_input_tokens: null,
+        inference_geo: null,
+        iterations: null,
+        server_tool_use: null,
+        service_tier: null,
+        speed: null
+      }
+    },
+    ...extras
+  }
+}
+
 /** Replays native wire races through the real SDK transport and the public adapter. */
 export async function wireFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'cherry-claude-wire-'))
@@ -76,23 +114,7 @@ export async function wireFixture() {
     send,
     failures,
     assistant(text: string, extras: Partial<SDKAssistantMessage> = {}): SDKAssistantMessage {
-      return {
-        type: 'assistant',
-        uuid: randomUUID(),
-        session_id: sessionId,
-        parent_tool_use_id: null,
-        message: {
-          id: 'msg_wire',
-          type: 'message',
-          role: 'assistant',
-          model: 'test',
-          content: [{ type: 'text', text }],
-          stop_reason: 'end_turn',
-          stop_sequence: null,
-          usage: { input_tokens: 1, output_tokens: 1 }
-        },
-        ...extras
-      } as SDKAssistantMessage
+      return assistantMessage(sessionId, [{ type: 'text', text, citations: null }], extras)
     },
     async close() {
       exit()

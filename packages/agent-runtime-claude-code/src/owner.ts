@@ -360,8 +360,23 @@ export class ClaudeOwner {
     if (isCommandLifecycle(message)) {
       const input = this.inputs.get(message.command_uuid)
       if (input) {
-        if (message.state === 'queued') this.inputFacts(input, ['accepted', 'queued'])
-        else if (message.state === 'started') this.inputFacts(input, ['accepted'])
+        switch (message.state) {
+          case 'queued':
+            this.inputFacts(input, ['accepted', 'queued'])
+            break
+          case 'started':
+            this.inputFacts(input, ['accepted'])
+            break
+          case 'completed':
+          case 'cancelled':
+          case 'discarded':
+          case 'refused':
+            break
+          default: {
+            const exhaustive: never = message
+            void exhaustive
+          }
+        }
         input.projection.publish([], { source: 'live', message })
       }
       return
@@ -415,20 +430,56 @@ export class ClaudeOwner {
         )
         if (response?.type === 'message.upsert') this.response = projection.ref(response.message.id)
       }
-    } else if (message.type === 'user' && message.uuid) {
+    } else if (message.type === 'user') {
       events.push(
-        ...projection.message(
-          { ...message, uuid: message.uuid },
-          { inputId: this.inputs.get(message.uuid)?.state.inputId }
-        )
+        ...projection.message(message, {
+          inputId: message.uuid ? this.inputs.get(message.uuid)?.state.inputId : undefined
+        })
       )
     } else if (message.type === 'stream_event') {
       events.push(...(await projection.partial(message)))
-    } else if (message.type === 'system' && message.subtype === 'model_refusal_fallback') {
-      for (const target of this.projections.values())
-        target.publish(target.remove(message.retracted_message_uuids ?? []))
-    } else if (message.type === 'system' && message.subtype === 'compact_boundary') {
-      events.push({ type: 'gap', reason: 'mapping-reset' })
+    } else if (message.type === 'system') {
+      switch (message.subtype) {
+        case 'model_refusal_fallback':
+          for (const target of this.projections.values())
+            target.publish(target.remove(message.retracted_message_uuids ?? []))
+          break
+        case 'compact_boundary':
+          events.push({ type: 'gap', reason: 'mapping-reset' })
+          break
+        // Native metadata is paired below; task and reset ownership was handled above.
+        case 'init':
+        case 'task_started':
+        case 'task_progress':
+        case 'task_updated':
+        case 'task_notification':
+        case 'background_tasks_changed':
+        case 'status':
+        case 'api_retry':
+        case 'thinking_tokens':
+        case 'permission_denied':
+        case 'session_state_changed':
+        case 'commands_changed':
+        case 'control_request_progress':
+        case 'model_refusal_no_fallback':
+        case 'local_command_output':
+        case 'hook_started':
+        case 'hook_progress':
+        case 'hook_response':
+        case 'plugin_install':
+        case 'worker_shutting_down':
+        case 'notification':
+        case 'files_persisted':
+        case 'memory_recall':
+        case 'elicitation_complete':
+        case 'mirror_error':
+        case 'informational':
+          break
+        default: {
+          const exhaustive: never = message
+          void exhaustive
+        }
+      }
     } else if (message.type === 'result') {
       const content = projection.result(message)
       if (content.length) {
@@ -436,6 +487,20 @@ export class ClaudeOwner {
         if (!agentId) this.response = projection.ref(message.uuid)
       }
       events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+    } else {
+      switch (message.type) {
+        // These advisory signals remain available to the host through the native facet.
+        case 'tool_progress':
+        case 'auth_status':
+        case 'tool_use_summary':
+        case 'rate_limit_event':
+        case 'prompt_suggestion':
+          break
+        default: {
+          const exhaustive: never = message
+          void exhaustive
+        }
+      }
     }
     if (message.type !== 'result') projection.publish(events, { source: 'live', message })
     if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result') {

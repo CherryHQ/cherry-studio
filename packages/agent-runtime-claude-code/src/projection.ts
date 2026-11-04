@@ -4,6 +4,7 @@ import type {
   SDKAssistantMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
+  SDKUserMessage,
   SessionMessage,
   SessionStoreEntry
 } from '@anthropic-ai/claude-agent-sdk'
@@ -18,64 +19,19 @@ import {
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import {
+  decodeArchiveContent,
+  json,
+  projectBlock,
+  type NativeBlock,
+  type ProjectedBlock,
+  type ToolResult
+} from './content'
 import { ClaudeFeed } from './observation'
 import type { ClaudeArchive, ClaudeNativeMessage, ClaudeSource } from './types'
 
 type Part = RuntimeMessage['parts'][number]
 type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
-function object(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
-}
-const json = (value: unknown) => JSON.parse(JSON.stringify(value))
-
-/** Native blocks retain their order; native result messages update the originating tool part. */
-function contentPart(block: Record<string, unknown>, partial: boolean): Part | undefined {
-  const state = partial ? 'streaming' : 'done'
-  if (block.type === 'text' && typeof block.text === 'string')
-    return {
-      type: 'text',
-      text: block.text,
-      state,
-      ...(block.citations !== undefined && { providerMetadata: { anthropic: { citations: json(block.citations) } } })
-    }
-  if (block.type === 'thinking' && typeof block.thinking === 'string')
-    return {
-      type: 'reasoning',
-      text: block.thinking,
-      state,
-      ...(typeof block.signature === 'string' && { providerMetadata: { anthropic: { signature: block.signature } } })
-    }
-  if (block.type === 'redacted_thinking' && typeof block.data === 'string')
-    return { type: 'reasoning', text: '', state, providerMetadata: { anthropic: { redactedData: block.data } } }
-  if (block.type === 'image' || block.type === 'document') {
-    const source = object(block.source)
-    if (!source) return undefined
-    const mediaType =
-      typeof source.media_type === 'string' ? source.media_type : block.type === 'image' ? 'image/*' : 'application/pdf'
-    if (source.type === 'url' && typeof source.url === 'string') return { type: 'file', mediaType, url: source.url }
-    if (source.type === 'base64' && typeof source.data === 'string')
-      return { type: 'file', mediaType, url: `data:${mediaType};base64,${source.data}` }
-    if (source.type === 'text' && typeof source.data === 'string')
-      return { type: 'file', mediaType, url: `data:${mediaType};base64,${Buffer.from(source.data).toString('base64')}` }
-  }
-  if (
-    (block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use') &&
-    typeof block.id === 'string' &&
-    typeof block.name === 'string'
-  )
-    return {
-      type: 'dynamic-tool',
-      toolCallId: block.id,
-      toolName: block.name,
-      input: block.input ?? {},
-      state: partial ? 'input-streaming' : 'input-available',
-      callProviderMetadata: {
-        anthropic: { type: block.type, ...(typeof block.server_name === 'string' && { serverName: block.server_name }) }
-      }
-    }
-  return undefined
-}
-
 export class ClaudeProjection {
   readonly feed: ClaudeFeed
   readonly retracted = new Set<string>()
@@ -89,7 +45,17 @@ export class ClaudeProjection {
     apiId: string
     id: string
     reader: RuntimeMessageStream
-    blocks: Map<number, { part: number; type: string; callId?: string; bound?: string; stopped: boolean }>
+    blocks: Map<
+      number,
+      {
+        part: number
+        type: NativeBlock['type']
+        callId?: string
+        bound?: string
+        stopped: boolean
+        citations?: NonNullable<Extract<NativeBlock, { type: 'text' }>['citations']>
+      }
+    >
     message?: RuntimeMessage
   }
 
@@ -135,80 +101,60 @@ export class ClaudeProjection {
   }
 
   message(
-    message: SessionMessage | SDKAssistantMessage | { type: 'user'; uuid: string; message: unknown },
+    message: SDKAssistantMessage | SDKUserMessage,
     options: { aborted?: boolean; inputId?: InputId; live?: boolean } = {}
   ): ObservationPayload[] {
-    if (this.retracted.has(message.uuid)) return []
+    if (!message.uuid) return []
     if (options.aborted) this.aborted.add(message.uuid)
-    const body = object(message.message)
-    const content = typeof body?.content === 'string' ? [{ type: 'text', text: body.content }] : body?.content
-    if (!Array.isArray(content)) return []
+    const partial = this.aborted.has(message.uuid)
+    const content = message.message.content
+    return this.upsertContent(
+      message.uuid,
+      message.type,
+      typeof content === 'string'
+        ? [projectBlock({ type: 'text', text: content }, partial)]
+        : content.map((block) => projectBlock(block, partial)),
+      message.type === 'assistant' ? message.message.id : undefined,
+      options
+    )
+  }
+
+  private upsertContent(
+    uuid: string,
+    role: RuntimeMessage['role'],
+    content: (ProjectedBlock | undefined)[],
+    apiId?: string,
+    options: { inputId?: InputId; live?: boolean } = {}
+  ): ObservationPayload[] {
+    if (this.retracted.has(uuid)) return []
     const events: ObservationPayload[] = []
     const value: RuntimeMessage = {
-      id: message.uuid,
-      role: message.type,
+      id: uuid,
+      role,
       parts: [],
-      metadata: { completeness: this.aborted.has(message.uuid) ? 'partial' : 'complete', inputId: options.inputId }
+      metadata: { completeness: this.aborted.has(uuid) ? 'partial' : 'complete', inputId: options.inputId }
     }
     const sources: ClaudeSource[] = []
     const bound: number[] = []
-    for (const [index, raw] of content.entries()) {
-      const block = object(raw)
+    for (const [index, block] of content.entries()) {
+      sources.push({ ref: this.ref(uuid), uuid, block: index })
       if (!block) continue
-      sources.push({ ref: this.ref(message.uuid), uuid: message.uuid, block: index })
-      if (typeof block.tool_use_id === 'string') {
-        const call = this.calls.get(block.tool_use_id)
-        const owner = call && this.messages.get(call.id)
-        if (!call || !owner) continue
-        const output = block.content ?? ''
-        const part = call.part
-        const base = {
-          type: 'dynamic-tool' as const,
-          toolName: part.toolName,
-          toolCallId: part.toolCallId,
-          input: part.input,
-          callProviderMetadata: part.callProviderMetadata
-        }
-        const result: ToolPart =
-          block.is_error === true
-            ? {
-                ...base,
-                state: 'output-error',
-                errorText:
-                  typeof output === 'string'
-                    ? output
-                    : Array.isArray(output)
-                      ? output
-                          .filter((part) => object(part)?.type === 'text')
-                          .map((part) => object(part)?.text)
-                          .join('\n')
-                      : JSON.stringify(output),
-                resultProviderMetadata: { anthropic: { result: json(output) } }
-              }
-            : { ...base, state: 'output-available', output }
-        events.push(
-          this.upsert({
-            ...owner,
-            parts: owner.parts.map((part) =>
-              part.type === 'dynamic-tool' && part.toolCallId === block.tool_use_id ? result : part
-            )
-          })
-        )
-        const calls = this.results.get(message.uuid) ?? new Set<string>()
-        calls.add(block.tool_use_id)
-        this.results.set(message.uuid, calls)
+      if ('result' in block) {
+        events.push(...this.applyResult(uuid, block.result))
         continue
       }
-      let part = contentPart(block, this.aborted.has(message.uuid))
-      if (!part) continue
+      let part = block.part
       const provisional =
-        options.live && this.stream?.apiId === body?.id
+        options.live && this.stream?.apiId === apiId
           ? [...this.stream!.blocks.entries()].find(
-              ([, entry]) => !entry.bound && entry.type === block.type && (!entry.callId || entry.callId === block.id)
+              ([, entry]) =>
+                !entry.bound &&
+                entry.type === block.type &&
+                (!entry.callId || (part.type === 'dynamic-tool' && entry.callId === part.toolCallId))
             )
           : undefined
       if (provisional) {
-        provisional[1].bound = message.uuid
+        provisional[1].bound = uuid
         bound.push(provisional[0])
         if (part.type === 'dynamic-tool' && !provisional[1].stopped)
           part = {
@@ -223,15 +169,15 @@ export class ClaudeProjection {
       if (part.type === 'dynamic-tool') {
         const callId = part.toolCallId
         const previous = this.messages
-          .get(message.uuid)
+          .get(uuid)
           ?.parts.find((item) => item.type === 'dynamic-tool' && item.toolCallId === callId)
-        this.calls.set(part.toolCallId, { id: message.uuid, part })
+        this.calls.set(part.toolCallId, { id: uuid, part })
         if (previous?.type === 'dynamic-tool' && previous.state.startsWith('output-')) part = previous
       }
-      this.legacy[`${message.uuid}:${index}`] = { messageId: message.uuid, parts: [value.parts.length] }
+      this.legacy[`${uuid}:${index}`] = { messageId: uuid, parts: [value.parts.length] }
       value.parts.push(part)
     }
-    this.sources.set(message.uuid, sources)
+    this.sources.set(uuid, sources)
     if (value.parts.length || content.length === 0) {
       const replaces = bound.length && this.stream ? [this.ref(this.stream.id)] : undefined
       events.push(this.upsert(value, replaces))
@@ -243,16 +189,44 @@ export class ClaudeProjection {
     return events
   }
 
+  private applyResult(uuid: string, result: ToolResult): ObservationPayload[] {
+    const call = this.calls.get(result.toolUseId)
+    const owner = call && this.messages.get(call.id)
+    if (!call || !owner) return []
+    const base = {
+      type: 'dynamic-tool' as const,
+      toolName: call.part.toolName,
+      toolCallId: call.part.toolCallId,
+      input: call.part.input,
+      callProviderMetadata: call.part.callProviderMetadata
+    }
+    const part: ToolPart =
+      result.errorText !== undefined
+        ? {
+            ...base,
+            state: 'output-error',
+            errorText: result.errorText,
+            resultProviderMetadata: { anthropic: { result: json(result.output) } }
+          }
+        : { ...base, state: 'output-available', output: result.output }
+    const calls = this.results.get(uuid) ?? new Set<string>()
+    calls.add(result.toolUseId)
+    this.results.set(uuid, calls)
+    return [
+      this.upsert({
+        ...owner,
+        parts: owner.parts.map((previous) =>
+          previous.type === 'dynamic-tool' && previous.toolCallId === result.toolUseId ? part : previous
+        )
+      })
+    ]
+  }
+
   result(message: SDKResultMessage): ObservationPayload[] {
     if (message.subtype !== 'success' || message.structured_output === undefined) return []
-    return this.message({
-      type: 'assistant',
-      uuid: message.uuid,
-      session_id: message.session_id,
-      parent_tool_use_id: null,
-      parent_agent_id: null,
-      message: { content: [{ type: 'text', text: JSON.stringify(message.structured_output) }] }
-    })
+    return this.upsertContent(message.uuid, 'assistant', [
+      projectBlock({ type: 'text', text: JSON.stringify(message.structured_output) }, false)
+    ])
   }
 
   private preview(): ObservationPayload[] {
@@ -268,51 +242,109 @@ export class ClaudeProjection {
 
   async partial(message: SDKPartialAssistantMessage): Promise<ObservationPayload[]> {
     const event = message.event
-    if (event.type === 'message_start') {
-      await this.stream?.reader.close()
-      const id = `live:${randomUUID()}`
-      this.stream = { apiId: event.message.id, id, reader: new RuntimeMessageStream(id), blocks: new Map() }
-      return [{ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } }]
+    switch (event.type) {
+      case 'message_start': {
+        await this.stream?.reader.close()
+        const id = `live:${randomUUID()}`
+        this.stream = { apiId: event.message.id, id, reader: new RuntimeMessageStream(id), blocks: new Map() }
+        return [{ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } }]
+      }
+      // Turn usage/outcome comes from SDK result; message_stop also occurs on interrupted input.
+      case 'message_delta':
+      case 'message_stop':
+        return []
+      case 'content_block_start':
+      case 'content_block_delta':
+      case 'content_block_stop':
+        break
+      default: {
+        const exhaustive: never = event
+        void exhaustive
+        return []
+      }
     }
     const stream = this.stream
-    if (!stream || !('index' in event)) return []
+    if (!stream) return []
     type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
     const chunks: Chunk[] = []
     const key = String(event.index)
     if (event.type === 'content_block_start') {
       const block = event.content_block
-      const tool = block.type === 'tool_use' || block.type === 'mcp_tool_use' || block.type === 'server_tool_use'
+      const projected = projectBlock(block, true)
+      if (!projected) return []
+      // Results commit with the transcript UUID that subsequent retractions address.
+      if ('result' in projected) return []
+      const part = projected.part
       stream.blocks.set(event.index, {
         part: stream.message?.parts.length ?? 0,
         type: block.type,
-        callId: tool ? block.id : undefined,
-        stopped: false
+        callId: part.type === 'dynamic-tool' ? part.toolCallId : undefined,
+        stopped: false,
+        citations: block.type === 'text' ? (block.citations ?? []) : undefined
       })
-      if (tool) chunks.push({ type: 'tool-input-start', toolCallId: block.id, toolName: block.name, dynamic: true })
-      else if (block.type === 'text') {
-        chunks.push({ type: 'text-start', id: key })
-        if (block.text) chunks.push({ type: 'text-delta', id: key, delta: block.text })
-      } else if (block.type === 'thinking' || block.type === 'redacted_thinking') {
-        chunks.push({ type: 'reasoning-start', id: key })
-        if (block.type === 'thinking' && block.thinking)
-          chunks.push({ type: 'reasoning-delta', id: key, delta: block.thinking })
+      if (part.type === 'dynamic-tool')
+        chunks.push({
+          type: 'tool-input-start',
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          dynamic: true,
+          providerMetadata: part.callProviderMetadata
+        })
+      else if (part.type === 'text') {
+        chunks.push({
+          type: 'text-start',
+          id: key,
+          providerMetadata: part.providerMetadata
+        })
+        if (part.text) chunks.push({ type: 'text-delta', id: key, delta: part.text })
+      } else if (part.type === 'reasoning') {
+        chunks.push({
+          type: 'reasoning-start',
+          id: key,
+          providerMetadata: part.providerMetadata
+        })
+        if (part.text) chunks.push({ type: 'reasoning-delta', id: key, delta: part.text })
       }
     }
     const block = stream.blocks.get(event.index)
     if (!block) return []
     if (event.type === 'content_block_delta') {
       const delta = event.delta
-      if (delta.type === 'text_delta') chunks.push({ type: 'text-delta', id: key, delta: delta.text })
-      if (delta.type === 'thinking_delta') chunks.push({ type: 'reasoning-delta', id: key, delta: delta.thinking })
-      if (delta.type === 'signature_delta')
-        chunks.push({
-          type: 'reasoning-delta',
-          id: key,
-          delta: '',
-          providerMetadata: { anthropic: { signature: delta.signature } }
-        })
-      if (delta.type === 'input_json_delta' && block.callId)
-        chunks.push({ type: 'tool-input-delta', toolCallId: block.callId, inputTextDelta: delta.partial_json })
+      switch (delta.type) {
+        case 'text_delta':
+          chunks.push({ type: 'text-delta', id: key, delta: delta.text })
+          break
+        case 'thinking_delta':
+          chunks.push({ type: 'reasoning-delta', id: key, delta: delta.thinking })
+          break
+        case 'signature_delta':
+          chunks.push({
+            type: 'reasoning-delta',
+            id: key,
+            delta: '',
+            providerMetadata: { anthropic: { signature: delta.signature } }
+          })
+          break
+        case 'citations_delta':
+          block.citations = [...(block.citations ?? []), delta.citation]
+          chunks.push({
+            type: 'text-delta',
+            id: key,
+            delta: '',
+            providerMetadata: { anthropic: { citations: json(block.citations) } }
+          })
+          break
+        case 'input_json_delta':
+          if (block.callId)
+            chunks.push({ type: 'tool-input-delta', toolCallId: block.callId, inputTextDelta: delta.partial_json })
+          break
+        case 'compaction_delta':
+          break
+        default: {
+          const exhaustive: never = delta
+          void exhaustive
+        }
+      }
     }
     if (event.type === 'content_block_stop') {
       block.stopped = true
@@ -329,6 +361,7 @@ export class ClaudeProjection {
             toolCallId: block.callId,
             toolName: part.toolName,
             input: part.input,
+            providerMetadata: part.callProviderMetadata,
             dynamic: true
           })
       }
@@ -365,13 +398,16 @@ export class ClaudeProjection {
     const events = this.remove(removals)
     const selected = messages.filter((message) => !this.retracted.has(message.uuid))
     const inputs = new Map(before.inputs.map((input) => [input.nativeInput?.id, input.inputId]))
-    for (const message of selected)
-      events.push(
-        ...this.message(message, {
-          aborted: metadata.get(message.uuid)?.isAbortedMidStream === true,
-          inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
-        })
-      )
+    for (const message of selected) {
+      if (metadata.get(message.uuid)?.isAbortedMidStream === true) this.aborted.add(message.uuid)
+      const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
+      if (decoded)
+        events.push(
+          ...this.upsertContent(message.uuid, message.type, decoded.blocks, decoded.id, {
+            inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
+          })
+        )
+    }
     this.feed.publish(
       events,
       selected.map((message) => ({ source: 'archive', message })),

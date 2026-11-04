@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
-import type { SDKMessage, SDKPermissionDeniedMessage } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  SDKAssistantMessage,
+  SDKMessage,
+  SDKPartialAssistantMessage,
+  SDKPermissionDeniedMessage,
+  SDKUserMessage
+} from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { claudeThread, type ClaudeObservation } from '../src'
 import { confirmed, observe, textOf } from './nativeFixture'
-import { wireFixture } from './wireFixture'
+import { assistantMessage, wireFixture } from './wireFixture'
 
 function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessage {
   return {
@@ -60,14 +66,14 @@ it('does not turn an interrupted tool-input block into a completed call at messa
   const test = await wireFixture()
   try {
     const assistant = test.assistant('')
-    const partial = (event: object) =>
+    const partial = (event: SDKPartialAssistantMessage['event']) =>
       test.send({
         type: 'stream_event',
         uuid: randomUUID(),
         session_id: test.sessionId,
         parent_tool_use_id: null,
         event
-      } as SDKMessage)
+      })
     partial({ type: 'message_start', message: { ...assistant.message, content: [] } })
     partial({
       type: 'content_block_start',
@@ -327,17 +333,30 @@ it('preserves rich native blocks and retracts a result without removing the tool
             document_index: 0,
             document_title: 'doc',
             start_char_index: 0,
-            end_char_index: 5
+            end_char_index: 5,
+            file_id: null
           }
         ]
       },
       { type: 'tool_use', id: 'rich-call', name: 'Read', input: { path: '/tmp/doc' } },
-      { type: 'text', text: 'After' },
-      { type: 'redacted_thinking', data: 'opaque-reasoning' },
-      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AQID' } },
-      { type: 'document', source: { type: 'url', url: 'https://example.org/doc.pdf' } }
-    ]
-    test.send({ ...assistant, message: { ...assistant.message, content: blocks } } as SDKMessage)
+      { type: 'text', text: 'After', citations: null },
+      { type: 'redacted_thinking', data: 'opaque-reasoning' }
+    ] satisfies SDKAssistantMessage['message']['content']
+    test.send({ ...assistant, message: { ...assistant.message, content: blocks } })
+    const attachments = {
+      type: 'user',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AQID' } },
+          { type: 'document', source: { type: 'url', url: 'https://example.org/doc.pdf' } }
+        ]
+      }
+    } satisfies SDKUserMessage
+    test.send(attachments)
     const result = randomUUID()
     test.send({
       type: 'user',
@@ -352,25 +371,18 @@ it('preserves rich native blocks and retracts a result without removing the tool
     await expect
       .poll(() => test.view.snapshot.messages[0]?.parts[2])
       .toMatchObject({ state: 'output-available', toolCallId: 'rich-call', output: [{ type: 'text', text: 'Result' }] })
-    expect(test.view.snapshot.messages).toHaveLength(1)
+    expect(test.view.snapshot.messages).toHaveLength(2)
     const message = test.view.snapshot.messages[0]
     expect(message.id).toBe(assistant.uuid)
-    expect(message.parts.map((part) => part.type)).toEqual([
-      'reasoning',
-      'text',
-      'dynamic-tool',
-      'text',
-      'reasoning',
-      'file',
-      'file'
-    ])
+    expect(message.parts.map((part) => part.type)).toEqual(['reasoning', 'text', 'dynamic-tool', 'text', 'reasoning'])
     expect(message.parts[0]).toMatchObject({ providerMetadata: { anthropic: { signature: 'native-signature' } } })
     expect(message.parts[1]).toMatchObject({ providerMetadata: { anthropic: { citations: blocks[1].citations } } })
     expect(message.parts[4]).toMatchObject({
       text: '',
       providerMetadata: { anthropic: { redactedData: 'opaque-reasoning' } }
     })
-    expect(message.parts.slice(5)).toEqual([
+    expect(test.view.snapshot.messages[1]).toMatchObject({ id: attachments.uuid, role: 'user' })
+    expect(test.view.snapshot.messages[1].parts).toEqual([
       { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AQID' },
       { type: 'file', mediaType: 'application/pdf', url: 'https://example.org/doc.pdf' }
     ])
@@ -381,6 +393,67 @@ it('preserves rich native blocks and retracts a result without removing the tool
     expect(test.view.snapshot.messages[0].parts.filter((part) => part.type !== 'dynamic-tool')).toEqual(
       message.parts.filter((part) => part.type !== 'dynamic-tool')
     )
+    expect(test.failures).toEqual([])
+  } finally {
+    await test.close()
+  }
+})
+
+it('retains native-only content and advisory events in the late baseline without inventing display parts', async () => {
+  const test = await wireFixture()
+  try {
+    const assistant = assistantMessage(test.sessionId, [
+      { type: 'compaction', content: 'Native context summary', encrypted_content: 'opaque-compaction' },
+      { type: 'container_upload', file_id: 'native-file' },
+      { type: 'text', text: 'Visible answer', citations: null }
+    ])
+    const user = {
+      type: 'user',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'search_result',
+            source: 'native-source',
+            title: 'Source',
+            content: [{ type: 'text', text: 'Match' }]
+          },
+          { type: 'document', source: { type: 'content', content: [{ type: 'text', text: 'Embedded document' }] } }
+        ]
+      }
+    } satisfies SDKUserMessage
+    const progress = {
+      type: 'tool_progress',
+      tool_use_id: 'native-tool',
+      tool_name: 'Bash',
+      parent_tool_use_id: null,
+      elapsed_time_seconds: 1,
+      uuid: randomUUID(),
+      session_id: test.sessionId
+    } satisfies SDKMessage
+    for (const message of [assistant, user, progress]) test.send(message)
+    await expect
+      .poll(() => test.view.batches.flatMap((batch) => batch.native))
+      .toContainEqual({
+        source: 'live',
+        message: progress
+      })
+    const late: ClaudeObservation[] = []
+    const subscription = confirmed(
+      await test.root.claude.observe((batch) => {
+        late.push(batch)
+      })
+    )
+    await expect.poll(() => late.length).toBe(1)
+    expect(late[0].native).toEqual(
+      expect.arrayContaining([assistant, user, progress].map((message) => ({ source: 'live', message })))
+    )
+    expect(test.view.snapshot.messages).toHaveLength(1)
+    expect(test.view.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'Visible answer', state: 'done' }])
+    await subscription.stop()
     expect(test.failures).toEqual([])
   } finally {
     await test.close()

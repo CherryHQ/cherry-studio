@@ -100,12 +100,27 @@ The adapter preserves signatures, files, citations and raw tool outputs in SDK p
 The desktop adds display metadata and persists source mappings/retractions with its checkpoint.
 `legacy` maps prior UUID/block identities to proven whole-message part positions.
 
+Live content uses SDK discriminated unions; block, stream-delta and message-event
+handling is checked exhaustively against the pinned SDK. Archive `SessionMessage.message`
+is `unknown` in the SDK: its decoder validates the consumed fields without casting
+history to a complete live message. Unknown archive blocks remain in the native
+view and cannot alter normalized tool calls merely by carrying a `tool_use_id`.
+
+Streamed signatures, redacted-thinking ciphertext, citations and MCP source metadata
+survive in late-observer snapshots before a complete message arrives. Tool results
+commit with their transcript UUID for retraction; both explicit `is_error` and native
+provider error blocks produce failed tool state with their raw output retained.
+Compaction blocks, container uploads, search-result context and embedded document
+sources stay native-only, as do advisory events without a common runtime meaning.
+The host receives these through `claude.observe`; the adapter does not invent display
+parts or completion signals from them.
+
 ## Verification and desktop migration
 
 ```sh
 pnpm --filter @cherrystudio/agent-runtime-claude-code build
 pnpm --filter @cherrystudio/agent-runtime-claude-code typecheck
-pnpm test:agent-runtime-claude-code packages/agent-runtime-claude-code/tests/runtime.test.ts packages/agent-runtime-claude-code/tests/observation.test.ts
+pnpm test:agent-runtime-claude-code packages/agent-runtime-claude-code/tests/runtime.test.ts packages/agent-runtime-claude-code/tests/observation.test.ts packages/agent-runtime-claude-code/tests/projection.test.ts
 ```
 
 Runtime tests call the public package using the real SDK, CLI, native Agent and
