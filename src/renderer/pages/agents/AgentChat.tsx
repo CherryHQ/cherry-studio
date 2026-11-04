@@ -669,6 +669,7 @@ const AgentChatSessionCenter = ({
       hasOlder={runtime.hasOlder}
       loadOlder={runtime.loadOlder}
       selectAllPagination={runtime.selectAllPagination}
+      onBindRuntime={runtime.bindMessageListRuntime}
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
       getMessageSiblings={runtime.getMessageSiblings}

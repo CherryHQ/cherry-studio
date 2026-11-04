@@ -21,8 +21,10 @@ vi.mock('../components/AgentSessionMessages', () => ({
 import AgentChatMain from '../AgentChatMain'
 
 it('opens a fork source in place with a way back to the fork', async () => {
+  const onBindRuntime = vi.fn()
   render(
     <AgentChatMain
+      onBindRuntime={onBindRuntime}
       placement="docked"
       sessionMessagesEnabled
       agentId="agent-1"
@@ -41,6 +43,7 @@ it('opens a fork source in place with a way back to the fork', async () => {
     />
   )
 
+  expect(mocks.sessionMessagesProps!.onBindRuntime).toBe(onBindRuntime)
   await mocks.sessionMessagesProps!.navigateToForkSource!({ sourceSessionId: 'parent', returnSessionId: 'child' })
   expect(mocks.navigate).toHaveBeenCalledWith({
     to: '/app/agents',

@@ -42,6 +42,7 @@ type Props = {
   loadOlder?: () => void
   /** Load-all handle for the multi-select "select all" action. */
   selectAllPagination?: MessageListSelectAllPagination
+  onBindRuntime?: MessageListActions['bindRuntime']
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
@@ -72,6 +73,7 @@ const AgentSessionMessages = ({
   hasOlder = false,
   loadOlder,
   selectAllPagination,
+  onBindRuntime,
   onOpenCitationsPanel,
   isAgentToolFlowActive,
   openAgentToolFlow,
@@ -158,6 +160,7 @@ const AgentSessionMessages = ({
     hasOlder,
     loadOlder,
     selectAllPagination,
+    onBindRuntime,
     openCitationsPanel: onOpenCitationsPanel,
     isAgentToolFlowActive,
     openAgentToolFlow,

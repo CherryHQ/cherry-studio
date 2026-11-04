@@ -946,10 +946,18 @@ describe('useAgentMessageListProviderValue', () => {
     ] as CherryUIMessage[]
     let visibleValue: MessageListProviderValue | undefined
     let captureValue: MessageListProviderValue | undefined
+    let bound: MessageListRuntime | undefined
+    const onBindRuntime = (runtime: MessageListRuntime) => {
+      bound = runtime
+      return () => {
+        if (bound === runtime) bound = undefined
+      }
+    }
 
     const VisibleProbe = () => {
       visibleValue = useAgentMessageListProviderValue({
         topic,
+        onBindRuntime,
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
@@ -962,6 +970,7 @@ describe('useAgentMessageListProviderValue', () => {
     const CaptureProbe = () => {
       captureValue = useAgentMessageListProviderValue({
         topic,
+        onBindRuntime,
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
@@ -981,8 +990,13 @@ describe('useAgentMessageListProviderValue', () => {
       scrollToBottom: vi.fn()
     }
     const unbindVisible = visibleValue?.actions.bindRuntime?.(visibleRuntime)
+    expect(bound).toBe(visibleRuntime)
+    expect(bound?.scrollToBottom).toBe(visibleRuntime.scrollToBottom)
     const request = requestAgentSessionImageAction('copy', { id: 'session-a', name: 'Session A' })
-    const unbindVisibleRebound = visibleValue?.actions.bindRuntime?.(visibleRuntime)
+    const replacementRuntime = { ...visibleRuntime, scrollToBottom: vi.fn() }
+    const unbindVisibleRebound = visibleValue?.actions.bindRuntime?.(replacementRuntime)
+    unbindVisible?.()
+    expect(bound).toBe(replacementRuntime)
 
     expect(visibleRuntime.copyTopicImage).not.toHaveBeenCalled()
 
@@ -1000,6 +1014,7 @@ describe('useAgentMessageListProviderValue', () => {
       scrollToBottom: vi.fn()
     }
     const unbindCapture = captureValue?.actions.bindRuntime?.(captureRuntime)
+    expect(bound).toBe(replacementRuntime)
 
     await expect(request.promise).resolves.toBeUndefined()
     expect(captureRuntime.copyTopicImage).toHaveBeenCalledTimes(1)
@@ -1008,6 +1023,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     unbindCapture?.()
     unbindVisibleRebound?.()
+    expect(bound).toBeUndefined()
     unbindVisible?.()
   })
 })

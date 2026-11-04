@@ -32,6 +32,7 @@ interface AgentChatMainProps {
   hasOlder?: boolean
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
+  onBindRuntime?: MessageListActions['bindRuntime']
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   getMessageSiblings?: MessageListState['getMessageSiblings']
@@ -57,6 +58,7 @@ export default function AgentChatMain({
   hasOlder,
   loadOlder,
   selectAllPagination,
+  onBindRuntime,
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
@@ -93,6 +95,7 @@ export default function AgentChatMain({
           hasOlder={hasOlder}
           loadOlder={loadOlder}
           selectAllPagination={selectAllPagination}
+          onBindRuntime={onBindRuntime}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
           getMessageSiblings={getMessageSiblings}
