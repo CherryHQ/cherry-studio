@@ -11,6 +11,8 @@ export const DEFAULT_REMOTE_FETCH_TIMEOUT_MS = 30000
 export const DEFAULT_REMOTE_FETCH_MAX_BYTES = 1024 * 1024
 
 export type FetchRemoteTextOptions = {
+  readonly method?: 'GET' | 'HEAD'
+  readonly allowPrivateNetwork?: boolean
   readonly headers?: HeadersInit
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
@@ -63,7 +65,7 @@ function getRequestOptions(
     hostname: getRequestHostname(parsedUrl.hostname),
     port: parsedUrl.port || (isHttps ? 443 : 80),
     path: `${parsedUrl.pathname}${parsedUrl.search}`,
-    method: 'GET',
+    method: options.method ?? 'GET',
     headers: buildRequestHeaders(options.headers, parsedUrl.host),
     lookup: createLookup(target),
     agent: false,
@@ -106,7 +108,8 @@ async function fetchRemoteResponse(
 ): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
   const target = await resolveRemoteFetchUrl(url, {
     signal,
-    allowPrivateNetwork: application.get('PreferenceService').get('app.fetch.allow_private_network')
+    allowPrivateNetwork:
+      options.allowPrivateNetwork ?? application.get('PreferenceService').get('app.fetch.allow_private_network')
   })
   const requestOptions = getRequestOptions(target, options, signal)
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
@@ -167,7 +170,7 @@ async function fetchRemoteResponse(
       }
 
       const contentLength = parseContentLength(response.headers)
-      if (contentLength !== undefined && contentLength > maxBytes) {
+      if (options.method !== 'HEAD' && contentLength !== undefined && contentLength > maxBytes) {
         response.resume()
         response.destroy()
         fail(new Error(`Remote response too large: ${contentLength} bytes exceeds ${maxBytes} bytes`))

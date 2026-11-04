@@ -10,21 +10,7 @@ import { McpServerTypeSchema } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('McpServer:McpManager')
 
 const INSTALL_TOOL_DESCRIPTION =
-  'Register a new MCP server from its connection config and enable it for the current agent. ' +
-  'Call this only when the user explicitly asks to install an MCP server. ' +
-  'This is the one-tool equivalent of manually adding a server in Settings → MCP: you supply the ' +
-  'launch config (command/args/env for stdio, baseUrl/headers for remote) as plain JSON, Cherry ' +
-  'writes it to the server registry and binds it to the current agent. By default the server is ' +
-  'registered but NOT activated; pass activate=true only when the user explicitly asks to enable ' +
-  'it right away, so its tools go live without a restart (otherwise the user enables it later in ' +
-  'Settings → MCP). For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required. ' +
-  'SECURITY: for stdio servers `command` runs an arbitrary local process with the given `env` ' +
-  '(which may carry API keys and other secrets) — never invent a config yourself; only install a ' +
-  'config the user provided or explicitly confirmed. When the user names a server but not its ' +
-  'config, resolve it instead of guessing: if the mcp-auto-install server is enabled, call its ' +
-  '`mai_install` with `dryRun: true` and pass the returned command/args here. If that result ' +
-  'lists `requiredEnvVars`, collect each value from the user before calling this tool — the ' +
-  'server cannot start without them.'
+  'Install a user-requested MCP server from their config. Never invent one; stdio commands run with env secrets.'
 
 const fields = CreateMcpServerSchema.shape
 

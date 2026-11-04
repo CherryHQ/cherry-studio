@@ -3,6 +3,8 @@ import { APICallError, type ModelMessage, tool, type UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import type * as AiCore from '@cherrystudio/ai-core'
+
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 import type { AgentLoopParams } from '../types'
@@ -16,7 +18,8 @@ const TEST_USAGE = {
   outputTokenDetails: {}
 }
 
-vi.mock('@cherrystudio/ai-core', () => ({
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof AiCore>()),
   createAgent: (...args: unknown[]) => mockCreateAgent(...args)
 }))
 

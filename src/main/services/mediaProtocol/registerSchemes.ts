@@ -13,6 +13,7 @@ export const CHERRY_MEDIA_SCHEME_DECLARATION = {
     standard: true,
     secure: true,
     supportFetchAPI: true,
-    corsEnabled: true
+    corsEnabled: true,
+    stream: true
   }
 } as const

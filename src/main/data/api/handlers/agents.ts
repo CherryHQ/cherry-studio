@@ -43,7 +43,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agent-tasks/:taskId': {
     GET: async ({ params }) => {
-      const task = taskService.getTaskById(params.taskId)
+      const task = taskService.getTaskDetail(params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     }
@@ -53,9 +53,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { ids, inTrash, search, page, limit } = parsed.data
+      const { ids, builtinRole, inTrash, search, page, limit } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = agentService.listAgents({ ids, limit, offset, search, inTrash })
+      const { agents, total } = agentService.listAgents({ ids, builtinRole, limit, offset, search, inTrash })
       return { items: agents, total, page }
     }
   },

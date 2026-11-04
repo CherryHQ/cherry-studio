@@ -74,30 +74,6 @@ function dropSessionMessageFromPages(
   return mutated ? nextPages : pages
 }
 
-function reservedUIMessageToAgentSessionMessage(
-  sessionId: string,
-  message: CherryUIMessage
-): AgentSessionMessageEntity {
-  const metadata = message.metadata ?? {}
-  const createdAt = metadata.createdAt ?? new Date().toISOString()
-  return {
-    id: message.id,
-    sessionId,
-    role: message.role,
-    data: { parts: message.parts ?? [] },
-    searchableText: '',
-    status:
-      metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
-    modelId: metadata.modelId ?? null,
-    messageSnapshot: metadata.messageSnapshot ?? null,
-    stats: metadata.stats ?? null,
-    runtimeResumeToken: null,
-    delivery: metadata.delivery ?? null,
-    createdAt,
-    updatedAt: createdAt
-  }
-}
-
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
@@ -134,6 +110,14 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: ({ args }) => [`/agent-sessions/${args!.params.sessionId}/messages`]
   })
+  const { trigger: selectBranchTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/branch')
+  const setActiveBranch = useCallback(
+    async (messageId: string) => {
+      await selectBranchTrigger({ params: { sessionId }, body: { messageId } })
+      await mutate()
+    },
+    [mutate, selectBranchTrigger, sessionId]
+  )
   const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
     query: { deferToolOutputs: true },
@@ -157,6 +141,13 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // The display projection below includes live flow parts; settlement must read the database rows.
   const persistedPartsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(
     () => Object.fromEntries(rows.map((row) => [row.id, row.data.parts ?? []])),
+    [rows]
+  )
+  const getMessageSiblings = useCallback(
+    (messageId: string) => {
+      const ids = rows.find((row) => row.id === messageId)?.siblings
+      return ids && ids.length > 1 ? { group: ids.map((id) => ({ id })), activeIndex: ids.indexOf(messageId) } : null
+    },
     [rows]
   )
   const loadedMessageIds = useMemo(() => (enabled ? rows.map((row) => row.id) : []), [enabled, rows])
@@ -265,57 +256,15 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     return projectMessages(flat)
   }, [enabled, mutate, projectMessages, projectionOwnerToken])
 
-  const seedReservedMessages = useCallback(
-    async (messages: CherryUIMessage[]): Promise<void> => {
-      const reservedRows = messages.map((message) => reservedUIMessageToAgentSessionMessage(sessionId, message))
-      if (reservedRows.length === 0) return
-
-      await mutate(
-        (pages?: CursorPaginationResponse<AgentSessionMessageEntity>[]) => {
-          const currentPages = pages?.length ? pages : [{ items: [], nextCursor: undefined }]
-          const existingIds = new Set(currentPages.flatMap((page) => page.items.map((item) => item.id)))
-          const newRows = reservedRows.filter((row) => !existingIds.has(row.id))
-          if (newRows.length === 0) return pages
-
-          const newestFirst = newRows
-            .slice()
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
-          const nextPages = currentPages.slice()
-          const firstPage = nextPages[0]
-          nextPages[0] = {
-            ...firstPage,
-            items: [...newestFirst, ...firstPage.items]
-          }
-          return nextPages
-        },
-        { revalidate: false }
-      )
-    },
-    [mutate, sessionId]
-  )
-
-  const replaceMessageTail = useCallback(
-    async (messageId: string, replacements: CherryUIMessage[]): Promise<void> => {
-      const replacementRows = replacements.map((message) => reservedUIMessageToAgentSessionMessage(sessionId, message))
-      await writeSessionMessagesCache((pages) => {
-        const currentPages = pages?.length ? pages : [{ items: [], nextCursor: undefined }]
-        const targetPageIndex = currentPages.findIndex((page) => page.items.some((row) => row.id === messageId))
-        const retainedPages = targetPageIndex < 0 ? currentPages : currentPages.slice(targetPageIndex)
-        const firstPage = retainedPages[0]
-        const targetIndex = firstPage.items.findIndex((row) => row.id === messageId)
-        const retainedItems = targetIndex < 0 ? firstPage.items : firstPage.items.slice(targetIndex + 1)
-        const existingIds = new Set([
-          ...retainedItems.map((row) => row.id),
-          ...retainedPages.slice(1).flatMap((page) => page.items.map((row) => row.id))
-        ])
-        const newRows = replacementRows
-          .filter((row) => !existingIds.has(row.id))
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
-        return [{ ...firstPage, items: [...newRows, ...retainedItems] }, ...retainedPages.slice(1)]
-      })
-    },
-    [sessionId, writeSessionMessagesCache]
-  )
+  // A reservation can arrive after branch selection. Only Main's selected path may enter this cache.
+  const seedReservedMessages = useCallback<(messages: CherryUIMessage[]) => Promise<void>>(async () => {
+    await mutate()
+  }, [mutate])
+  const replaceMessageTail = useCallback<
+    (messageId: string, replacements: CherryUIMessage[]) => Promise<void>
+  >(async () => {
+    await mutate()
+  }, [mutate])
 
   // Errors that predate the load-all are baseline; only a NEW error while paging
   // abandons it. A retained error would otherwise deadlock a retried select-all
@@ -382,6 +331,8 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   return {
     messages,
+    getMessageSiblings,
+    setActiveBranch,
     persistedPartsByMessageId,
     isLoading: enabled && isLoading,
     hasOlder: hasNext,

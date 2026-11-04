@@ -3,9 +3,8 @@ import { FolderCog, Server, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { Flex, MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,

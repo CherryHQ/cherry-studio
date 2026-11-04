@@ -51,7 +51,12 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
     const devPath = resolveDevUserDataPath()
-    if (DEV_PROFILE_ROOT) fs.mkdirSync(devPath, { recursive: true })
+    if (DEV_PROFILE_ROOT) {
+      const tempPath = path.join(DEV_PROFILE_ROOT, 'home', 'temp')
+      fs.mkdirSync(devPath, { recursive: true })
+      fs.mkdirSync(tempPath, { recursive: true })
+      app.setPath('temp', tempPath)
+    }
     app.setPath('userData', devPath)
     logger.info(DEV_PROFILE_ROOT ? 'userData set from dev profile root' : 'userData set with dev suffix', { devPath })
     return

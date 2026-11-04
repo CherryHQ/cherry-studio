@@ -1,5 +1,8 @@
 import * as z from 'zod'
 
+import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
+import type { RemoteProviderId, WebSearchCapability as SharedWebSearchCapability } from '@cherrystudio/web-search'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -34,6 +37,9 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+/** Side of a wide Agent file pane that holds the file tree. */
+export type AgentFilePaneTreePosition = 'left' | 'right'
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
@@ -56,6 +62,18 @@ export enum SelectionFilterMode {
   Blacklist = 'blacklist'
 }
 
+export const SELECTION_ACTION_RUNNERS = ['default', 'assistant', 'agent'] as const
+export type SelectionActionRunner = (typeof SELECTION_ACTION_RUNNERS)[number]
+export const SELECTION_ACTION_RUNNER = {
+  DEFAULT: 'default',
+  ASSISTANT: 'assistant',
+  AGENT: 'agent'
+} as const satisfies Record<string, SelectionActionRunner>
+
+/**
+ * Stored shape of a selection action. Readers narrow it through `SelectionActionSchema`
+ * (`@shared/types/selection`), which fixes the fields each built-in and custom action carries.
+ */
 export type SelectionActionItem = {
   id: string
   name: string
@@ -63,8 +81,19 @@ export type SelectionActionItem = {
   isBuiltIn: boolean
   icon?: string
   prompt?: string
+  /** What runs a custom action. `assistantId` and `agentId` keep each runner's last choice. */
+  runner?: SelectionActionRunner
   assistantId?: string
+  /** `ask-agent` without one uses Cherry Assistant (the agent whose `builtin_role` is `assistant`). */
+  agentId?: string
+  /** Missing means the system workspace. */
+  agentWorkspace?: AgentSessionWorkspaceSource
   selectedText?: string
+  /**
+   * Platform identifier of the selection's source application: the executable name on Windows,
+   * the bundle ID on macOS, `WM_CLASS` on X11, and empty on Wayland. Runtime-only like `selectedText`.
+   */
+  programName?: string
   searchEngine?: string
 }
 
@@ -83,10 +112,12 @@ export type LanguageVarious =
   | 'en-US'
   | 'es-ES'
   | 'fr-FR'
+  | 'it-IT'
   | 'ja-JP'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'th-TH'
   | 'tr-TR'
   | 'vi-VN'
 
@@ -261,14 +292,19 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'firecrawl',
   'crawl4ai',
   'parallel',
-  'serply'
-] as const
+  'serply',
+  'yuanbao',
+  'deepseek',
+  'desearch',
+  'searchapi',
+  'duckduckgo'
+] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
 export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
 
-export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
+export type WebSearchCapability = SharedWebSearchCapability
 
 export type WebSearchProviderCapabilityOverride = {
   apiHost?: string
@@ -447,4 +483,9 @@ export type CustomToolDefinition = {
   name: string
   tool: string
   requestedVersion?: string
+}
+
+export type AdvertisedRemoteEndpoint = DirectEndpoint & {
+  /** Original validated input for display; transport endpoints omit this field. */
+  inputUrl?: string
 }

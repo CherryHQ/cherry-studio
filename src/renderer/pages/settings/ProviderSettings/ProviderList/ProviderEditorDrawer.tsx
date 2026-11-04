@@ -403,6 +403,7 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
+        ...(source.settings?.billing ? { billing: structuredClone(source.settings.billing) } : {}),
         ...logoField
       }
       if (duplicateNeedsBaseUrl(source.authType)) {

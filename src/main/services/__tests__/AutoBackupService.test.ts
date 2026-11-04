@@ -6,12 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type * as LegacyFile from '@main/utils/legacyFile'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 
 import { AutoBackupService } from '../AutoBackupService'
-import { BackupOperationBusyError, legacyBackupManager } from '../LegacyBackupManager'
+import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from '../LegacyBackupManager'
 
 const mocks = vi.hoisted(() => ({
+  BackupActiveWritersError: class extends Error {},
   BackupOperationBusyError: class extends Error {},
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn((key: string) => (key === 'app.userdata' ? '/mock/userData' : '/mock/install')),
@@ -61,6 +61,7 @@ vi.mock('../nutstore/NutstoreService', () => ({ decryptToken: mocks.decryptToken
 
 vi.mock('../LegacyBackupManager', () => {
   return {
+    BackupActiveWritersError: mocks.BackupActiveWritersError,
     BackupOperationBusyError: mocks.BackupOperationBusyError,
     legacyBackupManager: {
       backupToLocalDir: mocks.backupToLocalDir,
@@ -303,6 +304,21 @@ describe('AutoBackupService', () => {
     expect(legacyBackupManager.backupToLocalDir).not.toHaveBeenCalled()
   })
 
+  it.each([
+    '/mock/userData',
+    '/mock/userData/..backup',
+    ...(process.platform === 'darwin' || process.platform === 'win32' ? ['/MOCK/USERDATA/backups'] : [])
+  ])('rejects %s as a local backup directory', async (directory) => {
+    setPreference('data.backup.webdav.auto_sync', false)
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    setPreference('data.backup.local.dir', directory)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(legacyBackupManager.backupToLocalDir).not.toHaveBeenCalled()
+  })
+
   it('warns without uploading again when old backup cleanup fails', async () => {
     setPreference('data.backup.webdav.auto_sync', false)
     setPreference('data.backup.s3.auto_sync', false)
@@ -367,13 +383,92 @@ describe('AutoBackupService', () => {
     expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
   })
 
-  it('emits one failure after the retry budget is exhausted', async () => {
+  it('postpones automatic backup while data writers are active without exhausting retries', async () => {
     setPreference('data.backup.s3.auto_sync', false)
     setPreference('data.backup.local.auto_sync', false)
     setPreference('data.backup.nutstore.auto_sync', false)
-    mocks.backupToWebdav.mockRejectedValue(
-      new Error(`${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
+    mocks.backupToWebdav.mockRejectedValue(new BackupActiveWritersError())
+
+    await vi.advanceTimersByTimeAsync(60_000 + 30_000 + 30_000 + 30_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
+    expect(mocks.broadcastToType).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'backup.auto_sync_state_changed',
+      expect.objectContaining({ type: 'webdav', status: 'failed' })
     )
+    expect(service.getStateSnapshot().pendingNotifications).toEqual([])
+  })
+
+  it('preserves ordinary retry count when alternating with active writer blocks', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    const backupError = new Error('WebDAV automatic backup failed')
+    mocks.backupToWebdav
+      .mockRejectedValueOnce(backupError)
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(backupError)
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(backupError)
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(backupError)
+
+    await vi.advanceTimersByTimeAsync(211_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(7)
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'backup.auto_sync_state_changed',
+      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'WebDAV automatic backup failed' })
+    )
+  })
+
+  it('starts automatic backup after active data writers clear', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    mocks.backupToWebdav
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockResolvedValueOnce({ result: true, cleanupError: null })
+
+    await vi.advanceTimersByTimeAsync(60_000 + 30_000 + 30_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(3)
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'backup.auto_sync_state_changed',
+      expect.objectContaining({ type: 'webdav', status: 'succeeded' })
+    )
+    expect(mocks.broadcastToType).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'backup.auto_sync_state_changed',
+      expect.objectContaining({ type: 'webdav', status: 'failed' })
+    )
+  })
+
+  it('reports a size rejection once without retrying the same WebDAV upload', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    mocks.backupToWebdav.mockRejectedValue(new Error('BACKUP_WEBDAV_TOO_LARGE: HTTP 413'))
+
+    await vi.advanceTimersByTimeAsync(60_000 + 59_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(1)
+    expect(service.getStateSnapshot().pendingNotifications).toEqual([
+      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'BACKUP_WEBDAV_TOO_LARGE: HTTP 413' })
+    ])
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
+  })
+
+  it('emits one failure after the retry budget is exhausted for non-transient errors', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    mocks.backupToWebdav.mockRejectedValue(new Error('WebDAV automatic backup failed'))
 
     await vi.advanceTimersByTimeAsync(60_000 + 7_000 + 17_000 + 37_000)
 
@@ -381,7 +476,7 @@ describe('AutoBackupService', () => {
     expect(mocks.broadcastToType).toHaveBeenCalledWith(
       expect.anything(),
       'backup.auto_sync_state_changed',
-      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: expect.stringContaining('BACKUP') })
+      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'WebDAV automatic backup failed' })
     )
 
     const failure = service.getStateSnapshot().pendingNotifications[0]

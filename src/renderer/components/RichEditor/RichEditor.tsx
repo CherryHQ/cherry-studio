@@ -1,4 +1,5 @@
 import DragHandle from '@tiptap/extension-drag-handle-react'
+import { TextSelection } from '@tiptap/pm/state'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, GripVertical, Plus, Trash2 } from 'lucide-react'
@@ -30,6 +31,7 @@ import { EditorContent as StyledEditorContent, RichEditorWrapper } from './style
 import { ToC } from './TableOfContent'
 import { Toolbar } from './Toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
+import { RICH_EDITOR_USER_COMMAND_META } from './userCommandIntent'
 import { useRichEditor } from './useRichEditor'
 
 const logger = loggerService.withContext('RichEditor')
@@ -175,7 +177,7 @@ const RichEditor = ({
   enableImageInsertion = true,
   disabledCommands
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
-}: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
+}: RichEditorProps & { ref?: React.Ref<RichEditorRef> }) => {
   // Use the rich editor hook for complete editor management
   const { editor, markdown, formattingState, tableOfContentsItems, linkEditor, setMarkdown, clear } = useRichEditor({
     initialContent,
@@ -436,57 +438,59 @@ const RichEditor = ({
     (command: FormattingCommand) => {
       if (!editor) return
 
+      const userChain = () => editor.chain().focus().setMeta(RICH_EDITOR_USER_COMMAND_META, true)
+
       switch (command) {
         case 'bold':
-          editor.chain().focus().toggleBold().run()
+          userChain().toggleBold().run()
           break
         case 'italic':
-          editor.chain().focus().toggleItalic().run()
+          userChain().toggleItalic().run()
           break
         case 'underline':
-          editor.chain().focus().toggleUnderline().run()
+          userChain().toggleUnderline().run()
           break
         case 'strike':
-          editor.chain().focus().toggleStrike().run()
+          userChain().toggleStrike().run()
           break
         case 'code':
-          editor.chain().focus().toggleCode().run()
+          userChain().toggleCode().run()
           break
         case 'clearMarks':
-          editor.chain().focus().unsetAllMarks().run()
+          userChain().unsetAllMarks().run()
           break
         case 'paragraph':
-          editor.chain().focus().setParagraph().run()
+          userChain().setParagraph().run()
           break
         case 'heading1':
-          editor.chain().focus().toggleHeading({ level: 1 }).run()
+          userChain().toggleHeading({ level: 1 }).run()
           break
         case 'heading2':
-          editor.chain().focus().toggleHeading({ level: 2 }).run()
+          userChain().toggleHeading({ level: 2 }).run()
           break
         case 'heading3':
-          editor.chain().focus().toggleHeading({ level: 3 }).run()
+          userChain().toggleHeading({ level: 3 }).run()
           break
         case 'heading4':
-          editor.chain().focus().toggleHeading({ level: 4 }).run()
+          userChain().toggleHeading({ level: 4 }).run()
           break
         case 'heading5':
-          editor.chain().focus().toggleHeading({ level: 5 }).run()
+          userChain().toggleHeading({ level: 5 }).run()
           break
         case 'heading6':
-          editor.chain().focus().toggleHeading({ level: 6 }).run()
+          userChain().toggleHeading({ level: 6 }).run()
           break
         case 'bulletList':
-          editor.chain().focus().toggleBulletList().run()
+          userChain().toggleBulletList().run()
           break
         case 'orderedList':
-          editor.chain().focus().toggleOrderedList().run()
+          userChain().toggleOrderedList().run()
           break
         case 'codeBlock':
-          editor.chain().focus().toggleCodeBlock().run()
+          userChain().toggleCodeBlock().run()
           break
         case 'blockquote':
-          editor.chain().focus().toggleBlockquote().run()
+          userChain().toggleBlockquote().run()
           break
         case 'link': {
           const { selection } = editor.state
@@ -494,7 +498,7 @@ const RichEditor = ({
 
           // 如果当前已经是链接，则取消链接
           if (editor.isActive('enhancedLink')) {
-            editor.chain().focus().unsetEnhancedLink().run()
+            userChain().unsetEnhancedLink().run()
           } else {
             // 获取当前段落的文本内容
             if (from !== to) {
@@ -503,7 +507,7 @@ const RichEditor = ({
                 const url = selectedText.trim().startsWith('http')
                   ? selectedText.trim()
                   : `https://${selectedText.trim()}`
-                editor.chain().focus().setTextSelection({ from, to }).setEnhancedLink({ href: url }).run()
+                userChain().setTextSelection({ from, to }).setEnhancedLink({ href: url }).run()
               }
             } else {
               const paragraphText = $from.parent.textContent
@@ -518,13 +522,13 @@ const RichEditor = ({
                   const { $from } = selection
                   const start = $from.start()
                   const end = $from.end()
-                  editor.chain().focus().setTextSelection({ from: start, to: end }).setEnhancedLink({ href: url }).run()
+                  userChain().setTextSelection({ from: start, to: end }).setEnhancedLink({ href: url }).run()
                 } catch (error) {
                   logger.warn('Failed to set enhanced link:', error as Error)
-                  editor.chain().focus().toggleEnhancedLink({ href: '' }).run()
+                  userChain().toggleEnhancedLink({ href: '' }).run()
                 }
               } else {
-                editor.chain().focus().toggleEnhancedLink({ href: '' }).run()
+                userChain().toggleEnhancedLink({ href: '' }).run()
               }
             }
           }
@@ -562,7 +566,32 @@ const RichEditor = ({
     ref,
     () => ({
       getContent: () => editor?.getText() || '',
-      getMarkdown: () => markdown,
+      getMarkdown: () => editor?.getMarkdown() ?? markdown,
+      getSelection: () => {
+        if (!editor) return null
+        const { from, to } = editor.state.selection
+        return { from, to, text: editor.state.doc.textBetween(from, to, '\n') }
+      },
+      replaceRange: ({ from, to }, text: string) => {
+        if (
+          !editor ||
+          editor.isDestroyed ||
+          !editor.isEditable ||
+          !Number.isInteger(from) ||
+          !Number.isInteger(to) ||
+          from < 0 ||
+          to < from ||
+          to > editor.state.doc.content.size
+        ) {
+          return false
+        }
+
+        editor.view.focus()
+        const tr = editor.state.tr.insertText(text, from, to)
+        tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(to)), -1))
+        editor.view.dispatch(tr)
+        return true
+      },
       setMarkdown: (markdownContent: string) => {
         setMarkdown(markdownContent)
       },
@@ -616,6 +645,8 @@ const RichEditor = ({
     }),
     [editor, markdown, setMarkdown, clear]
   )
+
+  if (!editor) return null
 
   return (
     <RichEditorWrapper

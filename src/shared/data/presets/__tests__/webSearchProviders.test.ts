@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { WEB_SEARCH_PROVIDER_CATALOG } from '@cherrystudio/web-search/catalog'
+
 import { WEB_SEARCH_PROVIDER_IDS } from '../../preference/preferenceTypes'
 import {
   PRESETS_WEB_SEARCH_PROVIDERS,
@@ -33,6 +35,14 @@ describe('web search provider schemas', () => {
     expect(result.success).toBe(false)
   })
 
+  it('keeps Exa MCP fetching disabled on Desktop even though the shared protocol supports it', () => {
+    expect(WEB_SEARCH_PROVIDER_CATALOG['exa-mcp'].capabilities.some((item) => item.capability === 'fetchUrls')).toBe(
+      true
+    )
+    const exaMcp = PRESETS_WEB_SEARCH_PROVIDERS.find((provider) => provider.id === 'exa-mcp')
+    expect(exaMcp?.capabilities.map((item) => item.feature)).toEqual(['searchKeywords'])
+  })
+
   it('models Jina as one provider with keyword search and URL fetch capabilities', () => {
     expect(WEB_SEARCH_PROVIDER_IDS).toContain('jina')
     expect(WEB_SEARCH_PROVIDER_IDS).not.toContain('jina-reader')
@@ -61,11 +71,11 @@ describe('web search provider schemas', () => {
     })
   })
 
-  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
+  it('defaults Crawl4AI to the hosted Cloud host while keeping anonymous self-hosted fetching available', () => {
     const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
 
     expect(crawl4ai?.capabilities).toEqual([
-      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'https://api.crawl4ai.com' }
     ])
     expect(
       WebSearchProviderOverridesSchema.safeParse({
@@ -102,6 +112,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Desearch as an API-key-authenticated keyword search provider', () => {
+    const desearch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'desearch')
+
+    expect(desearch).toBeDefined()
+    expect(desearch!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.desearch.ai'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
@@ -120,6 +144,15 @@ describe('web search provider schemas', () => {
     expect(searxng!.capabilities.find((capability) => capability.feature === 'searchKeywords')?.apiHost).toBe(
       'http://localhost:8080'
     )
+  })
+
+  it('models Duckduckgo as a hostless keyless keyword search provider', () => {
+    const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
+
+    expect(duckduckgo).toBeDefined()
+    expect(duckduckgo!.capabilities).toEqual([
+      { feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }
+    ])
   })
 
   it('accepts valid provider overrides', () => {
@@ -167,4 +200,21 @@ describe('web search provider schemas', () => {
     expect(idResult.success).toBe(false)
     expect(overridesResult.success).toBe(false)
   })
+})
+
+it('accepts saved Yuanbao credentials and exposes only keyword search', () => {
+  expect(
+    WebSearchProviderOverridesSchema.safeParse({
+      yuanbao: { apiKeys: ['key'], capabilities: { searchKeywords: { apiHost: 'https://proxy.example' } } }
+    }).success
+  ).toBe(true)
+  const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((item) => item.id === 'yuanbao')
+  expect(preset?.capabilities).toEqual([
+    {
+      feature: 'searchKeywords',
+      requiresApiHost: true,
+      requiresApiKey: true,
+      apiHost: 'https://api.wsa.cloud.tencent.com'
+    }
+  ])
 })

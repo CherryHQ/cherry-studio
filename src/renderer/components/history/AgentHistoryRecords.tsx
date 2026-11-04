@@ -1,4 +1,4 @@
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon } from '@cherrystudio/ui'
@@ -12,6 +12,7 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import {
   restoreRecycleBinItem,
@@ -23,6 +24,7 @@ import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
@@ -56,7 +58,7 @@ const AgentHistoryRecords = ({
   toolbarLeading
 }: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
-  const [groupNow] = useState(() => new Date())
+  const groupNow = useCurrentDayStart()
   const conversationNav = useConversationNavigation('agents')
 
   const {
@@ -263,7 +265,10 @@ const AgentHistoryRecords = ({
   const matchesSearch = useCallback(
     (session: SessionListItem, keywords: string) => {
       const agent = session.agentId ? agentById.get(session.agentId) : undefined
-      return [session.name, session.description, agent?.name].some((value) => value?.toLowerCase().includes(keywords))
+      return (
+        [session.name, agent?.name].some((value) => value && matchesSearchText(value, keywords)) ||
+        Boolean(session.description?.toLowerCase().includes(keywords))
+      )
     },
     [agentById]
   )
