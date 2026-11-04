@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "หยุดแล้ว",
   "apiGateway.title": "เกตเวย์ API",
   "assistants.abbr": "ผู้ช่วย",
+  "assistants.archive.description": "การเก็บถาวรสามารถย้อนกลับได้ คุณสามารถกู้คืนผู้ช่วยได้จาก การตั้งค่า → ที่เก็บถาวร",
   "assistants.clear.menu_title": "ลบหัวข้อ",
   "assistants.delete.content": "การลบผู้ช่วยจะลบการสนทนาและไฟล์ทั้งหมดภายใต้ผู้ช่วย แน่ใจหรือไม่ว่าต้องการลบ?",
   "assistants.delete.title": "ลบผู้ช่วย",

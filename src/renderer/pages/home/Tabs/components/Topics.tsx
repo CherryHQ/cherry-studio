@@ -49,6 +49,7 @@ import {
 } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useConversationExportMenuOptions } from '@renderer/hooks/chat/useConversationExportMenuOptions'
@@ -123,6 +124,7 @@ import {
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
 import type { AddNewTopicPayload } from '../../types'
 import {
+  type AssistantGroupAction,
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
   resolveAssistantGroupActions
@@ -189,6 +191,28 @@ function getAssistantGroupIdFromTopicSectionId(sectionId: string) {
   return groupId && groupId !== 'ungrouped' ? groupId : null
 }
 
+async function runAssistantGroupAction(
+  action: AssistantGroupAction,
+  context: AssistantGroupActionContext
+): Promise<void> {
+  if (!action.availability.enabled) return
+  const confirm = action.confirm
+  if (!confirm) {
+    await executeAssistantGroupAction(action, context)
+    return
+  }
+  await ConfirmActionPopup.show({
+    title: confirm.title,
+    content: confirm.description ?? confirm.content,
+    okText: confirm.confirmText,
+    cancelText: confirm.cancelText,
+    danger: confirm.destructive,
+    action: async () => {
+      await executeAssistantGroupAction(action, context)
+    }
+  })
+}
+
 function AssistantGroupMoreMenu({
   assistantId,
   assistantIconType,
@@ -199,6 +223,7 @@ function AssistantGroupMoreMenu({
   pinned,
   sidebarPinned,
   onDeleteAssistant,
+  onPermanentlyDeleteAssistant,
   onDeleteAllTopics,
   onEdit,
   onSetAssistantIconType,
@@ -215,6 +240,7 @@ function AssistantGroupMoreMenu({
   pinned: boolean
   sidebarPinned: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
+  onPermanentlyDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
@@ -231,6 +257,7 @@ function AssistantGroupMoreMenu({
     disabled,
     isGroupGrouping,
     onDeleteAssistant,
+    onPermanentlyDeleteAssistant,
     onDeleteAllTopics,
     onEdit,
     onSetAssistantIconType,
@@ -243,7 +270,7 @@ function AssistantGroupMoreMenu({
   }
   const actions = resolveAssistantGroupActions(actionContext)
   const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
-    void executeAssistantGroupAction(action, actionContext)
+    void runAssistantGroupAction(action, actionContext)
   })
 
   return (
@@ -1024,6 +1051,61 @@ export function Topics({
     ]
   )
 
+  const handlePermanentlyDeleteAssistant = useCallback(
+    async (assistantId: string): Promise<void> => {
+      if (deletingAssistantId) return
+      setDeletingAssistantId(assistantId)
+      const currentActiveTopicId = activeTopicIdRef.current
+      try {
+        let result
+        try {
+          result = await deleteAssistant(assistantId, { deleteTopics: true, permanent: true })
+        } catch (err) {
+          if (!isTrashTargetNotFoundError(err)) throw err
+          await refreshAssistantResources()
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+        if (!result.deleted) {
+          await refreshAssistantResources()
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
+        const deletedTopicIds = result.deletedTopicIds ?? []
+        if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
+        if (currentActiveTopicId && deletedTopicIds.includes(currentActiveTopicId)) {
+          try {
+            await onActiveAssistantDeleted?.(assistantId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Assistant after permanent deletion from topic group', {
+              assistantId,
+              err
+            })
+          }
+        }
+        await refreshAssistantResources()
+      } catch (err) {
+        logger.error('Failed to permanently delete assistant from topic group', { assistantId, err })
+        if (isTrashTopicBusyError(err)) {
+          toast.info(t('recycle_bin.move.blocked_generation'))
+          return
+        }
+        throw err
+      } finally {
+        setDeletingAssistantId(null)
+      }
+    },
+    [
+      closeConversationTabs,
+      deleteAssistant,
+      deletingAssistantId,
+      onActiveAssistantDeleted,
+      refreshAssistantResources,
+      t
+    ]
+  )
+
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
       let assistantGroupId: string | undefined
@@ -1054,6 +1136,7 @@ export function Topics({
                 disabled={isAssistantPinActionDisabled}
                 isGroupGrouping={isGroupGrouping}
                 onDeleteAssistant={handleDeleteAssistant}
+                onPermanentlyDeleteAssistant={handlePermanentlyDeleteAssistant}
                 pinned={assistantPinnedIdSet.has(assistantGroupId)}
                 onDeleteAllTopics={handleDeleteAssistantTopics}
                 onEdit={openAssistantEditor}
@@ -1089,6 +1172,7 @@ export function Topics({
       deletingAssistantGroupId,
       displayMode,
       handleDeleteAssistant,
+      handlePermanentlyDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       handleToggleAssistantSidebar,
@@ -1119,6 +1203,7 @@ export function Topics({
         disabled: isAssistantPinActionDisabled,
         isGroupGrouping,
         onDeleteAssistant: handleDeleteAssistant,
+        onPermanentlyDeleteAssistant: handlePermanentlyDeleteAssistant,
         onDeleteAllTopics: handleDeleteAssistantTopics,
         onEdit: openAssistantEditor,
         onSetAssistantIconType: setAssistantIconType,
@@ -1132,7 +1217,7 @@ export function Topics({
       const actions = resolveAssistantGroupActions(actionContext)
 
       return actionsToCommandMenuExtraItems(actions, (action) => {
-        void executeAssistantGroupAction(action, actionContext)
+        void runAssistantGroupAction(action, actionContext)
       })
     },
     [
@@ -1144,6 +1229,7 @@ export function Topics({
       deletingAssistantGroupId,
       displayMode,
       handleDeleteAssistant,
+      handlePermanentlyDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       handleToggleAssistantSidebar,

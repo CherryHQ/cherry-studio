@@ -5,11 +5,13 @@ import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import type * as SessionHoverPreviewModule from '@renderer/components/chat/resourceList/SessionHoverPreview'
+import type { ConfirmActionParams } from '@renderer/components/popups/ConfirmActionPopup'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
 import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
+import englishCatalog from '@renderer/i18n/locales/en-us.json'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
@@ -426,7 +428,12 @@ vi.mock('react-i18next', () => ({
         if (key === 'launchpad.unpin_from_sidebar') return 'Remove from sidebar'
         if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
         if (key === 'assistants.delete.title') return 'Delete Assistant'
-        if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
+        if (
+          key === 'assistants.delete.content' ||
+          key === 'assistants.archive.description' ||
+          key === 'settings.data.trash.permanent_delete.confirm_content'
+        )
+          return englishCatalog[key]
         if (key === 'assistants.icon.type') return 'Assistant icon'
         if (key === 'chat.add.assistant.title') return 'Add Assistant'
         if (key === 'assistants.groups.group_by') return 'Show in groups'
@@ -949,7 +956,9 @@ describe('Topics', () => {
     topicDataMocks.clearTopicMessagesTrigger.mockResolvedValue({ deletedIds: ['message-c'] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     ipcMocks.request.mockImplementation((route: string, input: unknown) => {
-      if (route === 'trash.assistant.archive') return assistantMutationMocks.deleteAssistant(input)
+      if (route === 'trash.assistant.archive' || route === 'trash.assistant.delete_permanently') {
+        return assistantMutationMocks.deleteAssistant(input)
+      }
       return Promise.resolve(undefined)
     })
     tabsContextMocks.openTab.mockClear()
@@ -3728,6 +3737,7 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
     )
+    expect(confirmActionShow).not.toHaveBeenCalled()
   })
 
   it('offers exact Topic Undo when the post-delete refresh rejects', async () => {
@@ -3812,6 +3822,290 @@ describe('Topics', () => {
     )
   })
 
+  describe('permanent assistant deletion', () => {
+    afterEach(() => {
+      confirmActionShow.mockReset().mockImplementation(async (options) => {
+        await options?.action?.()
+        return true
+      })
+      assistantMutationMocks.deleteAssistant.mockReset().mockResolvedValue({ deleted: true, deletedTopicIds: [] })
+      assistantQueryMocks.refetchAssistants.mockReset().mockResolvedValue(undefined)
+      topicDataMocks.refreshTopics.mockReset().mockResolvedValue(undefined)
+    })
+
+    function openAssistantMenu(entry: 'more' | 'context', name = 'Alpha Assistant') {
+      const header = screen.getByRole('button', { name }).closest('div') as HTMLElement
+      if (entry === 'more') {
+        fireEvent.click(within(header).getByRole('button', { name: 'More' }))
+        return within(header)
+      }
+      fireEvent.contextMenu(header, { clientX: 123, clientY: 456 })
+      const content = header
+        .closest('[data-testid="context-menu"]')
+        ?.querySelector('[data-testid="context-menu-content"]')
+      expect(content).toBeInTheDocument()
+      return within(content as HTMLElement)
+    }
+
+    async function captureDelete(entry: 'more' | 'context' = 'more', confirmed = false) {
+      let captured!: ConfirmActionParams
+      confirmActionShow.mockImplementationOnce(async (options) => {
+        captured = options as ConfirmActionParams
+        return confirmed
+      })
+      const menu = openAssistantMenu(entry)
+      expect(menu.getByRole('button', { name: 'Archive' })).toBeEnabled()
+      fireEvent.click(menu.getByRole('button', { name: 'Delete' }))
+      await vi.waitFor(() => expect(captured).toBeDefined())
+      return captured
+    }
+
+    function expectNoDeletionEffects(onActiveAssistantDeleted: Mock) {
+      expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+      expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+      expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+      expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+      expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+      expect(assistantMutationMocks.restoreAssistant).not.toHaveBeenCalled()
+      expect(topicDataMocks.restoreTopic).not.toHaveBeenCalled()
+    }
+
+    it.each(['more', 'context'] as const)(
+      '%s menu gates Delete with the full warning and allows cancel and reopen',
+      async (entry) => {
+        const onActiveAssistantDeleted = vi.fn()
+        renderTopicList({ onActiveAssistantDeleted })
+        const captured = await captureDelete(entry)
+        expect(ipcMocks.request).not.toHaveBeenCalled()
+        expectNoDeletionEffects(onActiveAssistantDeleted)
+        expect(captured).toMatchObject({
+          title: 'Delete Assistant',
+          okText: 'Delete',
+          cancelText: 'Cancel',
+          danger: true
+        })
+        const warning = render(<div>{captured.content}</div>)
+        expect(within(warning.container).getByText(englishCatalog['assistants.delete.content'])).toHaveTextContent(
+          /assistant.*all conversations and files/i
+        )
+        expect(
+          within(warning.container).getByText(englishCatalog['settings.data.trash.permanent_delete.confirm_content'])
+        ).toHaveTextContent('This action cannot be undone.')
+        expect(within(warning.container).getByText(englishCatalog['assistants.archive.description'])).toHaveTextContent(
+          'Archive is reversible. You can restore the assistant from Settings → Archive.'
+        )
+        warning.unmount()
+        // A resolved show promise alone must never execute the action.
+        const reopened = await captureDelete(entry, true)
+        expect(ipcMocks.request).not.toHaveBeenCalled()
+        expectNoDeletionEffects(onActiveAssistantDeleted)
+        assistantMutationMocks.deleteAssistant.mockResolvedValueOnce({
+          deleted: true,
+          deletedTopicIds: ['topic-a', 'topic-not-loaded', 'topic-archived']
+        })
+        await act(async () => {
+          await reopened.action()
+        })
+        expect(ipcMocks.request).toHaveBeenCalledExactlyOnceWith('trash.assistant.delete_permanently', {
+          assistantId: 'assistant-1',
+          deleteTopics: true
+        })
+        expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledExactlyOnceWith('assistants', [
+          'topic-a',
+          'topic-not-loaded',
+          'topic-archived'
+        ])
+        expect(onActiveAssistantDeleted).toHaveBeenCalledExactlyOnceWith('assistant-1')
+        expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+        expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+        expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+        expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+        expect(assistantMutationMocks.restoreAssistant).not.toHaveBeenCalled()
+        expect(topicDataMocks.restoreTopic).not.toHaveBeenCalled()
+      }
+    )
+
+    it('closes returned tabs without navigating when the active topic is not deleted', async () => {
+      const onActiveAssistantDeleted = vi.fn()
+      assistantMutationMocks.deleteAssistant.mockResolvedValueOnce({
+        deleted: true,
+        deletedTopicIds: ['topic-not-loaded']
+      })
+      renderTopicList({ onActiveAssistantDeleted })
+      const captured = await captureDelete()
+      await act(async () => {
+        await captured.action()
+      })
+      expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledExactlyOnceWith('assistants', ['topic-not-loaded'])
+      expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+      expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+      expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+    })
+
+    it('keeps Delete enabled for an empty assistant while clear-topics stays disabled', async () => {
+      const onActiveAssistantDeleted = vi.fn()
+      renderTopicList({ onActiveAssistantDeleted, assistantTopicsSource: createAssistantTopicsSource([]) })
+      const menu = openAssistantMenu('more')
+      expect(menu.getByRole('button', { name: 'Delete' })).toBeEnabled()
+      expect(menu.getByRole('button', { name: 'Delete all assistant conversations' })).toBeDisabled()
+      fireEvent.click(
+        within(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div') as HTMLElement).getByRole(
+          'button',
+          { name: 'More' }
+        )
+      )
+      const captured = await captureDelete()
+      await act(async () => {
+        await captured.action()
+      })
+      expect(ipcMocks.request).toHaveBeenCalledExactlyOnceWith('trash.assistant.delete_permanently', {
+        assistantId: 'assistant-1',
+        deleteTopics: true
+      })
+      expectNoDeletionEffects(onActiveAssistantDeleted)
+      expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+      expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+    })
+
+    it.each(['not-found', 'no-change'] as const)(
+      'refreshes and reports already moved for %s without closing or navigating',
+      async (outcome) => {
+        if (outcome === 'not-found') {
+          assistantMutationMocks.deleteAssistant.mockRejectedValueOnce(
+            new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Assistant not found')
+          )
+        } else {
+          assistantMutationMocks.deleteAssistant.mockResolvedValueOnce({ deleted: false, deletedTopicIds: ['topic-a'] })
+        }
+        const onActiveAssistantDeleted = vi.fn()
+        renderTopicList({ onActiveAssistantDeleted })
+        const captured = await captureDelete()
+        await act(async () => {
+          await captured.action()
+        })
+        expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin')
+        expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+        expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+        expectNoDeletionEffects(onActiveAssistantDeleted)
+        expect(toast.success).not.toHaveBeenCalled()
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
+
+    it('reports busy without closing, navigating, refreshing or offering Undo', async () => {
+      assistantMutationMocks.deleteAssistant.mockRejectedValueOnce(
+        new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'Generating')
+      )
+      const onActiveAssistantDeleted = vi.fn()
+      renderTopicList({ onActiveAssistantDeleted })
+      const captured = await captureDelete()
+      await act(async () => {
+        await captured.action()
+      })
+      expect(toast.info).toHaveBeenCalledExactlyOnceWith(
+        'Stop generation before moving this conversation to the Recycle Bin.'
+      )
+      expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
+      expect(assistantQueryMocks.refetchAssistants).not.toHaveBeenCalled()
+      expectNoDeletionEffects(onActiveAssistantDeleted)
+      expect(toast.success).not.toHaveBeenCalled()
+    })
+
+    it('propagates ordinary failures to the popup and permits retry', async () => {
+      assistantMutationMocks.deleteAssistant.mockRejectedValueOnce(new Error('Delete failed'))
+      const onActiveAssistantDeleted = vi.fn()
+      renderTopicList({ onActiveAssistantDeleted })
+      const captured = await captureDelete()
+      await act(async () => {
+        await expect(captured.action()).rejects.toThrow('Delete failed')
+      })
+      expectNoDeletionEffects(onActiveAssistantDeleted)
+      expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
+      await act(async () => {
+        await captured.action()
+      })
+      expect(ipcMocks.request).toHaveBeenCalledTimes(2)
+      expect(ipcMocks.request).toHaveBeenLastCalledWith('trash.assistant.delete_permanently', {
+        assistantId: 'assistant-1',
+        deleteTopics: true
+      })
+      expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+      expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+      expectNoDeletionEffects(onActiveAssistantDeleted)
+    })
+
+    it('does not turn reconciliation or refresh failures into a failed permanent deletion', async () => {
+      assistantMutationMocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: ['topic-a'] })
+      const onActiveAssistantDeleted = vi.fn().mockRejectedValue(new Error('reconcile failed'))
+      assistantQueryMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
+      topicDataMocks.refreshTopics.mockRejectedValueOnce(new Error('Topic refresh failed'))
+      renderTopicList({ onActiveAssistantDeleted })
+      const captured = await captureDelete()
+      await act(async () => {
+        await expect(captured.action()).resolves.toBeUndefined()
+      })
+      expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledExactlyOnceWith('assistants', ['topic-a'])
+      expect(onActiveAssistantDeleted).toHaveBeenCalledExactlyOnceWith('assistant-1')
+      expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+      expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+      expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    })
+
+    it('disables Delete, Archive and clear-topics across assistants until deletion, reconciliation and refresh finish', async () => {
+      const mutation = createDeferred<{ deleted: boolean; deletedTopicIds: string[] }>()
+      const reconciliation = createDeferred<void>()
+      const refresh = createDeferred<void>()
+      assistantMutationMocks.deleteAssistant.mockReturnValueOnce(mutation.promise)
+      assistantQueryMocks.refetchAssistants.mockReturnValueOnce(refresh.promise)
+      const onActiveAssistantDeleted = vi.fn(() => reconciliation.promise)
+      renderTopicList({ onActiveAssistantDeleted })
+      const captured = await captureDelete()
+      let deletion!: void | Promise<void>
+      await act(async () => {
+        deletion = captured.action()
+      })
+      function expectActionsDisabled(disabled: boolean) {
+        for (const name of ['Alpha Assistant', 'Beta Assistant']) {
+          const menu = openAssistantMenu('more', name)
+          for (const label of ['Delete', 'Archive', 'Delete all assistant conversations']) {
+            const button = menu.getByRole('button', { name: label })
+            if (disabled) expect(button).toBeDisabled()
+            else expect(button).toBeEnabled()
+          }
+          if (disabled) {
+            fireEvent.click(menu.getByRole('button', { name: 'Delete' }))
+            fireEvent.click(menu.getByRole('button', { name: 'Archive' }))
+          }
+          fireEvent.click(
+            within(screen.getByRole('button', { name }).closest('div') as HTMLElement).getByRole('button', {
+              name: 'More'
+            })
+          )
+        }
+      }
+      expectActionsDisabled(true)
+      await act(async () => {
+        mutation.resolve({ deleted: true, deletedTopicIds: ['topic-a'] })
+      })
+      expectActionsDisabled(true)
+      await act(async () => {
+        reconciliation.resolve()
+      })
+      expectActionsDisabled(true)
+      await act(async () => {
+        refresh.resolve()
+        await deletion
+      })
+      expectActionsDisabled(false)
+      expect(ipcMocks.request).toHaveBeenCalledOnce()
+      expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+      expect(confirmActionShow).toHaveBeenCalledOnce()
+      await captureDelete()
+      expect(confirmActionShow).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('deletes an assistant without its topics by default and keeps the active topic', async () => {
     const onActiveAssistantDeleted = vi.fn()
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
@@ -3823,7 +4117,6 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
-    expect(screen.queryByRole('button', { name: 'Delete Permanently' })).not.toBeInTheDocument()
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Archive'
     })
@@ -3836,6 +4129,12 @@ describe('Topics', () => {
         deleteTopics: false
       })
     )
+    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith({ type: 'assistant', action: expect.any(Function) })
+    expect(confirmActionShow).not.toHaveBeenCalled()
+    expect(ipcMocks.request).toHaveBeenCalledWith('trash.assistant.archive', {
+      assistantId: 'assistant-1',
+      deleteTopics: false
+    })
     expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())

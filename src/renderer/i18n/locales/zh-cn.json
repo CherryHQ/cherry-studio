@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "已停止",
   "apiGateway.title": "API 网关",
   "assistants.abbr": "助手",
+  "assistants.archive.description": "归档后可以恢复。你可以从设置中的归档恢复助手。",
   "assistants.clear.menu_title": "清空话题",
   "assistants.delete.content": "删除助手会删除所有该助手下的对话和文件，确定要继续吗？",
   "assistants.delete.title": "删除助手",

@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "已停止",
   "apiGateway.title": "API 閘道",
   "assistants.abbr": "助理",
+  "assistants.archive.description": "封存後可以復原。你可以從設定中的封存復原助手。",
   "assistants.clear.menu_title": "清空話題",
   "assistants.delete.content": "刪除助理會刪除所有該助理下的對話和檔案，確定要繼續嗎？",
   "assistants.delete.title": "刪除助理",

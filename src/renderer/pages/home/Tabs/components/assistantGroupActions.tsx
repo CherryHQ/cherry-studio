@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -19,6 +19,7 @@ export interface AssistantGroupActionContext {
   deleteTopicsDisabled?: boolean
   disabled?: boolean
   isGroupGrouping: boolean
+  onPermanentlyDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
@@ -75,6 +76,12 @@ assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.archive-assistant',
   availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
   run: ({ assistantId, onDeleteAssistant }) => onDeleteAssistant(assistantId)
+})
+
+assistantGroupActionRegistry.registerCommand({
+  id: 'assistant-group.delete-assistant',
+  availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
+  run: ({ assistantId, onPermanentlyDeleteAssistant }) => onPermanentlyDeleteAssistant(assistantId)
 })
 
 assistantGroupActionRegistry.registerAction(
@@ -147,6 +154,31 @@ assistantGroupActionRegistry.registerAction(
     icon: () => <Archive size={14} />,
     group: 'danger',
     order: 40
+  })
+)
+
+assistantGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'assistant-group.delete-assistant',
+    commandId: 'assistant-group.delete-assistant',
+    label: ({ t }) => t('common.delete'),
+    icon: () => <Trash2 size={14} />,
+    danger: true,
+    group: 'danger',
+    order: 50,
+    confirm: {
+      title: ({ t }) => t('assistants.delete.title'),
+      description: ({ t }) => (
+        <>
+          <div>{t('assistants.delete.content')}</div>
+          <div>{t('settings.data.trash.permanent_delete.confirm_content')}</div>
+          <div>{t('assistants.archive.description')}</div>
+        </>
+      ),
+      confirmText: ({ t }) => t('common.delete'),
+      cancelText: ({ t }) => t('common.cancel'),
+      destructive: true
+    }
   })
 )
 

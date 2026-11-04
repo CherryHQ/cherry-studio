@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "停止中",
   "apiGateway.title": "API サーバー",
   "assistants.abbr": "アシスタント",
+  "assistants.archive.description": "アーカイブは元に戻せます。設定 → アーカイブからアシスタントを復元できます。",
   "assistants.clear.menu_title": "トピックをクリア",
   "assistants.delete.content": "アシスタントを削除すると、そのアシスタントのすべてのトピックとファイルが削除されます。削除しますか？",
   "assistants.delete.title": "アシスタントを削除",

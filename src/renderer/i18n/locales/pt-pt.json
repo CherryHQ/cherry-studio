@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Parado",
   "apiGateway.title": "Servidor API",
   "assistants.abbr": "Assistente",
+  "assistants.archive.description": "O arquivo é reversível. Pode restaurar o assistente em Definições → Arquivo.",
   "assistants.clear.menu_title": "Limpar tópicos",
   "assistants.delete.content": "Eliminar o assistente removerá todos os tópicos e ficheiros sob esse assistente. Tem a certeza de que pretende continuar?",
   "assistants.delete.title": "Eliminar Assistente",

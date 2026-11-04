@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Durduruldu",
   "apiGateway.title": "API Ağ Geçidi",
   "assistants.abbr": "Asistanlar",
+  "assistants.archive.description": "Arşivleme geri alınabilir. Asistanı Ayarlar → Arşiv bölümünden geri yükleyebilirsiniz.",
   "assistants.clear.menu_title": "Konuları Temizle",
   "assistants.delete.content": "Bir asistan silindiğinde bu asistanın altındaki tüm konuşmalar ve dosyalar silinir. Silmek istediğinizden emin misiniz?",
   "assistants.delete.title": "Asistanı Sil",

@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Detenido",
   "apiGateway.title": "Servidor API",
   "assistants.abbr": "Asistente",
+  "assistants.archive.description": "El archivado es reversible. Puedes restaurar el asistente desde Ajustes → Archivo.",
   "assistants.clear.menu_title": "Vaciar temas",
   "assistants.delete.content": "Eliminar el asistente borrará todos los temas y archivos asociados. ¿Está seguro de que desea continuar?",
   "assistants.delete.title": "Eliminar Asistente",

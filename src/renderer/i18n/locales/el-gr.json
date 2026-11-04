@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Σταματημένος",
   "apiGateway.title": "Διακομιστής API",
   "assistants.abbr": "Βοηθός",
+  "assistants.archive.description": "Η αρχειοθέτηση είναι αναστρέψιμη. Μπορείτε να επαναφέρετε τον βοηθό από τις Ρυθμίσεις → Αρχείο.",
   "assistants.clear.menu_title": "Εκκαθάριση θεμάτων",
   "assistants.delete.content": "Η διαγραφή του βοηθού θα διαγράψει όλα τα θέματα και τα αρχεία που είναι συνδεδεμένα με αυτόν. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
   "assistants.delete.title": "Διαγραφή βοηθού",
