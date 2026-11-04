@@ -290,7 +290,16 @@ it.each([false, true])(
       })
       followup.reply.finish('tool_use')
       const requests = [await test.request(), await test.request()]
-      const resumed = requests.find((value) => JSON.stringify(value.body.messages).includes('Original child answer'))!
+      const resumedRequests = requests.filter(({ body }) =>
+        body.messages.some(
+          (message) =>
+            message.role === 'assistant' &&
+            Array.isArray(message.content) &&
+            message.content.some((block) => block.type === 'text' && block.text === 'Original child answer')
+        )
+      )
+      expect(resumedRequests).toHaveLength(1)
+      const resumed = resumedRequests[0]
       const parentReply = requests.find((value) => value !== resumed)!
       expect(JSON.stringify(resumed.body.messages)).toContain('Continue with the old context')
       parentReply.reply.block({ type: 'text', text: 'Parent continues independently' })

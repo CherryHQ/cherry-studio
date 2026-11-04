@@ -5,7 +5,7 @@ import { createServer, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect } from 'vitest'
 
 import { runtimeId, ThreadFeed, type OperationResult, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
@@ -78,7 +78,7 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
   const configDir = path.join(directory, 'config')
   await mkdir(cwd)
   await mkdir(configDir)
-  const pending: { reply: ReturnType<typeof modelReply>; body: { messages: unknown[] } }[] = []
+  const pending: { reply: ReturnType<typeof modelReply>; body: { messages: SDKUserMessage['message'][] } }[] = []
   const responses = new Set<ServerResponse>()
   const errors: unknown[] = []
   const children: ChildProcess[] = []
