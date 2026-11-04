@@ -2,7 +2,7 @@ import { LockKeyhole, Settings2 } from 'lucide-react'
 import { type ReactElement, type ReactNode, useId, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PortalContainerProvider, Scrollbar, Tabs, TabsContent } from '@cherrystudio/ui'
+import { PortalContainerProvider, ScrollArea, Tabs, TabsContent } from '@cherrystudio/ui'
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { LocalAgentModelTabList } from '@renderer/components/localAgent/LocalAgentModelTabList'
@@ -192,11 +192,10 @@ export function LocalAgentModelSelector({
                   {footer}
                 </div>
               )}
-              <Scrollbar
-                className="min-h-0 flex-1 py-1"
-                role="listbox"
-                id={listboxId}
-                aria-label={t('settings.models.list_title')}>
+              <ScrollArea
+                className="min-h-0 flex-1"
+                contentProps={{ className: 'py-1' }}
+                viewportProps={{ role: 'listbox', id: listboxId, 'aria-label': t('settings.models.list_title') }}>
                 {[...groups].map(([group, entries]) => (
                   <div key={group}>
                     {group && (
@@ -247,7 +246,7 @@ export function LocalAgentModelSelector({
                 {!items.length && (
                   <div className="px-3 py-4 text-center text-xs text-muted-foreground">{t('models.no_matches')}</div>
                 )}
-              </Scrollbar>
+              </ScrollArea>
             </TabsContent>
           </PortalContainerProvider>
         )}

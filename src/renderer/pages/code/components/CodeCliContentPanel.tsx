@@ -2,7 +2,7 @@ import { Download, ExternalLink, Loader2, Settings2, Trash2 } from 'lucide-react
 import { type ComponentProps, type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, InputGroup, InputGroupAddon, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, InputGroup, InputGroupAddon, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
@@ -165,7 +165,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             </AgentServiceCard>
           </div>
         </div>
-        <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pb-6">
+        <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'px-6 pb-6' }}>
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
             <LocalAgentModelList {...modelList} />
             <Button
@@ -177,7 +177,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               <ExternalLink className={iconClass} />
             </Button>
           </div>
-        </Scrollbar>
+        </ScrollArea>
       </div>
       <BinaryInstallErrorDialog
         error={

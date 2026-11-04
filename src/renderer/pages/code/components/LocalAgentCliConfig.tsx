@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Scrollbar,
+  ScrollArea,
   Tooltip
 } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
@@ -182,7 +182,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
               </Button>
             </div>
           )}
-          <Scrollbar className="min-h-0 flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-5" inert={saving || configLocked}>
               {toolFields && (
                 <section className="space-y-2">
@@ -192,7 +192,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
               )}
               <CliConfigEditor files={files} error={error} onChange={change} height="min(55vh, 520px)" />
             </div>
-          </Scrollbar>
+          </ScrollArea>
           <DialogFooter>
             {confirmClose ? (
               <div className="w-full space-y-2" role="alert">

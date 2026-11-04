@@ -13,7 +13,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import type { LocalAcpTool } from '@shared/ai/localAgent'
 
 import { AcpContentBlock } from '../../blocks/AcpContentBlock'
@@ -79,11 +79,11 @@ export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
           const details = tool.terminalDetails?.[item.terminalId]
           return (
             <div key={index} className="space-y-1">
-              <Scrollbar className="max-h-64 rounded-md bg-muted p-2">
+              <ScrollArea className="max-h-64 rounded-md bg-muted" contentProps={{ className: 'p-2' }}>
                 <pre className="whitespace-pre-wrap break-all font-mono">
                   {tool.terminals?.[item.terminalId] ?? item.terminalId}
                 </pre>
-              </Scrollbar>
+              </ScrollArea>
               {details && (
                 <div className="flex gap-2 text-muted-foreground">
                   {details.truncated && <span>{t('error.truncatedBadge')}</span>}

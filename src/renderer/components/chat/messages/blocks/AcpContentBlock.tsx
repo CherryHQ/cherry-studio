@@ -2,7 +2,7 @@ import { ContentBlockSchema } from '@modelcontextprotocol/core'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { dataUrlToBlob } from '@renderer/utils/image'
 import { tryFileUrlToPath } from '@shared/utils/file'
@@ -48,9 +48,9 @@ export function AcpContentBlock({ content }: { content: unknown }) {
           <p className="text-xs text-muted-foreground">{block.description}</p>
         )}
         {'text' in resource && typeof resource.text === 'string' && (
-          <Scrollbar className="max-h-64 rounded-md bg-muted p-2">
+          <ScrollArea className="max-h-64 rounded-md bg-muted" contentProps={{ className: 'p-2' }}>
             <pre className="whitespace-pre-wrap break-all text-xs">{resource.text}</pre>
-          </Scrollbar>
+          </ScrollArea>
         )}
         {'blob' in resource && typeof resource.blob === 'string' && (
           <a

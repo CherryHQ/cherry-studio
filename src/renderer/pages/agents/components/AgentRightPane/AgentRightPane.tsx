@@ -31,6 +31,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import {
   Badge,
   Breadcrumb,
@@ -86,7 +87,6 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
-import Scrollbar from '@renderer/components/Scrollbar'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
@@ -1800,7 +1800,7 @@ export function AgentTaskProgressCapsule() {
           side="top"
           sideOffset={8}
           className="w-64 max-w-[calc(100vw-2rem)] overflow-hidden p-2.5 shadow-lg">
-          <Scrollbar className="max-h-64" data-testid="agent-task-progress-details">
+          <ScrollArea viewportProps={{ 'data-testid': 'agent-task-progress-details' }} className="max-h-64">
             <ul className="space-y-1 pr-1">
               {status.tasks.map((task) => {
                 const displayStatus = task.id === inferredActiveTaskId ? 'in_progress' : task.status
@@ -1818,7 +1818,7 @@ export function AgentTaskProgressCapsule() {
                 )
               })}
             </ul>
-          </Scrollbar>
+          </ScrollArea>
         </HoverCardContent>
       </HoverCard>
     </div>
@@ -2066,7 +2066,10 @@ function AgentRightPaneStatusPreview() {
   const isCompacting = compaction.status === 'compacting'
 
   return (
-    <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
+    <ScrollArea
+      viewportProps={{ className: 'overflow-x-hidden pr-3' }}
+      contentProps={{ className: 'space-y-3' }}
+      className="-mr-2 max-h-[calc(70vh-1.5rem)]">
       <AgentContextUsageSummary
         cost={cost}
         usage={usage}
@@ -2075,7 +2078,7 @@ function AgentRightPaneStatusPreview() {
         isCompacting={isCompacting}
       />
       <AgentRightPaneHighlights status={status} compact />
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

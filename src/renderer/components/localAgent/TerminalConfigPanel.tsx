@@ -12,7 +12,7 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -86,7 +86,7 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
               </InputGroup>
             </PopoverAnchor>
             <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-1">
-              <Scrollbar className="max-h-60" aria-label={t('code.directory_history')}>
+              <ScrollArea className="max-h-60" aria-label={t('code.directory_history')}>
                 {directoryHistory.map((path) => (
                   <div key={path} className="flex min-w-0 items-center gap-1">
                     <Button
@@ -113,7 +113,7 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
                     </Tooltip>
                   </div>
                 ))}
-              </Scrollbar>
+              </ScrollArea>
             </PopoverContent>
           </Popover>
           <Button variant="default" onClick={onSelectFolder} className="ml-2 shrink-0" disabled={disabled}>

@@ -14,7 +14,7 @@ import {
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ipcApi } from '@renderer/ipc'
@@ -189,7 +189,7 @@ export function LocalAgentConfigControl({
             {t('local_agents.configuration_read_only')}
           </p>
         )}
-        <Scrollbar className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
+        <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
           {rows.map(({ kind, option }) => {
             const choices =
               option.type === 'boolean'
@@ -237,16 +237,16 @@ export function LocalAgentConfigControl({
                   </DropdownMenuSubTrigger>
                   <DropdownMenuPortal>
                     <DropdownMenuSubContent className="w-72 p-1.5" collisionPadding={8}>
-                      <Scrollbar className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
+                      <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
                         {content}
-                      </Scrollbar>
+                      </ScrollArea>
                     </DropdownMenuSubContent>
                   </DropdownMenuPortal>
                 </DropdownMenuSub>
               </Fragment>
             )
           })}
-        </Scrollbar>
+        </ScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   )

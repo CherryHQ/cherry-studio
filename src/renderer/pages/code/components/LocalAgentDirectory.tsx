@@ -21,6 +21,7 @@ import {
   Badge,
   ReorderableList,
   Button,
+  ScrollArea,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
@@ -35,7 +36,6 @@ import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
 import { AgentUpgradeControl } from '@renderer/components/localAgent/AgentUpgradeControl'
 import { LocalAgentModelList } from '@renderer/components/localAgent/LocalAgentModelList'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
@@ -284,7 +284,7 @@ export function LocalAgentDirectory({
             </InputGroupAddon>
           </InputGroup>
         </div>
-        <Scrollbar className="min-h-0 flex-1 space-y-2 px-2.5 pt-2 pb-2.5">
+        <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'space-y-2 px-2.5 pt-2 pb-2.5' }}>
           {[2, 1, 0].map((priority) => {
             const items = entries.filter((entry) => getPriority(entry) === priority)
             const visibleItems = items.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()))
@@ -392,7 +392,7 @@ export function LocalAgentDirectory({
           {!entries.some((e) => e.name.toLowerCase().includes(query.toLowerCase())) && (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t('common.no_results')}</p>
           )}
-        </Scrollbar>
+        </ScrollArea>
         <div className="shrink-0 px-2.5 pb-2.5">
           <Button
             variant="outline"
@@ -1108,7 +1108,7 @@ export function LocalAgentDetails({
             </AgentServiceCard>
           </div>
         </div>
-        <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pb-6">
+        <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'px-6 pb-6' }}>
           <div className="mx-auto w-full max-w-3xl space-y-3">
             {!editing && feedback}
             {modelList ? (
@@ -1130,7 +1130,7 @@ export function LocalAgentDetails({
               )
             )}
           </div>
-        </Scrollbar>
+        </ScrollArea>
       </div>
       {children}
       {editing && (
