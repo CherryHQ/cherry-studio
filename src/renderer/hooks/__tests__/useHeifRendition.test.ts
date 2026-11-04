@@ -154,20 +154,68 @@ it('loads twelve uncached HEIF previews without exceeding four in-flight request
   expect(peak).toBeLessThanOrEqual(4)
 })
 
-it.each([1, 2, 3])('retries busy previews at most twice after %i busy failures', async (busyFailures) => {
+it.each([1, 2, 3, 4, 5, 6, 7])(
+  'retries busy previews with a six-attempt budget after %i busy failures',
+  async (busyFailures) => {
+    vi.useFakeTimers()
+    let attempts = 0
+    mocks.request.mockImplementation(async () => {
+      if (attempts++ < busyFailures) throw new IpcError('FILE_HEIF_BUSY')
+      return png
+    })
+    const { result } = renderHook(() => useHeifRendition('/tmp/photo.heic'))
+
+    await act(async () => vi.advanceTimersByTimeAsync(2000))
+
+    expect(result.current).toEqual(
+      busyFailures < 6 ? { loading: false, url: 'blob:first' } : { loading: false, error: 'error.heif_detail_busy' }
+    )
+  }
+)
+
+it('shares decoder capacity across twelve independent owners', async () => {
   vi.useFakeTimers()
-  let attempts = 0
+  let inFlight = 0
+  let peak = 0
+  let urlIndex = 0
+  vi.mocked(URL.createObjectURL)
+    .mockReset()
+    .mockImplementation(() => `blob:owner-${urlIndex++}`)
   mocks.request.mockImplementation(async () => {
-    if (attempts++ < busyFailures) throw new IpcError('FILE_HEIF_BUSY')
-    return png
+    inFlight++
+    peak = Math.max(peak, inFlight)
+    try {
+      if (inFlight > 9) throw new IpcError('FILE_HEIF_BUSY')
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      return png
+    } finally {
+      inFlight--
+    }
   })
-  const { result } = renderHook(() => useHeifRendition('/tmp/photo.heic'))
-
-  await act(async () => vi.advanceTimersByTimeAsync(1000))
-
-  expect(result.current).toEqual(
-    busyFailures < 3 ? { loading: false, url: 'blob:first' } : { loading: false, error: 'error.heif_detail_busy' }
+  const owners = Array.from({ length: 12 }, (_, index) =>
+    renderHook(() => useHeifRendition(`/tmp/photo-${index}.heic`))
   )
+
+  await act(async () => vi.advanceTimersByTimeAsync(2000))
+
+  const states = owners.map(({ result }) => result.current)
+  expect(states).toEqual(owners.map(() => ({ loading: false, url: expect.stringMatching(/^blob:owner-/) })))
+  expect(new Set(states.map((state) => state.url)).size).toBe(12)
+  expect(peak).toBeLessThanOrEqual(4)
+})
+
+it('keeps another owner’s queued preview when an owner unmounts', async () => {
+  const pending: (() => void)[] = []
+  mocks.request.mockImplementation(() => new Promise((resolve) => pending.push(() => resolve(png))))
+  const sources = Array.from({ length: 4 }, (_, index) => ({ source: `/tmp/first-${index}.heic` }))
+  const first = renderHook(() => useHeifRenditions(sources))
+  const survivor = renderHook(() => useHeifRendition('/tmp/survivor.heic'))
+
+  first.unmount()
+  await act(async () => pending.splice(0).forEach((complete) => complete()))
+  await act(async () => pending.splice(0).forEach((complete) => complete()))
+
+  expect(survivor.result.current).toEqual({ loading: false, url: 'blob:first' })
 })
 
 it('cancels queued previews on unmount and revokes created URLs exactly once', async () => {

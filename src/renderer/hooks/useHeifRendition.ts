@@ -3,10 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { heifErrorKey, type HeifImageSource, isHeifImage, resolveHeifImage } from '@renderer/utils/heif'
 
-// Leave room in the service queue for other preview owners and sends.
+// Leave room in the service queue for sends.
 const HEIF_CONCURRENCY = 4
-const HEIF_BUSY_RETRIES = 2
+const HEIF_BUSY_RETRIES = 5
 const HEIF_BUSY_BACKOFF_MS = 50
+const queue = new PQueue({ concurrency: HEIF_CONCURRENCY })
 
 export interface HeifImageState {
   url?: string
@@ -42,7 +43,6 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
   useEffect(() => {
     let disposed = false
     const urls: string[] = []
-    const queue = new PQueue({ concurrency: HEIF_CONCURRENCY })
     const retryDelays = new Map<ReturnType<typeof setTimeout>, () => void>()
     stableSources.forEach((item, index) => {
       if (!isHeifImage(item)) return
@@ -55,10 +55,13 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
               if (disposed) return
               if (heifErrorKey(error) !== 'error.heif_detail_busy' || retry >= HEIF_BUSY_RETRIES) throw error
               await new Promise<void>((resolve) => {
-                const timer = setTimeout(() => {
-                  retryDelays.delete(timer)
-                  resolve()
-                }, HEIF_BUSY_BACKOFF_MS)
+                const timer = setTimeout(
+                  () => {
+                    retryDelays.delete(timer)
+                    resolve()
+                  },
+                  Math.min(HEIF_BUSY_BACKOFF_MS * 2 ** retry, 400)
+                )
                 retryDelays.set(timer, resolve)
               })
             }
@@ -86,7 +89,6 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
     })
     return () => {
       disposed = true
-      queue.clear()
       retryDelays.forEach((resolve, timer) => {
         clearTimeout(timer)
         resolve()
