@@ -17,7 +17,6 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
-import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
@@ -45,36 +44,10 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
-    // Side-effect free: dispatch validation must not consume API-key rotation;
-    // the concrete key is selected only when the runtime connection starts.
-    await assertPiProviderUsable(agent.model)
   }
 
-  async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    const builtins: Tool[] = PI_BUILTIN_TOOLS.map((tool) => ({
-      id: tool.name,
-      name: tool.name,
-      origin: 'builtin',
-      approval: tool.approval
-    }))
-    // Bridged MCP tools, read cache-only from the same catalog the session bridge uses
-    // (piMcpExtension warms it). Third-party, so they prompt in the default mode.
-    const catalog = application.get('McpCatalogService')
-    const mcpTools: Tool[] = mcpIds.flatMap((idOrName) => {
-      const server = mcpServerService.findByIdOrName(idOrName)
-      if (!server) return []
-      const tools = catalog.listTools(server.id, { includeDisabled: false })
-      const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
-      return tools.map((tool, index) => ({
-        id: buildPiMcpToolName(server.id, tool.name, names.indexOf(names[index]) !== names.lastIndexOf(names[index])),
-        name: tool.name,
-        origin: 'mcp' as const,
-        approval: 'prompt' as const,
-        sourceId: server.id,
-        sourceName: server.name
-      }))
-    })
-    return [...builtins, ...mcpTools]
+  listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
+    return listPiAvailableTools(mcpIds)
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
@@ -94,7 +67,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
    * pi keeps one flat `{timestamp}_{resumeToken}.jsonl` per session generation
    * (see `resolveResumeTokenSessionFile`), so the token is the stem after the
    * FIRST `_` — the timestamp pi owns has none, but a token legally can. Every
-   * generation of a claimed token is kept — the connection resumes from the newest.
+   * file for a claimed token is kept; ambiguous identities fail closed when opening.
    */
   async reclaimOrphanSessions(
     keptResumeTokens: ReadonlySet<string>,
@@ -128,4 +101,31 @@ function piResumeTokenOf(fileName: string): string | null {
   if (separator < 0) return null
   const token = stem.slice(separator + 1)
   return token.length > 0 ? token : null
+}
+
+export async function listPiAvailableTools(mcpIds: string[]): Promise<Tool[]> {
+  const builtins: Tool[] = PI_BUILTIN_TOOLS.map((tool) => ({
+    id: tool.name,
+    name: tool.name,
+    origin: 'builtin',
+    approval: tool.approval
+  }))
+  // Bridged MCP tools, read cache-only from the same catalog the session bridge uses
+  // (piMcpExtension warms it). Third-party, so they prompt in the default mode.
+  const catalog = application.get('McpCatalogService')
+  const mcpTools: Tool[] = mcpIds.flatMap((idOrName) => {
+    const server = mcpServerService.findByIdOrName(idOrName)
+    if (!server) return []
+    const tools = catalog.listTools(server.id, { includeDisabled: false })
+    const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
+    return tools.map((tool, index) => ({
+      id: buildPiMcpToolName(server.id, tool.name, names.indexOf(names[index]) !== names.lastIndexOf(names[index])),
+      name: tool.name,
+      origin: 'mcp' as const,
+      approval: 'prompt' as const,
+      sourceId: server.id,
+      sourceName: server.name
+    }))
+  })
+  return [...builtins, ...mcpTools]
 }

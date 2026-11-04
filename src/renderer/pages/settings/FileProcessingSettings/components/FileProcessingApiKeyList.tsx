@@ -3,10 +3,10 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EditIcon from '@renderer/components/icons/EditIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -212,7 +212,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
         {displayItems.length === 0 ? (
           <div className="px-3 py-2 text-xs leading-tight text-muted-foreground">{t('error.no_api_key')}</div>
         ) : (
-          <Scrollbar className="max-h-[60vh] overflow-x-hidden">
+          <ScrollArea viewportProps={{ className: 'overflow-x-hidden' }} className="max-h-[60vh]">
             <div>
               {displayItems.map((item) => (
                 <FileProcessingApiKeyItem
@@ -223,7 +223,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
                 />
               ))}
             </div>
-          </Scrollbar>
+          </ScrollArea>
         )}
       </div>
 

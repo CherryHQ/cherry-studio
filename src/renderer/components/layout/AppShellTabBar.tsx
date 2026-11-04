@@ -343,7 +343,7 @@ const NormalTabButton = ({
       <TabIcon tab={tab} size={iconSize} className="shrink-0" />
       <span
         className={cn(
-          'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs leading-none',
+          'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs/(--line-height-body-xs)',
           (isClosing ? closingWasActive : isActive) ? 'font-medium' : 'font-normal'
         )}
         style={{

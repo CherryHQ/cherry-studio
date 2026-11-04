@@ -1,5 +1,19 @@
 # @cherrystudio/provider-registry
 
+## 0.3.4
+
+### Patch Changes
+
+- [#23471](https://github.com/CherryHQ/cherry-studio/pull/23471) [`e19a772`](https://github.com/CherryHQ/cherry-studio/commit/e19a772a0620902507fd844f163b122c93512a48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Discover OpenRouter reranking models and rerank through the OpenRouter provider: the model list now reads the rerank catalog (`?output_modalities=rerank`) and marks those models as rerank-capable, and the OpenRouter extension now provides a reranking model so the connection check reaches `POST /api/v1/rerank` instead of failing with `No such rerankingModel`.
+
+## 0.3.3
+
+### Patch Changes
+
+- [#23425](https://github.com/CherryHQ/cherry-studio/pull/23425) [`6466ef9`](https://github.com/CherryHQ/cherry-studio/commit/6466ef98b47f902fdee26b11fdccd23757a7adc5) Thanks [@ousugo](https://github.com/ousugo)! - Add the stable LongCat-2.5 model with multimodal capabilities, documented token limits, and endpoint-specific reasoning controls.
+
+- [#23393](https://github.com/CherryHQ/cherry-studio/pull/23393) [`befc2f5`](https://github.com/CherryHQ/cherry-studio/commit/befc2f5cb5d31b5c5310f68702660c0ffc659c5c) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Expose reasoning-effort controls for Qwen 3.8 Flash Next and other compatible Alibaba providers.
+
 ## 0.3.2
 
 ### Patch Changes

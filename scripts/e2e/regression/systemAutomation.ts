@@ -290,7 +290,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       'osascript',
       [
         '-e',
-        'tell application "TextEdit" to activate',
+        'tell application "System Events" to tell process "TextEdit" to set frontmost to true',
         '-e',
         'delay 1',
         '-e',
