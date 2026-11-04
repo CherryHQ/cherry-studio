@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from 'node:http'
 import https from 'node:https'
 import { Stream } from 'node:stream'
+import { urlToHttpOptions } from 'node:url'
 
 import { net } from 'electron'
 import type WebSocket from 'ws'
@@ -129,9 +130,13 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 
   const parsedUrl = parseUrlArg(urlArg)
   const protocol = normalizeOptionValue(options.protocol) ?? parsedUrl?.protocol ?? defaultProtocol
-  const host = normalizeOptionValue(options.hostname ?? options.host) ?? parsedUrl?.host ?? 'unknown'
-  const port = normalizeOptionValue(options.port)
-  const authority = port && !host.includes(':') ? `${host}:${port}` : host
+  // Node converts URL fields first, then overlays options (including undefined).
+  // Keep hostname and port separate so an override cannot retain the URL's old port.
+  const effectiveOptions = { ...(parsedUrl ? urlToHttpOptions(parsedUrl) : {}), ...options }
+  const host = normalizeOptionValue(effectiveOptions.hostname ?? effectiveOptions.host) ?? 'unknown'
+  const port = normalizeOptionValue(effectiveOptions.port)
+  const hostname = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+  const authority = port ? `${hostname}:${port}` : hostname
   const path = normalizeOptionValue(options.path) ?? getUrlPath(parsedUrl) ?? getFallbackPath(urlArg)
   const normalizedPath =
     path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://') ? path : `/${path}`

@@ -1510,3 +1510,56 @@ it.skipIf(process.platform === 'win32').each(['/a/../b', '/a/./b', '/%2e%2e/b'])
     }
   }
 )
+
+it.skipIf(process.platform === 'win32')(
+  'uses Node URL/options port precedence for actual replay destination',
+  async () => {
+    const received: string[] = []
+    const servers = ['A', 'B'].map((name) =>
+      createServer((req, res) => {
+        req.resume()
+        req.on('end', () => {
+          received.push(name)
+          res.end('ok')
+        })
+      })
+    )
+    for (const server of servers) await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        original: (...args: unknown[]) => unknown,
+        source: 'http'
+      ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+    }
+    try {
+      const portA = (servers[0].address() as { port: number }).port
+      const portB = (servers[1].address() as { port: number }).port
+      const request = state.wrapHttpMethod(httpRequest as (...args: unknown[]) => unknown, 'http')(
+        `http://127.0.0.1:${portA}/`,
+        { port: portB }
+      )
+      await new Promise<void>((resolve, reject) => {
+        request.on('response', (res) => {
+          res.resume()
+          res.on('end', resolve)
+        })
+        request.on('error', reject)
+        request.end()
+      })
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      await promisify(execFile)('/bin/sh', ['-c', sandbox.buildCurlCommand?.(state.events[0]) as string], {
+        timeout: 5000
+      })
+      expect(received).toEqual(['B', 'B'])
+      expect(new URL(state.events[0].url).port).toBe(String(portB))
+    } finally {
+      await service._doStop()
+      for (const server of servers) await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
