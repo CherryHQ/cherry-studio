@@ -39,7 +39,12 @@ function buildCurlCommand(event) {
 
   const requestHeaders = event.requestHeaders ?? {}
   for (const [key, value] of event.requestHeaderEntries ?? Object.entries(requestHeaders)) {
-    if (shouldSkipCurlHeader(key)) continue
+    // Preserve a finalized Node zero-length request, but never reuse stale lengths
+    // for captured payloads or omitted bodies.
+    const verifiedEmptyLength =
+      String(key).toLowerCase() === 'content-length' && String(value) === '0' &&
+      Array.isArray(event.requestHeaderEntries) && body === undefined
+    if (shouldSkipCurlHeader(key) && !verifiedEmptyLength) continue
     parts.push('-H', shellQuoteSingle(value === '' ? `${key};` : `${key}: ${value}`))
   }
 

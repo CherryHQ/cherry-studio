@@ -1563,3 +1563,52 @@ it.skipIf(process.platform === 'win32')(
     }
   }
 )
+
+it.skipIf(process.platform === 'win32')(
+  'preserves verified zero-length framing for empty Node POST replay',
+  async () => {
+    const received: (string | undefined)[] = []
+    const server = createServer((req, res) => {
+      req.resume()
+      req.on('end', () => {
+        received.push(req.headers['content-length'])
+        res.statusCode = req.headers['content-length'] === '0' ? 200 : 411
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        original: (...args: unknown[]) => unknown,
+        source: 'http'
+      ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+    }
+    try {
+      const request = state.wrapHttpMethod(httpRequest as (...args: unknown[]) => unknown, 'http')(
+        `http://127.0.0.1:${(server.address() as { port: number }).port}/`,
+        { method: 'POST' }
+      )
+      await new Promise<void>((resolve, reject) => {
+        request.on('response', (res) => {
+          res.resume()
+          res.on('end', resolve)
+        })
+        request.on('error', reject)
+        request.end()
+      })
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      await promisify(execFile)('/bin/sh', ['-c', sandbox.buildCurlCommand?.(state.events[0]) as string], {
+        timeout: 5000
+      })
+      expect(received).toEqual(['0', '0'])
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
