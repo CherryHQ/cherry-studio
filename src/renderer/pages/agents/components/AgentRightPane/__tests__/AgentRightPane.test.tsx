@@ -429,10 +429,6 @@ vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@renderer/data/hooks/usePreference', async () => ({
   usePreference: (await import('@test-mocks/renderer/usePreference')).mockUsePreference
 }))
