@@ -19,7 +19,7 @@ import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener }
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
-import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -104,6 +104,21 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.child.attach': async ({ sessionId, toolCallId, subscriptionId }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (!sender || senderId === null) throw new Error('Child subscription requires a window')
+    return application
+      .get('AgentSessionRuntimeService')
+      .attachChild(sender, sessionId, toolCallId, subscriptionId, (update) =>
+        application.get('IpcApiService').send(senderId, 'ai.agent.child.changed', { subscriptionId, update })
+      )
+  },
+  'ai.agent.child.detach': async ({ subscriptionId }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (sender) application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
+  },
+  'ai.agent.child.message': ({ sessionId, contextId, text }) =>
+    application.get('AgentSessionRuntimeService').messageChild(sessionId, contextId, text),
   'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
   'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
@@ -195,7 +210,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
-  'ai.agent.assistant_session.create': async () => ({ sessionId: createBuiltinAssistantSession().id }),
+  'ai.agent.assistant_session.create': async ({ workspace }) => {
+    try {
+      return { sessionId: createBuiltinAssistantSession(workspace).id }
+    } catch (error) {
+      if (isDataApiResourceNotFoundError(error, 'Workspace')) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND, error.message)
+      }
+      throw error
+    }
+  },
   'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the

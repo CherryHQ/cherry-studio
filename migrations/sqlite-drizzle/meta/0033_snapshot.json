@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7398b727-5bde-4de5-9ab2-7507f2010566",
+  "id": "67e751ec-a76d-4cba-a92a-90fb1c7c01cd",
   "prevId": "d3a5ac98-93e1-4f01-969f-2acdd50aed1f",
   "tables": {
     "agent": {
@@ -696,6 +696,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "owner_session_id": {
+          "name": "owner_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -813,6 +820,13 @@
           ],
           "isUnique": false
         },
+        "agent_session_owner_idx": {
+          "name": "agent_session_owner_idx",
+          "columns": [
+            "owner_session_id"
+          ],
+          "isUnique": false
+        },
         "agent_session_last_activity_at_idx": {
           "name": "agent_session_last_activity_at_idx",
           "columns": [
@@ -829,6 +843,19 @@
         }
       },
       "foreignKeys": {
+        "agent_session_owner_session_id_agent_session_id_fk": {
+          "name": "agent_session_owner_session_id_agent_session_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "agent_session",
+          "columnsFrom": [
+            "owner_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "agent_session_agent_id_agent_id_fk": {
           "name": "agent_session_agent_id_agent_id_fk",
           "tableFrom": "agent_session",
@@ -881,6 +908,20 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true,
+          "autoincrement": false
+        },
+        "parent_context_id": {
+          "name": "parent_context_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "spawn_tool_call_id": {
+          "name": "spawn_tool_call_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "session_id": {
@@ -949,6 +990,14 @@
           ],
           "isUnique": false
         },
+        "agent_session_context_child_uniq": {
+          "name": "agent_session_context_child_uniq",
+          "columns": [
+            "parent_context_id",
+            "native_thread_id"
+          ],
+          "isUnique": true
+        },
         "agent_session_context_anchor_uniq": {
           "name": "agent_session_context_anchor_uniq",
           "columns": [
@@ -968,6 +1017,19 @@
         }
       },
       "foreignKeys": {
+        "agent_session_context_parent_context_id_agent_session_context_id_fk": {
+          "name": "agent_session_context_parent_context_id_agent_session_context_id_fk",
+          "tableFrom": "agent_session_context",
+          "tableTo": "agent_session_context",
+          "columnsFrom": [
+            "parent_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "agent_session_context_session_id_agent_session_id_fk": {
           "name": "agent_session_context_session_id_agent_session_id_fk",
           "tableFrom": "agent_session_context",
@@ -6528,81 +6590,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_background_task": {
-      "name": "agent_background_task",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "record": {
-          "name": "record",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_background_task_agent_started_idx": {
-          "name": "agent_background_task_agent_started_idx",
-          "columns": [
-            "agent_id",
-            "started_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_background_task_agent_id_agent_id_fk": {
-          "name": "agent_background_task_agent_id_agent_id_fk",
-          "tableFrom": "agent_background_task",
-          "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

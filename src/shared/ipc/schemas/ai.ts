@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { BackgroundTaskRecord } from '@shared/ai/backgroundTask'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type {
@@ -200,6 +201,18 @@ const mentionedModelIdsSchema = z
   .optional()
 
 export const aiRequestSchemas = {
+  'ai.agent.child.attach': defineRoute({
+    input: z.strictObject({ sessionId: z.string(), toolCallId: z.string(), subscriptionId: z.string().uuid() }),
+    output: z.custom<AgentChildView | null>()
+  }),
+  'ai.agent.child.detach': defineRoute({
+    input: z.strictObject({ subscriptionId: z.string().uuid() }),
+    output: z.void()
+  }),
+  'ai.agent.child.message': defineRoute({
+    input: z.strictObject({ sessionId: z.string(), contextId: z.string(), text: z.string().trim().min(1) }),
+    output: z.void()
+  }),
   'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
@@ -374,7 +387,7 @@ export const aiRequestSchemas = {
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.assistant_session.create': defineRoute({
-    input: z.void(),
+    input: z.strictObject({ workspace: AgentSessionWorkspaceSourceSchema.optional() }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.skill_session.create': defineRoute({
@@ -526,6 +539,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.agent.child.changed': { subscriptionId: string; update: AgentChildUpdate }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload

@@ -30,6 +30,13 @@ tools or substitutes an empty argument object for invalid input.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
 
+Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
+non-streaming output and on subsequent input, including items with no readable summary. The gateway
+uses AI SDK provider metadata for this round trip; it does not decrypt or synthesize the encrypted state.
+Anthropic redacted thinking retains its ciphertext as `redacted_thinking`. Gemini text and thought
+parts retain their signatures, including metadata-only deltas. The pinned AI SDK patch forwards empty
+text deltas carrying provider metadata so those updates reach both native replay and accumulated output.
+
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
 > `feature.api_gateway.*`. The retired `csaas` alias is not part of the current

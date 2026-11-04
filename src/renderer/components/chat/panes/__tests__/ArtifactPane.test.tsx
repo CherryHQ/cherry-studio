@@ -1310,7 +1310,7 @@ describe('ArtifactPane', () => {
     await screen.findByTestId('artifact-file-preview-overlay')
 
     // The tab strip renders its menus in order, so the last resolver belongs to the attachment tab.
-    const getItems = commandMenuMocks.calls.findLast((c) => c.getExtraItems)?.getExtraItems
+    const getItems = commandMenuMocks.calls.findLast((c) => c.getExtraItems && !c.pendingExtraItems)?.getExtraItems
     await getItems?.(undefined)
     expect(mocks.openTargetListCalls.at(-1)).toEqual({
       pathKind: 'file',
