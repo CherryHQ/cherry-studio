@@ -352,7 +352,7 @@ describe('ResourceCreateWizard', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('creates a Pi agent from the guided wizard without a runtime choice', async () => {
+  it('creates a Pi Durable agent from the guided wizard without a runtime choice', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
@@ -364,7 +364,7 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi', permissionMode: 'auto' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi-durable', permissionMode: 'auto' }))
   })
 
   it('carries the quick-create purpose into the guided description and system prompt', async () => {
@@ -410,7 +410,7 @@ describe('ResourceCreateWizard', () => {
 
     expect(JSON.parse(screen.getByTestId('auto-input').textContent ?? '')).toEqual({
       avatar: '🤖',
-      agentType: 'pi',
+      agentType: 'pi-durable',
       permissionMode: 'auto',
       name: 'Slide Expert',
       modelId: 'provider::default',
@@ -429,7 +429,7 @@ describe('ResourceCreateWizard', () => {
     expect(screen.queryByTestId('auto-input')).not.toBeInTheDocument()
   })
 
-  it('restores the quick page, Pi, and its permission default after canceling and reopening', async () => {
+  it('restores the quick page, Pi Durable, and its permission default after canceling and reopening', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     const onOpenChange = vi.fn()
@@ -450,7 +450,7 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi', permissionMode: 'auto' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi-durable', permissionMode: 'auto' }))
   })
 
   it('shows the knowledge step after capability for the agent kind', async () => {

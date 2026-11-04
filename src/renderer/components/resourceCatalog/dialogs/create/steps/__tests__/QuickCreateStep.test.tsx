@@ -58,7 +58,7 @@ function Harness({ modelId = null }: { modelId?: UniqueModelId | null }) {
       avatar: '🤖',
       name: '',
       description: '',
-      agentType: 'pi',
+      agentType: 'pi-durable',
       permissionMode: 'auto',
       modelId,
       prompt: '',

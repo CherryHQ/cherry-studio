@@ -329,7 +329,7 @@ beforeEach(() => {
   })
   createAgentMock.mockResolvedValue({
     id: 'created-agent',
-    type: 'pi',
+    type: 'pi-durable',
     name: 'Created Agent',
     description: 'Created from selector',
     accessiblePaths: [],
@@ -551,7 +551,7 @@ describe('AgentSelector', () => {
 
     await waitFor(() =>
       expect(createAgentMock).toHaveBeenCalledWith({
-        type: 'pi',
+        type: 'pi-durable',
         name: 'Created Agent',
         model: MODEL.id,
         description: 'Created from selector',

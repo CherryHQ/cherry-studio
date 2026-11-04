@@ -17,7 +17,7 @@ import { type AutoCreateInput, AutoCreateProgress } from '../AutoCreateProgress'
 
 const INPUT: AutoCreateInput = {
   avatar: '🤖',
-  agentType: 'pi',
+  agentType: 'pi-durable',
   permissionMode: 'auto',
   name: 'Slide Expert',
   modelId: 'provider::model',
@@ -39,6 +39,7 @@ function makeSkill(id: string, overrides: Partial<InstalledSkill> = {}): Install
     contentHash: id,
     isGlobalEnabled: true,
     isEnabled: false,
+    mirrorEnabled: false,
     createdAt: '2026-10-30T00:00:00.000Z',
     updatedAt: '2026-10-30T00:00:00.000Z',
     ...overrides
