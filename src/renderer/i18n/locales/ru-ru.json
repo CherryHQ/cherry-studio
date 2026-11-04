@@ -5202,7 +5202,7 @@
   "settings.prompts.binding.noLinked": "Нет привязанных промптов",
   "settings.prompts.binding.noMore": "Больше нет доступных промптов",
   "settings.prompts.binding.noTargets": "Нет доступных целей",
-  "settings.prompts.binding.remove": "Удалить промпт {{title}}",
+  "settings.prompts.binding.remove": "Отвязать промпт {{title}}",
   "settings.prompts.binding.search": "Поиск промптов",
   "settings.prompts.binding.searchTargets": "Поиск ассистентов или агентов",
   "settings.prompts.binding.tabTitle": "Промпты",
