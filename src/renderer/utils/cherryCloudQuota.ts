@@ -21,9 +21,9 @@ export function getLowestRemainingPercent(entitlement: CherryCloudEntitlement): 
   return percents.length > 0 ? Math.min(...percents) : undefined
 }
 
-/** When the window's quota comes back: the next rolling recovery, or the end of a billing period. */
+/** When the window's quota comes back on its own; a paid subscription month only renews after payment. */
 export function getQuotaRecoveryTime(window: CherryCloudQuotaWindow): string | undefined {
-  return window.next_recovery_at ?? window.period_end
+  return window.next_recovery_at
 }
 
 export function getQuotaWindowLabel(window: CherryCloudQuotaWindow, t: TFunction): string {

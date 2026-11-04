@@ -116,6 +116,50 @@ describe('useCherryCloudQuotaExhaustion', () => {
     )
   })
 
+  it('promises no recovery time when a paid subscription month runs out before its period ends', async () => {
+    const monthPlans: CherryCloudAccountPlans = {
+      ...plans,
+      entitlements: [
+        {
+          ...plans.entitlements[0],
+          quota_pools: [
+            {
+              ...pool(['free-model'], []),
+              windows: [
+                {
+                  window_type: 'subscription_month',
+                  duration_seconds: 2_628_000,
+                  limit_units: 100,
+                  used_units: 100,
+                  active_reserved_units: 0,
+                  remaining_units: 0,
+                  period_start: '2026-10-03T00:00:00Z',
+                  period_end: '2026-11-03T00:00:00Z'
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    const defaultRequest = request.getMockImplementation()
+    request.mockImplementation(async (route, ...args) =>
+      route === 'cherry_cloud.account_plans.get' ? { ok: true, data: monthPlans } : defaultRequest!(route, ...args)
+    )
+
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel), { wrapper })
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
+    await waitFor(() =>
+      expect(result.current).toEqual({
+        reason: 'quota_exhausted',
+        isFreeModel: true,
+        isSubscribed: false,
+        recoversAt: undefined
+      })
+    )
+  })
+
   it.each([
     ['a signed-out account', 'signed-out', [], 'sign_in_required'],
     ['an account without a subscription', 'signed-in', [], 'subscription_required'],
