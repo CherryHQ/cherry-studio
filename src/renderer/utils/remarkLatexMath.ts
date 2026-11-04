@@ -1030,10 +1030,10 @@ function repairSetextEnvironments(tree: Root, source: string): void {
         repaired.push(node)
         continue
       }
-      // After unrelated structured siblings, an inline closing command may
+      // In or after unrelated structured siblings, an inline closing command may
       // be a prose mention. Preserve those siblings instead of swallowing them.
       const closerStart = closeEnd - `\\end{${name}}`.length
-      if (structureCounts[lo] > structureCounts[i + 1] && !linePrefixIsWhitespace[closerStart]) {
+      if (structureCounts[lo + 1] > structureCounts[i + 1] && !linePrefixIsWhitespace[closerStart]) {
         repaired.push(node)
         continue
       }

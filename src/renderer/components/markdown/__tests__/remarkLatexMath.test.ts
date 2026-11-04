@@ -349,6 +349,23 @@ describe('remarkLatexMath', () => {
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
   })
 
+  it.each([
+    ['heading', '## Close using \\end{align}', 'heading'],
+    ['link', '[Reference](https://example.com) then \\end{align}', 'link'],
+    ['image', '![diagram](https://example.com/diagram.png) then \\end{align}', 'image']
+  ])('preserves a structured %s sibling that contains the closer', (_label, tail, kind) => {
+    const source = `\\begin{align}\na\n=\nb\n\n${tail}`
+    const tree = parse(source)
+    const math: Nodes[] = []
+    const kept: Nodes[] = []
+    visit(tree, (node) => {
+      if (node.type === 'math' || node.type === 'inlineMath') math.push(node)
+      if (node.type === kind) kept.push(node)
+    })
+    expect(math).toEqual([])
+    expect(kept.length).toBeGreaterThan(0)
+  })
+
   it('ignores a closer inside a TeX percent comment', () => {
     const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
