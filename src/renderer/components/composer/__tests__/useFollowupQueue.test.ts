@@ -4737,7 +4737,10 @@ describe('editing queued items through async API claims', () => {
     await act(async () => {
       await result.current.takeForEdit('b', (taken) => ({
         draft: draft('A edited'),
-        payload: { ...payload('A edited'), chatTarget: taken.payload.chatTarget }
+        payload: {
+          ...(payload('A edited') as { text: string; userMessageParts: never[] }),
+          chatTarget: taken.payload.chatTarget
+        } as never
       }))
     })
     const body = postTrigger.mock.calls[0][0].body
