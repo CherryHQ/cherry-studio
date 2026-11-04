@@ -38,14 +38,16 @@ vi.mock('@renderer/components/command', async (importOriginal) => ({
   ...(await importOriginal<typeof CommandModule>()),
   CommandContextMenu: ({
     children,
-    extraItems
+    extraItems,
+    pendingExtraItems = extraItems
   }: {
     children: ReactNode
     extraItems?: readonly CommandContextMenuExtraItem[]
+    pendingExtraItems?: readonly CommandContextMenuExtraItem[]
   }) => (
     <>
       {children}
-      {(extraItems ?? [])
+      {(pendingExtraItems ?? [])
         .flatMap((item) => (item.type === 'submenu' ? item.children : [item]))
         .map((item) =>
           item.type === 'item' ? (
@@ -121,17 +123,19 @@ function model(): ArtifactFileTreeModel {
 }
 
 function renderPreview(workspacePath: string, filePath: string) {
+  const selection = { workspacePath, filePath }
   return render(
     <CommandContextKeyProvider>
       <CommandProvider>
         <ArtifactPaneView
-          headerVariant="pane"
           paneTitle="Files"
           paneActions={null}
           workspacePath={workspacePath}
           selectedFile={null}
           onSelectedFileChange={vi.fn()}
-          previewFileSelection={{ workspacePath, filePath }}
+          previewFileSelection={selection}
+          fileTabs={[selection]}
+          onPreviewClose={vi.fn()}
           model={model()}
           searchKeyword=""
           onSearchKeywordChange={vi.fn()}

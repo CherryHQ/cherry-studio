@@ -97,6 +97,7 @@ import {
   replaceEditedMessageParts
 } from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
+import { useNoteReferenceMentionItems } from './chat/useNoteReferenceMentionItems'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -419,7 +420,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const composerOverridden = useActiveComposerOverride() !== null
   const layerActive = useComposerLayerActive()
@@ -1108,9 +1109,22 @@ const ChatComposerInner = ({
     [reconcileTokens]
   )
 
+  const { getItems: getNoteReferenceItems, onExit: closeNoteReferences } = useNoteReferenceMentionItems({
+    files,
+    setFiles
+  })
+  const additionalReferenceItems = useMemo(
+    () => ({
+      getItems: getNoteReferenceItems,
+      onExit: closeNoteReferences,
+      title: t('chat.input.note_reference.title')
+    }),
+    [closeNoteReferences, getNoteReferenceItems, t]
+  )
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',
-    excludeId: topicId
+    excludeId: topicId,
+    additionalItems: additionalReferenceItems
   })
 
   const onPause = useCallback(() => {
@@ -1891,6 +1905,7 @@ const ChatComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
+          sidePaddingPx={sidePaddingPx}
           onFocus={() => setSearching(false)}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}

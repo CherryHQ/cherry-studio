@@ -147,9 +147,10 @@ overlay-vs-persist conditional write.
 
 ## Invariants
 
-- **Topic-level addressing.** Every IPC, broadcast, and shared-cache
-  entry is keyed by `topicId`. A topic has at most one active stream;
-  subscribers are equal — there is no "owner" window.
+- **Topic-level addressing.** Root chat streams are keyed by `topicId`.
+  A topic has at most one active stream; subscribers are equal — there is no
+  "owner" window. Pi child projections have independent owner-scoped subscriptions
+  and archives; parent completion does not close them.
 - **Main owns persistence.** Renderer closing or crashing does not abort
   the stream or lose data. `PersistenceListener` writes on terminal
   regardless of subscriber state.

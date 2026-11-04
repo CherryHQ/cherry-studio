@@ -1,4 +1,4 @@
-import { getCurrentTools, type Message } from '@earendil-works/pi-ai'
+import { getCurrentTools, type AssistantMessage, type Message } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
   buildSessionContext,
@@ -6,13 +6,25 @@ import {
   type SessionManager
 } from '@earendil-works/pi-coding-agent'
 
+import type { SubagentView } from './subagentRegistry'
+
 const TOOL_LOADOUT_STATE = 'cherry.tool-loadout'
 
 export type CompactionReason = 'manual' | 'threshold' | 'overflow'
 export type AgentRuntimeEvent =
+  | { type: 'subagents'; subagents: SubagentView[] }
   | { type: 'session-append'; entries: SessionEntry[] }
+  | { type: 'input-placed'; inputId: string; entryId: string }
+  | {
+      type: 'input-settled'
+      inputIds: readonly string[]
+      entryId: string
+      stopReason: AssistantMessage['stopReason']
+      aborted: boolean
+      errorMessage?: string
+    }
   | { type: 'compaction-start'; reason: CompactionReason }
-  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }
+  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string; aborted?: boolean }
   | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
 
 /** Observes native entries; the session manager remains the only persistence writer. */
@@ -45,6 +57,19 @@ export class SessionEvents {
   handle(event: AgentSessionEvent): void {
     this.flush()
     switch (event.type) {
+      case 'input_settled':
+        this.listener({
+          type: 'input-settled',
+          inputIds: [...event.inputIds],
+          entryId: event.entryId,
+          stopReason: event.message.stopReason,
+          aborted: event.aborted,
+          ...(event.message.errorMessage === undefined ? {} : { errorMessage: event.message.errorMessage })
+        })
+        break
+      case 'input_placed':
+        this.listener({ type: 'input-placed', inputId: event.inputId, entryId: event.entryId })
+        break
       case 'compaction_start':
         this.compacting = true
         this.compactionEntryId = undefined
@@ -60,6 +85,7 @@ export class SessionEvents {
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
+          aborted: event.aborted,
           ...(entryId ? { entryId } : {}),
           ...(error ? { error } : {})
         })

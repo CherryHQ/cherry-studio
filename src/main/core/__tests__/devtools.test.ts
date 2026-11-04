@@ -1,8 +1,10 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { applicationMock, loggerMock, loadExtensionMock, installExtensionMock, platformMock } = vi.hoisted(() => {
   const applicationMock = {
-    getPath: vi.fn((key: string) => `/mock/${key}`)
+    getPath: vi.fn((key: string) => resolvePath(`/mock/${key}`))
   }
   const loggerMock = {
     error: vi.fn(),
@@ -61,11 +63,11 @@ describe('installDevtoolsExtensions', () => {
     await installDevtoolsExtensions()
 
     expect(installExtensionMock).toHaveBeenCalledWith('react-devtools')
-    expect(loadExtensionMock).toHaveBeenCalledWith('/mock/app.root.resources/devtools/data-api')
+    expect(loadExtensionMock).toHaveBeenCalledWith(resolvePath('/mock/app.root.resources/devtools/data-api'))
     expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: React Developer Tools')
     expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: DataApi DevTools')
     // main-network is no longer installed by core — its service installs its own panel.
-    expect(loadExtensionMock).not.toHaveBeenCalledWith('/mock/app.root.resources/devtools/main-network')
+    expect(loadExtensionMock).not.toHaveBeenCalledWith(resolvePath('/mock/app.root.resources/devtools/main-network'))
   })
 
   it('logs install failures without throwing', async () => {

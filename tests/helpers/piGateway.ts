@@ -23,15 +23,10 @@ import {
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
-import {
-  type AgentRuntimeSessionOptions,
-  type AgentRuntimeEvent,
-  type AgentRuntimeModel,
-  createAgentRuntimeSession
-} from '@cherrystudio/agent-runtime-pi'
+import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
 import { loadPiApiStreamSimple } from '@main/ai/runtime/pi/piSdk'
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
 
@@ -178,7 +173,20 @@ export async function createTestSession(options: TestSessionOptions) {
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
     settings: { retry: { enabled: false }, ...sessionOptions.settings },
-    ...binding
+    ...binding,
+    subagents: options.subagents && {
+      ...options.subagents,
+      async configure(child, signal) {
+        const configured = await options.subagents!.configure(child, signal)
+        if (!configured.model || child.fork || configured.modelRuntime) return configured
+        const { provider, id, ...spec } = configured.model
+        const childBinding = await createTestBinding({
+          port,
+          model: { ...spec, id: createUniqueModelId(provider, id) }
+        })
+        return { ...configured, ...childBinding }
+      }
+    }
   })
   onTestFinished(() => runtime.dispose())
   return runtime
@@ -189,8 +197,6 @@ export function lastAssistant(session: AgentSession): AssistantMessage {
   if (!message) throw new Error('no assistant message')
   return message
 }
-
-export const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 export const finish = (
   unified: 'stop' | 'tool-calls' | 'length' | 'other',
@@ -222,23 +228,4 @@ export function scriptedModel(scripts: LanguageModelV3StreamPart[][], chunkDelay
     }
   })
   return { model, calls }
-}
-
-/** Records copied observations for assertions; native SessionManager owns persistence. */
-export function hostStore() {
-  const entries: SessionEntry[] = []
-  const events: AgentRuntimeEvent[] = []
-  const onEvent = (event: AgentRuntimeEvent) => {
-    events.push(event)
-    if (event.type === 'session-append') entries.push(...plain(event.entries))
-  }
-  return { entries, events, onEvent }
-}
-
-export const NATIVE_MODEL: AgentRuntimeModel = {
-  ...MODEL,
-  api: 'openai-completions',
-  baseUrl: 'http://gateway-fixture.invalid',
-  provider: 'cherry',
-  id: 'bridged-model'
 }

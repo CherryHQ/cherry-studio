@@ -12,6 +12,7 @@ import {
   GOAL_STATE_TYPE,
   goalView,
   goalUsage,
+  goalForCompaction,
   hasCapacity,
   isHumanTurn,
   isProgressResult,
@@ -20,8 +21,10 @@ import {
   resumeGoal,
   stopGoal,
   tailRound,
-  toolCallKey
+  toolCallKey,
+  turnStarter
 } from '../src/goalState'
+import { SUBAGENT_NOTIFICATION_TYPE } from '../src/subagentDelivery'
 
 const limits = { maxGoalRounds: 100, maxGoalRoundsCeiling: 1000 }
 const unused = { tokens: 0, usd: 0 }
@@ -73,7 +76,6 @@ describe('goal state transitions', () => {
       'approval_denied',
       'awaiting_approval',
       'needs_user_input',
-      'waiting_subagents',
       'provider_error',
       'continuation_rejected',
       'unsupported_model'
@@ -300,6 +302,14 @@ const otherMessage = (id: string): SessionEntry => ({
   content: 'injected',
   display: false
 })
+const notificationEntry = (id: string): SessionEntry => ({
+  ...base(id),
+  type: 'custom_message',
+  customType: SUBAGENT_NOTIFICATION_TYPE,
+  content: 'Background subagent update',
+  display: false,
+  details: { subagents: [] }
+})
 const stateEntry = (id: string, data: unknown): SessionEntry => ({
   ...base(id),
   type: 'custom',
@@ -318,6 +328,17 @@ describe('goal branch reading', () => {
       currentGoal([stateEntry('a', goal), stateEntry('b', { id: goal.id, revision: 3, cleared: true, at: 2 })])
     ).toBeUndefined()
     expect(currentGoal([userEntry('u', 'hi')])).toBeUndefined()
+  })
+
+  it('captures summary ownership for armed notification work, but not paused or human work', () => {
+    const entries = [stateEntry('goal', goal), notificationEntry('notice')]
+    expect(goalForCompaction(entries)).toBe(goal.id)
+    expect(
+      goalForCompaction([...entries, stateEntry('pause', stopGoal(goal, { code: 'paused_by_user' }, 2))])
+    ).toBeNull()
+    expect(
+      goalForCompaction([stateEntry('goal', goal), userEntry('person', 'hi'), notificationEntry('notice')])
+    ).toBeNull()
   })
 
   it('includes stored compaction usage in the admitted goal and preserves it after pause and rebuild', () => {
@@ -382,6 +403,25 @@ describe('goal branch reading', () => {
       isHumanTurn([roundEntry('r', 1), assistantEntry('a', 'x'), otherMessage('o'), assistantEntry('b', 'y')])
     ).toBe(false)
     expect(isHumanTurn([userEntry('u', 'do it'), assistantEntry('a', 'ok'), otherMessage('o')])).toBe(true)
+  })
+
+  // Breaks when a notification's turn passes for a human turn (the model could create or change a
+  // goal no person asked for), or a person's turn stops being one because a notification rode with it.
+  it('tells a notification turn from a human turn the notification rode with', () => {
+    expect(
+      turnStarter([
+        userEntry('u', 'do it'),
+        assistantEntry('a', 'ok'),
+        notificationEntry('n'),
+        assistantEntry('b', 'read')
+      ])
+    ).toBe('notification')
+    expect(turnStarter([userEntry('u', 'do it'), notificationEntry('n'), assistantEntry('a', 'ok')])).toBe('human')
+    expect(
+      turnStarter([roundEntry('r', 1), assistantEntry('a', 'x'), notificationEntry('n'), assistantEntry('b', 'y')])
+    ).toBe('notification')
+    expect(turnStarter([notificationEntry('n'), assistantEntry('a', 'x'), roundEntry('r', 2)])).toBe('round')
+    expect(isHumanTurn([userEntry('u', 'do it'), assistantEntry('a', 'ok'), notificationEntry('n')])).toBe(false)
   })
 
   it('reads the round committed after the last message, past entries other extensions append', () => {
