@@ -162,9 +162,9 @@ function PageSidePanel({
             )}
 
             <ScrollArea
-              viewportProps={{ 'data-slot': 'page-side-panel-body', className: 'px-6 py-4' }}
-              contentProps={{ className: 'space-y-4' }}
-              className={cn('min-h-0 flex-1', bodyClassName)}>
+              viewportProps={{ 'data-slot': 'page-side-panel-body' }}
+              contentProps={{ className: cn('h-full min-h-0 space-y-4 px-6 py-4', bodyClassName) }}
+              className="min-h-0 flex-1">
               {children}
             </ScrollArea>
 

@@ -344,6 +344,11 @@ export function MessageVirtualList<T>({
   return (
     <div data-message-virtual-list-root className="relative flex min-h-0" style={style}>
       <ScrollArea
+        onPointerDownCapture={(event) => {
+          if (event.button !== 0 || !(event.target instanceof Element)) return
+          const track = event.target.closest('[data-slot="scroll-area-scrollbar"]')
+          if (track?.parentElement === event.currentTarget) beginScrollbarDrag()
+        }}
         viewportProps={{
           ref: setScrollerRef,
           'data-message-virtual-list-scroller': true,

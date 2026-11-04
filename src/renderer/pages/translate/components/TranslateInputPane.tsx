@@ -133,7 +133,10 @@ const TranslateInputPane = ({
         </IconButton>
       </div>
       <div className="relative min-h-0 flex-1">
-        <ScrollArea viewportProps={{ ref: ref, onScroll: onScroll, className: 'overflow-x-hidden' }} className="h-full">
+        <ScrollArea
+          viewportProps={{ ref, onScroll, className: 'overflow-x-hidden' }}
+          contentProps={{ className: 'h-full' }}
+          className="h-full">
           <textarea
             ref={textareaRef}
             data-voice-target-id={TARGET_ID}

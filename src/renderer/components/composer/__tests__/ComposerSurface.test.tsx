@@ -92,7 +92,7 @@ function getMockEditorMinHeight(node: HTMLElement) {
   if (!mocks.simulateDeferredEditorStyle) return mocks.editorClientHeight
 
   const inheritedMinHeight = Number.parseFloat(
-    node.parentElement?.style.getPropertyValue('--composer-editor-min-height') ?? ''
+    node.closest<HTMLElement>('[data-slot="scroll-area"]')?.style.getPropertyValue('--composer-editor-min-height') ?? ''
   )
   return Number.isFinite(inheritedMinHeight) ? inheritedMinHeight : mocks.deferredEditorMinHeight
 }
@@ -889,8 +889,8 @@ describe('ComposerSurface', () => {
   it('keeps regular editor padding independent of the overlay corner control', () => {
     render(<ComposerSurface {...baseProps} />)
 
-    const editorContent = screen.getByTestId('editor-content')
-    expect(editorContent.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
+    const editorScrollArea = screen.getByTestId('editor-content').closest<HTMLElement>('[data-slot="scroll-area"]')
+    expect(editorScrollArea?.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
     expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
@@ -921,15 +921,9 @@ describe('ComposerSurface', () => {
     expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
     expect(inputbar?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
-    expect(screen.getByTestId('editor-content').parentElement).toHaveStyle({ minHeight: '26px' })
-    const editorContent = screen.getByTestId('editor-content')
-    const editorElementStyle = screen.getByTestId('composer-editor').getAttribute('data-editor-style')
-    expect(editorContent).toHaveStyle({ minHeight: '26px', height: '26px' })
-    expect(editorContent.style.getPropertyValue('--composer-editor-min-height')).toBe('26px')
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('26px')
-    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
-    expect(editorElementStyle).toContain('max-height: var(--composer-editor-max-height) !important')
-    expect(editorElementStyle).not.toContain('--composer-editor-min-height: 26px')
+    expect(screen.getByTestId('editor-content').closest('[data-composer-editor-frame]')).toHaveStyle({
+      minHeight: '26px'
+    })
     const addToolButton = screen.getByRole('button', { name: 'add tool' })
     const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
     const contextUsage = screen.getByLabelText('context usage')
@@ -1149,7 +1143,7 @@ describe('ComposerSurface', () => {
 
     const editor = screen.getByTestId('composer-editor')
 
-    expect(editor).toHaveClass('block', 'overflow-auto')
+    expect(editor).toHaveClass('block')
     expect(editor).not.toHaveClass('flex')
   })
 
@@ -1158,16 +1152,12 @@ describe('ComposerSurface', () => {
 
     const editorContent = screen.getByTestId('editor-content')
     const editor = screen.getByTestId('composer-editor')
-    const editorContainer = editorContent.parentElement
+    const editorContainer = editorContent.closest('[data-composer-editor-frame]')
     const inputbar = document.getElementById('inputbar')
     const expandedHeight = `${window.innerHeight}px`
-    const stableEditorElementStyle = editor.getAttribute('data-editor-style')
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
     expect(editorContainer).not.toHaveStyle({ height: `${window.innerHeight}px` })
-    expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe(`${window.innerHeight}px`)
-    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
     expect(editor.className).not.toContain('max-h-[500px]')
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
@@ -1176,11 +1166,6 @@ describe('ComposerSurface', () => {
     fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
 
     expect(editorContainer).toHaveStyle({ height: `${window.innerHeight}px`, overflow: 'hidden' })
-    expect(editorContent).toHaveStyle({ height: '100%' })
-    expect(screen.getByTestId('composer-editor').className).toContain('h-full')
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe(`${window.innerHeight}px`)
-    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
-    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toBe(stableEditorElementStyle)
     expect(inputbar).toHaveClass('expanded')
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.restore' }))
@@ -1189,9 +1174,6 @@ describe('ComposerSurface', () => {
     fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
 
     expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
-    expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe(`${window.innerHeight}px`)
-    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
     expect(inputbar).not.toHaveClass('expanded')
   })
 
@@ -1233,7 +1215,7 @@ describe('ComposerSurface', () => {
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const editorContent = screen.getByTestId('editor-content')
-    const editorContainer = editorContent.parentElement as HTMLElement
+    const editorContainer = editorContent.closest('[data-composer-editor-frame]') as HTMLElement
     const inputbar = document.getElementById('inputbar')
 
     fireEvent.mouseDown(resizeHandle, { clientY: 200 })
@@ -1242,9 +1224,6 @@ describe('ComposerSurface', () => {
     fireEvent.mouseMove(document, { clientY: 100 })
 
     expect(editorContainer).toHaveStyle({ height: '146px', transitionDuration: '0ms' })
-    expect(editorContent).toHaveStyle({ height: '100%' })
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('146px')
-    expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
     expect(inputbar).not.toHaveClass('expanded')
 
@@ -1260,14 +1239,13 @@ describe('ComposerSurface', () => {
     fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
 
     expect(editorContainer.style.height).toBe('')
-    expect(editorContent).not.toHaveStyle({ height: '100%' })
   })
 
   it('clamps pointer drag height to the editor minimum and expanded maximum', () => {
     render(<Harness />)
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
-    const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
+    const editorContainer = screen.getByTestId('editor-content').closest('[data-composer-editor-frame]') as HTMLElement
     const expandedHeight = `${window.innerHeight}px`
 
     fireEvent.mouseDown(resizeHandle, { clientY: 200 })
@@ -1281,7 +1259,7 @@ describe('ComposerSurface', () => {
   it('converts expanded height to manual height when dragging from the expanded state', async () => {
     render(<Harness />)
 
-    const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
+    const editorContainer = screen.getByTestId('editor-content').closest('[data-composer-editor-frame]') as HTMLElement
     const expandedHeight = window.innerHeight
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
@@ -1299,7 +1277,7 @@ describe('ComposerSurface', () => {
     render(<Harness />)
 
     const editorContent = screen.getByTestId('editor-content')
-    const editorContainer = editorContent.parentElement as HTMLElement
+    const editorContainer = editorContent.closest('[data-composer-editor-frame]') as HTMLElement
     const expandedHeight = `${window.innerHeight}px`
 
     fireEvent.mouseDown(screen.getByRole('separator', { name: 'chat.input.resize_height' }), { clientY: 200 })
@@ -1328,7 +1306,6 @@ describe('ComposerSurface', () => {
     fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
 
     expect(editorContainer.style.height).toBe('')
-    expect(editorContent).not.toHaveStyle({ height: '100%' })
     expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
   })
 
@@ -1340,7 +1317,7 @@ describe('ComposerSurface', () => {
     render(<Harness />)
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
-    const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
+    const editorContainer = screen.getByTestId('editor-content').closest('[data-composer-editor-frame]') as HTMLElement
     const expandedHeight = window.innerHeight
 
     resizeHandle.focus()

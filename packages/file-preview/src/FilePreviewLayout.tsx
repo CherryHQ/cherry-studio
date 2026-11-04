@@ -38,7 +38,8 @@ function FilePreviewContent({
       viewportProps={{
         'data-testid': 'file-preview-content',
         className: cn(reserveInset && 'pb-[var(--file-preview-bottom-inset,0px)]')
-      }}>
+      }}
+      contentProps={{ className: 'h-full' }}>
       {children}
     </ScrollArea>
   )
