@@ -160,7 +160,7 @@ it.each([false, true])('resolves MCP interactions from the initiating window (he
   )
   defaultServiceInstances.WindowManager.getWindow.mockReturnValue(undefined)
   expect(f.service.getMcpInteractionHost('root')).toBeUndefined()
-  await stream.cancel()
+  await stream.stream.cancel()
 })
 
 // Catches child IPC writing while backup holds admission, including overlapping pause owners.
