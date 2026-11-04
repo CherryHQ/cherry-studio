@@ -266,12 +266,6 @@ importers:
 
   .:
     dependencies:
-      '@agentclientprotocol/sdk':
-        specifier: ^1.5.0
-        version: 1.5.0(zod@4.4.3)
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.284
-        version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/agent-behavior':
         specifier: workspace:*
         version: link:packages/agent-behavior
@@ -281,24 +275,12 @@ importers:
       '@cherrystudio/agent-runtime-pi-durable':
         specifier: workspace:*
         version: link:packages/agent-runtime-pi-durable
-      '@cherrystudio/computer-use':
-        specifier: 0.1.9
-        version: 0.1.9
       '@cherrystudio/mlx-asr':
         specifier: github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr
         version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
-      '@cherrystudio/remote-protocol':
-        specifier: workspace:*
-        version: link:packages/remote-protocol
-      '@cherrystudio/remote-transport':
-        specifier: workspace:*
-        version: link:packages/remote-transport
-      '@cherrystudio/system-speech':
-        specifier: workspace:*
-        version: link:native/system-speech
       '@earendil-works/chord':
         specifier: 1.4.0
         version: 1.4.0
@@ -320,9 +302,6 @@ importers:
       '@huggingface/transformers':
         specifier: 4.2.0
         version: 4.2.0(@types/node@24.10.4)
-      '@larksuiteoapi/node-sdk':
-        specifier: ^1.73.0
-        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -359,15 +338,9 @@ importers:
       graceful-fs:
         specifier: 4.2.11
         version: 4.2.11
-      grammy:
-        specifier: ^1.36.3
-        version: 1.41.1(encoding@0.1.13)(supports-color@8.1.1)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0(supports-color@8.1.1)
-      mediabunny:
-        specifier: 1.58.0
-        version: 1.58.0
       node-screenshots:
         specifier: ^0.2.8
         version: 0.2.8
@@ -377,12 +350,6 @@ importers:
       onnxruntime-node:
         specifier: 1.25.1
         version: 1.25.1(patch_hash=7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef)
-      opus-decoder:
-        specifier: 0.7.12
-        version: 0.7.12
-      os-proxy-config:
-        specifier: 1.1.2
-        version: 1.1.2
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
@@ -410,22 +377,19 @@ importers:
       sqlite-vec:
         specifier: npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2
         version: '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
-      systeminformation:
-        specifier: 5.33.8
-        version: 5.33.8
       tesseract.js:
         specifier: 6.0.1
         version: 6.0.1(patch_hash=a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e)(encoding@0.1.13)
       ts-ebml:
         specifier: 3.0.2
         version: 3.0.2(supports-color@8.1.1)
-      which:
-        specifier: 6.0.1
-        version: 6.0.1
       ws:
         specifier: ^8.21.0
         version: 8.21.3
     devDependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^1.5.0
+        version: 1.5.0(zod@4.4.3)
       '@ai-sdk/amazon-bedrock':
         specifier: ^4.0.96
         version: 4.0.96(patch_hash=7f2fa5c38067d9e6a9f575a279b30ca54ee5bfc4984d97ad2f13a7c2662d85ee)(zod@4.4.3)
@@ -495,6 +459,9 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.126
         version: 3.0.126(zod@4.4.3)
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 0.3.284
+        version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
@@ -528,6 +495,9 @@ importers:
       '@cherrystudio/analytics-client':
         specifier: 1.4.0
         version: 1.4.0(typescript@5.9.3)
+      '@cherrystudio/computer-use':
+        specifier: 0.1.9
+        version: 0.1.9
       '@cherrystudio/extension-table-plus':
         specifier: workspace:^
         version: link:packages/extension-table-plus
@@ -540,9 +510,18 @@ importers:
       '@cherrystudio/provider-registry':
         specifier: workspace:*
         version: link:packages/provider-registry
+      '@cherrystudio/remote-protocol':
+        specifier: workspace:*
+        version: link:packages/remote-protocol
       '@cherrystudio/remote-protocol-v0':
         specifier: npm:@cherrystudio/remote-protocol@0.1.0
         version: '@cherrystudio/remote-protocol@0.1.0(zod@4.4.3)'
+      '@cherrystudio/remote-transport':
+        specifier: workspace:*
+        version: link:packages/remote-transport
+      '@cherrystudio/system-speech':
+        specifier: workspace:*
+        version: link:native/system-speech
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
@@ -642,6 +621,9 @@ importers:
       '@j178/prek':
         specifier: ^0.3.4
         version: 0.3.4(debug@4.4.3(supports-color@8.1.1))
+      '@larksuiteoapi/node-sdk':
+        specifier: ^1.73.0
+        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
@@ -1143,6 +1125,9 @@ importers:
       gpt-tokenizer:
         specifier: ^3.4.0
         version: 3.4.0
+      grammy:
+        specifier: ^1.36.3
+        version: 1.41.1(encoding@0.1.13)(supports-color@8.1.1)
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -1227,6 +1212,9 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.0.2
         version: 2.0.2(supports-color@8.1.1)
+      mediabunny:
+        specifier: 1.58.0
+        version: 1.58.0
       micromark-util-types:
         specifier: ^2.0.2
         version: 2.0.2
@@ -1272,6 +1260,12 @@ importers:
       open:
         specifier: ^8.4.2
         version: 8.4.2
+      opus-decoder:
+        specifier: 0.7.12
+        version: 0.7.12
+      os-proxy-config:
+        specifier: 1.1.2
+        version: 1.1.2
       oxc-parser:
         specifier: 0.142.0
         version: 0.142.0
@@ -1401,6 +1395,9 @@ importers:
       swr:
         specifier: ^2.3.6
         version: 2.3.8(react@19.2.3)
+      systeminformation:
+        specifier: 5.33.8
+        version: 5.33.8
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
@@ -1473,6 +1470,9 @@ importers:
       webdav:
         specifier: ^5.9.0
         version: 5.9.0
+      which:
+        specifier: 6.0.1
+        version: 6.0.1
       winston:
         specifier: ^3.17.0
         version: 3.19.0
