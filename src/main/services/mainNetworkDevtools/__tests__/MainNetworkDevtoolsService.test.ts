@@ -1306,3 +1306,48 @@ it('reports prematurely terminated ASCII response as a transport error, not inva
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
+
+it
+  .skipIf(process.platform === 'win32')
+  .each([undefined, '', 'text/plain', 'application/json', 'application/octet-stream'])(
+  'redacts retained Request form bytes with replacement Content-Type %s without restoring removed headers',
+  async (replacementType) => {
+    const received: { type: string | undefined; body: string }[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push({ type: req.headers['content-type'], body: Buffer.concat(chunks).toString() })
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchFetch: () => void }
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
+    const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+    vm.createContext(sandbox)
+    vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+    state.patchFetch()
+    try {
+      const body = new URLSearchParams({ api_key: 'retained-form-private-marker', word: 'é' })
+      const request = new Request(url, { method: 'POST', body })
+      const headers: Record<string, string> = replacementType !== undefined ? { 'Content-Type': replacementType } : {}
+      await (await fetch(request, { headers })).text()
+      await waitFor(() => state.events[0]?.requestBody?.text !== undefined)
+      const event = state.events[0]
+      expect(event.requestBody?.text).toBe('api_key=%3Credacted%3E&word=%C3%A9')
+      expect(event.requestBody?.contentType).toBe(replacementType)
+      const command = sandbox.buildCurlCommand?.(event) as string
+      expect(JSON.stringify(event)).not.toContain('retained-form-private-marker')
+      expect(command).not.toContain('retained-form-private-marker')
+      await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+      expect(received[0]).toEqual({ type: replacementType, body: body.toString() })
+      expect(received[1]).toEqual({ type: replacementType, body: 'api_key=%3Credacted%3E&word=%C3%A9' })
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)

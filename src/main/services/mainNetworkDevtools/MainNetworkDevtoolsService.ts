@@ -411,9 +411,13 @@ export class MainNetworkDevtoolsService extends BaseService {
     if (description.requestBody || typeof Request === 'undefined' || !(input instanceof Request) || !input.body) return
 
     const contentType = description.requestContentType
+    // Replacing Request headers changes wire metadata, not the retained body bytes.
+    // Keep a known form body's redaction shape without restoring its old header.
+    const originalType = input.headers.get('content-type') ?? undefined
+    const redactionContentType = isUrlEncodedContentType(originalType) ? originalType : contentType
     // Do not clone non-text bodies: Request.clone() tees the stream, and the unread
     // clone branch would buffer the whole binary payload without backpressure.
-    if (!isTextLikeContentType(contentType)) {
+    if (!isTextLikeContentType(redactionContentType)) {
       this.updateEvent(id, { requestBody: { contentType, note: 'Binary request body is not captured.' } })
       return
     }
@@ -426,7 +430,13 @@ export class MainNetworkDevtoolsService extends BaseService {
       return
     }
 
-    void readWebBody(clonedRequest.body, contentType, 'No request body.', description.requestHeaders)
+    void readWebBody(
+      clonedRequest.body,
+      contentType,
+      'No request body.',
+      description.requestHeaders,
+      redactionContentType
+    )
       .then((requestBody) => this.updateEvent(id, { requestBody }))
       .catch((error) => this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } }))
   }
@@ -652,7 +662,7 @@ export function getEffectiveFetchRequestContentType(
   body: unknown
 ): string | undefined {
   const fromHeader = getHeaderValue(requestHeaders ?? {}, 'content-type')
-  if (fromHeader) return fromHeader
+  if (fromHeader !== undefined) return fromHeader
   if (typeof body === 'string') return 'text/plain;charset=UTF-8'
   if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded;charset=UTF-8'
   if (typeof Blob !== 'undefined' && body instanceof Blob && body.type) return body.type
@@ -771,7 +781,8 @@ async function readWebBody(
   body: ReadableStream<Uint8Array> | null,
   contentType: string | undefined,
   emptyNote: string,
-  requestHeaders?: Record<string, string>
+  requestHeaders?: Record<string, string>,
+  redactionContentType = contentType
 ): Promise<MainNetworkDevtoolsBody> {
   if (!body) return { contentType, note: emptyNote }
 
@@ -823,7 +834,10 @@ async function readWebBody(
     reader.releaseLock()
   }
 
-  return applyContentEncodingReplayConstraint(createCapturedTextBody(text, contentType, truncated), requestHeaders)
+  return applyContentEncodingReplayConstraint(
+    { ...createCapturedTextBody(text, redactionContentType, truncated), contentType },
+    requestHeaders
+  )
 }
 
 function createBodyAccumulator(contentType?: string, requestHeaders?: Record<string, string>) {
