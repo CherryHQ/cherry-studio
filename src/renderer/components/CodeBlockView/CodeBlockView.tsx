@@ -113,6 +113,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
   const [codeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable] = usePreference('chat.code.wrappable')
+  const [mermaidAutoRender] = usePreference('chat.code.mermaid.auto_render')
   const wrapLines = useCodeBlockWrapLines()
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -131,9 +132,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
 
-  const [viewState, setViewState] = useState({
-    mode: 'special' as ViewMode,
-    previousMode: 'special' as ViewMode
+  const [viewState, setViewState] = useState(() => {
+    const initialMode: ViewMode = language === 'mermaid' && !mermaidAutoRender ? 'source' : 'special'
+    return { mode: initialMode, previousMode: initialMode }
   })
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'

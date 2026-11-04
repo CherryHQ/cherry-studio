@@ -983,6 +983,7 @@
   "chat.settings.code_image_tools.tip": "Activează instrumentele de previzualizare pentru imaginile randate din blocuri de cod, cum ar fi mermaid",
   "chat.settings.code_theme.cherry_default": "Cherry (implicit)",
   "chat.settings.code_wrappable": "Încadrare text în blocul de cod",
+  "chat.settings.mermaid_auto_render": "Randare automată a diagramelor Mermaid",
   "chat.settings.show_line_numbers": "Afișează numerele liniilor de cod",
   "chat.settings.thought_auto_collapse.label": "Restrânge conținutul gândirii",
   "chat.settings.thought_auto_collapse.tip": "Restrânge automat conținutul gândirii după ce gândirea se termină",

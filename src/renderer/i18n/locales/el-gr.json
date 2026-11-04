@@ -983,6 +983,7 @@
   "chat.settings.code_image_tools.tip": "Ενεργοποίηση εργαλείου προεπισκόπησης για εικόνες που αποδίδονται από blocks κώδικα όπως το mermaid",
   "chat.settings.code_theme.cherry_default": "Cherry (προεπιλογή)",
   "chat.settings.code_wrappable": "Οι κώδικες μπορούν να γράφονται σε διαφορετική γραμμή",
+  "chat.settings.mermaid_auto_render": "Αυτόματη απόδοση διαγραμμάτων Mermaid",
   "chat.settings.show_line_numbers": "Εμφάνιση αριθμού γραμμών στον κώδικα",
   "chat.settings.thought_auto_collapse.label": "Αυτόματη συμπίεση σκέψεων",
   "chat.settings.thought_auto_collapse.tip": "Μετά τη λήξη της σκέψης, η σκέψη αυτόματα συμπιεζεται",

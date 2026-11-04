@@ -120,6 +120,13 @@ describe('CodeBlockView', () => {
     expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
   })
 
+  it('shows mermaid source instead of rendering when auto-render is disabled', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', false)
+    render(<CodeBlockView language="mermaid">{'graph TD; A-->B'}</CodeBlockView>)
+
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('graph TD; A-->B')
+  })
+
   it('renders display-only code without a toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
