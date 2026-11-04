@@ -14,7 +14,7 @@ import {
   EmptyState,
   Input,
   Label,
-  Scrollbar,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -27,7 +27,6 @@ import {
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
-import LegacyScrollbar from '@renderer/components/Scrollbar'
 import {
   SettingDivider,
   SettingGroup,
@@ -278,7 +277,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
             <DialogHeader className="shrink-0">
               <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
-            <LegacyScrollbar className="flex min-h-0 flex-col gap-4">
+            <ScrollArea contentProps={{ className: 'flex flex-col gap-4' }} className="min-h-0">
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
@@ -328,7 +327,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   onRemove={() => channel && onDelete(channel.id)}
                 />
               )}
-            </LegacyScrollbar>
+            </ScrollArea>
           </>
         )}
       </DialogContent>
@@ -548,18 +547,24 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   if (isLoading) {
     return (
-      <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+      <ScrollArea
+        contentProps={{ className: 'flex flex-col' }}
+        className="flex-1"
+        style={{ height: 'calc(100vh - var(--navbar-height))' }}>
         <SettingsContentBody className="flex-1 items-center justify-center">
           <Spinner text={t('common.loading')} />
         </SettingsContentBody>
-      </Scrollbar>
+      </ScrollArea>
     )
   }
 
   const icon = getChannelTypeIcon(channelDef.type)
 
   return (
-    <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+    <ScrollArea
+      contentProps={{ className: 'flex flex-col' }}
+      className="flex-1"
+      style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
         <SettingGroup>
           <div className="flex items-center justify-between gap-4 pb-1">
@@ -618,7 +623,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         channelName={logChannel?.name ?? ''}
         onClose={() => setLogChannel(null)}
       />
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

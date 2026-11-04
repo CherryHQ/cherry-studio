@@ -9,6 +9,7 @@ import {
 } from 'react'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { ScrollArea } from '@cherrystudio/ui/components/primitives/scroll-area'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { Header } from './parts/header'
@@ -326,14 +327,18 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             />
           ) : null}
 
-          <div
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            aria-multiselectable={isMultiMode}
-            aria-activedescendant={activeOptionDomId}
-            tabIndex={-1}
-            className="min-h-0 flex-1 overflow-y-auto outline-none"
+          <ScrollArea
+            type="auto"
+            className="min-h-0 flex-1"
+            viewportProps={{
+              ref: listRef,
+              id: listboxId,
+              role: 'listbox',
+              'aria-multiselectable': isMultiMode,
+              'aria-activedescendant': activeOptionDomId,
+              tabIndex: -1,
+              className: 'outline-none'
+            }}
             style={{ maxHeight: typeof maxListHeight === 'number' ? `${maxListHeight}px` : maxListHeight }}>
             {loading
               ? (loadingState ?? null)
@@ -355,7 +360,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
                       )
                     })
                   : flatItems.map((it, idx) => renderOptionRow(it, idx))}
-          </div>
+          </ScrollArea>
 
           {footer ?? null}
         </PopoverContent>

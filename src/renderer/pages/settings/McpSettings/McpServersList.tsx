@@ -12,7 +12,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Sortable,
   useDndReorder
 } from '@cherrystudio/ui'
@@ -340,7 +340,7 @@ const McpServersList: FC = () => {
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-              <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
+              <ScrollArea viewportProps={{ ref: scrollRef }} className="min-h-0 flex-1">
                 {filteredMcpServers.length > 0 ? (
                   <Sortable
                     className="[&>div:last-child_[data-slot=mcp-server-row]]:border-b-0"
@@ -370,7 +370,7 @@ const McpServersList: FC = () => {
                     className="py-12"
                   />
                 )}
-              </Scrollbar>
+              </ScrollArea>
             </div>
           </div>
         </div>
