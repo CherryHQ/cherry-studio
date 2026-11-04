@@ -1450,6 +1450,25 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('lets an availability check in flight finish when a refresh starts, then reads again', async () => {
+    const service = await createSignedInService()
+    const accountRequest = deferred<Response>()
+    const catalogRequest = deferred<Response>()
+    mockCloudRoute('/api/v1/account', accountRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    const waiting = service['syncEntitledModels']()
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+
+    mockModelSync()
+    const refresh = service.refreshEntitledModels()
+    accountRequest.resolve(jsonResponse(accountSnapshot))
+    catalogRequest.resolve(jsonResponse(cloudModelCatalog))
+
+    await expect(waiting).resolves.toHaveProperty('entitledModelIds')
+    await expect(refresh).resolves.toHaveProperty('entitledModelIds')
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(2)
+  })
+
   it('refreshes the model snapshot once account plans show a new active entitlement', async () => {
     const service = await createSignedInService()
     const plansWith = accountPlansWith

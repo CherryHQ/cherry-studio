@@ -623,7 +623,10 @@ export class CherryCloudService extends BaseService {
 
   /** Re-reads the account and model catalog, skipping the cached snapshot. */
   public async refreshEntitledModels(): Promise<CherryCloudModelSyncResult> {
-    this.invalidateModelSync()
+    this.modelSyncCache = null
+    // A sync already running may predate the change: let its waiters finish with it, then read again.
+    await this.modelSyncPromise?.promise.catch(() => undefined)
+    this.modelSyncCache = null
     return this.syncEntitledModels()
   }
 
