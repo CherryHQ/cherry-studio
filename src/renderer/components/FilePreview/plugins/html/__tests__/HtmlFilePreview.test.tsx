@@ -1,7 +1,7 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -73,30 +73,8 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  SegmentedControl: ({
-    disabled,
-    onValueChange,
-    options,
-    value
-  }: {
-    disabled?: boolean
-    onValueChange: (value: string) => void
-    options: Array<{ label: string; value: string }>
-    value: string
-  }) => (
-    <div>
-      {options.map((option) => (
-        <button
-          type="button"
-          aria-pressed={value === option.value}
-          disabled={disabled}
-          key={option.value}
-          onClick={() => onValueChange(option.value)}>
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
+  Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))
 
@@ -280,10 +258,8 @@ describe('HtmlFilePreview', () => {
     await screen.findByRole('textbox', { name: 'HTML source' })
     view.rerender(<HtmlFilePreview {...props} refreshKey={2} />)
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
-    expect(screen.getByRole('button', { name: 'file_preview.html.mode.source' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    // Still in source mode: the toggle now offers the way back to the preview.
+    expect(screen.getByRole('button', { name: 'file_preview.html.mode.preview' })).toBeInTheDocument()
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 

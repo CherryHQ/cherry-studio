@@ -5,6 +5,25 @@ import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 import { toExecutionFailure } from '../executionFailure'
 
 describe('execution failure projection', () => {
+  it('keeps a fresh Groq entitlement failure non-retryable with its HTTP status', () => {
+    expect(
+      toExecutionFailure(
+        {
+          name: 'APIError',
+          stack: null,
+          message: `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`,
+          statusCode: 400
+        },
+        'groq::openai/gpt-oss-20b'
+      )
+    ).toMatchObject({
+      retryable: false,
+      failure: { reasonCode: 'permission', context: { statusCode: 400, providerId: 'groq' } }
+    })
+  })
+
   it('extracts a subscription rejection from CLI-style errors without confusing it with remote authorization', () => {
     const failure = toExecutionFailure(
       {
