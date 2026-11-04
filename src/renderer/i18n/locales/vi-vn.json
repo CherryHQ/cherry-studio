@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "Mô hình hiện tại không thể đọc lại tài nguyên này sau khi đính kèm",
   "chat.input.mcp_resources.title": "Tài nguyên MCP",
   "chat.input.new.context": "Xóa ngữ cảnh",
+  "chat.input.non_chat_model": "Mô hình hiện tại không thể dùng để trò chuyện. Vui lòng chọn mô hình khác.",
+  "chat.input.non_chat_model_locked": "Một mô hình trong bản chỉnh sửa này không thể dùng để trò chuyện. Hãy thoát chỉnh sửa và chọn mô hình khác hoặc gửi tin nhắn mới.",
   "chat.input.note_reference.description": "Đính kèm một ghi chú từ Notes",
   "chat.input.note_reference.empty": "Không tìm thấy ghi chú nào",
   "chat.input.note_reference.load_failed": "Không thể tải ghi chú",

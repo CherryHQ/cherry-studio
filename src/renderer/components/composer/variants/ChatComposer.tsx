@@ -2,7 +2,7 @@ import { Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip } from '@cherrystudio/ui'
+import { Alert, NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -71,6 +71,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -777,6 +778,10 @@ const ChatComposerInner = ({
           : runtimeModel
             ? [runtimeModel]
             : EMPTY_MODELS
+  const hasNonChatModel = effectiveSubmittedModels.some(isNonChatModel)
+  const nonChatReason = hasNonChatModel
+    ? t(lockedMentionedModels.length > 1 ? 'chat.input.non_chat_model_locked' : 'chat.input.non_chat_model')
+    : undefined
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
@@ -1381,8 +1386,19 @@ const ChatComposerInner = ({
     ]
   )
 
+  // Queue validation needs its own model subscription before the conditional queue-display fetch.
+  // Keep an unvalidated payload queued and paused until models finish loading.
+  const { models: queueModels, isLoading: areModelsLoading } = useModels()
+
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
+      if (payload.mentionedModels?.length && areModelsLoading) return false
+      const payloadModels = payload.mentionedModels?.length
+        ? queueModels.filter((model) => payload.mentionedModels?.includes(model.id))
+        : runtimeModel
+          ? [runtimeModel]
+          : EMPTY_MODELS
+      if (payloadModels.some(isNonChatModel)) return false
       setIsSending(true)
 
       try {
@@ -1407,7 +1423,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [onSend, saveHistory, t]
+    [areModelsLoading, onSend, queueModels, runtimeModel, saveHistory, t]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1540,6 +1556,7 @@ const ChatComposerInner = ({
       if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
       const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
+      if (resend && !isAssistantReply && hasNonChatModel) return
       if (!chatWrite) {
         toast.error(t('message.error.operation_unavailable'))
         return
@@ -1618,6 +1635,7 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopicRef,
       editingReasoning,
       fastMode,
+      hasNonChatModel,
       isMentionedModelSelectorLocked,
       reasoningDraft,
       reasoningEffort,
@@ -1643,6 +1661,8 @@ const ChatComposerInner = ({
         stopEditing()
         return
       }
+
+      if (hasNonChatModel && editingMessageForCurrentTopic?.message.role !== 'assistant') return
 
       if (editingMessageForCurrentTopic) {
         await commitEditedMessage(draft, true)
@@ -1702,6 +1722,7 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopic,
       enqueueFollowup,
       handleModelSelect,
+      hasNonChatModel,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
@@ -1778,6 +1799,19 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
+  const isSaveDisabled =
+    (text.trim().length === 0 && files.length === 0) ||
+    (loading && !canSteer) ||
+    isSavingEdit ||
+    isDirectSending ||
+    sendDisabled ||
+    searching ||
+    runtimeModelPending ||
+    hasPendingReference ||
+    !!missingAssistantMessage ||
+    !!missingModelMessage ||
+    !!missingSelectedModelMessage
+
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {speedControlModel ? (
@@ -1808,6 +1842,7 @@ const ChatComposerInner = ({
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           showAiDisclaimer
+          topContent={nonChatReason ? <Alert type="warning" showIcon message={nonChatReason} /> : undefined}
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
           onTextChange={handleTextChange}
@@ -1822,28 +1857,20 @@ const ChatComposerInner = ({
           placeholder={searching ? t('chat.input.translating') : placeholderText}
           sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
-            (text.trim().length === 0 && files.length === 0) ||
-            (loading && !canSteer) ||
-            isSavingEdit ||
-            isDirectSending ||
-            sendDisabled ||
-            searching ||
-            runtimeModelPending ||
-            hasPendingReference ||
-            !!missingAssistantMessage ||
-            !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            isSaveDisabled || (hasNonChatModel && editingMessageForCurrentTopic?.message.role !== 'assistant')
           }
           sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            (editingMessageForCurrentTopic?.message.role !== 'assistant' ? nonChatReason : undefined) ??
+            (isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
-              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage))
           }
           isLoading={loading}
           onSendDraft={handleSendDraft}
           editingState={
             editingMessageForCurrentTopic
               ? {
+                  saveDisabled: isSaveDisabled,
                   messageId: editingMessageForCurrentTopic.message.id,
                   highlightKey: editingMessageForCurrentTopic.editingSessionId,
                   onLocate: handleLocateEditingMessage,

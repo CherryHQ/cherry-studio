@@ -157,6 +157,7 @@ export interface ComposerSurfaceEditingState {
   description?: string
   sendLabel?: string
   cancelDisabled?: boolean
+  saveDisabled?: boolean
   messageId: string
   highlightKey?: number
   onCancel: () => void
@@ -2128,12 +2129,12 @@ export default function ComposerSurfaceRuntime({
   const onSaveEditing = editingState?.onSave
   const saveEditingDraft = useCallback(() => {
     if (!editor || !onSaveEditing) return
-    if (sendDisabled) {
+    if (editingState?.saveDisabled ?? sendDisabled) {
       showBlockedSendReason()
       return
     }
     void onSaveEditing(serializeComposerDocument(editor))
-  }, [editor, onSaveEditing, sendDisabled, showBlockedSendReason])
+  }, [editor, onSaveEditing, editingState?.saveDisabled, sendDisabled, showBlockedSendReason])
 
   const handleExpandControlClick = useCallback(() => {
     if (hasCustomHeight) {

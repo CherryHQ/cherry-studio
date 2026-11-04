@@ -18,6 +18,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
+import type * as SharedModelUtils from '@shared/utils/model'
 
 import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
@@ -603,10 +604,10 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
 }))
 
-vi.mock('@shared/utils/model', () => ({
+vi.mock('@shared/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedModelUtils>()),
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
   isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
   isWebSearchModel: () => false
 }))
@@ -4905,6 +4906,143 @@ describe('ChatComposer', () => {
       expect(voiceTargetManager.insertIntoCurrent('late transcript', 'user_recovery')).toBe('inserted')
     })
     expect(await screen.findByText('late transcript')).toBeVisible()
+  })
+
+  // Catches a blocked historical model losing the draft or remaining blocked after replacement.
+  it('keeps the draft until the historical non-chat model is replaced', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'preserved draft' } })
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    expect(send).toHaveAttribute('aria-disabled', 'true')
+    await user.click(send)
+    expect(onSend).not.toHaveBeenCalled()
+    expect(editor).toHaveValue('preserved draft')
+    mocks.model = model
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'false')
+    )
+    await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('preserved draft', expect.anything()))
+  })
+
+  // Catches partial dispatch when restored mentions include a non-chat model.
+  it('blocks the entire draft when mentioned models include a non-chat model', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.mentionedModels = [model, { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }]
+    const onSend = vi.fn()
+    render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'multiple models' } })
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'true')
+    await user.click(send)
+    expect(onSend).not.toHaveBeenCalled()
+    expect(editor).toHaveValue('multiple models')
+  })
+
+  // Catches an invalid queued model being sent or dropped after its classification changes.
+  it('retains and pauses a queued payload whose mentioned model becomes non-chat', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.topicPending = true
+    mocks.mentionedModels = [model]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'queued payload' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    await screen.findByRole('button', { name: 'chat.input.followup_queue.title' })
+    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.title' }))
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.steer' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'chat.input.followup_queue.resume' })).toBeInTheDocument()
+    )
+    expect(screen.getByText('queued payload')).toBeInTheDocument()
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  // Catches a save-only edit being incorrectly blocked by the resend guard.
+  it('saves a locked edit containing a non-chat model without resending', async ({ onTestFinished }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage, forkAndResend }
+    const message = { id: 'locked-save', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    const lockedModels = [model, { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }]
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount
+            message={message}
+            parts={[{ type: 'text', text: 'saved text' }]}
+            lockedMentionedModels={lockedModels}
+          />
+          <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('saved text'))
+    await user.click(await screen.findByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(editMessage).toHaveBeenCalledWith('locked-save', [{ type: 'text', text: 'saved text' }]))
+    expect(forkAndResend).not.toHaveBeenCalled()
+  })
+
+  it('does not resend a locked edit containing a non-chat model', async () => {
+    const forkAndResend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
+    const message = { id: 'locked', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    const parts = [{ type: 'text', text: 'Existing edit' }]
+    const lockedModels = [model, { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }]
+    render(
+      <MessageEditingProvider>
+        <StartEditingWithLockedModelsOnMount message={message} parts={parts} lockedMentionedModels={lockedModels} />
+        <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('locked'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'Existing edit', tokens: [] })
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe('locked')
   })
 
   it('prevents concurrent saves of the same edited message', async () => {

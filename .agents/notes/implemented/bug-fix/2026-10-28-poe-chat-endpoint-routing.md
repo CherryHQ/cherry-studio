@@ -12,18 +12,21 @@ The supplied 2026-10-28 snapshot contains 301 rows: 244 empty declarations, 26 R
 
 ## Decision
 
-The Poe fetcher uses the configured host and credentials, including for pinned clones. It preserves raw API IDs and maps the three recognized chat paths. It intersects registry endpoint preferences with declarations, retaining registry order; without a usable preference, it orders Messages, Responses, Chat Completions. Missing or empty declarations use registry endpoints when available, otherwise the documented Chat Completions compatibility fallback. Malformed declarations skip only their item. Nonempty video-only or unknown-only declarations receive no endpoint hints or new capabilities.
+The Poe fetcher uses the configured host and credentials, including for pinned clones. It preserves raw API IDs and maps the three recognized chat paths. It intersects registry endpoint preferences with declarations, retaining registry order; without a usable preference, it orders Messages, Responses, Chat Completions. Missing or empty declarations use registry endpoints when available, otherwise the documented Chat Completions compatibility fallback. Malformed declarations skip only their item. Nonempty declarations that include `/v1/videos` without any recognized chat path retain `OPENAI_VIDEO_GENERATION`, allowing chat interfaces to classify them as non-chat models using existing capability checks. Unknown-only declarations still receive no endpoint hints or new capabilities.
 
 After `PresetProviderSeeder`, `PoeChatEndpointUpgradeSeeder` repairs exactly the frozen 15-ID correction set: the 14 snapshot chat-only IDs plus the reported bot. It writes Chat Completions only for canonical `poe` rows with a null stored provider default and null or empty model endpoints. Exact stored `modelId` values are compared; this column is exposed as `apiModelId`. Explicit choices, clones, IDs, model state, pins, ordering and names remain intact. Selection and writes share one synchronous transaction. `hashObject` derives the version from correction data. Normal startup seeds after migrations, while v1 import deliberately skips seeds, so imported rows are repaired on normal startup.
 
 [PR #14144](https://github.com/CherryHQ/cherry-studio/pull/14144) established the Responses default. This fix retains it and the Claude registry endpoint lists, including their exclusion of Responses. Reasoning contracts, serializers, endpoint configuration and gateway routing remain unchanged.
+
+Chat model selectors continue to hide non-chat models, and Composer checks the models actually submitted, blocks sends that include a non-chat model and displays the reason. This change neither validates nor rewrites historical selections and does not refresh existing rows whose declared capabilities were lost.
 
 ## Alternatives considered
 
 - Flip the provider default: rejected because dual-endpoint models lose their existing Responses route and Responses-only models receive an undeclared method.
 - Fetcher alone: rejected because retained rows remain broken without removal and re-addition.
 - Repair all 301 rows or add family routing: rejected because it pins unrelated inherited configuration and creates a maintained capability catalog.
-- Retry HTTP 400 or classify videos: deferred because replay and generation transport need separate contracts.
+- Retry HTTP 400: deferred because replay and generation transport need separate contracts.
+- Classify videos: implemented through endpoint preservation; classification adds no generation transport or replay contract.
 
 ## Consequences
 
@@ -34,6 +37,7 @@ Offline mapping of 301 rows calls `resolveModel` once per unique model. The cold
 ## Verification
 
 - Regression — `listModels.test.ts`: endpoint assertions fail before the fix; declared ordering, Claude intersection, missing/empty fallback, malformed-item isolation, duplicates, raw IDs and configured clone transport pass afterward.
+- Regression — `listModels.test.ts`: an opaque ID with no catalog match declaring only `/v1/videos` asserts that `listModels` preserves `OPENAI_VIDEO_GENERATION` and the real `isNonChatModel()` classifies the result as non-chat; existing assertions retain coverage of chat, mixed, empty and unknown declarations.
 - Regression — `endpoint.test.ts`: the endpoint-less reported bot inherits Responses before repair; mapped research selects Chat Completions, GPT-5.2 retains Responses, and Claude retains Messages while declining a Responses preference.
 - Regression — `PoeChatEndpointUpgradeSeeder.test.ts`: the only pre-fix RED evidence is module absence; production-migrated SQLite verifies all 15 IDs, preservation predicates, ModelService readback, pins/state/order, idempotency and rollback on an injected write failure.
 - Regression — `modelSync.test.ts` and `doctorContent.test.ts`: fetched Poe endpoints survive enrichment and DTO conversion; all 20 categories resolve through all 15 real renderer catalogs. Every catalog includes a real translation of the independent `bad_request` key.

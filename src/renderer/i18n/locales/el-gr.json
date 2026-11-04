@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "Το τρέχον μοντέλο δεν μπορεί να διαβάσει ξανά αυτόν τον πόρο μετά την επισύναψη",
   "chat.input.mcp_resources.title": "Πόροι MCP",
   "chat.input.new.context": "Εκκαθάριση περιβάλλοντος",
+  "chat.input.non_chat_model": "Το τρέχον μοντέλο δεν μπορεί να χρησιμοποιηθεί για συνομιλία. Επιλέξτε άλλο μοντέλο.",
+  "chat.input.non_chat_model_locked": "Ένα μοντέλο σε αυτή την επεξεργασία δεν μπορεί να χρησιμοποιηθεί για συνομιλία. Βγείτε από την επεξεργασία και επιλέξτε άλλο μοντέλο ή στείλτε νέο μήνυμα.",
   "chat.input.note_reference.description": "Επισυνάψτε μια σημείωση από τις Σημειώσεις",
   "chat.input.note_reference.empty": "Δεν βρέθηκαν σημειώσεις",
   "chat.input.note_reference.load_failed": "Αποτυχία φόρτωσης σημειώσεων",

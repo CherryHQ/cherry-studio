@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "Das aktuelle Modell kann diese Ressource nach dem Anhängen nicht erneut lesen",
   "chat.input.mcp_resources.title": "MCP-Ressourcen",
   "chat.input.new.context": "Kontext löschen",
+  "chat.input.non_chat_model": "Das aktuelle Modell kann nicht für Chats verwendet werden. Bitte wähle ein anderes Modell.",
+  "chat.input.non_chat_model_locked": "Ein Modell in dieser Bearbeitung kann nicht für Chats verwendet werden. Beende die Bearbeitung und wähle ein anderes Modell oder sende eine neue Nachricht.",
   "chat.input.note_reference.description": "Eine Notiz aus Notizen anhängen",
   "chat.input.note_reference.empty": "Keine Notizen gefunden",
   "chat.input.note_reference.load_failed": "Notizen konnten nicht geladen werden",

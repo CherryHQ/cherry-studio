@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "Il modello attuale non può rileggere questa risorsa dopo che è stata allegata",
   "chat.input.mcp_resources.title": "Risorse MCP",
   "chat.input.new.context": "Cancella contesto",
+  "chat.input.non_chat_model": "Il modello corrente non può essere usato per la chat. Seleziona un altro modello.",
+  "chat.input.non_chat_model_locked": "Un modello di questa modifica non può essere usato per la chat. Esci dalla modifica e seleziona un altro modello oppure invia un nuovo messaggio.",
   "chat.input.note_reference.description": "Allega una nota dalla sezione Note",
   "chat.input.note_reference.empty": "Nessuna nota trovata",
   "chat.input.note_reference.load_failed": "Impossibile caricare le note",

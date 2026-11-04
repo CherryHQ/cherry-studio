@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "O modelo atual não consegue voltar a ler este recurso depois de o anexar",
   "chat.input.mcp_resources.title": "Recursos MCP",
   "chat.input.new.context": "Limpar contexto",
+  "chat.input.non_chat_model": "O modelo atual não pode ser usado para conversar. Selecione outro modelo.",
+  "chat.input.non_chat_model_locked": "Um modelo nesta edição não pode ser usado para conversar. Saia da edição e selecione outro modelo ou envie uma nova mensagem.",
   "chat.input.note_reference.description": "Anexe uma nota do Notes",
   "chat.input.note_reference.empty": "Nenhuma nota encontrada",
   "chat.input.note_reference.load_failed": "Falha ao carregar notas",

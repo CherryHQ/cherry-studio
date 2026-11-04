@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "目前模型無法在附加後重新讀取此資源",
   "chat.input.mcp_resources.title": "MCP 資源",
   "chat.input.new.context": "清除上下文",
+  "chat.input.non_chat_model": "目前的模型無法用於聊天，請重新選擇模型。",
+  "chat.input.non_chat_model_locked": "此編輯中的模型無法用於聊天，請退出編輯後重新選擇模型或另發訊息。",
   "chat.input.note_reference.description": "從「筆記」附加一則筆記",
   "chat.input.note_reference.empty": "未找到筆記",
   "chat.input.note_reference.load_failed": "無法載入筆記",

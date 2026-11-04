@@ -793,6 +793,8 @@
   "chat.input.mcp_resources.reader_unavailable": "The current model cannot read this resource back after it is attached",
   "chat.input.mcp_resources.title": "MCP Resources",
   "chat.input.new.context": "Clear Context",
+  "chat.input.non_chat_model": "The current model cannot be used for chat. Please select another model.",
+  "chat.input.non_chat_model_locked": "A model in this edit cannot be used for chat. Exit editing and select another model or send a new message.",
   "chat.input.note_reference.description": "Attach a note from Notes",
   "chat.input.note_reference.empty": "No notes found",
   "chat.input.note_reference.load_failed": "Failed to load notes",
