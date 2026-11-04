@@ -24,7 +24,9 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
   const system = getCurrentSystemMessage(projection.messages)
   const tools = session.getAllTools()
   const loaded = new Set(system?.toolsAdded?.map((tool) => tool.name))
-  const deferred = tools.filter((tool) => !loaded.has(tool.name) && tool.exposure === 'deferred')
+  const deferred = tools.filter(
+    (tool) => !loaded.has(tool.name) && (tool.exposure === 'deferred' || tool.exposure === 'codemode')
+  )
   const categories: ContextCategory[] = []
   const resources: ContextResource[] = []
   for (const part of measureSystemContext(system, deferred, estimateSystemCharacters, '')) {

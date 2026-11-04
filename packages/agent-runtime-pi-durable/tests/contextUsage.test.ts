@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { createModels, fauxProvider } from '@earendil-works/pi-ai'
-import { Harness, MemoryStorage, createRegistry } from '@earendil-works/pi-durable'
+import { Harness, MemoryStorage, createRegistry, type CompactionSettings } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
 
 import { readContextUsage } from '../src/contextUsage'
@@ -112,6 +112,51 @@ it('keeps a fork on its committed resource snapshot after the parent prompt chan
     expect(
       rootUsage.status === 'confirmed' && rootUsage.value.resources?.some((resource) => resource.category === 'skills')
     ).toBe(false)
+  } finally {
+    await native.close(context)
+  }
+})
+
+it('uses the selected model compaction policy for thresholds and revisions', async () => {
+  const models = createModels()
+  models.setProvider(fauxProvider({ models: [{ id: 'faux-1', contextWindow: 128_000 }] }).provider)
+  let compaction: CompactionSettings = {
+    enabled: true,
+    reserveTokens: 10_000,
+    modelOverrides: {}
+  }
+  const native = await Harness.open(
+    new MemoryStorage(),
+    {
+      models,
+      registry: createRegistry(),
+      settings: () => ({ compaction })
+    },
+    context
+  )
+  try {
+    const root = await native.createConversation(
+      {
+        ownership: { kind: 'ownerless' },
+        agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+      },
+      context
+    )
+    const initial = await root.contextUsage(context)
+    expect(initial?.compactionThreshold).toBe(118_000)
+    compaction = { ...compaction, modelOverrides: { 'faux/faux-1': { reserveTokens: 30_000 } } }
+    const overridden = await root.contextUsage(context)
+    expect(overridden?.compactionThreshold).toBe(98_000)
+    expect(overridden?.revision).not.toBe(initial?.revision)
+    compaction = {
+      ...compaction,
+      modelOverrides: { ...compaction.modelOverrides, 'faux/other': { enabled: false } }
+    }
+    expect(await root.contextUsage(context)).toEqual(overridden)
+    compaction = { ...compaction, modelOverrides: { 'faux/faux-1': { enabled: false, reserveTokens: 30_000 } } }
+    const disabled = await root.contextUsage(context)
+    expect(disabled?.compactionThreshold).toBeUndefined()
+    expect(disabled?.revision).not.toBe(overridden?.revision)
   } finally {
     await native.close(context)
   }

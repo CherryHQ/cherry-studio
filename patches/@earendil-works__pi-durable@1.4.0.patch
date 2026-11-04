@@ -171,7 +171,7 @@ index c088f3c..5ba7218 100644
 +//# sourceMappingURL=generation.js.map
 \ No newline at end of file
 diff --git a/dist/harness/harness.js b/dist/harness/harness.js
-index 1c763bb..4366cd4 100644
+index 29ef22e06d97ad482c0286c0f67f3e37f8fc39bf..0cff3e4344ab98e746ccebe2214e1639a0f2bb67 100644
 --- a/dist/harness/harness.js
 +++ b/dist/harness/harness.js
 @@ -6,8 +6,8 @@ import { contained, SessionImpl } from "../session/session.js";
@@ -180,7 +180,7 @@ index 1c763bb..4366cd4 100644
  import { AgentDoc, configure, createAgent, resolveAgent, resolveSettings } from "./agent.js";
 -import { createCompaction } from "./compaction.js";
 -import { readContext } from "./context.js";
-+import { createCompaction, estimateContext } from "./compaction.js";
++import { compactionPolicy, createCompaction, estimateContext } from "./compaction.js";
 +import { readContext, readContextFrom } from "./context.js";
  import { InboxDoc, withdrawQueuedInputs } from "./inbox.js";
  import { LiveDoc, settleSchedulerOutcome } from "./live.js";
@@ -199,13 +199,13 @@ index 1c763bb..4366cd4 100644
      }
 +    async contextUsage(context) {
 +        const before = await this.agent(context);
-+        const model = before.model && this.#host.models.getModel(before.model.provider, before.model.modelId);
++        const model = before.model && this.#host.models().getModel(before.model.provider, before.model.modelId);
 +        if (!model || model.contextWindow <= 0) return undefined;
 +        const { view, range } = await readContextFrom(this.#host.harness, this.#host.storage, this.id, context, undefined, this.#contextRange);
 +        const after = await this.agent(context);
 +        if (JSON.stringify(before) !== JSON.stringify(after)) return undefined;
 +        this.#contextRange = range;
-+        const policy = this.#host.settings().compaction;
++        const policy = compactionPolicy(this.#host.settings(), before.model);
 +        return {
 +            model: before.model,
 +            revision: JSON.stringify([range?.bounds.head?.id, range?.bounds.tail, before, policy]),
@@ -219,11 +219,26 @@ index 1c763bb..4366cd4 100644
      entries(query, limit, cursor, context) {
          const bounded = {
              conversationId: this.id,
-@@ -154,6 +174,8 @@ class HarnessImpl extends SessionImpl {
+@@ -121,12 +141,13 @@ class HarnessImpl extends SessionImpl {
+         this.#report = report;
+         this.#hostSettings = hostSettings;
+         const settings = () => resolveSettings(hostSettings());
++        const models = currentModels(options.models, options.identity);
+         this.#tasks = new TaskScheduler({
+             telemetry: options.telemetry,
+             session: this,
+             storage,
+             registry: options.registry,
+-            models: currentModels(options.models, options.identity),
++            models,
+             agent: (id, snapshot, callContext) => this.resolveAgent(id, snapshot, callContext),
+             settings,
+             env: (id, callContext) => this.buildEnv(id, callContext),
+@@ -154,6 +175,8 @@ class HarnessImpl extends SessionImpl {
              tasks: this.#tasks,
              submissions: this.#submissions,
              views: new ConversationViews(this, storage),
-+            models: options.models,
++            models,
 +            settings,
              now,
              create: (target, createOptions, context) => this.#create(target, createOptions, context),

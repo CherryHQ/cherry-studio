@@ -479,7 +479,12 @@ export class PiProjection {
   }
 
   private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
-    if (event.type === 'message_end' || event.type === 'compaction_end' || event.type === 'agent_settled')
+    if (
+      event.type === 'message_end' ||
+      event.type === 'compaction_end' ||
+      event.type === 'agent_settled' ||
+      event.type === 'model_select'
+    )
       this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
     if (event.type === 'input_settled') {
       const reason = event.aborted ? 'aborted' : event.message.stopReason

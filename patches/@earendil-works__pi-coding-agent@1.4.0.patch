@@ -1,8 +1,8 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..0dfc18978f41bdd458796d502fe46c1d40d526f5 100644
+index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..9b3cebcfbd7ee2a0d91a386c481bddd213841130 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -13,7 +13,7 @@
+@@ -13,11 +13,11 @@
   * Modes use this class and add their own I/O layer on top.
   */
  import { type Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool, type ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -11,7 +11,20 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..0dfc18978f41bdd458796d502fe46c1d
  import { type BashResult } from "./bash-executor.ts";
  import type { CacheWarmer, CacheWarmingStatus } from "./cache-warmer.ts";
  import { type CompactionResult } from "./compaction/index.ts";
-@@ -53,6 +53,21 @@ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
+-import { type ContextUsage, type ExtensionCommandContextActions, type ExtensionErrorListener, type ExtensionMode, ExtensionRunner, type ExtensionUIContext, type InputSource, type ReplacedSessionContext, type SessionStartEvent, type ShutdownHandler, type ToolDefinition, type ToolInfo } from "./extensions/index.ts";
++import { type ContextUsage, type ExtensionCommandContextActions, type ExtensionErrorListener, type ExtensionMode, ExtensionRunner, type ExtensionUIContext, type InputSource, type ModelSelectEvent, type ReplacedSessionContext, type SessionStartEvent, type ShutdownHandler, type ToolDefinition, type ToolInfo } from "./extensions/index.ts";
+ import { type CustomMessage } from "./messages.ts";
+ import type { ModelRuntime } from "./model-runtime.ts";
+ import { type PromptTemplate } from "./prompt-templates.ts";
+@@ -46,13 +46,28 @@ type WithParentToolCallId<E> = E extends {
+ /** Session-specific events that extend the core AgentEvent */
+ export type AgentSessionEvent = WithParentToolCallId<Exclude<AgentEvent, {
+     type: "agent_end";
+-}>> | {
++}>> | ModelSelectEvent | {
+     type: "agent_end";
+     messages: AgentMessage[];
+     willRetry: boolean;
  } | {
      type: "agent_settled";
      aborted: boolean;
@@ -110,7 +123,7 @@ index aba2a962e47b89be80296b4bfbd06fb0b242a3e6..0dfc18978f41bdd458796d502fe46c1d
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 8728a3e0d31f478f28d707cbf313225da4035aca..7431a00a1e1dc11660c2782e5687212725e598b5 100644
+index 8728a3e0d31f478f28d707cbf313225da4035aca..05d6fa858b1c07a058cf5730b487a393204cba49 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -40,7 +40,7 @@ import { exportSessionToJsonl } from "./session-export.js";
@@ -546,6 +559,23 @@ index 8728a3e0d31f478f28d707cbf313225da4035aca..7431a00a1e1dc11660c2782e56872127
      }
      get resourceLoader() {
          return this._resourceLoader;
+@@ -1992,12 +2050,14 @@ export class AgentSession {
+     async _emitModelSelect(nextModel, previousModel, source) {
+         if (modelsAreEqual(previousModel, nextModel))
+             return;
+-        await this._extensionRunner.emit({
++        const event = {
+             type: "model_select",
+             model: nextModel,
+             previousModel,
+             source,
+-        });
++        };
++        await this._extensionRunner.emit(event);
++        this._emit(event);
+     }
+     /**
+      * Set model directly.
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
 index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..4c3fc171ade2532df362601a8fe67d8d951775bf 100644
 --- a/dist/core/compaction/compaction.d.ts

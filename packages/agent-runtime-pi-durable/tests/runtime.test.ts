@@ -626,6 +626,28 @@ it('reads the native compaction estimate passively without resuming the schedule
   expect(await access.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
 })
 
+it('reads context from the current factory-backed model registry', async () => {
+  let models = createModels()
+  models.setProvider(fauxProvider({ models: [{ id: 'faux-1', contextWindow: 128_000 }] }).provider)
+  const runtime = confirmed(
+    await createPiDurableRuntime({
+      backendId: runtimeId('factory-context'),
+      openStorage: async () => new MemoryStorage(),
+      harness: { models: () => models, registry: createRegistry() }
+    })
+  )
+  try {
+    const handle = confirmed(await runtime.create(sessionOptions))
+    expect(confirmed(await handle.contextUsage()).contextWindow).toBe(128_000)
+    models = createModels()
+    models.setProvider(fauxProvider({ models: [{ id: 'faux-1', contextWindow: 64_000 }] }).provider)
+    expect(confirmed(await handle.contextUsage()).contextWindow).toBe(64_000)
+    expect(confirmed(await handle.archive()).messages).toEqual([])
+  } finally {
+    await runtime.shutdown()
+  }
+})
+
 it('measures committed prompt sources and codemode-only tools without executing them', async () => {
   const { runtime, faux, registry } = await setup()
   let memory = 'Memory snapshot'
