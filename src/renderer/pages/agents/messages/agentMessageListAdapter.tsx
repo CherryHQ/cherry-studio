@@ -49,6 +49,7 @@ import {
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+import { useAgentSessionForkAvailability } from './useAgentSessionForkAvailability'
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
@@ -204,6 +205,16 @@ export function useAgentMessageListProviderValue({
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
+  const {
+    byMessageId,
+    get: getForkAvailability,
+    invalidate: invalidateForkAvailability
+  } = useAgentSessionForkAvailability({
+    sourceSessionId: sessionId,
+    agentId: resolvedAgentId,
+    messages,
+    enabled: normalInteractionsEnabled
+  })
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -412,6 +423,8 @@ export function useAgentMessageListProviderValue({
   const forkSession = useCallback(
     async (messageId: string) => {
       if (!sessionId) return
+      const availability = getForkAvailability(messageId)
+      if (!availability || availability.enabled === false) return
       try {
         const result = await ipcApi.request('ai.agent.session.fork', {
           sourceSessionId: sessionId,
@@ -419,6 +432,7 @@ export function useAgentMessageListProviderValue({
         })
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {
+        invalidateForkAvailability()
         const reason = agentSessionForkFailureReason(error)
         if (reason) {
           notifyError(agentSessionForkReasonLabel(t, reason))
@@ -427,7 +441,7 @@ export function useAgentMessageListProviderValue({
         throw error
       }
     },
-    [sessionId, t, notifyError]
+    [sessionId, t, notifyError, getForkAvailability, invalidateForkAvailability]
   )
   const state = useMemo<MessageListState>(
     () => ({
@@ -491,7 +505,7 @@ export function useAgentMessageListProviderValue({
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message),
+            availability: (message) => agentSessionForkAvailability(t, message, getForkAvailability(message.id)),
             run: forkSession
           }
         : undefined,
@@ -525,6 +539,8 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      byMessageId,
+      getForkAvailability,
       setActiveBranch,
       startEditing,
       editBusy,

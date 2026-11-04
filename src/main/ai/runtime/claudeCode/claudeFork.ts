@@ -4,8 +4,14 @@ import path from 'node:path'
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
 import { readForkPrefix, readNativeForkHistory } from '@main/ai/runtime/fork'
+import { isAgentSessionForkFailureReason, type AgentSessionForkAvailabilityDecision } from '@shared/ai/agentSessionFork'
 
-import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
+import {
+  AgentSessionForkError,
+  type RuntimeForkInput,
+  type RuntimeForkProbeCandidate,
+  type RuntimeForkResult
+} from '../fork'
 import { runForkWorker } from '../fork'
 import { ClaudeForkResultSchema, parseClaudeForkCheckpoint } from './forkCheckpoint'
 import type { ClaudeForkWorkerInput } from './forkWorker'
@@ -71,4 +77,110 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   const result = ClaudeForkResultSchema.safeParse(await runForkWorker(worker, input.signal))
   if (!result.success) throw new AgentSessionForkError('history_corrupt')
   return result.data
+}
+
+export async function probeClaudeFork(
+  candidates: readonly RuntimeForkProbeCandidate[]
+): Promise<ReadonlyMap<string, AgentSessionForkAvailabilityDecision>> {
+  const results = new Map<string, AgentSessionForkAvailabilityDecision>()
+  const groups = new Map<
+    string,
+    {
+      file: string
+      candidates: Array<{
+        candidate: (typeof candidates)[number]
+        checkpoint: ReturnType<typeof parseClaudeForkCheckpoint>
+      }>
+    }
+  >()
+  const failed = (id: string, error: unknown) => {
+    const reason =
+      error instanceof AgentSessionForkError
+        ? error.reason
+        : error instanceof SyntaxError
+          ? 'history_corrupt'
+          : (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+            ? 'history_missing'
+            : undefined
+    results.set(
+      id,
+      reason && isAgentSessionForkFailureReason(reason)
+        ? { enabled: false, reason }
+        : { enabled: null, reason: 'operation_failed' }
+    )
+  }
+  for (const candidate of candidates) {
+    try {
+      const checkpoint = parseClaudeForkCheckpoint(candidate.checkpoint)
+      const key = JSON.stringify([checkpoint.configDir, checkpoint.runtimeSessionId])
+      let group = groups.get(key)
+      if (!group) {
+        const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
+        group = { file, candidates: [] }
+        groups.set(key, group)
+      }
+      group.candidates.push({ candidate, checkpoint })
+    } catch (error) {
+      failed(candidate.messageId, error)
+    }
+  }
+  for (const { file, candidates: group } of groups.values()) {
+    try {
+      const bytes = await readForkPrefix(file)
+      const boundaries = new Map<string, number>()
+      const seen = new Map<string, number>()
+      let start = 0
+      let parseError: unknown
+      for (let end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
+        try {
+          const entry = JSON.parse(bytes.toString('utf8', start, end)) as SessionStoreEntry
+          start = end + 1
+          if (entry.type === 'assistant' && !entry.isSidechain && entry.uuid && !seen.has(entry.uuid))
+            seen.set(entry.uuid, start)
+          for (const { candidate, checkpoint } of group)
+            if (!boundaries.has(candidate.messageId) && seen.has(checkpoint.messageUuid))
+              boundaries.set(candidate.messageId, seen.get(checkpoint.messageUuid)!)
+          if (boundaries.size === group.length) break
+        } catch (error) {
+          parseError = error
+          break
+        }
+      }
+      const max = Math.max(0, ...boundaries.values())
+      let second: Buffer | undefined
+      let readError: unknown
+      if (max)
+        try {
+          second = await readForkPrefix(file, max)
+        } catch (error) {
+          readError = error
+        }
+      for (const { candidate, checkpoint } of group) {
+        try {
+          const boundary = boundaries.get(candidate.messageId)
+          if (!boundary) throw parseError ?? new AgentSessionForkError('history_missing')
+          let current = second
+          if (!current)
+            current = await readForkPrefix(file, boundary).catch(() => {
+              throw readError
+            })
+          if (!bytes.subarray(0, boundary).equals(current.subarray(0, boundary)))
+            throw new AgentSessionForkError('history_changed')
+          for (const ancestor of candidate.checkpoints.map(parseClaudeForkCheckpoint)) {
+            if (
+              ancestor.runtimeSessionId !== checkpoint.runtimeSessionId ||
+              (seen.get(ancestor.messageUuid) ?? Infinity) > boundary
+            )
+              throw new AgentSessionForkError('history_changed')
+          }
+          results.set(candidate.messageId, { enabled: true })
+        } catch (error) {
+          failed(candidate.messageId, error)
+        }
+      }
+    } catch (error) {
+      for (const { candidate } of group) failed(candidate.messageId, error)
+    }
+  }
+  return results
 }

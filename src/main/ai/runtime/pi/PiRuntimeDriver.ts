@@ -18,6 +18,7 @@ import type {
   OrphanSessionReclaimOptions
 } from '../types'
 import { forkPiSession } from './piFork'
+import { probePiFork } from './piForkAvailability'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
@@ -28,6 +29,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
   readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
+  readonly probeFork = probePiFork
   readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity): Promise<void> {

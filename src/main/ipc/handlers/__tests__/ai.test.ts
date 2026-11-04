@@ -86,7 +86,12 @@ const toolPart = (toolCallId: string, output: unknown) => ({
 const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
+const agentSessionRuntimeService = {
+  acquireWarmLease: vi.fn(),
+  releaseWarmLease: vi.fn(),
+  forkSession: vi.fn(),
+  getForkAvailability: vi.fn()
+}
 const agentLifecycleService = {
   archiveSessions: vi.fn(),
   restoreSession: vi.fn(),
@@ -152,6 +157,20 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('returns each availability decision from the read-only delegate', async () => {
+    const output = {
+      items: [
+        { messageId: 'one', availability: { enabled: true } },
+        { messageId: 'two', availability: { enabled: null, reason: 'operation_failed' } }
+      ]
+    }
+    agentSessionRuntimeService.getForkAvailability.mockResolvedValue(output)
+    await expect(
+      aiHandlers['ai.agent.session.fork_availability']({ sourceSessionId: 'source', messageIds: ['one', 'two'] }, ctx)
+    ).resolves.toEqual(output)
+    expect(agentSessionRuntimeService.getForkAvailability).toHaveBeenCalledWith('source', ['one', 'two'])
+  })
+
   it('forwards a native fork request with only the source session and checkpoint message', async () => {
     agentSessionRuntimeService.forkSession.mockResolvedValue('child')
     await expect(

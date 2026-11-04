@@ -11,7 +11,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
-import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
+import { AgentSessionForkOperations, getForkAvailability } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -433,6 +433,10 @@ export class AgentSessionRuntimeService extends BaseService {
     )
     this.syncRuntimeActivity()
     return editing.finally(() => this.syncRuntimeActivity())
+  }
+
+  getForkAvailability(sourceSessionId: string, messageIds: readonly string[]) {
+    return getForkAvailability(sourceSessionId, messageIds)
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
