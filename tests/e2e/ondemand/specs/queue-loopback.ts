@@ -4,7 +4,7 @@ import { prepareAuthenticatedProfile } from '../../../../scripts/e2e/ondemand/pr
 import type { ScenarioContext } from '../../../../scripts/e2e/ondemand/steps'
 import { FollowupQueueScopeQuerySchema } from '../../../../src/shared/data/api/schemas/followupQueues'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
-import { createAgent } from '../../regression/agents'
+import { createAgent } from '../../regression/helpers/agents'
 import { selectSidebarApp } from '../../regression/navigation'
 
 /**
