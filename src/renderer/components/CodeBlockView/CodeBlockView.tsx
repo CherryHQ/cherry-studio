@@ -429,7 +429,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
       return (
-        <div className="code-block-header mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 text-xs leading-none font-medium text-muted-foreground" />
+        <div className="code-block-header flex h-8 items-center rounded-t-lg bg-transparent px-2.5 text-xs leading-none font-medium text-muted-foreground" />
       )
     }
     const ext = getExtensionByLanguage(language)
@@ -465,7 +465,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       data-ui="part:code-block"
       style={codeBlockStyle}
       className={cn(
-        'code-block relative w-full min-w-0 overflow-clip rounded-lg border-[0.5px] border-border bg-background-subtle',
+        'code-block relative w-full min-w-0 overflow-clip rounded-lg',
+        isInSpecialView && language !== 'plantuml'
+          ? 'bg-transparent'
+          : 'border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
         isInSpecialView

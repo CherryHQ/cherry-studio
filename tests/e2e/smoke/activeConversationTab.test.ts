@@ -81,76 +81,74 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
   }
 })
 
-async function frameState(button: Locator, dark: boolean) {
-  return button.evaluate((element, isDark) => {
-    const probe = document.createElement('span')
-    const rootProbe = document.createElement('span')
-    const stockProbe = document.createElement('span')
-    probe.style.cssText = 'position:absolute;visibility:hidden;box-shadow:inset 0 0 0 1px var(--border-selected)'
-    rootProbe.style.color = 'var(--border-selected)'
-    stockProbe.style.color = `oklch(${isDark ? 1 : 0} 0 0 / 0.3)`
-    element.append(probe)
-    document.documentElement.append(rootProbe, stockProbe)
-    try {
-      const layers = (value: string) => {
-        if (value === 'none') return []
-        const result: string[] = []
-        let depth = 0
-        let start = 0
-        for (let index = 0; index < value.length; index++) {
-          if (value[index] === '(') depth++
-          if (value[index] === ')') depth--
-          if (value[index] === ',' && depth === 0) {
-            result.push(value.slice(start, index).trim())
-            start = index + 1
-          }
-        }
-        result.push(value.slice(start).trim())
-        return result
+async function navigationState(button: Locator) {
+  return button.evaluate((element) => {
+    const css = getComputedStyle(element)
+    const context = new OffscreenCanvas(1, 1).getContext('2d')!
+    const pixel = (...layers: string[]) => {
+      context.clearRect(0, 0, 1, 1)
+      for (const color of layers) {
+        context.fillStyle = color
+        context.fillRect(0, 0, 1, 1)
       }
-      const geometry = (layer: string) => [...layer.matchAll(/(-?\d*\.?\d+)px/g)].map((match) => Number(match[1]))
-      const painted = layers(getComputedStyle(element).boxShadow).filter((layer) => {
-        const transparent = /(?:rgba\([^)]*,\s*0(?:\.0+)?\)|\/\s*0(?:\.0+)?\s*\))/.test(layer)
-        const dimensions = geometry(layer)
-        return !(transparent && dimensions.length === 4 && dimensions.every((value) => value === 0))
-      })
-      const expected = getComputedStyle(probe).boxShadow
-      return {
-        shadow: getComputedStyle(element).boxShadow,
-        painted,
-        expected,
-        geometry: geometry(expected),
-        inset: expected.includes('inset'),
-        rootToken: getComputedStyle(document.documentElement).getPropertyValue('--border-selected').trim(),
-        rootColor: getComputedStyle(rootProbe).color,
-        stockColor: getComputedStyle(stockProbe).color
-      }
-    } finally {
-      probe.remove()
-      rootProbe.remove()
-      stockProbe.remove()
+      return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3)
     }
-  }, dark)
+    const luminance = (color: number[]) =>
+      color
+        .map((channel) => {
+          const value = channel / 255
+          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+        })
+        .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0)
+    const contrast = (a: number[], b: number[]) =>
+      (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05)
+    const surface = css.getPropertyValue('--sidebar').trim()
+    const background = pixel(surface, css.backgroundColor)
+    const shadowColor = css.boxShadow.replace(/^inset\s+/, '').split(/\s-?[\d.]+px/)[0]
+    return {
+      background,
+      foreground: css.color,
+      shadow: css.boxShadow,
+      focusVisible: element.matches(':focus-visible'),
+      textContrast: contrast(pixel(css.color), background),
+      surfaceContrast: contrast(background, pixel(surface)),
+      focusContrast: css.boxShadow === 'none' ? 0 : contrast(pixel(shadowColor), background)
+    }
+  })
 }
 
-async function expectFrame(button: Locator, selected: boolean, dark: boolean) {
+async function expectTabState(button: Locator, selected: boolean, opaque: boolean) {
+  if (selected) await expect(button).toHaveAttribute('data-active', 'true')
+  else await expect(button).not.toHaveAttribute('data-active')
   await expect(async () => {
-    const state = await frameState(button, dark)
-    expect(state.rootToken).not.toBe('')
-    expect(state.rootColor).toBe(state.stockColor)
-    expect(state.inset).toBe(true)
-    expect(state.geometry).toEqual([0, 0, 0, 1])
-    if (selected) expect(state.painted).toEqual([state.expected])
-    else expect(state.painted).not.toContain(state.expected)
+    const state = await navigationState(button)
+    if (selected) expect(state.surfaceContrast).toBeGreaterThan(1)
+    if (opaque) expect(state.textContrast).toBeGreaterThanOrEqual(4.5)
+    if (state.focusVisible) {
+      expect(state.shadow).toContain('inset')
+      if (opaque) expect(state.focusContrast).toBeGreaterThanOrEqual(3)
+    } else {
+      expect(state.shadow).toBe('none')
+    }
   }).toPass({ timeout: 10_000 })
 }
 
-async function expectSelection(page: Page, selected: string, dark: boolean) {
+async function expectSelection(page: Page, selected: string, opaque: boolean) {
   for (const name of [ALPHA, BETA]) {
     const button = tab(page, name)
-    await expectFrame(button, name === selected, dark)
+    await expectTabState(button, name === selected, opaque)
     await expect(button.getByText(name, { exact: true })).toHaveCSS('font-weight', name === selected ? '500' : '400')
   }
+  const other = selected === ALPHA ? BETA : ALPHA
+  await expect(async () => {
+    expect((await navigationState(tab(page, selected))).surfaceContrast).toBeGreaterThan(
+      (await navigationState(tab(page, other))).surfaceContrast
+    )
+    const sidebar = await navigationState(page.locator('[data-ui~="app.sidebar"] [aria-current="page"]'))
+    const active = await navigationState(tab(page, selected))
+    expect(sidebar.background).toEqual(active.background)
+    expect(sidebar.foreground).toBe(active.foreground)
+  }).toPass({ timeout: 10_000 })
 }
 
 async function expectDraft(page: Page, text: string) {
@@ -162,6 +160,7 @@ async function expectDraft(page: Page, text: string) {
 }
 
 async function parkPointer(page: Page) {
+  await expect(composer(page)).toBeVisible()
   const box = await composer(page).boundingBox()
   expect(box).not.toBeNull()
   await page.mouse.move(box!.x + 4, box!.y + 4)
@@ -226,9 +225,11 @@ async function openSecondTab(page: Page, testInfo: TestInfo) {
 
 for (const style of ['opaque', 'transparent'] as const) {
   for (const theme of [ThemeMode.light, ThemeMode.dark]) {
-    test(`persistent selected conversation frame: macOS ${style} ${theme}`, async ({ isolatedSession }, testInfo) => {
+    test(`persistent selected conversation state: ${process.platform} ${style} ${theme}`, async ({
+      isolatedSession
+    }, testInfo) => {
       test.setTimeout(240_000)
-      test.skip(process.platform !== 'darwin', 'The window-style matrix requires real macOS windows')
+      test.skip(style === 'transparent' && process.platform !== 'darwin', 'Transparent windows require macOS')
       let page = await isolatedSession.launch()
       await page.evaluate(
         async ({ policyVersion, windowStyle, themeMode }) => {
@@ -249,7 +250,10 @@ for (const style of ['opaque', 'transparent'] as const) {
       await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
       await expect(page.locator('html')).toHaveClass(new RegExp(`\\b${theme}\\b`))
       await expect(page.locator('body')).toHaveClass(new RegExp(`\\b${theme}\\b`))
-      await expect(page.locator('body')).toHaveAttribute('os', 'mac')
+      await expect(page.locator('body')).toHaveAttribute(
+        'os',
+        process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+      )
       const seeded = await page.evaluate(
         async ({ alphaName, betaName }) => {
           const assistant = await window.api.dataApi.request({
@@ -291,17 +295,9 @@ for (const style of ['opaque', 'transparent'] as const) {
       expect(alphaId).toBeTruthy()
       expect(betaId).toBeTruthy()
       expect(alphaId).not.toBe(betaId)
-      await expect
-        .poll(() =>
-          tab(page, BETA).evaluate(
-            (element, fill) => element.classList.contains(fill),
-            style === 'transparent' ? 'bg-white/78' : 'bg-black/8'
-          )
-        )
-        .toBe(true)
-      const dark = theme === ThemeMode.dark
+      const opaque = style === 'opaque'
       await parkPointer(page)
-      await expectSelection(page, BETA, dark)
+      await expectSelection(page, BETA, opaque)
       await composer(page).fill('Unsent draft for Beta')
       await expectDraft(page, 'Unsent draft for Beta')
       const alphaFill = await tab(page, ALPHA).evaluate((element) => getComputedStyle(element).backgroundColor)
@@ -309,17 +305,17 @@ for (const style of ['opaque', 'transparent'] as const) {
       await expect
         .poll(() => tab(page, ALPHA).evaluate((element) => getComputedStyle(element).backgroundColor))
         .not.toBe(alphaFill)
-      await expectSelection(page, BETA, dark)
+      await expectSelection(page, BETA, opaque)
       await tab(page, ALPHA).click()
       await parkPointer(page)
-      await expectSelection(page, ALPHA, dark)
+      await expectSelection(page, ALPHA, opaque)
       await expectDraft(page, '')
       await composer(page).fill('Unsent draft for Alpha')
       await expectDraft(page, 'Unsent draft for Alpha')
       await capture(page, testInfo, `${style}-${theme}-alpha-active.png`)
       await tab(page, BETA).click()
       await parkPointer(page)
-      await expectSelection(page, BETA, dark)
+      await expectSelection(page, BETA, opaque)
       await expectDraft(page, 'Unsent draft for Beta')
       await capture(page, testInfo, `${style}-${theme}-beta-active.png`)
       await tab(page, ALPHA).click()
@@ -329,9 +325,19 @@ for (const style of ['opaque', 'transparent'] as const) {
       for (const name of [BETA, ALPHA]) {
         await tab(page, name).click({ button: 'right' })
         await expect(page.getByRole('menu').first()).toBeVisible()
-        await expectSelection(page, BETA, dark)
+        await expectSelection(page, BETA, opaque)
         await page.keyboard.press('Escape')
       }
+      await page.keyboard.press('Tab')
+      await tab(page, BETA).focus()
+      await expect.poll(async () => (await navigationState(tab(page, BETA))).focusVisible).toBe(true)
+      await expectSelection(page, BETA, opaque)
+      const sidebar = page.locator('[data-ui~="app.sidebar"] [aria-current="page"]')
+      await sidebar.focus()
+      await expect.poll(async () => (await navigationState(sidebar)).focusVisible).toBe(true)
+      await expectTabState(sidebar, true, opaque)
+      await tab(page, BETA).click()
+      await parkPointer(page)
       await testInfo.attach('computed-selection', {
         body: JSON.stringify(
           {
@@ -339,8 +345,8 @@ for (const style of ['opaque', 'transparent'] as const) {
             topics: seeded,
             alphaId,
             betaId,
-            alpha: await frameState(tab(page, ALPHA), dark),
-            beta: await frameState(tab(page, BETA), dark),
+            alpha: await navigationState(tab(page, ALPHA)),
+            beta: await navigationState(tab(page, BETA)),
             environment: await page.evaluate(() => ({
               platform: navigator.platform,
               dpr: devicePixelRatio,
@@ -357,16 +363,16 @@ for (const style of ['opaque', 'transparent'] as const) {
         await tab(page, BETA).click({ button: 'right' })
         await page.getByRole('menuitem', { name: en['tab.pin'], exact: true }).click()
         await tab(page, BETA).click()
-        await expectFrame(tab(page, BETA), true, dark)
-        await expectFrame(tab(page, ALPHA), false, dark)
+        await expectTabState(tab(page, BETA), true, opaque)
+        await expectTabState(tab(page, ALPHA), false, opaque)
         await expectDraft(page, 'Unsent draft for Beta')
         await capture(page, testInfo, 'pinned-active.png')
         await tab(page, ALPHA).click()
-        await expectFrame(tab(page, ALPHA), true, dark)
-        await expectFrame(tab(page, BETA), false, dark)
+        await expectTabState(tab(page, ALPHA), true, opaque)
+        await expectTabState(tab(page, BETA), false, opaque)
         await expectDraft(page, 'Unsent draft for Alpha')
         await tab(page, BETA).click()
-        await expectFrame(tab(page, BETA), true, dark)
+        await expectTabState(tab(page, BETA), true, opaque)
         await expectDraft(page, 'Unsent draft for Beta')
       }
     })

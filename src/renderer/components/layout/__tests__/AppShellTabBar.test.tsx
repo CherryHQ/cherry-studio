@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
@@ -97,13 +96,9 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-vi.mock('../ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
-  return {
-    ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
-  }
-})
+vi.mock('../ShellTabBarActions', () => ({
+  ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+}))
 
 vi.mock('../../WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
@@ -237,6 +232,14 @@ describe('AppShellTabBar', () => {
     return closeTab
   }
 
+  it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
+    renderTabBar({ tabs: [createTab('home')] })
+
+    expect(screen.queryByRole('button', { name: 'sidebar.account_menu' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-tab-strip').querySelector('[data-tab-id="home"]')).toBeVisible()
+  })
+
   it('names an icon-only pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
 
@@ -274,7 +277,6 @@ describe('AppShellTabBar', () => {
 
   // Protect the persistent selected-tab indicator across selection and pointer closing.
   describe.each([false, true])('selected indicator (transparent macOS: %s)', (transparent) => {
-    const selectedFrame = 'shadow-[inset_0_0_0_1px_var(--border-selected)]'
     const normalTabs = [
       createTab('alpha', { title: 'Conversation Alpha', url: '/app/chat?topicId=alpha' }),
       createTab('beta', { title: 'Conversation Beta', url: '/app/chat?topicId=beta' })
@@ -306,13 +308,9 @@ describe('AppShellTabBar', () => {
     const expectIndicator = (tab: Tab, selected: boolean) => {
       const outer = button(tab)
       expect(outer).toHaveAttribute('data-tab-id', tab.id)
-      expect(outer.classList.contains(selectedFrame)).toBe(selected)
-      expect([...outer.classList].some((token) => token.endsWith(`:${selectedFrame}`))).toBe(false)
-      if (!tab.isPinned) {
-        expect(within(outer).getByText(tab.title)).toHaveClass(selected ? 'font-medium' : 'font-normal')
-        expect(within(outer).getByText(tab.title)).not.toHaveClass(selected ? 'font-normal' : 'font-medium')
-        expect(within(outer).getByRole('button', { name: 'tab.close' })).not.toHaveClass(selectedFrame)
-      }
+      // Pending closes retain their visual selection while navigation moves to the survivor.
+      if (selected) expect(outer).toHaveAttribute('data-active', 'true')
+      else expect(outer).not.toHaveAttribute('data-active')
     }
 
     it('transfers selection ownership between normal and pinned conversation tabs', () => {
@@ -363,16 +361,7 @@ describe('AppShellTabBar', () => {
         })
         expectIndicator(departing, false)
         expectIndicator(active, true)
-        expect(button(departing)).toHaveClass('text-sidebar-foreground')
-        if (transparent) {
-          expect(button(departing)).toHaveClass(
-            'bg-black/6',
-            'dark:bg-white/6',
-            'shadow-[inset_0_0_0_1px_var(--border-subtle)]'
-          )
-        } else {
-          expect(button(departing)).toHaveClass('bg-white', 'dark:bg-white/3')
-        }
+        expect(button(departing)).toHaveAttribute('data-hovered', 'true')
         act(() => {
           vi.advanceTimersByTime(200)
         })
