@@ -48,6 +48,7 @@ const providerKeyMap = {
   hunyuan: 'provider.hunyuan',
   hyperbolic: 'provider.hyperbolic',
   infini: 'provider.infini',
+  ionet: 'provider.ionet',
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
   litellm: 'provider.litellm',

@@ -2156,6 +2156,27 @@
       "name": "nvidia"
     },
     {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "IO Intelligence - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.intelligence.io.solutions/api/v1"
+        }
+      },
+      "id": "ionet",
+      "metadata": {
+        "website": {
+          "apiKey": "https://ai.io.net/ai/api-keys",
+          "docs": "https://io.net/docs/guides/intelligence/api-keys-and-secrets",
+          "models": "https://io.net/intelligence",
+          "official": "https://io.net/"
+        }
+      },
+      "name": "IO Intelligence"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "Grok - AI model provider",
@@ -2931,5 +2952,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "70e1e7ba16416870"
+  "version": "df34250e6dbd9f2b"
 }
