@@ -190,7 +190,7 @@ export default defineConfig({
         test: {
           name: 'system-speech',
           environment: 'node',
-          include: ['packages/system-speech/tests/**/*.test.ts']
+          include: ['native/system-speech/tests/**/*.test.ts']
         }
       },
       // packages/ui 单元测试配置

@@ -14,12 +14,15 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
@@ -33,10 +36,12 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
-import { buildPiLoginPathPrefix, PiRuntimeConnection } from './PiRuntimeConnection'
+import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
 
@@ -384,27 +389,26 @@ describe('desktop Pi root connection', () => {
     await done(events)
     const firstChild = child
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+    const access = await connection.childProjection('spawn')
+    expect(access).toBeDefined()
     const childText = () =>
-      events
-        .flatMap((event) =>
-          event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []
+      access!
+        .snapshot()
+        .messages.flatMap((message) =>
+          message.role === 'assistant' ? message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])) : []
         )
         .join('')
-    expect(childText()).toBe('child first answer')
+    await expect.poll(childText).toBe('child first answer')
     expect(text(events)).toBe('parent finished')
-    expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
-      data: { taskId: child, toolUseId: 'spawn', title: 'scan', status: 'completed', isBackgrounded: false }
-    })
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: 'background-flow-chunk',
-        rootToolCallId: 'spawn',
-        chunk: expect.objectContaining({
-          type: 'text-start',
-          providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
-        })
-      })
+    expect(events.some((event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta')).toBe(
+      false
     )
+    const before = access!.snapshot()
+    const subscriberA: unknown[] = []
+    const subscriberB: unknown[] = []
+    const detach = access!.subscribe((update) => subscriberA.push(update))
+    access!.subscribe((update) => subscriberB.push(update))
+    detach()
     events.length = 0
     await connection.send({ message: message('continue child') })
     await done(events)
@@ -419,6 +423,217 @@ describe('desktop Pi root connection', () => {
       )
       .toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(subscriberA).toEqual([])
+    expect(subscriberB.length).toBeGreaterThan(0)
+    expect(
+      access!
+        .snapshot()
+        .messages.slice(0, before.messages.length)
+        .map((value) => value.id),
+      JSON.stringify({ before: before.messages, after: access!.snapshot().messages }, null, 2)
+    ).toEqual(before.messages.map((value) => value.id))
+    const archived = access!.snapshot()
+    await connection.close()
+    const requests = script.calls.length
+    const reopened = (await connect()).connection
+    const recovered = await reopened.childProjection('spawn')
+    expect(recovered).toBeDefined()
+    await expect
+      .poll(() => recovered!.snapshot().messages.map((value) => value.id))
+      .toEqual(archived.messages.map((value) => value.id))
+    expect(script.calls.length).toBe(requests)
+    expect(contexts.findChild(input.sessionId, 'spawn')?.sessionId).toBe(archived.sessionId)
+    expect(() => preparePiBranch(archived.sessionId)).toThrow('native owner')
+    await expect(reopened.messageChild(archived.contextId, 'continue after restart')).rejects.toThrow(
+      'turn was stopped'
+    )
+    await reopened.send({ message: message('new parent turn') })
+    await expect.poll(() => script.calls.length).toBeGreaterThan(requests)
+    await reopened.messageChild(archived.contextId, 'continue after new turn')
+    await expect.poll(() => childRuns).toBe(3)
+    expect(child).toBe(firstChild)
+  })
+
+  // Catches a recovered root being rebuilt forever after one historical child reports a startup error.
+  it('keeps a reopened parent usable and its child archive readable when child configuration fails', async () => {
+    let root = ''
+    script = respondingModel((call) => {
+      if (call.sessionId !== root) return assistantReply('saved child answer')
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('parent answer')
+    })
+    const first = await connect()
+    await first.connection.send({ message: message('initialize') })
+    await done(first.events)
+    root = script.calls[0].sessionId!
+    first.events.length = 0
+    await first.connection.send({ message: message('delegate now') })
+    await done(first.events)
+    const child = await first.connection.childProjection('spawn')
+    expect(child).toBeDefined()
+    const archive = child!.snapshot()
+    await first.connection.close()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => ({
+      ...(await createHost(options)),
+      configureChild: async () => {
+        throw new Error('Historical child model is unavailable')
+      }
+    }))
+    const before = script.calls.length
+    const reopened = await connect()
+    expect(script.calls).toHaveLength(before)
+    expect(await reopened.connection.reconcile(input)).toBe('current')
+    expect(await reopened.connection.childProjection('spawn')).toBeUndefined()
+    const saved = savedChildView(contexts.context(archive.contextId))
+    expect(saved.available).toBe(false)
+    expect(saved.messages).toEqual(archive.messages)
+    await expect(reopened.connection.messageChild(archive.contextId, 'continue child')).rejects.toThrow('unavailable')
+    await reopened.connection.send({ message: message('continue parent') })
+    await done(reopened.events)
+    expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+    expect(text(reopened.events)).toBe('parent answer')
+  })
+
+  // Catches a backup finishing on the input receipt while native continuation/archive writes are still pending.
+  it.each(['complete', 'close'] as const)('drains an acknowledged child continuation through %s', async (outcome) => {
+    const answering = gate()
+    let root = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        childRuns++
+        return childRuns === 1 ? assistantReply('First answer') : answering.wait(assistantReply('Final answer'))
+      }
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('Parent finished')
+    })
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate now') })
+      await done(events)
+      const access = (await connection.childProjection('spawn'))!
+      await connection.messageChild(access.snapshot().contextId, 'continue')
+      await answering.reached
+      let drained = false
+      const draining = connection.drainChildWrites().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      if (outcome === 'close') await connection.close()
+      else answering.open()
+      await draining
+      const context = contexts.context(access.snapshot().contextId)
+      if (outcome === 'complete') {
+        expect(savedChildView(context).messages.flatMap((message) => message.parts)).toContainEqual(
+          expect.objectContaining({ text: 'Final answer' })
+        )
+      }
+      const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
+      await new Promise((resolve) => setTimeout(resolve, 160))
+      expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
+    } finally {
+      answering.open()
+    }
+  })
+
+  // Catches a panel opened during child configuration missing its only chance to subscribe.
+  it('waits for child configuration and streams updates through the original attachment', async () => {
+    const configuring = gate()
+    const answering = gate()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => {
+      const host = await createHost(options)
+      return {
+        ...host,
+        configureChild: async (child) => {
+          await configuring.wait(undefined)
+          return host.configureChild(child)
+        }
+      }
+    })
+    let root = ''
+    const answer = 'Incremental child output. '.repeat(8)
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return answering.wait(assistantReply(answer))
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'stream', prompt: 'write text' })], 'toolUse')
+      return assistantReply('done')
+    }, 20)
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate now') })
+      await configuring.reached
+      const attaching = connection.childProjection('spawn')
+      configuring.open()
+      const access = await attaching
+      expect(access).toBeDefined()
+      const updates: AgentChildUpdate[] = []
+      access!.subscribe((update) => updates.push(update))
+      answering.open()
+      await expect
+        .poll(() => updates.some((update) => update.active && update.patches.some((patch) => patch.type === 'append')))
+        .toBe(true)
+      const partial = access!.snapshot()
+      const frozen = structuredClone(partial)
+      await expect.poll(() => events.some((event) => event.type === 'turn-complete'), { timeout: 5000 }).toBe(true)
+      await expect.poll(() => access!.snapshot().active).toBe(false)
+      expect(partial).toEqual(frozen)
+      expect(
+        access!
+          .snapshot()
+          .messages.flatMap((entry) => entry.parts)
+          .filter((part) => part.type === 'text')
+      ).toContainEqual(expect.objectContaining({ text: answer }))
+    } finally {
+      configuring.open()
+      answering.open()
+    }
+  })
+
+  // Catches a pending panel request hanging after child creation fails or its owner closes.
+  it.each(['failed', 'closed'] as const)('releases child attachment when initialization is %s', async (outcome) => {
+    const configuring = gate()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => {
+      const host = await createHost(options)
+      return {
+        ...host,
+        configureChild: async (child) => {
+          await configuring.wait(undefined)
+          if (outcome === 'failed') throw new Error('Child model is unavailable')
+          return host.configureChild(child)
+        }
+      }
+    })
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      return JSON.stringify(call.messages.at(-1)).includes('delegate now')
+        ? assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+        : assistantReply('done')
+    })
+    const { connection, events } = await connect()
+    let closing: Promise<void> | undefined
+    try {
+      await connection.send({ message: message('delegate now') })
+      await configuring.reached
+      const attaching = connection.childProjection('spawn')
+      if (outcome === 'closed') closing = connection.close()
+      else configuring.open()
+      await expect(attaching).resolves.toBeUndefined()
+      if (!closing) await done(events)
+      expect(contexts.findChild(input.sessionId, 'spawn')).toBeUndefined()
+      expect(script.calls.every((call) => call.sessionId === root)).toBe(true)
+    } finally {
+      configuring.open()
+      await closing
+    }
   })
 
   // Catches a background stop missing the child and a late stop cancelling its parent's later turn.

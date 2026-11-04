@@ -41,8 +41,8 @@ vi.mock('../ActionResultContent', () => {
   }
 })
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: ({ id, onError }: { id: string; onError?: (error: Error) => void }) => {
+vi.mock('@renderer/hooks/useStreamCommands', () => ({
+  useStreamCommands: (id: string, _initial: unknown, onError?: (error: Error) => void) => {
     state.useChatIds.push(id)
     state.onError = onError
     return {

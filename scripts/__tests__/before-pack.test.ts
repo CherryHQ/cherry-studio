@@ -34,7 +34,7 @@ describe('prepareSystemSpeechHelper', () => {
     expect(config.win.extraResources).toEqual([
       ...originalResources,
       {
-        from: 'packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        from: 'native/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
         to: 'system-speech/cherry-system-speech.exe'
       }
     ])

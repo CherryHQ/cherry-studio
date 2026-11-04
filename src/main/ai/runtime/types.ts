@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -243,6 +244,16 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
+  childProjection?(
+    toolCallId: string
+  ): Promise<
+    { snapshot(): AgentChildView; subscribe(listener: (update: AgentChildUpdate) => void): () => void } | undefined
+  >
+  messageChild?(contextId: string, text: string): Promise<void>
+  /** Wait for admitted child execution and its archive writes; does not close the owner. */
+  drainChildWrites?(): Promise<void>
+  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  interrupt?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

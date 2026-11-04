@@ -79,10 +79,6 @@ vi.mock('@data/PreferenceService', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
 

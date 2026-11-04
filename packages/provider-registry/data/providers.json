@@ -631,7 +631,8 @@
           "modelsApiUrls": {
             "default": "https://openrouter.ai/api/v1/models",
             "embedding": "https://openrouter.ai/api/v1/embeddings/models",
-            "image": "https://openrouter.ai/api/v1/images/models"
+            "image": "https://openrouter.ai/api/v1/images/models",
+            "reranker": "https://openrouter.ai/api/v1/models?output_modalities=rerank"
           },
           "reasoningFormat": {
             "type": "openai-chat",
@@ -2930,5 +2931,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "26a014e34810030f"
+  "version": "70e1e7ba16416870"
 }

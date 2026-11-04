@@ -685,6 +685,7 @@ export default defineConfig([
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
+      'native/system-speech/dist',
       'packages/**/storybook-static/**',
       'scripts/data-classify/**'
     ]
@@ -1154,7 +1155,13 @@ export default defineConfig([
   },
   {
     // Workspace packages and repository scripts follow the same MCP v1 ban as src/.
-    files: ['packages/**/*.{ts,tsx}', 'scripts/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'v2-refactor-temp/**/*.{ts,tsx}'],
+    files: [
+      'packages/**/*.{ts,tsx}',
+      'native/system-speech/**/*.{ts,tsx}',
+      'scripts/**/*.{ts,tsx}',
+      'tests/**/*.{ts,tsx}',
+      'v2-refactor-temp/**/*.{ts,tsx}'
+    ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -1461,7 +1468,7 @@ export default defineConfig([
     }
   },
   {
-    files: ['packages/*/src/**/*.{ts,tsx}'],
+    files: ['packages/*/src/**/*.{ts,tsx}', 'native/system-speech/src/**/*.{ts,tsx}'],
     ignores: [...RUNTIME_PACKAGES.map((name) => `packages/${name}/**`), '**/*.test.*', '**/__tests__/**'],
     plugins: { barrel: barrelPlugin },
     rules: { 'barrel/closed': 'error' }
