@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.2.4
+
+### Patch Changes
+
+- [#23515](https://github.com/CherryHQ/cherry-studio/pull/23515) [`5dabea2`](https://github.com/CherryHQ/cherry-studio/commit/5dabea2c85f467b52d87946b1486c6c1a8de260c) Thanks [@DeJeune](https://github.com/DeJeune)! - Use overlay scrollbars in document previews and PDF outlines so native scrollbar gutters do not reduce content width.
+
 ## 0.2.3
 
 ### Patch Changes
