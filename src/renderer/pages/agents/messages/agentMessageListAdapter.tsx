@@ -443,7 +443,7 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
-      listKey: resolvedAgentId,
+      listKey: topic.id,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
