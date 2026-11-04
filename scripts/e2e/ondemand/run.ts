@@ -242,7 +242,7 @@ async function main(): Promise<void> {
           spec: request.spec,
           platform: request.platform,
           timeout: request.timeoutMinutes,
-          runner: request.platform === 'windows' ? 'windows-2022' : 'macos-latest'
+          runner: request.platform === 'windows' ? 'windows-2025' : 'macos-latest'
         })) {
           appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`)
         }
