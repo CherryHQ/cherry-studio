@@ -180,7 +180,7 @@ export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 // ─── Cleanup Policy Enum ───
 
 /**
- * Cleanup intent stored as data — docs/references/file/file-entry-cleanup.md.
+ * Cleanup intent stored as data — docs/dev/references/file/file-entry-cleanup.md.
  * 'manual' entries are preserved at zero refs; 'delete_when_unreferenced'
  * entries may be reclaimed by FileManager's cleanup pass.
  */
@@ -324,7 +324,7 @@ export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
  * Not persisted in DB. Queried at runtime via File IPC
  * `getDanglingState` / `batchGetDanglingStates` — DataApi never exposes dangling
  * because it requires FS IO (cold-path `fs.stat`) which violates the DataApi
- * SQL-only boundary. See [file-manager-architecture.md §11](../../../../docs/references/file/file-manager-architecture.md).
+ * SQL-only boundary. See [file-manager-architecture.md §11](../../../../docs/dev/references/file/file-manager-architecture.md).
  */
 export const DanglingStateSchema = z.enum(['present', 'missing', 'unknown'])
 export type DanglingState = z.infer<typeof DanglingStateSchema>

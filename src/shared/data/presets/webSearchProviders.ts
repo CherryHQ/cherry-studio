@@ -121,6 +121,7 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   serply: ['searchKeywords'],
   yuanbao: ['searchKeywords'],
   deepseek: ['searchKeywords', 'fetchUrls'],
+  desearch: ['searchKeywords'],
   searchapi: ['searchKeywords']
 }
 

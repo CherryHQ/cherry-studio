@@ -146,6 +146,14 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
   })
 
+  it('labels the auto code themes as the Cherry default while keeping the stored value', () => {
+    render(<ChatPreferenceSections />)
+
+    const autoItems = screen.getAllByText('chat.settings.code_theme.cherry_default')
+    expect(autoItems.map((item) => item.getAttribute('data-value'))).toEqual(['auto', 'auto'])
+    expect(screen.queryByText('auto')).toBeNull()
+  })
+
   it('does not render input translation controls', () => {
     mocks.preferenceValues['app.language'] = 'zh-cn'
 

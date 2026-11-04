@@ -7,7 +7,7 @@
  * queued for the next turn; the `failed` marker is also the seam the
  * Retry/Skip/Abort UI builds on.
  *
- * Crash recovery: a claimed row is always resolved (delete / markFailed)
+ * Crash recovery: a claimed row is always resolved (close / markFailed)
  * within its turn lifecycle, so a `sending` row older than
  * `STALE_SENDING_CLAIM_MS` can only be orphaned by process death — `claim`
  * reclaims it. This is race-free in practice because a live owner holds its
@@ -338,8 +338,9 @@ export class FollowupQueueService {
       const insertedRow = inserted as FollowupQueueRow
       if (dto.fileEntryIds?.length) {
         // Register durable file refs so blob-attachment entries survive the
-        // idle sweep for the draft's whole queue lifetime; the FK cascade
-        // drops these rows when the draft is dequeued.
+        // idle sweep for the draft's whole queue lifetime. Closing the draft
+        // explicitly releases these refs while retaining its retry receipt;
+        // physical row deletion (for example scope purge) cascades them.
         for (const fileEntryId of dto.fileEntryIds) {
           tx.insert(followupQueueFileRefTable)
             .values({ fileEntryId, sourceId: insertedRow.id, role: 'attachment' as const })

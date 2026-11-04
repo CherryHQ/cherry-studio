@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { installDndDomStubs } from '@cherrystudio/ui/components/composites/sortable/__tests__/dnd-dom-stubs'
 import i18n from '@renderer/i18n/resolver'
 
 vi.unmock('@cherrystudio/ui')
@@ -51,6 +52,8 @@ const knowledgeItem = {
 } as any
 
 describe('QueuedFollowupsDock', () => {
+  beforeAll(installDndDomStubs)
+
   beforeEach(async () => {
     await i18n.changeLanguage('en-US')
   })

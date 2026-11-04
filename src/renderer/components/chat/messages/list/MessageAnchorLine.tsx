@@ -24,7 +24,7 @@ interface MessageLineProps {
   messages: readonly AnchorMessage[]
   /** Message under the viewport-top reading line; highlights its turn's tick. */
   activeMessageId?: string | null
-  /** 0–1 fade driven by the content's rail gutter — the rail eases in/out with width. */
+  /** 0–1 gutter ratio controlling only the hit strip's width (8–32px). */
   railOpacity?: number
   /** Older turns exist beyond the loaded pages — fade the strip's top as a
    * "more above" hint. The mount-time value also fixes the strip's alignment
@@ -100,15 +100,11 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
-  /** Once the composer inset leaves too little height, the rail is cramped — hide it. */
+  /** Hide the rail only when its measured wrapper height is too short to be usable. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
-  const visible = railOpacity > 0.02 && !tooShort
-  // The hit strip is clickable whenever it is visible, but it only ever
-  // occupies space the content has already yielded: the content's right
-  // padding is 24px base + gutter, the strip is inset 16px (right-4), and
-  // railOpacity × 24 is the integer gutter — so the strip's width grows with
-  // the fade and everything left of it still belongs to the messages. At full
-  // opacity this is exactly the 32px strip.
+  const visible = !tooShort
+  // The 8px base fits the existing right padding; extra width tracks the gutter
+  // so the hit strip stays outside the message content even in narrow columns.
   const hitStripWidth = 8 + Math.round(railOpacity * 24)
 
   const turns = useMemo<AnchorTurn[]>(() => {
@@ -227,8 +223,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // the rail itself. Mirror that offset into state so the card and wave track it.
   const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
 
-  // Fading out mid-hover would otherwise freeze the wave and card behind the
-  // fade.
+  // Height-based hiding must clear the wave and preview before the rail returns.
   useEffect(() => {
     if (!visible) clearPointerState()
   }, [clearPointerState, visible])
@@ -240,9 +235,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     []
   )
 
-  // Few messages don't need anchoring. Only the rail is gated — the content's
-  // gutter (MessageList) follows width alone, so when the turn count crosses
-  // this threshold the rail fades into space that already exists, with no jump.
+  // The gutter is independent of turn count, so mounting the rail at this
+  // threshold leaves the content layout unchanged.
   const hasRail = turns.length >= RAIL_MIN_TURNS
 
   // Keep the strip's reading anchor stable across async page loads:
@@ -331,14 +325,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
         // the Scrollbar composite's inline scrollbar-color opts Chromium out of
         // the global 6px ::-webkit-scrollbar styling into the standard CSS
         // scrollbar; scrollbar-gutter:stable only keeps it reserved while hidden.
-        // top-2.5 sits just below the header; bottom-8 keeps the last tick clear
-        // of the very bottom edge. The composer is inset to the left of this
-        // gutter, so the ticks clear it. The fade opacity lives on the tick
-        // strip below — NOT here — so the hover preview card stays fully
-        // opaque and readable even while the ticks are still fading in. The
-        // strip's width (hitStripWidth) grows with the gutter so it never
-        // covers message content mid-fade — the visible ticks are clickable at
-        // any fade stage, and clicks left of the strip reach the messages.
+        // Opacity belongs to the tick strip so the preview stays fully opaque.
+        // The gutter-sized hit strip preserves the message and composer hit areas.
         'group absolute top-2.5 right-4 bottom-8 z-20 select-none',
         !visible && 'pointer-events-none'
       )}
@@ -361,10 +349,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
         style={{
           top: RAIL_MIN_EDGE_MARGIN_PX,
           bottom: RAIL_MIN_EDGE_MARGIN_PX,
-          // The width-driven fade (railOpacity needs no transition — it already
-          // ramps continuously) combines with the resting 70% dim that hover
-          // lifts (the transition-opacity above eases that lift).
-          opacity: (visible ? railOpacity : 0) * (isHovering ? 1 : 0.7),
+          // Resting ticks stay visible at every width; hover lifts the dimming.
+          opacity: visible ? (isHovering ? 1 : 0.7) : 0,
           maskImage: railMask,
           WebkitMaskImage: railMask
         }}>

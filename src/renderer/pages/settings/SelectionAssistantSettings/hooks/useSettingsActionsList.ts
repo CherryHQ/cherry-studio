@@ -1,36 +1,70 @@
-import type { DropResult } from '@hello-pangea/dnd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { popup } from '@renderer/services/popup'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getSelectionActionAgent, type SelectionActionAgentIssue } from '@renderer/utils/selectionAction'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import {
+  type AskAgentSelectionAction,
+  type CustomSelectionAction,
+  SELECTION_BUILTIN_ACTION_ID,
+  type SelectionAction
+} from '@shared/types/selection'
 
 import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
 
 const logger = loggerService.withContext('useSettingsActionsList')
 
+export interface SelectionActionAgentInfo {
+  agent: { emoji: string; name: string } | undefined
+  issue: SelectionActionAgentIssue | null
+}
+
 const MAX_CUSTOM_ITEMS = 10
 const MAX_ENABLED_ITEMS = 8
 
+export const ACTIONS_DIVIDER = '__actions_divider__'
+export type ActionRow = SelectionAction | typeof ACTIONS_DIVIDER
+
+const isActionItem = (row: ActionRow): row is SelectionAction => row !== ACTIONS_DIVIDER
+
+export const actionItemsFromRows = (rows: ActionRow[]): SelectionActionItem[] => {
+  const dividerIndex = rows.indexOf(ACTIONS_DIVIDER)
+  const enabled = rows.slice(0, dividerIndex).filter(isActionItem)
+  const disabled = rows.slice(dividerIndex + 1).filter(isActionItem)
+  return [
+    ...enabled.slice(0, MAX_ENABLED_ITEMS).map((item) => ({ ...item, enabled: true })),
+    ...[...disabled, ...enabled.slice(MAX_ENABLED_ITEMS)].map((item) => ({ ...item, enabled: false }))
+  ]
+}
+
 export const useActionItems = (
-  initialItems: SelectionActionItem[] | undefined,
+  initialItems: SelectionAction[] | undefined,
   setActionItems: (items: SelectionActionItem[]) => void
 ) => {
   const { t } = useTranslation()
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
-  const [userEditingAction, setUserEditingAction] = useState<SelectionActionItem | null>(null)
+  const [isAskAgentModalOpen, setIsAskAgentModalOpen] = useState(false)
+  const [userEditingAction, setUserEditingAction] = useState<CustomSelectionAction | null>(null)
+  const { agents, isLoading: agentsLoading } = useAgents()
 
   const enabledItems = useMemo(() => initialItems?.filter((item) => item.enabled) ?? [], [initialItems])
   const disabledItems = useMemo(() => initialItems?.filter((item) => !item.enabled) ?? [], [initialItems])
   const customItemsCount = useMemo(() => initialItems?.filter((item) => !item.isBuiltIn).length ?? 0, [initialItems])
 
-  const handleEditActionItem = (item: SelectionActionItem) => {
+  const handleEditActionItem = (item: SelectionAction) => {
     if (item.isBuiltIn) {
-      if (item.id === 'search') {
+      if (item.id === SELECTION_BUILTIN_ACTION_ID.SEARCH) {
         setIsSearchModalOpen(true)
+        return
+      }
+      if (item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT) {
+        setIsAskAgentModalOpen(true)
         return
       }
       return
@@ -45,7 +79,7 @@ export const useActionItems = (
     setIsUserModalOpen(true)
   }
 
-  const handleUserModalOk = (actionItem: SelectionActionItem) => {
+  const handleUserModalOk = (actionItem: CustomSelectionAction) => {
     if (userEditingAction && initialItems) {
       const updatedItems = initialItems.map((item) => (item.id === userEditingAction.id ? actionItem : item))
       setActionItems(updatedItems)
@@ -62,9 +96,21 @@ export const useActionItems = (
 
   const handleSearchModalOk = (searchEngine: string) => {
     if (!initialItems) return
-    const updatedItems = initialItems.map((item) => (item.id === 'search' ? { ...item, searchEngine } : item))
+    const updatedItems = initialItems.map((item) =>
+      item.isBuiltIn && item.id === SELECTION_BUILTIN_ACTION_ID.SEARCH ? { ...item, searchEngine } : item
+    )
     setActionItems(updatedItems)
     setIsSearchModalOpen(false)
+  }
+
+  const handleAskAgentModalOk = (binding: Pick<AskAgentSelectionAction, 'agentId' | 'agentWorkspace'>) => {
+    if (!initialItems) return
+    setActionItems(
+      initialItems.map((item) =>
+        item.isBuiltIn && item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT ? { ...item, ...binding } : item
+      )
+    )
+    setIsAskAgentModalOpen(false)
   }
 
   const handleDeleteActionItem = async (id: string) => {
@@ -90,62 +136,16 @@ export const useActionItems = (
     setActionItems([...DefaultPreferences.default['feature.selection.action_items'], ...userItems])
   }
 
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination || !initialItems) return
+  const actionRows = useMemo<ActionRow[]>(
+    () => [...enabledItems, ACTIONS_DIVIDER, ...disabledItems],
+    [enabledItems, disabledItems]
+  )
 
-    const { source, destination } = result
-
-    if (source.droppableId === 'enabled' && destination.droppableId === 'disabled' && enabledItems.length === 1) {
-      return
-    }
-
-    if (source.droppableId === destination.droppableId) {
-      const list = source.droppableId === 'enabled' ? [...enabledItems] : [...disabledItems]
-      const [removed] = list.splice(source.index, 1)
-      list.splice(destination.index, 0, removed)
-
-      if (source.droppableId === 'enabled') {
-        const limitedEnabledItems = list.slice(0, MAX_ENABLED_ITEMS)
-        const overflowItems = list.length > MAX_ENABLED_ITEMS ? list.slice(MAX_ENABLED_ITEMS) : []
-
-        const updatedItems = [
-          ...limitedEnabledItems.map((item) => ({ ...item, enabled: true })),
-          ...disabledItems,
-          ...overflowItems.map((item) => ({ ...item, enabled: false }))
-        ]
-
-        setActionItems(updatedItems)
-      } else {
-        const updatedItems = [...enabledItems, ...list]
-        setActionItems(updatedItems)
-      }
-      return
-    }
-
-    const sourceList = source.droppableId === 'enabled' ? [...enabledItems] : [...disabledItems]
-    const destList = destination.droppableId === 'enabled' ? [...enabledItems] : [...disabledItems]
-
-    const [removed] = sourceList.splice(source.index, 1)
-    const updatedItem = { ...removed, enabled: destination.droppableId === 'enabled' }
-
-    const filteredDestList = destList.filter((item) => item.id !== updatedItem.id)
-    filteredDestList.splice(destination.index, 0, updatedItem)
-
-    let newEnabledItems = destination.droppableId === 'enabled' ? filteredDestList : sourceList
-    let newDisabledItems = destination.droppableId === 'disabled' ? filteredDestList : sourceList
-
-    if (newEnabledItems.length > MAX_ENABLED_ITEMS) {
-      const overflowItems = newEnabledItems.slice(MAX_ENABLED_ITEMS).map((item) => ({ ...item, enabled: false }))
-      newEnabledItems = newEnabledItems.slice(0, MAX_ENABLED_ITEMS)
-      newDisabledItems = [...newDisabledItems, ...overflowItems]
-    }
-
-    const updatedItems = [
-      ...newEnabledItems.map((item) => ({ ...item, enabled: true })),
-      ...newDisabledItems.map((item) => ({ ...item, enabled: false }))
-    ]
-
-    setActionItems(updatedItems)
+  const handleReorderRows = (rows: ActionRow[]) => {
+    const nextItems = actionItemsFromRows(rows)
+    // A drag that began before a rollback left its item as the last enabled one can still drop it below the divider.
+    if (enabledItems.length > 0 && !nextItems.some((item) => item.enabled)) return
+    setActionItems(nextItems)
   }
 
   const getSearchEngineInfo = (searchEngine: string) => {
@@ -159,24 +159,39 @@ export const useActionItems = (
     return { icon: customEngine?.icon, name: engine }
   }
 
+  const getAgentInfo = (item: SelectionAction): SelectionActionAgentInfo | null => {
+    const resolved = agentsLoading ? null : getSelectionActionAgent(item, agents)
+    if (!resolved) return null
+    const { agent, issue } = resolved
+    if (!agent && !issue) return null
+    return {
+      agent: agent && { emoji: getAgentAvatarFromConfiguration(agent.configuration), name: agent.name },
+      issue
+    }
+  }
+
   return {
     enabledItems,
-    disabledItems,
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
+    isAskAgentModalOpen,
     userEditingAction,
     setIsUserModalOpen,
     setIsSearchModalOpen,
+    setIsAskAgentModalOpen,
     setUserEditingAction,
     handleEditActionItem,
     handleAddNewAction,
     handleUserModalOk,
     handleSearchModalOk,
+    handleAskAgentModalOk,
     handleDeleteActionItem,
     handleReset,
-    onDragEnd,
+    actionRows,
+    handleReorderRows,
     getSearchEngineInfo,
+    getAgentInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS
   }

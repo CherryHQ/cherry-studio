@@ -24,18 +24,26 @@ const roles = {
 }
 
 export function getCodeBlockPalette(theme: Theme): Record<string, string> {
-  const foreground = theme.style['editor.foreground'] ?? theme.style.text ?? 'var(--foreground)'
+  const variables = typeof theme.cssVariables === 'object' ? theme.cssVariables : undefined
+  // Palette themes store variable suffixes instead of colors.
+  const color = (value: string | undefined) => {
+    if (value === undefined || !variables) return value
+    const fallback = variables.defaults?.[value]
+    return `var(${variables.prefix ?? '--hls-'}${value}${fallback ? `, ${fallback}` : ''})`
+  }
+  const foreground = color(theme.style['editor.foreground'] ?? theme.style.text) ?? 'var(--foreground)'
+  const background = color(theme.style['editor.background'] ?? theme.style.background) ?? 'var(--background)'
   const player = theme.style.players?.[0]
   const palette: Record<string, string> = {
     '--code-foreground': foreground,
-    '--code-background': theme.style['editor.background'] ?? theme.style.background ?? 'var(--background)',
-    '--code-selection': player?.selection ?? 'var(--accent)',
-    '--code-caret': player?.cursor ?? foreground
+    '--code-background': background,
+    '--code-selection': color(player?.selection) ?? 'var(--accent)',
+    '--code-caret': color(player?.cursor) ?? foreground
   }
   for (const [role, scope] of Object.entries(roles)) {
     const syntax = theme.style.syntax?.[scope]
     const settings = typeof syntax === 'string' ? { color: syntax } : syntax
-    palette[`--code-syntax-${role}`] = settings?.color ?? foreground
+    palette[`--code-syntax-${role}`] = color(settings?.color) ?? foreground
     palette[`--code-syntax-${role}-style`] = settings?.font_style ?? (role === 'emphasis' ? 'italic' : 'normal')
     palette[`--code-syntax-${role}-weight`] = String(
       settings?.font_weight ?? (role === 'strong' || role === 'heading' ? 700 : 400)
