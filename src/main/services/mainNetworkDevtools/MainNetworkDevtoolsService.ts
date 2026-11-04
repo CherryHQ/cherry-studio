@@ -461,9 +461,7 @@ export class MainNetworkDevtoolsService extends BaseService {
   ): void {
     let requestBodyAccumulator: ReturnType<typeof createBodyAccumulator> | undefined
     const effectiveHeaders = () =>
-      typeof request.getHeaders === 'function' && Object.keys(request.getHeaders()).length > 0
-        ? redactHeaders(request.getHeaders())
-        : requestHeaders
+      typeof request.getHeaders === 'function' ? redactHeaders(request.getHeaders()) : requestHeaders
     const accumulator = () => {
       if (!requestBodyAccumulator) {
         const headers = effectiveHeaders()
@@ -494,12 +492,21 @@ export class MainNetworkDevtoolsService extends BaseService {
         requestHeaderEntries: entries.length > 0 ? entries : undefined,
         requestBody: requestBody
           ? applyContentEncodingReplayConstraint(
-              { ...requestBody, contentType: finalType ?? requestBody.contentType },
+              {
+                ...requestBody,
+                contentType:
+                  typeof wire === 'string' || typeof request.getHeaders === 'function'
+                    ? finalType
+                    : requestBody.contentType
+              },
               headers
             )
           : undefined
       })
     }
+
+    // http.get()/https.get() end the request before the wrapper can attach.
+    if (request.writableEnded) queueMicrotask(() => updateFinalCapture(undefined))
 
     target.write = function monitoredWrite(this: ClientRequest, ...args: unknown[]) {
       accumulator().append(args[0], args[1])
@@ -772,6 +779,15 @@ async function readWebBody(
   const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
   let text = ''
   let truncated = false
+  let decodingFailed = false
+  const decode = (chunk?: Uint8Array, stream = false) => {
+    try {
+      return decoder.decode(chunk, { stream })
+    } catch (error) {
+      decodingFailed = true
+      throw error
+    }
+  }
 
   try {
     let done = false
@@ -781,9 +797,9 @@ async function readWebBody(
       const result = await reader.read()
       done = result.done
       if (done) break
-      text += decoder.decode(result.value, { stream: true })
+      text += decode(result.value, true)
     }
-    text += decoder.decode()
+    text += decode()
 
     if (text.length > MAX_BODY_CHARS) {
       text = text.slice(0, MAX_BODY_CHARS)
@@ -796,9 +812,12 @@ async function readWebBody(
       // Do not block publishing the bounded capture on that unrelated consumer.
       void reader.cancel().catch(() => {})
     }
-  } catch {
-    // Never advertise a replacement-decoded byte stream as executable replay data.
+  } catch (error) {
+    // Stream failures retain their transport diagnostic; only decoder failures
+    // should be reported as malformed UTF-8.
     void reader.cancel().catch(() => {})
+    if (!decodingFailed) throw error
+    // Never advertise a replacement-decoded byte stream as executable replay data.
     return { contentType, replayable: false, note: 'Body is not valid UTF-8 and cannot be replayed from capture.' }
   } finally {
     reader.releaseLock()

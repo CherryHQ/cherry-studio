@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { readFileSync } from 'node:fs'
-import { createServer, request as httpRequest } from 'node:http'
+import { createServer, get as httpGet, request as httpRequest } from 'node:http'
 import { promisify } from 'node:util'
 import vm from 'node:vm'
 
@@ -1197,9 +1197,9 @@ it('captures late-set Node header and effective body media type', async () => {
   await service._doStop()
 })
 
-it.skipIf(process.platform === 'win32')(
-  'preserves late, empty and repeated Node headers through actual HTTP/cURL replay',
-  async () => {
+it.skipIf(process.platform === 'win32').each(['late', 'empty', 'repeated', 'get', 'removed'] as const)(
+  'preserves %s Node headers through actual HTTP/cURL replay',
+  async (mode) => {
     const received: { raw: string[]; body: string }[] = []
     const server = createServer((req, res) => {
       const chunks: Buffer[] = []
@@ -1215,7 +1215,7 @@ it.skipIf(process.platform === 'win32')(
     vm.createContext(sandbox)
     vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
     try {
-      for (const mode of ['late', 'empty', 'repeated'] as const) {
+      {
         BaseService.resetInstances()
         const service = new MainNetworkDevtoolsService()
         const state = service as unknown as {
@@ -1226,25 +1226,29 @@ it.skipIf(process.platform === 'win32')(
           ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
         }
         const headers =
-          mode === 'repeated'
+          mode === 'repeated' || mode === 'get'
             ? ['Host', new URL(url).host, 'Content-Type', 'text/plain', 'X-Route', 'one', 'X-Route', 'two']
             : { 'Content-Type': mode === 'empty' ? '' : 'text/plain' }
-        const request = state.wrapHttpMethod(httpRequest as (...args: unknown[]) => unknown, 'http')(url, {
-          method: 'POST',
+        const request = state.wrapHttpMethod(
+          (mode === 'get' ? httpGet : httpRequest) as (...args: unknown[]) => unknown,
+          'http'
+        )(url, {
+          method: mode === 'get' ? 'GET' : 'POST',
           headers
         })
         if (mode === 'late') {
           request.setHeader('Content-Type', 'application/json')
           request.setHeader('X-Late', 'yes')
         }
-        const body = mode === 'late' ? '{"ok":true}' : 'payload'
+        if (mode === 'removed') request.removeHeader('Content-Type')
+        const body = mode === 'get' ? '' : mode === 'late' ? '{"ok":true}' : 'payload'
         await new Promise<void>((resolve, reject) => {
           request.on('response', (res) => {
             res.resume()
             res.on('end', resolve)
           })
           request.on('error', reject)
-          request.end(body)
+          if (mode !== 'get') request.end(body)
         })
         const event = state.events[0]
         const command = sandbox.buildCurlCommand?.(event) as string
@@ -1261,6 +1265,7 @@ it.skipIf(process.platform === 'win32')(
           selected(received.at(-2) as (typeof received)[number])
         )
         if (mode === 'late') expect(event.requestBody?.contentType).toBe('application/json')
+        if (mode === 'removed') expect(event.requestBody?.contentType).toBeUndefined()
         await service._doStop()
       }
     } finally {
@@ -1268,3 +1273,36 @@ it.skipIf(process.platform === 'win32')(
     }
   }
 )
+
+it('reports prematurely terminated ASCII response as a transport error, not invalid UTF-8', async () => {
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': '999' })
+    res.write('ASCII body')
+    setTimeout(() => res.destroy(), 30)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  BaseService.resetInstances()
+  const service = new MainNetworkDevtoolsService()
+  const state = service as unknown as {
+    events: MainNetworkDevtoolsEvent[]
+    captureFetchResponseBody: (id: string, response: Response) => void
+  }
+  try {
+    const response = await fetch(`http://127.0.0.1:${(server.address() as { port: number }).port}/`)
+    state.events.push({
+      id: 'transport',
+      source: 'fetch',
+      state: 'success',
+      url: 'http://test',
+      method: 'GET',
+      startedAt: Date.now()
+    })
+    state.captureFetchResponseBody('transport', response)
+    await response.text().catch(() => {})
+    await vi.waitFor(() => expect(state.events[0].responseBodyError).toMatch(/terminated/))
+    expect(state.events[0].responseBody).toBeUndefined()
+  } finally {
+    await service._doStop()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
