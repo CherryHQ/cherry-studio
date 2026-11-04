@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-10-28T16:20:14.177Z
- * Total icons: 166
+ * Total icons: 167
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -89,6 +89,7 @@ export { LanyunIcon as Lanyun } from './lanyun'
 export { LeptonIcon as Lepton } from './lepton'
 export { LingxiIcon as Lingxi } from './lingxi'
 export { LiquidIcon as Liquid } from './liquid'
+export { LiquidInferenceIcon as LiquidInference } from './liquid-inference/liquid-inference'
 export { LitellmIcon as Litellm } from './litellm/litellm'
 export { LmstudioIcon as Lmstudio } from './lmstudio'
 export { LongcatIcon as Longcat } from './longcat'

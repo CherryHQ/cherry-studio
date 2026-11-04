@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "70e1e7ba16416870",
-    "count": 67,
+    "version": "b8354f744a72a471",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -598,6 +598,10 @@
       {
         "id": "litellm",
         "name": "LiteLLM"
+      },
+      {
+        "id": "liquid-inference",
+        "name": "Liquid Inference"
       },
       {
         "id": "anthropic",
