@@ -55,6 +55,8 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     await application.get('AppUpdaterService').checkForUpdates()
   },
   'app.updater.release_notes.get': async () => application.get('AppUpdaterService').getReleaseHistory(),
+  'app.updater.upgrade_notes.get': async ({ targetVersion }) =>
+    application.get('AppUpdaterService').getUpgradeReleaseNotes(targetVersion),
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
   }

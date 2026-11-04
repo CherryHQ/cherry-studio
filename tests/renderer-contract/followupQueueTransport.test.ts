@@ -22,6 +22,7 @@ const { service } = vi.hoisted(() => ({
 import { followupQueueHandlers } from '../../src/main/data/api/handlers/followupQueues'
 import { useFollowupQueue } from '../../src/renderer/components/composer/useFollowupQueue'
 import { createSWRTestWrapper } from '../../src/renderer/data/hooks/__tests__/testUtils'
+import { DataApiError, ErrorCode } from '../../src/shared/data/api/errors'
 
 const ids = [
   '11111111-1111-7111-8111-111111111111',
@@ -39,6 +40,52 @@ afterEach(() => {
 
 // Keep the renderer caller, fetcher and client real. Only bridge dispatch and
 // persistence are faked; handler validation below is the production boundary.
+
+describe('production overlapping enqueue settlement', () => {
+  it('keeps an older rejected enqueue false after a newer scope enqueue succeeds', async () => {
+    let rejectFirst!: (reason: Error) => void
+    let postCount = 0
+    const request = vi.fn(async (req) => {
+      if (req.path === '/followup-queues' && req.method === 'POST') {
+        postCount++
+        if (postCount === 1)
+          return await new Promise((_resolve, reject) => {
+            rejectFirst = reject
+          })
+        return { id: req.id, status: 201, data: req.body }
+      }
+      return {
+        id: req.id,
+        status: 200,
+        data: req.path === '/followup-queue-states' ? { scopeKey: req.params?.scopeKey, paused: false } : []
+      }
+    })
+    Object.defineProperty(window, 'api', { configurable: true, value: { ...window.api, dataApi: { request } } })
+    const { Wrapper: wrapper } = createSWRTestWrapper()
+    const { result, rerender } = renderHook(
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, status: 'streaming', lastCompletedAt: null, onDrain: vi.fn() }),
+      { wrapper, initialProps: { scopeKey: 'scope-a' } }
+    )
+    let first!: Promise<boolean>
+    await act(async () => {
+      first = result.current.enqueue({ text: 'A', tokens: [] }, { text: 'A', userMessageParts: [] })
+    })
+    await waitFor(() => expect(postCount).toBe(1))
+    rerender({ scopeKey: 'scope-b' })
+    let second: unknown
+    await act(async () => {
+      second = await result.current.enqueue({ text: 'B', tokens: [] }, { text: 'B', userMessageParts: [] })
+    })
+    expect(second).toBe(true)
+    let older: unknown
+    await act(async () => {
+      rejectFirst(new DataApiError(ErrorCode.VALIDATION_ERROR, 'older write rejected', 400))
+      older = await first
+    })
+    expect(older).toBe(false)
+    expect(postCount).toBe(2)
+  })
+})
 
 describe('production edit-transfer transport contract', () => {
   it.each([

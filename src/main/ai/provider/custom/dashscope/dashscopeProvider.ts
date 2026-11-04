@@ -54,7 +54,10 @@ export function buildDashScopeTransport(settings: DashScopeProviderSettings): Im
   return createDashScopeTransport({
     apiKey: settings.apiKey ?? '',
     imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL,
-    fetch: settings.fetch
+    // Route native image traffic through the same proxy-aware fetch and
+    // provider headers the chat models use.
+    fetch: settings.fetch,
+    headers: settings.headers
   })
 }
 

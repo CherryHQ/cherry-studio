@@ -4858,3 +4858,99 @@ describe('persistBlobAttachments', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
   })
 })
+
+describe('editing queued items through async API claims', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    MockCacheUtils.resetMocks()
+    ipcMocks.request.mockReset()
+  })
+
+  const setup = () => {
+    const a = row('a', 'A')
+    a.payload.chatTarget = { mode: 'reserved-branch' } as never
+    wireQuery([a, row('b', 'B')])
+    const mutations = wireMutations()
+    mutations.claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+    return { result, a, ...mutations }
+  }
+
+  it('restores an edited outgoing draft under a new UUID with its captured chat target', async () => {
+    const { result, a, postTrigger } = setup()
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    await act(async () => {
+      await result.current.takeForEdit('b', (taken) => ({
+        draft: draft('A edited'),
+        payload: {
+          ...(payload('A edited') as { text: string; userMessageParts: never[] }),
+          chatTarget: taken.payload.chatTarget
+        }
+      }))
+    })
+    const body = postTrigger.mock.calls[0][0].body
+    expect(body.id).not.toBe('a')
+    expect(body.draft.text).toBe('A edited')
+    expect(body.payload.chatTarget).toEqual(a.payload.chatTarget)
+  })
+
+  it('restores original content when the live editor is empty', async () => {
+    const { result, a, postTrigger } = setup()
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    await act(async () => {
+      await result.current.takeForEdit('b', (taken) => ({ draft: taken.draft, payload: taken.payload }))
+    })
+    expect(postTrigger.mock.calls[0][0].body.draft).toEqual(a.draft)
+    expect(postTrigger.mock.calls[0][0].body.payload).toEqual(a.payload)
+  })
+
+  for (const label of ['non-empty', 'attachment-only']) {
+    it(`refuses a ${label} unsendable outgoing draft and releases the incoming claim`, async () => {
+      const { result, claimTrigger, takeDeleteTrigger, postTrigger, failTrigger } = setup()
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const capture = vi.fn(() => null)
+      let incoming: unknown
+      await act(async () => {
+        incoming = await result.current.takeForEdit('b', capture)
+      })
+      expect(incoming).toBeUndefined()
+      expect(capture).toHaveBeenCalledOnce()
+      expect(claimTrigger).toHaveBeenCalledTimes(2)
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { claimToken: expect.any(String) } })
+      expect(takeDeleteTrigger).toHaveBeenCalledTimes(1)
+      expect(postTrigger).not.toHaveBeenCalled()
+    })
+  }
+
+  it('releases the previous edit before taking B during message editing without a swap', async () => {
+    const { result, postTrigger } = setup()
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let incoming: any
+    await act(async () => {
+      result.current.releaseEdit()
+      incoming = await result.current.takeForEdit('b', () => null)
+    })
+    expect(incoming.draft.text).toBe('B')
+    expect(postTrigger).not.toHaveBeenCalled()
+  })
+
+  it('ignores a missing item without claim or delete', async () => {
+    const { result, claimTrigger, takeDeleteTrigger } = setup()
+    let incoming: unknown
+    await act(async () => {
+      result.current.releaseEdit()
+      incoming = await result.current.takeForEdit('missing', () => null)
+    })
+    expect(incoming).toBeUndefined()
+    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(takeDeleteTrigger).not.toHaveBeenCalled()
+  })
+})

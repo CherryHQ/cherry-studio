@@ -21,7 +21,7 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() }) }
 }))
 
-import { buildAgentFilePartsForAttachments } from '../AgentComposer'
+import { buildAgentFilePartsForAttachments } from '../agent/agentFileParts'
 
 function attachment(overrides: Partial<ComposerAttachment>): ComposerAttachment {
   return {

@@ -17,13 +17,14 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
-import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
+import { piWorkspaceRelocation } from './workspaceRelocation'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
   readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
@@ -43,9 +44,6 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
-    // Side-effect free: dispatch validation must not consume API-key rotation;
-    // the concrete key is selected only when the runtime connection starts.
-    await assertPiProviderUsable(agent.model)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
@@ -92,7 +90,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
    * pi keeps one flat `{timestamp}_{resumeToken}.jsonl` per session generation
    * (see `resolveResumeTokenSessionFile`), so the token is the stem after the
    * FIRST `_` — the timestamp pi owns has none, but a token legally can. Every
-   * generation of a claimed token is kept — the connection resumes from the newest.
+   * file for a claimed token is kept; ambiguous identities fail closed when opening.
    */
   async reclaimOrphanSessions(
     keptResumeTokens: ReadonlySet<string>,

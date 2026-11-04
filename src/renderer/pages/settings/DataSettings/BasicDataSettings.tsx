@@ -341,7 +341,13 @@ const BasicDataSettings: React.FC = () => {
               {appInfo?.appDataPath}
             </PathText>
             <Tooltip title={t('settings.data.app_data.select')}>
-              <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('settings.data.app_data.select')}
+                onClick={handleSelectAppDataPath}>
+                <FolderOutput size={16} />
+              </Button>
             </Tooltip>
             <RowFlex className="ml-2 gap-1.25">
               <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
