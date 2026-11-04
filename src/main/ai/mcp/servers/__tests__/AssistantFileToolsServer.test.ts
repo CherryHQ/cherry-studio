@@ -103,7 +103,7 @@ const clients: Client[] = []
 
 async function createServer(): Promise<Client> {
   const client = await connectMcpTestClient(() =>
-    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace', workspaceType: 'system' })
   )
   clients.push(client)
   return client
@@ -239,7 +239,8 @@ describe('assistant-files MCP server', () => {
     expect(mocks.moveWorkspaceItemToTrash).toHaveBeenCalledWith(
       '/workspace',
       { path: 'old-draft.md' },
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      'system'
     )
     expect(mocks.listSessionMessages).not.toHaveBeenCalled()
     expect(result.isError).not.toBe(true)

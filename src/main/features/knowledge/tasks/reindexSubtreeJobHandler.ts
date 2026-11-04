@@ -12,6 +12,7 @@ import {
 } from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
 
+import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { canKnowledgeItemReacquireSource, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
@@ -32,7 +33,8 @@ const REINDEX_RECOVERY_ACTIVE_STATUSES = new Set<KnowledgeItemStatus>(['preparin
 
 export function createReindexSubtreeJobHandler(
   knowledgeLockManager: KeyedMutex,
-  ingestionService: KnowledgeItemScheduler
+  ingestionService: KnowledgeItemScheduler,
+  fileProcessingWaits: FileProcessingWaitManager
 ): JobHandler<KnowledgeReindexSubtreePayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -229,7 +231,7 @@ export function createReindexSubtreeJobHandler(
     },
 
     async onSettled(event) {
-      await markReindexSubtreeFailedOnSettled(event)
+      await markReindexSubtreeFailedOnSettled(event, fileProcessingWaits)
     }
   }
 }
@@ -300,7 +302,8 @@ async function produceReacquireWrites(
 }
 
 async function markReindexSubtreeFailedOnSettled(
-  event: JobSettledEvent<KnowledgeReindexSubtreePayload>
+  event: JobSettledEvent<KnowledgeReindexSubtreePayload>,
+  fileProcessingWaits: FileProcessingWaitManager
 ): Promise<void> {
   if (event.status === 'completed') return
 
@@ -323,6 +326,8 @@ async function markReindexSubtreeFailedOnSettled(
       .filter((item) => rootItemIds.includes(item.id))
       .filter((item) => REINDEX_RECOVERY_ACTIVE_STATUSES.has(item.status))
       .filter((item) => !rootsWithFollowUpJobs.has(item.id))
+      // A root waiting on file processing gets its next knowledge job only once that job settles.
+      .filter((item) => !fileProcessingWaits.has(item.id))
       .map((item) => item.id)
 
     if (rootsToFail.length === 0) return

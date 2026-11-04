@@ -12,7 +12,6 @@ import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
-import { codeHighlightPluginKey } from './extensions/codeBlockHighlight/highlightPlugin'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
 
@@ -417,13 +416,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       }
     }
   })
-
-  useEffect(() => {
-    if (editor && !editor.isDestroyed)
-      editor.view.dispatch(
-        editor.state.tr.setMeta(codeHighlightPluginKey, activeCodeTheme).setMeta('addToHistory', false)
-      )
-  }, [editor, activeCodeTheme])
 
   // Handle image paste function
   const handleImagePaste = useCallback(

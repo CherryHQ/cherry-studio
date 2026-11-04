@@ -1092,6 +1092,8 @@ describe('All archive actions', () => {
     const { unmount } = render(
       <AllArchiveSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
     )
+    await act(async () => {})
+    mocks.refresh.mockClear()
     const changes = [
       { endpoint: '/topics', kind: 'membership' },
       { endpoint: '/assistants', kind: 'membership' }
@@ -1130,6 +1132,8 @@ describe('All archive actions', () => {
         }}
       />
     )
+    await act(async () => {})
+    mocks.refresh.mockClear()
     await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
     await user.click(screen.getByRole('button', { name: 'Delete Permanently 2' }))
     expect(await runPendingRequest(pending)).toEqual({

@@ -12,11 +12,13 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
+import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
@@ -28,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  relocateSystemWorkspaces: vi.fn<() => Promise<Set<string>>>(),
+  sharesBranch: vi.fn(),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -87,6 +91,10 @@ vi.mock('../fork/resources', async (importOriginal) => ({
   removeForkResources: forkRecoveryMocks.removeJournal
 }))
 
+vi.mock('../relocateSystemWorkspaces', () => ({
+  relocateSystemWorkspaces: mocks.relocateSystemWorkspaces
+}))
+
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
@@ -107,6 +115,9 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     getNativeSessionId: vi.fn(),
+    captureHead: () => 'branch-head',
+    branchTip: (_sessionId: string, messageId: string) => messageId,
+    sharesBranch: mocks.sharesBranch,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
     updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
@@ -260,6 +271,9 @@ function createAsyncQueue<T>() {
   const waiters: Array<(value: IteratorResult<T>) => void> = []
 
   return {
+    end() {
+      for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true })
+    },
     push(item: T) {
       const waiter = waiters.shift()
       if (waiter) waiter({ value: item, done: false })
@@ -486,6 +500,7 @@ describe('AgentSessionRuntimeService', () => {
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
+    mocks.sharesBranch.mockReturnValue(true)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
       id: message.id ?? 'generated-message-id',
@@ -508,6 +523,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.relocateSystemWorkspaces.mockReset().mockResolvedValue(new Set())
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
@@ -1502,7 +1518,8 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', async () => {
+    it.each([false, true])('recovers crashed sessions (relocation blocked: %s)', async (blocked) => {
+      mocks.relocateSystemWorkspaces.mockResolvedValueOnce(new Set(blocked ? ['session-b'] : []))
       mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
         {
           id: 'stale-1',
@@ -1539,9 +1556,9 @@ describe('AgentSessionRuntimeService', () => {
             }
           },
           { id: 'stale-2', data: { parts: [] } },
-          { id: 'stale-3', data: { parts: [] } }
+          ...(blocked ? [] : [{ id: 'stale-3', data: { parts: [] } }])
         ],
-        ['session-a', 'session-b']
+        blocked ? ['session-a'] : ['session-a', 'session-b']
       )
     })
 
@@ -2419,6 +2436,82 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('connection reconcile — pull path (fresh-turn staleness check)', () => {
+    it('sends a changed per-turn max override after an idle warm default without an Agent write', async () => {
+      const sent: Array<{ effort: AgentRuntimeConnectInput['reasoningEffort']; messageId: string }> = []
+      const connectionFor = (effort: AgentRuntimeConnectInput['reasoningEffort']) => ({
+        events: createAsyncQueue<never>().iterable,
+        send: (input: AgentRuntimeUserInput) => {
+          sent.push({ effort, messageId: input.message.id })
+        },
+        close: vi.fn(),
+        reconcile: async (target: { reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort'] }) =>
+          target.reasoningEffort === effort ? ('current' as const) : ('rebuild' as const)
+      })
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async (input) => connectionFor(input.reasoningEffort),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      getEntry(service).connection = connectionFor('default')
+      service.markTurnTerminal('session-1', 'success')
+      const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-2') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(sent).toEqual([{ effort: 'max', messageId: 'user-2' }]))
+      expect(mocks.getAgent()).not.toHaveProperty('configuration')
+      await reader.cancel()
+    })
+
+    it('queues low behind streaming max and sends the fresh follow-up at low without changing the running effort', async () => {
+      const sent: Array<AgentRuntimeConnectInput['reasoningEffort']> = []
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async (input) => ({
+          events: createAsyncQueue<never>().iterable,
+          send: () => {
+            sent.push(input.reasoningEffort)
+          },
+          close: vi.fn(),
+          redirect: vi.fn(() => true),
+          reconcile: async (target) => (target.reasoningEffort === input.reasoningEffort ? 'current' : 'rebuild')
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(sent).toEqual(['max']))
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { reasoningEffort: 'low' })
+      const entry = getEntry(service)
+      expect(entry.pendingTurns).toMatchObject([{ reasoningEffort: 'low', message: { id: 'user-2' } }])
+      expect(entry.currentTurn.reasoningEffort).toBe('max')
+      expect(sent).toEqual(['max'])
+      await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn.mock.lastCall?.[0].request.reasoningEffort).toBe('low'))
+      const followUpReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: entry.currentTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await followUpReader.read()
+      await vi.waitFor(() => expect(sent).toEqual(['max', 'low']))
+      await followUpReader.cancel()
+      await reader.cancel()
+    })
+
     it('rebuilds a stale warm connection before the next turn — no event required', async () => {
       const firstConnection = {
         events: createAsyncQueue<any>().iterable,
@@ -4685,6 +4778,23 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', updated)
     })
 
+    it('keeps a Runtime owner across view release and idle timeout until explicit close', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        getEntry(service).connection = { retainWhileIdle: true, close: async () => {}, send: () => {}, events: [] }
+        service.markTurnTerminal('session-1', 'success')
+        service.releaseIdleConnection('session-1')
+        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        expect(service.inspect('session-1')?.status).toBe('idle')
+        await service.closeSession('session-1')
+        expect(service.inspect('session-1')).toBeUndefined()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('releaseIdleConnection closes an idle session but leaves a busy one running', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -5017,6 +5127,8 @@ describe('AgentSessionRuntimeService', () => {
         knowledgeBaseIds: [],
         fastMode: false,
         resumeToken: undefined,
+        nativeSessionId: undefined,
+        branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
@@ -5131,6 +5243,8 @@ describe('AgentSessionRuntimeService', () => {
         knowledgeBaseIds: [],
         fastMode: false,
         resumeToken: 'resume-db',
+        nativeSessionId: undefined,
+        branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
@@ -5143,11 +5257,56 @@ describe('AgentSessionRuntimeService', () => {
       })
     )
 
-    expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
     expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-db' })
     void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
+
+  it.each([false, true])(
+    'does not relabel a closing token before another branch has its own token (connected: %s)',
+    async (connected) => {
+      mocks.sharesBranch.mockImplementation((_sessionId, left, right) => left === right)
+      mocks.getLastRuntimeResumeToken.mockReturnValue('resume-b')
+      const closing = createDeferred<void>()
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'branch-a' })
+      getEntry(service).lastResumeToken = 'resume-a'
+      getEntry(service).connection = { events: [], send: vi.fn(), close: () => closing.promise }
+      const closeA = service.closeSession('session-1')
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'branch-b' })
+      if (connected) getEntry(service).connection = { events: [], send: vi.fn(), close: async () => {} }
+      const closeB = service.closeSession('session-1')
+
+      const events = createAsyncQueue<AgentRuntimeEvent>()
+      const connection: AgentRuntimeConnection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: () => events.end(),
+        reconcile: async () => 'current'
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async () => connection,
+        validateSession: async () => {},
+        listAvailableTools: async () => []
+      })
+      const next = service.beginTurn({ ...baseTurnInput, assistantMessageId: 'branch-b' })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: next.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await reader.read()
+      closing.resolve()
+      await Promise.all([closeA, closeB])
+      await vi.waitFor(() => expect(service.inspect('session-1')?.resumeToken).toBe('resume-b'))
+      await service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    }
+  )
 
   it('waits for the aborted connection to close before connecting an immediate retry', async () => {
     const firstEvents = createAsyncQueue<any>()
@@ -5820,6 +5979,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).currentTurn.assistantMessageId).toBe(reservedContext?.assistantMessageId)
       expect(mocks.saveMessage).toHaveBeenLastCalledWith({
         sessionId: 'session-1',
+        parentId: 'user-2',
         message: {
           id: reservedContext?.assistantMessageId,
           role: 'assistant',
@@ -5987,6 +6147,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(connection.send).toHaveBeenCalledOnce() // user-1 only; A2 sends nothing to the connection
       expect(mocks.saveMessage).toHaveBeenLastCalledWith({
         sessionId: 'session-1',
+        parentId: 'user-2',
         message: { role: 'assistant', status: 'pending', data: { parts: [] }, modelId: baseTurnInput.modelId }
       })
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
@@ -6230,6 +6391,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      parentId: 'user-2',
       message: {
         role: 'assistant',
         status: 'pending',
@@ -6281,6 +6443,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
+      parentId: 'user-2',
       message: {
         role: 'assistant',
         status: 'pending',
