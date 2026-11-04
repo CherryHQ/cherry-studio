@@ -464,9 +464,25 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     await page.mouse.move(chatBox.x + chatBox.width - 80, targetY)
     await page.mouse.wheel(0, linkBox.y - targetY)
     await expect(link).toBeInViewport()
+    // Wheel scrolling animates on Windows, so the position is only comparable once it stops moving.
+    const settledLinkY = async (): Promise<number> => {
+      let previous = Number.NaN
+      let stableSamples = 0
+      await expect
+        .poll(
+          async () => {
+            const y = (await link.boundingBox())?.y ?? Number.NaN
+            stableSamples = Number.isFinite(y) && Math.abs(y - previous) <= 1 ? stableSamples + 1 : 0
+            previous = y
+            return stableSamples
+          },
+          { timeout: 10_000, intervals: [100, 150, 200, 250] }
+        )
+        .toBeGreaterThanOrEqual(2)
+      return previous
+    }
+    const beforeY = await settledLinkY()
     await attachScreenshot('MP-124 clickable result in conversation')
-    const before = await link.boundingBox()
-    expect(before).not.toBeNull()
     const originalTabs = await page.locator('[data-ui~="app.tab-bar"] [data-tab-id]').count()
     await link.click()
 
@@ -505,9 +521,8 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(chat).toBeVisible()
     await expect(link).toBeInViewport()
     await expect(topicRow).toBeVisible()
-    const after = await link.boundingBox()
-    expect(after).not.toBeNull()
-    expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(3)
+    const afterY = await settledLinkY()
+    expect(Math.abs(afterY - beforeY)).toBeLessThanOrEqual(3)
     const saved = await page.evaluate(
       (id) => window.api.dataApi.request({ id: 'browser-read-message', method: 'GET', path: `/messages/${id}` }),
       messageId
