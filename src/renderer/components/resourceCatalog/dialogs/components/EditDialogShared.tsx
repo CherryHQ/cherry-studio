@@ -57,6 +57,10 @@ const logger = loggerService.withContext('EditDialogShared')
 export const editDialogFormRowClassName =
   'grid min-w-0 grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 py-2.5'
 export const editDialogFormRowLabelClassName = 'justify-self-end font-normal text-muted-foreground text-[13px]'
+/** Agent settings rows: name on the left, a fixed-width control on the right. */
+export const settingsFormRowClassName =
+  'grid min-w-0 grid-cols-[minmax(0,1fr)_16rem] items-center gap-x-4 gap-y-1 py-1.5'
+export const settingsFormRowLabelClassName = 'font-normal text-foreground text-sm'
 export const resourceDialogCloseButtonClassName =
   '[&_[data-slot=dialog-close]]:top-[9px] [&_[data-slot=dialog-close]]:right-3 [&_[data-slot=dialog-close]]:flex [&_[data-slot=dialog-close]]:size-[30px] [&_[data-slot=dialog-close]]:items-center [&_[data-slot=dialog-close]]:justify-center [&_[data-slot=dialog-close]]:rounded-lg [&_[data-slot=dialog-close]]:hover:bg-foreground/[0.08] [&_[data-slot=dialog-close]]:focus-visible:bg-foreground/[0.08] [&_[data-slot=dialog-close]]:focus-visible:ring-1 [&_[data-slot=dialog-close]]:focus-visible:ring-foreground/20 [&_[data-slot=dialog-close]]:focus-visible:ring-offset-0'
 export const resourceDialogHeaderClassName =
@@ -706,7 +710,8 @@ export function CompactModelField({
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
   onSettingsNavigate?: (navigate: () => void) => void
-  layout?: 'stacked' | 'row'
+  /** `settings` puts the label on the left and a fixed-width picker on the right (Agent settings rows). */
+  layout?: 'stacked' | 'row' | 'settings'
   triggerClassName?: string
 }) {
   const { t } = useTranslation()
@@ -727,12 +732,15 @@ export function CompactModelField({
       ? { id: selectorValue, name: displayLabel, providerId: parsedModelId.providerId }
       : undefined)
 
+  const isRow = layout !== 'stacked'
+  const rowClassName = layout === 'settings' ? settingsFormRowClassName : editDialogFormRowClassName
+
   return (
     <FormField
       control={form.control}
       name={name}
       render={({ field }) => (
-        <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
+        <FormItem className={isRow ? rowClassName : undefined}>
           {help ? (
             <FieldLabelWithHelp
               label={label}
@@ -741,13 +749,24 @@ export function CompactModelField({
               // div that FieldLabelWithHelp renders around the label.
               className={layout === 'row' ? 'justify-self-end' : undefined}
               labelClassName={cn(
-                layout === 'row' ? 'font-normal text-muted-foreground text-[13px]' : 'font-normal',
+                layout === 'row'
+                  ? 'font-normal text-muted-foreground text-[13px]'
+                  : layout === 'settings'
+                    ? settingsFormRowLabelClassName
+                    : 'font-normal',
                 labelClassName
               )}
             />
           ) : (
             <FormLabel
-              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              className={cn(
+                layout === 'row'
+                  ? editDialogFormRowLabelClassName
+                  : layout === 'settings'
+                    ? settingsFormRowLabelClassName
+                    : 'font-normal',
+                labelClassName
+              )}>
               {label}
             </FormLabel>
           )}
@@ -811,16 +830,14 @@ export function CompactModelField({
             </div>
           </DialogModelFrame>
           {description ? (
-            <FormDescription className={cn('text-xs', layout === 'row' && 'col-start-2')}>
-              {description}
-            </FormDescription>
+            <FormDescription className={cn('text-xs', isRow && 'col-start-2')}>{description}</FormDescription>
           ) : null}
           {name === 'modelId' && value && !modelLabels[name] && !selectedModel ? (
-            <FormDescription className={cn('text-xs', layout === 'row' && 'col-start-2')}>
+            <FormDescription className={cn('text-xs', isRow && 'col-start-2')}>
               {t('library.config.basic.model_not_found', { id: value })}
             </FormDescription>
           ) : null}
-          <FormMessage className={layout === 'row' ? 'col-start-2' : undefined} />
+          <FormMessage className={isRow ? 'col-start-2' : undefined} />
         </FormItem>
       )}
     />
