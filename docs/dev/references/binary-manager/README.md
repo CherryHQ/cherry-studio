@@ -38,6 +38,10 @@ mise is an availability backend, not a definition store. An executable visible t
 
 Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
 
+System probes exclude Cherry's application and managed-tool directories from PATH.
+Application dependencies such as a development SDK's `node_modules/.bin/pi` do not
+satisfy a system CLI installation or shadow an independently installed program.
+
 ### Portable definitions and machine-local state
 
 Backup and restore transport `feature.binary.tools` as portable custom definitions only. Restoring them can recreate custom cards and requested version pins on another machine, but it never installs tools, recreates backend application, or copies operation/latest-version state. Fixed definitions come from the running Cherry Studio build and are not backup data. After restore, each machine derives `application` and `availability` from its own mise state, bundled files, and system PATH.

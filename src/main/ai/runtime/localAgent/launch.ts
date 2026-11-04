@@ -6,7 +6,7 @@ import { parseDocument } from 'yaml'
 
 import { application } from '@application'
 import { t } from '@main/i18n'
-import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { mergeEnvironment } from '@main/utils/env'
 import { isOutsidePath } from '@main/utils/file'
@@ -22,6 +22,7 @@ import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
 import { readInstalledPackageVersion } from './installedVersion'
+import { resolveRequiredRuntime } from './runtimeDependency'
 
 function selectInstallation(
   preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
@@ -131,8 +132,28 @@ export async function resolveLocalAgentLaunch(
   }
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
-  const env =
+  let env =
     source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
+  const dependencies = !terminal && definition?.terminalExecutable ? [definition.terminalExecutable] : []
+  const dependencySnapshots = dependencies.length
+    ? await application.get('BinaryManager').getToolSnapshots(dependencies)
+    : {}
+  for (const name of dependencies) {
+    const dependency = await selectAvailableInstallation({ executable: name }, dependencySnapshots)
+    if (dependency.source !== 'none') {
+      const directories = [path.dirname(dependency.path)]
+      env =
+        dependency.source === 'mise' ? mergeBinaryExecutionEnv(env, directories) : mergePathPrefixes(env, directories)
+    }
+  }
+  if (definition?.requiredRuntime) {
+    const runtime = await resolveRequiredRuntime(definition.requiredRuntime, lookupEnv)
+    if (runtime)
+      env =
+        runtime.source === 'mise'
+          ? mergeBinaryExecutionEnv(env, [path.dirname(runtime.path)])
+          : mergePathPrefixes(env, [path.dirname(runtime.path)])
+  }
   appendBundledGitPathTail(env)
   if (config.presetId === 'deepseek-harness') env.DSH_HOME = application.getPath('external.deepseek_harness.config')
   if (config.presetId === 'openclaw') {

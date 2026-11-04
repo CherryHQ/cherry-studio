@@ -541,7 +541,15 @@ export function LocalAgentDetails({
             }))
           )
             return false
-          await ipcApi.request('binary.install_tool', { name: preset.terminalExecutable })
+          const installed = await onInstall(preset.id)
+          if (!installed.ok) {
+            toast.error(
+              [t(installErrorKeys[installed.reason], { manager: installed.manager ?? '' }), installed.detail]
+                .filter(Boolean)
+                .join('\n')
+            )
+            return false
+          }
         }
       }
       const response = await ipcApi.request('ai.local_agents.open_terminal', {

@@ -18,7 +18,8 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
-  mergeBinaryExecutionEnv
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
@@ -452,8 +453,17 @@ export class BinaryManager extends BaseService {
    */
   private async probeSystem(names: string[]): Promise<Record<string, string>> {
     if (names.length === 0) return {}
-    const shellEnv = await getRawShellEnv()
-    const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
+    const rawShellEnv = await getRawShellEnv()
+    const cherryDirs = [
+      application.getPath('app.root'),
+      application.getPath('cherry.bin'),
+      application.getPath('feature.binary.data')
+    ]
+    const excluded = Object.entries(rawShellEnv)
+      .filter(([key]) => key.toLowerCase() === 'path')
+      .flatMap(([, value]) => value.split(isWin ? ';' : path.delimiter))
+      .filter((entry) => entry && cherryDirs.some((root) => !isOutsidePath(path.relative(root, entry))))
+    const shellEnv = mergePathSuffixes(rawShellEnv, [], excluded)
 
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {

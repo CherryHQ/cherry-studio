@@ -411,34 +411,42 @@ describe('local agent settings navigation', () => {
     )
   })
 
-  it.each([true, false])(
-    'requires confirmation before installing a missing terminal CLI (confirm=%s)',
-    async (confirmed) => {
-      navigation.search = { id: 'antigravity-acp' }
-      vi.mocked(popup.confirm).mockResolvedValueOnce(confirmed)
-      const actions: string[] = []
-      vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
-        if (route === 'ai.local_agents.detect')
-          return [{ presetId: 'antigravity-acp', path: '/user/bin/agy_acp_server.par' }] as never
-        if (route === 'binary.install_tool') {
-          expect(input).toEqual({ name: 'agy' })
-          actions.push('install')
-        }
-        if (route === 'ai.local_agents.open_terminal') actions.push('open')
-        return { models: [], success: true } as never
-      })
-      render(<LocalAgentSettingsPage />)
-      await userEvent.click(await screen.findByRole('button', { name: '在终端打开命令行' }))
-      await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
-      await userEvent.click(screen.getByRole('button', { name: '启动' }))
-      await waitFor(() => {
-        if (confirmed) expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-        else expect(screen.getByRole('button', { name: '启动' })).toBeEnabled()
-      })
-      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ content: 'agy: 未安装', okText: '安装' }))
-      expect(actions).toEqual(confirmed ? ['install', 'open'] : [])
-    }
-  )
+  it.each([
+    { id: 'antigravity-acp', executable: 'agy', outcome: 'success' },
+    { id: 'antigravity-acp', executable: 'agy', outcome: 'cancel' },
+    { id: 'amp-acp', executable: 'amp', outcome: 'success' },
+    { id: 'pi-acp', executable: 'pi', outcome: 'failed' }
+  ])('repairs the missing $executable through the Agent installer ($outcome)', async ({ id, executable, outcome }) => {
+    navigation.search = { id }
+    vi.mocked(popup.confirm).mockResolvedValueOnce(outcome !== 'cancel')
+    const actions: string[] = []
+    vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: id, path: '/user/bin/adapter' }] as never
+      if (route === 'ai.local_agents.install') {
+        expect(input).toEqual({ presetId: id, targetVersion: undefined })
+        actions.push('install')
+        return (
+          outcome === 'failed'
+            ? { ok: false, reason: 'missing_runtime', manager: 'npm' }
+            : { ok: true, reused: true, path: '/user/bin/adapter' }
+        ) as never
+      }
+      if (route === 'ai.local_agents.open_terminal') actions.push('open')
+      return { models: [], success: true } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '在终端打开命令行' }))
+    await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
+    await userEvent.click(screen.getByRole('button', { name: '启动' }))
+    await waitFor(() => {
+      if (outcome === 'success') expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      else expect(screen.getByRole('button', { name: '启动' })).toBeEnabled()
+    })
+    expect(popup.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ content: `${executable}: 未安装`, okText: '安装' })
+    )
+    expect(actions).toEqual(outcome === 'success' ? ['install', 'open'] : outcome === 'failed' ? ['install'] : [])
+  })
 
   it('does not offer reinstalling an agent while its installation is still unknown', () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {

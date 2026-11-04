@@ -209,7 +209,22 @@ new Code Mate CLI is installed through mise. Hermes reuses its native Python
 installation recipe, including WebUI dependencies, without requiring a registry entry.
 Kiro and Trae use their official installers on supported platforms; Vibe uses
 `uv tool install mistral-vibe`, avoiding unsupported registry archive entries.
-Amp installation also checks its native `amp` CLI. DeepAgents checks the Anthropic
+Install and reuse both check separate native CLI dependencies: Pi requires `pi`,
+Amp requires `amp`, and Antigravity's terminal entry requires `agy`. Existing system
+or Code Mate installations are reused; missing CLIs use the shared system installer.
+An adapter alone does not satisfy these installation checks. Dependency failures
+prevent an installation-success result. Adapter and terminal launches include the
+resolved dependency directories, including Bun for OMP, without replacing the user's
+home or explicit environment overrides. Terminal repair uses the same Agent installer.
+System discovery follows the [BinaryManager exclusions](../binary-manager/README.md).
+OMP requires Bun 1.4.4 or newer. Runtime resolution prefers a compatible system
+installation over the bundled runtime and validates the version before reusing it;
+installation does not report success if the runtime remains incompatible.
+macOS terminals receive a short script path instead of inline environment values.
+The owner-only script is sourced in the terminal shell and removes itself before
+running the CLI. Launch failure, service shutdown, and a ten-minute expiry clean up
+scripts that have not been consumed. Terminal.app opens a new window for each launch.
+DeepAgents checks the Anthropic
 and OpenAI model packages even when reusing an existing adapter; package discovery
 uses filesystem facts so a prior failed module lookup cannot hide a newly installed
 package.

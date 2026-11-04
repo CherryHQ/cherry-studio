@@ -14,6 +14,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle'
 
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
+import { resolveRequiredRuntime } from '../runtimeDependency'
+
+vi.mock('../runtimeDependency', () => ({ resolveRequiredRuntime: vi.fn() }))
 
 const state = vi.hoisted(() => ({
   runtimeAvailable: true,
@@ -22,6 +25,7 @@ const state = vi.hoisted(() => ({
   manager: '',
   target: '',
   existing: '',
+  managed: {} as Record<string, string>,
   exit: '0',
   busy: false,
   openSessions: [] as string[],
@@ -41,16 +45,23 @@ vi.mock('@application', async () => {
         state.existing = ''
         return { status: 'removed' }
       },
-      getToolSnapshots: async () => ({
-        [state.name]: {
-          name: state.name,
-          availability: fs.existsSync(path.join(state.root, state.name))
-            ? { source: 'system', path: path.join(state.root, state.name) }
-            : state.existing
-              ? { source: 'mise', path: state.existing }
-              : { source: 'none' }
-        }
-      })
+      getToolSnapshots: async (names: string[]) =>
+        Object.fromEntries(
+          names.map((name) => [
+            name,
+            {
+              name,
+              availability:
+                name === 'bun' && state.runtimeAvailable
+                  ? { source: 'system', path: '/user/bin/bun' }
+                  : fs.existsSync(path.join(state.root, name))
+                    ? { source: 'system', path: path.join(state.root, name) }
+                    : state.managed[name] || (name === state.name && state.existing)
+                      ? { source: 'mise', path: state.managed[name] || state.existing }
+                      : { source: 'none' }
+            }
+          ])
+        )
     },
     AgentSessionRuntimeService: {
       closeIdleSessions: async (sessionIds: readonly string[]) => {
@@ -99,6 +110,7 @@ describe('local agent system installation', () => {
     state.manager = path.join(state.root, 'npm')
     state.target = state.root
     state.existing = ''
+    state.managed = {}
     state.exit = '0'
     state.busy = false
     state.openSessions = []
@@ -106,6 +118,15 @@ describe('local agent system installation', () => {
     state.china = false
     state.registry = 'https://registry.npmjs.org/'
     state.env = {}
+    vi.mocked(resolveRequiredRuntime).mockImplementation(async () =>
+      state.runtimeAvailable
+        ? { source: 'system', path: '/user/bin/bun' }
+        : fs.existsSync(path.join(state.root, 'bun'))
+          ? { source: 'system', path: path.join(state.root, 'bun') }
+          : state.managed.bun
+            ? { source: 'mise', path: state.managed.bun }
+            : undefined
+    )
     vi.mocked(application.getPath).mockImplementation((key, filename) =>
       path.join(key === 'sys.home' ? state.root : path.join(state.root, key), ...(filename ? [filename] : []))
     )
@@ -122,8 +143,10 @@ if (process.env.FAIL_MIRROR && (process.env.NPM_CONFIG_REGISTRY || process.env.U
 fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
 if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/' + process.env.INSTALL_NAME); fs.rmSync(root + '/' + process.argv[4], {recursive:true}); }
 else if (process.env.INSTALL_EXIT === '0') {
-fs.writeFileSync(root + '/' + process.env.INSTALL_NAME, 'installed');
-for (const name of ['bun', '@ampcode/cli']) if (process.argv.includes(name)) fs.writeFileSync(root + '/' + (name === 'bun' ? 'bun' : 'amp'), 'installed');
+const dependencies = {'bun':'bun','@ampcode/cli':'amp','@earendil-works/pi-coding-agent':'pi'};
+const dependency = process.argv.find(arg => dependencies[arg]);
+const native = dependency ? dependencies[dependency] : process.argv.some(arg => arg.includes('https://antigravity.google/cli/install')) ? 'agy' : undefined;
+if (!native || !process.env.SKIP_NATIVE) fs.writeFileSync(root + '/' + (native || process.env.INSTALL_NAME), 'installed');
 for (const name of ['@langchain/anthropic', '@langchain/openai']) if (process.argv.includes(name)) {
 const directory = root + '/node_modules/' + name; fs.mkdirSync(directory, {recursive:true}); fs.writeFileSync(directory + '/package.json', '{}'); fs.writeFileSync(directory + '/index.js', 'module.exports = {}');
 }
@@ -138,7 +161,10 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       vi.fn(async () => ({
         ok: true,
         json: async () => ({
-          agents: [{ id: 'kilo', distribution: { npx: { package: '@kilocode/cli@7.8.1' } } }]
+          agents: [
+            { id: 'kilo', distribution: { npx: { package: '@kilocode/cli@7.8.1' } } },
+            { id: 'pi-acp', distribution: { npx: { package: 'pi-acp@0.0.34' } } }
+          ]
         })
       }))
     )
@@ -186,12 +212,82 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 
-  it('repairs a reused Amp adapter by installing its missing native CLI', async () => {
-    state.name = 'amp-acp'
+  it('reuses managed Bun without installing another system copy for omp', async () => {
+    state.name = 'omp'
+    state.runtimeAvailable = false
+    state.managed.bun = '/managed/bun'
+    expect(await new LocalAgentInstallService().install('omp')).toMatchObject({ ok: true })
+    expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
+      'install',
+      '--global',
+      '@oh-my-pi/pi-coding-agent'
+    ])
+  })
+
+  it.each([
+    ['amp-acp', 'amp', '@ampcode/cli'],
+    ['pi-acp', 'pi', '@earendil-works/pi-coding-agent']
+  ])('repairs a reused %s adapter by installing its missing native CLI', async (id, executable, packageName) => {
+    state.name = id
     await writeFile(path.join(state.root, state.name), 'adapter')
-    expect(await new LocalAgentInstallService().install('amp-acp')).toMatchObject({ ok: true, reused: true })
-    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe('["install","--global","@ampcode/cli"]\n')
-    expect(fs.existsSync(path.join(state.root, 'amp'))).toBe(true)
+    expect(await new LocalAgentInstallService().install(id)).toMatchObject({ ok: true, reused: true })
+    expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
+      'install',
+      '--global',
+      packageName
+    ])
+    expect(fs.existsSync(path.join(state.root, executable))).toBe(true)
+  })
+
+  it('installs Pi before its adapter on a clean system', async () => {
+    state.name = 'pi-acp'
+    expect(await new LocalAgentInstallService().install('pi-acp')).toMatchObject({ ok: true, reused: false })
+    expect(
+      (await readFile(path.join(state.root, 'calls'), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+    ).toEqual([
+      ['install', '--global', '@earendil-works/pi-coding-agent'],
+      ['install', '--global', 'pi-acp@0.0.34']
+    ])
+    expect(fs.existsSync(path.join(state.root, 'pi'))).toBe(true)
+    expect(fs.existsSync(path.join(state.root, 'pi-acp'))).toBe(true)
+  })
+
+  it('repairs the Antigravity terminal through its official native installer', async () => {
+    state.name = 'agy_acp_server.par'
+    await writeFile(path.join(state.root, state.name), 'adapter')
+    expect(await new LocalAgentInstallService().install('antigravity-acp')).toMatchObject({ ok: true, reused: true })
+    expect(fs.existsSync(path.join(state.root, 'agy'))).toBe(true)
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain(
+      'https://antigravity.google/cli/install.sh'
+    )
+  })
+
+  it.each(['system', 'mise'])('reuses the %s native Pi without reinstalling it', async (source) => {
+    state.name = 'pi-acp'
+    await writeFile(path.join(state.root, state.name), 'adapter')
+    if (source === 'system') await writeFile(path.join(state.root, 'pi'), 'native')
+    else state.managed.pi = '/managed/pi'
+    expect(await new LocalAgentInstallService().install('pi-acp')).toMatchObject({ ok: true, reused: true })
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
+  it('does not report installation success when the Pi installer omits its executable', async () => {
+    state.name = 'pi-acp'
+    state.env = { SKIP_NATIVE: '1' }
+    await writeFile(path.join(state.root, state.name), 'adapter')
+    expect(await new LocalAgentInstallService().install('pi-acp')).toMatchObject({ ok: false, reason: 'not_detected' })
+    expect(fs.existsSync(path.join(state.root, 'pi'))).toBe(false)
+  })
+
+  it('does not install the Pi adapter after its native CLI installation fails', async () => {
+    state.name = 'pi-acp'
+    state.exit = '1'
+    expect(await new LocalAgentInstallService().install('pi-acp')).toMatchObject({ ok: false, reason: 'failed' })
+    expect(fs.existsSync(path.join(state.root, 'pi-acp'))).toBe(false)
+    expect((await readFile(path.join(state.root, 'calls'), 'utf8')).trim().split('\n')).toHaveLength(1)
   })
 
   it('repairs missing DeepAgents model providers without reinstalling the adapter', async () => {

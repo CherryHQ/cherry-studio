@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,7 +45,9 @@ vi.mock('@application', async () => {
     HermesDashboardService: hermesDashboardMock
   }
   const mock = mockApplicationFactory(services)
-  mock.application.getPath.mockReturnValue('/mock/binary-data')
+  mock.application.getPath.mockImplementation((_key, filename) =>
+    filename ? path.join('/mock/binary-data', filename) : '/mock/binary-data'
+  )
   return mock
 })
 
@@ -197,11 +200,6 @@ describe('CodeCliService', () => {
       geminiDir: '/mock/antigravity data',
       model: 'gemini-2.5-pro'
     })
-  })
-
-  it('should extend BaseService', async () => {
-    const { BaseService, codeCliService } = await loadModules()
-    expect(codeCliService).toBeInstanceOf(BaseService)
   })
 
   it('should have onInit that preloads terminals', async () => {
@@ -483,7 +481,7 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(script).not.toContain('--model')
         expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
       } finally {
@@ -514,7 +512,7 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
         expect(script).not.toContain('_cherry_mise_key')
       } finally {
@@ -539,11 +537,9 @@ describe('CodeCliService', () => {
     const launchScript = async (input: CodeCliRunInput) => {
       vi.useFakeTimers()
       try {
-        const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
         const result = await codeCliService.run(input)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        return { result, script: call ? (call[1] as string[]).join(' ') : '' }
+        return { result, script: String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1] ?? '') }
       } finally {
         vi.useRealTimers()
       }
@@ -563,8 +559,8 @@ describe('CodeCliService', () => {
         expect.objectContaining({ providerId: 'gemini', model: 'gemini-2.5-pro' })
       )
       expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
-      expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
-      expect(script).toContain("GEMINI_API_KEY='\\''antigravity-secret'\\''")
+      expect(script).toContain("--model 'gemini-2.5-pro'")
+      expect(script).toContain("GEMINI_API_KEY='antigravity-secret'")
     })
 
     it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
@@ -654,10 +650,33 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
     })
 
+    it('hands long environments to macOS terminals through an owner-only script and cleans it on stop', async () => {
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      const value = 'x'.repeat(8192)
+      expect(
+        await codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: [],
+          env: { PRIVATE_TOKEN: value },
+          usesCherryExecutionEnv: false
+        })
+      ).toMatchObject({ success: true })
+      const [file, body, options] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)!
+      expect(String(body)).toContain(value)
+      expect(String(body)).toContain('/usr/local/bin/agent')
+      expect(options).toMatchObject({ mode: 0o600, flag: 'wx' })
+      const terminalCommand = String(vi.mocked(spawn).mock.calls.at(-1)?.[1])
+      expect(terminalCommand.length).toBeLessThan(1024)
+      expect(terminalCommand).not.toContain('PRIVATE_TOKEN')
+      expect(terminalCommand).toContain(path.basename(String(file)))
+      await codeCliService._doStop()
+      expect(vi.mocked(fs.unlinkSync).mock.calls.some(([path]) => path === file)).toBe(true)
+    })
+
     it('uses the selected directory when opening a local agent terminal', async () => {
       const fs = (await import('node:fs')).default
       vi.mocked(fs.statSync).mockReturnValueOnce({ isDirectory: () => true } as never)
-      const { spawn } = await import('child_process')
       const { codeCliService } = await loadModules()
       await expect(
         codeCliService.openTerminal({
@@ -669,8 +688,8 @@ describe('CodeCliService', () => {
           terminal: TerminalApp.SYSTEM_DEFAULT
         })
       ).resolves.toMatchObject({ success: true })
-      const script = ((vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []) as string[])[1]
-      expect(script).toContain("cd '\\''/projects/中文 folder'\\''")
+      const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+      expect(script).toContain("cd '/projects/中文 folder'")
     })
 
     it('refuses a deleted working directory without opening a terminal', async () => {
@@ -693,7 +712,6 @@ describe('CodeCliService', () => {
     it.each<Record<string, string>>([{}, { NO_COLOR: '1' }])(
       'clears NO_COLOR immediately before launching a local terminal with env %j',
       async (env) => {
-        const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
         expect(
           await codeCliService.openTerminal({
@@ -703,7 +721,7 @@ describe('CodeCliService', () => {
             usesCherryExecutionEnv: false
           })
         ).toMatchObject({ success: true })
-        const script = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(script).toContain('unset NO_COLOR && ')
         expect(script.indexOf('unset NO_COLOR')).toBeLessThan(script.indexOf('/usr/local/bin/agent'))
         if ('NO_COLOR' in env) expect(script.indexOf('export NO_COLOR=')).toBeLessThan(script.indexOf('unset NO_COLOR'))
@@ -728,7 +746,7 @@ describe('CodeCliService', () => {
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['claude'])
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)
       expect(launchCall).toBeDefined()
-      const launchArgs = (launchCall?.[1] ?? []).join(' ')
+      const launchArgs = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
       expect(launchArgs).toContain('/usr/local/bin/claude')
       expect(launchArgs).not.toContain('MISE_DATA_DIR')
     })
@@ -740,7 +758,6 @@ describe('CodeCliService', () => {
           availability: { source: 'system', path: '/tmp/$(touch pwned)/`whoami`/claude' }
         }
       })
-      const { spawn } = await import('child_process')
       const { codeCliService } = await loadModules()
 
       const result = await codeCliService.run({
@@ -750,8 +767,8 @@ describe('CodeCliService', () => {
       })
 
       expect(result.success).toBe(true)
-      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
-      expect(launchArgs).toContain("'\\''/tmp/$(touch pwned)/`whoami`/claude'\\''")
+      const launchArgs = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+      expect(launchArgs).toContain("'/tmp/$(touch pwned)/`whoami`/claude'")
       expect(launchArgs).not.toContain('"/tmp/$(touch pwned)')
     })
 
@@ -803,12 +820,12 @@ describe('CodeCliService', () => {
 
       expect(result.success).toBe(true)
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)!
-      const launchArgs = (launchCall[1] ?? []).join(' ')
+      const launchArgs = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
       const launchEnv = launchCall[2]?.env as Record<string, string>
       expect(launchArgs).toContain(
-        "PATH='\\''/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+        "PATH='/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'"
       )
-      expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
+      expect(launchArgs).toContain("MISE_DATA_DIR='/mock/binary-data'")
       expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
       expect(launchArgs).toContain('do unset')
       expect(launchArgs).toContain('$_cherry_mise_key')
@@ -840,11 +857,8 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
-        // posixQuote wraps the directory in single quotes; the Terminal.app adapter then rewrites those
-        // quotes to the sh-safe '\'' form for its `osascript -e '…'` layer. Either way $(reboot) sits
-        // inside the quotes as inert data — never a substitution.
-        expect(script).toContain("cd '\\''/tmp/$(reboot) proj'\\''")
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(script).toContain("cd '/tmp/$(reboot) proj'")
       } finally {
         vi.useRealTimers()
       }

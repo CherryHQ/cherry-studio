@@ -1,4 +1,5 @@
 import type * as NodeModule from 'node:module'
+import path from 'node:path'
 import type * as NodePath from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -879,6 +880,30 @@ describe('BinaryManager', () => {
         application: { status: 'applied', version: '0.19.0' }
       })
     })
+
+    it.each([false, true])(
+      'does not mistake application dependencies for a system CLI (system installed: %s)',
+      async (installed) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        const bundledBin = path.join(application.getPath('app.root'), 'node_modules', '.bin')
+        const systemBin = '/usr/local/bin'
+        vi.mocked(getRawShellEnv).mockResolvedValue({ PATH: [bundledBin, systemBin].join(path.delimiter) })
+        vi.mocked(findCommandInShellEnv).mockImplementation(async (name, env) =>
+          name !== 'pi'
+            ? null
+            : env.PATH.split(path.delimiter).includes(bundledBin)
+              ? path.join(bundledBin, 'pi')
+              : installed && env.PATH.split(path.delimiter).includes(systemBin)
+                ? path.join(systemBin, 'pi')
+                : null
+        )
+        const { pi } = await service.getToolSnapshots(['pi'])
+        expect(pi.availability).toEqual(
+          installed ? { source: 'system', path: path.join(systemBin, 'pi') } : { source: 'none' }
+        )
+      }
+    )
 
     it('uses a system CLI over a legacy managed copy while preserving cleanup metadata', async () => {
       const service = new BinaryManager()

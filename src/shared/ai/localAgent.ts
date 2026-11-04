@@ -29,7 +29,7 @@ export interface LocalAgentPreset {
   env?: Readonly<Record<string, string>>
   helpUrl: string
   npmPackage?: string
-  requiredRuntime?: 'bun'
+  requiredRuntime?: { executable: 'bun'; minimumVersion: string }
 }
 
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
@@ -290,7 +290,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     args: ['acp'],
     terminalArgs: [],
     npmPackage: '@oh-my-pi/pi-coding-agent',
-    requiredRuntime: 'bun',
+    requiredRuntime: { executable: 'bun', minimumVersion: '1.4.4' },
     helpUrl: 'https://github.com/can1357/oh-my-pi'
   },
   {

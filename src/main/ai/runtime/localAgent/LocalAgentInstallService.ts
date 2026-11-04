@@ -31,10 +31,14 @@ import { installBinaryAgent } from './installBinary'
 import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
 import { resolveInstallRecipe, resolveCliInstallRecipe } from './installRecipe'
 import { selectAvailableInstallation } from './launch'
+import { resolveRequiredRuntime } from './runtimeDependency'
 import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
 
 const logger = loggerService.withContext('LocalAgentInstallService')
-type InstallTarget = Pick<LocalAgentPreset, 'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime'> & {
+type InstallTarget = Pick<
+  LocalAgentPreset,
+  'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalExecutable'
+> & {
   protocol?: LocalAgentPreset['protocol']
   cli?: CodeCliToolPreset
 }
@@ -304,12 +308,23 @@ export class LocalAgentInstallService extends BaseService {
       await refreshShellEnv()
       const existing = await this.detect(preset)
       let env = await getRawShellEnv(this.abort.signal)
+      const nativeCli = preset.terminalExecutable && CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.terminalExecutable]
+      if (nativeCli) {
+        const result = await this.installCli({ name: nativeCli.executable })
+        if (!result.ok) return result
+        env = await getRawShellEnv(this.abort.signal)
+      }
       const executableDependencies = [
-        ...(preset.requiredRuntime === 'bun' ? [{ executable: 'bun', package: 'bun' }] : []),
+        ...(preset.requiredRuntime ? [{ executable: preset.requiredRuntime.executable, package: 'bun' }] : []),
         ...(presetId === 'amp-acp' ? [{ executable: 'amp', package: '@ampcode/cli' }] : [])
       ]
       for (const dependency of executableDependencies) {
-        if (await findExecutableInEnv(dependency.executable, { env })) continue
+        const target = { id: presetId, executable: dependency.executable }
+        const runtime =
+          preset.requiredRuntime?.executable === dependency.executable ? preset.requiredRuntime : undefined
+        const available = async () =>
+          runtime ? !!(await resolveRequiredRuntime(runtime, env)) : (await this.detect(target)).source !== 'none'
+        if (await available()) continue
         const failure = await this.installPackage(
           { manager: 'npm', package: dependency.package, args: ['install', '--global', dependency.package] },
           env
@@ -317,8 +332,7 @@ export class LocalAgentInstallService extends BaseService {
         if (failure) return failure
         await refreshShellEnv()
         env = await getRawShellEnv(this.abort.signal)
-        if (!(await findExecutableInEnv(dependency.executable, { env })))
-          return { ok: false, reason: 'not_detected', manager: 'npm' }
+        if (!(await available())) return { ok: false, reason: 'not_detected' }
       }
       if (existing.source !== 'none' && !targetVersion) {
         const failure = await this.ensureModelDependencies(preset, existing.path, env)

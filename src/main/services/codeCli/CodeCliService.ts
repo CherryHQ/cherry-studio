@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'util'
@@ -77,6 +78,7 @@ export class CodeCliService extends BaseService {
   } | null = null
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
   private loginQuery: { controller: AbortController; promise: Promise<boolean>; users: number } | null = null
+  private readonly launchScripts = new Map<string, ReturnType<typeof setTimeout>>()
 
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
@@ -243,7 +245,28 @@ export class CodeCliService extends BaseService {
   protected async onStop(): Promise<void> {
     this.loginQuery?.controller.abort()
     await this.configWriteQueue.catch(() => {})
+    for (const file of this.launchScripts.keys()) this.removeLaunchScript(file)
     this.terminalsCache = null
+  }
+
+  private createLaunchScript(command: string): string {
+    const file = application.getPath('feature.cli.temp', `launch_${randomUUID()}.sh`)
+    fs.writeFileSync(file, `#!/bin/sh\n/bin/rm -f -- ${posixQuote(file)}\n${command}\n`, { mode: 0o600, flag: 'wx' })
+    const timer = setTimeout(() => this.removeLaunchScript(file), 10 * 60_000)
+    timer.unref()
+    this.launchScripts.set(file, timer)
+    return file
+  }
+
+  private removeLaunchScript(file: string): void {
+    clearTimeout(this.launchScripts.get(file))
+    this.launchScripts.delete(file)
+    try {
+      fs.unlinkSync(file)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+        logger.warn('Failed to remove terminal launch script', { error })
+    }
   }
 
   /**
@@ -734,6 +757,7 @@ export class CodeCliService extends BaseService {
     const platform = process.platform
     let terminalCommand: string
     let terminalArgs: string[]
+    let launchScript: string | undefined
 
     // Build environment variable prefix (based on platform)
     const buildEnvPrefix = (isWindows: boolean) => {
@@ -796,7 +820,8 @@ export class CodeCliService extends BaseService {
         const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
-        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+        launchScript = this.createLaunchScript(fullCommand)
+        const { command: cmd, args } = terminalConfig.command(directory, `. ${posixQuote(launchScript)}`)
         terminalCommand = cmd
         terminalArgs = args
         break
@@ -1026,6 +1051,7 @@ export class CodeCliService extends BaseService {
 
       return { success: true }
     } catch (error) {
+      if (launchScript) this.removeLaunchScript(launchScript)
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`
       logger.error(failureMessage, error as Error)
