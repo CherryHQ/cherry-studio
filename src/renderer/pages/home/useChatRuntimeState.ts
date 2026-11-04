@@ -196,7 +196,7 @@ export function useChatRuntimeState({
     liveAssistants,
     disposeOverlay,
     reset: resetOverlay
-  } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
+  } = useExecutionOverlay(topic.id, branchActiveExecutions, {
     onUpdate: (_executionId, event) =>
       autoReadService.update({
         ...event,
@@ -213,7 +213,7 @@ export function useChatRuntimeState({
 
   // Deterministic overlay→DB handoff at terminal (see hook docs); branch
   // bookkeeping stays in `handleExecutionFinish`.
-  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay))
+  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
     messages,

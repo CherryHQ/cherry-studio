@@ -38,10 +38,6 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: (props: React.HTMLAttributes<HTMLHRElement>) => <hr {...props} />,
   SettingGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -114,7 +110,22 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
-    ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
+    ConfirmDialog: ({
+      open,
+      onConfirm,
+      confirmText
+    }: {
+      open?: boolean
+      onConfirm?: () => void
+      confirmText?: string
+    }) =>
+      open ? (
+        <div role="dialog">
+          <button type="button" onClick={() => onConfirm?.()}>
+            {confirmText ?? 'Confirm'}
+          </button>
+        </div>
+      ) : null,
     Dialog: ({
       children,
       open,
@@ -274,6 +285,73 @@ describe('ChannelDetail', () => {
       ['channel-1', { configPatch: { bot_id: 'new-bot' } }],
       ['channel-1', { configPatch: { secret: ' secret ' } }]
     ])
+  })
+
+  it('holds a Full Access channel override behind a scope confirmation', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.fullAccessConfirm.confirm'))
+
+    expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+  })
+
+  it('drops a pending Full Access confirmation when another window changes the mode', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'plan' }]
+    rerender(<ChannelDetail channelDef={channelDef} />)
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+  })
+
+  it('drops a pending Full Access confirmation when another mode is chosen', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.auto.title'))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
   })
 
   it('saves Feishu mention-only changes and renders reloaded values', async () => {

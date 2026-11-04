@@ -2,6 +2,8 @@ import { application } from '@application'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
+  copyFileToClipboard,
+  getClipboardCopyStatus,
   dispatchHandle,
   getMetadataByPath,
   readByPath,
@@ -11,7 +13,9 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
+import { validateNotesDirectory } from '@main/services/notesDirectory'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -45,8 +49,6 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     application.get('FileEditService').read(requireManagedSender(senderId).windowId, editId),
   'file.edit.write': async (input, { senderId }) =>
     application.get('FileEditService').write(requireManagedSender(senderId).windowId, input),
-  'file.edit.settle_write': async ({ editId, sequence }, { senderId }) =>
-    application.get('FileEditService').settleWrite(requireManagedSender(senderId).windowId, editId, sequence),
   'file.edit.close': async ({ editId }, { senderId }) =>
     application.get('FileEditService').close(requireManagedSender(senderId).windowId, editId),
   'file.read': async ({ handle, options }) => {
@@ -164,6 +166,35 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
+  'file.copy_to_clipboard': async (handle, { senderId }) => {
+    if (senderId == null) throw new Error('file.copy_to_clipboard requires a managed window sender')
+    return dispatchHandle(
+      handle as FileHandle,
+      (id) => copyFileToClipboard(application.get('FileManager').getPhysicalPath(id)),
+      copyFileToClipboard
+    )
+  },
+  'file.get_clipboard_status': async (handle) => {
+    return dispatchHandle(
+      handle as FileHandle,
+      async (id) => {
+        try {
+          return await getClipboardCopyStatus(application.get('FileManager').getPhysicalPath(id))
+        } catch (error) {
+          if (
+            error instanceof DataApiError &&
+            error.code === ErrorCode.NOT_FOUND &&
+            error.details?.resource === 'FileEntry' &&
+            error.details.id === id
+          )
+            return { ok: false as const, reason: 'missing' as const }
+          throw error
+        }
+      },
+      getClipboardCopyStatus
+    )
+  },
+  'file.validate_notes_directory': async (path) => validateNotesDirectory(path),
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
       return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)

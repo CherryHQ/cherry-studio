@@ -10,6 +10,7 @@ import {
   useState
 } from 'react'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import {
   Badge,
   Command,
@@ -24,7 +25,6 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 
 const logger = loggerService.withContext('ConversationPickerDialog')
@@ -231,7 +231,9 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
             />
             {toolbar ? <div className="flex shrink-0 items-center">{toolbar}</div> : null}
           </div>
-          <Scrollbar ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 px-2.5 py-3 pt-2">
+          <ScrollArea
+            viewportProps={{ ref: scrollRef, onScroll: handleScroll, className: 'px-2.5 py-3 pt-2' }}
+            className="min-h-0 flex-1">
             {/* Scrollbar is the scroll viewport; the cmdk list itself must not scroll so keyboard
                 navigation's scroll-into-view bubbles up to the styled Scrollbar instead. */}
             <CommandList
@@ -306,7 +308,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                 </div>
               ) : null}
             </CommandList>
-          </Scrollbar>
+          </ScrollArea>
         </Command>
       </DialogContent>
     </Dialog>

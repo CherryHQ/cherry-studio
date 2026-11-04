@@ -52,6 +52,7 @@ import {
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
+import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
@@ -295,6 +296,7 @@ function AgentEditDialogContent({
 }: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
+  const sealedSkills = isSealedBuiltinAgentRole(resource.configuration?.builtin_role)
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -361,14 +363,14 @@ function AgentEditDialogContent({
             ? [{ id: 'tools.knowledge' as const, label: t('library.config.dialogs.edit.knowledge_tab') }]
             : []),
           ...(caps.mcp ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }] : []),
-          ...(caps.skills
+          ...(caps.skills && !sealedSkills
             ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
             : [])
         ]
       },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
-    [caps.knowledgeBases, caps.mcp, caps.skills, t]
+    [caps.knowledgeBases, caps.mcp, caps.skills, sealedSkills, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -578,6 +580,7 @@ function AgentEditDialogContent({
             caps={caps}
             agentType={resource.type}
             agentId={resource.id}
+            permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
             beforeHeartbeatOpen={async () => {
               await flush()
               return failedSaveKeyRef.current === null
@@ -635,6 +638,7 @@ function AgentBasicFields({
   caps,
   agentType,
   agentId,
+  permissionAuthorityKey,
   beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
@@ -650,6 +654,7 @@ function AgentBasicFields({
   caps: AgentRuntimeCapabilities
   agentType: AgentType
   agentId: string
+  permissionAuthorityKey: string
   beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
@@ -736,7 +741,9 @@ function AgentBasicFields({
           />
         </>
       ) : null}
+      {/* Invalidate only the pending permission dialog when authoritative identity/mode changes. */}
       <PermissionModeField
+        key={permissionAuthorityKey}
         form={form}
         portalContainer={portalContainer}
         patchAgentForm={patchAgentForm}
@@ -857,6 +864,7 @@ function PermissionModeField({
 }) {
   const { t } = useTranslation()
   const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
+  const agentName = useWatch({ control: form.control, name: 'name' })
   const selectedPermissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
 
   return (
@@ -874,6 +882,7 @@ function PermissionModeField({
             onValueChange={(value) => patchAgentForm({ permissionMode: value })}
             portalContainer={portalContainer}
             ariaLabel={t('library.config.agent.field.permission_mode.label')}
+            scopeName={agentName.trim() || undefined}
             t={t}
           />
           <FormMessage className="col-start-2" />

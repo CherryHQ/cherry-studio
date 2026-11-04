@@ -3,7 +3,7 @@ import { FolderCog, Server, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Flex, MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
+import { Flex, MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
   settingsSubmenuDividerClassName,
@@ -47,7 +47,7 @@ const McpSettings: FC = () => {
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
         <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
           <PageHeader title={t('settings.mcp.shortTitle')} />
-          <Scrollbar className="min-h-0 flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
                 id="setting-mcp-servers-tab-servers"
@@ -95,7 +95,7 @@ const McpSettings: FC = () => {
                 />
               ))}
             </MenuList>
-          </Scrollbar>
+          </ScrollArea>
         </div>
         <div className="relative flex min-w-0 flex-1 overflow-hidden">
           <Outlet />
