@@ -1,5 +1,6 @@
 packages:
   - "packages/*"
+  - "native/system-speech"
 
 engineStrict: true
 

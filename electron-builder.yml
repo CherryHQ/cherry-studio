@@ -151,7 +151,7 @@ portable:
   unpackDirName: true
 mac:
   extraFiles:
-    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+    - from: native/system-speech/dist/native/darwin-${arch}/cherry-system-speech
       to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
   sign: scripts/packaging/mac-sign.js

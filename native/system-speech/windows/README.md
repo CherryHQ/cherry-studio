@@ -55,7 +55,7 @@ pnpm --filter @cherrystudio/system-speech smoke:windows:tts
 pnpm --filter @cherrystudio/system-speech smoke:windows:asr
 ```
 
-The output is `packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe`.
+The output is `native/system-speech/dist/native/win32-x64/cherry-system-speech.exe`.
 `windows/build.cmd` is the equivalent direct build entry. `windows/smoke.ps1`
 runs the protocol smoke against an already built helper; add `-Tts` for actual
 voice synthesis. The JavaScript package must also be built first.
@@ -65,7 +65,7 @@ voice enumeration with an unsupported ASR locale, malformed requests, required
 speed bounds, invalid ASR probes and exact missing-voice/recognizer failure. The TTS smoke **requires an installed
 SAPI voice** and fails explicitly if none exists. It checks actual PCM data and
 metadata, a Unicode path and text, 0.5/1/2 speed settings, cancellation and timeout,
-then removes its temporary files. It does not play audio. The Windows workflow runs the adapter unit regression and both native smokes.
+then removes its temporary files. It does not play audio.
 The regression mocks the helper and does not recognize speech; only a successful
 Windows run of the native smokes is native execution evidence.
 
@@ -73,9 +73,7 @@ The ASR smoke **requires a usable en-US SAPI dictation recognizer and an en-US
 SAPI voice**. It probes the engine, synthesizes a known sentence, transcribes it
 and checks expected words, then checks silence, cancellation, timeout and scratch
 cleanup. Missing engines fail explicitly. It is a pipeline check, not an accuracy
-benchmark. Hosted `windows-2022` runners do not guarantee a dictation engine, so
-the workflow's protocol/TTS checks do not count as ASR execution evidence. Run
-this additional smoke on a Windows x64 machine with the required engine installed.
+benchmark. Run this smoke on a Windows x64 machine with the required engine installed.
 
 ## Packaging and device acceptance
 
