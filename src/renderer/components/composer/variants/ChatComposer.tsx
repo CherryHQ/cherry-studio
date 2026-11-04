@@ -785,7 +785,12 @@ const ChatComposerInner = ({
     assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   const { models: queueModels, isLoading: areModelsLoading } = useModels()
   const validationPending = submittedMentionedModels.length > 0 && areModelsLoading
-  const hasNonChatModel = !validationPending && effectiveSubmittedModels.some(isNonChatModel)
+  const isValidationBlockingSend = validationPending && editingMessageForCurrentTopic?.message.role !== 'assistant'
+  const currentSubmittedModels = effectiveSubmittedModels.map(
+    (model) => queueModels.find((currentModel) => currentModel.id === model.id) ?? model
+  )
+  const hasNonChatModel =
+    !validationPending && (currentSubmittedModels.some(isNonChatModel) || effectiveSubmittedModels.some(isNonChatModel))
   const nonChatReason = hasNonChatModel
     ? t(lockedMentionedModels.length > 1 ? 'chat.input.non_chat_model_locked' : 'chat.input.non_chat_model')
     : undefined
@@ -1660,7 +1665,7 @@ const ChatComposerInner = ({
         return
       }
 
-      if (validationPending) return
+      if (isValidationBlockingSend) return
       if (hasNonChatModel && editingMessageForCurrentTopic?.message.role !== 'assistant') return
 
       if (editingMessageForCurrentTopic) {
@@ -1736,7 +1741,7 @@ const ChatComposerInner = ({
       stopEditing,
       restoreSavedDraft,
       t,
-      validationPending
+      isValidationBlockingSend
     ]
   )
 
@@ -1864,12 +1869,12 @@ const ChatComposerInner = ({
           sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
             isSaveDisabled ||
-            validationPending ||
+            isValidationBlockingSend ||
             (hasNonChatModel && editingMessageForCurrentTopic?.message.role !== 'assistant')
           }
           sendBlockedReason={
             (editingMessageForCurrentTopic?.message.role !== 'assistant' ? nonChatReason : undefined) ??
-            (validationPending || isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            (isValidationBlockingSend || isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage))
           }
