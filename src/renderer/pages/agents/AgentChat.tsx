@@ -283,11 +283,11 @@ const AgentChat = ({
     },
     [currentSessionId]
   )
+  const isConversationHistorySettled = !runtime.isLoading && !runtime.isPending
   const isEmptyConversation = Boolean(
     sessionSnapshot &&
     sessionMessagesEnabled &&
-    !runtime.isLoading &&
-    !runtime.isPending &&
+    isConversationHistorySettled &&
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
@@ -307,7 +307,10 @@ const AgentChat = ({
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
       // An established conversation cannot cross runtimes: each keeps its own native history and
       // cannot replay the other's, so switching needs a new conversation (empty ones switch freely).
-      if (!isEmptyConversation && activeAgent?.type) {
+      // While history is still loading, emptiness is unknown: a hardcoded `hasMessages: true`
+      // would reject every cross-runtime switch on a genuinely empty session. Defer to the
+      // backend's authoritative check instead of guessing from the not-yet-loaded message list.
+      if (!isEmptyConversation && activeAgent?.type && isConversationHistorySettled) {
         const cachedAgents = readAgentsCache<{ items: Pick<AgentEntity, 'id' | 'type'>[] }>('/agents', {
           limit: AGENTS_MAX_LIMIT
         })?.items
@@ -348,6 +351,7 @@ const AgentChat = ({
       sessionSnapshot,
       updateSession,
       isEmptyConversation,
+      isConversationHistorySettled,
       activeAgent,
       readAgentsCache,
       skipAgentSwitchConfirmationsForAppRun,
