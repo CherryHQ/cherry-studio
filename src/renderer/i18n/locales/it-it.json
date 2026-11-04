@@ -1744,7 +1744,6 @@
   "history_import.error_title": "L’importazione richiede attenzione",
   "history_import.existing": "Già importata in {{owner}}. La conversazione non verrà copiata o spostata.",
   "history_import.filtered_empty": "Non restano conversazioni da importare. I file di origine e le conversazioni già importate restano invariati.",
-  "history_import.filtered_summary": "Filtrate: {{guardian}} revisioni Guardian · {{noTask}} sessioni senza attività utente.",
   "history_import.folder": "Scegli cartella",
   "history_import.line": "Riga {{line}}",
   "history_import.losses": "Record ignorati: {{skipped}} · Blocchi convertiti: {{downgraded}}",
