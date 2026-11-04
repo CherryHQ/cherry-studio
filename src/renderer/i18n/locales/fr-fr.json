@@ -1824,7 +1824,6 @@
   "history_import.error_title": "L’importation nécessite votre attention",
   "history_import.existing": "Déjà importée sous {{owner}}. La conversation ne sera ni copiée ni déplacée.",
   "history_import.filtered_empty": "Aucune conversation à importer. Les fichiers source et les conversations déjà importées restent inchangés.",
-  "history_import.filtered_summary": "Filtrés : {{guardian}} examens Guardian · {{noTask}} sessions sans tâche utilisateur.",
   "history_import.folder": "Choisir un dossier",
   "history_import.line": "Ligne {{line}}",
   "history_import.losses": "Enregistrements ignorés : {{skipped}} · Blocs convertis : {{downgraded}}",

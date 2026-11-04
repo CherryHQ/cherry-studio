@@ -1824,7 +1824,6 @@
   "history_import.error_title": "导入遇到问题",
   "history_import.existing": "已导入到 {{owner}}。不会复制或移动该会话。",
   "history_import.filtered_empty": "没有可导入的会话。来源文件和已导入的会话保持不变。",
-  "history_import.filtered_summary": "已过滤：{{guardian}} 个 Guardian 审查会话 · {{noTask}} 个无用户任务的会话。",
   "history_import.folder": "选择目录",
   "history_import.line": "第 {{line}} 行",
   "history_import.losses": "跳过记录：{{skipped}} · 降级内容块：{{downgraded}}",

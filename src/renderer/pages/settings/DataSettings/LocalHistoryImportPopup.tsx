@@ -12,6 +12,7 @@ import {
   DialogTitle,
   Input,
   Label,
+  SearchInput,
   Select,
   SelectContent,
   SelectItem,
@@ -36,7 +37,7 @@ const resultLabels = {
   existing: 'history_import.results.existing',
   failed: 'history_import.results.failed',
   unprocessed: 'history_import.results.unprocessed',
-  filtered: 'history_import.filtered_summary'
+  filtered: 'history_import.filtered_empty'
 } as const
 
 const sourceLabels = {
@@ -287,14 +288,6 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
           )}
           <div className="min-h-0 space-y-4 overflow-y-auto">
             <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
-            {filteredTotal > 0 && (
-              <p role="status" className="text-sm leading-6 text-muted-foreground">
-                {t('history_import.filtered_summary', {
-                  guardian: filteredCounts.codex_guardian_review,
-                  noTask: filteredCounts.claude_no_user_task
-                })}
-              </p>
-            )}
             {scan && scan.candidates.every((item) => completedRefs.has(item.ref)) && filteredTotal > 0 && (
               <p className="text-sm text-muted-foreground">{t('history_import.filtered_empty')}</p>
             )}
@@ -379,7 +372,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                 </div>
                 {scan && (
                   <>
-                    <Input
+                    <SearchInput
                       aria-label={t('common.search')}
                       placeholder={t('common.search')}
                       value={filter}

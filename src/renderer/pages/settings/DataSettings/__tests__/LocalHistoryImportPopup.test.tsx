@@ -366,7 +366,7 @@ describe('local history import dialog', () => {
     agents([{ id: 'pi', name: 'Alpha', type: 'pi' }])
     render(<LocalHistoryImportDialog open source="codex" resolve={() => {}} />)
     expect(await screen.findByText(enUS['history_import.filtered_empty'])).toBeVisible()
-    expect(screen.getByRole('status')).toHaveTextContent('3 Guardian reviews')
+    expect(screen.queryByText(/Guardian reviews/)).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: enUS['common.select_all'] })).toBeDisabled()
     expect(screen.getByRole('button', { name: enUS['history_import.confirm'] })).toBeDisabled()
     expect(screen.queryByText(enUS['history_import.error_title'])).not.toBeInTheDocument()

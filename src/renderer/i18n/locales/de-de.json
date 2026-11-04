@@ -1824,7 +1824,6 @@
   "history_import.error_title": "Import erfordert Aufmerksamkeit",
   "history_import.existing": "Bereits unter {{owner}} importiert. Der Chat wird weder kopiert noch verschoben.",
   "history_import.filtered_empty": "Keine Gespräche mehr zum Importieren. Quelldateien und bereits importierte Gespräche bleiben unverändert.",
-  "history_import.filtered_summary": "Gefiltert: {{guardian}} Guardian-Prüfungen · {{noTask}} Sitzungen ohne Benutzeraufgaben.",
   "history_import.folder": "Ordner wählen",
   "history_import.line": "Zeile {{line}}",
   "history_import.losses": "Übersprungene Einträge: {{skipped}} · Umgewandelte Blöcke: {{downgraded}}",

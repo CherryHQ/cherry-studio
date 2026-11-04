@@ -1824,7 +1824,6 @@
   "history_import.error_title": "การนำเข้าพบปัญหา",
   "history_import.existing": "นำเข้าไว้ใน {{owner}} แล้ว จะไม่คัดลอกหรือย้ายบทสนทนา",
   "history_import.filtered_empty": "ไม่มีบทสนทนาเหลือให้นำเข้า ไฟล์ต้นทางและบทสนทนาที่นำเข้าแล้วจะไม่เปลี่ยนแปลง",
-  "history_import.filtered_summary": "กรองแล้ว: การตรวจสอบ Guardian {{guardian}} รายการ · เซสชันที่ไม่มีงานจากผู้ใช้ {{noTask}} รายการ",
   "history_import.folder": "เลือกโฟลเดอร์",
   "history_import.line": "บรรทัด {{line}}",
   "history_import.losses": "ข้ามบันทึก: {{skipped}} · แปลงบล็อกเนื้อหา: {{downgraded}}",
