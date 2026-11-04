@@ -13,6 +13,7 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -55,6 +56,15 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 const conversationFilter = eq(sessionsTable.type, 'conversation')
+// Task runs can use a fresh session per run; the sticky relation alone is not enough.
+const ordinaryConversationFilter = and(
+  isNull(sessionsTable.taskScheduleId),
+  sql`NOT EXISTS (
+    SELECT 1 FROM ${jobTable}
+    WHERE ${jobTable.type} = 'agent.task' AND ${jobTable.scheduleId} IS NOT NULL
+      AND coalesce(json_extract(${jobTable.metadata}, '$.sessionId'), json_extract(${jobTable.output}, '$.sessionId')) = ${sessionsTable.id}
+  )`
+)
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 export type SessionMetadataSearchMatch = {
   field: 'name' | 'description'
@@ -410,6 +420,24 @@ export class AgentSessionService {
   }
 
   /** Read the internal sticky-session relation without exposing it on session entities. */
+  listTaskSessionIds(taskScheduleId: string): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(
+        or(
+          eq(sessionsTable.taskScheduleId, taskScheduleId),
+          sql`EXISTS (SELECT 1 FROM ${jobTable}
+          WHERE ${jobTable.type} = 'agent.task' AND ${jobTable.scheduleId} = ${taskScheduleId}
+          AND coalesce(json_extract(${jobTable.metadata}, '$.sessionId'), json_extract(${jobTable.output}, '$.sessionId')) = ${sessionsTable.id})`
+        )
+      )
+      .all()
+      .map((row) => row.id)
+  }
+
   getByTaskScheduleId(taskScheduleId: string): AgentSessionEntity | null {
     return this.getByTaskScheduleIdTx(application.get('DbService').getDb(), taskScheduleId)
   }
@@ -579,7 +607,7 @@ export class AgentSessionService {
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(and(conversationFilter, isNull(sessionsTable.deletedAt), ownerFilter))
+      .where(and(conversationFilter, ordinaryConversationFilter, isNull(sessionsTable.deletedAt), ownerFilter))
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
@@ -741,6 +769,8 @@ export class AgentSessionService {
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
+    // Explicit ID lookups also serve task history; only discovery lists hide task sessions.
+    const taskFilter = inTrash || query.ids ? undefined : ordinaryConversationFilter
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
@@ -761,6 +791,7 @@ export class AgentSessionService {
         .where(
           and(
             conversationFilter,
+            taskFilter,
             agentFilter,
             workspaceFilter,
             idFilter,
@@ -819,6 +850,7 @@ export class AgentSessionService {
       .where(
         and(
           conversationFilter,
+          taskFilter,
           agentFilter,
           workspaceFilter,
           idFilter,

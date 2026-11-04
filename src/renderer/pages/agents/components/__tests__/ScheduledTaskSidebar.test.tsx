@@ -154,6 +154,7 @@ it('requires delete confirmation and keeps a failed deletion available for retry
   await user.click(screen.getByRole('button', { name: 'common.more Daily report' }))
   await user.click(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' }))
   const dialog = screen.getByRole('dialog', { name: 'agent.tasks.delete.confirm' })
+  expect(dialog).toHaveAccessibleDescription('agent.tasks.delete.description')
   expect(request).not.toHaveBeenCalled()
   await user.click(within(dialog).getByRole('button', { name: 'agent.tasks.delete.label' }))
   await waitFor(() => expect(request).toHaveBeenCalledTimes(1))

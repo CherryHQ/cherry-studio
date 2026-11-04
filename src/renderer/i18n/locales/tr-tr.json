@@ -457,6 +457,7 @@
   "agent.tasks.channels.noActiveChatIds": "Seçilen kanallarda kullanılabilir alıcı (Chat ID) yok. Görev sonuçları teslim edilemeyebilir. Önce platformdaki Bot'a bir mesaj gönderin.",
   "agent.tasks.channels.placeholder": "Sonuçları alacak kanalları seçin",
   "agent.tasks.delete.confirm": "Bu görev silinsin mi?",
+  "agent.tasks.delete.description": "İlişkili tüm konuşmalar da Geri Dönüşüm Kutusu’na taşınacak.",
   "agent.tasks.delete.label": "Sil",
   "agent.tasks.error.createFailed": "Görev oluşturulamadı",
   "agent.tasks.error.deleteFailed": "Görev silinemedi",

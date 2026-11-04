@@ -408,9 +408,19 @@ export class AgentJobsService extends BaseService {
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return false
-    // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
-    // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
-    const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
+    const jobs = application.get('JobManager')
+    const wasEnabled = jobScheduleService.getById(taskId)?.enabled
+    await jobs.pauseJobScheduleById(taskId)
+    let deleted: boolean
+    try {
+      for (const job of jobService.list({ scheduleId: taskId, status: ['pending', 'delayed', 'running'] })) {
+        await jobs.cancel(job.id, 'Task deleted')
+      }
+      deleted = await application.get('AgentLifecycleService').deleteTaskWithSessions(taskId)
+    } catch (error) {
+      if (wasEnabled) jobs.resumeJobScheduleById(taskId)
+      throw error
+    }
     if (deleted) {
       agentTaskService.notifyReadModelChange([taskId], 'membership')
       logger.info('Task deleted', { taskId, agentId })
@@ -421,7 +431,7 @@ export class AgentJobsService extends BaseService {
   /**
    * Delete every `agent.task` schedule owned by `agentId` — the schedule-side
    * half of agent deletion. Historical jobs keep their rows with `scheduleId`
-   * set NULL (`ON DELETE SET NULL`, same as `deleteTask`).
+   * set NULL (`ON DELETE SET NULL`).
    *
    * @returns How many schedule rows were removed.
    */

@@ -102,7 +102,7 @@ export default function ScheduledTasksPage() {
     </ConversationNavigationPane>
   )
   const toolbar = (
-    <div className="flex min-h-(--navbar-height) flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-1.5">
+    <div className="flex min-h-(--navbar-height) flex-wrap items-center gap-2 px-3 py-1.5">
       <ConversationSidebarToggleButton sidebarOpen={shell.shellPaneOpen} onSidebarToggle={shell.toggleShellPane} />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">
         {selectedTask?.name ?? t('settings.scheduledTasks.title')}
