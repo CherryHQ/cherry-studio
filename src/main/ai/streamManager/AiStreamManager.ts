@@ -1043,6 +1043,11 @@ export class AiStreamManager extends BaseService {
     return this.pendingChannelListeners.get(topicId)?.owesTaskIds.has(taskId) === true
   }
 
+  /** The task ids whose delivery is currently stashed for this topic's channel recipients. */
+  stashedWakeTaskIds(topicId: string): ReadonlySet<string> {
+    return this.pendingChannelListeners.get(topicId)?.owesTaskIds ?? new Set()
+  }
+
   /**
    * Deliver a consumed task's own result to the recipients its fire stashed, then retire the debt.
    * A desktop tool continuation consumes the completion inside a stream that excludes channel

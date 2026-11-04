@@ -3664,6 +3664,10 @@ export class AgentSessionRuntimeService extends BaseService {
       .get('CacheService')
       .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
+    // `receiveOnlyHeadless` consumes the completion ledger, so snapshot which tasks this wake is
+    // reporting before it clears: a wake that folds a task the stash does not owe must not carry
+    // the channel recipients, or its mixed output discloses that private work.
+    const wakeTaskIds = new Set(this.completedBackgroundTasks.get(entry.sessionId)?.keys() ?? [])
     const receiveOnlyTurn: AgentSessionTurn = {
       turnId,
       assistantMessageId,
@@ -3699,7 +3703,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    const wakeClaim = this.wakeClaim(entry)
+    const wakeClaim = this.wakeClaim(entry, wakeTaskIds)
     entry.claimedWakeTurnId = wakeClaim.claim ? turnId : undefined
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
@@ -3736,11 +3740,20 @@ export class AgentSessionRuntimeService extends BaseService {
    * live set. Session-wide emptiness would strand the first settler's delivery and let a later
    * unrelated wake post its output to those chats — the live set mixes concurrent fires' tasks.
    */
-  private wakeClaim(entry: AgentSessionRuntimeEntry): { claim: boolean; listedTaskIds: ReadonlySet<string> } {
+  private wakeClaim(
+    entry: AgentSessionRuntimeEntry,
+    wakeTaskIds: ReadonlySet<string>
+  ): { claim: boolean; listedTaskIds: ReadonlySet<string> } {
     const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
     const listedTaskIds = new Set((tasks ?? []).map((task) => task.id))
+    const streamManager = application.get('AiStreamManager')
+    // A wake can fold several completions into its one generation. Carrying the stash's listeners
+    // would forward that whole generation, including a task those chats never asked for. Only a
+    // wake made purely of owed tasks may claim; an owed task's own report is delivered separately.
+    const owedTaskIds = streamManager.stashedWakeTaskIds(entry.topicId)
+    const mixed = [...wakeTaskIds].some((id) => !owedTaskIds.has(id))
     return {
-      claim: application.get('AiStreamManager').stashedWakeRecipientsDischarged(entry.topicId, listedTaskIds),
+      claim: !mixed && streamManager.stashedWakeRecipientsDischarged(entry.topicId, listedTaskIds),
       listedTaskIds
     }
   }

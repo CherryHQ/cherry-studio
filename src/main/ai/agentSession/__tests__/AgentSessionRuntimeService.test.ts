@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   retireStashedWakeTaskIds: vi.fn(),
   deliverStashedWakeTaskResult: vi.fn(),
   isStashedWakeTaskOwed: vi.fn(() => false),
+  stashedWakeTaskIds: vi.fn(() => ({ has: () => true }) as unknown as ReadonlySet<string>),
   // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
   stashedWakeRecipientsDischarged: vi.fn(() => true),
   renewClaimedWakeRecipients: vi.fn(),
@@ -600,7 +601,8 @@ describe('AgentSessionRuntimeService', () => {
           renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients,
           retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds,
           deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult,
-          isStashedWakeTaskOwed: mocks.isStashedWakeTaskOwed
+          isStashedWakeTaskOwed: mocks.isStashedWakeTaskOwed,
+          stashedWakeTaskIds: mocks.stashedWakeTaskIds
         }
       }
       if (name === 'CacheService')

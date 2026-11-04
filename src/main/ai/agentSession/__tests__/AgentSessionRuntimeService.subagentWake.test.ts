@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   retireStashedWakeTaskIds: vi.fn(),
   deliverStashedWakeTaskResult: vi.fn(),
   isStashedWakeTaskOwed: vi.fn(() => false),
+  stashedWakeTaskIds: vi.fn(() => ({ has: () => true }) as unknown as ReadonlySet<string>),
   renewClaimedWakeRecipients: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
@@ -136,6 +137,7 @@ beforeEach(() => {
         retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds,
         deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult,
         isStashedWakeTaskOwed: mocks.isStashedWakeTaskOwed,
+        stashedWakeTaskIds: mocks.stashedWakeTaskIds,
         renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients
       }
     }
@@ -743,6 +745,49 @@ describe('subagent settlement wake (incident replay)', () => {
     handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-end', id: 'w1' } })
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
     handleRuntimeEvent({ type: 'turn-complete' })
+    void service.closeSession('session-1')
+  })
+
+  // A wake can fold several completions into one receive-only generation. Carrying the stash's
+  // recipients would forward that whole generation, including a task those chats never asked for.
+  it('does not carry stashed recipients when the wake folds a task they do not owe', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    const reader = service
+      .openTurnStream({
+        sessionId: 'session-1',
+        turnId: currentTurn(entry).turnId,
+        signal: new AbortController().signal
+      })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    handleRuntimeEvent({ type: 'turn-complete' })
+    service.markTurnTerminal('session-1', 'success')
+
+    // The wake reports an owed task AND a private desktop completion; only the former is stashed.
+    ;(service as any).completedBackgroundTasks.set('session-1', new Map([['task-private', false]]))
+    mocks.stashedWakeTaskIds.mockReturnValue(new Set(['task-owed']))
+
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ carryChannelListeners: false }))
+
     void service.closeSession('session-1')
   })
 
