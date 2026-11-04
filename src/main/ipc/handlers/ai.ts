@@ -18,7 +18,7 @@ import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener }
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
-import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -194,7 +194,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
-  'ai.agent.assistant_session.create': async () => ({ sessionId: createBuiltinAssistantSession().id }),
+  'ai.agent.assistant_session.create': async ({ workspace }) => {
+    try {
+      return { sessionId: createBuiltinAssistantSession(workspace).id }
+    } catch (error) {
+      if (isDataApiResourceNotFoundError(error, 'Workspace')) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND, error.message)
+      }
+      throw error
+    }
+  },
   'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the

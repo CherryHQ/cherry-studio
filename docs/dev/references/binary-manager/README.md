@@ -2,6 +2,7 @@
 description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
 sources:
   - src/main/services/binaryManager/BinaryManager.ts
+  - src/main/services/binaryManager/claudeNpm.ts
   - src/main/services/binaryManager/pythonRuntime.ts
   - src/shared/data/presets/binaryTools.ts
   - src/main/ipc/handlers/binary.ts
@@ -19,6 +20,8 @@ sources:
 BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
 Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
+
+On Windows ARM64, the fixed `claude` recipe downloads the official `@anthropic-ai/claude-code-win32-arm64` npm archive. npm metadata supplies the version and SHA-512 digest; mise's HTTP backend verifies and extracts the native executable without an npm launcher or Node runtime. Installation and version checks honor the npm registry setting. The official registry and npmmirror fall back to each other; a custom registry remains exclusive. The recipe identity stays `claude`, so existing managed installations retain their launch, update, and removal paths. Agent SDK binaries remain independently managed.
 
 ## Tool definitions and runtime facts
 
@@ -97,6 +100,8 @@ Runtime dependencies have one extra rule. If an existing `node` or `python` shim
 Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph. The `pipx` half of that guard now covers only tools an earlier Cherry version installed: their virtual environments were built against mise's Python and still bind to it, while a tool installed since gets the Cherry-provisioned interpreter below and does not.
 
 ### Python for the pipx backend
+
+On macOS, isolated install/management subprocesses set `UV_CACHE_DIR` to the registered `feature.binary.data.uv_cache` only when `XDG_CACHE_HOME` contains whitespace and the registered candidate does not. The candidate is `CHERRY_HOME/cache/uv/<sha256(resolve(userData))>`, separating profiles without copying spaced profile names into the cache leaf. This install-only exception keeps uv's sdist build directories out of a spaced cache path; installed-tool execution receives no injected override. If the candidate also contains whitespace, the existing environment stays unchanged without a fallback, so space-containing homes or development roots remain a limitation.
 
 Python is the one runtime BinaryManager does not ask mise for. mise installs Python from GitHub releases, which is unreachable from mainland China, and naming a Python runtime in `mise use` is what triggers that download — so `pythonRuntime.ts` provisions the interpreter with the bundled `uv` into `feature.binary.data.uv_python`, and `mise use` is given the `pipx:` tool alone. `UV_PYTHON` carries the interpreter into mise's pipx backend, which shells out to uv. In China the archive comes from npmmirror's `python-build-standalone` mirror first, the official source second; uv verifies both against its built-in catalog's checksums. Provisioning first asks `uv python find` for an interpreter and spawns it with `--version` — a half-written download is otherwise indistinguishable from a working one. Every install then passes `--reinstall` unconditionally: a plain `uv python install` treats any version uv still lists as already satisfied, and `uv python find` reports an interpreter it cannot inspect exactly as it reports an absent one, so there is no state in which the flag can be skipped safely. On an empty install directory it simply downloads.
 

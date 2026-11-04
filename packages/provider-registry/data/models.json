@@ -11802,6 +11802,26 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition"],
+      "contextWindow": 1048576,
+      "family": "longcat",
+      "id": "longcat-2-5",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "LongCat-2.5",
+      "outputModalities": ["text"],
+      "ownedBy": "meituan",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
       "capabilities": ["function-call", "structured-output"],
       "contextWindow": 131072,
       "family": "llama",
@@ -23270,5 +23290,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "14baeedb14bc2134"
+  "version": "c0e6c5b8534e2ede"
 }

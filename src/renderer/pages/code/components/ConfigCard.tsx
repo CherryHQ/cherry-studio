@@ -43,6 +43,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
 
   return (
     <div
+      data-ui="code.provider-card"
       className={`group relative rounded-xl border p-3.5 transition-colors ${
         dragging
           ? 'border-primary/40 opacity-50'

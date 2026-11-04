@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import type { TSchema } from '@earendil-works/pi-ai'
 import { type ExtensionAPI, SessionManager } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 
 import {
   type ChildSpec,
@@ -885,18 +885,75 @@ describe('coding-agent behavior adapter', () => {
     expect(notified).toEqual([expect.objectContaining({ text: expect.stringContaining('found 3 files') })])
   })
 
-  // Catches a report job whose child failed to build never settling, or failing as an unhandled rejection instead of
-  // through onError, or the child staying in the parent's children (D3).
-  it('fails the report job of a background child whose session failed to build', async () => {
-    const pi = await openPiHarness(installPackage, [], (request, open) =>
-      request.child ? Promise.reject(new Error('build failed')) : open(request)
+  // Catches a failed native child build retaining a running record and consuming background capacity.
+  it('ends a failed background child and admits the next child without reopening the parent', async () => {
+    let failing = true
+    const pi = await openPiHarness(
+      (ports) => installPackage(ports, (host) => ({ ...host, settings: { ...host.settings, maxBackground: () => 1 } })),
+      [],
+      (request, open) => {
+        if (request.child) {
+          if (failing) return Promise.reject(new Error('build failed'))
+          pi.harness.script(runtimeId(request.sessionManager.getSessionId()), [{ text: 'healthy result' }])
+        }
+        return open(request)
+      }
     )
     const parent = await pi.harness.createThread()
-    pi.harness.script(parent, [spawnInBackground, { text: 'went on' }])
+    pi.harness.script(parent, [spawnInBackground, { text: 'went on' }, { text: 'read failure' }])
     await pi.harness.sendUser(parent, 'go')
     await pi.harness.settle()
-    expect((await read(pi, parent)).children.size).toBe(0)
-    expect(pi.errors).toEqual([expect.objectContaining({ message: expect.stringContaining('Unknown thread') })])
+    const ended = (await read(pi, parent)).history.filter(
+      (entry) => entry.kind === 'record' && entry.record.type === 'subagent-run'
+    )
+    expect(ended.at(-1)).toMatchObject({ record: { value: { status: 'finished', outcome: 'failed' } } })
+    failing = false
+    pi.harness.script(parent, [spawnInBackground, { text: 'waiting' }, { text: 'received' }])
+    await pi.harness.sendUser(parent, 'retry with a new child')
+    await pi.harness.settle()
+    const facts = await read(pi, parent)
+    expect(facts.history.some((entry) => entry.kind === 'marker' && entry.text.includes('healthy result'))).toBe(true)
+    expect(pi.errors).toEqual([])
+  })
+
+  // Catches compensating one rejected child by rolling back a sibling that already opened successfully.
+  it('reports a failed child once while its sibling completes', async () => {
+    const pi = await openPiHarness(installPackage, [], (request, open) => {
+      if (request.child) {
+        if (request.child.origin.description === 'broken') return Promise.reject(new Error('build failed'))
+        pi.harness.script(runtimeId(request.sessionManager.getSessionId()), [{ text: 'healthy sibling result' }])
+      }
+      return open(request)
+    })
+    const parent = await pi.harness.createThread()
+    pi.harness.script(parent, [
+      {
+        text: '',
+        toolCalls: ['broken', 'healthy'].map((description) => ({
+          name: 'subagent',
+          args: { description, prompt: 'task', background: true }
+        }))
+      },
+      { text: 'parent answer' },
+      { text: 'read report' },
+      { text: 'read other report' }
+    ])
+    await pi.harness.sendUser(parent, 'delegate')
+    await pi.harness.settle()
+    const facts = await read(pi, parent)
+    const ends = facts.history.flatMap((entry) =>
+      entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.record.value.status === 'finished'
+        ? [entry.record.value]
+        : []
+    )
+    expect(ends).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ description: 'broken', outcome: 'failed', reason: 'build failed' }),
+        expect.objectContaining({ description: 'healthy', outcome: 'completed', report: 'healthy sibling result' })
+      ])
+    )
+    expect(ends.filter((run) => run.description === 'broken')).toHaveLength(1)
+    expect(pi.errors).toEqual([])
   })
 
   // Catches a root session that fails to build staying in the conversation table: opening it again reports it as
@@ -1193,6 +1250,126 @@ describe('coding-agent behavior adapter', () => {
     // The run ended, aborted, before its session was disposed.
     expect(atClose?.runEnd?.outcome).toBe('aborted')
     expect(disposed).toBe(1)
+  })
+
+  it('joins a host preflight after the previous run ends before closing', async () => {
+    const hold = holdTool()
+    const entered = latch()
+    const release = latch()
+    onTestFinished(() => release.release())
+    let native!: AgentRuntimeSession
+    let disposed = false
+    const pi = await openPiHarness(
+      (ports) => ports.tools.register(hold.tool),
+      [
+        (api) => {
+          api.on('input', async (event) => {
+            if (event.text !== 'later') return
+            entered.release()
+            await release.promise
+          })
+        }
+      ],
+      async (request, open) => {
+        native = await open(request)
+        return {
+          ...native,
+          async dispose() {
+            disposed = true
+            await native.dispose()
+          }
+        }
+      }
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [
+      { text: '', toolCalls: [{ name: 'hold', args: {} }] },
+      { text: 'first answer' },
+      { text: 'never' }
+    ])
+    await pi.harness.sendUser(t, 'first')
+    await hold.started
+    const prompt = pi.behavior.prompt(t, 'later')
+    await entered.promise
+    hold.release()
+    await native.session.waitForIdle()
+    let closed = false
+    const closing = pi.behavior.close().then(() => {
+      closed = true
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(closed).toBe(false)
+    expect(disposed).toBe(false)
+    release.release()
+    await Promise.all([prompt, closing])
+    expect(pi.requests(t)).toHaveLength(2)
+    expect(disposed).toBe(true)
+  })
+
+  it.each(['continue', 'handled'] as const)('keeps inbox behind a host preflight that returns %s', async (action) => {
+    const hold = holdTool()
+    const entered = latch()
+    const release = latch()
+    onTestFinished(() => release.release())
+    let native!: AgentRuntimeSession
+    const pi = await openPiHarness(
+      (ports) => ports.tools.register(hold.tool),
+      [
+        (api) => {
+          api.on('input', async (event) => {
+            if (event.text !== 'host input') return
+            entered.release()
+            await release.promise
+            return { action }
+          })
+        }
+      ],
+      async (request, open) => (native = await open(request))
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [
+      { text: '', toolCalls: [{ name: 'hold', args: {} }] },
+      { text: 'first answer' },
+      { text: 'next answer' },
+      { text: 'last answer' }
+    ])
+    await pi.harness.sendUser(t, 'first')
+    await hold.started
+    const prompt = pi.behavior.prompt(t, 'host input')
+    await entered.promise
+    await pi.harness.sendUser(t, 'inbox input')
+    hold.release()
+    await native.session.waitForIdle()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(pi.requests(t)).toHaveLength(2)
+    release.release()
+    await prompt
+    await pi.harness.settle()
+    const users = native.session.state.messages.filter((message) => message.role === 'user')
+    expect(users.map((message) => message.content)).toEqual(
+      (action === 'continue' ? ['first', 'host input', 'inbox input'] : ['first', 'inbox input']).map((text) => [
+        { type: 'text', text }
+      ])
+    )
+  })
+
+  it('leaves inbox work queued when a host prompt fails during execution', async () => {
+    const hold = holdTool()
+    const pi = await openPiHarness((ports) => ports.tools.register(hold.tool))
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [
+      { text: '', toolCalls: [{ name: 'hold', args: {} }] },
+      { error: 'model failed' },
+      { text: 'must stay queued' }
+    ])
+    const prompt = pi.behavior.prompt(t, 'first')
+    await hold.started
+    await pi.harness.sendUser(t, 'inbox input')
+    hold.release()
+    await prompt
+    await pi.harness.settle()
+    expect(pi.requests(t)).toHaveLength(2)
+    expect((await read(pi, t)).live.runEnd?.outcome).toBe('error')
   })
 
   // Catches one session that fails to abort or dispose leaving the others undisposed, the harness open, or a failure

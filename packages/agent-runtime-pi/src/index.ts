@@ -65,4 +65,11 @@ export {
   type PiBehaviorOptions
 } from './behavior/harness'
 export type { AgentRuntimeEvent, CompactionReason } from './sessionEvents'
-export { createPiRuntime, type PiRuntime, type PiRuntimeOptions, type PiSessionOptions } from './runtime'
+export {
+  createPiRuntime,
+  type PiRuntime,
+  type PiRuntimeOptions,
+  type PiRuntimeBehavior,
+  type PiSessionOptions,
+  type PiThreadHandle
+} from './runtime'
