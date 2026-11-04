@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
 import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
@@ -406,9 +407,7 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </button>
     ),
-    Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <div {...props}>{children}</div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     SearchInput: ({
       clearLabel,
       onClear,

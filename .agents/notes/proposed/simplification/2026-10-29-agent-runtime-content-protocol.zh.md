@@ -10,7 +10,7 @@ Status: proposed
 
 由此暴露的问题有不同根因。重复显示助手标题源于来源与消息的粒度不一致；工具进度不显示源于 preliminary 输出处理和存档/实时数据的优先级；子任务仍运行却显示结束源于使用了父任务的活动状态。替换内容类型解决第一处转换边界，同时必须保留另外两类问题已经单独验证的修复。
 
-本方案部分取代[公共 Runtime 契约](../architecture/2026-10-17-agent-runtime-contract.md)中的内容表达和 reader 位置、[harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)中排除 AI SDK 的约束，以及 [Claude 迁移](https://github.com/CherryHQ/cherry-studio/pull/22766)中的内容转换。原有执行、输入接纳、原生存储、子任务所有权和产品交付契约继续有效。已批准的迁移已在工作区实现；剩余验收证据和所属栈层完成之前，本文继续保留 proposed 状态。
+本方案部分取代[公共 Runtime 契约](../architecture/2026-10-17-agent-runtime-contract.md)中的内容表达和 reader 位置、[harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)中排除 AI SDK 的约束，以及 [Claude 迁移](../architecture/2026-10-27-agent-runtime-claude-code.md)中的内容转换。原有执行、输入接纳、原生存储、子任务所有权和产品交付契约继续有效。已批准的迁移已在工作区实现；剩余验收证据和所属栈层完成之前，本文继续保留 proposed 状态。
 
 ## 方案
 

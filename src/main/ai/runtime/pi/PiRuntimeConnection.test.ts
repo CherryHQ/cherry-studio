@@ -40,7 +40,8 @@ import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
-import { buildPiLoginPathPrefix, PiRuntimeConnection } from './PiRuntimeConnection'
+import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
 
