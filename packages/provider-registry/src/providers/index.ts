@@ -24,6 +24,7 @@ import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_grok_cli from './grok-cli'
 import p_groq from './groq'
+import p_hopbase from './hopbase'
 import p_huggingface from './huggingface'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
@@ -135,5 +136,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_hopbase
 ]
