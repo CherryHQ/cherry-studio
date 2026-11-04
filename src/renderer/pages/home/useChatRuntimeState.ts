@@ -213,7 +213,7 @@ export function useChatRuntimeState({
 
   // Deterministic overlay→DB handoff at terminal (see hook docs); branch
   // bookkeeping stays in `handleExecutionFinish`.
-  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay))
+  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
     messages,

@@ -39,7 +39,7 @@ Native queues, child lifetime and persistence destinations remain owner-specific
 
 Root updates coalesce into one pending view over 80 ms. Child reconciliation already batches native updates and writes its archive before publication, so it publishes immediately after that work. Revisions count published batches, not model chunks. Capturing a baseline flushes pending accepted content first.
 
-A root terminal is published in the notification phase, after terminal persistence. The final view includes accepted content and the final execution state in the same revision. Persistence failure publishes an `unresolved` execution with readable content and an error; it does not signal a successful DB handoff. Host-resolved approvals are folded into Main's snapshots so a later SDK snapshot cannot restore a dismissed approval card.
+A root terminal is published in the notification phase, after terminal persistence. The final view includes accepted content, the final execution state and its owning `userMessageId` in the same revision. That identity correlates a queued submit's user-only acknowledgement with its later assistant attempt and recovery completion. Persistence failure publishes an `unresolved` execution with readable content and an error; it does not signal a successful DB handoff. Host-resolved approvals are folded into Main's snapshots so a later SDK snapshot cannot restore a dismissed approval card.
 
 ## Attachment and recovery
 
@@ -55,7 +55,7 @@ The store shares one transport subscription among consumers of the same target i
 
 - Update routing retains the execution attempt and anchor. A stale active-execution cache cannot overwrite a newer attempt.
 - Finish callbacks occur once per observed attempt. Replayed or duplicate revisions do not repeat completion.
-- A completed overlay stays readable until the consumer refreshes its existing message store and calls `reset` or `disposeOverlay`.
+- A completed overlay stays readable until the consumer refreshes its existing message store and calls `reset` or `disposeOverlay`. Home and Agent Chat also perform this handoff for an initially terminal baseline, whether topic status or projection content arrives first, so retained snapshots cannot override saved edits or deletions.
 - A delayed handoff leaves active and unresolved attempts intact. Explicit `clear` hides the current attempt even if it continues producing frames.
 - Topic status and approval indicators still use the existing shared-cache status entries. Those entries do not contain the streamed body.
 

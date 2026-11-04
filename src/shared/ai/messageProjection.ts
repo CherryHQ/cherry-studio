@@ -19,6 +19,7 @@ export interface ChildProjectionState {
 export interface ProjectedExecution {
   executionId: UniqueModelId
   attemptId: number
+  userMessageId?: string
   anchorMessageId?: string
   messageId?: string
   status: 'active' | 'done' | 'paused' | 'error' | 'unresolved'

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { defaultServiceInstances, MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
@@ -10,9 +11,11 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { AiService } from '@main/ai/AiService'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
+import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
@@ -125,6 +128,40 @@ function fixture() {
   })
   return { service, sender, destroy, ready, connection, connect, view, listeners, context }
 }
+
+// Desktop projections carry no listener window; the initiating command still owns MCP consent.
+it.each([false, true])('resolves MCP interactions from the initiating window (headless: %s)', async (headless) => {
+  const f = fixture()
+  MockApplicationUtils.setService('AgentSessionRuntimeService', f.service)
+  MockApplicationUtils.setService('AiStreamManager', new AiStreamManager())
+  defaultServiceInstances.WindowManager.getWindow.mockReturnValue({} as never)
+  onTestFinished(() => {
+    MockApplicationUtils.resetServices()
+    defaultServiceInstances.WindowManager.getWindow.mockReset()
+  })
+  const turn = f.service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: replyId,
+    headless
+  })
+  const stream = await new AiService().streamText({
+    conversation: { id: 'root', topicId: 'agent-session:root' },
+    trigger: 'submit-message',
+    runtime: { kind: 'agent-session', sessionId: 'root', turnId: turn.turnId },
+    interactionWindowId: 'window-1',
+    requestOptions: { signal: turn.abortController.signal }
+  })
+  expect(f.service.getMcpInteractionHost('root')).toEqual(
+    headless ? undefined : { windowId: 'window-1', topicId: 'agent-session:root', model: 'test::model' }
+  )
+  defaultServiceInstances.WindowManager.getWindow.mockReturnValue(undefined)
+  expect(f.service.getMcpInteractionHost('root')).toBeUndefined()
+  await stream.cancel()
+})
 
 // Catches child IPC writing while backup holds admission, including overlapping pause owners.
 it('rejects child input until the final writer pause is released', async () => {

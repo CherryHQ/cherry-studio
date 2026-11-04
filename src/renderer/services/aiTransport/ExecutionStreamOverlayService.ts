@@ -9,6 +9,7 @@ const logger = loggerService.withContext('ExecutionStreamOverlayService')
 
 export interface ExecutionFinishEvent {
   attemptId: number
+  userMessageId?: string
   message: CherryUIMessage
   isAbort: boolean
   isError: boolean
@@ -54,7 +55,7 @@ export class ExecutionStreamOverlayService {
         if (!this.visible(entry, execution)) continue
         const message = execution.messageId && messages.get(execution.messageId)
         if (!message) continue
-        const event = { attemptId: execution.attemptId, message }
+        const event = { attemptId: execution.attemptId, userMessageId: execution.userMessageId, message }
         if (previous?.messages.find((item) => item.id === message.id) !== message)
           for (const listener of entry.updates) this.deliver(() => listener(execution.executionId, event))
         if (

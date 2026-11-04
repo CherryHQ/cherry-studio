@@ -90,7 +90,11 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
           ...message,
           parts: finalizeInterruptedParts(message.parts, result.status)
         })
-      this.executions.set(execution.executionId, { ...this.executions.get(execution.executionId)!, status })
+      this.executions.set(execution.executionId, {
+        ...this.executions.get(execution.executionId)!,
+        userMessageId: result.userMessageId,
+        status
+      })
     }
     this.publish(true)
   }

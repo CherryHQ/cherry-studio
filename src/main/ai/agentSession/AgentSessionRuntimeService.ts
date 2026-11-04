@@ -190,6 +190,7 @@ export interface AgentSessionRuntimeHandle {
 export interface OpenAgentSessionTurnStreamInput {
   sessionId: string
   turnId: string
+  interactionWindowId?: string
   signal: AbortSignal
 }
 
@@ -949,6 +950,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry || !turn || turn.turnId !== input.turnId) {
       throw new Error(`No active agent runtime turn ${input.turnId} for session ${input.sessionId}`)
     }
+    if (input.interactionWindowId) entry.interactionWindowId = input.interactionWindowId
 
     return new ReadableStream<UIMessageChunk>({
       start: async (controller) => {

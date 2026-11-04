@@ -603,6 +603,7 @@ export class AiService extends BaseService {
       return application.get('AgentSessionRuntimeService').openTurnStream({
         sessionId: request.runtime.sessionId,
         turnId: request.runtime.turnId,
+        interactionWindowId: request.interactionWindowId,
         signal
       })
     }

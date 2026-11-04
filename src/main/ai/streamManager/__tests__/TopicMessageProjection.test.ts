@@ -46,13 +46,19 @@ it.each(['success', 'paused', 'error'] as const)('flushes the final message with
   const projection = new TopicMessageProjection('topic', (value) => value)
   projection.begin([{ executionId: 'p::a', attemptId: 1, anchorMessageId: 'a' }], true)
   projection.accumulate('p::a', 1, message('complete text'))
-  const result = { modelId: 'p::a' as const, attemptId: 1, finalMessage: message('complete text') }
+  const result = {
+    modelId: 'p::a' as const,
+    attemptId: 1,
+    userMessageId: 'queued-user',
+    finalMessage: message('complete text')
+  }
   if (status === 'success') projection.onDone({ ...result, status })
   else if (status === 'paused') projection.onPaused({ ...result, status })
   else projection.onError({ ...result, status, error: { name: 'Error', message: 'provider failed', stack: '' } })
   const view = projection.snapshot()
   expect(view.messages[0].parts[0]).toMatchObject({ text: 'complete text' })
   expect(view.executions[0].status).toBe(status === 'success' ? 'done' : status)
+  expect(view.executions[0]).toMatchObject({ userMessageId: 'queued-user' })
   if (status === 'error') expect(view.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
   projection.dispose()
 })
