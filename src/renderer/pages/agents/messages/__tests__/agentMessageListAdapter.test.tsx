@@ -65,8 +65,6 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
-const navigateMock = vi.hoisted(() => vi.fn())
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -318,13 +316,15 @@ describe('useAgentMessageListProviderValue', () => {
     async (scenario) => {
       const lookup = Promise.withResolvers<unknown>()
       dataApiMocks.get.mockReturnValueOnce(lookup.promise)
+      const navigateMock = vi.fn(async () => {})
       const { result } = renderHook(() =>
         useAgentMessageListProviderValue({
           topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
           messages: [],
           partsByMessageId: {},
           isLoading: false,
-          messageNavigation: 'anchor'
+          messageNavigation: 'anchor',
+          navigateToForkSource: navigateMock
         })
       )
       const opening = result.current.actions.openForkSourceSession!('parent')
@@ -337,10 +337,7 @@ describe('useAgentMessageListProviderValue', () => {
         )
       await opening
       if (scenario === 'success') {
-        expect(navigateMock).toHaveBeenCalledWith({
-          to: '/app/agents',
-          search: { sessionId: 'parent', forkReturnSessionId: 'child' }
-        })
+        expect(navigateMock).toHaveBeenCalledWith({ sourceSessionId: 'parent', returnSessionId: 'child' })
         expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
       } else {
         expect(navigateMock).not.toHaveBeenCalled()
@@ -350,6 +347,19 @@ describe('useAgentMessageListProviderValue', () => {
       }
     }
   )
+
+  it('offers no fork-source action when the host cannot navigate in place', () => {
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+    )
+    expect(result.current.actions.openForkSourceSession).toBeUndefined()
+  })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {

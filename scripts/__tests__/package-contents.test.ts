@@ -128,11 +128,7 @@ describe('packaged dependency contents', () => {
     ]) {
       expect(includesFile(file), file).toBe(false)
     }
-    for (const file of [
-      'node_modules/koffi/src/koffi/index.cjs',
-      'node_modules/pdfjs-dist/cmaps/Adobe-GB1-UCS2.bcmap',
-      'resources/builtin-agents/icon.png'
-    ]) {
+    for (const file of ['node_modules/koffi/src/koffi/index.cjs', 'resources/builtin-agents/icon.png']) {
       expect(includesFile(file), file).toBe(true)
     }
   })

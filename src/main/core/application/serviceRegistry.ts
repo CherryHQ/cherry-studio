@@ -74,6 +74,7 @@ import { AttachmentPresenceService, RemoteAccessService } from '@main/services/r
 import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
+import { SelectionAgentWindowService } from '@main/services/selection/SelectionAgentWindowService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -143,6 +144,7 @@ export const services = {
   RuntimeActivityService,
   RuntimeQuitConfirmationService,
   SelectionService,
+  SelectionAgentWindowService,
   ShortcutService,
   ThemeService,
   TraceStorageService,

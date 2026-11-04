@@ -92,6 +92,10 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` â€
 
 Before upgrading any dependency, check `patches/` for custom patches.
 
+### Main-Process Dependencies
+
+New packages go in `devDependencies`; the main build bundles them. Put a package in `dependencies` only when it ships native code, loads its own package files by path, spawns binaries from its package, or must share one instance with an external package (R1â€“R4 in the [bundling Agent Note](.agents/notes/proposed/architecture/2026-11-03-main-dependency-bundling.md)). Everything in `dependencies` is copied whole into the app.
+
 ## GitHub
 
 ### Pull Requests

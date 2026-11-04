@@ -5,6 +5,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { application } from '@application'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -28,6 +29,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -112,6 +114,7 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
+import { savedChildView } from './ChildThreadProjection'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
@@ -487,6 +490,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
   /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
+  private readonly inFlightChildWrites = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -514,11 +518,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const blockedSessions = await relocateSystemWorkspaces()
     await this.forks.recover()
 
-    // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
-    // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
-    // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
-    // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
-    // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
+    // Pi execution dies with Main; terminalize its product placeholders while retaining native history.
+    // Delivery recovery owns rows with a persisted delivery turn, and other native owners recover separately.
     this.reconcileStalePendingMessages(blockedSessions)
     recoverSessionDeliveries()
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
@@ -535,7 +536,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private reconcileStalePendingMessages(protectedSessions = new Set<string>()): void {
     try {
       const stale = agentSessionMessageService
-        .findCrashOrphanedAssistantMessages()
+        .findCrashOrphanedAssistantMessages(['pi'])
         .filter((row) => !protectedSessions.has(row.sessionId))
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
@@ -543,9 +544,7 @@ export class AgentSessionRuntimeService extends BaseService {
         count: stale.length,
         sessionCount: sessionIds.length
       })
-      // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
-      // tasks, unanswerable approval requests) so history renders settled, and discard the
-      // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
+      // Pending approvals and tool parts lost their in-memory owner; native identities remain valid.
       agentSessionMessageService.resolveCrashOrphanedMessages(
         stale.map(({ id, data }) => ({
           id,
@@ -1225,6 +1224,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   releaseIdleConnection(sessionId: string): void {
     const idleEntry = this.entries.get(sessionId)
+    if (idleEntry && this.currentConnection(idleEntry)?.retainWhileIdle) return
     if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
     if (this.isSessionBusy(sessionId)) return
     void this.closeSession(sessionId)
@@ -1369,8 +1369,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.forks.edits.size || this.failedClosures.size) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
+    if (this.inFlightChildWrites.size > 0) return true
     for (const sessionId of this.entries.keys()) {
-      if (this.isSessionBusy(sessionId)) return true
+      if (this.isSessionBusyForArchive(sessionId)) return true
     }
     return false
   }
@@ -1469,8 +1470,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
-   * detached-flow finalizers, and runtime close barriers, bounded by timeoutMs. Never rejects;
-   * stragglers are NOT aborted.
+   * child input/native archive writes, detached-flow finalizers, and runtime close barriers.
+   * Bounded by timeoutMs; never rejects and does not abort stragglers.
    * The resulting stream writes are AiStreamManager's drain — this only covers the windows this
    * service writes in.
    * The set can grow one step while draining (a settling turn schedules the next start
@@ -1486,6 +1487,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const seen = new WeakSet<Promise<unknown>>()
+    const drainedConnections = new Set<AgentRuntimeConnection>()
+    const failed = new Set<string>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
       for (const fork of this.forks.pending.values()) {
@@ -1509,6 +1512,29 @@ export class AgentSessionRuntimeService extends BaseService {
         const remove = () => pending.delete(flush)
         flush.then(remove, remove)
       }
+      for (const [writing, sessionId] of this.inFlightChildWrites) {
+        if (seen.has(writing)) continue
+        seen.add(writing)
+        pending.set(writing, sessionId)
+        const remove = () => pending.delete(writing)
+        writing.then(remove, remove)
+      }
+      for (const [sessionId, entry] of this.entries) {
+        const connection = this.currentConnection(entry)
+        if (!connection?.drainChildWrites || drainedConnections.has(connection)) continue
+        drainedConnections.add(connection)
+        const inputs = [...this.inFlightChildWrites].filter(([, owner]) => owner === sessionId).map(([work]) => work)
+        const writing = Promise.allSettled(inputs).then(() => connection.drainChildWrites!())
+        pending.set(writing, sessionId)
+        void writing.then(
+          () => pending.delete(writing),
+          (error) => {
+            failed.add(sessionId)
+            pending.delete(writing)
+            logger.warn('Failed to drain child writes', { sessionId, error })
+          }
+        )
+      }
       for (const [sessionId, closing] of this.closingSessions) {
         if (seen.has(closing.promise)) continue
         seen.add(closing.promise)
@@ -1525,13 +1551,13 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for (;;) {
         collect()
-        if (pending.size === 0) return { stragglerIds: [] }
+        if (pending.size === 0) return { stragglerIds: [...failed] }
         const winner = await Promise.race([
           Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
           timeout
         ])
         if (winner === 'timeout') {
-          const stragglerIds = [...new Set(pending.values())]
+          const stragglerIds = [...new Set([...pending.values(), ...failed])]
           logger.warn('drainInFlight timed out with unsettled work', { timeoutMs: opts.timeoutMs, stragglerIds })
           return { stragglerIds }
         }
@@ -1546,7 +1572,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const work: Array<{ id: string; summary: string }> = []
     const activeSessionIds = new Set<string>()
     for (const [sessionId, entry] of this.entries) {
-      if (!this.isSessionBusy(sessionId)) continue
+      if (!this.isSessionBusyForArchive(sessionId)) continue
       activeSessionIds.add(sessionId)
       const turn = this.liveTurn(entry) ? 'live' : '-'
       work.push({
@@ -1559,6 +1585,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const operation of this.forks.pending.values()) {
       work.push({ id: operation.sourceSessionId, summary: 'forking=true' })
+    }
+    for (const sessionId of new Set(this.inFlightChildWrites.values())) {
+      if (!activeSessionIds.has(sessionId)) work.push({ id: sessionId, summary: 'child-input=true' })
     }
     return work
   }
@@ -1630,6 +1659,70 @@ export class AgentSessionRuntimeService extends BaseService {
     return await connection.stopTask(taskId)
   }
 
+  private readonly childSubscriptions = new Map<Electron.WebContents, Map<string, () => void>>()
+
+  detachChild(sender: Electron.WebContents, id: string): void {
+    this.childSubscriptions.get(sender)?.get(id)?.()
+    this.childSubscriptions.get(sender)?.delete(id)
+  }
+
+  async attachChild(
+    sender: Electron.WebContents,
+    sessionId: string,
+    toolCallId: string,
+    id: string,
+    send: (update: AgentChildUpdate) => void
+  ): Promise<AgentChildView | null> {
+    this.detachChild(sender, id)
+    let subscriptions = this.childSubscriptions.get(sender)
+    if (!subscriptions) {
+      subscriptions = new Map()
+      this.childSubscriptions.set(sender, subscriptions)
+      sender.once('destroyed', () => {
+        for (const dispose of subscriptions!.values()) dispose()
+        this.childSubscriptions.delete(sender)
+      })
+    }
+    const marker = () => {}
+    subscriptions.set(id, marker)
+    await this.primeConnection(sessionId)
+    if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+    const entry = this.entries.get(sessionId)
+    let connection: AgentRuntimeConnection | undefined
+    try {
+      if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
+    } catch (error) {
+      logger.warn('Failed to connect child subscriber', { sessionId, error })
+    }
+    if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+    if (entry && this.entries.get(sessionId) !== entry) return null
+    const child = await connection?.childProjection?.(toolCallId)
+    if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+    if (entry && (this.entries.get(sessionId) !== entry || this.currentConnection(entry) !== connection)) return null
+    if (child) {
+      subscriptions.set(id, child.subscribe(send))
+      return child.snapshot()
+    }
+    const context = childContexts.findChild(sessionId, toolCallId)
+    return context ? savedChildView(context) : null
+  }
+
+  async messageChild(sessionId: string, contextId: string, text: string): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) throw new Error('Session writes are paused')
+    const entry = this.entries.get(sessionId)
+    const connection = entry && this.currentConnection(entry)
+    if (!connection?.messageChild) throw new Error('Child native owner is unavailable')
+    const writing = Promise.resolve().then(() => connection.messageChild!(contextId, text))
+    this.inFlightChildWrites.set(writing, sessionId)
+    this.syncRuntimeActivity()
+    try {
+      await writing
+    } finally {
+      this.inFlightChildWrites.delete(writing)
+      this.syncRuntimeActivity()
+    }
+  }
+
   recordToolExecutionTiming(
     sessionId: string,
     input: { toolCallId: string; toolName: string; durationMs: number }
@@ -1675,6 +1768,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    for (const subscriptions of this.childSubscriptions.values())
+      for (const dispose of subscriptions.values()) dispose()
+    this.childSubscriptions.clear()
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
@@ -1917,6 +2013,7 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
+      branchHead: entry.branchHead,
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
@@ -3535,6 +3632,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
+    if (this.currentConnection(entry)?.retainWhileIdle) return
     if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
       return
     }

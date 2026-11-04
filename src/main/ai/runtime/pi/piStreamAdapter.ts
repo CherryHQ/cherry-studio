@@ -158,7 +158,7 @@ export class PiStreamAdapter {
     }
   }
 
-  private handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
+  handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
     if (this.startedTools.has(toolCallId)) return
     this.startedTools.add(toolCallId)
     this.sink.enqueue({
@@ -180,7 +180,7 @@ export class PiStreamAdapter {
     })
   }
 
-  private handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+  handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean, preliminary = false): void {
     // A tool result with no preceding start (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {})
     if (isError) {
@@ -198,6 +198,7 @@ export class PiStreamAdapter {
     }
     this.sink.enqueue({
       type: 'tool-output-available',
+      preliminary,
       toolCallId,
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
@@ -206,7 +207,7 @@ export class PiStreamAdapter {
     })
   }
 
-  private handleTurnEnd(message: unknown): void {
+  handleTurnEnd(message: unknown): void {
     const usage = extractAssistantUsage(message)
     if (!usage) return
     const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite
