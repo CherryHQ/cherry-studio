@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 128 128" fill="none" role="img" aria-label="Liquid Inference">
+  <title>Liquid Inference</title>
+  <defs><clipPath id="liquid"><rect x="5" y="5" width="54" height="118" rx="27"/></clipPath></defs>
+  <!-- A white outline, so the blue capsule stands out on a dark browser tab. -->
+  <rect x="28" width="72" height="128" rx="36" fill="#ffffff"/>
+  <g transform="translate(36 8) scale(.875)">
+    <rect width="64" height="128" rx="32" fill="#3c96dc"/>
+    <g fill="#ffffff" clip-path="url(#liquid)">
+      <circle cx="25" cy="17" r="8"/>
+      <circle cx="44" cy="43" r="12"/>
+      <path d="M5 108C13 106 23 106 26 99C29 92 26 86 20 85C11 84 6 79 6 72C6 63 12 57 20 57C29 57 35 63 35 72C35 79 32 84 35 90C39 98 51 97 59 104V128H5Z"/>
+    </g>
+  </g>
+</svg>

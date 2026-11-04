@@ -913,6 +913,30 @@
     },
     {
       "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Liquid Inference - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.inference.ai.exchange/v1",
+          "modelsApiUrls": {
+            "default": "https://router.inference.ai.exchange/v1/models"
+          }
+        }
+      },
+      "id": "liquid-inference",
+      "metadata": {
+        "website": {
+          "apiKey": "https://inference.ai.exchange/docs/keys?utm_source=cherry-studio&utm_medium=registry",
+          "docs": "https://inference.ai.exchange/docs/connect-cherry-studio?utm_source=cherry-studio&utm_medium=registry",
+          "models": "https://router.inference.ai.exchange/v1/models",
+          "official": "https://liquidinference.ai?utm_source=cherry-studio&utm_medium=registry"
+        }
+      },
+      "name": "Liquid Inference"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
       "endpointConfigs": {
@@ -2931,5 +2955,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "70e1e7ba16416870"
+  "version": "b8354f744a72a471"
 }
