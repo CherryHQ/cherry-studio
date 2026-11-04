@@ -157,6 +157,10 @@ export class HeifRenditionService extends BaseService {
     }
   }
 
+  protected onInit(): void {
+    this.stopped = false
+  }
+
   protected onStop(): void {
     this.stopped = true
     for (const pending of [...this.waiting, ...(this.active ? [this.active] : [])]) {

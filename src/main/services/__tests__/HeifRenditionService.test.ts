@@ -37,6 +37,22 @@ it('decodes real bytes and reuses the encoded result by SHA-256 content', async 
   expect(second.content).toBe(first.content)
 })
 
+it('decodes real bytes again after the same service instance is stopped and re-initialized', async () => {
+  const first = await service.getRendition({ kind: 'bytes', content: bytes })
+  await assertQuadrants(first.content)
+  expect(first.mediaType).toBe('image/png')
+
+  await service._doStop()
+  await expect(service.getRendition({ kind: 'bytes', content: bytes })).rejects.toMatchObject({
+    code: 'FILE_HEIF_UNAVAILABLE'
+  })
+
+  await service._doInit()
+  const rendition = await service.getRendition({ kind: 'bytes', content: bytes })
+  await assertQuadrants(rendition.content)
+  expect(rendition.mediaType).toBe('image/png')
+})
+
 it('does not reuse a cached result for different bytes of identical size', async () => {
   vi.spyOn(imageUtils, 'transcodeHeifToPng').mockImplementation(async (input) => ({ ...fakePng, width: input[0] }))
   const a = await service.getRendition({ kind: 'bytes', content: new Uint8Array([1, 2]) })
