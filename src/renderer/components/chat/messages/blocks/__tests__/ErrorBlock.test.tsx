@@ -221,6 +221,53 @@ required service tier.`
     expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
+  it.each([
+    [
+      'its own wording',
+      JSON.stringify({
+        message: '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。',
+        type: 'rate_limit_error',
+        code: 'rate_limit_exceeded'
+      }),
+      '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
+    ],
+    ['a quota message when it has none', 'Too Many Requests', 'models.detail.quota_exhausted']
+  ])('shows a Cherry AI plan quota rejection with %s and no settings shortcut', (_case, body, shown) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: body, stack: null, statusCode: 429 }}
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText(shown)).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
+  })
+
+  it('keeps the settings shortcut for another provider rate limit', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
+  })
+
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
     const navigateErrorTarget = vi.fn()
     mocks.actions = { navigateErrorTarget }

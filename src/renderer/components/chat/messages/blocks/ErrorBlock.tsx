@@ -15,6 +15,8 @@ import {
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -140,12 +142,25 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
+  // A Cherry AI subscription plan's own rejection says which plan ran out and when to retry; settings cannot fix it.
+  const cherryCloudQuotaRejection =
+    providerId === CHERRY_CLOUD_PROVIDER_ID &&
+    (classification.category === 'rate_limit' || classification.category === 'quota')
+  const cherryCloudQuotaText = useMemo(
+    () =>
+      cherryCloudQuotaRejection && error
+        ? getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data }) ||
+          getSafeProviderErrorMessage({ responseBody: error.message })
+        : '',
+    [cherryCloudQuotaRejection, error]
+  )
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
+    if (cherryCloudQuotaRejection) return cherryCloudQuotaText || t('models.detail.quota_exhausted')
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
@@ -155,7 +170,16 @@ const MessageErrorInfo: React.FC<{
       })
     }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
-  }, [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, localModelFailure, providerId, t])
+  }, [
+    cherryCloudQuotaRejection,
+    cherryCloudQuotaText,
+    hasAppOwnedI18nKey,
+    appOwnedErrorKey,
+    classification.i18nKey,
+    localModelFailure,
+    providerId,
+    t
+  ])
 
   useEffect(() => {
     if (
@@ -233,7 +257,7 @@ const MessageErrorInfo: React.FC<{
 
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
-  const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+  const canNavigate = !!classification.navTarget && !!navigateErrorTarget && !cherryCloudQuotaRejection
 
   return (
     <div
