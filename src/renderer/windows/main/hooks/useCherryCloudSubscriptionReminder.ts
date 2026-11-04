@@ -32,6 +32,11 @@ export function useCherryCloudSubscriptionReminder(): void {
     if (freshPlansRef.current !== 'ready') {
       if (plansQuery.isValidating) freshPlansRef.current = 'revalidating'
       if (plansQuery.isValidating || freshPlansRef.current === 'awaiting') return
+      // A failed revalidation leaves the pre-sign-out plans in place; wait for one that succeeds.
+      if (plansQuery.error) {
+        freshPlansRef.current = 'awaiting'
+        return
+      }
       freshPlansRef.current = 'ready'
     }
     if (!plansQuery.data) return
@@ -44,5 +49,5 @@ export function useCherryCloudSubscriptionReminder(): void {
     if (activePaid && previous.paidEntitlementId === null) {
       toast.success(t('settings.subscription.activated', { plan: activePaid.plan.display_name }))
     }
-  }, [accountId, activePaid, mutate, plansQuery.data, plansQuery.isValidating, t])
+  }, [accountId, activePaid, mutate, plansQuery.data, plansQuery.error, plansQuery.isValidating, t])
 }

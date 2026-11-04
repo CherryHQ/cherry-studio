@@ -129,6 +129,42 @@ describe('useCherryCloudSubscriptionReminder', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('does not announce a subscription made while signed out when the first refresh after sign-in fails', async () => {
+    let publishStatus: (next: CherryCloudStatus) => void = () => {}
+    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
+    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
+      if (event === 'cherry_cloud.status_changed') publishStatus = (next) => handler(next)
+      return () => {}
+    })
+    onTestFinished(() => {
+      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
+    })
+    status = signedIn('account-1')
+    plans = unpaid()
+    renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() => expect(plansRequests()).toBe(1))
+
+    status = { phase: 'signed-out', accountId: null, displayName: null }
+    await act(async () => publishStatus(status))
+    let failNext = true
+    const defaultRequest = request.getMockImplementation()
+    request.mockImplementation(async (route, ...args) => {
+      if (route === 'cherry_cloud.account_plans.get' && failNext) {
+        failNext = false
+        return { ok: false, error: { code: 'INTERNAL', message: 'offline' } }
+      }
+      return defaultRequest!(route, ...args)
+    })
+    plans = paid('Plus')
+    status = signedIn('account-1')
+    await act(async () => publishStatus(status))
+    await waitFor(() => expect(plansRequests()).toBe(2))
+
+    await returnFromBrowser()
+    await waitFor(() => expect(plansRequests()).toBeGreaterThanOrEqual(3))
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('stays quiet for an account that was already subscribed', async () => {
     status = signedIn('account-1')
     plans = paid('Flash')
