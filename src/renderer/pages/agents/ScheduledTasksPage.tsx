@@ -117,7 +117,7 @@ export default function ScheduledTasksPage() {
           <SelectTrigger className="w-auto max-w-full" aria-label={t('scheduledTasks.conversation')}>
             <SelectValue placeholder={t('scheduledTasks.conversation')} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
             {runId && conversation.result.startedAt && !conversation.result.logs.some((log) => log.id === runId) && (
               <SelectItem value={runId}>{formatTaskCardTime(conversation.result.startedAt)}</SelectItem>
             )}
