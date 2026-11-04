@@ -2068,6 +2068,7 @@
   "library.config.agent.field.name.label": "Nombre del agente",
   "library.config.agent.field.name.placeholder": "Dale un nombre al agente",
   "library.config.agent.field.permission_mode.label": "Modo de permiso",
+  "library.config.agent.field.permission_mode.support_headless_hint": "Cherry Support no puede ejecutar comandos de shell en tareas programadas ni canales sin interfaz, independientemente del modo de permisos. Usa otro agente para ejecutar comandos de shell sin interfaz.",
   "library.config.agent.field.plan_model.empty": "Sin configurar — sigue el modelo principal",
   "library.config.agent.field.plan_model.hint": "Fija a qué modelo se resuelve el alias `sonnet` de Claude Code (ANTHROPIC_DEFAULT_SONNET_MODEL). Los subagentes heredan el modelo principal salvo que pidan explícitamente `sonnet`. Asignar un modelo de otro proveedor, o uno que no hable Anthropic Messages, enruta toda la sesión por la puerta de enlace integrada de Cherry.",
   "library.config.agent.field.plan_model.label": "Modelo Sonnet",

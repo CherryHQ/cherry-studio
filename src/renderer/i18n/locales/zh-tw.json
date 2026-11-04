@@ -2068,6 +2068,7 @@
   "library.config.agent.field.name.label": "Agent 名稱",
   "library.config.agent.field.name.placeholder": "給 Agent 取個名字",
   "library.config.agent.field.permission_mode.label": "權限模式",
+  "library.config.agent.field.permission_mode.support_headless_hint": "無論權限模式為何，Cherry Support 都無法在排程任務或無介面頻道中執行 Shell 命令。若要在無介面環境執行 Shell，請改用其他 Agent。",
   "library.config.agent.field.plan_model.empty": "未設定 — 跟隨主要模型",
   "library.config.agent.field.plan_model.hint": "固定 Claude Code 的 `sonnet` 別名指向的模型（ANTHROPIC_DEFAULT_SONNET_MODEL）。子代理預設繼承主模型，只有明確指定 `sonnet` 時才用這一欄。指定其他供應商、或不支援 Anthropic Messages 協定的模型時，整個工作階段將改走 Cherry 內建閘道。",
   "library.config.agent.field.plan_model.label": "Sonnet 模型",
