@@ -187,4 +187,35 @@ describe('Codex raw rollout contract', () => {
     expect(result.messages[4].role).toBe('system')
     expect(result.messages[4].data.parts).toEqual([{ type: 'text', text: expect.stringContaining('first\nsecond') }])
   })
+  it('filters Guardian by versioned origin even after rename, not by title or ordinary subagent status', async () => {
+    const guardian = { cli_version: '0.164.0-alpha.11.1', source: { subagent: { other: 'guardian' } } }
+    await file('rollout-guardian.jsonl', [meta('g', guardian), message('synthetic approval request')])
+    await file('session_index.jsonl', [{ id: 'g', thread_name: 'Renamed review' }])
+    expect((await discover())[0].filteredReason).toBe('codex_guardian_review')
+    for (const extra of [
+      {},
+      { source: { subagent: { thread_spawn: { parent_thread_id: 'parent' } } } },
+      { ...guardian, cli_version: '0.999.0' }
+    ]) {
+      const p = await file('rollout-normal.jsonl', [meta('normal', extra), message('Guardian review')])
+      expect((await codexAdapter.read({ path: p }, signal())).filteredReason).toBeUndefined()
+    }
+  })
+  it('does not hide conflicting Guardian copies or malformed and incomplete rollouts', async () => {
+    const guardian = meta('thread', { cli_version: '0.164.0-alpha.11.1', source: { subagent: { other: 'guardian' } } })
+    await file('rollout-a.jsonl', [guardian, message('review')])
+    await file('rollout-b.jsonl', [meta(), message('real user task')])
+    const [ref] = await discover()
+    expect(ref.filteredReason).toBeUndefined()
+    expect((await codexAdapter.read(ref, signal())).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_history_layout' })
+    )
+    const p = await file('rollout-malformed.jsonl', [guardian, '{broken'])
+    expect((await codexAdapter.read({ path: p }, signal())).filteredReason).toBeUndefined()
+    const fragment = await file('rollout-fragment.jsonl', [
+      { ...guardian, ordinal: 0, payload: { ...guardian.payload, history_mode: 'paginated' } },
+      { ...message('review'), ordinal: 2 }
+    ])
+    expect((await codexAdapter.read({ path: fragment }, signal())).filteredReason).toBeUndefined()
+  })
 })

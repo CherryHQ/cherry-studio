@@ -7,7 +7,7 @@ import { formatCodexHistoryText, formatCodexTool, isCodexContextText } from '@da
 import type { MessageData } from '@shared/data/types/message'
 
 import { discoverJsonl, readJsonl } from './files'
-import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession } from './types'
+import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
 const Row = z.object({
   ordinal: z.number().int().nonnegative().optional(),
@@ -50,11 +50,10 @@ export const codexAdapter: HistorySourceAdapter = {
         /* Preview reports malformed index records. */
       }
     }
-    const sessions = new Map<
-      string,
-      { path: string; sourcePaths: string[]; originalSessionId: string; title?: string }
-    >()
+    const sessions = new Map<string, SessionRef & { sourcePaths: string[]; originalSessionId: string }>()
+    let scanned = 0
     for await (const file of discoverJsonl(root, signal)) {
+      if (++scanned > 10_000) throw new Error('scan_limit')
       if (!path.basename(file).startsWith('rollout-')) continue
       let id = file
       try {
@@ -73,12 +72,12 @@ export const codexAdapter: HistorySourceAdapter = {
       if (sessions.size > 10_000) throw new Error('scan_limit')
     }
     for (const ref of sessions.values()) {
-      if (!ref.title) {
-        try {
-          ref.title = (await codexAdapter.read(ref, signal)).title
-        } catch {
-          signal.throwIfAborted()
-        }
+      try {
+        const session = await codexAdapter.read(ref, signal)
+        ref.title = session.title
+        ref.filteredReason = session.filteredReason
+      } catch {
+        signal.throwIfAborted()
       }
       yield ref
     }
@@ -311,6 +310,21 @@ export const codexAdapter: HistorySourceAdapter = {
         (rows.find((entry) => entry.row.timestamp)?.row.timestamp?.slice(0, 10) ?? result.originalSessionId)
     if (directories.size > 1) diagnose('directory_required', undefined, 'error')
     if (!result.messages.length) diagnose('empty_session', undefined, 'error')
+    const source = z.object({ subagent: z.object({ other: z.literal('guardian') }) }).safeParse(meta.data.source)
+    if (
+      meta.data.cli_version === '0.164.0-alpha.11.1' &&
+      source.success &&
+      !result.diagnostics.some((d) =>
+        [
+          'invalid_json',
+          'invalid_record',
+          'unsupported_version',
+          'unsupported_history_layout',
+          'unsupported_history_order'
+        ].includes(d.code)
+      )
+    )
+      result.filteredReason = 'codex_guardian_review'
     if (Buffer.byteLength(JSON.stringify(result)) > IMPORT_LIMITS.session) throw new Error('session_limit')
     return result
   }
