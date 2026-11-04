@@ -15,7 +15,7 @@ import {
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
-import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
+import { getSafeProviderErrorMessage, stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -149,8 +149,10 @@ const MessageErrorInfo: React.FC<{
   const cherryCloudQuotaText = useMemo(
     () =>
       cherryCloudQuotaRejection && error
-        ? getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data }) ||
-          getSafeProviderErrorMessage({ responseBody: error.message })
+        ? stripClaudeCodeRejectionPrefix(
+            getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data }) ||
+              getSafeProviderErrorMessage({ responseBody: error.message, message: error.message })
+          )
         : '',
     [cherryCloudQuotaRejection, error]
   )
@@ -160,7 +162,7 @@ const MessageErrorInfo: React.FC<{
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
-    if (cherryCloudQuotaRejection) return cherryCloudQuotaText || t('models.detail.quota_exhausted')
+    if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
@@ -172,7 +174,6 @@ const MessageErrorInfo: React.FC<{
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [
     cherryCloudQuotaRejection,
-    cherryCloudQuotaText,
     hasAppOwnedI18nKey,
     appOwnedErrorKey,
     classification.i18nKey,
@@ -290,7 +291,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        <ErrorMessage error={error} />
+        {cherryCloudQuotaRejection ? cherryCloudQuotaText : <ErrorMessage error={error} />}
       </div>
 
       {/* Footer */}

@@ -40,6 +40,7 @@ import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -1054,7 +1055,9 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+    const blockText = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+    // A failed request arrives as a synthetic message whose text carries Claude Code's status prefix.
+    const text = message.error ? stripClaudeCodeRejectionPrefix(blockText) : blockText
 
     if (text) {
       this.handleAssistantText(text, sdkParentToolUseId, ctx)

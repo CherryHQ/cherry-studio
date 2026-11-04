@@ -483,6 +483,28 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  it.each([
+    ['rate_limit', '套餐「Cherry Plus」额度已耗尽，建议 30天后重试。'],
+    [undefined, 'API Error: Request rejected (429) · quoted by the model']
+  ])('shows a failed request (error=%s) without the Claude Code status prefix', (error, shown) => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1',
+      ...(error && { error }),
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: error ? `API Error: Request rejected (429) · ${shown}` : shown }]
+      }
+    } as any)
+
+    const text = parts.flatMap((part) => (part.type === 'text-delta' ? [part.delta] : [])).join('')
+    expect(text).toBe(shown)
+  })
+
   it('maps text content block deltas', () => {
     const { adapter, parts } = createAdapter()
 

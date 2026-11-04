@@ -221,18 +221,11 @@ required service tier.`
     expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
+  const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
   it.each([
-    [
-      'its own wording',
-      JSON.stringify({
-        message: '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。',
-        type: 'rate_limit_error',
-        code: 'rate_limit_exceeded'
-      }),
-      '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
-    ],
-    ['a quota message when it has none', 'Too Many Requests', 'models.detail.quota_exhausted']
-  ])('shows a Cherry AI plan quota rejection with %s and no settings shortcut', (_case, body, shown) => {
+    ['its JSON body', JSON.stringify({ message: planText, type: 'rate_limit_error', code: 'rate_limit_exceeded' })],
+    ['the agent runtime status prefix', `API Error: Request rejected (429) · ${planText}`]
+  ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, body) => {
     const navigateErrorTarget = vi.fn()
     mocks.actions = { navigateErrorTarget }
     const cloudMessage = {
@@ -248,8 +241,9 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText(shown)).toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText(planText)).toBeInTheDocument()
+    expect(screen.queryByText(/API Error|error\.http\.429/)).toBeNull()
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
   })
 
