@@ -1,14 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
-import type { Provider, SystemProvider } from '@renderer/types/provider'
 
 import {
   firstLetter,
   getBaseModelName,
   getBriefInfo,
   getDefaultGroupName,
-  getFancyProviderName,
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
@@ -346,34 +344,6 @@ describe('naming', () => {
       // 验证自定义最大长度
       const text = 'This is a long text'
       expect(getBriefInfo(text, 5)).toBe('This...')
-    })
-  })
-
-  describe('getFancyProviderName', () => {
-    it('should get i18n name for system provider', () => {
-      const mockSystemProvider: SystemProvider = {
-        id: 'dashscope',
-        type: 'openai',
-        name: 'whatever',
-        apiHost: 'whatever',
-        apiKey: 'whatever',
-        models: [],
-        isSystem: true
-      }
-      // beforeAll 已将 i18n 切到 en-US
-      expect(getFancyProviderName(mockSystemProvider)).toBe('Qwen AI Platform')
-    })
-
-    it('should get name for custom provider', () => {
-      const mockProvider: Provider = {
-        id: 'whatever',
-        type: 'openai',
-        name: '好名字',
-        apiHost: 'whatever',
-        apiKey: 'whatever',
-        models: []
-      }
-      expect(getFancyProviderName(mockProvider)).toBe('好名字')
     })
   })
 

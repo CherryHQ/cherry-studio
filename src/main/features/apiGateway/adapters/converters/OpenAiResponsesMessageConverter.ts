@@ -84,8 +84,7 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
 
 /**
  * The reasoning chain a client echoed back. `content` (`reasoning_text`) is the raw chain and
- * wins; `summary` is the fallback, since that is what most clients round-trip. Encrypted-only
- * items carry nothing readable — they resolve to `''` and are skipped.
+ * wins; `summary` is the fallback. Encrypted-only items retain their metadata with empty text.
  */
 function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string {
   const content = item.content?.map((part) => part.text).join('') ?? ''
@@ -151,8 +150,16 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       // function_call it belongs to, and `coalesceConsecutiveSameRole` merges the two.
       if ('type' in item && item.type === 'reasoning') {
         const text = reasoningItemText(item)
-        if (text) {
-          const part: ReasoningUIPart = { type: 'reasoning', text }
+        if (text || item.id || item.encrypted_content) {
+          const metadata = {
+            itemId: item.id,
+            ...(item.encrypted_content != null && { reasoningEncryptedContent: item.encrypted_content })
+          }
+          const part: ReasoningUIPart = {
+            type: 'reasoning',
+            text,
+            providerMetadata: { openai: metadata, azure: metadata }
+          }
           messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
         }
         continue

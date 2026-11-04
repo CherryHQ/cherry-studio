@@ -255,12 +255,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onCloseFileTab,
     onRetainFileTab,
     onEditModeChange,
-    headerVariant,
     onPreviewClose,
+    onSearchKeywordChange,
     onSelectedFileChange,
     paneActions,
     paneTitle,
     previewFileSelection,
+    searchKeyword,
     selectedFile
   }: {
     editMode?: 'preview' | 'edit'
@@ -269,55 +270,61 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onCloseFileTab?: (tab: { workspacePath: string; filePath: string }) => void
     onRetainFileTab?: (tab: { workspacePath: string; filePath: string } | null) => void
     onEditModeChange?: (mode: 'preview' | 'edit') => void
-    headerVariant?: 'overlay' | 'pane'
     onPreviewClose?: () => void
+    onSearchKeywordChange?: (keyword: string) => void
     onSelectedFileChange: (file: string | null) => void
     paneActions?: ReactNode
     paneTitle?: ReactNode
     previewFileSelection?: { workspacePath: string; filePath: string } | null
+    searchKeyword?: string
     selectedFile: string | null
   }) => {
     const navigation = useOptionalFilePreviewNavigation()
 
     return (
-      <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
-        {headerVariant === 'pane' ? (
-          <div data-testid="artifact-pane-header">
-            {previewFileSelection ? (
-              <button type="button" aria-label="common.back" onClick={onPreviewClose}>
-                back
-              </button>
-            ) : null}
-            <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
-            <div role="tablist">
-              {fileTabs?.map((tab) => (
-                <span key={tab.filePath} role="tab" aria-selected={tab.filePath === previewFileSelection?.filePath}>
-                  <button type="button" onClick={() => onActivateFileTab?.(tab)}>
-                    {tab.filePath}
-                  </button>
-                  <button type="button" aria-label={`close ${tab.filePath}`} onClick={() => onCloseFileTab?.(tab)}>
-                    x
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`close others ${tab.filePath}`}
-                    onClick={() => onRetainFileTab?.(tab)}>
-                    o
-                  </button>
-                </span>
-              ))}
-              <button type="button" aria-label="close all" onClick={() => onRetainFileTab?.(null)}>
-                a
-              </button>
-            </div>
-            {paneActions}
+      <div
+        data-testid="artifact-pane"
+        data-edit-mode={editMode}
+        data-search-keyword={searchKeyword}
+        data-selected-file={selectedFile ?? ''}>
+        <div data-testid="artifact-pane-header">
+          {previewFileSelection ? (
+            <button type="button" aria-label="common.back" onClick={onPreviewClose}>
+              back
+            </button>
+          ) : null}
+          <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+          <div role="tablist">
+            {fileTabs?.map((tab) => (
+              <span key={tab.filePath} role="tab" aria-selected={tab.filePath === previewFileSelection?.filePath}>
+                <button type="button" onClick={() => onActivateFileTab?.(tab)}>
+                  {tab.filePath}
+                </button>
+                <button type="button" aria-label={`close ${tab.filePath}`} onClick={() => onCloseFileTab?.(tab)}>
+                  x
+                </button>
+                <button
+                  type="button"
+                  aria-label={`close others ${tab.filePath}`}
+                  onClick={() => onRetainFileTab?.(tab)}>
+                  o
+                </button>
+              </span>
+            ))}
+            <button type="button" aria-label="close all" onClick={() => onRetainFileTab?.(null)}>
+              a
+            </button>
           </div>
-        ) : null}
+          {paneActions}
+        </div>
         <button type="button" onClick={() => onSelectedFileChange('README.md')}>
           select README.md
         </button>
         <button type="button" onClick={() => onSelectedFileChange('src/deep.ts')}>
           select src/deep.ts
+        </button>
+        <button type="button" onClick={() => onSearchKeywordChange?.('deep')}>
+          search deep
         </button>
         <button type="button" onClick={() => onEditModeChange?.('edit')}>
           edit
@@ -331,11 +338,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
             <button type="button" onClick={() => navigation?.openFile('/workspace/DESIGN.md' as AbsoluteFilePath)}>
               open Markdown file link
             </button>
-            {headerVariant === 'pane' ? null : (
-              <button type="button" onClick={onPreviewClose}>
-                close
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -425,10 +427,6 @@ vi.mock('../AgentBrowserView', () => ({
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', async () => ({
@@ -3061,6 +3059,57 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it.each([
+    { changed: 'path', workspaceId: 'workspace-a', workspacePath: '/workspace-b' },
+    { changed: 'id', workspaceId: 'workspace-b', workspacePath: '/workspace-a' }
+  ])('clears open files, edit mode, and tree filters when the workspace $changed changes', (next) => {
+    const renderPane = (workspaceId: string, workspacePath: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspaceId={workspaceId}
+        workspacePath={workspacePath}
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const latestModelOptions = () =>
+      useArtifactFileTreeModelMock.mock.lastCall?.[0] as {
+        expandedIds: ReadonlySet<string>
+        onExpandedIdsChange: (ids: ReadonlySet<string>) => void
+        searchKeyword: string
+        workspacePath: string
+      }
+    const { rerender } = render(renderPane('workspace-a', '/workspace-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'search deep' }))
+    act(() => latestModelOptions().onExpandedIdsChange(new Set(['src'])))
+
+    const pane = () => screen.getByTestId('artifact-pane')
+    expect(pane()).toHaveAttribute('data-selected-file', 'README.md')
+    expect(pane()).toHaveAttribute('data-edit-mode', 'edit')
+    expect(pane()).toHaveAttribute('data-search-keyword', 'deep')
+    expect(screen.getByRole('tab')).toHaveAttribute('aria-selected', 'true')
+    expect([...latestModelOptions().expandedIds]).toEqual(['src'])
+
+    rerender(renderPane(next.workspaceId, next.workspacePath))
+    // The files capability is keyed by workspace, so the old instance closes with the old workspace.
+    expect(screen.queryByTestId('artifact-pane')).toBeNull()
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(pane()).toHaveAttribute('data-selected-file', '')
+    expect(pane()).toHaveAttribute('data-edit-mode', 'preview')
+    expect(pane()).toHaveAttribute('data-search-keyword', '')
+    expect(latestModelOptions()).toMatchObject({ searchKeyword: '', workspacePath: next.workspacePath })
+    expect(latestModelOptions().expandedIds.size).toBe(0)
   })
 
   it('keeps an unindexed selection after a previously indexed file was selectable', () => {

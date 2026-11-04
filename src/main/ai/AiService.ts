@@ -84,7 +84,7 @@ import {
   readRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
-import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
+import { type MessageRuntimeTimingSink } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
@@ -405,7 +405,7 @@ export interface AiRerankResult {
 // ── Service ────────────────────────────────────────────────────────
 
 /**
- * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
+ * Lifecycle AI service. See `docs/dev/references/ai/core-architecture.md`.
  *
  * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
  * `runExecutionLoop` looks AiService up at runtime, and every `send()`
@@ -558,9 +558,8 @@ export class AiService extends BaseService {
     }
 
     const aiStreamManager = application.get('AiStreamManager')
-    const subscriber = new WebContentsListener(senderWc, payload.topicId)
     try {
-      await aiStreamManager.dispatch(subscriber, {
+      await aiStreamManager.dispatchCommand({
         trigger: 'continue-conversation',
         topicId: payload.topicId,
         parentAnchorId: payload.anchorId,
@@ -604,6 +603,7 @@ export class AiService extends BaseService {
       return application.get('AgentSessionRuntimeService').openTurnStream({
         sessionId: request.runtime.sessionId,
         turnId: request.runtime.turnId,
+        interactionWindowId: request.interactionWindowId,
         signal
       })
     }

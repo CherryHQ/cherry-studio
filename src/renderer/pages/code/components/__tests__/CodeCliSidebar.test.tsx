@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -13,9 +14,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
   ...(await importOriginal<typeof import('@cherrystudio/ui')>()),
-  Scrollbar: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
 

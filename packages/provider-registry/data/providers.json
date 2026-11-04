@@ -631,7 +631,8 @@
           "modelsApiUrls": {
             "default": "https://openrouter.ai/api/v1/models",
             "embedding": "https://openrouter.ai/api/v1/embeddings/models",
-            "image": "https://openrouter.ai/api/v1/images/models"
+            "image": "https://openrouter.ai/api/v1/images/models",
+            "reranker": "https://openrouter.ai/api/v1/models?output_modalities=rerank"
           },
           "reasoningFormat": {
             "type": "openai-chat",
@@ -2612,6 +2613,92 @@
               }
             }
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.longcat.chat/openai",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "longcat",
@@ -2844,5 +2931,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e1952ef3858002a8"
+  "version": "70e1e7ba16416870"
 }
