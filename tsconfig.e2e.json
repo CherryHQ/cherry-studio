@@ -3,6 +3,7 @@
   "compilerOptions": {
     "composite": false,
     "incremental": false,
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
     "types": ["node"]
   },
   "include": [
