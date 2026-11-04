@@ -880,24 +880,29 @@ function promoteDisplayMath(tree: Root, source: string): void {
 function repairSetextEnvironments(tree: Root, source: string): void {
   // Compute same-name balanced pairs once. Re-scanning the remaining source
   // for every unclosed heading would make malformed input quadratic.
-  // Code nodes are literal Markdown, never TeX marker sources. Tree order
-  // gives disjoint, ordered leaf ranges, so the source scan skips each once.
-  const codeRanges: Array<{ start: number; end: number }> = []
+  // Literal code and quoted subtrees cannot provide a closer to an outer
+  // environment. Preorder ranges are ordered; SKIP keeps them disjoint.
+  const excludedRanges: Array<{ start: number; end: number }> = []
+  const listRanges: Array<{ start: number; end: number }> = []
   visit(tree, (node) => {
-    if (node.type !== 'code' && node.type !== 'inlineCode') return
     const start = node.position?.start.offset
     const end = node.position?.end.offset
-    if (start !== undefined && end !== undefined) codeRanges.push({ start, end })
+    if (node.type === 'listItem' && start !== undefined && end !== undefined) listRanges.push({ start, end })
+    if (node.type !== 'code' && node.type !== 'inlineCode' && node.type !== 'blockquote') return undefined
+    if (start !== undefined && end !== undefined) excludedRanges.push({ start, end })
+    return SKIP
   })
-  let codeIndex = 0
+  let excludedIndex = 0
+  let listIndex = 0
+  const activeLists: number[] = []
   const matchingEnds = new Map<number, number>()
-  const openings = new Map<string, number[]>()
+  const openings = new Map<number, Map<string, number[]>>()
   const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
   for (let cursor = 0; cursor < source.length; cursor++) {
-    while (codeIndex < codeRanges.length && codeRanges[codeIndex].end <= cursor) codeIndex++
-    const codeRange = codeRanges[codeIndex]
-    if (codeRange && cursor >= codeRange.start) {
-      cursor = codeRange.end - 1
+    while (excludedIndex < excludedRanges.length && excludedRanges[excludedIndex].end <= cursor) excludedIndex++
+    const excludedRange = excludedRanges[excludedIndex]
+    if (excludedRange && cursor >= excludedRange.start) {
+      cursor = excludedRange.end - 1
       continue
     }
 
@@ -919,13 +924,25 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     marker.lastIndex = cursor
     const match = marker.exec(source)
     if (!match || !ENVIRONMENT_NAMES.has(match[2])) continue
+    // Consume each list boundary once. Sibling and nested items have
+    // separate marker stacks, so a closer cannot escape its container.
+    while (activeLists.length && listRanges[activeLists[activeLists.length - 1]].end <= cursor) activeLists.pop()
+    while (listIndex < listRanges.length && listRanges[listIndex].start <= cursor) {
+      while (activeLists.length && listRanges[activeLists[activeLists.length - 1]].end <= listRanges[listIndex].start)
+        activeLists.pop()
+      if (listRanges[listIndex].end > cursor) activeLists.push(listIndex)
+      listIndex++
+    }
+    const owner = activeLists.at(-1) ?? -1
+    const ownerOpenings = openings.get(owner) ?? new Map<string, number[]>()
+    openings.set(owner, ownerOpenings)
     const name = match[2]
     if (match[1] === 'begin') {
-      const stack = openings.get(name) ?? []
+      const stack = ownerOpenings.get(name) ?? []
       stack.push(cursor)
-      openings.set(name, stack)
+      ownerOpenings.set(name, stack)
     } else {
-      const start = openings.get(name)?.pop()
+      const start = ownerOpenings.get(name)?.pop()
       if (start !== undefined) matchingEnds.set(start, marker.lastIndex)
     }
     cursor = marker.lastIndex - 1

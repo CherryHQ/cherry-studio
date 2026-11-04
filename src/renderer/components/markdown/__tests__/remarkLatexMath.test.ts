@@ -219,6 +219,38 @@ describe('remarkLatexMath', () => {
     expect(textValue(tree)).toContain('\\end{align}')
   })
 
+  it.each([
+    ['quotation', '> A quotation\n> \\end{align}'],
+    ['nested quotation', '> outer\n>> \\end{align}'],
+    ['quotation in list', '- item\n\n  > A quotation\n  > \\end{align}']
+  ])('does not close an outer setext environment inside a %s', (_label, quote) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${quote}`
+    const tree = parse(source)
+    expect(mathNodes(source)).toEqual([])
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+    const links: Nodes[] = []
+    const quotes: Nodes[] = []
+    visit(tree, 'link', (node) => {
+      links.push(node)
+    })
+    visit(tree, 'blockquote', (node) => {
+      quotes.push(node)
+    })
+    expect(links).toHaveLength(1)
+    expect(quotes.length).toBeGreaterThan(0)
+    expect(textValue(tree)).toContain('\\end{align}')
+  })
+
+  it.each([
+    '\\begin{align}\na\n=\nb\n\n- item\n\n  \\end{align}',
+    '- item\n\n  \\begin{align}\n  a\n  =\n  b\n\n\\end{align}',
+    '- first\n\n  \\begin{align}\n  a\n  =\n  b\n\n- second\n\n  \\end{align}',
+    '- outer\n\n  \\begin{align}\n  a\n  =\n  b\n\n  - inner\n\n    \\end{align}'
+  ])('does not pair markers across list item ownership', (source) => {
+    expect(mathNodes(source)).toEqual([])
+    expect(textValue(parse(source))).toContain('\\end{align}')
+  })
+
   it('ignores a closer inside a TeX percent comment', () => {
     const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
