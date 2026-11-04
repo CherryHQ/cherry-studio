@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom/vitest'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type RefObject, useRef, useState } from 'react'
@@ -74,7 +75,8 @@ vi.mock('react-i18next', () => ({
         'settings.voice.dictation.phase.failed': 'Dictation failed',
         'settings.voice.status.unconfigured': 'Voice is not configured',
         'settings.voice.status.operation_failed': 'The voice operation failed. Try again.',
-        'settings.voice.action.open_settings': 'Open Voice Settings'
+        'settings.voice.action.open_settings': 'Open Voice Settings',
+        'quickAssistant.tooltip.restore_main': 'Back to Main Window'
       })[key] ?? key
   })
 }))
@@ -115,6 +117,26 @@ describe('InputBar', () => {
     expect(inputRef.current).toBe(input)
     expect(inputRef.current?.selectionStart).toBe(1)
     expect(inputRef.current?.selectionEnd).toBe(4)
+  })
+
+  it('restores Main from its accessible action', async () => {
+    const user = userEvent.setup()
+    const onRestoreMain = vi.fn()
+
+    render(
+      <InputBar
+        text=""
+        placeholder="Ask for help"
+        loading={false}
+        onRestoreMain={onRestoreMain}
+        handleKeyDown={vi.fn()}
+        handleChange={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Back to Main Window' }))
+
+    expect(onRestoreMain).toHaveBeenCalledOnce()
   })
 
   it.each(['Stop recording', 'Cancel dictation'])(

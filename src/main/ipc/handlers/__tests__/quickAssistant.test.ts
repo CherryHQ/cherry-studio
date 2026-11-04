@@ -6,11 +6,12 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 import { quickAssistantHandlers } from '../quickAssistant'
 
 const quickAssistantService = {
+  showQuickAssistant: vi.fn(),
+  restoreMainWindow: vi.fn(),
   hideQuickAssistant: vi.fn(),
   closeQuickAssistant: vi.fn(),
   setPinQuickAssistant: vi.fn()
 }
-
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -22,6 +23,18 @@ beforeEach(() => {
 })
 
 describe('quickAssistantHandlers', () => {
+  it('shows the Quick Assistant through its service', async () => {
+    await quickAssistantHandlers['quick_assistant.show'](undefined, ctx)
+
+    expect(quickAssistantService.showQuickAssistant).toHaveBeenCalledTimes(1)
+  })
+
+  it('delegates restoring Main to the Quick Assistant service', async () => {
+    await quickAssistantHandlers['quick_assistant.restore_main'](undefined, ctx)
+
+    expect(quickAssistantService.restoreMainWindow).toHaveBeenCalledTimes(1)
+  })
+
   it('hide delegates to QuickAssistantService.hideQuickAssistant', async () => {
     await quickAssistantHandlers['quick_assistant.hide'](undefined, ctx)
     expect(quickAssistantService.hideQuickAssistant).toHaveBeenCalledOnce()

@@ -1,8 +1,8 @@
-import { Copy, CornerDownLeft, LoaderCircle, Mic, RotateCcw, Square, Trash2, X } from 'lucide-react'
+import { Copy, CornerDownLeft, LoaderCircle, Mic, PictureInPicture2, RotateCcw, Square, Trash2, X } from 'lucide-react'
 import React, { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -50,6 +50,7 @@ interface InputBarProps {
   model?: Model
   placeholder: string
   loading: boolean
+  onRestoreMain?: () => void
   inputRef?: React.RefObject<HTMLInputElement | null>
   dictationTargetId?: string
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
@@ -62,6 +63,7 @@ const InputBar = ({
   model,
   placeholder,
   loading,
+  onRestoreMain,
   inputRef,
   dictationTargetId,
   handleKeyDown,
@@ -121,8 +123,20 @@ const InputBar = ({
         onPointerDown={markDictationTarget}
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="placeholder:text-muted-foreground h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+        className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
+      {onRestoreMain && (
+        <Tooltip placement="bottom" content={t('quickAssistant.tooltip.restore_main')} delay={800}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('quickAssistant.tooltip.restore_main')}
+            onClick={onRestoreMain}
+            className="nodrag h-8 w-8 shrink-0 rounded-[8px] text-muted-foreground">
+            <PictureInPicture2 size={16} strokeWidth={1.8} />
+          </Button>
+        </Tooltip>
+      )}
       {dictationStatus && (
         <span role="status" className="text-muted-foreground text-xs">
           {dictationStatus}

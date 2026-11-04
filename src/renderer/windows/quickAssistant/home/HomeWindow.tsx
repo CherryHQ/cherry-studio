@@ -82,7 +82,12 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
   })
 }
 
-const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
+interface HomeWindowProps {
+  draggable?: boolean
+  showRestoreMain?: boolean
+}
+
+const HomeWindow: FC<HomeWindowProps> = ({ draggable = true, showRestoreMain = false }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
@@ -396,6 +401,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [readClipboard])
 
   const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
+  const handleRestoreMainWindow = useCallback(() => {
+    void ipcApi
+      .request('quick_assistant.restore_main')
+      .catch((error) => logger.error('Failed to restore Main window', error as Error))
+  }, [])
 
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
@@ -559,6 +569,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 model={currentModel}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
+                onRestoreMain={showRestoreMain ? handleRestoreMainWindow : undefined}
                 inputRef={inputRef}
                 dictationTargetId={dictationTargetId}
                 handleKeyDown={handleKeyDown}
@@ -617,6 +628,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               model={currentModel}
               placeholder={inputPlaceholder}
               loading={isLoading}
+              onRestoreMain={showRestoreMain ? handleRestoreMainWindow : undefined}
               inputRef={inputRef}
               dictationTargetId={dictationTargetId}
               handleKeyDown={handleKeyDown}
