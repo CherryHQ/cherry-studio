@@ -7,6 +7,9 @@ interface UseMentionedModelSelectorParams {
   enabled: boolean | undefined
   runtimeModel: Model | undefined
   runtimeModelPending: boolean
+  /** Model last used in this topic; seeds the selector when the topic is opened. */
+  topicLastModel?: Model
+  topicLastModelPending?: boolean
   selectedAssistantId: string | null
   topicId: string
   mentionedModels: Model[]
@@ -35,6 +38,8 @@ export function useChatMentionedModels({
   enabled,
   runtimeModel,
   runtimeModelPending,
+  topicLastModel,
+  topicLastModelPending = false,
   selectedAssistantId,
   topicId,
   mentionedModels,
@@ -86,6 +91,9 @@ export function useChatMentionedModels({
     }
 
     const selectorScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
+    const isNewSelectorScope = selectorScopeKeyRef.current !== selectorScopeKey
+    if (isNewSelectorScope && topicLastModelPending) return
+    const seedModel = isNewSelectorScope ? (topicLastModel ?? runtimeModel) : runtimeModel
     const initializationKey = `${selectorScopeKey}:${runtimeModel?.id ?? 'no-model'}`
     if (mentionedModelSelectorInitKeyRef.current === initializationKey) return
 
@@ -96,12 +104,14 @@ export function useChatMentionedModels({
     initializeMentionedModelSelector(
       isInitialSelection,
       Boolean(preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope),
-      runtimeModel
+      seedModel
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest mentioned models; this effect is keyed by topic/assistant/model.
   }, [
     runtimeModel,
     runtimeModelPending,
+    topicLastModel,
+    topicLastModelPending,
     selectedAssistantId,
     topicId,
     enabled,

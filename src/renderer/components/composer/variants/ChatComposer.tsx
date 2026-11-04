@@ -157,6 +157,9 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  /** Model of the topic's latest assistant reply; restored when the topic is opened. */
+  lastUsedModelId?: UniqueModelId | null
+  lastUsedModelPending?: boolean
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -258,6 +261,8 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  lastUsedModelId,
+  lastUsedModelPending,
   scopeKey,
   topicId,
   assistantId,
@@ -317,6 +322,8 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
+            lastUsedModelId={lastUsedModelId}
+            lastUsedModelPending={lastUsedModelPending}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -358,6 +365,8 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   contextUsage,
+  lastUsedModelId,
+  lastUsedModelPending = false,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -402,6 +411,7 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
+  const { model: lastUsedModel, isLoading: isLastUsedModelLoading } = useModelById(lastUsedModelId)
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -645,6 +655,8 @@ const ChatComposerInner = ({
     enabled: useMentionedModelSelector,
     runtimeModel,
     runtimeModelPending,
+    topicLastModel: lastUsedModel,
+    topicLastModelPending: lastUsedModelPending || (!!lastUsedModelId && isLastUsedModelLoading),
     selectedAssistantId,
     topicId: scopeKey,
     mentionedModels,

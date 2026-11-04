@@ -180,6 +180,15 @@ const ChatContentInner: FC<InnerProps> = ({
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
 
+  const lastUsedModelId = useMemo<UniqueModelId | null>(() => {
+    for (let index = uiMessages.length - 1; index >= 0; index--) {
+      const message = uiMessages[index]
+      const modelId = message.metadata?.modelId
+      if (message.role === 'assistant' && isUniqueModelId(modelId)) return modelId
+    }
+    return null
+  }, [uiMessages])
+
   useEffect(() => {
     if (!locateMessageId) {
       locateLoadRequestRef.current = undefined
@@ -241,6 +250,8 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       contextUsage={contextUsage}
+      lastUsedModelId={lastUsedModelId}
+      lastUsedModelPending={isHistoryLoading || isHistoryStale}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -254,6 +265,8 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="docked"
       topic={topic}
       contextUsage={contextUsage}
+      lastUsedModelId={lastUsedModelId}
+      lastUsedModelPending={isHistoryLoading || isHistoryStale}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}

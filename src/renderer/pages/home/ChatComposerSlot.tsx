@@ -20,6 +20,8 @@ import type { AddNewTopicPayload } from './types'
 interface ChatComposerSlotBaseProps {
   topic: Topic
   contextUsage: ChatContextUsageSource | null
+  lastUsedModelId?: UniqueModelId | null
+  lastUsedModelPending?: boolean
   onSend: (
     text: string,
     options?: {
@@ -45,6 +47,8 @@ function ChatComposerSlot({
   placement,
   topic,
   contextUsage,
+  lastUsedModelId,
+  lastUsedModelPending,
   onSend,
   chatTarget,
   onNewTopic,
@@ -63,6 +67,8 @@ function ChatComposerSlot({
         scopeKey={topic.id}
         topicId={topic.id}
         contextUsage={contextUsage}
+        lastUsedModelId={lastUsedModelId}
+        lastUsedModelPending={lastUsedModelPending}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
@@ -80,6 +86,8 @@ function ChatComposerSlot({
         scopeKey={topic.id}
         topicId={topic.id}
         contextUsage={contextUsage}
+        lastUsedModelId={lastUsedModelId}
+        lastUsedModelPending={lastUsedModelPending}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
