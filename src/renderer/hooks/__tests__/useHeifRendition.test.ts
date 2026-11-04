@@ -204,6 +204,22 @@ it('shares decoder capacity across twelve independent owners', async () => {
   expect(peak).toBeLessThanOrEqual(4)
 })
 
+it('releases stalled preview slots at the deadline for a later owner', async () => {
+  vi.useFakeTimers()
+  mocks.request.mockImplementation((_route, { source }) =>
+    source.path.includes('stalled') ? new Promise(() => {}) : Promise.resolve(png)
+  )
+  const sources = Array.from({ length: 4 }, (_, index) => ({ source: `/tmp/stalled-${index}.heic` }))
+  const stalled = renderHook(() => useHeifRenditions(sources))
+  const later = renderHook(() => useHeifRendition('/tmp/later.heic'))
+
+  await act(async () => vi.advanceTimersByTimeAsync(30_001))
+
+  expect(stalled.result.current).toEqual(sources.map(() => ({ loading: false, error: 'error.heif_detail_timeout' })))
+  expect(later.result.current).toEqual({ loading: false, url: 'blob:first' })
+  expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
+})
+
 it('keeps another owner’s queued preview when an owner unmounts', async () => {
   const pending: (() => void)[] = []
   mocks.request.mockImplementation(() => new Promise((resolve) => pending.push(() => resolve(png))))

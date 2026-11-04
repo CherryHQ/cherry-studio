@@ -2,11 +2,14 @@ import PQueue from 'p-queue'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { heifErrorKey, type HeifImageSource, isHeifImage, resolveHeifImage } from '@renderer/utils/heif'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 // Leave room in the service queue for sends.
 const HEIF_CONCURRENCY = 4
 const HEIF_BUSY_RETRIES = 5
 const HEIF_BUSY_BACKOFF_MS = 50
+const HEIF_PREVIEW_DEADLINE_MS = 30_000
 const queue = new PQueue({ concurrency: HEIF_CONCURRENCY })
 
 export interface HeifImageState {
@@ -44,29 +47,48 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
     let disposed = false
     const urls: string[] = []
     const retryDelays = new Map<ReturnType<typeof setTimeout>, () => void>()
+    const cancellations = new Set<() => void>()
     stableSources.forEach((item, index) => {
       if (!isHeifImage(item)) return
       void queue
         .add(async () => {
-          for (let retry = 0; !disposed; retry++) {
-            try {
-              return await resolveHeifImage(item.source)
-            } catch (error) {
-              if (disposed) return
-              if (heifErrorKey(error) !== 'error.heif_detail_busy' || retry >= HEIF_BUSY_RETRIES) throw error
-              await new Promise<void>((resolve) => {
-                const timer = setTimeout(
-                  () => {
-                    retryDelays.delete(timer)
-                    resolve()
-                  },
-                  Math.min(HEIF_BUSY_BACKOFF_MS * 2 ** retry, 400)
-                )
-                retryDelays.set(timer, resolve)
-              })
+          if (disposed) return
+          let finished = false
+          let timer: ReturnType<typeof setTimeout>
+          let cancel: () => void
+          const deadline = new Promise<undefined>((resolve, reject) => {
+            cancel = () => resolve(undefined)
+            cancellations.add(cancel)
+            timer = setTimeout(() => reject(new IpcError(fileErrorCodes.HEIF_TIMEOUT)), HEIF_PREVIEW_DEADLINE_MS)
+          })
+          const convert = async () => {
+            for (let retry = 0; !disposed && !finished; retry++) {
+              try {
+                return await resolveHeifImage(item.source)
+              } catch (error) {
+                if (disposed || finished) return
+                if (heifErrorKey(error) !== 'error.heif_detail_busy' || retry >= HEIF_BUSY_RETRIES) throw error
+                await new Promise<void>((resolve) => {
+                  const timer = setTimeout(
+                    () => {
+                      retryDelays.delete(timer)
+                      resolve()
+                    },
+                    Math.min(HEIF_BUSY_BACKOFF_MS * 2 ** retry, 400)
+                  )
+                  retryDelays.set(timer, resolve)
+                })
+              }
             }
+            return undefined
           }
-          return undefined
+          try {
+            return await Promise.race([convert(), deadline])
+          } finally {
+            finished = true
+            clearTimeout(timer!)
+            cancellations.delete(cancel!)
+          }
         })
         .then((blob) => {
           if (disposed || !blob) return
@@ -89,6 +111,7 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
     })
     return () => {
       disposed = true
+      cancellations.forEach((cancel) => cancel())
       retryDelays.forEach((resolve, timer) => {
         clearTimeout(timer)
         resolve()
