@@ -99,7 +99,7 @@ export class TrashService extends BaseService {
     const ids = [...new Set(topicIds)].sort()
     return this.withTopicLocks(ids, async () => {
       this.assertTopicsSettled(ids)
-      return topicService.deleteByIds(ids)
+      return this.finishTopicDeletion(topicService.deleteByIds(ids))
     })
   }
 
@@ -107,26 +107,37 @@ export class TrashService extends BaseService {
     const ids = [...new Set(topicIds)].sort()
     return this.withTopicLocks(ids, () => {
       this.assertTopicsSettled(ids)
-      return topicService.deleteByIds(ids, { permanent: true, targetState: 'active' })
+      return this.finishTopicDeletion(topicService.deleteByIds(ids, { permanent: true, targetState: 'active' }))
     })
   }
 
   async archiveAssistantTopics(assistantId: string): Promise<DeleteTopicsResult> {
-    return this.withStableAssistantTopics(assistantId, () => topicService.deleteByAssistantId(assistantId))
+    return this.withStableAssistantTopics(assistantId, () =>
+      this.finishTopicDeletion(topicService.deleteByAssistantId(assistantId))
+    )
   }
 
   async archiveAssistant(assistantId: string, deleteTopics: boolean): Promise<DeleteAssistantResult> {
     if (!deleteTopics) return assistantDataService.delete(assistantId)
 
-    return this.withStableAssistantTopics(assistantId, () =>
-      assistantDataService.delete(assistantId, { deleteTopics: true })
-    )
+    return this.withStableAssistantTopics(assistantId, () => {
+      const result = assistantDataService.delete(assistantId, { deleteTopics: true })
+      application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedTopicIds ?? [])
+      return result
+    })
   }
 
   async deleteActiveAssistantPermanently(assistantId: string, deleteTopics: boolean): Promise<DeleteAssistantResult> {
-    return this.withStableAssistantTopics(assistantId, () =>
-      assistantDataService.delete(assistantId, { permanent: true, targetState: 'active', deleteTopics })
-    )
+    return this.withStableAssistantTopics(assistantId, () => {
+      const result = assistantDataService.delete(assistantId, { permanent: true, targetState: 'active', deleteTopics })
+      application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedTopicIds ?? [])
+      return result
+    })
+  }
+
+  private finishTopicDeletion(result: DeleteTopicsResult): DeleteTopicsResult {
+    application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedIds)
+    return result
   }
 
   private async withStableAssistantTopics<T>(assistantId: string, archive: () => T): Promise<T> {

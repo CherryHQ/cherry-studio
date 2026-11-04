@@ -81,6 +81,7 @@ vi.mock('react-i18next', () => ({
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
         'settings.general.common.title': zhCN['settings.general.common.title'],
+        'settings.lab.title': '实验室',
         'settings.menuGroups.automation': '效率',
         'settings.menuGroups.capabilities': '工具',
         'settings.menuGroups.personal': '偏好',
@@ -175,6 +176,15 @@ describe('SettingsPage', () => {
     fireEvent.click(deviceConnectionsItem)
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
+  })
+
+  it('keeps the navigation layout laboratory destination', () => {
+    render(<SettingsPage />)
+
+    const labItem = screen.getByRole('button', { name: '实验室' })
+    fireEvent.click(labItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/lab' })
   })
 
   it('exposes Voice as a searchable personal settings destination', () => {

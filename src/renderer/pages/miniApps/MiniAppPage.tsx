@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import { cacheService } from '@data/CacheService'
-import { useSharedCacheValue } from '@data/hooks/useCache'
-import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCache, useSharedCacheValue } from '@data/hooks/useCache'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -30,10 +30,13 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
+  const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
   const { openSplit, closeSplit } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, splitOpen, splitMiniAppId, isLoading, error } = useMiniApps()
+  const [split] = useCache('mini_app.split')
+  const isSplitVisible = splitOpen && splitMiniAppId !== appId
 
   // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
   // Every window's keep-alive entry is only a local snapshot of this cross-window value.
@@ -69,6 +72,10 @@ const MiniAppPage: FC = () => {
     })
   }, [app, currentTab, currentTabId, displayName, updateTab])
 
+  useEffect(() => {
+    if (isActiveTab && split?.appId === appId) closeSplit()
+  }, [appId, closeSplit, isActiveTab, split?.appId])
+
   // -------------- Tab Shell logic --------------
   // The shared cache syncs from Main asynchronously and does not block renderer startup,
   // so in a window that just opened — exactly the detached-tab case — the descriptor is
@@ -79,16 +86,15 @@ const MiniAppPage: FC = () => {
     if (sharedCacheReady) return
     return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
   }, [sharedCacheReady])
-  // The keep-alive fallback lets a transient app (no database row) hold the pane;
-  // a split id equal to the active app is dropped, one `<webview>` fills one pane.
+  // The keep-alive fallback lets a transient app (no database row) hold the pane.
   const splitApp = useMemo((): MiniApp | null => {
-    if (!splitOpen || !splitMiniAppId || splitMiniAppId === appId) return null
+    if (!isSplitVisible || !splitMiniAppId) return null
     return (
       allApps.find((a) => a.appId === splitMiniAppId) ??
       openedKeepAliveMiniApps.find((a) => a.appId === splitMiniAppId) ??
       null
     )
-  }, [allApps, appId, openedKeepAliveMiniApps, splitMiniAppId, splitOpen])
+  }, [allApps, isSplitVisible, openedKeepAliveMiniApps, splitMiniAppId])
 
   // Both panes mount a search overlay and the host `keydown` listener is global,
   // so exactly one may answer Ctrl/Cmd+F — otherwise one press opens both.
@@ -96,8 +102,8 @@ const MiniAppPage: FC = () => {
   const activatePrimaryPane = useCallback(() => setActivePane('primary'), [])
   const activateSplitPane = useCallback(() => setActivePane('split'), [])
   useEffect(() => {
-    if (!splitOpen) setActivePane('primary')
-  }, [splitOpen])
+    if (!isSplitVisible) setActivePane('primary')
+  }, [isSplitVisible])
 
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
@@ -146,13 +152,13 @@ const MiniAppPage: FC = () => {
       <MiniAppPane
         app={app}
         splitMode="open"
-        splitActive={splitOpen}
-        onSplit={splitOpen ? closeSplit : openSplit}
-        hostShortcutEnabled={!splitOpen || activePane === 'primary'}
+        splitActive={isSplitVisible}
+        onSplit={isSplitVisible ? closeSplit : openSplit}
+        hostShortcutEnabled={!isSplitVisible || activePane === 'primary'}
         onActivate={activatePrimaryPane}
-        className={splitOpen ? 'w-1/2' : 'w-full'}
+        className={isSplitVisible ? 'w-1/2' : 'w-full'}
       />
-      {splitOpen &&
+      {isSplitVisible &&
         (splitApp ? (
           <MiniAppPane
             app={splitApp}

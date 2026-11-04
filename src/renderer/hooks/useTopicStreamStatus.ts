@@ -1,12 +1,17 @@
 // Per-topic stream state. Main owns the shared status entry (incl.
-// `lastCompletedAt`); the "last completion this window has acknowledged"
-// marker is a separate cross-window shared cache key.
+// `lastCompletedAt`); each renderer owns its window-local read receipt.
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
-import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import {
+  type ActiveExecution,
+  classifyTurn,
+  TOPIC_COMPLETION_SEEN_CACHE_KEY,
+  type TopicStreamStatus
+} from '@shared/ai/transport'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
 
@@ -36,9 +41,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   // `lastSeenCompletion` stays on the writable hook — this window OWNS the
   // read-receipt marker and writes it via markSeen.
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
-  const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
-    `topic.stream.last_seen_completion.${topicId}` as const
-  )
+  const [lastSeenCompletion, setLastSeenCompletion] = useCache(`topic.stream.last_seen_completion.${topicId}` as const)
 
   const status = entry?.status
   const lastCompletedAt = entry?.lastCompletedAt ?? null
@@ -52,8 +55,9 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const markSeen = useCallback(() => {
     if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
       setLastSeenCompletion(lastCompletedAt)
+      cacheService.setShared(TOPIC_COMPLETION_SEEN_CACHE_KEY, { topicId, completedAt: lastCompletedAt })
     }
-  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
+  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion, topicId])
 
   return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
 }

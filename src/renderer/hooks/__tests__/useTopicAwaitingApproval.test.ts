@@ -18,13 +18,18 @@ let lastSeenCompletion: number | null = null
 const setLastSeenCompletion = vi.fn((next: number | null) => {
   lastSeenCompletion = next
 })
+const publishCompletionSeen = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/data/CacheService', () => ({
+  cacheService: { setShared: publishCompletionSeen }
+}))
 
 // Mock at the cache layer rather than at useTopicStreamStatus — intra-module
 // vi.mock can't intercept calls between functions in the same source file.
 // The main-owned status entry is observed read-only (useSharedCacheValue);
 // the window-owned lastSeenCompletion marker keeps the writable hook.
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCache: (key: string) => {
+  useCache: (key: string) => {
     if (key.startsWith('topic.stream.last_seen_completion.')) {
       return [lastSeenCompletion, setLastSeenCompletion]
     }
@@ -47,6 +52,7 @@ describe('useTopicAwaitingApproval', () => {
   beforeEach(() => {
     mockEntry.mockReset()
     setLastSeenCompletion.mockClear()
+    publishCompletionSeen.mockClear()
     lastSeenCompletion = null
   })
 
@@ -76,6 +82,10 @@ describe('useTopicAwaitingApproval', () => {
     rerender()
 
     expect(result.current.isFulfilled).toBe(false)
+    expect(publishCompletionSeen).toHaveBeenCalledWith('topic.stream.completion_seen', {
+      topicId: 't',
+      completedAt: 1000
+    })
 
     setEntry('done', 2000)
     rerender()

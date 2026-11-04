@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   setMiniAppPinned: vi.fn(),
   openTab: vi.fn(),
+  closeWorkspace: vi.fn(),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both',
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
   useMiniAppVisibility: vi.fn(() => ({
@@ -74,7 +76,9 @@ vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     // TabsProvider recreates openTab when its tab list changes.
-    openTab: (url: string, options: unknown) => mocks.openTab(url, options)
+    openTab: (url: string, options: unknown) => mocks.openTab(url, options),
+    closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout
   })
 }))
 

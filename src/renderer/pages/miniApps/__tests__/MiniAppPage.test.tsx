@@ -234,6 +234,20 @@ describe('MiniAppPage', () => {
     expect(owners[0].dataset.appId).toBe('deepseek')
   })
 
+  it('closes the split when its app becomes the primary workspace', async () => {
+    mocks.appId = 'kimi'
+    mocks.currentTab = { ...mocks.currentTab, url: '/app/mini-app/kimi' }
+    mocks.allApps = [stubApp({ appId: 'kimi', name: 'Kimi', url: 'https://kimi.moonshot.cn' })]
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = 'kimi'
+    MockUseCacheUtils.setCacheValue('mini_app.split', { appId: 'kimi' })
+
+    render(<MiniAppPage />)
+
+    await waitFor(() => expect(mocks.closeSplit).toHaveBeenCalledOnce())
+    expect(screen.queryByTestId('split-picker')).not.toBeInTheDocument()
+  })
+
   it('turns the primary split control into a way back out once split', async () => {
     mocks.splitOpen = true
     mocks.splitMiniAppId = ''

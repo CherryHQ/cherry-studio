@@ -35,6 +35,7 @@ type AppShellTabBarProps = {
   activeTabId: string
   isFullscreen?: boolean
   isFocusedTab?: boolean
+  legacyCombinedLayout?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   closeTabs: (ids: readonly string[], activateId?: string) => void
@@ -577,6 +578,7 @@ export const AppShellTabBar = ({
   activeTabId,
   isFullscreen = false,
   isFocusedTab = false,
+  legacyCombinedLayout = false,
   setActiveTab,
   closeTab,
   closeTabs,
@@ -1155,10 +1157,10 @@ export const AppShellTabBar = ({
                 </Tooltip>
               </div>
             )}
-            <WindowControls />
+            {legacyCombinedLayout ? <WindowControls /> : <ShellTabBarActions showSettings />}
           </div>
         ) : (
-          <ShellTabBarActions />
+          <ShellTabBarActions showSettings={!legacyCombinedLayout} />
         )}
       </header>
     </>

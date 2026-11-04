@@ -258,10 +258,10 @@ describe('ProtocolService', () => {
     it('handles a hot-start URL immediately', async () => {
       await markProtocolHandlingReady()
 
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
 
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
-      expect(handlersMock.handleNavigateProtocolUrl.mock.calls[0][0].href).toBe('cherrystudio://navigate/agents')
+      expect(handlersMock.handleNavigateProtocolUrl.mock.calls[0][0].href).toBe('cherrystudio://navigate/app/agents')
     })
 
     it('keeps MCP install payloads in Main until installation succeeds', async () => {
@@ -338,22 +338,22 @@ describe('ProtocolService', () => {
 
       listeners.emit('did-start-loading')
       listeners.emit('did-start-navigation', {}, 'https://child.test/', false, false)
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledOnce()
       handlersMock.handleNavigateProtocolUrl.mockClear()
       listeners.emit('did-start-navigation', {}, 'http://localhost:5173/#route', true, true)
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledOnce()
       handlersMock.handleNavigateProtocolUrl.mockClear()
       listeners.emit('did-start-navigation', {}, 'http://localhost:5173/', false, true)
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
       expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
 
       service.onMainRendererReady('main-1')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
       listeners.emit('render-process-gone')
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/knowledge')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/knowledge')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
       service.onMainRendererReady('main-1')
@@ -370,7 +370,7 @@ describe('ProtocolService', () => {
 
       ;(service as any).handleProtocolUrl('cherrystudio://mcp/install?servers=first')
       ;(service as any).handleProtocolUrl('not a url')
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
 
       await (service as any).onAllReady()
 
@@ -378,12 +378,12 @@ describe('ProtocolService', () => {
 
       service.onMainRendererReady('main-1')
 
-      expect(handledUrls).toEqual(['cherrystudio://mcp/install?servers=first', 'cherrystudio://navigate/agents'])
+      expect(handledUrls).toEqual(['cherrystudio://mcp/install?servers=first', 'cherrystudio://navigate/app/agents'])
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
     })
 
     it('waits for services when the main renderer becomes ready first', async () => {
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
 
       service.onMainRendererReady('main-1')
       expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
@@ -396,7 +396,7 @@ describe('ProtocolService', () => {
     it('ignores readiness notifications from non-main windows', async () => {
       windowManagerMock.getWindowType.mockReturnValueOnce('subWindow')
       await (service as any).onAllReady()
-      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/app/agents')
 
       service.onMainRendererReady('subwindow-1')
 

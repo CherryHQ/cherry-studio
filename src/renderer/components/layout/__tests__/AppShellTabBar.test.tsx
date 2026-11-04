@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useTabsContext } from '@renderer/hooks/tab'
 
+import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
@@ -81,7 +82,11 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [false]
+  usePreference: (key: string) => [key === 'ui.navigation.layout' ? 'tabs' : false]
+}))
+
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], setPinned: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -96,9 +101,17 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-vi.mock('../ShellTabBarActions', () => ({
-  ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
-}))
+vi.mock('../ShellTabBarActions', async () => {
+  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
+  return {
+    ...actual,
+    ShellTabBarActions: ({ showSettings }: { showSettings?: boolean }) => (
+      <div data-show-settings={showSettings || undefined} data-testid="shell-tab-actions">
+        <div data-testid="window-controls" />
+      </div>
+    )
+  }
+})
 
 vi.mock('../../WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
@@ -250,7 +263,11 @@ describe('AppShellTabBar', () => {
 
   it('appends a fresh launchpad from the plus button while a middle tab is active', async () => {
     const user = userEvent.setup()
-    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [createTab('home'), createTab('a'), createTab('b')])
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [
+      createTab('home'),
+      createTab('a', { url: '/app/files' }),
+      createTab('b', { url: '/app/notes' })
+    ])
     MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'a')
     function TabBar() {
       return <AppShellTabBar {...useTabsContext()} />
@@ -413,7 +430,7 @@ describe('AppShellTabBar', () => {
     expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-actions')).toHaveAttribute('data-show-settings', 'true')
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
@@ -424,6 +441,20 @@ describe('AppShellTabBar', () => {
     expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
+  })
+
+  it('preserves the legacy focused Settings actions in the combined layout', () => {
+    const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+
+    renderTabBar({
+      tabs: [settingsTab],
+      activeTabId: settingsTab.id,
+      isFocusedTab: true,
+      legacyCombinedLayout: true
+    })
+
+    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('window-controls')).toBeInTheDocument()
   })
 
   it.each(['success', 'failure'])(

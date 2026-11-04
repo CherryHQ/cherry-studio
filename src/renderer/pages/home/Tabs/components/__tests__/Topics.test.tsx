@@ -273,29 +273,35 @@ const cacheHookMocks = vi.hoisted(() => ({
   values: new Map<string, unknown>()
 }))
 
-vi.mock('@data/hooks/useCache', async (importOriginal) => ({
-  // Real hook over the globally mocked cacheService: the stream-status tests
-  // seed that store via setShared and spy on its subscribe.
-  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
-  useCache: (key: string) => {
-    if (!cacheHookMocks.setters.has(key)) {
-      cacheHookMocks.setters.set(key, (value: unknown) => {
-        cacheHookMocks.values.set(key, value)
-        cacheHookMocks.setCache(key, value)
-      })
+vi.mock('@data/hooks/useCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseCacheModule>()
+
+  return {
+    // Real hooks over the globally mocked cacheService: the stream-status tests
+    // seed the shared store via setShared and spy on its subscriptions.
+    useSharedCacheSelector: actual.useSharedCacheSelector,
+    useSharedCacheValue: actual.useSharedCacheValue,
+    useCache: (key: string) => {
+      if (!cacheHookMocks.setters.has(key)) {
+        cacheHookMocks.setters.set(key, (value: unknown) => {
+          cacheHookMocks.values.set(key, value)
+          cacheHookMocks.setCache(key, value)
+        })
+      }
+      const fallback = key.startsWith('topic.stream.last_seen_completion.') ? null : []
+      return [cacheHookMocks.values.get(key) ?? fallback, cacheHookMocks.setters.get(key)]
+    },
+    usePersistCache: (key: string) => {
+      if (!cacheHookMocks.setters.has(key)) {
+        cacheHookMocks.setters.set(key, (value: unknown) => {
+          cacheHookMocks.values.set(key, value)
+          cacheHookMocks.setCache(key, value)
+        })
+      }
+      return [cacheHookMocks.values.get(key), cacheHookMocks.setters.get(key)]
     }
-    return [cacheHookMocks.values.get(key) ?? [], cacheHookMocks.setters.get(key)]
-  },
-  usePersistCache: (key: string) => {
-    if (!cacheHookMocks.setters.has(key)) {
-      cacheHookMocks.setters.set(key, (value: unknown) => {
-        cacheHookMocks.values.set(key, value)
-        cacheHookMocks.setCache(key, value)
-      })
-    }
-    return [cacheHookMocks.values.get(key), cacheHookMocks.setters.get(key)]
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useTopic', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopic')
@@ -886,15 +892,16 @@ function setTopicStreamCacheStatus(
 ) {
   cacheService.setShared(topicStreamStatusCacheKey(topicId), {
     status,
-    awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
+    awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : [],
+    lastCompletedAt: status === 'done' ? 1 : undefined
   } as never)
-  cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
+  cacheService.delete(topicStreamLastSeenCompletionCacheKey(topicId))
 }
 
 function clearTopicStreamCache(...topicIds: string[]) {
   for (const topicId of topicIds) {
     cacheService.deleteShared(topicStreamStatusCacheKey(topicId))
-    cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
+    cacheService.delete(topicStreamLastSeenCompletionCacheKey(topicId))
   }
 }
 
@@ -3074,9 +3081,7 @@ describe('Topics', () => {
 
       const subscribedKeys = subscribeSpy.mock.calls.map(([key]) => key)
       expect(subscribedKeys).toContain(topicStreamStatusCacheKey('topic-50'))
-      expect(subscribedKeys).toContain(topicStreamLastSeenCompletionCacheKey('topic-50'))
       expect(subscribedKeys).not.toContain(topicStreamStatusCacheKey('topic-51'))
-      expect(subscribedKeys).not.toContain(topicStreamLastSeenCompletionCacheKey('topic-51'))
     } finally {
       subscribeSpy.mockRestore()
     }

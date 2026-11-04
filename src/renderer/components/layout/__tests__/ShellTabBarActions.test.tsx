@@ -140,8 +140,9 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
-      'Open global search',
-      'Settings'
+      'settings.doctor.entry.title',
+      'Settings',
+      'Open global search'
     ])
   })
 

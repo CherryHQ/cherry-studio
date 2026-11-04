@@ -9,8 +9,8 @@ const logger = loggerService.withContext('ProtocolService:navigate')
  *
  * Examples:
  *   cherrystudio://navigate/settings/provider
- *   cherrystudio://navigate/agents
- *   cherrystudio://navigate/knowledge
+ *   cherrystudio://navigate/app/agents
+ *   cherrystudio://navigate/app/knowledge
  *
  * Delivery (window creation, focus, live-window event vs cold-start init data)
  * is entirely owned by openRouteInMainWindow — no retry loop is needed here.
