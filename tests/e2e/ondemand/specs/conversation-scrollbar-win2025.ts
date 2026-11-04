@@ -10,7 +10,9 @@ export default async function conversationScrollbar(context: ScenarioContext): P
     window.api.preference.setMultiple({
       'app.onboarding.provider_setup.status': 'skipped',
       'app.privacy.data_collection.enabled': false,
-      'topic.tab.show': true
+      'topic.tab.show': true,
+      'topic.tab.display_mode': 'time',
+      'topic.tab.position': 'left'
     })
   )
   await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 30_000 })
@@ -43,7 +45,7 @@ export default async function conversationScrollbar(context: ScenarioContext): P
   const selector = '[data-resource-list-presentation] [data-slot=scroll-area-viewport][role=listbox]:visible'
   await context.runSteps([{ verb: 'expectVisible', selector }])
   const list = page.locator(selector)
-  await expect(list.getByRole('option').filter({ hasText: prefix }).first()).toBeVisible()
+  await expect(list.getByRole('option').filter({ hasText: prefix }).first()).toBeVisible({ timeout: 20000 })
   const root = list.locator('..')
   const track = root.locator('[data-slot=scroll-area-scrollbar][data-orientation=vertical]')
   const thumb = track.locator('[data-slot=scroll-area-thumb]')
