@@ -35,6 +35,7 @@ interface Branch {
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
   openedParts: Set<string>
+  openedTools: Set<string>
 }
 
 function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
@@ -51,7 +52,8 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
     stream: undefined as never,
     controller: null,
     closed: false,
-    openedParts: new Set()
+    openedParts: new Set(),
+    openedTools: new Set()
   }
   branch.stream = new ReadableStream<UIMessageChunk>({
     start(controller) {
@@ -265,6 +267,38 @@ export class TopicStreamSubscription {
       if (!branch.openedParts.has(key)) {
         branch.openedParts.add(key)
         branch.controller?.enqueue({ type, id: chunk.id })
+      }
+    } else if (chunk.type === 'tool-input-start') {
+      branch.openedTools.add(chunk.toolCallId)
+    } else if (chunk.type === 'tool-input-available') {
+      if (!branch.openedTools.has(chunk.toolCallId)) {
+        branch.openedTools.add(chunk.toolCallId)
+        if (live && this.#liveReplayAttempts.has(attemptId)) {
+          branch.controller?.enqueue({
+            type: 'tool-input-start',
+            toolCallId: chunk.toolCallId,
+            toolName: chunk.toolName ?? 'unknown-tool'
+          })
+        }
+      }
+    } else if (
+      live &&
+      this.#liveReplayAttempts.has(attemptId) &&
+      (chunk.type === 'tool-input-delta' ||
+        chunk.type === 'tool-output-available' ||
+        chunk.type === 'tool-output-error' ||
+        chunk.type === 'tool-output-denied' ||
+        chunk.type === 'tool-approval-request')
+    ) {
+      // Accepted degraded case: the start must precede live deltas to parse,
+      // so it is synthesized immediately as unknown-tool and cannot be
+      // patched when available arrives later (already on the wire). Reload
+      // heals via buildCompactReplay's patch-once repair; the persisted tee
+      // stays authoritative.
+      const toolCallId = chunk.toolCallId
+      if (!branch.openedTools.has(toolCallId)) {
+        branch.openedTools.add(toolCallId)
+        branch.controller?.enqueue({ type: 'tool-input-start', toolCallId, toolName: 'unknown-tool' })
       }
     }
     branch.controller?.enqueue(chunk)

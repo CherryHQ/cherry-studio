@@ -56,6 +56,10 @@ export interface ExecutionFinishEvent {
   message: CherryUIMessage
   isAbort: boolean
   isError: boolean
+  /** True when delta-level replay gaps were repaired mid-stream. The turn may
+   *  still succeed (Main persists the authoritative tee), but the live view
+   *  was reconstructed — consumers can surface a degraded notice/reload. */
+  degraded?: boolean
 }
 
 interface ExecutionOverlayView {
@@ -604,13 +608,21 @@ export class ExecutionStreamOverlayService {
     entry.liveReaderCount += 1
     void (async () => {
       let last: CherryUIMessage | undefined
+      let streamErrorCount = 0
       try {
         for await (const snapshot of readUIMessageStream<CherryUIMessage>({
           stream: branch,
           message: seed,
           terminateOnError: false,
           onError: (err) => {
-            if (!cancelled) logger.warn('readUIMessageStream error', { topicId, executionId, err })
+            if (cancelled) return
+            streamErrorCount += 1
+            // Long agent turns with replay gaps previously spammed one warn per
+            // orphan delta (issue #23421 froze with thousands of lines).
+            // Repair now happens upstream; throttle to first + periodic summary.
+            if (streamErrorCount === 1 || streamErrorCount % 50 === 0) {
+              logger.warn('readUIMessageStream error', { topicId, executionId, err, streamErrorCount })
+            }
           }
         })) {
           // cancelBranch terminates the input; drain queued output so the SDK
@@ -663,13 +675,18 @@ export class ExecutionStreamOverlayService {
             this.#flushPending(entry, readerEpoch)
             const t = terminal ?? { isAbort: false, isError: false }
             const isError = t.isError || readerFailed
+            const degraded = streamErrorCount > 0
+            if (degraded && !isError) {
+              logger.warn('execution stream degraded but terminal ok', { topicId, executionId, streamErrorCount })
+            }
             const message = last ?? seed
             if (message || isError) {
               const event: ExecutionFinishEvent = {
                 attemptId,
                 message: message ?? { id: '', role: 'assistant', parts: [] },
                 isAbort: t.isAbort,
-                isError
+                isError,
+                ...(degraded ? { degraded: true as const } : {})
               }
               for (const listener of [...entry.finishListeners]) {
                 try {

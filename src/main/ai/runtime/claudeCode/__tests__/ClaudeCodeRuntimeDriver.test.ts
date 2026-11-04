@@ -3425,7 +3425,56 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it.each([
     ['No conversation found with session ID: stale-token', false],
-    ['No conversation found with session ID: stale-token', true],
+    ['No conversation found with session ID: stale-token', true]
+  ] as const)(
+    'clears stale resume token and projects conversation-reset without replaying: %s (warm=%s)',
+    async (failure, warm) => {
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, interrupt: vi.fn(), close: vi.fn() }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      if (warm)
+        mocks.consumeWarmQuery.mockResolvedValue({
+          warmQuery: { query: () => query },
+          processDiagnostics: { exit: undefined }
+        })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet',
+        resumeToken: 'stale-token'
+      })
+      const seen: any[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) seen.push(event)
+      })()
+      try {
+        await connection.send({ message: userMessage() })
+        queue.push({
+          type: 'result',
+          subtype: 'error_during_execution',
+          session_id: 'stale-token',
+          usage: {},
+          errors: [failure]
+        })
+        await consume
+        expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+        expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+        // Stale CLI-side conversation (#23421): driver clears its token and
+        // projects a reset marker so the host/next turn starts fresh.
+        expect(seen).toContainEqual(
+          expect.objectContaining({
+            type: 'chunk',
+            chunk: expect.objectContaining({ type: 'data-conversation-reset' })
+          })
+        )
+        expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(warm ? 0 : 1)
+      } finally {
+        await connection.close()
+      }
+    }
+  )
+
+  it.each([
     ['messages.2.content.1: `tool_use` ids must be unique', false],
     ['messages.2.content.1: `tool_use` ids must be unique', true]
   ] as const)(

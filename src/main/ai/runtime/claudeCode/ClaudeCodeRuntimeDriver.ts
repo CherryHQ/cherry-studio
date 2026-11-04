@@ -19,6 +19,7 @@ import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFile
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import { isStaleResumeError } from '@main/ai/runtime/staleResume'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -395,7 +396,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
       this.steerHolder.onInjected = (inputs) => {
-        this.steerBoundaryPending = inputs
+        // Multiple steers can inject before the next top-level message_start
+        // (rapid steers coalesce in the hook, but a steer arriving between
+        // splice and boundary would otherwise overwrite the armed one).
+        this.steerBoundaryPending = [...(this.steerBoundaryPending ?? []), ...inputs]
         // Reserve the host continuation synchronously before the hook returns. A gateway-backed
         // subprocess can issue its next provider request before the later `message_start` reaches
         // this query loop, so the async `steer-boundary` event is too late for request correlation.
@@ -727,6 +731,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           : error
       const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
       this.adapter?.finalizeOpenTextParts()
+      // Check both: a process wrapper would hide the SDK text on surfacedError.
+      const staleResume = !salvaged && (isStaleResumeError(error) || isStaleResumeError(surfacedError))
+      if (staleResume) {
+        // The CLI-side conversation is gone (crash/restart wiped it) but the
+        // host still holds its token — the next `send` with that token would
+        // fail identically (#23421 `No conversation found`, session
+        // unrecoverable). Drop the token so the next turn starts a fresh
+        // conversation, and project a reset marker so the UI can explain why
+        // this turn errored instead of silently showing `Error occurred`.
+        this.resumeToken = undefined
+        this.eventQueue.push({ type: 'chunk', chunk: { type: 'data-conversation-reset', data: {} } as never })
+        logger.warn('Claude Code resume token stale — cleared for fresh conversation', {
+          sessionId: this.input.sessionId
+        })
+      }
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,

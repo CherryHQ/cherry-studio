@@ -169,16 +169,67 @@ export function buildCompactReplay(
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
+  const openTools = new Set<string>()
 
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
   const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
     scopedKey(payload, `${kind}:${id}`)
+  const openToolKey = (payload: StreamChunkPayload, toolCallId: string): string =>
+    scopedKey(payload, `tool:${toolCallId}`)
 
   const flushPending = () => {
     if (!pending) return
     compact.push(pending)
     pending = undefined
+  }
+
+  const synthesizeToolStart = (
+    payload: StreamChunkPayload,
+    toolCallId: string,
+    from?: Extract<StreamChunkPayload['chunk'], { type: 'tool-input-available' }>
+  ): StreamChunkPayload => ({
+    ...payload,
+    chunk: {
+      type: 'tool-input-start',
+      toolCallId,
+      // Prefer the surviving name when the trigger carries it (typically
+      // tool-input-available) — a static `tool-${toolName}` part is only
+      // created on push, so `unknown-tool` would otherwise stick permanently.
+      toolName: from?.toolName ?? 'unknown-tool',
+      ...(from?.dynamic !== undefined ? { dynamic: from.dynamic } : {}),
+      ...(from?.title !== undefined ? { title: from.title } : {}),
+      ...(from?.providerMetadata !== undefined ? { providerMetadata: from.providerMetadata } : {})
+    }
+  })
+
+  // Index of synthesized starts in `compact`, so a later `tool-input-available`
+  // carrying the real name can patch an earlier `unknown-tool` placeholder
+  // (deltas arrive before available, so the first synthesis has no name).
+  const synthesizedStartIndex = new Map<string, number>()
+
+  const ensureToolOpen = (
+    payload: StreamChunkPayload,
+    toolCallId: string,
+    from?: Extract<StreamChunkPayload['chunk'], { type: 'tool-input-available' }>
+  ): void => {
+    const key = openToolKey(payload, toolCallId)
+    if (!openTools.has(key)) {
+      openTools.add(key)
+      synthesizedStartIndex.set(key, compact.length)
+      compact.push(synthesizeToolStart(payload, toolCallId, from))
+    } else if (from?.toolName) {
+      const at = synthesizedStartIndex.get(key)
+      if (at !== undefined) {
+        const existing = compact[at]
+        if (existing && existing.chunk.type === 'tool-input-start' && existing.chunk.toolName === 'unknown-tool') {
+          compact[at] = synthesizeToolStart(existing, toolCallId, from)
+        }
+        // Only patch once — a real start was never indexed, so this also
+        // no-ops when the opener survived eviction.
+        synthesizedStartIndex.delete(key)
+      }
+    }
   }
 
   for (const payload of buffer) {
@@ -221,10 +272,40 @@ export function buildCompactReplay(
         break
       }
 
-      case 'tool-input-delta':
+      case 'tool-input-start': {
         flushPending()
+        openTools.add(openToolKey(payload, (chunk as { toolCallId: string }).toolCallId))
+        compact.push(payload)
+        break
+      }
+
+      case 'tool-input-delta': {
+        flushPending()
+        const toolCallId = (chunk as { toolCallId: string }).toolCallId
+        ensureToolOpen(payload, toolCallId)
         pending = payload
         break
+      }
+
+      case 'tool-input-available': {
+        flushPending()
+        ensureToolOpen(payload, chunk.toolCallId, chunk)
+        compact.push(payload)
+        break
+      }
+
+      case 'tool-output-available':
+      case 'tool-output-error':
+      case 'tool-output-denied':
+      case 'tool-approval-request': {
+        flushPending()
+        const toolCallId = (payload.chunk as { toolCallId?: string }).toolCallId
+        if (toolCallId && !openTools.has(openToolKey(payload, toolCallId))) {
+          ensureToolOpen(payload, toolCallId)
+        }
+        compact.push(payload)
+        break
+      }
 
       default:
         flushPending()

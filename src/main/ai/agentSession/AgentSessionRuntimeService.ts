@@ -14,6 +14,7 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { isStaleResumeError } from '@main/ai/runtime/staleResume'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -1616,14 +1617,53 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    await this.closeAll()
+    // LifecycleManager allows 5s before `stop timed out — proceeding` and
+    // orphans _doStop mid-teardown (#23421: closeQuery/query.return +
+    // subprocess exit + pending connectionAttempt overruns the budget).
+    // Bound the wait so shutdown settles instead of racing the process exit.
+    let stopTimer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        this.closeAll().finally(() => {
+          if (stopTimer) clearTimeout(stopTimer)
+        }),
+        new Promise<void>((resolve) => {
+          stopTimer = setTimeout(() => {
+            const seen = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
+            logger.warn('AgentSessionRuntimeService closeAll timed out during stop — proceeding', {
+              sessions: seen.size
+            })
+            resolve()
+          }, 4000)
+        })
+      ])
+    } finally {
+      if (stopTimer) clearTimeout(stopTimer)
+    }
   }
 
   protected async onDestroy(): Promise<void> {
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
-    await this.closeAll()
+    // Mirror onStop's bound: onStop timing out leaves entries behind, and
+    // unbounded closeAll here would re-exceed the shutdown budget.
+    let destroyTimer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        this.closeAll().finally(() => {
+          if (destroyTimer) clearTimeout(destroyTimer)
+        }),
+        new Promise<void>((resolve) => {
+          destroyTimer = setTimeout(() => {
+            logger.warn('AgentSessionRuntimeService closeAll timed out during destroy — proceeding')
+            resolve()
+          }, 4000)
+        })
+      ])
+    } finally {
+      if (destroyTimer) clearTimeout(destroyTimer)
+    }
     try {
       toolApprovalRegistry.clear('agent-session-runtime-destroy')
     } catch (error) {
@@ -2669,6 +2709,33 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
+    if (isStaleResumeError(error)) {
+      // CLI-side conversation is gone but host/DB still pin its token — every
+      // subsequent turn would fail identically (#23421 unrecoverable session).
+      // Drop the in-memory token now and null persisted tokens so the next
+      // turn connects fresh; the driver already projected a
+      // `data-conversation-reset` marker for this turn's UI. Also drop
+      // `nativeSessionId` bindings: the driver falls back to them when no
+      // resume token exists, and they point at the same dead conversation.
+      entry.lastResumeToken = undefined
+      // A racing closeSession barrier would otherwise resurrect the stale
+      // token via `closing.resumeToken` in ensureConnection — clear it too,
+      // plus any failed-closure tokens kept for archive retry.
+      const closing = this.closingSessions.get(entry.sessionId)
+      if (closing) closing.resumeToken = undefined
+      const failed = this.failedClosures.get(entry.sessionId)
+      if (failed) {
+        for (const connection of failed) this.failedClosureResumeTokens.delete(connection)
+        this.failedClosures.delete(entry.sessionId)
+      }
+      try {
+        agentSessionMessageService.clearRuntimeResumeTokens(entry.sessionId)
+        agentSessionMessageService.clearNativeSessionIds(entry.sessionId)
+      } catch (clearError) {
+        logger.warn('Failed to clear stale resume tokens', { sessionId: entry.sessionId, error: clearError })
+      }
+      logger.warn('Cleared stale resume token after native session not found', { sessionId: entry.sessionId })
+    }
     const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
     if (
       isAgentSessionRuntimeCompacting(entry.runtimeState) ||
@@ -3483,7 +3550,30 @@ export class AgentSessionRuntimeService extends BaseService {
     this.inFlightTurnStarts.delete(entry.sessionId)
 
     const closings: Promise<unknown>[] = [backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]
-    if (connectionAttempt) closings.push(connectionAttempt)
+    if (connectionAttempt) {
+      // During shutdown still serialize a fast connect against teardown so a
+      // late `connect()` cannot attach past `closeEntry`, but never let a
+      // hung SDK build pin `closeAll` — the outer `onStop` 4s race owns the
+      // budget (#23421 stop timed out).
+      if (this.isShuttingDown) {
+        let attemptTimer: ReturnType<typeof setTimeout> | undefined
+        const boundedAttempt = Promise.race([
+          connectionAttempt
+            .catch(() => undefined)
+            .finally(() => {
+              if (attemptTimer) clearTimeout(attemptTimer)
+            }),
+          new Promise<void>((resolve) => {
+            attemptTimer = setTimeout(resolve, 1500)
+          })
+        ]).finally(() => {
+          if (attemptTimer) clearTimeout(attemptTimer)
+        })
+        closings.push(boundedAttempt)
+      } else {
+        closings.push(connectionAttempt)
+      }
+    }
     return Promise.allSettled(closings).then(() => undefined)
   }
 
@@ -3528,6 +3618,9 @@ export class AgentSessionRuntimeService extends BaseService {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
+      // Shutdown path already bounds closeAll at 4s; keep per-connection wait
+      // well inside it so one hung subprocess can't consume the whole budget.
+      const closeTimeoutMs = this.isShuttingDown ? 2500 : 20_000
       await Promise.race([
         Promise.resolve(closing).then(() => {
           const failed = this.failedClosures.get(sessionId)
@@ -3537,14 +3630,19 @@ export class AgentSessionRuntimeService extends BaseService {
           this.syncRuntimeActivity()
         }),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
+          timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), closeTimeoutMs)
         })
       ])
     } catch (error) {
-      const failed = this.failedClosures.get(sessionId) ?? new Set<AgentRuntimeConnection>()
-      failed.add(connection)
-      if (resumeToken) this.failedClosureResumeTokens.set(connection, resumeToken)
-      this.failedClosures.set(sessionId, failed)
+      // During shutdown the process is exiting and `failedClosures` would die
+      // with it — but `onStop` can also run on service restart without exit.
+      // Never poison the edit gate with a shutdown-budget timeout; just warn.
+      if (!this.isShuttingDown) {
+        const failed = this.failedClosures.get(sessionId) ?? new Set<AgentRuntimeConnection>()
+        failed.add(connection)
+        if (resumeToken) this.failedClosureResumeTokens.set(connection, resumeToken)
+        this.failedClosures.set(sessionId, failed)
+      }
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       if (strict) throw new AgentSessionEditError('close_failed')
     } finally {

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-agent-steer-replay-stale-resume.md
+2026-11-04-agent-steer-replay-stale-resume.md: 061d4af7fe04b2669ae7e8ab994ba11ed544dc4d
+2026-11-04-agent-steer-replay-stale-resume.zh.md: 0196236e8542937e5f3946c71cba4aee1592e49e

@@ -960,6 +960,35 @@ export class AgentSessionMessageService {
     })
   }
 
+  /**
+   * Drop persisted resume tokens for a session whose CLI-side conversation is
+   * gone (`No conversation found with session ID`, #23421). The next turn
+   * connects fresh instead of failing identically on the stale token.
+   */
+  clearRuntimeResumeTokens(sessionId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(sessionMessagesTable)
+        .set({ runtimeResumeToken: null })
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .run()
+    })
+  }
+
+  /**
+   * Drop persisted native session bindings for a session whose CLI-side
+   * conversation is gone. `ClaudeCodeRuntimeDriver.start()` falls back to
+   * `nativeSessionId` when no resume token exists, so leaving it would fail
+   * the next turn identically after a stale reset (#23421).
+   */
+  clearNativeSessionIds(sessionId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(sessionMessagesTable)
+        .set({ data: sql`json_remove(json(${sessionMessagesTable.data}), '$.nativeSessionId')` })
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .run()
+    })
+  }
+
   /** Best-effort terminalization after a live assistant persistence failure. */
   markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
     const changed = application.get('DbService').withWriteTx((tx) => {

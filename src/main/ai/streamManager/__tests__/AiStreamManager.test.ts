@@ -2378,9 +2378,12 @@ describe('AiStreamManager', () => {
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       // The delta flood merged into one entry on ingest (nothing evicted), and
       // the replay synthesizes the never-sent text-start for the orphaned run.
+      // The orphaned tool-input-available also gets a synthesized start so
+      // `readUIMessageStream` can rebuild the tool part (#23421).
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
         'text-start',
         'text-delta',
+        'tool-input-start',
         'tool-input-available',
         'tool-approval-request'
       ])
@@ -2433,6 +2436,7 @@ describe('AiStreamManager', () => {
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-start',
         'tool-input-available',
         'text-start',
         'text-delta',
