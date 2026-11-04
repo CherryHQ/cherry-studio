@@ -52,6 +52,8 @@ export interface MainNetworkDevtoolsEvent {
   requestHeaders?: Record<string, string>
   /** Redacted wire-order entries preserve repeated Node request headers for export. */
   requestHeaderEntries?: [string, string][]
+  /** A normalized display URL must never silently change a Node request target. */
+  requestReplayError?: string
   requestBody?: MainNetworkDevtoolsBody
   responseHeaders?: Record<string, string>
   responseBody?: MainNetworkDevtoolsBody
@@ -379,6 +381,24 @@ export class MainNetworkDevtoolsService extends BaseService {
       })
     }
 
+    // Node accepts literal targets that URL/cURL normalize (including dot segments).
+    // Keep display redaction unchanged, but refuse an executable route-changing export.
+    if (typeof request.path === 'string') {
+      const target = request.path
+      const displayUrl = this.events.find((event) => event.id === id)?.url
+      try {
+        const parsed = new URL(displayUrl ?? '')
+        if (!target.startsWith('/') || target.split('?')[0] !== parsed.pathname || target.includes('#')) {
+          this.updateEvent(id, {
+            requestReplayError: 'Normalized URL cannot faithfully replay the literal Node request target.'
+          })
+        }
+      } catch {
+        this.updateEvent(id, {
+          requestReplayError: 'Invalid URL cannot faithfully replay the literal Node request target.'
+        })
+      }
+    }
     this.captureClientRequestBody(request, id, requestContentType, requestHeaders)
 
     request.once('response', (response: IncomingMessage) => {
@@ -415,6 +435,12 @@ export class MainNetworkDevtoolsService extends BaseService {
     // Replacing Request headers changes wire metadata, not the retained body bytes.
     // Keep a known form body's redaction shape without restoring its old header.
     const originalType = input.headers.get('content-type') ?? undefined
+    if (originalType?.toLowerCase().startsWith('multipart/')) {
+      this.updateEvent(id, {
+        requestBody: { contentType, replayable: false, note: 'Multipart Request body is not captured.' }
+      })
+      return
+    }
     const redactionContentType = isUrlEncodedContentType(originalType) ? originalType : contentType
     // Do not clone non-text bodies: Request.clone() tees the stream, and the unread
     // clone branch would buffer the whole binary payload without backpressure.

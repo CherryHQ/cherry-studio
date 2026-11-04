@@ -1422,3 +1422,91 @@ it.skipIf(process.platform === 'win32').each(['file', 'node', 'async'] as const)
     }
   }
 )
+
+it.skipIf(process.platform === 'win32').each([undefined, 'text/plain', 'application/json'])(
+  'omits retained multipart bytes despite replacement type %s',
+  async (type) => {
+    const received: string[] = []
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        received.push(Buffer.concat(chunks).toString())
+        res.end('ok')
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as { events: MainNetworkDevtoolsEvent[]; patchFetch: () => void }
+    state.patchFetch()
+    try {
+      const form = new FormData()
+      form.set('api_key', 'multipart-private-marker')
+      const request = new Request(`http://127.0.0.1:${(server.address() as { port: number }).port}/`, {
+        method: 'POST',
+        body: form
+      })
+      const headers = type ? { 'Content-Type': type } : {}
+      await (await fetch(request, { headers })).text()
+      await waitFor(() => state.events[0]?.requestBody !== undefined)
+      expect(received[0]).toContain('multipart-private-marker')
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      const event = state.events[0]
+      expect(JSON.stringify(event)).not.toContain('multipart-private-marker')
+      expect(event.requestBody?.text).toBeUndefined()
+      expect(sandbox.buildCurlCommand?.(event)).not.toContain('--data-raw')
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
+
+it.skipIf(process.platform === 'win32').each(['/a/../b', '/a/./b', '/%2e%2e/b'])(
+  'refuses normalized replay of literal Node target %s',
+  async (path) => {
+    const received: string[] = []
+    const server = createServer((req, res) => {
+      received.push(req.url ?? '')
+      res.end('ok')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        original: (...args: unknown[]) => unknown,
+        source: 'http'
+      ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+    }
+    try {
+      const request = state.wrapHttpMethod(
+        httpRequest as (...args: unknown[]) => unknown,
+        'http'
+      )({ hostname: '127.0.0.1', port: (server.address() as { port: number }).port, path })
+      await new Promise<void>((resolve, reject) => {
+        request.on('response', (res) => {
+          res.resume()
+          res.on('end', resolve)
+        })
+        request.on('error', reject)
+        request.end()
+      })
+      expect(received).toEqual([path])
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      const command = sandbox.buildCurlCommand?.(state.events[0]) as string
+      await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+      expect(received).toEqual([path])
+      expect(command).toContain('cannot faithfully replay')
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
