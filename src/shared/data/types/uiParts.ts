@@ -29,6 +29,7 @@ import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
+import type { IllustrationData } from './illustration'
 import type { CherryMessagePart } from './message'
 
 // ============================================================================
@@ -138,6 +139,7 @@ export type RetryPartData =
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
 export type CherryDataPartTypes = {
+  illustration: IllustrationData
   error: ErrorPartData
   translation: TranslationPartData
   video: VideoPartData
