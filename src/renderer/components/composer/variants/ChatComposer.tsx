@@ -789,8 +789,9 @@ const ChatComposerInner = ({
   const currentSubmittedModels = effectiveSubmittedModels.map(
     (model) => queueModels.find((currentModel) => currentModel.id === model.id) ?? model
   )
-  const hasNonChatModel =
-    !validationPending && (currentSubmittedModels.some(isNonChatModel) || effectiveSubmittedModels.some(isNonChatModel))
+  // Current records are authoritative for capability classification: a retained selection/lock
+  // snapshot decides membership (and is the fallback when its record is gone), not capability.
+  const hasNonChatModel = !validationPending && currentSubmittedModels.some(isNonChatModel)
   const nonChatReason = hasNonChatModel
     ? t(lockedMentionedModels.length > 1 ? 'chat.input.non_chat_model_locked' : 'chat.input.non_chat_model')
     : undefined

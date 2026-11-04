@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeBasesLoading: false,
   assistant: undefined as any,
   model: undefined as Model | undefined,
+  modelB: undefined as Model | undefined,
   assistantLoading: false,
   modelPending: false,
   modelsLoading: false,
@@ -558,7 +559,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
-    return { models: [mocks.model ?? model, modelB], isLoading: mocks.modelsLoading }
+    return { models: [mocks.model ?? model, mocks.modelB ?? modelB], isLoading: mocks.modelsLoading }
   }
 }))
 
@@ -575,7 +576,7 @@ vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
         providers:
           options?.enabled === false
             ? []
-            : [{ id: 'provider', name: 'Provider', models: [mocks.model ?? model, modelB] }]
+            : [{ id: 'provider', name: 'Provider', models: [mocks.model ?? model, mocks.modelB ?? modelB] }]
       }
     }
   }
@@ -813,6 +814,7 @@ describe('ChatComposer', () => {
       knowledgeBaseIds: []
     }
     mocks.model = model
+    mocks.modelB = undefined
     mocks.assistantLoading = false
     mocks.modelPending = false
     mocks.modelsLoading = false
@@ -5116,6 +5118,62 @@ describe('ChatComposer', () => {
     expect(await screen.findByText('draft after capability refresh')).toBeVisible()
   })
 
+  // Catches a retained selection keeping Send blocked after its same-id record is corrected.
+  it("clears the non-chat warning and enables send when the selected model's same-id record becomes chat-capable", async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.mentionedModels = [model, mocks.modelB]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const composer = () => (
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </QuickPanelProvider>
+    )
+    const view = render(composer())
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'draft after capability correction' } })
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'true')
+
+    mocks.modelB = { ...modelB, capabilities: [] }
+    view.rerender(composer())
+
+    await waitFor(() => expect(screen.queryByText('chat.input.non_chat_model')).not.toBeInTheDocument())
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'false')
+    expect(editor).toHaveValue('draft after capability correction')
+    await user.click(send)
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(onSend).toHaveBeenCalledWith(
+      'draft after capability correction',
+      expect.objectContaining({ mentionedModels: [model.id, modelB.id] })
+    )
+  })
+
+  // Catches a missing current record bypassing the retained snapshot's non-chat classification.
+  it('still blocks a retained non-chat model whose record is absent from the model list', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.mentionedModels = [
+      { ...modelB, id: 'provider::model-retained', capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    ]
+    const onSend = vi.fn()
+    render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'retained model draft' } })
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'true')
+    await user.click(send)
+    expect(onSend).not.toHaveBeenCalled()
+    expect(editor).toHaveValue('retained model draft')
+  })
+
   // Catches a blocked historical model losing the draft or remaining blocked after replacement.
   it('keeps the draft until the historical non-chat model is replaced', async () => {
     const user = userEvent.setup()
@@ -5150,6 +5208,7 @@ describe('ChatComposer', () => {
 
   // Catches partial dispatch when restored mentions include a non-chat model.
   it('blocks the entire draft when mentioned models include a non-chat model', async () => {
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
     const user = userEvent.setup()
     mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
     mocks.mentionedModels = [model, { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }]
@@ -5202,6 +5261,7 @@ describe('ChatComposer', () => {
 
   // Catches a save-only edit being incorrectly blocked by the resend guard.
   it('saves a locked edit containing a non-chat model without resending', async ({ onTestFinished }) => {
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
     const createRange = document.createRange.bind(document)
     const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
       const range = createRange()
@@ -5236,6 +5296,7 @@ describe('ChatComposer', () => {
   })
 
   it('does not resend a locked edit containing a non-chat model', async () => {
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
     const forkAndResend = vi.fn()
     mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
     const message = { id: 'locked', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
