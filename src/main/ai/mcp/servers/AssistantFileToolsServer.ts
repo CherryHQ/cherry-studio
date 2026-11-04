@@ -21,12 +21,14 @@ import {
 } from '@main/ai/tools/saveAttachment'
 import { isAbortError } from '@main/utils/error'
 import { READ_FILE_TOOL_NAME, readFileInputSchema } from '@shared/ai/builtinTools'
+import type { AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('McpServer:AssistantFileTools')
 
 interface AssistantFileToolContext {
   sessionId: string
   workspacePath: string
+  workspaceType: AgentWorkspaceType
 }
 
 // Failures stay opaque to the model: they can carry attachment entry ids or absolute paths.
@@ -79,7 +81,7 @@ export function createAssistantFileToolsServer(context: AssistantFileToolContext
     { description: MOVE_TO_TRASH_DESCRIPTION, inputSchema: moveToTrashInputSchema },
     async (input, ctx) =>
       runTool(MOVE_TO_TRASH_TOOL_NAME, ctx.mcpReq.signal, () =>
-        moveWorkspaceItemToTrash(context.workspacePath, input, ctx.mcpReq.signal)
+        moveWorkspaceItemToTrash(context.workspacePath, input, ctx.mcpReq.signal, context.workspaceType)
       )
   )
 

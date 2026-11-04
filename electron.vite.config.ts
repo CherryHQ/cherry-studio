@@ -18,7 +18,6 @@ import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { claudeCodeBinaryManifest } from './scripts/claudeCodeBinaryManifest'
-import { piVccBundlePlugin } from './scripts/piVccBundle'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
@@ -205,7 +204,6 @@ export default defineConfig({
         }
       },
       chunkExportGuardPlugin(),
-      piVccBundlePlugin(),
       miniAppThemeAssetPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
@@ -356,6 +354,8 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
+          selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
+          selectionCapsule: resolve(__dirname, 'src/renderer/windows/selection/capsule/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),

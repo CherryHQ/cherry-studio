@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 
+import { ENTRY_KINDS } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   ThreadFeed,
@@ -53,7 +54,7 @@ export class PiProjection {
       report
     )
     this.bind(session)
-    for (const message of session.messages) this.write(message, this.id(message), 'complete')
+    for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
   }
 
   rebind(session: AgentSession): void {
@@ -83,11 +84,26 @@ export class PiProjection {
   }
 
   private captureContext(): PiContext {
+    const own = this.ownEntryIds()
     return this.session.sessionManager
       .buildSessionProjection()
-      .entries.flatMap(({ sourceEntry, messages }) =>
+      .entries.filter(({ sourceEntry }) => !own || own.has(sourceEntry.id))
+      .flatMap(({ sourceEntry, messages }) =>
         messages.map((message) => ({ message: structuredClone(message), id: sourceEntry.id }))
       )
+  }
+
+  private currentMessages(): PiMessage[] {
+    const own = this.ownEntryIds()
+    return own ? this.session.messages.filter((message) => own.has(this.entryId(message) ?? '')) : this.session.messages
+  }
+
+  private ownEntryIds(): Set<string> | undefined {
+    const branch = this.session.sessionManager.getBranch()
+    const origin = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    return origin < 0 ? undefined : new Set(branch.slice(origin + 1).map((entry) => entry.id))
   }
 
   private bind(session: AgentSession): void {
@@ -217,7 +233,7 @@ export class PiProjection {
       message.role !== 'user' &&
       message.role !== 'assistant' &&
       message.role !== 'system' &&
-      !(message.role === 'custom' && message.display)
+      !(message.role === 'custom' && (message.display || message.customType === ENTRY_KINDS.subagentMessage))
     )
       return
     const liveId = id
