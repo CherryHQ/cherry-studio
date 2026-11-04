@@ -25,6 +25,11 @@ import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettin
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import {
+  DuplicateMcpServerNameError,
+  isExportableMcpServer,
+  serializeMcpServersForExport
+} from '@renderer/utils/mcpTransfer'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -57,6 +62,7 @@ const McpServersList: FC = () => {
   const search = mcpServersRouteApi.useSearch<AppRouter>()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
@@ -235,6 +241,26 @@ const McpServersList: FC = () => {
     setIsAddModalVisible(true)
   }, [])
 
+  const handleExport = useCallback(async () => {
+    setIsAddMenuOpen(false)
+    if (exporting) return
+    setExporting(true)
+    try {
+      const content = serializeMcpServersForExport(mcpServers)
+      await window.api.file.save('mcp-servers.json', new TextEncoder().encode(content), {
+        filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
+      })
+    } catch (error) {
+      toast.error(
+        error instanceof DuplicateMcpServerNameError
+          ? t('settings.mcp.exportDuplicateName', { name: error.serverName })
+          : t('settings.mcp.exportFailed')
+      )
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, mcpServers, t])
+
   return (
     <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-3 pb-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
@@ -301,6 +327,11 @@ const McpServersList: FC = () => {
                   <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={() => handleImport('json')} />
                   <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={() => handleImport('dxt')} />
                   <MenuItem label={t('settings.mcp.addServer.importFrom.mcpb')} onClick={() => handleImport('mcpb')} />
+                  <MenuItem
+                    label={t('settings.mcp.exportAsJson')}
+                    onClick={() => void handleExport()}
+                    disabled={exporting || !mcpServers.some(isExportableMcpServer)}
+                  />
                 </MenuList>
               </PopoverContent>
             </Popover>

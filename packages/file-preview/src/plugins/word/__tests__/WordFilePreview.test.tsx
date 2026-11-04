@@ -83,6 +83,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  document.getSelection()?.removeAllRanges()
   cleanup()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -212,6 +213,96 @@ describe('WordFilePreview', () => {
     fireEvent.click(second)
     expect(second).not.toHaveAttribute('data-docx-picked')
     expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it.each(['none', 'same', 'other'] as const)('keeps the %s paragraph pick when a text drag ends', async (pick) => {
+    const user = userEvent.setup()
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await screen.findByText('Page 2')
+    const first = renderParagraph('first paragraph', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    const second = renderParagraph('second paragraph', { 'data-docx-part': 'body', 'data-docx-index': '1' })
+    const picked = pick === 'same' ? second : pick === 'other' ? first : null
+    if (picked) await user.click(picked)
+    onSelectionReference.mockClear()
+
+    fireEvent.mouseDown(first, { clientX: 10, clientY: 10 })
+    const range = document.createRange()
+    range.setStart(first.firstChild!, 2)
+    range.setEnd(second.firstChild!, 6)
+    const selection = document.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    // Dispatch only the terminal click: a new pointer-down would collapse the drag's selection.
+    fireEvent.click(second, { clientX: 40, clientY: 30 })
+
+    expect(selection.toString()).toBe('rst paragraphsecond')
+    expect(onSelectionReference).not.toHaveBeenCalled()
+    for (const paragraph of [first, second]) {
+      if (paragraph === picked) expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+      else expect(paragraph).not.toHaveAttribute('data-docx-picked')
+    }
+  })
+
+  it.each(['collapsed', 'outside'] as const)('allows a paragraph pick with a %s selection', async (kind) => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await screen.findByText('Page 2')
+    const paragraph = renderParagraph('pick this paragraph', { 'data-docx-part': 'body', 'data-docx-index': '3' })
+    render(<p>Selected in another pane</p>)
+    fireEvent.mouseDown(paragraph, { clientX: 10, clientY: 10 })
+    const range = document.createRange()
+    range.selectNodeContents(kind === 'outside' ? screen.getByText('Selected in another pane') : paragraph)
+    if (kind === 'collapsed') range.collapse(true)
+    document.getSelection()!.removeAllRanges()
+    document.getSelection()!.addRange(range)
+
+    fireEvent.click(paragraph, { clientX: 40, clientY: 30 })
+
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'docx', paragraph: 3 }, excerpt: 'pick this paragraph' })
+    )
+  })
+
+  it('allows a plain click to clear a pick before the browser collapses an existing text selection', async () => {
+    const user = userEvent.setup()
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await screen.findByText('Page 2')
+    const paragraph = renderParagraph('picked paragraph', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    await user.click(paragraph)
+    const range = document.createRange()
+    range.selectNodeContents(paragraph)
+    document.getSelection()!.removeAllRanges()
+    document.getSelection()!.addRange(range)
+
+    fireEvent.mouseDown(paragraph, { clientX: 10, clientY: 10 })
+    fireEvent.click(paragraph, { clientX: 10, clientY: 10 })
+
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('suppresses link navigation without picking when a text drag ends on a link', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await screen.findByText('Page 2')
+    const paragraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    const link = document.createElement('a')
+    link.href = 'https://example.com'
+    link.textContent = 'reference'
+    paragraph.append(link)
+    fireEvent.mouseDown(link, { clientX: 10, clientY: 10 })
+    const range = document.createRange()
+    range.selectNodeContents(link)
+    document.getSelection()!.removeAllRanges()
+    document.getSelection()!.addRange(range)
+
+    expect(fireEvent.click(link, { clientX: 40, clientY: 10 })).toBe(false)
+    expect(document.getSelection()!.toString()).toBe('reference')
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+    expect(onSelectionReference).not.toHaveBeenCalled()
   })
 
   it('reports null for a paragraph the docx-preview patch left unnumbered', async () => {

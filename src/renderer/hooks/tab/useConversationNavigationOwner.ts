@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { findConversationTab, getConversationSidebarApp } from '@renderer/utils/conversationNavigation'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
@@ -40,7 +41,10 @@ export function useConversationNavigationOwner({ tabs, openTab, setActiveTab }: 
     reportOwnership(requestId, findConversationTab(tabs, target) !== undefined)
   })
 
-  useIpcOn('navigation.conversation_focus_or_open_requested', ({ requestId, target, title }) => {
+  useIpcOn('navigation.conversation_focus_or_open_requested', ({ requestId, target, title, draft }) => {
+    // Only agent composers take a handed-over draft today.
+    if (draft && target.conversationType === 'agent') handOffAgentDraft(target.conversationId, draft)
+
     const existingTab = findConversationTab(tabs, target)
     if (existingTab) {
       setActiveTab(existingTab.id)

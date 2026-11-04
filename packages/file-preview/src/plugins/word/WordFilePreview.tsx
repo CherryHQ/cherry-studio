@@ -70,6 +70,7 @@ export default function WordFilePreview({
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const pressPositionRef = useRef<{ x: number; y: number } | null>(null)
   const styleRef = useRef<HTMLDivElement>(null)
   const renderTokenRef = useRef(0)
   const fitScrollTopRef = useRef<number | null>(null)
@@ -291,9 +292,24 @@ export default function WordFilePreview({
   // paragraph must not look picked while the host gets null.
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
+      const pressPosition = pressPositionRef.current
+      pressPositionRef.current = null
       if (!onSelection || !(event.target instanceof Element)) return
       if (event.target.closest('a[href]')) event.preventDefault()
       const bodyContainer = bodyRef.current
+      const selection = bodyContainer?.ownerDocument.getSelection()
+      // A plain click can collapse an existing selection only after this handler runs.
+      if (
+        pressPosition &&
+        (event.clientX !== pressPosition.x || event.clientY !== pressPosition.y) &&
+        bodyContainer &&
+        selection &&
+        !selection.isCollapsed &&
+        selection.rangeCount > 0 &&
+        selection.getRangeAt(0).intersectsNode(bodyContainer)
+      ) {
+        return
+      }
       const previous = bodyContainer?.querySelector<HTMLElement>('[data-docx-picked="true"]') ?? null
       const resolved = paragraphToDocxAnchor(event.target)
       previous?.removeAttribute('data-docx-picked')
@@ -388,9 +404,12 @@ export default function WordFilePreview({
               data-testid="docx-preview-content"
               data-zoom={zoom}
               data-picker={onSelection ? 'true' : undefined}
+              onMouseDown={(event) => {
+                pressPositionRef.current = { x: event.clientX, y: event.clientY }
+              }}
               onClick={handlePick}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10"
+              className="selectable mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10"
             />
           </div>
           {loading ? (

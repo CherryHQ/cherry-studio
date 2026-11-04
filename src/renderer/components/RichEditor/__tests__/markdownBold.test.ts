@@ -103,7 +103,7 @@ it('locates a saved HTML line by visible text instead of the proportional estima
   editor = new Editor({
     element: document.createElement('div'),
     extensions: createRichEditorExtensions(),
-    content: '<p>前言</p><p><strong>注意：</strong>检查 &amp; **原文**</p><pre><code>1\n2\n3\n4\n5\n6</code></pre>'
+    content: '<p>前言</p><p><strong>注意：</strong>检查 &amp; **原文**</p><p>1<br>2<br>3<br>4<br>5<br>6</p>'
   })
   const saved = editor.getMarkdown()
   const lines = saved.split('\n')

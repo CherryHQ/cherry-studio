@@ -120,10 +120,10 @@ function toWireToolName(name: string): string {
 }
 
 /**
- * Make an illegal `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
- * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
- * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and result
- * share one part, so the pair stays consistent.
+ * Make an illegal `dynamic-tool` name wire-legal and drop nameless parts. The v1 migrator joins
+ * `"{server}: {tool}"` into `toolName` for display (`ChatMappings`), and unlike v1 — which never
+ * replayed tool blocks — v2 sends that field as `function_call.name`, which providers reject
+ * (#18199). Call and result share one part, so the pair stays consistent.
  *
  * A name this request declares is never rewritten: the API Gateway shares this path and keys its
  * `ToolSet` by the client's own function name (which Gemini allows to hold `.` / `:`), so
@@ -134,9 +134,20 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
   messages.forEach((message, messageIndex) => {
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
-      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) return
-      parts ??= [...message.parts]
-      parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
+      if (part.type !== 'dynamic-tool') {
+        parts?.push(part)
+        return
+      }
+      if (part.toolName.length === 0) {
+        parts ??= message.parts.slice(0, partIndex)
+        return
+      }
+      if (WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) {
+        parts?.push(part)
+        return
+      }
+      parts ??= message.parts.slice(0, partIndex)
+      parts.push({ ...part, toolName: toWireToolName(part.toolName) })
     })
     if (parts) {
       out ??= [...messages]
@@ -202,6 +213,58 @@ function dropNonObjectToolInputs(messages: UIMessage[]): UIMessage[] {
 }
 
 /**
+ * Two persisted parts can share one wire id (#22441). Strict providers require exactly
+ * one call and one result per id, so keep the strongest local evidence in its own slot.
+ */
+export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T[] {
+  const groups = new Map<
+    string,
+    { messageIndex: number; partIndex: number; priority: number; providerExecuted: boolean }
+  >()
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part)) return
+      const priority =
+        part.state === 'output-error' ||
+        part.state === 'output-denied' ||
+        (part.state === 'output-available' && part.preliminary !== true)
+          ? 2
+          : part.state === 'approval-responded'
+            ? 1
+            : 0
+      const group = groups.get(part.toolCallId)
+      if (!group) {
+        groups.set(part.toolCallId, {
+          messageIndex,
+          partIndex,
+          priority,
+          providerExecuted: part.providerExecuted === true
+        })
+      } else {
+        group.providerExecuted ||= part.providerExecuted === true
+        if (priority > group.priority) Object.assign(group, { messageIndex, partIndex, priority })
+      }
+    })
+  })
+
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    const parts = message.parts.filter((part, partIndex) => {
+      if (!isToolUIPart(part)) return true
+      const group = groups.get(part.toolCallId)!
+      return group.providerExecuted || (group.messageIndex === messageIndex && group.partIndex === partIndex)
+    })
+    if (parts.length !== message.parts.length) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
  * Give the model the same attributed wording the runtimes send. Rewrites the copy handed to
  * `convertToModelMessages`, covering both the answered (`approval-responded`) and the terminal
  * (`output-denied`) shapes; the stored part keeps the raw reason for the card and the DB.
@@ -249,7 +312,9 @@ export async function toModelMessages(
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
-    dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+    deduplicateLocalToolParts(
+      dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+    )
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)

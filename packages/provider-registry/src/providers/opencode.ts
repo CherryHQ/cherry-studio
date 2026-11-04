@@ -2,7 +2,7 @@ import type { ReasoningEffort } from '../schemas/enums'
 import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelTemplate } from './types'
 import { modeWire, openaiResponsesSummaryWire } from './wires'
 
 const fixedSupport: ReasoningSupport = { controls: [] }
@@ -86,7 +86,7 @@ const qwenBudgetModels = [
   { max: 262_144, modelId: 'qwen3-8-max' }
 ]
 
-const endpointOverrides: Partial<ProviderModelOverride>[] = [
+const endpointOverrides: ProviderModelTemplate[] = [
   ...chatFixedModels.map((modelId) => ({
     modelId,
     endpointTypes: ['openai-chat-completions' as const],
@@ -210,5 +210,5 @@ export default defineProvider({
     }
   },
   modelsDevProvider: 'opencode-go',
-  overrides: endpointOverrides
+  modelTemplates: endpointOverrides
 })

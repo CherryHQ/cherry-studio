@@ -111,6 +111,16 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..58d9b120e060ac6076207f1b2e7acdf8
            images: images.length > 0 ? images : void 0
          });
          break;
+@@ -748,8 +750,8 @@ function convertToOllamaChatMessages({
+               toolCalls.push({
+                 id: part.toolCallId,
+                 type: "function",
+                 function: {
+                   name: part.toolName,
+-                  arguments: part.input
++                  arguments: typeof part.input === "string" ? JSON.parse(part.input) : part.input
+                 }
+               });
 @@ -814,7 +816,7 @@ var ollamaProviderOptions = import_v45.z.object({
     *
     * Only supported by certain models like DeepSeek R1 and Qwen 3.
@@ -178,6 +188,16 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..f95252bdc89c89664ee3f4bfedc8f282
            images: images.length > 0 ? images : void 0
          });
          break;
+@@ -744,8 +744,8 @@ function convertToOllamaChatMessages({
+               toolCalls.push({
+                 id: part.toolCallId,
+                 type: "function",
+                 function: {
+                   name: part.toolName,
+-                  arguments: part.input
++                  arguments: typeof part.input === "string" ? JSON.parse(part.input) : part.input
+                 }
+               });
 @@ -810,7 +810,7 @@ var ollamaProviderOptions = z5.object({
     *
     * Only supported by certain models like DeepSeek R1 and Qwen 3.

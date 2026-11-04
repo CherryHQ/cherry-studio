@@ -1,323 +1,263 @@
-// @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import { type ReactNode, useEffect } from 'react'
-import { SWRConfig } from 'swr'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { type ReactNode, useLayoutEffect } from 'react'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const ipc = vi.hoisted(() => ({ request: vi.fn() }))
+import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
+import type { FileHandle } from '@shared/data/types/file'
+import { fileEditRequestSchemas } from '@shared/ipc/schemas/fileEdit'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
+
+import { createEditTransport } from '../../../../tests/helpers/file/editTransport'
+import { FileEditSessionContext, useFileEditSession } from '../useFileEditSession'
+
+const ipc = vi.hoisted(() => ({ request: vi.fn(), on: vi.fn(() => () => {}) }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: ipc }))
 
-import { UnsupportedFileTextError } from '@renderer/utils/fileTextSnapshot'
-import type { FileHandle } from '@shared/data/types/file'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { AbsoluteFilePath } from '@shared/types/file'
-
-import { type FileEditSession, useFileEditSession } from '../useFileEditSession'
-
-const A: FileHandle = { kind: 'path', path: '/notes/a.md' as AbsoluteFilePath }
-const B: FileHandle = { kind: 'path', path: '/notes/b.md' as AbsoluteFilePath }
-const bytes = (text: string) => new TextEncoder().encode(text)
-const read = (text: string, mtime = 1) => ({
-  content: bytes(text),
-  mime: 'text/markdown',
-  version: { mtime, size: bytes(text).byteLength }
-})
-const writes = () => ipc.request.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')
-const neutral = {
-  status: 'loading',
-  draft: '',
-  savedContent: '',
-  savedSizeBytes: undefined,
-  saveError: undefined,
-  isDirty: false,
-  isSaving: false,
-  conflict: false,
-  metadataRecoveryPending: false
-}
-
-function harness() {
-  const cache = new Map()
-  const commits: { handle: FileHandle | undefined; session: FileEditSession }[] = []
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>{children}</SWRConfig>
-  )
-  const hook = renderHook(
-    ({ handle }: { handle: FileHandle | undefined }) => {
-      const session = useFileEditSession(handle)
-      useEffect(() => {
-        commits.push({ handle, session })
-      })
-      return session
-    },
-    { initialProps: { handle: A as FileHandle | undefined }, wrapper }
-  )
-  return { ...hook, commits }
-}
-
-const ready = async (hook: ReturnType<typeof harness>, content: string) => {
-  await waitFor(() => expect(hook.result.current.status).toBe('ready'))
-  expect(hook.result.current).toMatchObject({ draft: content, savedContent: content, isDirty: false })
-}
+const a = createFilePathHandle(AbsoluteFilePathSchema.parse('/notes/A.md'))
+const b = createFilePathHandle(AbsoluteFilePathSchema.parse('/notes/B.md'))
+let manager: FileEditSessionManager
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <FileEditSessionContext value={manager}>{children}</FileEditSessionContext>
+)
 
 beforeEach(() => {
+  manager = new FileEditSessionManager()
   ipc.request.mockReset()
-  ipc.request.mockImplementation((route, input) => {
-    if (route === 'file.read') return Promise.resolve(read(input.handle.path === A.path ? 'A body' : 'B body'))
-    return Promise.resolve({ mtime: 2, size: input.data.byteLength })
-  })
-})
-afterEach(() => {
-  cleanup()
-  vi.useRealTimers()
-})
-
-describe('file edit session ownership', () => {
-  it('never commits A mirrors as ready on a cached B read', async () => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    hook.rerender({ handle: B })
-    await ready(hook, 'B body')
-    hook.rerender({ handle: A })
-    await ready(hook, 'A body')
-    const checkpoint = hook.commits.length
-    hook.rerender({ handle: B })
-    await ready(hook, 'B body')
-    const bCommits = hook.commits.slice(checkpoint).filter(({ handle }) => handle === B)
-    expect(bCommits.length).toBeGreaterThan(0)
-    for (const { session } of bCommits) {
-      if (session.status === 'ready') {
-        expect(session).toMatchObject({ draft: 'B body', savedContent: 'B body', savedSizeBytes: 6 })
+  ipc.request.mockImplementation(
+    createEditTransport(async (route, input) => {
+      if (route === 'file.edit.read') {
+        const content = new TextEncoder().encode(
+          input && typeof input === 'object' && 'path' in input && input.path === '/notes/A.md' ? 'ALPHA' : 'BRAVO'
+        )
+        return { content, version: { mtime: 101, size: content.byteLength } }
       }
-      expect(session.draft).not.toBe('A body')
-      expect(session.savedContent).not.toBe('A body')
+      if (
+        route === 'file.edit.write' &&
+        input &&
+        typeof input === 'object' &&
+        'data' in input &&
+        input.data instanceof Uint8Array
+      )
+        return { mtime: 102, size: input.data.byteLength }
+      throw new Error(`Unexpected route: ${route}`)
+    })
+  )
+})
+afterEach(cleanup)
+
+it('never exposes another file draft as ready when reopening a cached file', async () => {
+  const observed: { path: string; draft: string }[] = []
+  const { result, rerender } = renderHook(
+    ({ handle }: { handle: FileHandle }) => {
+      const session = useFileEditSession(handle, 'notes')
+      useLayoutEffect(() => {
+        if (session.status === 'ready' && handle.kind === 'path') {
+          observed.push({ path: handle.path, draft: session.draft })
+        }
+      }, [handle, session])
+      return session
+    },
+    { initialProps: { handle: a }, wrapper }
+  )
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  rerender({ handle: b })
+  await waitFor(() => expect(result.current.draft).toBe('BRAVO'))
+  rerender({ handle: a })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+
+  expect(observed).not.toContainEqual({ path: '/notes/A.md', draft: 'BRAVO' })
+  expect(observed).not.toContainEqual({ path: '/notes/B.md', draft: 'ALPHA' })
+})
+
+it('rejects an old editor callback after switching files and after reopening the same path', async () => {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  const oldEdit = result.current.setDraft
+  rerender({ handle: b })
+  await waitFor(() => expect(result.current.draft).toBe('BRAVO'))
+  act(() => oldEdit('late edit from A'))
+  await act(async () => result.current.flush())
+  expect(result.current.draft).toBe('BRAVO')
+
+  rerender({ handle: a })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  act(() => oldEdit('late edit from previous A session'))
+  await act(async () => result.current.flush())
+  expect(result.current.draft).toBe('ALPHA')
+  expect(ipc.request.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
+
+  act(() => result.current.setDraft('current A edit'))
+  await act(async () => result.current.flush())
+  const writes = ipc.request.mock.calls.filter(([route]) => route === 'file.edit.write')
+  expect(writes).toHaveLength(1)
+  expect(new TextDecoder().decode(writes[0][1].data)).toBe('current A edit')
+})
+
+it('does not republish a released A attachment when B is abandoned before acquisition completes', async () => {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  await waitFor(() => expect(result.current.status).toBe('ready'))
+  const transport = ipc.request.getMockImplementation()!
+  const pending = Promise.withResolvers<void>()
+  ipc.request.mockImplementation(async (...args) => {
+    if (args[0] === 'file.edit.open') await pending.promise
+    return transport(...args)
+  })
+  rerender({ handle: b })
+  rerender({ handle: a })
+  expect(result.current.status).toBe('loading')
+  expect(result.current.draft).toBe('')
+  pending.resolve()
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+})
+
+it('opens the selected note when a mutation settles', async () => {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  let mutation!: Awaited<ReturnType<typeof manager.prepareMutation>>
+  await act(async () => {
+    mutation = await manager.prepareMutation()
+  })
+  rerender({ handle: b })
+  await act(async () => {})
+  expect(result.current.status).toBe('loading')
+  expect(result.current.draft).toBe('')
+  await act(async () => {
+    await mutation.finish()
+  })
+  await waitFor(() => expect(result.current.status).toBe('ready'))
+  expect(result.current.draft).toBe('BRAVO')
+})
+
+it.each(['switch', 'unmount'] as const)('releases a queued acquisition abandoned by %s', async (outcome) => {
+  const transport = ipc.request.getMockImplementation()!
+  const openLeases = new Map<string, string>()
+  const closedPaths = new Set<string>()
+  ipc.request.mockImplementation(async (route, ...args) => {
+    const result = await transport(route, ...args)
+    if (route === 'file.edit.open') {
+      const resource = fileEditRequestSchemas[route].output.parse(result)
+      const { handle } = fileEditRequestSchemas[route].input.parse(args[0])
+      if (handle.kind === 'path') openLeases.set(resource.editId, handle.path)
+    } else if (route === 'file.edit.close') {
+      const { editId } = fileEditRequestSchemas[route].input.parse(args[0])
+      const path = openLeases.get(editId)
+      if (path) closedPaths.add(path)
+      openLeases.delete(editId)
     }
-    act(() => {
-      for (const { session } of bCommits) {
-        if (session.status === 'loading') session.setDraft('loading leaked')
+    return result
+  })
+  const mutation = await manager.prepareMutation()
+  const { result, rerender, unmount } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: b },
+    wrapper
+  })
+  if (outcome === 'switch') rerender({ handle: a })
+  else unmount()
+  await act(async () => await mutation.finish())
+  await waitFor(() => expect(closedPaths.has('/notes/B.md')).toBe(true))
+  if (outcome === 'switch') {
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    expect(result.current.draft).toBe('ALPHA')
+    expect(manager.listRetained().map((session) => session.locator)).toEqual(['/notes/A.md'])
+    unmount()
+  }
+  await waitFor(() => expect(manager.listRetained()).toEqual([]))
+  await waitFor(() => expect(openLeases.size).toBe(0))
+})
+
+it('masks the previous draft while loading and keeps loading callbacks detached after adoption', async () => {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  const transport = ipc.request.getMockImplementation()!
+  const pending = Promise.withResolvers<void>()
+  ipc.request.mockImplementation(async (...args) => {
+    if (args[0] === 'file.edit.read') await pending.promise
+    return transport(...args)
+  })
+  rerender({ handle: b })
+  const loading = result.current
+  expect(loading).toMatchObject({
+    status: 'loading',
+    draft: '',
+    savedContent: '',
+    savedSizeBytes: undefined,
+    isDirty: false,
+    isSaving: false,
+    conflict: false,
+    saveError: undefined
+  })
+  await act(async () => pending.resolve())
+  await waitFor(() => expect(result.current.draft).toBe('BRAVO'))
+  act(() => loading.setDraft('loading callback leaked'))
+  for (const command of [loading.discard, loading.flush, loading.reload, loading.keepDraft])
+    await expect(command()).rejects.toThrow('not ready')
+  expect(result.current).toMatchObject({ draft: 'BRAVO', savedContent: 'BRAVO', isDirty: false })
+  expect(ipc.request.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
+})
+
+it.each(['initial read', 'reload', 'save'] as const)('does not publish a late A %s into B', async (operation) => {
+  const transport = ipc.request.getMockImplementation()!
+  const pending = Promise.withResolvers<void>()
+  const started = Promise.withResolvers<void>()
+  const installGate = () => {
+    let gated = false
+    ipc.request.mockImplementation(async (...args) => {
+      if (!gated && args[0] === (operation === 'save' ? 'file.edit.write' : 'file.edit.read')) {
+        gated = true
+        started.resolve()
+        await pending.promise
       }
+      return transport(...args)
     })
-    expect(hook.result.current.draft).toBe('B body')
-    expect(writes()).toEqual([])
+  }
+  if (operation === 'initial read') installGate()
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
   })
-
-  it('masks every mirror during a cache miss and adopts only B', async () => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    const pending = Promise.withResolvers<ReturnType<typeof read>>()
-    ipc.request.mockReturnValueOnce(pending.promise)
-    hook.rerender({ handle: B })
-    expect(hook.result.current).toMatchObject(neutral)
-    await act(async () => pending.resolve(read('B loaded')))
-    await ready(hook, 'B loaded')
-    expect(writes()).toEqual([])
-  })
-
-  it('detached callbacks cannot edit, discard, flush, reload, recover or watch B or cancel its autosave', async () => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    const old = hook.result.current
-    hook.rerender({ handle: B })
-    await ready(hook, 'B body')
-    vi.useFakeTimers()
-    act(() => hook.result.current.setDraft('B edit'))
-    ipc.request.mockClear()
-    await act(async () => {
-      old.setDraft('A leaked')
-      old.discard()
-      await old.flush()
-      await old.reload()
-      await old.keepDraft()
-      old.notifyExternalChange()
-    })
-    expect(hook.result.current.draft).toBe('B edit')
-    expect(ipc.request.mock.calls).toEqual([])
-    await act(async () => vi.advanceTimersByTimeAsync(800))
-    expect(writes().map(([, input]) => input)).toEqual([
-      { handle: B, data: bytes('B edit'), expectedVersion: read('B body').version }
-    ])
-    expect(hook.result.current.savedContent).toBe('B edit')
-  })
-
-  it('A1 callbacks remain detached after reopening A as A2; current callbacks edit and save', async () => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    const old = hook.result.current.setDraft
-    hook.rerender({ handle: B })
-    await ready(hook, 'B body')
-    hook.rerender({ handle: A })
-    await ready(hook, 'A body')
-    act(() => old('A1 leaked'))
-    expect(hook.result.current.draft).toBe('A body')
-    act(() => hook.result.current.setDraft('A2 edit'))
-    await act(async () => hook.result.current.flush())
-    expect(hook.result.current.savedContent).toBe('A2 edit')
-    expect(writes().map(([, input]) => input)).toEqual([
-      { handle: A, data: bytes('A2 edit'), expectedVersion: read('A body').version }
-    ])
-  })
-
-  it('callbacks obtained while loading stay inert after adoption', async () => {
-    const pending = Promise.withResolvers<ReturnType<typeof read>>()
-    ipc.request.mockReturnValueOnce(pending.promise)
-    const hook = harness()
-    const loading = hook.result.current
-    expect(loading).toMatchObject(neutral)
-    await act(async () => pending.resolve(read('A body')))
-    await ready(hook, 'A body')
-    ipc.request.mockClear()
-    await act(async () => {
-      loading.setDraft('loading leaked')
-      loading.discard()
-      await loading.flush()
-      await loading.reload()
-      await loading.keepDraft()
-      loading.notifyExternalChange()
-    })
-    expect(hook.result.current.draft).toBe('A body')
-    expect(ipc.request.mock.calls).toEqual([])
-  })
-
-  it('ignores a late initial A read after B has loaded', async () => {
-    const pendingA = Promise.withResolvers<ReturnType<typeof read>>()
-    const pendingB = Promise.withResolvers<ReturnType<typeof read>>()
-    ipc.request.mockReturnValueOnce(pendingA.promise).mockReturnValueOnce(pendingB.promise)
-    const hook = harness()
-    hook.rerender({ handle: B })
-    expect(hook.result.current).toMatchObject(neutral)
-    await act(async () => pendingB.resolve(read('B first')))
-    await ready(hook, 'B first')
-    await act(async () => pendingA.resolve(read('A late')))
-    expect(hook.result.current.draft).toBe('B first')
-    expect(hook.commits.filter(({ handle }) => handle === B).every(({ session }) => session.draft !== 'A late')).toBe(
-      true
-    )
-    expect(writes()).toEqual([])
-  })
-
-  it.each(['reload', 'watcher'] as const)('ignores a late A %s completion after switching to B', async (operation) => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    const pending = Promise.withResolvers<ReturnType<typeof read>>()
-    ipc.request.mockReturnValueOnce(pending.promise)
-    let task: Promise<void> | undefined
-    await act(async () => {
-      if (operation === 'reload') task = hook.result.current.reload()
-      else hook.result.current.notifyExternalChange()
-    })
-    hook.rerender({ handle: B })
-    await ready(hook, 'B body')
-    const before = hook.result.current
-    await act(async () => {
-      pending.resolve(read('A late', 9))
-      await task
-    })
-    expect(hook.result.current).toBe(before)
-    expect(writes()).toEqual([])
-  })
-
-  it('settles an in-flight A writer using A bytes and version without publishing into B', async () => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    const pending = Promise.withResolvers<{ mtime: number; size: number }>()
-    ipc.request.mockReturnValueOnce(pending.promise)
-    act(() => hook.result.current.setDraft('A edit'))
-    let task!: Promise<void>
+  let task: Promise<void> | undefined
+  if (operation !== 'initial read') {
+    await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+    installGate()
     act(() => {
-      task = hook.result.current.flush()
+      if (operation === 'save') {
+        result.current.setDraft('A pending edit')
+        task = result.current.flush()
+      } else task = result.current.reload()
     })
-    await waitFor(() => expect(hook.result.current.isSaving).toBe(true))
-    hook.rerender({ handle: B })
-    await ready(hook, 'B body')
-    const before = hook.result.current
-    const count = hook.commits.length
-    expect(before).toMatchObject({ isSaving: false, conflict: false, saveError: undefined })
-    await act(async () => {
-      pending.resolve({ mtime: 2, size: 6 })
-      await task
-    })
-    expect(writes().map(([, input]) => input)).toEqual([
-      { handle: A, data: bytes('A edit'), expectedVersion: read('A body').version }
-    ])
-    expect(hook.result.current).toBe(before)
-    expect(hook.commits).toHaveLength(count)
+  }
+  await act(async () => started.promise)
+  rerender({ handle: b })
+  await waitFor(() => expect(result.current.draft).toBe('BRAVO'))
+  await act(async () => {
+    pending.resolve()
+    await task
   })
-
-  it.each(['conflict', 'io', 'metadata'] as const)('isolates A %s flags while B loads', async (failure) => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    act(() => hook.result.current.setDraft('A edit'))
-    if (failure === 'conflict') {
-      ipc.request
-        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
-        .mockResolvedValueOnce(read('external', 9))
-    } else if (failure === 'metadata') {
-      ipc.request
-        .mockRejectedValueOnce(new IpcError(fileErrorCodes.COMMITTED_METADATA_PENDING, 'metadata'))
-        .mockResolvedValueOnce(read('A edit', 9))
-    } else ipc.request.mockRejectedValueOnce(new Error('disk full'))
-    await act(async () => {
-      await hook.result.current.flush().catch(() => {})
-    })
-    expect(hook.result.current.draft).toBe('A edit')
-    if (failure === 'conflict') expect(hook.result.current.conflict).toBe(true)
-    else expect(hook.result.current.saveError).toBeInstanceOf(Error)
-    const pending = Promise.withResolvers<ReturnType<typeof read>>()
-    ipc.request.mockReturnValueOnce(pending.promise)
-    hook.rerender({ handle: B })
-    expect(hook.result.current).toMatchObject(neutral)
-    for (const { session } of hook.commits.filter(({ handle }) => handle === B)) {
-      expect(session).toMatchObject(neutral)
-    }
-    await act(async () => pending.resolve(read('B body')))
-    await ready(hook, 'B body')
+  expect(result.current).toMatchObject({
+    status: 'ready',
+    draft: 'BRAVO',
+    savedContent: 'BRAVO',
+    isDirty: false,
+    isSaving: false,
+    conflict: false,
+    saveError: undefined
   })
-
-  it.each([
-    { error: new Error('read failed'), status: 'error', unsupportedReason: undefined },
-    { error: new UnsupportedFileTextError('encoding'), status: 'unsupported', unsupportedReason: 'encoding' }
-  ])('prioritizes a current-key $status over loading', async ({ error, status, unsupportedReason }) => {
-    const hook = harness()
-    await ready(hook, 'A body')
-    ipc.request.mockRejectedValueOnce(error)
-    hook.rerender({ handle: B })
-    await waitFor(() => expect(hook.result.current.status).toBe(status))
-    expect(hook.result.current).toMatchObject({ ...neutral, status, unsupportedReason })
-    expect(hook.result.current.error).toBe(status === 'error' ? error : undefined)
-    expect(writes()).toEqual([])
-  })
-
-  it('keeps callbacks stable across typing, discard, reload and conflict recovery, including an empty file', async () => {
-    ipc.request.mockResolvedValueOnce(read(''))
-    const hook = harness()
-    await ready(hook, '')
-    const callbacks = (session: FileEditSession) => [
-      session.setDraft,
-      session.discard,
-      session.reload,
-      session.keepDraft,
-      session.flush,
-      session.notifyExternalChange
-    ]
-    const initial = callbacks(hook.result.current)
-    act(() => hook.result.current.setDraft('edit'))
-    expect(callbacks(hook.result.current)).toEqual(initial)
-    act(() => hook.result.current.discard())
-    expect(callbacks(hook.result.current)).toEqual(initial)
-    await act(async () => hook.result.current.reload())
-    expect(callbacks(hook.result.current)).toEqual(initial)
-    act(() => hook.result.current.setDraft('local'))
-    ipc.request
-      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
-      .mockResolvedValueOnce(read('external', 9))
-    await act(async () => {
-      await expect(hook.result.current.flush()).rejects.toThrow()
-    })
-    expect(hook.result.current.conflict).toBe(true)
-    await act(async () => hook.result.current.keepDraft())
-    expect(hook.result.current.savedContent).toBe('local')
-    expect(callbacks(hook.result.current)).toEqual(initial)
-    hook.rerender({ handle: undefined })
-    expect(hook.result.current).toMatchObject({ ...neutral, status: 'idle' })
-  })
+  if (operation === 'save') {
+    const writes = ipc.request.mock.calls.filter(([route]) => route === 'file.edit.write')
+    expect(writes).toHaveLength(1)
+    expect(new TextDecoder().decode(writes[0][1].data)).toBe('A pending edit')
+  }
 })

@@ -1,5 +1,6 @@
-import '@renderer/assets/styles/vendor/katex.css'
 import type { Editor } from '@tiptap/core'
+
+import '@renderer/assets/styles/vendor/katex.css'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { useEditor, useEditorState } from '@tiptap/react'
@@ -57,7 +58,7 @@ export interface UseRichEditorOptions {
 
 export interface UseRichEditorReturn {
   /** TipTap editor instance */
-  editor: Editor
+  editor: Editor | null
   /** Current markdown content */
   markdown: string
   /** Whether editor is disabled */
@@ -108,7 +109,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const [markdown, setMarkdownState] = useState<string>(initialContent)
 
   // Get theme and language mapping from CodeStyleProvider
-  const { activeShikiTheme } = useCodeStyle()
+  const { activeCodeTheme } = useCodeStyle()
 
   const [tableOfContentsItems, setTableOfContentsItems] = useState<TableOfContentDataItem[]>([])
 
@@ -158,7 +159,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       createRichEditorExtensions({
         editable,
         placeholder,
-        shikiTheme: activeShikiTheme,
+        codeTheme: activeCodeTheme,
         onLinkHover: handleLinkHover,
         onLinkHoverEnd: handleLinkHoverEnd,
         tocScrollParent: scrollParent,
@@ -271,7 +272,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
+    [placeholder, activeCodeTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
   )
 
   const editor = useEditor({
@@ -486,7 +487,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
-      editor.setEditable(editable)
+      editor.setEditable(editable, false)
       if (editable && autoFocus) {
         try {
           setTimeout(() => {
@@ -705,10 +706,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const setMarkdown = useCallback(
     (content: string) => {
       try {
-        setMarkdownState(content)
-
-        // Parse markdown straight into the ProseMirror doc via the native AST.
+        // Loading a snapshot must not feed back into the consumer's autosave.
         editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false })
+        setMarkdownState(content)
       } catch (error) {
         logger.error('Error setting markdown content:', error as Error)
       }

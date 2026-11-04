@@ -19,22 +19,19 @@ import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
-const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
-const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
-const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 
 type MarkdownFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
   | { status: 'ready'; content: string; renderVersion: number }
-  | { status: 'too_large' }
 
 function MarkdownPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -50,21 +47,6 @@ function MarkdownPreviewError() {
         icon={FileWarning}
         title={t('file_preview.markdown.read_error.title')}
         description={t('file_preview.load_error.description')}
-        className="h-full"
-      />
-    </div>
-  )
-}
-
-function MarkdownPreviewTooLarge() {
-  const { t } = useTranslation()
-
-  return (
-    <div role="alert" className="h-full">
-      <EmptyState
-        icon={FileWarning}
-        title={t('file_preview.markdown.too_large.title')}
-        description={t('file_preview.markdown.too_large.description', { limit: MARKDOWN_PREVIEW_MAX_SIZE_MIB })}
         className="h-full"
       />
     </div>
@@ -135,17 +117,18 @@ function MarkdownPreviewContent({
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
   if (loadState.status === 'error') return <MarkdownPreviewError />
-  if (loadState.status === 'too_large') return <MarkdownPreviewTooLarge />
 
   if (mode === 'source') {
     return (
       <div className="flex min-h-full w-full">
         <Suspense fallback={<MarkdownPreviewLoading />}>
-          <LazyCodeViewer
+          <FileEditor
             value={loadState.content}
-            language="markdown"
-            wrapped
-            className="min-w-0 flex-1 overflow-hidden"
+            fileName={filePath}
+            wrapLines
+            readOnly
+            expanded
+            className="min-w-0 flex-1"
           />
         </Suspense>
       </div>
@@ -194,10 +177,6 @@ export default function MarkdownFilePreview({
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
         if (cancelled || loadedMetadata?.kind !== 'file') return
-        if (loadedMetadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
-          setLoadState({ status: 'too_large' })
-          return
-        }
 
         const content = await window.api.fs.readText(filePath)
         if (!cancelled) {

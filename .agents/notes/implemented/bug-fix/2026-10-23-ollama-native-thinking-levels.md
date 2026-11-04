@@ -16,7 +16,7 @@ The Ollama preset defaults to `ollama-chat`. A model's first saved endpoint take
 
 For Ollama presets and copies without an explicit default or native host, a saved Anthropic-slot host also supplies the native connection host. Reads leave the stored row unchanged. An explicit native host reset remains stored even when it matches the factory URL, so the old host cannot override that choice again.
 
-The Claude Agent SDK can inject `high` even when thinking is disabled or unspecified. Native Ollama Agent routes carry the submitted canonical selection through an internal header. The gateway accepts it only for authenticated internal Agent requests and uses the normal reasoning serializer instead of SDK-derived thinking options. External requests and invalid header values retain their existing behavior.
+The Claude Agent SDK can inject `high` even when thinking is disabled or unspecified. Native Ollama Agent routes carry the submitted canonical selection through an internal header. The gateway accepts it only for authenticated internal requests and uses the normal reasoning serializer instead of SDK-derived thinking options. External requests ignore the header; invalid internal values are rejected with HTTP 400.
 
 The model-fetch action updates existing rows through the batch model API, changing only reasoning metadata and its capability flag. Missing metadata does not clear saved controls. Native metadata remains stored even when it currently matches the catalog. The SDK patch accepts boolean or string `think` values; the application's closed reasoning vocabulary determines which named levels are selectable.
 

@@ -1,16 +1,37 @@
 import { act, render, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { RichEditorRef } from '../types'
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
 
 import RichEditor from '../RichEditor'
 
 describe('RichEditor accessibility', () => {
+  it('restores an editable document after the containing tab hides and resumes', async () => {
+    const view = (mode: 'visible' | 'hidden') => (
+      <Activity mode={mode}>
+        <RichEditor initialContent="retained document" autoFocus={false} />
+      </Activity>
+    )
+    const { container, rerender } = render(view('visible'))
+    await waitFor(() =>
+      expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent('retained document')
+    )
+    rerender(view('hidden'))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    rerender(view('visible'))
+    await waitFor(() =>
+      expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent('retained document')
+    )
+  })
+
   // Asserted on the attribute rather than through `getByRole('textbox', { name })`: ProseMirror
   // leaves the contenteditable without an explicit `role`, and giving every editor in the app one
   // changes how assistive tech navigates rich content — a separate decision from naming this one.
