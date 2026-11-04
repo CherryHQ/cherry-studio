@@ -96,6 +96,7 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { getPathComparisonKey } from './agent/accessiblePath'
+import { activeAgentDraftEditorManager, type ActiveAgentDraftEditor } from './agent/ActiveAgentDraftEditorManager'
 import {
   type AgentComposerControlsRenderer,
   type AgentComposerInputAdapter,
@@ -149,22 +150,6 @@ const logger = loggerService.withContext('AgentComposer')
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly AbsoluteFilePath[] = []
-type SubmittedAgentDraft = Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
-
-type ActiveAgentDraftEditor = {
-  /** The owning instance's clear callback — identifies same-instance settlements. */
-  owner: (options?: { preserveCache?: boolean }) => void
-  /** True only while the visible editor holds exactly this submitted document. */
-  isShowing: (submitted: SubmittedAgentDraft) => boolean
-  /** Clear the submitted document from the editor, keeping an unrelated cached draft untouched. */
-  clearSubmitted: (options: { preserveCache: boolean; submitted?: boolean }) => void
-}
-
-// The editor actually on screen for each draft-cache key. A queue settlement
-// can resolve in an unmounted instance after a navigate-away + reopen, and
-// only the active editor's clear reaches the visible draft (cherry-pr-review
-// inv_8e5cbb8f581e03ec).
-const activeAgentDraftEditors = new Map<string, ActiveAgentDraftEditor>()
 
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
@@ -1496,7 +1481,7 @@ const AgentComposerInner = ({
       },
       clearSubmitted: (options) => clearCurrentDraft(options)
     }
-    activeAgentDraftEditors.set(draftEditorRegistryKey, entry)
+    activeAgentDraftEditorManager.register(draftEditorRegistryKey, entry)
     // Settlement may have landed between the mount-time draft load and this
     // registration (a render that yielded): reconcile the CURRENT cache state
     // immediately, or the reopened editor keeps the queued message
@@ -1521,8 +1506,7 @@ const AgentComposerInner = ({
       clearCurrentDraft()
     }
     return () => {
-      if (activeAgentDraftEditors.get(draftEditorRegistryKey) === entry)
-        activeAgentDraftEditors.delete(draftEditorRegistryKey)
+      activeAgentDraftEditorManager.unregister(draftEditorRegistryKey, entry)
     }
   }, [
     agentId,
@@ -1679,7 +1663,7 @@ const AgentComposerInner = ({
             // unrelated draft cached — clear the submitted document from the
             // editor and reset history navigation without touching that cache
             // entry (cherry-pr-review inv_ccf47fc3bab12fcf).
-            const activeEditor = activeAgentDraftEditors.get(draftEditorRegistryKey)
+            const activeEditor = activeAgentDraftEditorManager.get(draftEditorRegistryKey)
             if (activeEditor) {
               const sameInstance = (activeEditor.owner as unknown) === clearCurrentDraft
               // Same instance that submitted: the synchronous revision guard
