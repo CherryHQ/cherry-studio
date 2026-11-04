@@ -107,7 +107,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
        `steer-boundary` when a steer is injected and `steer-undelivered` for
-       steers the turn ended before injecting.
+       steers the turn ended before injecting. A driver that returns unplaced inputs
+       for the next turn emits `steer-undelivered`; Pi instead records native queued
+       inputs as aborted when execution ends without placing them, without automatic resend.
      - `abortTurn()` — graceful interrupt of the current turn while the
        session stays alive (background tasks and subagents survive). Resolve
        `true` when the turn was interrupted and the connection lives — a warm
@@ -116,6 +118,15 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        driver cannot gracefully stop (unsupported, or no timely answer) — the
        host then tears the session down. Without it the host always tears the
        session down on a user Stop.
+     - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
+       explicit retirement and service shutdown still close it.
+     - `childProjection(toolCallId)` — expose a child snapshot and subscription
+       through the root owner. `messageChild(contextId, text)` dispatches child input
+       through that owner. These optional desktop facets do not add native history
+       methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
+       A connection with independent child writes also provides `drainChildWrites()`:
+       after input admission drains, wait for native work and archive writes before returning.
+       Reject on a failed flush so backup cannot accept an unconfirmed boundary.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`
@@ -173,7 +184,9 @@ These are the choices nothing enforces:
 - **Credentials never enter runtime config.** If the runtime persists or
   interpolates its config (env expansion, `$VAR` syntax), write a placeholder
   and inject the real key at runtime through the SDK's auth API. Rotate keys
-  per connection, not per validation.
+  when dispatching native requests, never during validation. Pi's native provider uses
+  an internal gateway credential; the gateway resolves upstream credentials per model
+  invocation. Subprocess runtimes may bind credentials per connection.
 - **Fail-closed resource discovery, by trust class.** Do not let the runtime
   auto-import user-global resources or workspace **executable/code** resources
   (extensions, skills, prompt files) until Cherry has an explicit trust flow.
