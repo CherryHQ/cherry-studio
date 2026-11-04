@@ -33,6 +33,10 @@ A root baseline covers the current live overlay, not the topic's saved history. 
 
 Native queues, child lifetime and persistence destinations remain owner-specific. Observing or detaching a view does not submit input, stop a task, or transfer native ownership. Parent completion does not finish a background child's projection. Native owner closure makes the child unavailable while retaining its readable archive.
 
+Archive reconciliation can await a native read. It preserves submitted product user text
+when behavior wraps the corresponding native input, and retains saved source mappings
+when a later snapshot uses committed rather than live preview identities.
+
 ## Publication
 
 `MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. Every update carries the complete message order, which also expresses removal. Unchanged messages and parts keep stable references in the renderer.

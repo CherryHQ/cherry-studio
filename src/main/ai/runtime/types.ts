@@ -267,6 +267,8 @@ export interface AgentRuntimeConnection {
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */
   drainChildWrites?(): Promise<void>
+  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  interrupt?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

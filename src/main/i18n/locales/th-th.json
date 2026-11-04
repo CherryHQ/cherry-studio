@@ -87,6 +87,7 @@
   "code_cli.model.provider_config_missing": "ไม่มีการกำหนดค่าผู้ให้บริการ",
   "code_cli.model.unsupported": "เอเจนต์นี้ไม่รองรับการบันทึกโมเดลเริ่มต้นแบบเนทีฟ",
   "code_cli.uninstall_partial": "ไม่สามารถถอนการติดตั้งบางส่วนประกอบได้ ถอนการติดตั้งแล้ว: {{removed}} ยังถอนการติดตั้งไม่สมบูรณ์: {{remaining}}",
+  "common.agent_compaction_unchanged": "ไม่ได้บันทึกสรุป การสนทนาไม่มีการเปลี่ยนแปลง",
   "common.channel_available_commands": "คำสั่งที่ใช้ได้:",
   "common.channel_command_processing_error": "⚠️ เกิดข้อผิดพลาดในการประมวลผลคำสั่ง โปรดลองอีกครั้งภายหลัง",
   "common.channel_error": "ข้อผิดพลาด: {{error}}",

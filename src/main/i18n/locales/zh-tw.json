@@ -87,6 +87,7 @@
   "code_cli.model.provider_config_missing": "缺少服務商設定。",
   "code_cli.model.unsupported": "此智慧體不支援儲存原生預設模型。",
   "code_cli.uninstall_partial": "部分元件未能解除安裝。 已解除安裝：{{removed}} 未完成解除安裝：{{remaining}}",
+  "common.agent_compaction_unchanged": "未寫入摘要，對話內容保持不變。",
   "common.channel_available_commands": "可用指令：",
   "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
   "common.channel_error": "錯誤：{{error}}",

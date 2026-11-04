@@ -11,6 +11,7 @@ import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTra
 import { LocalRuntimeDriver } from './localAgent/LocalRuntimeDriver'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
+import { PiDurableRuntimeDriver } from './piDurable/PiDurableRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
 import type {
   AgentRuntimeConnectInput,
@@ -150,4 +151,5 @@ export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LocalRuntimeDriver())
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
+  runtimeDriverRegistry.register(new PiDurableRuntimeDriver())
 }

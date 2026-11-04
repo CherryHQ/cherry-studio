@@ -87,6 +87,7 @@
   "code_cli.model.provider_config_missing": "Missing provider configuration.",
   "code_cli.model.unsupported": "This agent does not support saving a native default model.",
   "code_cli.uninstall_partial": "Some components could not be removed. Removed: {{removed}}. Not fully removed: {{remaining}}.",
+  "common.agent_compaction_unchanged": "No summary was committed; the conversation is unchanged.",
   "common.channel_available_commands": "Available commands:",
   "common.channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",
   "common.channel_error": "Error: {{error}}",

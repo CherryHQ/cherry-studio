@@ -87,6 +87,7 @@
   "code_cli.model.provider_config_missing": "La configuration du fournisseur est manquante.",
   "code_cli.model.unsupported": "Cet agent ne permet pas d’enregistrer un modèle natif par défaut.",
   "code_cli.uninstall_partial": "Certains composants n’ont pas pu être désinstallés. Désinstallés : {{removed}} Suppression incomplète : {{remaining}}",
+  "common.agent_compaction_unchanged": "Aucun résumé n’a été enregistré ; la conversation reste inchangée.",
   "common.channel_available_commands": "Commandes disponibles :",
   "common.channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
   "common.channel_error": "Erreur : {{error}}",

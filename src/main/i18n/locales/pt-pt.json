@@ -87,6 +87,7 @@
   "code_cli.model.provider_config_missing": "Falta a configuração do fornecedor.",
   "code_cli.model.unsupported": "Este agente não permite guardar um modelo nativo predefinido.",
   "code_cli.uninstall_partial": "Não foi possível desinstalar alguns componentes. Desinstalados: {{removed}} Não removidos completamente: {{remaining}}",
+  "common.agent_compaction_unchanged": "Não foi guardado nenhum resumo; a conversa mantém-se inalterada.",
   "common.channel_available_commands": "Comandos disponíveis:",
   "common.channel_command_processing_error": "⚠️ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.",
   "common.channel_error": "Erro: {{error}}",

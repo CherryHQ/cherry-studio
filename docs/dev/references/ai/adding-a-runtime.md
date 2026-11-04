@@ -8,7 +8,7 @@ sources:
 
 # Adding an Agent Runtime
 
-How to add another agent runtime alongside `claude-code` and `pi`. For the
+How to add another agent runtime alongside `claude-code`, `pi` and `pi-durable`. For the
 host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
@@ -102,8 +102,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
      spawn-frozen differences, freeze permission-mode changes during an active turn,
      and return `failed` when a live tightening cannot be applied so the host fails closed.
-   - `close()`.
+   - `close()` — release the owner and join its writers. Durable runtimes may preserve unfinished work.
    - Optional, with host fallbacks when omitted:
+     - `interrupt()` — cancel foreground work for user Stop before the host closes the
+       connection. Keep this separate from durable shutdown and recovery.
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
        `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
@@ -111,6 +113,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        inputs as aborted when execution ends without placing them, without automatic resend.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
+     - `background-work-state` with `awaitingReply: false` — retain independent background
+       work without holding the parent's reply open. Durable uses this for child projections;
+       later result delivery announces an autonomous turn.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input
        through that owner. These optional desktop facets do not add native history
