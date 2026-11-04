@@ -56,8 +56,9 @@ export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | U
  */
 export async function createPdfParser(options: LoadParameters) {
   // Loads @napi-rs/canvas DOM globals that pdf-parse expects in Electron main.
-  const { CanvasFactory } = await import('pdf-parse/worker')
+  const { CanvasFactory, getPath } = await import('pdf-parse/worker')
   const { PDFParse } = await import('pdf-parse')
 
+  PDFParse.setWorker(getPath())
   return new PDFParse({ ...options, CanvasFactory })
 }

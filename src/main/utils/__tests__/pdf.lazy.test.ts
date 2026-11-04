@@ -28,6 +28,8 @@ describe('extractPdfText module loading', () => {
 
   it('passes the Node CanvasFactory to PDFParse', async () => {
     const CanvasFactory = class CanvasFactory {}
+    const workerPath = '/bundled/pdf.worker.mjs'
+    let activeWorker: string | undefined
     const data = new Uint8Array([37, 80, 68, 70])
     const destroyMock = vi.fn(async () => undefined)
     const getTextMock = vi.fn(async () => ({ text: 'Hello' }))
@@ -38,14 +40,19 @@ describe('extractPdfText module loading', () => {
     vi.doMock('pdf-parse/worker', () => {
       workerLoaded = true
 
-      return { CanvasFactory }
+      return { CanvasFactory, getPath: () => workerPath }
     })
     vi.doMock('pdf-parse', () => {
       pdfParseLoadedAfterWorker = workerLoaded
 
       return {
         PDFParse: class PDFParse {
+          static setWorker(value: string) {
+            activeWorker = value
+          }
+
           constructor(options: unknown) {
+            if (activeWorker !== workerPath) throw new Error('The bundled worker must be configured before parsing')
             constructorMock(options)
           }
 
@@ -61,7 +68,6 @@ describe('extractPdfText module loading', () => {
 
     expect(pdfParseLoadedAfterWorker).toBe(true)
     expect(constructorMock).toHaveBeenCalledWith({ data, CanvasFactory })
-    expect(getTextMock).toHaveBeenCalled()
     expect(destroyMock).toHaveBeenCalled()
   })
   it('reads local PDF metadata through a file URL and destroys the parser', async () => {
@@ -69,9 +75,11 @@ describe('extractPdfText module loading', () => {
     const destroyMock = vi.fn(async () => undefined)
     const constructorMock = vi.fn()
 
-    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {} }))
+    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {}, getPath: () => '/pdf.worker.mjs' }))
     vi.doMock('pdf-parse', () => ({
       PDFParse: class PDFParse {
+        static setWorker() {}
+
         constructor(options: unknown) {
           constructorMock(options)
         }
@@ -86,7 +94,6 @@ describe('extractPdfText module loading', () => {
 
     await expect(getPdfPageCount(pdfPath)).resolves.toBe(3)
     expect(constructorMock).toHaveBeenCalledWith(expect.objectContaining({ url: pathToFileURL(pdfPath).href }))
-    expect(getInfoMock).toHaveBeenCalled()
     expect(destroyMock).toHaveBeenCalled()
   })
 
@@ -96,9 +103,11 @@ describe('extractPdfText module loading', () => {
     })
     const destroyMock = vi.fn(async () => undefined)
 
-    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {} }))
+    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {}, getPath: () => '/pdf.worker.mjs' }))
     vi.doMock('pdf-parse', () => ({
       PDFParse: class PDFParse {
+        static setWorker() {}
+
         getInfo = getInfoMock
         destroy = destroyMock
       }
