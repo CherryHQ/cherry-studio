@@ -185,6 +185,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }))
   })
 
+  it.each(['none', 'default', 'medium'] as const)(
+    'freezes native Ollama thinking %s across the SDK gateway',
+    async (selection) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:4b' })
+      mocks.getProviderByProviderId.mockReturnValue({
+        id: 'ollama',
+        presetProviderId: 'ollama',
+        defaultChatEndpoint: 'ollama-chat',
+        endpointConfigs: { 'ollama-chat': { baseUrl: 'http://localhost:11434' } }
+      })
+      mocks.getModelByKey.mockReturnValue({
+        id: 'ollama::qwen3:4b',
+        apiModelId: 'qwen3:4b',
+        endpointTypes: ['ollama-chat'],
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }],
+          selectableEfforts: ['none', 'low', 'medium', 'high']
+        }
+      })
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, selection)
+      expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain(`X-Cherry-Reasoning-Effort: ${selection}`)
+    }
+  )
+
   it('uses the explicit effectiveResume token and ignores the persisted one', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('persisted-token')
 

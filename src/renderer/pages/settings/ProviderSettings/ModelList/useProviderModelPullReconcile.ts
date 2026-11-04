@@ -1,3 +1,4 @@
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,8 +16,13 @@ import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/Prov
 import { toast } from '@renderer/services/toast'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import {
+  MODELS_BATCH_MAX_ITEMS,
+  MODELS_BULK_UPDATE_MAX_ITEMS,
+  type BulkUpdateModelItem
+} from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
@@ -82,7 +88,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [translateModelId] = usePreference('feature.translate.model_id')
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
+  const { createModels, updateModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
     'POST',
     '/providers/:providerId/models:reconcile',
@@ -123,10 +129,36 @@ export function useProviderModelPullReconcile(providerId: string) {
     setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
     try {
-      const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId)
+      const {
+        models: remoteModels,
+        skippedModels = [],
+        discoveredReasoning = []
+      } = await fetchResolvedProviderModels(providerId)
       if (!isLatestLoad()) return null
 
-      const fetched = models.filter((model) => model.name?.trim())
+      const fetched = remoteModels.filter((model) => model.name?.trim())
+      const localById = new Map(models.map((model) => [model.id, model]))
+      const updates: BulkUpdateModelItem[] = []
+      for (const model of discoveredReasoning) {
+        const local = localById.get(model.id)
+        if (!local || model.reasoning === undefined) continue
+        const capabilities: Model['capabilities'] = local.capabilities.filter(
+          (capability) => capability !== MODEL_CAPABILITY.REASONING
+        )
+        if (model.capabilities.includes(MODEL_CAPABILITY.REASONING)) capabilities.push(MODEL_CAPABILITY.REASONING)
+        const sameReasoning =
+          isEqual(local.reasoning?.controls, model.reasoning.controls) &&
+          isEqual(local.reasoning?.selectableEfforts, model.reasoning.selectableEfforts) &&
+          local.reasoning?.defaultEffort === model.reasoning.defaultEffort
+        if (!sameReasoning || !isEqual(new Set(local.capabilities), new Set(capabilities))) {
+          updates.push({ uniqueModelId: local.id, patch: { reasoning: model.reasoning, capabilities } })
+        }
+      }
+      for (const chunk of chunkArray(updates, MODELS_BULK_UPDATE_MAX_ITEMS)) {
+        if (!isLatestLoad()) return null
+        await updateModels(chunk)
+      }
+      if (!isLatestLoad()) return null
       if (skippedModels.length > 0) {
         toast.warning({
           title: t('settings.models.manage.models_not_listed', { count: skippedModels.length }),
@@ -152,7 +184,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     } finally {
       if (isLatestLoad()) setIsLoadingModels(false)
     }
-  }, [providerId, t])
+  }, [models, providerId, t, updateModels])
 
   const openPullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(true)

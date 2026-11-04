@@ -7,8 +7,10 @@ import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import {
   type EndpointType as RuntimeEndpointType,
+  ENDPOINT_TYPE,
   type ListedModels,
   type Model,
+  MODEL_CAPABILITY,
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -58,7 +60,9 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
+  const nativeReasoning = model.endpointTypes?.[0] === ENDPOINT_TYPE.OLLAMA_CHAT ? model.reasoning : undefined
+  const capabilities =
+    nativeReasoning || (!model.presetModelId && model.capabilities?.length) ? model.capabilities : undefined
 
   return {
     providerId,
@@ -66,6 +70,7 @@ export function toCreateModelDto(
     name: model.name,
     group: model.group,
     ...(capabilities ? { capabilities: [...capabilities] } : {}),
+    ...(nativeReasoning ? { reasoning: nativeReasoning } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
@@ -134,8 +139,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     const merged = { ...base }
     // Fetchers use the raw id when the API has no display name; only then use the registry name.
     const keepFetchedName = !!base.name && base.name !== base.apiModelId
+    const nativeReasoning = base.endpointTypes?.[0] === ENDPOINT_TYPE.OLLAMA_CHAT && base.reasoning !== undefined
 
     for (const field of REGISTRY_FIELDS) {
+      if (field === 'reasoning' && nativeReasoning) continue
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
@@ -148,6 +155,13 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
     }
 
+    if (nativeReasoning) {
+      merged.capabilities = Array.from(new Set([...(merged.capabilities ?? []), ...(base.capabilities ?? [])])).filter(
+        (capability) =>
+          capability !== MODEL_CAPABILITY.REASONING || base.capabilities.includes(MODEL_CAPABILITY.REASONING)
+      )
+    }
+
     return merged
   })
 }
@@ -158,7 +172,9 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
+export async function fetchResolvedProviderModels(
+  providerId: string
+): Promise<ListedModels<Model> & { discoveredReasoning?: Pick<Model, 'id' | 'reasoning' | 'capabilities'>[] }> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {
@@ -169,7 +185,17 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<L
     // Enrichment rebuilds the array, so the notice main reported alongside the
     // models is carried onto the result.
     const models = await enrichFetchedModels(providerId, fetched)
-    return skippedModels ? { models, skippedModels } : { models }
+    const discoveredReasoning = fetched
+      .filter(
+        (model): model is Model =>
+          model.endpointTypes?.[0] === ENDPOINT_TYPE.OLLAMA_CHAT && model.reasoning !== undefined
+      )
+      .map(({ id, reasoning, capabilities }) => ({ id, reasoning, capabilities }))
+    return {
+      models,
+      ...(skippedModels ? { skippedModels } : {}),
+      ...(discoveredReasoning.length ? { discoveredReasoning } : {})
+    }
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {
       providerId,

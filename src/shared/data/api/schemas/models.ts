@@ -15,6 +15,7 @@ import {
   MODEL_CAPABILITY,
   objectValues,
   ParameterSupportDbSchema,
+  ReasoningConfigSchema,
   RuntimeModelPricingSchema,
   type UniqueModelId,
   UniqueModelIdSchema
@@ -49,6 +50,7 @@ export const CreateModelSchema = z.strictObject({
   group: z.string().optional(),
   /** Capabilities */
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))).optional(),
+  reasoning: ReasoningConfigSchema.optional(),
   /** Input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Output modalities */

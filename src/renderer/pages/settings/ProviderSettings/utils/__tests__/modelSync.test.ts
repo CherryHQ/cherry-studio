@@ -1,7 +1,7 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
 
@@ -27,6 +27,73 @@ beforeEach(() => {
 })
 
 describe('fetchResolvedProviderModels', () => {
+  const nativeModel: Model = {
+    id: 'ollama::qwen3.8:27b',
+    providerId: 'ollama',
+    apiModelId: 'qwen3.8:27b',
+    name: 'qwen3.8:27b',
+    capabilities: [MODEL_CAPABILITY.REASONING],
+    endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    reasoning: {
+      controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+      selectableEfforts: ['none', 'low', 'medium', 'xhigh'],
+      defaultEffort: 'medium'
+    }
+  }
+
+  it('preserves native levels through registry enrichment and the creation DTO', async () => {
+    listModelsMock.mockResolvedValueOnce({ models: [nativeModel] })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        ...nativeModel,
+        presetModelId: 'qwen3-8-27b',
+        reasoning: {
+          controls: [{ kind: 'toggle' }],
+          selectableEfforts: ['none', 'auto']
+        }
+      }
+    ])
+
+    const listing = await fetchResolvedProviderModels('ollama')
+    const dto = toCreateModelDto('ollama', listing.models[0])
+
+    expect(listing.models[0].reasoning).toEqual(nativeModel.reasoning)
+    expect(dto).toMatchObject({ reasoning: nativeModel.reasoning, capabilities: [MODEL_CAPABILITY.REASONING] })
+    expect(listing.discoveredReasoning).toEqual([
+      {
+        id: nativeModel.id,
+        reasoning: nativeModel.reasoning,
+        capabilities: nativeModel.capabilities
+      }
+    ])
+  })
+
+  it('does not mark registry fallback as native metadata when show has no thinking declaration', async () => {
+    listModelsMock.mockResolvedValueOnce({ models: [{ ...nativeModel, reasoning: undefined }] })
+    dataApiGetMock.mockResolvedValueOnce([nativeModel])
+    const listing = await fetchResolvedProviderModels('ollama')
+    expect(listing.models[0].reasoning).toEqual(nativeModel.reasoning)
+    expect(listing.discoveredReasoning).toBeUndefined()
+  })
+
+  it('preserves explicit no-thinking metadata against a thinking catalog model', async () => {
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          ...nativeModel,
+          capabilities: [],
+          reasoning: { controls: [], selectableEfforts: [] }
+        }
+      ]
+    })
+    dataApiGetMock.mockResolvedValueOnce([nativeModel])
+    const { models } = await fetchResolvedProviderModels('ollama')
+    expect(models[0].reasoning?.selectableEfforts).toEqual([])
+    expect(toCreateModelDto('ollama', models[0]).capabilities).toEqual([])
+  })
   it('throws when upstream model listing fails instead of returning an empty list', async () => {
     const apiKey = 'sk-should-not-reach-logs'
     const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-23-ollama-native-thinking-levels.md
+2026-10-23-ollama-native-thinking-levels.md: 20ef55d269bca4d9b6157d08dacd4837dd1a8aac
+2026-10-23-ollama-native-thinking-levels.zh.md: ef748bfe0cd583f8b478a27020d35ded5d85926a
