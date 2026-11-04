@@ -378,60 +378,78 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('keeps background output in its own projection and accepts a later message in the same child', async () => {
-    const held = gate()
-    let root = ''
-    let child = ''
-    let childRuns = 0
-    script = respondingModel((call) => {
-      root ||= call.sessionId!
-      if (call.sessionId !== root) {
-        child = call.sessionId!
-        childRuns++
-        return childRuns === 1
-          ? held.wait(assistantReply('child first answer'))
-          : assistantReply('child continued answer')
+  it.each(['reopen', 'retry archive flush'] as const)(
+    'retains independent child output and continuation after %s',
+    async (scenario) => {
+      const held = gate()
+      let root = ''
+      let child = ''
+      let childRuns = 0
+      script = respondingModel((call) => {
+        root ||= call.sessionId!
+        if (call.sessionId !== root) {
+          child = call.sessionId!
+          childRuns++
+          return childRuns === 1
+            ? held.wait(assistantReply('child first answer'))
+            : assistantReply('child continued answer')
+        }
+        if (!call.messages.some((entry) => entry.role === 'toolResult'))
+          return assistantReply(
+            [
+              toolCallPart('spawn', 'subagent', {
+                description: 'research',
+                prompt: 'child work',
+                background: true,
+                fork: false
+              })
+            ],
+            'toolUse'
+          )
+        return assistantReply('parent done')
+      })
+      const { connection, events } = await connect()
+      const user = message('delegate')
+      await connection.send({ message: user })
+      await held.reached
+      await done(events)
+      const view = await connection.childProjection('spawn')
+      expect(view).toBeDefined()
+      expect(text(events)).not.toContain('child first')
+      held.open()
+      await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child first answer')
+      await expect.poll(() => view!.snapshot().active).toBe(false)
+      const contextId = view!.snapshot().contextId
+      const childIdentity = contexts.context(contextId).nativeThreadId
+      await connection.messageChild(contextId, 'continue research')
+      await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
+      expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
+      expect(child).not.toBe(root)
+      expect(text(events)).not.toContain('child continued answer')
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+      if (scenario === 'retry archive flush') {
+        const shutdown = vi.spyOn(connection['runtime']!, 'shutdown')
+        vi.spyOn(contexts, 'saveProjectionTx').mockImplementationOnce(() => {
+          throw new Error('archive temporarily unavailable')
+        })
+        await expect(connection.close()).rejects.toThrow('archive temporarily unavailable')
+        await connection.close()
+        expect(shutdown).toHaveBeenCalledTimes(1)
+        expect(view!.snapshot().available).toBe(false)
+      } else {
+        await connection.close()
       }
-      if (!call.messages.some((entry) => entry.role === 'toolResult'))
-        return assistantReply(
-          [
-            toolCallPart('spawn', 'subagent', {
-              description: 'research',
-              prompt: 'child work',
-              background: true,
-              fork: false
-            })
-          ],
-          'toolUse'
-        )
-      return assistantReply('parent done')
-    })
-    const { connection, events } = await connect()
-    const user = message('delegate')
-    await connection.send({ message: user })
-    await held.reached
-    await done(events)
-    const view = await connection.childProjection('spawn')
-    expect(view).toBeDefined()
-    expect(text(events)).not.toContain('child first')
-    held.open()
-    await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child first answer')
-    await expect.poll(() => view!.snapshot().active).toBe(false)
-    const contextId = view!.snapshot().contextId
-    const childIdentity = contexts.context(contextId).nativeThreadId
-    await connection.messageChild(contextId, 'continue research')
-    await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
-    expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
-    expect(child).not.toBe(root)
-    expect(text(events)).not.toContain('child continued answer')
-    expect(events.filter((event) => event.type === 'error')).toEqual([])
-    await connection.close()
-    const reopened = await connect()
-    const restored = await reopened.connection.childProjection('spawn')
-    expect(restored?.snapshot().contextId).toBe(contextId)
-    expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
-    expect(text(reopened.events)).toBe('')
-  })
+      setScript([assistantReply('child answer after reopen')])
+      const reopened = await connect()
+      const restored = await reopened.connection.childProjection('spawn')
+      expect(restored?.snapshot().contextId).toBe(contextId)
+      expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
+      expect(text(reopened.events)).toBe('')
+      await reopened.connection.messageChild(contextId, 'continue after reopen')
+      await expect.poll(() => JSON.stringify(restored!.snapshot().messages)).toContain('child answer after reopen')
+      expect(script.calls[0].model.id).toBe(MODEL.id)
+    }
+  )
 
   it.each(['shutdown', 'stop'] as const)('distinguishes %s from durable cancellation', async (action) => {
     const held = gate()

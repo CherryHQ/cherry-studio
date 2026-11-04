@@ -6301,6 +6301,93 @@ describe('AgentSessionRuntimeService', () => {
     }
   )
 
+  it.each(['stop', 'shutdown', 'stop with failed cleanup'] as const)(
+    'preserves %s intent until a pending connection returns',
+    async (action) => {
+      const connecting = createDeferred<void>()
+      const connected = createDeferred<AgentRuntimeConnection>()
+      let cancelled = false
+      let closed: boolean | undefined
+      const connection: AgentRuntimeConnection = {
+        events: createAsyncQueue<AgentRuntimeEvent>().iterable,
+        send: async () => {},
+        reconcile: async () => 'current',
+        interrupt: async () => {
+          cancelled = true
+        },
+        close: () => {
+          closed = cancelled
+        }
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: () => {
+          connecting.resolve()
+          return connected.promise
+        },
+        validateSession: async () => {},
+        listAvailableTools: async () => []
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const controller = new AbortController()
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await connecting.promise
+      if (action === 'stop with failed cleanup')
+        mocks.cacheDeleteShared.mockImplementationOnce(() => {
+          throw new Error('cache cleanup failed')
+        })
+      controller.abort(action === 'shutdown' ? 'app-shutdown' : 'agent-runtime-interrupt')
+      const closing = service.closeSession('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(closed).toBeUndefined()
+      connected.resolve(connection)
+      await closing
+      expect(closed).toBe(action !== 'shutdown')
+      await vi.waitFor(() => expect(() => service.assertSessionEditable('session-1')).not.toThrow())
+      await reader.cancel().catch(() => undefined)
+    }
+  )
+
+  it.each([false, true])(
+    'attempts teardown after interruption rejects and retains both errors when close fails: %s',
+    async (closeFails) => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const interruptError = new Error('cancellation unconfirmed')
+      const closeError = new Error('teardown failed')
+      let released = false
+      const connection = {
+        events: [],
+        send: async () => {},
+        interrupt: async () => {
+          throw interruptError
+        },
+        close: async () => {
+          released = true
+          if (closeFails) throw closeError
+        }
+      }
+      getEntry(service).connection = connection
+      await service.closeSession('session-1', true)
+      expect(released).toBe(true)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Agent runtime connection close failed',
+        expect.objectContaining({
+          sessionId: 'session-1',
+          error: closeFails ? expect.objectContaining({ errors: [interruptError, closeError] }) : interruptError
+        })
+      )
+      connection.close = async () => {}
+      await service.closeSessionForArchive('session-1')
+      expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+    }
+  )
+
   it('persists errored assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

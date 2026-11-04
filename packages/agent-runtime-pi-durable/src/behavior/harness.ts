@@ -864,8 +864,10 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       for (const conversation of conversations) {
         const thread = threadId(conversation.id)
         const facts = await read(thread)
-        if (facts.lineage.kind === 'subagent')
-          await options.configureChild(thread, facts.lineage.parent, facts.lineage.origin)
+        if (facts.lineage.kind === 'subagent') {
+          const change = await options.configureChild(thread, facts.lineage.parent, facts.lineage.origin)
+          await harness.commit((tx) => configure(tx, conversation.id, change), context)
+        }
         await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: true }, ports) ?? Promise.resolve())
       }
       recovering = false

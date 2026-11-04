@@ -12,20 +12,21 @@ import {
   type FauxProviderHandle,
   type AssistantMessage
 } from '@earendil-works/pi-ai'
-import { configure, createRegistry, Harness, type Extension } from '@earendil-works/pi-durable'
+import { configure, createRegistry, Harness, type Extension, type HarnessOptions } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { onTestFinished } from 'vitest'
 
 import type { ContractHarness, HarnessPorts, ScriptedReply } from '@cherrystudio/agent-behavior'
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import { createPiDurableBehavior, type PiDurableBehavior } from '../src/behavior/harness'
+import { createPiDurableBehavior, type PiDurableBehavior, type PiDurableBehaviorOptions } from '../src/behavior/harness'
 import { conversationId, pages, threadId } from '../src/behavior/history'
 import { meteredModels } from '../src/behavior/models'
 
 export async function openDurableHarness(
   install: (ports: HarnessPorts) => void,
-  extensions: readonly Extension[] = []
+  extensions: readonly Extension[] = [],
+  options: { settings?: HarnessOptions['settings']; configureChild?: PiDurableBehaviorOptions['configureChild'] } = {}
 ): Promise<{ harness: ContractHarness; errors: unknown[]; native(): Harness; behavior(): PiDurableBehavior }> {
   const directory = await mkdtemp(join(tmpdir(), 'durable-behavior-'))
   const path = join(directory, 'store.sqlite')
@@ -92,7 +93,7 @@ export async function openDurableHarness(
     for (const extension of extensions) registry.install(extension)
     behavior = createPiDurableBehavior({
       install,
-      configureChild: (child) => ({ model: modelOf(child) }),
+      configureChild: options.configureChild ?? ((child) => ({ model: modelOf(child) })),
       onError: (error) => errors.push(error)
     })
     registry.install(behavior.extension)
@@ -101,7 +102,10 @@ export async function openDurableHarness(
       {
         models: meteredModels(models, behavior),
         registry,
-        settings: { retry: { enabled: false }, compaction: { enabled: false, keepRecentTokens: 1 } },
+        settings: options.settings ?? {
+          retry: { enabled: false },
+          compaction: { enabled: false, keepRecentTokens: 1 }
+        },
         onReport: (error) => errors.push(error)
       },
       context

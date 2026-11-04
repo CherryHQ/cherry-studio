@@ -1,5 +1,5 @@
-import { closeSync, mkdirSync, openSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { linkSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
@@ -31,23 +31,30 @@ function durablePath(backend: AgentRuntimeBackendRow): string {
   return application.getPath('feature.agents.durable.stores', backend.locator.fileName)
 }
 
-/** Explicit creation only. A partial creation is reconciled by opening, never recreated. */
+/** Publish only an initialized backend; existing stores remain exclusive and strictly validated. */
 export async function createDurableBackend(backendId: string) {
   const { openNodeSqliteStorage, createSession, backendDocument, nativeContext } = await loadDurableStorage()
   const backend = contexts.backend(backendId)
   if (backend.state !== 'creating') throw new Error('Native backend is already initialized')
   const path = durablePath(backend)
   mkdirSync(dirname(path), { recursive: true })
-  closeSync(openSync(path, 'wx'))
-  const storage = await openNodeSqliteStorage(path)
-  const session = createSession(storage)
+  const staging = mkdtempSync(application.getPath('feature.agents.durable.stores', `.${backend.id}-`))
   try {
-    await session.commit(async (tx) => {
-      const marker = await tx.doc(backendDocument)
-      marker.backendId = backend.id
-    }, nativeContext)
+    const stagedPath = join(staging, 'store.sqlite')
+    const storage = await openNodeSqliteStorage(stagedPath)
+    const session = createSession(storage)
+    try {
+      await session.commit(async (tx) => {
+        const marker = await tx.doc(backendDocument)
+        marker.backendId = backend.id
+      }, nativeContext)
+    } finally {
+      await session.close(nativeContext)
+    }
+    // Native close checkpoints the WAL; linking publishes the complete store without replacing an existing one.
+    linkSync(stagedPath, path)
   } finally {
-    await session.close(nativeContext)
+    rmSync(staging, { recursive: true, force: true })
   }
   contexts.bindBackend(backend.id)
   return contexts.backend(backend.id)

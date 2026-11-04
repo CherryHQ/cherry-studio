@@ -2,6 +2,7 @@ import {
   copyFileSync,
   existsSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -15,7 +16,8 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
 import { createRegistry } from '@earendil-works/pi-durable'
-import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite'
+import { NodeSqliteDatabase, openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
@@ -288,6 +290,60 @@ describe('native context storage and reconciliation', () => {
       } finally {
         await recovered.storage.close(BACKGROUND_CONTEXT)
       }
+    }
+  )
+
+  it.each(['schema', 'identity'] as const)(
+    'retries a Durable %s initialization failure on the same branch',
+    async (stage) => {
+      const intent = prepareDurableBranch(sessionId)
+      const backend = contexts.backend(intent.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const failure = new Error('native initialization failed')
+      const fault =
+        stage === 'schema'
+          ? vi.spyOn(NodeSqliteDatabase.prototype, 'exec').mockRejectedValueOnce(failure)
+          : vi.spyOn(SqliteStorage.prototype, 'commit').mockRejectedValueOnce(failure)
+
+      await expect(prepareDurableRoot(intent.id)).rejects.toThrow(failure)
+      fault.mockRestore()
+      expect(contexts.backend(backend.id).state).toBe('creating')
+      expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
+
+      const root = await prepareDurableRoot(intent.id)
+      try {
+        expect(contexts.backend(backend.id).state).toBe('bound')
+        expect((await root.storage.scanConversations({}, 10, undefined, BACKGROUND_CONTEXT)).items).toEqual([])
+      } finally {
+        await root.storage.close(BACKGROUND_CONTEXT)
+      }
+      const reopened = await openDurableStorage(contexts.backend(backend.id))
+      await reopened.close(BACKGROUND_CONTEXT)
+    }
+  )
+
+  it.each(['empty', 'unmarked', 'foreign'] as const)(
+    'does not replace a %s store during Durable creation retry',
+    async (kind) => {
+      const intent = prepareDurableBranch(sessionId)
+      const backend = contexts.backend(intent.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const path = application.getPath('feature.agents.durable.stores', backend.locator.fileName)
+      mkdirSync(application.getPath('feature.agents.durable.stores'), { recursive: true })
+      if (kind === 'empty') writeFileSync(path, '')
+      else if (kind === 'unmarked') {
+        const storage = await openNodeSqliteStorage(path)
+        await storage.close(BACKGROUND_CONTEXT)
+      } else {
+        const other = await createDurableBackend()
+        if (other.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+        copyFileSync(application.getPath('feature.agents.durable.stores', other.locator.fileName), path)
+      }
+      const before = readFileSync(path)
+      await expect(prepareDurableRoot(intent.id)).rejects.toThrow()
+      expect(readFileSync(path)).toEqual(before)
+      expect(contexts.backend(backend.id).state).toBe('creating')
+      expect(contexts.context(intent.id).bindingState).toBe('pending')
     }
   )
 

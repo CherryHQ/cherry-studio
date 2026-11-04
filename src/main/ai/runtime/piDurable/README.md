@@ -32,7 +32,9 @@ corresponding database binding.
 `agent_runtime_backend` and `agent_session_context` bind product sessions to native
 SQLite storage and conversations. Native backend and conversation markers repair an
 interrupted association write without guessing by history or replacing a missing store.
-Creation is exclusive; reopening checks identity and never creates a new SQLite file.
+Creation initializes and closes a private staging store before exclusively publishing
+its final path. An initialization failure before publication leaves the same reservation
+retryable. Reopening checks identity and never creates or replaces a SQLite file.
 
 Pi Durable owns its transcript, task graph, submissions and behavior records. Product
 messages remain display projections. Root output passes through `ThreadProjection` and

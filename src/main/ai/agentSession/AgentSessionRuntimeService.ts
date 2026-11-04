@@ -478,7 +478,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   private readonly inFlightChildWrites = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
-  private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
+  private readonly connectionAttempts = new Map<
+    string,
+    { id: string; promise: Promise<boolean>; interrupt?: boolean }
+  >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
     string,
@@ -1121,6 +1124,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   closeSession(sessionId: string, interrupt = false): Promise<void> {
+    const attempt = this.connectionAttempts.get(sessionId)
+    if (interrupt && attempt) attempt.interrupt = true
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
@@ -1982,14 +1987,16 @@ export class AgentSessionRuntimeService extends BaseService {
       branchHead: entry.branchHead,
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
+    const attempt = this.connectionAttempts.get(entry.sessionId)
+    const interrupt = attempt?.id === attemptId && attempt.interrupt
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
-      await this.closeRuntimeConnection(connection, entry.sessionId)
+      await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
       return false
     }
 
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) {
-      await this.closeRuntimeConnection(connection, entry.sessionId)
+      await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
       return false
     }
     entry.usageCapture = connection.usageCapture
@@ -3670,7 +3677,19 @@ export class AgentSessionRuntimeService extends BaseService {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const close = () => (connection.closeForEdit ? connection.closeForEdit() : connection.close())
-      const closing = interrupt && connection.interrupt ? connection.interrupt().then(close) : close()
+      const closing =
+        interrupt && connection.interrupt
+          ? Promise.resolve()
+              .then(() => connection.interrupt!())
+              .then(close, async (interruptError) => {
+                try {
+                  await close()
+                } catch (closeError) {
+                  throw new AggregateError([interruptError, closeError], 'Agent runtime interruption and close failed')
+                }
+                throw interruptError
+              })
+          : close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
           const failed = this.failedClosures.get(sessionId)

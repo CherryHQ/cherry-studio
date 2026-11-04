@@ -554,19 +554,34 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   close(): Promise<void> {
     this.closing = true
-    return (this.closePromise ??= this.finishClose())
+    return (this.closePromise ??= this.finishClose().catch((error) => {
+      this.closePromise = undefined
+      throw error
+    }))
   }
 
   private async finishClose() {
-    const result = await this.runtime?.shutdown()
-    if (result && result.status !== 'confirmed') throw new Error(result.error.message)
+    if (this.runtime) {
+      const result = await this.runtime.shutdown()
+      if (result.status !== 'confirmed') throw new Error(result.error.message)
+      this.runtime = undefined
+    }
     toolApprovalRegistry.abort(this.input.sessionId, 'durable-owner-closed')
     await Promise.all([...this.childHandles.values()].map((handle) => handle.catch(() => undefined)))
-    await Promise.all([...this.childProjections.values()].map((projection) => projection.stop()))
+    for (const [id, projection] of this.childProjections) {
+      await projection.stop()
+      this.childProjections.delete(id)
+    }
     await this.observation?.stop()
+    this.observation = undefined
     await this.handle?.release()
-    for (const handle of this.childHandles.values()) await (await handle.catch(() => undefined))?.release()
+    this.handle = undefined
+    for (const [id, handle] of this.childHandles) {
+      await (await handle.catch(() => undefined))?.release()
+      this.childHandles.delete(id)
+    }
     await this.desktop?.close()
+    this.desktop = undefined
     this.events.close()
   }
 }

@@ -27,8 +27,20 @@ index 185bd86..9006dc7 100644
 -//# sourceMappingURL=entries.d.ts.map
 +//# sourceMappingURL=entries.d.ts.map
 \ No newline at end of file
+diff --git a/dist/harness/compaction.d.ts b/dist/harness/compaction.d.ts
+index 0a2ce55789abfbb461004a759d8bf4c2ed18342d..875be2113be1ebf4274b6e5818f6e90476768f38 100644
+--- a/dist/harness/compaction.d.ts
++++ b/dist/harness/compaction.d.ts
+@@ -4,6 +4,7 @@ import type { CompactionHooks, CompactionPolicy, CompactionReason, CompactionRes
+ export type CompactionInput = {
+     reason: CompactionReason;
+     instructions?: string;
++    runId?: TaskId;
+ };
+ /** The pinned summarization request. */
+ export type SummaryRequest = {
 diff --git a/dist/harness/compaction.js b/dist/harness/compaction.js
-index 794268c..4c4833d 100644
+index 156e258ddfd39d87675f57a8961f3e3a1c3f6c55..f85aa21edd28f73394a7a2b5c09c6988cfc5a294 100644
 --- a/dist/harness/compaction.js
 +++ b/dist/harness/compaction.js
 @@ -86,7 +86,7 @@ export const CompactionTask = defineTask({
@@ -40,7 +52,20 @@ index 794268c..4c4833d 100644
              const request = {
                  attempt: 1,
                  model: ref,
-@@ -359,8 +359,8 @@ function truncate(text, maxChars) {
+@@ -186,9 +186,10 @@ export const CompactionTask = defineTask({
+ export async function createCompaction(tx, conversationId, input, owner) {
+     const ownership = owner === undefined ? { kind: "conversation" } : { kind: "task", taskId: owner };
+     const background = owner === undefined && input.reason !== "manual";
+-    const taskId = await tx.createTask(CompactionTask, input, { ownership, conversationId, background });
++    const live = await tx.doc(LiveDoc, conversationId);
++    const taskId = await tx.createTask(CompactionTask, { ...input, ...(live.run && { runId: live.run.id ?? live.run.taskId }) }, { ownership, conversationId, background });
+     const status = { taskId, reason: input.reason, blocking: owner !== undefined, attempt: 1 };
+-    addCompactionStatus(await tx.doc(LiveDoc, conversationId), status);
++    addCompactionStatus(live, status);
+     return taskId;
+ }
+ /** The compaction policy for `model`: its `modelOverrides` entry over the harness-wide policy, field by field. */
+@@ -359,8 +360,8 @@ function truncate(text, maxChars) {
      return `${text.slice(0, maxChars)}\n\n[... ${text.length - maxChars} more characters truncated]`;
  }
  /** Place a summary supplied by a hook in its own commit. */
@@ -51,7 +76,7 @@ index 794268c..4c4833d 100644
  }
  /**
   * Place the summary entry and complete (spec §8.7). A blocking compaction, owned by its generation, appends it: the
-@@ -368,7 +368,7 @@ async function place(runtime, firstKept, summary, context) {
+@@ -368,7 +369,7 @@ async function place(runtime, firstKept, summary, context) {
   * idle, otherwise at the next boundary, or settled `stale`.
   * REMINDER: nothing else may append to a busy conversation, so every non-blocking summary goes through admission.
   */
@@ -60,12 +85,12 @@ index 794268c..4c4833d 100644
      removeCompactionStatus(live, runtime.taskId);
      delete live.compactionFailure;
      const text = `${SUMMARY_PREFIX}${summary}${SUMMARY_SUFFIX}`;
-@@ -376,7 +376,7 @@ async function placeSummary(tx, runtime, current, live, firstKept, summary) {
+@@ -376,7 +377,7 @@ async function placeSummary(tx, runtime, current, live, firstKept, summary) {
          kind: CompactionEntry.kind,
          head: firstKept,
          model: [{ role: "user", content: [{ type: "text", text }], timestamp: runtime.now() }],
 -        data: { reason: current.input.reason },
-+        data: { reason: current.input.reason, ...(live.run && { runId: live.run.id ?? live.run.taskId }), ...(metadata !== undefined && { metadata }) },
++        data: { reason: current.input.reason, ...(current.input.runId !== undefined && { runId: current.input.runId }), ...(metadata !== undefined && { metadata }) },
      };
      const result = current.owner === undefined
          ? {
