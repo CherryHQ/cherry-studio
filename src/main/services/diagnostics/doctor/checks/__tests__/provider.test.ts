@@ -46,7 +46,11 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
   services.getByProviderId.mockReturnValue(provider())
   services.getByKey.mockReturnValue({ id: 'openai::gpt-4o' })
-  services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-in', displayName: 'Cherry User' })
+  services.getCherryCloudStatus.mockResolvedValue({
+    phase: 'signed-in',
+    accountId: 'account-1',
+    displayName: 'Cherry User'
+  })
   services.edition = 'cn'
 })
 
@@ -198,7 +202,7 @@ describe('provider-cherry-account', () => {
   })
 
   it('warns and links to sign-in when there is no valid Cherry account session', async () => {
-    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', displayName: null })
+    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', accountId: null, displayName: null })
 
     await expect(cherryAccount.run(ctx)).resolves.toMatchObject({
       status: 'warn',

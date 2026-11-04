@@ -15,11 +15,13 @@
  * Tool parts are stamped with the pi runtime transport tag
  * (D8) so the renderer routes them to the generic pi tool card.
  */
-import type { AgentSessionEvent, AgentToolResult } from '@earendil-works/pi-coding-agent'
+import type { AgentSessionEvent, AgentToolResult, ToolDefinition } from '@earendil-works/pi-coding-agent'
 
+import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 export interface PiStreamSink {
@@ -29,16 +31,45 @@ export interface PiStreamSink {
 /** pi transport tag consumed by the renderer's tool-part routing (D8). */
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 
-function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+const CHERRY_SERVER_NAMES = new Map<string, string>(
+  Object.values(CHERRY_MCP_SERVER).map((name) => [name.replaceAll('-', '_'), name])
+)
+
+export function resolvePiMcpToolMetadata(
+  definition: ToolDefinition | undefined,
+  snapshots: ReadonlyMap<string, Pick<McpServer, 'id' | 'name'> | undefined>
+) {
+  if (!definition?.namespace?.name.startsWith('mcp__')) return undefined
+  const separator = definition.label.indexOf('/')
+  if (separator < 0) return undefined
+  const serverId = definition.label.slice(0, separator)
+  const server = [...snapshots.values()].find((candidate) => candidate?.id === serverId)
+  return {
+    type: 'mcp' as const,
+    name: definition.label.slice(separator + 1),
+    serverId,
+    serverName: server?.name ?? serverId
+  }
+}
+
+function toolProviderMetadata(toolName: string, nativeTool?: ReturnType<typeof resolvePiMcpToolMetadata>) {
   const parsed = parseFunctionCallToolName(toolName)
+  const serverName = parsed ? (CHERRY_SERVER_NAMES.get(parsed.serverPart) ?? parsed.serverPart) : undefined
   return {
     cherry: {
       transport: PI_TRANSPORT,
-      tool: parsed
-        ? { type: 'mcp' as const, name: parsed.toolPart, serverName: parsed.serverPart }
-        : { type: 'builtin' as const, name: toolName }
+      tool:
+        nativeTool ??
+        (parsed
+          ? {
+              type: 'mcp' as const,
+              name: parsed.toolPart,
+              serverId: serverName,
+              serverName
+            }
+          : { type: 'builtin' as const, name: toolName })
     },
-    pi: { toolName, ...extra }
+    pi: { toolName }
   }
 }
 
@@ -56,7 +87,10 @@ export class PiStreamAdapter {
    *  Claude driver, whose SDK `result` usage is already a turn total. */
   private turnUsage = emptyTurnUsage()
 
-  constructor(private readonly sink: PiStreamSink) {}
+  constructor(
+    private readonly sink: PiStreamSink,
+    private readonly resolveToolMetadata?: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata>
+  ) {}
 
   handleEvent(event: AgentSessionEvent): void {
     switch (event.type) {
@@ -124,7 +158,7 @@ export class PiStreamAdapter {
     }
   }
 
-  private handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
+  handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
     if (this.startedTools.has(toolCallId)) return
     this.startedTools.add(toolCallId)
     this.sink.enqueue({
@@ -133,7 +167,7 @@ export class PiStreamAdapter {
       toolName,
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
     })
     this.sink.enqueue({
       type: 'tool-input-available',
@@ -142,35 +176,38 @@ export class PiStreamAdapter {
       input: args ?? {},
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
     })
   }
 
-  private handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+  handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean, preliminary = false): void {
     // A tool result with no preceding start (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {})
     if (isError) {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
-        errorText: stringifyResult(result),
+        errorText: stringifyResult(
+          toolName.startsWith('mcp__automation__') ? projectPiToolOutput(toolName, result) : result
+        ),
         dynamic: true,
         providerExecuted: true,
-        providerMetadata: toolProviderMetadata(toolName)
+        providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
       })
       return
     }
     this.sink.enqueue({
       type: 'tool-output-available',
+      preliminary,
       toolCallId,
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
       providerExecuted: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
     })
   }
 
-  private handleTurnEnd(message: unknown): void {
+  handleTurnEnd(message: unknown): void {
     const usage = extractAssistantUsage(message)
     if (!usage) return
     const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite
@@ -217,15 +254,22 @@ function asToolResult(result: unknown): AgentToolResult<unknown> | undefined {
 function projectPiToolOutput(toolName: string, result: unknown): unknown {
   const toolResult = asToolResult(result)
   if (!toolResult) return result ?? null
-  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === PI_TOOL_EXEC_TOOL_NAME) {
+  if (toolName === PI_TOOL_EXEC_TOOL_NAME) return unwrapMcpContent(toolResult)
+  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
     return toolResult.details ?? toolResult
+  }
+  if (toolName.startsWith('mcp__')) {
+    const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
+    // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
+    if (toolName.startsWith('mcp__automation__')) return mcpResult ?? toolResult
+    return mcpResult?.structuredContent ?? unwrapMcpContent(toolResult)
   }
   return toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
 }
 
 /**
  * `tool_call` returns the target tool's MCP result verbatim, hiding an all-text payload inside a
- * JSON string. Unwrap it the way the Claude Code / dsh adapters do, so tool cards and citation
+ * JSON string. Unwrap it the way the Claude Code adapter do, so tool cards and citation
  * resolution see one shape across runtimes.
  */
 function unwrapMcpContent({ content }: AgentToolResult<unknown>): unknown {

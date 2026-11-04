@@ -11,15 +11,17 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 /**
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
  * `AiService.streamText`: the nested `stats` snapshot (Cherry `MessageStats`,
  * AI SDK v6 names) is the single carrier — the gateway SSE adapters read the
- * input/output totals from it, plus the cache-read and reasoning breakdowns
- * for dialects that expose them.
+ * input/output totals from it, plus the cache and reasoning breakdowns for
+ * dialects that expose them. Top-level `inputTokens` follows the v6 semantic
+ * of TOTAL input (cache reads and writes included); the uncached portion is
+ * only available through `inputTokenDetails`.
  */
 export interface GatewayUsageMetadata {
   stats?: {
@@ -27,7 +29,9 @@ export interface GatewayUsageMetadata {
     inputTokens?: number
     outputTokens?: number
     inputTokenDetails?: {
+      noCacheTokens?: number
       cacheReadTokens?: number
+      cacheWriteTokens?: number
     }
     outputTokenDetails?: {
       reasoningTokens?: number
@@ -138,7 +142,7 @@ export interface IMessageConverter<TInputParams = unknown> {
    * Convert input tools to AI SDK `ToolSet`. Tools have NO `execute` (client
    * tools): the model emits the call and the gateway forwards it to the client.
    */
-  toAiSdkTools?(params: TInputParams): ToolSet | undefined
+  toAiSdkTools?(params: TInputParams, targetEndpointType?: EndpointType): ToolSet | undefined
 
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string
@@ -187,7 +191,7 @@ export interface ISseFormatter<TEvent = unknown> {
  * Content block state for tracking streaming content
  */
 export interface ContentBlockState {
-  type: 'text' | 'tool_use' | 'thinking'
+  type: 'text' | 'tool_use' | 'thinking' | 'redacted_thinking'
   index: number
   started: boolean
   content: string
@@ -208,6 +212,7 @@ export interface AdapterState {
   inputTokens: number
   cacheReadTokens?: number
   outputTokens: number
+  reasoningTokens?: number
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>
   textBlockIndex: number | null

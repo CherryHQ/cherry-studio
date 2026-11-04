@@ -39,10 +39,11 @@ const logger = loggerService.withContext('GatewayGeminiTokenEstimate')
 export async function estimateGeminiRequestTokens(
   body: GeminiGenerateContentRequest,
   modelString: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  internal = false
 ): Promise<number> {
   try {
-    return await estimateConvertedRequest(body, modelString, signal)
+    return await estimateConvertedRequest(body, modelString, signal, internal)
   } catch (error) {
     logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
     return boundedBodyTokens(body, tokenxTokenizer)
@@ -52,7 +53,8 @@ export async function estimateGeminiRequestTokens(
 async function estimateConvertedRequest(
   body: GeminiGenerateContentRequest,
   modelString: string,
-  signal?: AbortSignal
+  signal: AbortSignal | undefined,
+  internal: boolean
 ): Promise<number> {
   const converter = MessageConverterFactory.create('gemini')
   const uiMessages = converter.toUIMessages(body)
@@ -63,7 +65,7 @@ async function estimateConvertedRequest(
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
-    resolved = resolveGatewayModelAddress(modelString)
+    resolved = await resolveGatewayModelAddress(modelString, internal)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {

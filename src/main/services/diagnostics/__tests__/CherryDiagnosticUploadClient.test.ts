@@ -99,6 +99,19 @@ function submissionUnknownResult(): CherryDiagnosticUploadResult {
   return { fileSha256: SIGNATURE_HEADERS['X-File-SHA256'], status: 'submission_unknown' }
 }
 
+function uploadedResult(
+  reportId = REPORT_ID,
+  processingStatus: 'pending' | null = 'pending',
+  submittedAt: number | null = Date.parse(CREATED_AT)
+): CherryDiagnosticUploadResult {
+  return {
+    reportId,
+    processingStatus,
+    ...(submittedAt === null ? {} : { submittedAt }),
+    status: 'uploaded'
+  }
+}
+
 describe('CherryDiagnosticUploadClient', () => {
   let workDir: string
   let filePath: string
@@ -134,7 +147,7 @@ describe('CherryDiagnosticUploadClient', () => {
         fileName: 'Diagnostics.ZIP',
         filePath: AbsoluteFilePathSchema.parse(filePath)
       })
-    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    ).resolves.toEqual(uploadedResult())
 
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, init] = fetchMock.mock.calls[0]
@@ -173,7 +186,7 @@ describe('CherryDiagnosticUploadClient', () => {
         fileName: 'diagnostics.zip',
         filePath: AbsoluteFilePathSchema.parse(extensionlessPath)
       })
-    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    ).resolves.toEqual(uploadedResult())
 
     const form = fetchMock.mock.calls[0][1]?.body as FormData
     expect(form.get('file')).toMatchObject({ name: 'diagnostics.zip', size: ZIP_BYTES.length })
@@ -232,7 +245,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    ).resolves.toEqual(uploadedResult())
     expect(signerMocks.generateDiagnosticUploadHeaders).toHaveBeenCalledWith(
       expect.objectContaining({ fileSize: MAX_ARCHIVE_BYTES })
     )
@@ -290,7 +303,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    ).resolves.toEqual(uploadedResult())
   })
 
   it.each([
@@ -333,10 +346,10 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ reportId, status: 'uploaded' })
+    ).resolves.toEqual(uploadedResult(reportId, null, null))
   })
 
-  it('accepts a 201 response with Go RFC3339Nano metadata and ignores other response metadata', async () => {
+  it('accepts a 201 response with Go RFC3339Nano metadata and preserves the server submission time', async () => {
     fetchMock.mockResolvedValueOnce(
       reportResponse(
         reportPayload({
@@ -350,7 +363,30 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    ).resolves.toEqual(uploadedResult(REPORT_ID, null, Date.parse('2026-08-26T01:02:03.123Z')))
+  })
+
+  it('reads only a matching public processing status from the encoded report URL', async () => {
+    const reportId = 'report,with/slash'
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: reportId, status: 'resolved', created_at: CREATED_AT, updated_at: CREATED_AT }))
+    )
+
+    await expect(client.fetchStatus(reportId)).resolves.toBe('resolved')
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${ENDPOINT}/report%2Cwith%2Fslash/status`,
+      expect.objectContaining({ method: 'GET', redirect: 'manual' })
+    )
+  })
+
+  it('rejects a mismatched or failed status lookup without fabricating a status', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 'other', status: 'resolved', created_at: CREATED_AT, updated_at: CREATED_AT }))
+    )
+    await expect(client.fetchStatus(REPORT_ID)).rejects.toThrow('Invalid diagnostic status response')
+
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 429 }))
+    await expect(client.fetchStatus(REPORT_ID)).rejects.toThrow('HTTP 429')
   })
 
   it.each([

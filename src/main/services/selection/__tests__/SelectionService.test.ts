@@ -1,9 +1,12 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { screen } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
+import type { SelectionAction } from '@shared/types/selection'
 
 const { getApplicationIdMock } = vi.hoisted(() => ({
   getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
@@ -195,13 +198,14 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
     vi.restoreAllMocks()
   })
 
-  it('suspends the SelectionAction pool when the feature is disabled at boot', async () => {
+  it('suspends both selection window pools when the feature is disabled at boot', async () => {
     // Without the onInit suspend, the eager warmup would pre-create a standby renderer.
     prefGet.mockReturnValue(false)
 
     await svc._doInit()
 
     expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+    expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAgent)
   })
 
   it('leaves the pool warmup untouched when the feature is enabled at boot', async () => {
@@ -272,5 +276,107 @@ describe('SelectionService macOS toolbar', () => {
       skipTransformProcessType: true
     })
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+})
+
+describe('SelectionService.processAction — agent routing', () => {
+  const openAgentWindow = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    MockApplicationUtils.setService('SelectionAgentWindowService', { open: openAgentWindow })
+  })
+
+  afterEach(() => {
+    MockApplicationUtils.resetServices()
+    BaseService.resetInstances()
+  })
+
+  it.each<SelectionAction>([
+    { id: 'ask-agent', name: 'Ask Agent', enabled: true, isBuiltIn: true },
+    { id: 'user-1', name: 'Research', enabled: true, isBuiltIn: false, runner: 'agent' }
+  ])('opens $id in the agent window instead of the action window', (action) => {
+    new SelectionService().processAction(action, true)
+
+    expect(openAgentWindow).toHaveBeenCalledWith(action, { anchor: null, isFullScreen: true })
+    expect(application.get('WindowManager').open).not.toHaveBeenCalled()
+  })
+
+  it('keeps assistant-bound custom actions in the action window', () => {
+    const action: SelectionAction = {
+      id: 'user-2',
+      name: 'Polish',
+      enabled: true,
+      isBuiltIn: false,
+      runner: 'assistant'
+    }
+
+    new SelectionService().processAction(action)
+
+    expect(openAgentWindow).not.toHaveBeenCalled()
+    expect(application.get('WindowManager').open).toHaveBeenCalledWith(WindowType.SelectionAction, expect.anything())
+  })
+})
+
+describe('SelectionService macOS action window', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    Object.assign(screen, {
+      getDisplayNearestPoint: vi.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1440, height: 900 }
+      })),
+      getCursorScreenPoint: vi.fn(() => ({ x: 500, y: 400 }))
+    })
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it.each([false, true])('keeps the invoking Space when showing a recycled panel (fullscreen=%s)', (fullScreen) => {
+    vi.useFakeTimers()
+    try {
+      let activeSpace = 'invoking-space'
+      let panelSpace = 'previous-space'
+      let visible = false
+      const handle = Buffer.alloc(8)
+      const svc = new SelectionService() as unknown as {
+        nativePanel: { moveToActiveSpace(handle: Buffer): void }
+        showActionWindow(actionWindow: unknown, isFullScreen: boolean): void
+      }
+      svc.nativePanel = {
+        moveToActiveSpace: (actualHandle) => {
+          expect(actualHandle).toBe(handle)
+          panelSpace = activeSpace
+        }
+      }
+      const show = () => {
+        activeSpace = panelSpace
+        visible = true
+      }
+      const actionWindow = {
+        getNativeWindowHandle: () => handle,
+        setPosition: vi.fn(),
+        setBounds: vi.fn(),
+        setFocusable: vi.fn(),
+        setAlwaysOnTop: vi.fn(),
+        show,
+        showInactive: show,
+        isDestroyed: () => false,
+        focus: vi.fn()
+      }
+
+      svc.showActionWindow(actionWindow, fullScreen)
+      vi.runAllTimers()
+
+      expect(visible).toBe(true)
+      expect(activeSpace).toBe('invoking-space')
+      expect(panelSpace).toBe('invoking-space')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

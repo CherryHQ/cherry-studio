@@ -4,8 +4,6 @@
  *
  * Each layout below is taken from the runtime that owns it, not guessed:
  *  - pi    — `resolveResumeTokenSessionFile` resolves `{ts}_{token}.jsonl`
- *  - dsh   — `@deepseek-ai/dsh-session-persistence-jsonl` writes
- *            `{projectKey(cwd)}/{sessionId}/session.jsonl`
  *  - claude — the Agent SDK's `deleteSession` removes `{id}.jsonl` plus the
  *            `{id}/` subagent-transcript directory from the projects dir
  */
@@ -18,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 
 import { application } from '@application'
 
-import { DshRuntimeDriver } from '../dsh/DshRuntimeDriver'
 import { PiRuntimeDriver } from '../pi/PiRuntimeDriver'
 import { registerRuntimeDrivers } from '../registerDrivers'
 import { runtimeDriverRegistry } from '../registry'
@@ -101,47 +98,6 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
   })
 })
 
-describe('DshRuntimeDriver.reclaimOrphanSessions', () => {
-  const driver = new DshRuntimeDriver()
-  const sessions = 'feature.agents.dsh.sessions'
-
-  it('keeps a project whose parent session is claimed, including its subagent dirs', async () => {
-    // A subagent runs under an id Cherry never records but shares the parent's cwd.
-    seedFile(`${sessions}/--tmp-live--/parent-token/session.jsonl`)
-    seedFile(`${sessions}/--tmp-live--/subagent-9f2/session.jsonl`)
-
-    const { removed } = await driver.reclaimOrphanSessions(new Set(['parent-token']), OPTIONS)
-
-    expect(removed).toEqual([])
-    expect(existsSync(path.join(root, sessions, '--tmp-live--', 'subagent-9f2'))).toBe(true)
-  })
-
-  it('removes a whole project directory once none of its sessions are claimed', async () => {
-    seedFile(`${sessions}/--tmp-dead--/gone-token/session.jsonl`)
-    seedFile(`${sessions}/--tmp-dead--/subagent-1a3/session.jsonl`)
-    const live = seedFile(`${sessions}/--tmp-live--/live-token/session.jsonl`)
-
-    const { removed } = await driver.reclaimOrphanSessions(new Set(['live-token']), OPTIONS)
-
-    expect(removed).toEqual([path.join(root, sessions, '--tmp-dead--')])
-    expect(existsSync(path.join(root, sessions, '--tmp-dead--'))).toBe(false)
-    expect(existsSync(live)).toBe(true)
-  })
-
-  it('defers a project whose session log is still being written', async () => {
-    seedFile(`${sessions}/--tmp-warm--/warm-token/session.jsonl`, (NOW - 60_000) / 1000)
-
-    const { removed } = await driver.reclaimOrphanSessions(new Set(), OPTIONS)
-
-    expect(removed).toEqual([])
-    expect(existsSync(path.join(root, sessions, '--tmp-warm--'))).toBe(true)
-  })
-
-  it('no-ops when the runtime was never used', async () => {
-    await expect(driver.reclaimOrphanSessions(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
-  })
-})
-
 describe('claude-code reclaimOrphanSessions', () => {
   const projects = 'feature.agents.claude.projects'
 
@@ -181,5 +137,51 @@ describe('claude-code reclaimOrphanSessions', () => {
 
   it('no-ops when the runtime was never used', async () => {
     await expect(claudeDriver().reclaimOrphanSessions!(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
+  })
+})
+
+describe('claude-code reclaimPurgedSessions', () => {
+  const projects = 'feature.agents.claude.projects'
+
+  function claudeDriver() {
+    runtimeDriverRegistry.clearForTest()
+    registerRuntimeDrivers()
+    const driver = runtimeDriverRegistry.getAgentSessionDriver('claude-code')
+    if (!driver?.reclaimPurgedSessions) throw new Error('claude-code driver missing reclaimPurgedSessions')
+    return driver
+  }
+
+  afterEach(() => runtimeDriverRegistry.clearForTest())
+
+  it('immediately removes only the named fresh transcript and directory while another token keeps the project', async () => {
+    const projectDir = path.join(root, projects, '-tmp-work')
+    const purged = seedFile(`${projects}/-tmp-work/purged.jsonl`, NOW / 1000)
+    const subagent = seedFile(`${projects}/-tmp-work/purged/agent-1.jsonl`, NOW / 1000)
+    const other = seedFile(`${projects}/-tmp-work/other.jsonl`, NOW / 1000)
+
+    await claudeDriver().reclaimPurgedSessions!(new Set(['purged']))
+
+    expect(existsSync(purged)).toBe(false)
+    expect(existsSync(subagent)).toBe(false)
+    expect(existsSync(other)).toBe(true)
+    expect(existsSync(projectDir)).toBe(true)
+  })
+
+  it('removes the project directory when its last token is reclaimed', async () => {
+    const projectDir = path.join(root, projects, '-tmp-work')
+    seedFile(`${projects}/-tmp-work/purged.jsonl`)
+    seedFile(`${projects}/-tmp-work/purged/agent-1.jsonl`)
+
+    await claudeDriver().reclaimPurgedSessions!(new Set(['purged']))
+
+    expect(existsSync(projectDir)).toBe(false)
+  })
+
+  it('no-ops for an empty token set or a missing root', async () => {
+    const untouched = seedFile(`${projects}/-tmp-work/other.jsonl`)
+    await claudeDriver().reclaimPurgedSessions!(new Set())
+    expect(existsSync(untouched)).toBe(true)
+    rmSync(path.join(root, projects), { recursive: true })
+    await expect(claudeDriver().reclaimPurgedSessions!(new Set(['purged']))).resolves.toEqual({ removed: [] })
   })
 })

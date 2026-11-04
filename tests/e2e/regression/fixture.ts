@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { test as base } from '@playwright/test'
 
-import { getCase, missingCapabilities } from '../../../scripts/e2e/regression/cases'
+import { getCase, missingCapabilities, supportsPlatform } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
 import { getRunPaths } from '../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
@@ -28,6 +28,7 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     const id = testInfo.annotations.find(({ type }) => type === 'regression-case')?.description
     const testCase = getCase(id ?? '')
     const run = readRun(getRunPaths(runDirectory).runState)
+    base.skip(!supportsPlatform(testCase.id, run.metadata.platform), `Not supported on ${run.metadata.platform}`)
     const missing = missingCapabilities(testCase.id, run.capabilities)
     base.skip(missing.length > 0, `Missing capabilities: ${missing.join(', ')}`)
     const app = new RegressionApp(runDirectory, testCase.id)
@@ -46,9 +47,7 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     } finally {
       const currentPage = await app.mainWindow().catch(() => page)
       if (testInfo.status !== testInfo.expectedStatus) {
-        const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues(app.config)).catch(
-          () => undefined
-        )
+        const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues()).catch(() => undefined)
         if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
       }
 

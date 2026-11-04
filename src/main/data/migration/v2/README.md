@@ -4,7 +4,7 @@ This directory contains the v2 data migration implementation.
 
 ## Documentation
 
-- **Migration Guide**: [docs/references/data/v2-migration-guide.md](../../../../../docs/references/data/v2-migration-guide.md)
+- **Migration Guide**: [docs/dev/references/data/v2-migration-guide.md](../../../../../docs/dev/references/data/v2-migration-guide.md)
 
 ## Directory Structure
 
@@ -24,7 +24,7 @@ src/main/data/migration/v2/
 > **⚠️ WARNING: Not using predefined paths may cause user data loss.**
 >
 > v1 users may have configured a custom userData directory via
-> `~/.cherrystudio/config/config.json`. If migration code calls
+> `{cherryHome}/config/config.json` (`~/.cherrystudio` by default). If migration code calls
 > `app.getPath('userData')` or `new Store()` directly, on the first v2
 > launch it will read from the Electron default path instead of the
 > user's actual data directory — causing migration to be silently
@@ -137,4 +137,4 @@ for the whole migration with no per-transaction replay. **Migrators must NOT tog
 themselves.** Verify integrity with `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of
 `execute()` (own, fully-resolved tables only — exclude cross-domain-deferred and shared polymorphic
 tables); the engine runs a final whole-database `foreign_key_check` as backstop. See the
-[migration guide](../../../../../docs/references/data/v2-migration-guide.md) for details.
+[migration guide](../../../../../docs/dev/references/data/v2-migration-guide.md) for details.

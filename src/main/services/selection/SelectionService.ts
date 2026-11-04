@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { BrowserWindow } from 'electron'
 import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
@@ -15,8 +17,8 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getApplicationId } from '@main/utils/appEdition'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import { isAgentSelectionAction, type SelectionAction, type SelectionActionSession } from '@shared/types/selection'
 
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
@@ -53,6 +55,14 @@ type RelativeOrientation =
 @ServicePhase(Phase.WhenReady)
 export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
+  private nativePanel?: {
+    configurePanel(handle: Buffer): void
+    moveToActiveSpace(handle: Buffer): void
+  }
+
+  private getNativePanel(): NonNullable<SelectionService['nativePanel']> {
+    return (this.nativePanel ??= require(application.getPath('feature.selection.native_panel_file')))
+  }
 
   /** Latest desired running state — mirrors the `feature.selection.enabled` preference. */
   private desiredEnabled = false
@@ -206,6 +216,7 @@ export class SelectionService extends BaseService implements Activatable {
       // so the first user-triggered action recycles instantly instead of going through
       // the fresh-path (create + load HTML + wait for React to mount).
       wm.resumePool(WindowType.SelectionAction)
+      wm.resumePool(WindowType.SelectionAgent)
 
       // Open the toolbar (singleton) — registry's show: false ensures no auto-show here,
       // showToolbarAtPosition controls positioning and visibility.
@@ -240,6 +251,12 @@ export class SelectionService extends BaseService implements Activatable {
 
     const wm = application.get('WindowManager')
 
+    const actionWindowListeners = new Map<string, () => void>()
+    this.registerDisposable(() => {
+      for (const dispose of actionWindowListeners.values()) dispose()
+      actionWindowListeners.clear()
+    })
+
     // Inject behavior into newly-created Selection windows. onWindowCreatedByType fires
     // synchronously before content loads, so listeners here attach before the renderer
     // can start sending IPC messages.
@@ -258,6 +275,21 @@ export class SelectionService extends BaseService implements Activatable {
     // or accumulate duplicates across reuses.
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
+        const onHide = () => {
+          const session = wm.getInitData(mw.id) as SelectionActionSession | null
+          if (session) {
+            application.get('IpcApiService').send(mw.id, 'selection.action_dismissed', { sessionId: session.sessionId })
+          }
+        }
+        const dispose = () => {
+          mw.window.removeListener('hide', onHide)
+          mw.window.removeListener('closed', dispose)
+          actionWindowListeners.delete(mw.id)
+        }
+        actionWindowListeners.set(mw.id, dispose)
+        mw.window.on('hide', onHide)
+        mw.window.once('closed', dispose)
         mw.window.on('resized', () => {
           if (mw.window.isDestroyed()) return
           if (this.isRemeberWinSize) {
@@ -291,8 +323,10 @@ export class SelectionService extends BaseService implements Activatable {
         // Both calls are idempotent.
         if (!enabled) {
           wm.suspendPool(WindowType.SelectionAction)
+          wm.suspendPool(WindowType.SelectionAgent)
         } else if (this.isActivated) {
           wm.resumePool(WindowType.SelectionAction)
+          wm.resumePool(WindowType.SelectionAgent)
         }
         this.reconciler.request()
       })
@@ -302,6 +336,7 @@ export class SelectionService extends BaseService implements Activatable {
     // feature is off; onActivate()'s resumePool() re-enables it.
     if (!preferenceService.get('feature.selection.enabled')) {
       wm.suspendPool(WindowType.SelectionAction)
+      wm.suspendPool(WindowType.SelectionAgent)
     }
   }
 
@@ -353,6 +388,9 @@ export class SelectionService extends BaseService implements Activatable {
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } {
+    // The env is only read when the native module loads (normally on activation); load it now so
+    // the settings page sees the real env even while the feature is still disabled.
+    if (isLinux && !this.initStatus) this.loadModuleAndCreateInstance()
     return {
       isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
       isLinuxXWaylandMode: this.isLinuxXWaylandMode,
@@ -1247,6 +1285,7 @@ export class SelectionService extends BaseService implements Activatable {
     // resumePool() is called on next activate. In-use windows are NOT destroyed here,
     // preserving user-visible results.
     wm.suspendPool(WindowType.SelectionAction)
+    wm.suspendPool(WindowType.SelectionAgent)
   }
 
   /**
@@ -1254,7 +1293,15 @@ export class SelectionService extends BaseService implements Activatable {
    * @param actionItem Action item to process
    * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
-  public processAction(actionItem: SelectionActionItem, isFullScreen: boolean = false): void {
+  public processAction(actionItem: SelectionAction, isFullScreen: boolean = false): void {
+    if (isAgentSelectionAction(actionItem)) {
+      application.get('SelectionAgentWindowService').open(actionItem, {
+        anchor: this.isFollowToolbar && this.toolbarWindow ? this.toolbarWindow.getBounds() : null,
+        isFullScreen
+      })
+      return
+    }
+
     const wm = application.get('WindowManager')
 
     // open({ initData }) atomically stores the action payload and, for the
@@ -1266,7 +1313,7 @@ export class SelectionService extends BaseService implements Activatable {
     // paints before the user notices. This mirrors the behavior of the
     // pre-WindowManager SelectionService: push data, then show immediately.
     const windowId = wm.open(WindowType.SelectionAction, {
-      initData: actionItem,
+      initData: { ...actionItem, sessionId: randomUUID() } satisfies SelectionActionSession,
       options: {
         width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
         height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT
@@ -1371,16 +1418,11 @@ export class SelectionService extends BaseService implements Activatable {
 
     // act normally when the app is not in fullscreen mode
     if (!isFullScreen) {
+      // Move before showing: a recycled panel may still belong to another Space.
+      this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
       actionWindow.show()
       return
     }
-
-    // [macOS] an UGLY HACKY way for fullscreen override settings
-
-    // FIXME sometimes the dock will be shown when the action window is shown
-    // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
-    // FIXME When setVisibleOnAllWorkspaces is true, docker icon disappeared when the first action window is shown on the fullscreen app
-    //       use app.dock.show() to show the dock again will cause the action window to be closed when auto hide on blur is enabled
 
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
@@ -1389,31 +1431,12 @@ export class SelectionService extends BaseService implements Activatable {
     // (the pin toggle and this show sequence use the same default path).
     actionWindow.setAlwaysOnTop(true)
 
-    // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
-    // just store the dock icon status, and show it again
-    const isDockShown = app.dock?.isVisible()
-
-    // DO NOT set `skipTransformProcessType: true`,
-    // it will cause the action window to be shown on other space
-    actionWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true
-    })
-
+    this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
     actionWindow.showInactive()
-
-    // show the dock again if last time it was shown
-    // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
-    if (!app.dock?.isVisible() && isDockShown) {
-      void app.dock?.show()
-    }
 
     // unset everything
     setTimeout(() => {
       if (actionWindow.isDestroyed()) return
-      actionWindow.setVisibleOnAllWorkspaces(false, {
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true
-      })
       actionWindow.setAlwaysOnTop(false)
 
       actionWindow.setFocusable(true)

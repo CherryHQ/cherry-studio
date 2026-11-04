@@ -1,6 +1,24 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { formatFileSize, getFileDirectory, getFileExtension, removeSpecialCharactersForFileName } from '../file'
+import {
+  anyFileExt,
+  formatFileSize,
+  getFileDirectory,
+  getFileExtension,
+  isSupportedExtension,
+  isSupportedFile,
+  removeFileExtension,
+  removeSpecialCharactersForFileName
+} from '../file'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
+beforeEach(() => {
+  mocks.request.mockReset()
+  mocks.request.mockResolvedValue({ kind: 'file', type: 'other' })
+})
 
 describe('file', () => {
   describe('getFileDirectory', () => {
@@ -70,6 +88,28 @@ describe('file', () => {
     })
   })
 
+  describe('removeFileExtension', () => {
+    it('should strip a plain extension', () => {
+      expect(removeFileExtension('document.pdf')).toBe('document')
+      expect(removeFileExtension('archive.tar.gz')).toBe('archive.tar')
+      expect(removeFileExtension('noextension')).toBe('noextension')
+    })
+
+    it('should keep a leading-dot file name intact', () => {
+      // A leading dot starts a hidden file name, not an extension — stripping it
+      // used to yield an empty string as the pasted attachment's origin_name.
+      expect(removeFileExtension('.env')).toBe('.env')
+      expect(removeFileExtension('.gitignore')).toBe('.gitignore')
+      expect(removeFileExtension('.config.json')).toBe('.config')
+    })
+
+    it('should only consider the base name when the path has dots in directories', () => {
+      expect(removeFileExtension('/srv/app.d/file')).toBe('/srv/app.d/file')
+      expect(removeFileExtension('/home/john.doe/notes')).toBe('/home/john.doe/notes')
+      expect(removeFileExtension('C:\\dir.x\\name')).toBe('C:\\dir.x\\name')
+    })
+  })
+
   describe('formatFileSize', () => {
     it('should format size in MB for large files', () => {
       // 验证大文件以 MB 为单位格式化
@@ -114,6 +154,49 @@ describe('file', () => {
     it('should return empty string for empty input', () => {
       // 验证空字符串
       expect(removeSpecialCharactersForFileName('')).toBe('')
+    })
+  })
+
+  describe('isSupportedFile', () => {
+    it('accepts a listed extension without consulting the file', async () => {
+      expect(await isSupportedFile('/tmp/report.pdf', new Set(['.pdf']))).toBe(true)
+      expect(mocks.request).not.toHaveBeenCalled()
+    })
+
+    it('accepts an unlisted extension when the file content is text', async () => {
+      mocks.request.mockResolvedValue({ kind: 'file', type: 'text' })
+
+      expect(await isSupportedFile('/tmp/netlist.sp', new Set(['.pdf']))).toBe(true)
+    })
+
+    it('rejects an unlisted binary extension', async () => {
+      expect(await isSupportedFile('/tmp/weights.onnx', new Set(['.pdf']))).toBe(false)
+    })
+
+    it('accepts any extension when the allowlist carries the wildcard', async () => {
+      // The wildcard means "this caller only needs the path" — an unknown binary
+      // format must not be rejected on a caller that never reads the bytes.
+      expect(await isSupportedFile('/tmp/weights.onnx', new Set([anyFileExt]))).toBe(true)
+    })
+  })
+
+  describe('isSupportedExtension', () => {
+    // The pathless-paste checks (clipboard images) can only consult the allowlist, so
+    // the array form of the same question has to answer identically to isSupportedFile.
+    it('accepts a listed extension', () => {
+      expect(isSupportedExtension('.png', ['.png'])).toBe(true)
+    })
+
+    it('rejects an unlisted extension without the wildcard', () => {
+      expect(isSupportedExtension('.avif', ['.png'])).toBe(false)
+    })
+
+    it('accepts an unlisted extension when the allowlist carries the wildcard', () => {
+      expect(isSupportedExtension('.avif', ['.png', anyFileExt])).toBe(true)
+    })
+
+    it('rejects an extensionless name without the wildcard', () => {
+      expect(isSupportedExtension('.', ['.png'])).toBe(false)
     })
   })
 })

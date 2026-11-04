@@ -294,6 +294,35 @@ describe('ImagePreviewDialog', () => {
     })
   })
 
+  it('pinch-zooms with two touch points instead of panning', () => {
+    // jsdom has no PointerEvent, so fired pointer events would carry neither pointerId nor pointerType.
+    class TestPointerEvent extends MouseEvent {
+      readonly pointerId: number
+      readonly pointerType: string
+      constructor(type: string, init: MouseEventInit & { pointerId?: number; pointerType?: string } = {}) {
+        super(type, init)
+        this.pointerId = init.pointerId ?? 1
+        this.pointerType = init.pointerType ?? 'mouse'
+      }
+    }
+    vi.stubGlobal('PointerEvent', TestPointerEvent)
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
+
+    const viewport = screen.getByTestId('image-preview-viewport')
+    const image = screen.getByAltText('One')
+    const touch = (pointerId: number, clientX: number) => ({ pointerId, pointerType: 'touch', clientX, clientY: 0 })
+    fireEvent.pointerDown(viewport, touch(1, -50))
+    fireEvent.pointerDown(viewport, touch(2, 50))
+    fireEvent.pointerMove(viewport, touch(2, 150))
+
+    expect(image.style.transform).toContain('scale(2)')
+
+    fireEvent.pointerUp(viewport, touch(2, 150))
+    fireEvent.pointerMove(viewport, touch(1, 300))
+    expect(image.style.transform).toContain('scale(2)')
+    vi.unstubAllGlobals()
+  })
+
   it('stops navigation at the first and last image', () => {
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 

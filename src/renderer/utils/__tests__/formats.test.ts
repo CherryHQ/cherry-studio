@@ -1,8 +1,38 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractHtmlTitle, getFileNameFromHtmlTitle, removeSvgEmptyLines } from '../formats'
+import { cleanMarkdownContent, extractHtmlTitle, getFileNameFromHtmlTitle, removeSvgEmptyLines } from '../formats'
 
 describe('formats', () => {
+  describe('cleanMarkdownContent', () => {
+    it('should preserve dots in version numbers', () => {
+      expect(cleanMarkdownContent('v2.1.312 released')).toBe('v2.1.312 released')
+    })
+
+    it('should preserve dots in names', () => {
+      expect(cleanMarkdownContent('node.js')).toBe('node.js')
+    })
+
+    it('should preserve dots in Chinese release notes', () => {
+      expect(cleanMarkdownContent('2.1.7 版本新增了知识库引用来源预览和 PDF 附件上传功能。')).toBe(
+        '2.1.7 版本新增了知识库引用来源预览和 PDF 附件上传功能。'
+      )
+    })
+
+    it('should still strip other special characters', () => {
+      expect(cleanMarkdownContent('a_b*c~d`e[f]g|h/i(j)')).toBe('abcdefghij')
+    })
+
+    it('should remove images and URLs while preserving link text', () => {
+      expect(cleanMarkdownContent('see ![img](http://a/b.png) and [link](http://x) and https://y/z')).toBe(
+        'see and link and'
+      )
+    })
+
+    it('should preserve dots in numbers, hostnames, and sentence endings', () => {
+      expect(cleanMarkdownContent('Upgraded to 1.2.3 from example.com.')).toBe('Upgraded to 1.2.3 from example.com.')
+    })
+  })
+
   describe('extractHtmlTitle', () => {
     it('should extract title from HTML string', () => {
       const html = '<html><head><title>Page Title</title></head><body>Content</body></html>'

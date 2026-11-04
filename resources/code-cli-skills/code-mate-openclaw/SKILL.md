@@ -1,6 +1,6 @@
 ---
 name: code-mate-openclaw
-description: Runs a local OpenClaw agent non-interactively and returns its structured response. Use when the user asks to delegate a bounded task to the OpenClaw main agent.
+description: Run the local OpenClaw agent non-interactively. Use when the user asks to delegate a bounded task to OpenClaw.
 ---
 
 # OpenClaw

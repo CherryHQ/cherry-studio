@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 
+import { useLatest } from '@renderer/hooks/useLatest'
+import { matchesSearchText } from '@renderer/utils/pinyin'
+
 import {
   ResourceListActionsContext,
   ResourceListContext,
@@ -109,7 +112,7 @@ function deriveResourceListItems<T extends ResourceListItemBase>({
   let next = [...items]
 
   if (normalizedQuery) {
-    next = next.filter((item) => getItemLabel(item).toLowerCase().includes(normalizedQuery))
+    next = next.filter((item) => matchesSearchText(getItemLabel(item), normalizedQuery))
   }
 
   if (filters.length > 0) {
@@ -793,13 +796,24 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     collapsedStateRef.current = effectiveCollapsedIds
   }, [effectiveCollapsedIds])
 
+  // Hosts rebuild these from list data, and every row subscribes to `actions`, so depending on them
+  // would re-render all rows on any list change. They only run on events, after the latest commit.
+  const handlersRef = useLatest({
+    onCollapsedStateChange,
+    onGroupHeaderSelectItem,
+    onOpenContextMenu,
+    onRenameItem,
+    onReorder,
+    onSelectItem
+  })
+
   const notifyControlledCollapsedStateChange = useCallback(
     (nextCollapsedIds: readonly string[]) => {
       const next = [...new Set(nextCollapsedIds)]
       collapsedStateRef.current = next
-      onCollapsedStateChange?.(next)
+      handlersRef.current.onCollapsedStateChange?.(next)
     },
-    [onCollapsedStateChange]
+    [handlersRef]
   )
 
   const actions = useMemo(
@@ -820,14 +834,14 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         } else {
           dispatch({ type: 'setActiveItem', id })
         }
-        onSelectItem?.(id)
+        handlersRef.current.onSelectItem?.(id)
       },
       startRename: (id: string) => {
         uiStore.setRenamingId(id)
         dispatch({ type: 'startRename', id })
       },
       commitRename: (id: string, name: string) => {
-        onRenameItem?.(id, name)
+        handlersRef.current.onRenameItem?.(id, name)
         uiStore.setRenamingId(null)
         dispatch({ type: 'cancelRename' })
       },
@@ -835,13 +849,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         uiStore.setRenamingId(null)
         dispatch({ type: 'cancelRename' })
       },
-      openContextMenu: (id: string) => onOpenContextMenu?.(id),
+      openContextMenu: (id: string) => handlersRef.current.onOpenContextMenu?.(id),
       selectGroupHeaderItem: (id: string) => {
         if (!isSelectedControlled) {
           uiStore.setSelectedId(id)
           dispatch({ type: 'selectItem', id })
         }
-        const handleSelect = onGroupHeaderSelectItem ?? onSelectItem
+        const handleSelect = handlersRef.current.onGroupHeaderSelectItem ?? handlersRef.current.onSelectItem
         handleSelect?.(id)
       },
       showMoreInGroup: (groupId: string) =>
@@ -886,19 +900,15 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
 
         dispatch({ type: 'toggleGroup', groupId, defaultCount: defaultGroupVisibleCount })
       },
-      reorder: (payload: ResourceListReorderPayload) => onReorder?.(payload)
+      reorder: (payload: ResourceListReorderPayload) => handlersRef.current.onReorder?.(payload)
     }),
     [
       defaultGroupVisibleCount,
       groupLoadStep,
       isControlled,
       isSelectedControlled,
+      handlersRef,
       notifyControlledCollapsedStateChange,
-      onGroupHeaderSelectItem,
-      onOpenContextMenu,
-      onRenameItem,
-      onReorder,
-      onSelectItem,
       uiStore
     ]
   )

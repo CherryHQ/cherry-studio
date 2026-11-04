@@ -11,6 +11,8 @@ export interface ArchiveItem {
   id: string
   name: string
   deletedAt: number | undefined
+  /** Owning assistant or agent, when the entry has one. */
+  parentName?: string | null
   categoryLabel?: string
   icon?: ReactNode
 }

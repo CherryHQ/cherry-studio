@@ -10,56 +10,57 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'launch-onboot',
     titleKey: 'settings.launch.onboot',
-    groupKey: 'settings.launch.title',
+    groupKey: 'settings.general.sections.startup',
     aliases: ['auto start', '开机自启', '开机启动', '自启动']
   },
   {
     anchorId: 'launch-totray',
     titleKey: 'settings.launch.totray',
-    groupKey: 'settings.launch.title'
+    groupKey: 'settings.general.sections.startup'
   },
   {
     anchorId: 'tray-show',
     titleKey: 'settings.tray.show',
-    groupKey: 'settings.launch.title'
+    groupKey: 'settings.general.sections.startup'
   },
   {
     anchorId: 'tray-onclose',
     titleKey: 'settings.tray.onclose',
-    groupKey: 'settings.launch.title'
+    groupKey: 'settings.general.sections.startup'
   },
   {
     anchorId: 'prevent-sleep-when-busy',
     titleKey: 'settings.power.prevent_sleep_when_busy',
-    groupKey: 'settings.launch.title'
+    groupKey: 'settings.general.sections.runtime'
   },
   {
     anchorId: 'proxy-mode',
     titleKey: 'settings.proxy.mode.title',
-    groupKey: 'settings.proxy.mode.title',
+    groupKey: 'settings.general.sections.network',
     aliases: ['proxy', '代理']
   },
   {
     anchorId: 'allow-private-network',
     titleKey: 'settings.fetch.allow_private_network',
-    groupKey: 'settings.proxy.mode.title'
+    groupKey: 'settings.general.sections.network'
   },
   {
     anchorId: 'hardware-acceleration',
     titleKey: 'settings.hardware_acceleration.title',
-    groupKey: 'settings.proxy.mode.title',
+    groupKey: 'settings.general.sections.runtime',
     aliases: ['gpu']
   },
   {
     anchorId: 'commit-attribution',
     titleKey: 'settings.general.commit_attribution.title',
+    groupKey: 'settings.general.sections.agent',
     descriptionKey: 'settings.general.commit_attribution.description',
     aliases: ['attribution', 'Co-Authored-By', 'Claude Code', '署名', '共同作者']
   },
   {
     anchorId: 'enable-developer-mode',
     titleKey: 'settings.developer.enable_developer_mode',
-    groupKey: 'settings.developer.title'
+    groupKey: 'settings.general.sections.developer'
   },
   {
     anchorId: 'context-max-messages',
@@ -75,14 +76,14 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'agent-language',
     titleKey: 'settings.agent.language.label',
-    groupKey: 'settings.agent.language.title',
+    groupKey: 'settings.general.sections.agent',
     descriptionKey: 'settings.agent.language.description',
     aliases: ['language', 'agent language', 'reply language']
   },
   {
     anchorId: 'retry-enabled',
-    titleKey: 'settings.models.retry.label',
-    groupKey: 'settings.models.retry.label',
+    titleKey: 'settings.general.retry.enabled',
+    groupKey: 'settings.general.sections.retry',
     descriptionKey: 'settings.models.retry.description',
     aliases: ['retry', '重试']
   }

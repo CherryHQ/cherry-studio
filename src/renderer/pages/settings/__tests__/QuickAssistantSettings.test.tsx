@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { Model } from '@shared/data/types/model'
 
 import QuickAssistantSettings from '../QuickAssistantSettings'
@@ -29,7 +30,8 @@ const defaultModelFixture = {
   isHidden: false
 } satisfies Model
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
   const React = await import('react')
   type PopoverContextValue = { open: boolean; onOpenChange: (open: boolean) => void }
   const PopoverContext = React.createContext<PopoverContextValue>({ open: false, onOpenChange: () => {} })
@@ -39,6 +41,7 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement(tag, props, children)
 
   return {
+    ...actual,
     Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       React.createElement('button', { type: 'button', ...props }, children),
     Command: passthrough('div'),

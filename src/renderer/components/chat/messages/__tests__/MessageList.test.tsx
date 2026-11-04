@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
@@ -44,6 +44,8 @@ const messageListSearchMock = vi.hoisted(() => ({
 }))
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
+  sidePaddingPx: 24,
+  messageEndInsetPx: 0,
   setForceWideLayout: () => {},
   setRailGutterPx: vi.fn()
 }))
@@ -409,6 +411,23 @@ const readBlobText = (blob: Blob) =>
   })
 
 describe('MessageList', () => {
+  it('keeps transient content in the same scroller, including an empty conversation', () => {
+    const { rerender } = render(
+      <MessageListProvider value={createValue([], { afterMessages: <div role="status">Uploading report.pdf</div> })}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+    expect(within(screen.getByTestId('virtual-list')).getByRole('status')).toHaveTextContent('Uploading report.pdf')
+    expect(messageListSearchMock.props?.messages).toEqual([])
+    rerender(
+      <MessageListProvider value={createValue([createMessage('sent', 'user')])}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+    expect(screen.queryByText('Uploading report.pdf')).not.toBeInTheDocument()
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual(['sent'])
+  })
+
   beforeEach(() => {
     scrollToBottom.mockClear()
     scrollToTop.mockClear()
@@ -427,6 +446,8 @@ describe('MessageList', () => {
     messageCaptureProbes.clear()
     messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
+    chatLayoutModeMock.sidePaddingPx = 24
+    chatLayoutModeMock.messageEndInsetPx = 0
     chatLayoutModeMock.setRailGutterPx.mockReset()
   })
 
@@ -559,6 +580,29 @@ describe('MessageList', () => {
     expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
       paddingLeft: '48px',
       paddingRight: '48px'
+    })
+  })
+
+  it('narrows the message column to the side padding a compact window sets', () => {
+    chatLayoutModeMock.sidePaddingPx = 12
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '12px',
+      paddingRight: '12px'
+    })
+  })
+
+  it('insets only the right edge of the message column by the extra amount a compact window sets', () => {
+    chatLayoutModeMock.sidePaddingPx = 12
+    chatLayoutModeMock.messageEndInsetPx = 12
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '12px',
+      paddingRight: '24px'
     })
   })
 

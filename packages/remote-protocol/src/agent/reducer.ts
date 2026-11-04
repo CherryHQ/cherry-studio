@@ -19,6 +19,23 @@ export type InstallAgentCheckpointResult =
   | { ok: true; projection: AgentProjection; cursor: AgentCursor }
   | { ok: false; reason: 'incomplete' | 'digest' | 'invalid' }
 
+const textLengths = new WeakMap<AgentPart, { text: string; bytes: number }>()
+
+/**
+ * UTF-8 byte length of a part's inline text, cached per part snapshot.
+ * Producers use it for `part.append` offsets so the reducer's validation reuses the same entry.
+ * @param part - the projection part object that holds `text`
+ * @param text - the part's current inline text
+ * @returns the byte length of `text`
+ */
+export function textByteLength(part: AgentPart, text: string): number {
+  const cached = textLengths.get(part)
+  if (cached?.text === text) return cached.bytes
+  const bytes = new TextEncoder().encode(text).length
+  textLengths.set(part, { text, bytes })
+  return bytes
+}
+
 function validRevision(current: string, base: string, next: string): boolean {
   return current === base && BigInt(next) > BigInt(base)
 }
@@ -145,10 +162,13 @@ function apply(
       if (
         part.state !== 'streaming' ||
         previous === undefined ||
-        BigInt(new TextEncoder().encode(previous).length) !== BigInt(offsetUtf8)
+        BigInt(textByteLength(part, previous)) !== BigInt(offsetUtf8)
       )
         return 'content'
-      projection.parts[partId] = { ...part, revision, content: { text: previous + text } }
+      const appended = previous + text
+      const next = { ...part, revision, content: { text: appended } }
+      textLengths.set(next, { text: appended, bytes: Number(offsetUtf8) + new TextEncoder().encode(text).length })
+      projection.parts[partId] = next
       return
     }
     case 'part.replaced': {

@@ -17,5 +17,5 @@ export {
 export { ChannelManager } from './ChannelManager'
 export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHandler'
 export { resolveLocalFile } from './security/localFileResolver'
-export { sanitizeChannelOutput } from './security/OutputSanitizer'
+export { sanitizeChannelOutput, sanitizeChannelOutputSilently } from './security/OutputSanitizer'
 export { resolveWorkspaceFile } from './security/WorkspaceFileGuard'

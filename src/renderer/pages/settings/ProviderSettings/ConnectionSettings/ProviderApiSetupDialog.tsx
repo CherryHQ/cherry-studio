@@ -30,6 +30,7 @@ import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { matchesPreset } from '@shared/utils/provider'
 
 import { ProviderAvatar } from '../components/ProviderAvatar'
 import { mergeProviderApiKeyEntries, parseProviderApiKeys } from '../hooks/providerSetting/useProviderApiKey'
@@ -41,6 +42,7 @@ import {
   useProviderModelPullReconcile
 } from '../ModelList'
 import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
+import DoubaoSetupGuide from '../ProviderSpecific/DoubaoSetupGuide'
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
 import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
@@ -545,6 +547,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
           {step === 'api-key' ? (
             <div className="space-y-4">
+              {provider && matchesPreset(provider, 'doubao') ? <DoubaoSetupGuide providerId={providerId} /> : null}
               <div className="space-y-2">
                 <div className="relative">
                   <Input
