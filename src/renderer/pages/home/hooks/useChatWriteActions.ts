@@ -539,6 +539,11 @@ export function useChatWriteActions(params: Params): Result {
     })
   }, [stop, topic.id])
 
+  const getLiveDirectAssistantModelIds = useCallback(
+    (userMessageId: string) => getDirectAssistantModelIds(uiMessages, userMessageId),
+    [uiMessages]
+  )
+
   const actions = useMemo<ChatWriteActions>(
     () => ({
       canStartNewContext,
@@ -546,6 +551,7 @@ export function useChatWriteActions(params: Params): Result {
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
       resend: handleResend,
       getMessageDeleteAvailability,
+      getDirectAssistantModelIds: getLiveDirectAssistantModelIds,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: handlePause,
@@ -561,6 +567,7 @@ export function useChatWriteActions(params: Params): Result {
       handleStartNewContext,
       handleResend,
       getMessageDeleteAvailability,
+      getLiveDirectAssistantModelIds,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       handlePause,

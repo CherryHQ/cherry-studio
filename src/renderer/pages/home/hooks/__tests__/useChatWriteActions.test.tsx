@@ -68,11 +68,11 @@ function renderActions(
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
   const { result, rerender } = renderHook(
-    ({ composerModelId }) =>
+    ({ composerModelId, messages = uiMessages, activeId = activeNodeId }) =>
       useChatWriteActions({
         topic,
-        uiMessages,
-        activeNodeId,
+        uiMessages: messages,
+        activeNodeId: activeId,
         regenerate,
         setMessages,
         stop,
@@ -83,12 +83,22 @@ function renderActions(
         startNewContextBlocked,
         composerModelId
       }),
-    { initialProps: { composerModelId: undefined as UniqueModelId | undefined } }
+    {
+      initialProps: {
+        composerModelId: undefined as UniqueModelId | undefined,
+        messages: undefined as ReturnType<typeof uiMsg>[] | undefined,
+        activeId: undefined as string | null | undefined
+      }
+    }
   )
   return {
     actions: result.current.actions,
     result,
-    rerender,
+    rerender: rerender as (props: {
+      composerModelId: UniqueModelId | undefined
+      messages?: ReturnType<typeof uiMsg>[]
+      activeId?: string | null
+    }) => void,
     cache,
     scrollToBottom,
     regenerate,
@@ -770,6 +780,28 @@ describe('useChatWriteActions — fork and resend', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     streamOpen.mockReset()
+  })
+
+  it('exposes the live direct-reply model ids for a user message', () => {
+    const user = uiMsg('u1', 'user', 'vroot')
+    const firstAssistant = uiMsg('a1', 'assistant', 'u1')
+    firstAssistant.metadata.modelId = 'provider::model-a'
+    const secondAssistant = uiMsg('a2', 'assistant', 'u1')
+    secondAssistant.metadata.modelId = 'provider::model-b'
+    const { result, rerender } = renderActions([user, firstAssistant, secondAssistant])
+
+    expect(new Set(result.current.actions.getDirectAssistantModelIds!('u1'))).toEqual(
+      new Set(['provider::model-a', 'provider::model-b'])
+    )
+    expect(result.current.actions.getDirectAssistantModelIds!('no-replies')).toEqual([])
+
+    rerender({ composerModelId: undefined, messages: [user, firstAssistant], activeId: 'a1' })
+    expect(result.current.actions.getDirectAssistantModelIds!('u1')).toEqual(['provider::model-a'])
+
+    rerender({ composerModelId: undefined, messages: [user, firstAssistant, secondAssistant], activeId: 'a2' })
+    expect(new Set(result.current.actions.getDirectAssistantModelIds!('u1'))).toEqual(
+      new Set(['provider::model-a', 'provider::model-b'])
+    )
   })
 
   function createForkedUser() {

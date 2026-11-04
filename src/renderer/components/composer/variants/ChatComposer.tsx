@@ -788,25 +788,36 @@ const ChatComposerInner = ({
   const resolveCurrentModelRecord = (candidate: Model, currentModels: readonly Model[]) =>
     currentModels.find((current) => current.id === candidate.id) ?? candidate
   const directModels = editingMessageForCurrentTopic?.lockedMentionedModels ?? EMPTY_MODELS
-  const resendModelIds = resolveResendModelIds(
-    directModels.map((model) => model.id),
-    Boolean(assistantId)
-  )
   const isEditingUserMessage =
     Boolean(editingMessageForCurrentTopic) && editingMessageForCurrentTopic?.message.role !== 'assistant'
-  const resendModels = directModels.filter((model) => resendModelIds.includes(model.id))
+  const membershipIds =
+    isEditingUserMessage && editingMessageForCurrentTopic
+      ? (chatWrite?.getDirectAssistantModelIds?.(editingMessageForCurrentTopic.message.id) ??
+        directModels.map((model) => model.id))
+      : []
+  const resendModelIds = resolveResendModelIds(membershipIds, Boolean(assistantId))
+  // Unknown ids remain in resendModelIds for dispatch but cannot be classified.
+  const resendModels = resendModelIds.flatMap((id) => {
+    const record = queueModels.find((model) => model.id === id) ?? directModels.find((model) => model.id === id)
+    return record ? [record] : []
+  })
+  const unresolvedResendModelIds = isEditingUserMessage
+    ? resendModelIds.filter((id) => !resendModels.some((model) => model.id === id))
+    : []
   const resendValidationModels = resendModelIds.length > 0 ? resendModels : model ? [model] : EMPTY_MODELS
   const validationModels = isEditingUserMessage ? resendValidationModels : effectiveSubmittedModels
   const pendingModels = isEditingUserMessage ? resendModels : submittedMentionedModels
   const validationPending =
-    isEditingUserMessage && resendModelIds.length === 0 ? isModelPending : pendingModels.length > 0 && areModelsLoading
+    isEditingUserMessage && resendModelIds.length === 0
+      ? isModelPending
+      : (pendingModels.length > 0 || unresolvedResendModelIds.length > 0) && areModelsLoading
   const isValidationBlockingSend = validationPending && editingMessageForCurrentTopic?.message.role !== 'assistant'
   const currentSubmittedModels = validationModels.map((model) => resolveCurrentModelRecord(model, queueModels))
-  // Current records are authoritative for capability classification: a retained selection/lock
-  // snapshot decides membership (and is the fallback when its record is gone), not capability.
+  // Current records are authoritative for capability classification; snapshots are the fallback.
   const hasNonChatModel = !validationPending && currentSubmittedModels.some(isNonChatModel)
+  // Advice follows the resend set, even when inherited replies do not activate the selector lock.
   const nonChatReason = hasNonChatModel
-    ? t(lockedMentionedModels.length > 1 ? 'chat.input.non_chat_model_locked' : 'chat.input.non_chat_model')
+    ? t(resendModelIds.length > 1 ? 'chat.input.non_chat_model_locked' : 'chat.input.non_chat_model')
     : undefined
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
