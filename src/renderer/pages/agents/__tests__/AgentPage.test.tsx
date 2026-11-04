@@ -1,13 +1,15 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
+import type * as DataApiHooks from '@renderer/data/hooks/useDataApi'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -123,12 +125,19 @@ const activeSessionMocks = vi.hoisted(() => ({
 const ipcMocks = vi.hoisted(() => ({ request: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcOn: vi.fn() }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    get: agentPageMocks.dataApiGet,
-    post: agentPageMocks.dataApiPost
-  }
+vi.mock('@cherrystudio/ui', async () => ({
+  ...(await import('@cherrystudio/ui/components/primitives/button')),
+  ...(await import('@cherrystudio/ui/components/primitives/badge')),
+  ...(await import('@cherrystudio/ui/components/primitives/tooltip')),
+  ...(await import('@cherrystudio/ui/components/primitives/kbd'))
 }))
+
+vi.mock('@data/DataApiService', async () => {
+  const { MockDataApiService, mockDataApiService } = await import('@test-mocks/renderer/DataApiService')
+  agentPageMocks.dataApiGet = mockDataApiService.get
+  agentPageMocks.dataApiPost = mockDataApiService.post
+  return MockDataApiService
+})
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
   useAgentSessionsSource: () => {
@@ -297,9 +306,30 @@ vi.mock('@renderer/hooks/agent/useSession', () => {
   }
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', async () => ({
-  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
-  useInvalidateCache: () => agentPageMocks.invalidateCache
+vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof DataApiHooks>()
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+  const mockQuery = MockUseDataApi.useQuery as typeof actual.useQuery
+  return {
+    ...MockUseDataApi,
+    useDataChange: actual.useDataChange,
+    useQuery: ((...args: Parameters<typeof actual.useQuery>) =>
+      String(args[0]).startsWith('/agent-workspaces')
+        ? actual.useQuery(...args)
+        : mockQuery(...args)) as typeof actual.useQuery,
+    useInvalidateCache: () => agentPageMocks.invalidateCache
+  }
+})
+
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  AgentSelector: ({ trigger, onChange }: { trigger: ReactNode; onChange: (id: string) => void }) => (
+    <div>
+      {trigger}
+      <button type="button" onClick={() => onChange('agent-b')}>
+        Agent B
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -363,6 +393,8 @@ vi.mock('react-i18next', () => {
     ({
       'agent.manage.title': '管理智能体',
       'agent.session.list.title': '任务',
+      'agent.session.new': 'New task',
+      'common.selected': 'Selected',
       'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。',
       'settings.skills.intentInvalid': 'Skill unavailable',
       'settings.skills.launchDraft': `Use ${options?.name ?? ''} Skill to help me.`
@@ -759,6 +791,7 @@ describe('AgentPage', () => {
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+      if (path === '/agent-workspaces') return [agentPageMocks.workspace, agentPageMocks.workspaceNext]
       if (path.startsWith('/agent-sessions/') && path.endsWith('/messages')) {
         return { items: [{ id: 'message-existing' }], nextCursor: undefined }
       }
@@ -820,6 +853,188 @@ describe('AgentPage', () => {
 
     ipcMocks.request.mockReset()
     ipcMocks.request.mockResolvedValue(undefined)
+  })
+
+  describe('workspace-only landing', () => {
+    function renderLanding() {
+      const cache = new Map()
+      const view = () => (
+        <SWRConfig value={{ provider: () => cache }}>
+          <AgentPage />
+        </SWRConfig>
+      )
+      return { ...render(view()), refresh: view }
+    }
+
+    it.each(['time', 'workdir', 'agent-left', 'agent-right'])(
+      'shows the fetched workspace without a session in the %s layout with the sidebar hidden',
+      async (layout) => {
+        agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+        agentPageMocks.lastUsedSessionId = 'session-remembered'
+        agentPageMocks.sessionDisplayMode = layout.startsWith('agent') ? 'agent' : (layout as 'time' | 'workdir')
+        agentPageMocks.sessionPanePosition = layout === 'agent-left' ? 'left' : 'right'
+
+        renderLanding()
+
+        const landing = await screen.findByRole('region', { name: 'Workspace A' })
+        expect(within(landing).getByText('/workspace/a')).toBeVisible()
+        expect(within(landing).getByText('Selected')).toBeVisible()
+        expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
+        expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+        expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-a', expect.anything())
+        expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['missing', 'deleted', 'unavailable', 'invisible'])(
+      'settles a %s workspace into empty Agents without resuming or creating a session',
+      async (failure) => {
+        agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+        agentPageMocks.lastUsedSessionId = 'session-remembered'
+        agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+          if (path === '/agent-workspaces') return failure === 'invisible' ? [] : [agentPageMocks.workspace]
+          if (failure === 'invisible') return agentPageMocks.workspace
+          throw failure === 'unavailable'
+            ? new Error('Offline')
+            : DataApiErrorFactory.notFound('Workspace', 'workspace-a')
+        })
+
+        renderLanding()
+
+        await waitFor(() =>
+          expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-a', expect.anything())
+        )
+        expect(screen.queryByRole('region', { name: 'Workspace A' })).not.toBeInTheDocument()
+        expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
+        expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+        expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
+
+    it('replaces a visible session with the landing, then clears the landing when a session is selected', async () => {
+      const user = userEvent.setup()
+      activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-initial' }
+      const { rerender, refresh } = renderLanding()
+      expect(screen.getByTestId('active-session')).toHaveTextContent('session-initial')
+
+      agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+      rerender(refresh())
+      await screen.findByRole('region', { name: 'Workspace A' })
+      expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
+
+      await user.click(screen.getByRole('button', { name: 'Select session next' }))
+      expect(agentPageMocks.navigate).toHaveBeenLastCalledWith({
+        to: '/app/agents',
+        search: { sessionId: 'session-next' },
+        replace: true
+      })
+      agentPageMocks.routeSearch = { sessionId: 'session-next' }
+      activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-next' }
+      rerender(refresh())
+      expect(screen.queryByRole('region', { name: 'Workspace A' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('active-session')).toHaveTextContent('session-next')
+      expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    })
+
+    it('uses the landing workspace when the user explicitly picks an agent for a new task', async () => {
+      const user = userEvent.setup()
+      agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+      agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
+      renderLanding()
+      const landing = await screen.findByRole('region', { name: 'Workspace A' })
+      expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+
+      await user.click(within(landing).getByRole('button', { name: 'Agent B' }))
+
+      await waitFor(() =>
+        expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+          body: { agentId: 'agent-b', name: '', workspace: { type: 'user', workspaceId: 'workspace-a' } }
+        })
+      )
+    })
+
+    it('discards an agentId placeholder completion after entering a workspace landing', async () => {
+      agentPageMocks.routeSearch = { agentId: 'agent-a' }
+      let finish!: (value: typeof agentPageMocks.persistedSession) => void
+      agentPageMocks.dataApiPost.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve
+        })
+      )
+      const { rerender, refresh } = renderLanding()
+      await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
+
+      agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+      rerender(refresh())
+      await screen.findByRole('region', { name: 'Workspace A' })
+      await act(async () => finish(agentPageMocks.persistedSession))
+
+      expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
+      expect(screen.getByRole('region', { name: 'Workspace A' })).toBeVisible()
+      expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('uses the landing workspace for the sidebar New task default', async () => {
+      const user = userEvent.setup()
+      agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+      renderLanding()
+      await screen.findByRole('region', { name: 'Workspace A' })
+
+      await user.click(screen.getByRole('button', { name: 'Create panel session' }))
+
+      await waitFor(() =>
+        expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+          body: { agentId: 'agent-a', name: '', workspace: { type: 'user', workspaceId: 'workspace-a' } }
+        })
+      )
+    })
+
+    it('clears a selected workspace when it is deleted while the landing is open', async () => {
+      agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+      renderLanding()
+      await screen.findByRole('region', { name: 'Workspace A' })
+
+      agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+        if (path === '/agent-workspaces') return []
+        throw DataApiErrorFactory.notFound('Workspace', 'workspace-a')
+      })
+      act(() => MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-workspaces', kind: 'membership' }]))
+
+      await waitFor(() => expect(screen.queryByRole('region', { name: 'Workspace A' })).not.toBeInTheDocument())
+      expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
+      expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('stops an older new-task workspace lookup before it can create a session', async () => {
+      const user = userEvent.setup()
+      agentPageMocks.routeSearch = {}
+      agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
+      let finish!: (value: typeof agentPageMocks.workspace) => void
+      const get = agentPageMocks.dataApiGet.getMockImplementation()!
+      agentPageMocks.dataApiGet.mockImplementation((path: string) =>
+        path === '/agent-workspaces/workspace-remembered'
+          ? new Promise((resolve) => {
+              finish = resolve
+            })
+          : get(path)
+      )
+      const { rerender, refresh } = renderLanding()
+      await user.click(screen.getByRole('button', { name: 'Create session for agent' }))
+      await waitFor(() => expect(finish).toEqual(expect.any(Function)))
+
+      agentPageMocks.routeSearch = { workspaceId: 'workspace-a' }
+      rerender(refresh())
+      await screen.findByRole('region', { name: 'Workspace A' })
+      await act(async () => finish(agentPageMocks.workspace))
+
+      expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+      expect(screen.getByTestId('active-session')).toBeEmptyDOMElement()
+      expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
   })
 
   it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {

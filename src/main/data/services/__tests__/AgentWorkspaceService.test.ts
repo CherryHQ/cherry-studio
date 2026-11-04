@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat } from 'fs/promises'
+import { mkdir, mkdtemp, rm, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 
@@ -8,7 +8,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import {
+  AgentWorkspaceService,
+  agentWorkspaceService,
+  normalizeWorkspacePath
+} from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const SYSTEM_WORKSPACE_CREATED_AT = Date.parse('2026-07-27T10:00:00Z')
@@ -26,6 +30,10 @@ function captureError(fn: () => unknown): unknown {
 }
 
 describe('AgentWorkspaceService', () => {
+  it('should export a module-level singleton of AgentWorkspaceService', () => {
+    expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
+  })
+
   const dbh = setupTestDatabase()
   const tempRoots: string[] = []
 
@@ -42,10 +50,6 @@ describe('AgentWorkspaceService', () => {
     return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
   }
 
-  it('should export a module-level singleton of AgentWorkspaceService', () => {
-    expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
-  })
-
   it('owns the system workspace path policy', () => {
     const root = workspacePath('system')
 
@@ -56,6 +60,31 @@ describe('AgentWorkspaceService', () => {
       agentWorkspaceService.buildSystemWorkspacePath(root, '../session-1', SYSTEM_WORKSPACE_CREATED_AT)
     ).toThrow(/invalid agent session id/i)
   })
+
+  it('exports the existing trim, dot-segment, trailing-separator, and root normalization policy', () => {
+    expect(normalizeWorkspacePath(`  ${workspacePath('project')}/../project///  `)).toBe(workspacePath('project'))
+    expect(normalizeWorkspacePath(path.parse(workspacePath('project')).root)).toBe(
+      path.parse(workspacePath('project')).root
+    )
+    expect(() => normalizeWorkspacePath(' ')).toThrow()
+    expect(() => normalizeWorkspacePath('relative/project')).toThrow()
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'keeps lexical trimming policy even when the supplied spelling names another directory',
+    async () => {
+      const root = await mkdtemp(path.join(tmpdir(), 'workspace-identity-'))
+      tempRoots.push(root)
+      const supplied = path.join(root, 'project ')
+      const normalized = path.join(root, 'project')
+      await mkdir(supplied)
+      await mkdir(normalized)
+      expect(normalizeWorkspacePath(supplied)).toBe(normalized)
+      expect((await stat(supplied)).ino).not.toBe((await stat(normalized)).ino)
+      const workspace = await findOrCreateWorkspace(supplied)
+      expect(workspace.path).toBe(normalized)
+    }
+  )
 
   it('normalizes paths and dedupes rows by path', async () => {
     const rawPath = `${workspacePath('project', '..', 'project')}${path.sep}`

@@ -29,6 +29,8 @@ export const Route = createFileRoute('/app/agents')({
       return
     }
 
+    if (search.workspaceId) return
+
     const sessionId = await resolveAgentEntrySessionId()
     if (sessionId) {
       throw redirect({ to: '/app/agents', search: { sessionId }, replace: true })
