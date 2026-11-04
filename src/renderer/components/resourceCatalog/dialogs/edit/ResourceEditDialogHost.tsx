@@ -12,6 +12,7 @@ import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { AgentEditDialog } from './AgentEditDialog'
+import { AgentProfileDialog } from './AgentProfileDialog'
 import { AssistantEditDialog } from './AssistantEditDialog'
 
 type ResourceEditDialogHostProps = {
@@ -110,6 +111,12 @@ function AgentEditDialogHost({
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
   const modelFilter = useAgentModelFilter(agent?.type)
+  // A deep link (`initialTab`) asks for a specific setting; any other open shows the profile first.
+  const [view, setView] = useState<'profile' | 'settings'>(target.initialTab ? 'settings' : 'profile')
+
+  useEffect(() => {
+    setView(target.initialTab ? 'settings' : 'profile')
+  }, [target])
 
   useEffect(() => {
     if (!error) return
@@ -117,6 +124,18 @@ function AgentEditDialogHost({
     logger.error('Failed to load agent for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
   }, [error, t, target.id])
+
+  if (view === 'profile') {
+    return (
+      <AgentProfileDialog
+        open={open}
+        agent={agent ?? null}
+        onOpenChange={onOpenChange}
+        setupIncomplete={target.setupIncomplete}
+        onOpenSettings={() => setView('settings')}
+      />
+    )
+  }
 
   return (
     <AgentEditDialog

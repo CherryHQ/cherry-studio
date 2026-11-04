@@ -284,7 +284,8 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks).toHaveLength(1)
       expect(result.total).toBe(1)
       expect(result.tasks[0].id).toBe('s1')
-      expect(result.tasks[0]).not.toHaveProperty('runSummary')
+      // The Agent profile card shows each task's last run, so the per-agent list carries it too.
+      expect(result.tasks[0].runSummary).toBeNull()
     })
 
     it('lists a user task that merely happens to be named heartbeat', () => {
