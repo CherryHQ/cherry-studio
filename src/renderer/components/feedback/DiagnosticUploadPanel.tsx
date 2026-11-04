@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Checkbox, DialogFooter, Scrollbar, Textarea } from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, DialogFooter, ScrollArea, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -236,7 +236,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
-      <Scrollbar className="min-h-0 px-6 py-2">
+      <ScrollArea viewportProps={{ className: 'px-6 py-2' }} className="min-h-0">
         {result ? (
           <UploadResultContent
             result={result}
@@ -280,7 +280,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
             </label>
           </form>
         )}
-      </Scrollbar>
+      </ScrollArea>
 
       <DialogFooter className="mt-4 px-6 py-4">
         {isBusy ? (

@@ -385,7 +385,9 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   // Require a model-specific phrase so deprecated parameters do not look like retired models.
   if (
-    (msg.includes('deprecated') && msg.includes('model')) ||
+    /\bmodel(?:\s+(?:`[^`\r\n]+`|'[^'\r\n]+'|"[^"\r\n]+"|[^\s`'",;]+))?\s+(?:has\s+been|have\s+been|is|are|was|will\s+be)\s+deprecated\b/.test(
+      msg
+    ) ||
     msg.includes('model has been retired') ||
     msg.includes('model is retired') ||
     msg.includes('model has been sunset') ||

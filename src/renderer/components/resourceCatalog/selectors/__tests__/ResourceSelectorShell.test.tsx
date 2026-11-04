@@ -138,7 +138,7 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       await waitFor(() =>
-        expect(screen.getByRole('listbox')).toHaveStyle({
+        expect(screen.getByRole('listbox').closest('[data-slot=scroll-area]')).toHaveStyle({
           height: '56px'
         })
       )
@@ -162,7 +162,7 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       await waitFor(() =>
-        expect(screen.getByRole('listbox')).toHaveStyle({
+        expect(screen.getByRole('listbox').closest('[data-slot=scroll-area]')).toHaveStyle({
           height: '0px'
         })
       )
@@ -184,7 +184,9 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       await waitFor(() =>
-        expect(screen.getByRole('listbox')).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
+        expect(screen.getByRole('listbox').closest('[data-slot=scroll-area]')).toHaveStyle({
+          height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
+        })
       )
     })
 
@@ -269,7 +271,7 @@ describe('ResourceSelectorShell', () => {
 
       openPopover()
 
-      expect(screen.getByRole('listbox')).toHaveStyle({
+      expect(screen.getByRole('listbox').closest('[data-slot=scroll-area]')).toHaveStyle({
         height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
       })
     })

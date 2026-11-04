@@ -167,7 +167,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 }
 
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = `https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
+  const authUrl = `https://console.inferera.com/token?lang=${await getLanguageCode()}&aff=SJyh`
 
   startPopupMessageOAuth({
     authUrl,

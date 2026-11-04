@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import JSZip from 'jszip'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -17,8 +18,14 @@ import { dismissNativeMessageBox } from '../../../../scripts/e2e/regression/syst
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
+import { chooseImportFile } from '../helpers/chooseImportFile'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { revealVirtualized } from '../helpers/virtualList'
+import { applicationDataMigration } from '../scenarios/applicationDataMigration'
+import { clearCacheItems } from '../scenarios/clearCacheItems'
+import { importConversationFixtures } from '../scenarios/importConversationFixtures'
+import { resetAppData } from '../scenarios/resetAppData'
 
 test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) => {
   testInfo.annotations.push({
@@ -541,4 +548,157 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
     await rm(directory, { recursive: true, force: true })
     await rm(savedDirectory, { recursive: true, force: true })
   }
+})
+
+test(...caseDefinition('MP-118'), async ({ app, mainWindow }, testInfo) => {
+  await clearCacheItems(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-119'), async ({ app, mainWindow }, testInfo) => {
+  await applicationDataMigration(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) => {
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const readState = () =>
+    page.evaluate(async () => {
+      const assistants = await window.api.dataApi.request({
+        id: 'mp120-assistants',
+        method: 'GET',
+        path: '/assistants',
+        params: { limit: 200 }
+      })
+      const topics = await window.api.dataApi.request({
+        id: 'mp120-topics',
+        method: 'GET',
+        path: '/topics',
+        params: { limit: 200 }
+      })
+      if (assistants.status !== 200 || topics.status !== 200) throw new Error('Cannot read import state')
+      const a = assistants.data as { items: { id: string; name: string }[]; total: number }
+      const t = topics.data as { items: { id: string; name: string; assistantId?: string }[]; nextCursor?: string }
+      if (a.total > a.items.length || t.nextCursor) throw new Error('Import state exceeds one page')
+      const messages = await Promise.all(
+        t.items.map(async (topic) => {
+          const response = await window.api.dataApi.request({
+            id: `mp120-messages-${topic.id}`,
+            method: 'GET',
+            path: `/topics/${topic.id}/messages`
+          })
+          if (response.status !== 200) throw new Error('Cannot read imported messages')
+          return { topicId: topic.id, data: response.data }
+        })
+      )
+      return { assistants: a.items, topics: t.items, messages }
+    })
+  const original = await readState()
+  const importedIds: string[] = []
+  try {
+    for (const source of ['ChatGPT', 'Claude'] as const) {
+      const fixtures = importConversationFixtures(source)
+      const slug = source.toLowerCase()
+      const importsDir = join(app.paths.fixtures, 'imports')
+      await mkdir(importsDir, { recursive: true })
+      const validPath = join(importsDir, `${slug}-conversations.json`)
+      const invalidPath = join(importsDir, `${slug}-conversations-invalid.json`)
+      await writeFile(validPath, fixtures.valid)
+      await writeFile(invalidPath, fixtures.invalid)
+      const importFile = async (path: string) => {
+        await openSettingsSection(page, 'Data')
+        await page
+          .locator('[data-slot="menu-item"]')
+          .filter({ hasText: /^Import App Data$/ })
+          .click()
+        await page
+          .locator(`#setting-data-import-${slug}`)
+          .getByRole('button', { name: 'Import Json File', exact: true })
+          .click()
+        const dialog = page.getByRole('dialog', { name: `Import ${source} Conversations`, exact: true })
+        await expect(dialog).toBeVisible()
+        await dialog.getByRole('button', { name: 'Select File', exact: true }).click()
+        chooseImportFile(app, path)
+        return dialog
+      }
+      const before = await readState()
+      const dialog = await importFile(validPath)
+      await expect(
+        page.getByText('Successfully imported 2 conversations with 6 messages', { exact: true })
+      ).toBeVisible()
+      await expect(dialog).toBeHidden()
+      await attachScreenshot(`MP-120 ${source} success counts`)
+      const after = await readState()
+      const newAssistants = after.assistants.filter((a) => !before.assistants.some((old) => old.id === a.id))
+      importedIds.push(...newAssistants.map((a) => a.id))
+      expect(newAssistants).toHaveLength(1)
+      expect(newAssistants[0].name).toBe(`${source} Import`)
+      const topics = after.topics.filter((t) => t.assistantId === newAssistants[0].id)
+      expect(topics.map((t) => t.name).sort()).toEqual(fixtures.conversations.map((c) => c.name).sort())
+      await selectSidebarApp(page, 'Chat')
+      const chat = page.locator('[data-ui~="chat.view"]:visible')
+      const scroller = chat.locator('[data-virtual-scrolling]').first()
+      const header = chat
+        .locator('[data-ui~="chat.group-header"]')
+        .filter({ hasText: `${source} Import` })
+        .first()
+      await revealVirtualized(page, scroller, header)
+      await expect(header).toBeVisible()
+      await header.hover()
+      const expand = header.getByRole('button', { name: 'Expand', exact: true })
+      if (await expand.isVisible()) await expand.click()
+      for (const conversation of fixtures.conversations) {
+        const topic = topics.find((t) => t.name === conversation.name)!
+        const stored = after.messages.find((m) => m.topicId === topic.id)!.data as BranchMessagesResponse
+        expect(stored.nextCursor).toBeUndefined()
+        expect(
+          stored.items.map(({ message }) => ({
+            role: message.role,
+            parts: message.data.parts
+          }))
+        ).toEqual(
+          conversation.messages.map((text, i) => ({
+            role: i % 2 ? 'assistant' : 'user',
+            parts: [{ type: 'text', text }]
+          }))
+        )
+        const topicRow = chat.getByTestId('topic-list-row').filter({ hasText: conversation.name })
+        await revealVirtualized(page, scroller, topicRow)
+        await topicRow.click()
+        const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
+        await expect(messages).toHaveCount(conversation.messages.length)
+        for (const [i, text] of conversation.messages.entries()) await expect(messages.nth(i)).toContainText(text)
+      }
+      await attachScreenshot(`MP-120 ${source} complete imported conversation`)
+      const beforeInvalid = await readState()
+      const invalidDialog = await importFile(invalidPath)
+      await expect(page.getByText(`Invalid ${source} format`, { exact: true })).toBeVisible()
+      await expect(invalidDialog.getByRole('button', { name: 'Select File', exact: true })).toBeEnabled()
+      expect(await readState()).toEqual(beforeInvalid)
+      await attachScreenshot(`MP-120 ${source} invalid file rejected without partial data`)
+      await invalidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    }
+  } finally {
+    const current = await readState()
+    const ids = new Set([
+      ...importedIds,
+      ...current.assistants.filter((a) => !original.assistants.some((old) => old.id === a.id)).map((a) => a.id)
+    ])
+    for (const assistantId of ids) {
+      await page.evaluate(async (assistantId) => {
+        const permanentlyDeletedAssistant3 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+          assistantId,
+          deleteTopics: true
+        })) as IpcResult<{ deleted: boolean }>
+        if (!permanentlyDeletedAssistant3.ok || !permanentlyDeletedAssistant3.data.deleted)
+          throw new Error('cleanup left the case assistant in the trash')
+      }, assistantId)
+    }
+  }
+})
+
+test(...caseDefinition('MP-121'), async ({ app, mainWindow }, testInfo) => {
+  await resetAppData(app, mainWindow, testInfo)
 })
