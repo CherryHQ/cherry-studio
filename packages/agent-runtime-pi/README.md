@@ -4,15 +4,78 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 
-The caller supplies a borrowed native `ModelRuntime` and `Model`, a working directory and an agent
-directory. Credentials and provider registration remain with the caller. Closing the runtime leaves
-the supplied model runtime usable. Content uses the common AI SDK message protocol; this package has no Cherry application dependency.
+Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
+`steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
+controller: a live run receives a queued message; a finished child continues in the background.
+The legacy controller needs `SubagentPort.load`; the behavior-backed controller retains the same
+native session. An unsupported policy is rejected before native dispatch.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
-Pi owns the execution loop, tools, context accounting and compaction. Content uses the common AI SDK message protocol; the package imports no Cherry application code.
-Native deltas accumulate once into ordered SDK messages, including preliminary/final tool results.
+Pi owns the execution loop, tools, context accounting and compaction. Content deltas use the common AI SDK message reader before observer fanout; the package
+imports no Cherry application code. Native tool results and progress update their calling message,
+without reordering its text, reasoning and tool parts.
+Behavior's child-task and continuation custom messages project as user messages with native entry
+identities. Other hidden custom markers remain hidden; filtering them must not erase actual input boundaries.
+
+## Common runtime with Cherry behavior
+
+Pass `behavior: { host, configureChild }` in `PiSessionOptions` to install
+[`agent-behavior`](../agent-behavior/README.md) through `createPiBehavior`. Each root and its children
+share one behavior instance. `host` implements the existing `HostPorts`: application facts and
+services such as approval UI, model selection, settings, output storage and summarization.
+The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
+
+`configureChild({ thread, parent, origin, toolCallId })` supplies the native model/runtime, extensions and
+listeners once per child context. The selected model must match `origin.modelKey` (`provider/id`).
+Unspecified native options inherit from the root. The adapter installs the behavior extension and
+summarizer on every child, filters parent-only tools, and disables native retries and cache warming
+as required by the behavior adapter's request accounting.
+
+- Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
+  `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
+  Local handling flushes native state before acknowledgement, including a fresh plan-held goal.
+- Child `input.submit` supports `steer` through `entries.messageSubagent`, using the same admission,
+  continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
+  carries the caller's `inputId`, including when a background report job starts the continuation.
+  A refused continuation returns `rejected`; no raw child prompt bypasses that decision.
+- `interrupt()` records a user stop through the root or child entry. A foreground child's stop
+  stops its parent turn; a finished child does not stop later work. A continued child's run is
+  background work and has no cancellation ownership from its completed foreground run.
+- `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
+  `pi.compact(instructions)` uses its summary acceptance and compaction lifecycle. A declined
+  summary returns `rejected` with code `declined`; no native summary fallback runs.
+  Interrupt and shutdown cancel native compaction even when no behavior run is active.
+- Subagent relations are projected onto the parent; each live child can be opened, observed and
+  released independently. Releasing a handle stops its observations. Shutdown closes the shared
+  behavior instance, all native sessions and projections.
+
+`pi.settled()` waits for admitted native work; behavior-backed handles include the shared root,
+children and reporting jobs. It does not interrupt or close the owner, seal new admission, or flush
+host archives. A host using it for a write barrier must first block new input and join its admitted
+submissions, then drain its own archive writers after native work settles.
+
+This is an opt-in migration path: omitting `behavior` retains the existing native extension path.
+Combining it with legacy `subagents`, `offload` or a direct compaction summarizer is rejected.
+Host extensions must not install duplicate behavior tools or start native runs themselves.
+The desktop connection opts in through `src/main/ai/runtime/pi/piBehaviorHost.ts`; its production
+approval, question, model, summary, verifier and output ports use existing Cherry services.
+
+Reopening a root restores its child graph from saved run/origin entries and identity-checked files,
+without resuming work. Missing or ambiguous child files are not replaced. A loader cannot reopen a
+stored child as an independent root: that returns `child-owner-unavailable`. Restored child input
+still passes the parent's continuation policy, including its persisted stopped-turn state.
+If a historical child's native session cannot initialize, its temporary registration is removed
+and the error is reported without preventing the parent or healthy siblings from opening. The saved
+relationship and completed results remain intact; recovery never substitutes another model or
+records the initialization failure as a new task result. A later owner reopen can retry that child.
+
+`tests/behaviorRuntime.test.ts` exercises these public accesses against real Pi execution with
+scripted native providers and host ports, rather than calling the harness ports directly.
 
 ## Session builder
+
+The standalone extension APIs below describe the legacy native-builder path. Shared behavior rules
+are documented in `agent-behavior`; the [behavior ports](#behavior-ports) section describes their Pi adapter.
 
 `createAgentRuntimeSession({ modelRuntime, model, cwd, agentDir, ... })` returns a native
 `AgentSession` and an asynchronous `dispose()` method. The model runtime is borrowed: the caller
@@ -23,7 +86,8 @@ The builder uses in-memory settings, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
 built-in tool is enabled unless `builtinTools` names it. Workspace `AGENTS.md` / `CLAUDE.md` files
-load only with `contextFiles: true`, and skills only from the host's `skillPaths`.
+load only with `contextFiles: true` (explicit project trust), and skills only from the host's
+`skillPaths`. `excludeTools` removes disabled tools from the native loadout.
 `dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
 Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
 
@@ -35,18 +99,29 @@ Known gap: Pi's resource loader still resolves its discovery directories while i
 Cherry registers native Pi providers against its internal gateway in `src/main/ai/runtime/pi/gatewayModelBinding.ts`.
 The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
-This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
-gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+Cherry's desktop root Pi connection uses this package through `create/open/observe/input.submit`.
+Live child projections feed independent desktop message archives and IPC subscriptions. Native session, goal and subagent
+tests live in `tests/`, using Pi providers directly. `tests/sessionSupport.ts` supplies native
+scripted streams with fixed usage for budget and compaction assertions, without an HTTP or AI SDK fixture.
+Cherry gateway integration tests remain in `src/main/ai/runtime/pi/`.
+The typed `pi.archive()` facet supplies committed content and proven native-entry/live-message aliases and legacy part mappings;
+it excludes a child's inherited parent context. It remains readable after native shutdown until the
+access is released, so the host can finish archiving the quiesced tail. This is not a mandatory common
+Runtime history interface.
+`tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+`tests/runtime.test.ts` exercises public child discovery, input and observation through native
+execution, including continuation, release, once-only native reporting, and shutdown during child loading.
 
 ```bash
 pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/nativeSession.test.ts
+pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/runtime.test.ts
 pnpm --filter @cherrystudio/agent-runtime-pi typecheck
 ```
 
 ## Native session storage
 
 Pass `sessionManager: SessionManager.create(cwd, sessionDir)` to create a persistent session, or
-`SessionManager.open(file)` to reopen it. Omit the manager for an in-memory session. The host chooses
+`SessionManager.openExisting(file, expectedId, cwd)` to reopen a known association strictly. Omit the manager for an in-memory session. The host chooses
 the location and records the native session ID/file association. Pi writes and reads its own JSONL;
 there is no second transcript schema, message conversion for storage, or host event replay.
 
@@ -55,13 +130,55 @@ context edits, branch entries, system state and extension entries. Extensions se
 at `session_start`. Activated tools are recorded as a native `cherry.tool-loadout` entry and restored
 beside the host's current base tools. Reopening context does not resume work automatically.
 
-Pi creates the file lazily, once a user or assistant message exists. Pi's low-level `open` also
+Pi creates the file lazily, once a user or assistant message exists. The pinned `SessionManager.flush()`
+also persists local-command state without adding a model-visible message; in-memory sessions stay in memory.
+Pi's low-level `open` also
 accepts a missing path as a new session; hosts loading an existing association must check its
 existence and verify the native session ID instead of silently replacing it.
 
 `onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
 turns. These events are for observation; storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
+
+## Pi-specific access
+
+The handle's `pi` facet provides native branch history, context usage, tool metadata and opaque
+item-to-tool-call lookup. These remain Pi-specific, without enlarging the common contract.
+`compact(instructions?)` serializes with input admission and rejects an actively streaming root;
+it does not abort that turn to compact. `cancelQueuedInputs()` is owner-only and idle-only: it clears
+native queued input, records `aborted` for known unplaced inputs, and returns their identities.
+`permissionModeChanged()` is available only with behavior installed; otherwise it returns `unsupported`.
+Released access cannot use these controls. Neither operation deletes the native history.
+
+## Input correlation
+
+The pinned [Pi 1.4.0 patch](../../patches/@earendil-works__pi-coding-agent@1.4.0.patch)
+adds an optional caller `inputId` to native prompts, steering, follow-ups, and custom messages.
+Pi carries it with the actual message through input transforms and queues. After its session
+manager appends that message, `input_placed` reports the token and native entry ID; the builder's
+`onEvent` forwards this as `input-placed`, after the corresponding `session-append` observation.
+Placement does not promise a file flush, model consumption, or successful completion.
+
+The common handle forwards `InputDraft.inputId` for roots and owner-managed children. Its
+projection publishes the `placed` fact and associates visible input messages with that ID.
+Hidden child custom messages remain hidden. Local handling emits `locally-handled`; an explicit
+native command failure also records `failed`, and a later admission receipt preserves it.
+
+The token is neither a deduplication key nor persisted in the native transcript. A host needing
+restart correlation must save the observed input/entry association. The native patch snapshots
+unanswered placed inputs at request preparation. Normal replies keep their batches provisional
+until native retries, recovery, and `agent_before_settle` have finished. A continuation resumes
+the latest reply's batch; an independent queued follow-up keeps the preceding answer association.
+Only final native settlement publishes outcomes, so continuation failure cannot leave a provisional
+answer marked completed. Queued or subsequently placed inputs are excluded from the preceding response.
+
+`input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
+forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
+The common projection links each input's `response` to the observed item. Several inputs may
+share it; assistant messages do not receive a guessed single `inputId`. Normal final replies map
+to `completed`, errors to `failed`, and interruption to `aborted`. Truncation and settlement
+without a final answer map to `unanswered` with diagnostic codes. Native response completion
+does not prove semantic task success or literal consumption of every input by a context hook.
 
 ## Compaction
 
@@ -98,15 +215,10 @@ Host obligation: let `read` open the store's paths without an approval prompt.
 
 ## Recall
 
-`recall: true` registers `vcc_recall`, with pi-vcc's tool name and parameters (`query`, `range`,
-`expand`, `page`, `scope`, `mode`), so existing tool settings and approvals apply; the host
-disables it by name like any tool. It reads the native active branch, including messages a
-compaction folded into its summary and the running turn. `#N` is an entry's position among the
-branch's user, assistant, tool-result and custom messages, so it stays the same once the session
-is reopened.
-`query` is a keyword search (entries matching more of the words first, 5 per page), `range:
-[from, to]` lists entries in order (20 per page), `expand: [N]` returns full text, and no argument
-lists the latest entries. `scope: 'all'` is the same as `'lineage'`.
+`vcc_recall` is installed by `PiSessionOptions.behavior` through the shared
+[`agent-behavior`](../agent-behavior/README.md#installing-the-package) rules. The Pi adapter supplies the native
+active lineage, including compaction-folded messages and the running turn. Recall is not an option on the
+standalone session builder.
 
 ## Interaction extensions
 
@@ -148,15 +260,15 @@ fork?, background?, model? })` with DSH's name, so Cherry's renderer shows it as
 [background subagent note](../../.agents/notes/proposed/feature/2026-10-14-agent-runtime-background-subagent.md).
 
 Each call builds a session in-process from the parent's options (model runtime, model, prompts,
-tools, compaction, offload, recall, settings) plus the extensions, native event listener and
+tools, compaction, offload, settings) plus the extensions, native event listener and
 live-session callback the host returns from `SubagentPort.configure(subagent)`, and starts it with
 `session.prompt()`, so `before_agent_start` handlers run as in any turn. A continuation run
 (`message_subagent`) starts with a custom message, so those handlers see it with
 `messageType: 'custom'`; one that should act only on prompts checks `messageType === 'user'`. The
-parent's `extensionFactories` and `onEvent` are not inherited. The host supplies each child's extensions and settings explicitly. A subagent's session id is a random UUID: the id the model
-addresses it by, the key the host stores it under and the `sessionId` its requests carry, which
-tells them apart from the parent's. Calls of one step run at the same time. A host whose
-`configure` throws fails that call only.
+parent's `extensionFactories` and `onEvent` are not inherited. The host supplies each child's
+extensions and settings explicitly. A subagent's session id is a random UUID: the id the model
+addresses it by and the key the host stores it under. Calls of one step run at the same time.
+A host whose `configure` throws fails that call only.
 
 A fresh subagent starts empty and has none of the three tools. A fork starts at the native
 assistant entry that holds the calling tool: every tool call in that entry gets a placeholder
@@ -207,13 +319,17 @@ the compacting session's id, so a host can tell a subagent's compaction from its
   current tool batch, and one that comes as it settles starts its next run in the same session.
   For a finished subagent it opens its native session (`SubagentPort.load(id)` returns its
   `SessionManager`; the id and origin are checked), configures the same subagent again
-  (`continuedBy`, and `modelKey` from its origin), answers the tool calls an interrupted run left
+  (`continuedBy` for a model-tool continuation, and `modelKey` from its origin), answers the tool calls an interrupted run left
   open with an "interrupted" result and runs the message in the background, after a recovery hint
   when the last run was interrupted or aborted. Without `load`, finished subagents cannot be
   continued. The id must be one this conversation started. A message to a subagent being stopped
   waits for the stop, then continues it or is refused as for a finished one. `details` is
   `SubagentMessageDetails`: `{ sessionId, continued: false }` when queued,
   `{ sessionId, continued: true, run }` when it started a run.
+  The session owner's `messageSubagent(id, message, { inputId? })` and the common handle's `input.submit`
+  share this admission path with the model tool, including continuation locks and user-stop refusal.
+  Host input has no fabricated tool-call identity. A new background run keeps the extension's
+  native once-only parent report; merely observing the child never sends a report.
 - **Stopping** – `stop_subagent` stops a running subagent and returns its partial output; no
   notification follows, and it can be continued, unless the user also stopped that run (before or
   after the model). Its `details` (`SubagentStopDetails`) is
@@ -227,6 +343,13 @@ the compacting session's id, so a host can tell a subagent's compaction from its
   subagent; a running foreground subagent belongs to its parent's turn, so its interrupt is the
   user's `abort()` of that turn. Disposing the parent stops and disposes every subagent session; a
   run that had ended on its own by then keeps its result, which the reopened parent delivers.
+
+The common runtime exposes `Subagent` relationships in `snapshot.subagents` and
+`subagent.upsert`. The relationship ID uses the native child session ID within its parent,
+so child continuation updates the same relationship. It carries no assignment completion status.
+Retained child handles observe the replacement live session after continuation. Releasing a
+parent access does not close its child; runtime shutdown joins pending child admissions before
+disposing the parent owner and its children.
 
 With `SubagentPort.findModels`, `subagent` takes a `model` the user named: the package resolves it
 among the exact candidates the host finds (none or several fail and tell the model what to ask)
@@ -360,6 +483,110 @@ idle. Design: [goal note](../../.agents/notes/proposed/feature/2026-10-11-agent-
 
 Host obligations: set `create_goal` to ask for approval, so a goal the model proposes is confirmed
 by the user through the existing approval card. Show a withdrawn round as described above.
+
+## Behavior ports
+
+`createPiBehavior({ install, openSession, onError? })` implements the harness ports of
+[`@cherrystudio/agent-behavior`](../agent-behavior/README.md) (`HarnessPorts`, H1 to H12) on native coding-agent
+sessions and passes the package's contract (`tests/behaviorContract.test.ts`). It holds no rules: what to write, start
+or stop comes from the handlers `install` registers and the steps they decide. The extensions above do not use it yet.
+
+- `install(ports)` runs once, before any conversation opens. `onError` receives what no caller awaits: a job that
+  threw, a run that failed to start, the `onCompacting` or `onCompacted` of an automatic compaction, what a handler Pi
+  calls threw (`omit`, `before`, `after`, `onClose`), a `cherry.rollback` entry that failed to write, a run the adapter
+  did not start, and a compaction cancelled because it bypassed `summarize`.
+- `openConversation(sessionManager)` opens a conversation and runs `onOpen` before it resolves; `reopened` is whether
+  the manager already held entries (a stored session), so open a new conversation on an empty manager.
+- `openSession({ sessionManager, extension, summarize, child? })` is the host's, called for every session the adapter
+  opens: build the session with `createAgentRuntimeSession` on `sessionManager`, install `extension`, pass `summarize`
+  as `compaction.summarize` (every compaction, manual or automatic, then asks `onCompacting`, and a decline's reason
+  becomes the `compaction-end` error; never the host's own summarizer, which the package calls through `onCompacting`;
+  the builder exposes the configured callback as `compactionSummarizer` for identity validation, independent of extension ordering; a session built without it, or with another summarizer, fails closed: each compaction is cancelled, `compact()`
+  rejects and `onError` hears why, since Pi would otherwise compact without asking `onCompacting`),
+  keep Pi's retry off, and for a child (`child: { parent, origin }`) give it the model `child.origin.modelKey` names and
+  keep Pi's cache warming off (`cacheWarming: 'off'`): warming requests bypass `agent.streamFunction`, so the request
+  meter would not count them.
+  The adapter registers the package's tools itself, in a child minus the `'parent-only'` ones; host-owned tools follow
+  the host's own child configuration.
+- `withCall(thread, use, { inputId?, signal? }?)` binds the outbound ports to one host call; they expire when `use`
+  settles. The optional input ID follows that thread's custom message, including one sent by a job created in the
+  call; the signal withdraws its waiting steer. `submitUser` (a person's text), `prompt`, `compact`, `settled` and
+  `close` are the host's other entries. `prompt` preserves native command/input preflight and native steer/follow-up
+  queues inside the current execution; `submitUser` uses the adapter's inbox for separate runs. The inbox waits for
+  host prompts, including native preflight. Once they finish, eligible queued work resumes; execution failure or
+  interruption still leaves it queued. `close()` first waits for opens in progress (a session being built, `onOpen`)
+  and then tears them down with the rest. Before disposing any session it stops every run as `turns.stop` does,
+  withdraws queued input, and joins host prompts even when their preflight outlived the preceding run. A prompt
+  admitted during closure is stopped at native run start before any model request. An uncancellable preflight can
+  delay closure until it returns. Once it began, no job starts, an open leaves the input queued during it unstarted, and a session built
+  after that is disposed unopened, its open rejecting with the closed error. New prompts, compactions, turn starts, child messages and child creation reject as soon as closing begins; reads and stops remain available for cleanup.
+- Only the adapter starts runs in a session it opens. Use `submitUser`, `prompt` and `compact`, never `session.prompt` or
+  `session.compact`, and install no extension there that starts a run (`pi.sendMessage(…, { triggerTurn: true })`,
+  `pi.sendUserMessage`), also not while a run settles: the run state below (the request meter's count, the gate's call
+  window, the live facts) belongs to runs the adapter starts. A run that begins while the adapter has none is reported
+  to `onError`; one that begins while an adapter run is about to start is taken for that run, unnoticed.
+- `compact(thread)` first aborts a run in progress (Pi's `compact()` begins with `abort()` and waits for the run to
+  settle), but not the foreground children that run owns: stop the run with `turns.stop` first when it may be waiting
+  on one. It resolves once `onCompacted` has run, or, compacting nothing, once `onCompacting` declined.
+
+| Port | On coding-agent |
+| --- | --- |
+| H1 `Ledger` | `read` projects the whole branch with `decodeEntry` (compactions kept, other Pi entries left out): records are `custom` entries, markers `custom_message` entries whose `details` hold the data; a user entry carries its text, and every tool call and result its `callKey`. `keysSeen` holds the keys of the branch's records and markers and of the thread's live jobs; a child's `lastItem` is its last projected entry. `transact` reads, calls `decide` and writes with no await in between; a quiet input is a `custom_message` entry the commit writes as it writes a record, refused unless the conversation is idle, and once the commit stands the session refreshes its context (`refreshContext`, as Pi does after its own append) without the `message_start` and `message_end` Pi's `sendCustomMessage` emits: nothing in this package reads them for a marker, which `display: false` keeps out of the transcript, and `onEvent` gets its `session-append` with the session's next event, as for a record; a spawn creates the child's storage once every operation is checked and before any write, writes both records in the commit and builds the child session right after; a commit makes every disk write, quiet inputs included, before it registers a child or a job, and one that rejects leaves no record or marker on any branch, no child, no job and no session file: a failed write puts back each branch it moved and appends a `cherry.rollback` entry there, left out of the facts, so a reload lands on that branch too, and where storage refuses that entry as well, the branch stays put back so a later write follows what is on disk; a fork copies its source's branch up to the fork point, and a fork of the transacting conversation (a fork subagent) answers each call of the fork point with `FORK_PLACEHOLDER_RESULT`, while an explicit fork of another conversation leaves them to the interrupted result (H3); a commit waits for every child build to settle before starting its jobs, each from the next microtask; healthy siblings can run even if another build failed, and the transaction caller still receives the build failure. `modelContext` is Pi's context after compaction, without the markers the context filter omits. |
+| H2 `Turns` | Admission is the adapter's: one run per run-starting input, from the input to Pi's `agent_settled`. A known key returns its first answer; a key only the branch still holds answers `'started'`. A `start` while a run is active is `'busy'`; once `agent_settled` has ended the run, a `start` begins a new run and never continues the settled one. Queued input waits in the adapter, not in Pi's follow-up queue, and starts when a run completes; after a failed or aborted run it stays queued until the next submission or compaction. `stop` withdraws queued input and aborts the session and the foreground children the run owns; a stop made while Pi still prepares the run is repeated at `agent_start`, because Pi drops it. A stop with `turn` acts only when it names the latest turn input in this process's latest run (the starting custom message or latest native user input, including steering) and otherwise resolves at once, so a repeated stop never reaches a later run, not even one whose input Pi has not written yet. |
+| H3 `Helpers` | Continuation keeps the same native session and id. A reserved number is a minimum for a new run, with zero usage for skipped numbers; it never conditions admission to an active run. Foreground cancellation ownership ends with the child's first run, so stopping that parent turn cannot stop a later background continuation. The input that would start that first run, sent through the owning tool call's ports after its signal aborted, starts nothing and answers `'withdrawn'`: the stop may have passed the child while it had no run. A message to an idle child first answers each call of the child's last reply that has no result with `INTERRUPTED_CALL_RESULT` (an error result; not when that reply failed or was aborted), then starts a run with it. One to a running child is a steer: the adapter keeps it and hands it to Pi at the run's next turn end, right before Pi polls its steering queue, one steer per turn, and `message` answers `'queued'` once Pi placed it. If normal completion comes before consumption, the message starts a subsequent run and `message` returns `'started'` with its actual run number. The request key is unchanged; replay never resubmits it. Stop, failure, or the sending tool call's abort withdraws unconsumed input. `awaitAnswer` follows the input's actual run. `stop(child, run)` acts only while `run` is the child's active run; a child of an earlier process has none (D5). |
+| H4 `Jobs` | An in-process promise per job, deduplicated by key: a live job keeps its key, an ended one frees it. A job ensured in `onOpen` starts once `onOpen` has run. |
+| H5 `Waits` | Both follow the adapter's runs, which end at `agent_settled`. `untilIdle` resolves once no run is active and no host call is in flight (`hostCallInFlight`: a person's prompt not yet started as a run, a host `compact()` not yet returned, or a compaction in progress); inputs a failed run left do not hold it. `untilDone(thread, key)` resolves once the run that took the input submitted under `key` has ended, after the inputs queued before it, and at once for a withdrawn input or a key nothing was submitted under in this process (a `'busy'` start records nothing). |
+| H6 `Memory` | One map per harness, shared by every conversation. |
+| H7 `Clock` | `Date.now()`, never decreasing. |
+| H8 `Tools` | `pi.registerTool`, `model-only`, in every session the adapter opens; a child session gets only the tools whose `availability` is `'all'`. |
+| H9 `ToolGate` | `tool_call` and `tool_result`. `before` gets the call with the run's abort signal (the handler context's `signal`), which aborts when the call's turn stops; `after` gets the call `before` saw, `nested` included, with the arguments the call ran with. The call key is `<sessionId>:<toolCallId>`. `GateFacts.plan` is the latest `plan` record on the branch; `goalRound` and `callWindow` come from the run's starting input and its calls so far (nested calls left out), kept in memory per run. A blocked call's result reads `Tool call blocked: <reason>`, as on Durable, and projects back as an error result with that text. |
+| H10 `ContextFilter` | The `context` event, before every model request; see the note on omitted markers. |
+| H11 `RequestMeter` | Wraps `agent.streamFunction` and counts the requests of the adapter's run, with lineage `'child'` for a spawned session and `'root'` otherwise; a refused request fails the run with the refusal text, and the run's answer is `limit_reached`. A compaction during a run (Pi's automatic one) is one of its requests: the adapter's summarizer asks the meter first and counts it, and a refusal cancels the compaction, with the refusal text as its `compaction-end` error, without asking `onCompacting`. |
+| H12 `Lifecycle` | `onOpen` once the session is built (after Pi's `session_start`), for the conversations the host opens and not for spawned children. `onCompacting` before every compaction, through the summarizer the session got as `compaction.summarize` (Pi's `session_before_compact`), under the key `<sessionId>:<id of the entry the compaction follows>`: the request captures the full branch before awaiting the summary, and any returned accounting record is appended once by its key and included in the active child's run usage; a summary becomes the compaction's, and a decline cancels it, its reason becoming the `compaction-end` error. `onCompacted` once Pi has finished a compaction that produced a summary (`compaction_end`), also in the middle of a run; `onClose` at `session_shutdown`. |
+
+### Declared differences
+
+| # | Difference | Why |
+| --- | --- | --- |
+| D1 | Runs, jobs, waits and memo do not survive a restart; the contract's five `restart` cases are skipped. | coding-agent resumes nothing after the process ends (H4, H6, H12 `@harness coding-agent`; see "Native session storage"). |
+| D2 | `onOpen(reopened: true)` finds no run to stop: `turns.stop` there, and `helpers.stop` of a child of an earlier process (D5), do nothing and resolve at once; `live.runEnd` stays absent until a run ends in this process. | D1; H12 `@harness coding-agent`: no stop before resume. |
+| D3 | A child session that fails to build after its commit leaves both spawn records and is not in `children`. The adapter calls `onChildOpenFailed` before starting the commit's jobs, then `transact` rejects with the build error. Shared behavior records the first run as failed and releases its capacity. | H1 `@harness coding-agent`: the session is built right after the commit; the adapter reports the failure and behavior owns terminalization. |
+| D5 | Temporary: children of an earlier process are not in `children`, and their finished runs cannot be continued yet. | The adapter does not load them; PR-2b loads them with `SessionManager.findById` and `open`. |
+| D6 | Temporary: `ChildFacts.runUsage` includes replies and reported summary accounting, but not usage Pi puts on tool results (calls made through `ctx.executeTool`). | The adapter adds up each reply's usage at `message_end`; PR-2b completes it with the usage reporting. |
+
+Implementation notes (not differences):
+
+- Runs end at `agent_settled`, and the run that settled is never continued: a person's text that arrives while the run
+  settles starts the next run, as does a steer that missed the final boundary, and a `turns.start` is `'busy'` until
+  `agent_settled` has ended the run (H2, H5 `@harness coding-agent`).
+- Pi can only clear its whole steering queue, so the adapter keeps steers itself and hands Pi one at each turn end,
+  right before Pi polls the queue. A steer Pi was handed is being placed: a stop, a `retract` (`'already-started'`) or
+  its call's abort no longer withdraws it. At normal completion, unplaced steers start subsequent runs; stop or failure withdraws them. Steers join a
+  run one per turn, as Pi's default `steeringMode: 'one-at-a-time'` does.
+- A person's text that arrives while the conversation is busy waits in the adapter's inbox, one run per input, never in
+  Pi's follow-up queue (`ContractHarness.sendUser`).
+- `ContextFilter.omit` returns entry ids, but Pi's request messages carry none, so the adapter maps each id to its
+  marker's kind and `key` and drops that marker; a marker without a key cannot be left out.
+- A child session gets only tools whose `availability` is `'all'`; nothing is filtered by tool name.
+- `GateCall.nested` is true for a call made through `ctx.executeTool` (`parentToolCallId`), for `before` and `after`
+  alike.
+- An automatic compaction calls `onCompacted` in the middle of a run: its handler cannot add a quiet input there (the
+  conversation is not idle), and `hostCallInFlight` may still be true when it starts. A host `compact()` rejects when
+  `onCompacting` or `onCompacted` throws; an automatic compaction's error goes to `onError`.
+- Pi puts what `omit` (`context`), `after` (`tool_result`) and `onClose` (`session_shutdown`) throw on its extension
+  error channel and carries on, and makes what `before` (`tool_call`) throws the call's error result; the adapter also
+  hands each to `onError`. A failing `omit` still sends the request unfiltered, a failing `before`'s result does not
+  read `Tool call blocked: …`, a failing `after` leaves the result unreplaced, and a failing `onClose` does not reject
+  `close()`.
+- A replacement from `after()` without `details` keeps the call's original `details`: Pi keeps them when a `tool_result`
+  handler returns none (or `null`). The adapter preserves `structuredContent` and replaces each contiguous text span in place. Cherry's pinned Pi core patch also retains structured output in native tool-result history, including file reopen.
+- In a stored (file-backed) conversation a fork copies its source's session file, which Pi writes only once the source
+  holds a user or assistant message; a fork from a source without one rejects the transaction.
+
+```bash
+pnpm --filter @cherrystudio/agent-behavior build
+pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/behaviorContract.test.ts packages/agent-runtime-pi/tests/behaviorAdapter.test.ts packages/agent-runtime-pi/tests/behaviorHistory.test.ts
+```
 
 ## Known gaps
 

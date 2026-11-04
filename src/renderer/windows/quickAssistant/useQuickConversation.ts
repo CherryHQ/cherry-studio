@@ -1,4 +1,3 @@
-import { useChat } from '@ai-sdk/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
@@ -6,9 +5,9 @@ import { loggerService } from '@logger'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { autoReadService } from '@renderer/services/voice'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -18,8 +17,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 const logger = loggerService.withContext('useQuickConversation')
 
-/** Stable empty array — the quick-assistant temp topic has no DB-backed messages. */
-const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 /** Placeholder chat id used while the temporary topic lease is still in flight. */
 const PENDING_TOPIC_ID = 'pending-temp'
 
@@ -62,15 +59,7 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
   })
 }
 
-/**
- * The quick assistant's conversation: a temporary topic streamed through the same
- * transport as chat, projected into the shape `MessageList` renders.
- *
- * Chunks are routed to the per-execution collector, so `useChat.messages` only ever
- * holds the user turns `send` pushed — assistant turns arrive through the overlay and
- * are accumulated in `completedRounds` as each stream ends, which is what makes the
- * multi-turn transcript survive.
- */
+/** Owns temporary user turns and completed assistant rounds for the quick assistant. */
 export function useQuickConversation({ assistantId }: { assistantId?: string }) {
   const {
     topicId,
@@ -94,14 +83,9 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     sendMessage,
     stop: stopChat,
     setMessages
-  } = useChat<CherryUIMessage>({
-    id: chatId,
-    transport: ipcChatTransport,
-    experimental_throttle: 50,
-    onError: (err) => {
-      setIsPreparing(false)
-      setError(err.message)
-    }
+  } = useStreamCommands(chatId, undefined, (err) => {
+    setIsPreparing(false)
+    setError(err.message)
   })
 
   const { activeExecutions, isPending } = useTopicStreamStatus(chatId)
@@ -111,7 +95,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     liveAssistants,
     reset: resetExecutionMessages,
     clear: clearExecutionMessages
-  } = useExecutionOverlay(chatId, activeExecutions, EMPTY_UI_MESSAGES, {
+  } = useExecutionOverlay(chatId, activeExecutions, {
     onUpdate: (_executionId, event) =>
       autoReadService.update({ ...event, enabled: autoReadEnabled, scope: chatId, eligible: true }),
     onLeave: () => autoReadService.cancelScope(chatId),
@@ -129,8 +113,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     const wasActive = prevActiveCountRef.current > 0
     prevActiveCountRef.current = activeExecutions.length
     if (activeExecutions.length === 0 && wasActive) {
-      // Snapshots are retained after a reader tears down, so the final
-      // frames are still in `liveAssistants` at this →0 transition.
+      // Terminal projection retains the final frame through the history handoff.
       if (liveAssistants.length) {
         setCompletedRounds((rounds) => [...rounds, finalizeLiveMessages(liveAssistants)])
         resetExecutionMessages()
@@ -200,9 +183,7 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
     () =>
       displayMessages.map((message) => {
         const item = toMessageListItem(message, { assistantId, topicId: topicId ?? '' })
-        // Neither `useChat` turns nor overlay snapshots carry a timestamp — only rows read
-        // back from SQLite do — and the message header would render "Invalid Date". Stamp
-        // each id the first time it appears so the value stays stable across re-renders.
+        // Temporary turns lack SQLite timestamps; stamp each id once so headers stay stable.
         if (item.createdAt) return item
         let seenAt = messageTimestampsRef.current.get(item.id)
         if (!seenAt) {
@@ -258,17 +239,15 @@ export function useQuickConversation({ assistantId }: { assistantId?: string }) 
       setIsPreparing(true)
       try {
         // Main resolves an assistant-bound topic or the explicit model-only selection.
-        void sendMessage(
-          { parts },
-          {
-            body: {
-              mentionedModels: options?.mentionedModels,
-              reasoningEffort: options?.reasoningEffort,
-              serviceTier: options?.serviceTier,
-              ...(options?.fastMode ? { fastMode: true as const } : {})
-            }
+        void sendMessage(undefined, {
+          body: {
+            userMessageParts: parts,
+            mentionedModels: options?.mentionedModels,
+            reasoningEffort: options?.reasoningEffort,
+            serviceTier: options?.serviceTier,
+            ...(options?.fastMode ? { fastMode: true as const } : {})
           }
-        )
+        })
       } catch (streamError) {
         const resolved = streamError instanceof Error ? streamError : new Error('An error occurred')
         setIsPreparing(false)

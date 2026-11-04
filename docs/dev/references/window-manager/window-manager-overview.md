@@ -134,7 +134,7 @@ See [Warmup Mechanics](./window-manager-warmup-mechanics.md) for the full pool c
 | `broadcast()` / `broadcastToType()` | IPC fan-out to all or type-filtered windows |
 | `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `window.reused` on reuse paths |
 | `suspendPool()` / `resumePool()` | Pause pool tracking without destroying in-use windows |
-| macOS Dock visibility management | Existence-based: Dock is visible while any window with `behavior.macShowInDock !== false` is alive (not destroyed). Services express tray-mode intent via `wm.behavior.setMacShowInDockByType(type, value)` to temporarily opt a type out of Dock contribution. Matches native macOS semantics where Cmd+W does not remove the app from the Dock. |
+| macOS Dock visibility management | Existence-based: Dock is visible while any window with `behavior.macShowInDock !== false` is alive (not destroyed). Services express tray-mode intent via `wm.behavior.setMacShowInDockByType(type, value)` to temporarily opt a type out of Dock contribution. Matches native macOS semantics where Cmd+W does not remove the app from the Dock. The one visibility-based exception is `wm.behavior.hideMacDockWhileShown(windowId)`, which hides the Dock while that window is shown so system windows such as the IME candidate panel can join another app's full-screen Space. |
 | Bounds persistence (`rememberBounds`) | Singleton-only opt-in to persist & restore a window's position/size across launches (onto its last display), backed by the main persist cache. Runtime-toggleable via `wm.setRememberBounds`. See [README → Bounds Persistence](./README.md#bounds-persistence). |
 
 ## Event Timing Contract

@@ -61,7 +61,12 @@ export interface SubagentSessionOverrides {
 export type CreateSubagentSession = (overrides: SubagentSessionOverrides) => Promise<AgentRuntimeSession>
 
 /** How a run starts: with the task prompt (a new subagent) or with a message from the parent. */
-export type RunStart = { prompt: string } | { message: string }
+export type RunStart = { prompt: string } | { message: string; inputId?: string }
+
+interface SubagentInput {
+  text: string
+  inputId?: string
+}
 
 const messageOf = (text: string) => ({ customType: SUBAGENT_MESSAGE_TYPE, content: text, display: false })
 
@@ -70,21 +75,21 @@ const messageOf = (text: string) => ({ customType: SUBAGENT_MESSAGE_TYPE, conten
  * after its current tool batch; once the run starts to settle they wait for the next run.
  */
 export class SubagentInbox {
-  private pending: string[] = []
-  private send: ((text: string) => void) | undefined
+  private pending: SubagentInput[] = []
+  private send: ((input: SubagentInput) => void) | undefined
   private running: () => boolean = () => false
   private holding = false
   private closed = false
 
   /** The subagent's own extension; it goes ahead of the extensions the host gives the subagent. */
   readonly extension: ExtensionFactory = (pi) => {
-    this.send = (text) => pi.sendMessage(messageOf(text), { triggerTurn: true })
+    this.send = (input) => pi.sendMessage(messageOf(input.text), { triggerTurn: true, inputId: input.inputId })
     pi.on('session_start', (_event, ctx) => {
       this.running = () => !ctx.isIdle()
     })
     pi.on('turn_start', () => {
       this.holding = false
-      for (const text of this.take()) this.send!(text)
+      for (const input of this.take()) this.send!(input)
     })
     // A steer sent once Pi has decided to settle would stay unread in its queue.
     pi.on('agent_before_settle', () => {
@@ -93,10 +98,11 @@ export class SubagentInbox {
   }
 
   /** False once the run has ended: the message must start a new run instead. */
-  push(text: string): boolean {
+  push(text: string, inputId?: string): boolean {
     if (this.closed) return false
-    if (this.send && this.running() && !this.holding) this.send(text)
-    else this.pending.push(text)
+    const input = { text, inputId }
+    if (this.send && this.running() && !this.holding) this.send(input)
+    else this.pending.push(input)
     return true
   }
 
@@ -108,7 +114,7 @@ export class SubagentInbox {
     return this.pending.length > 0
   }
 
-  take(): string[] {
+  take(): SubagentInput[] {
     const taken = this.pending
     this.pending = []
     return taken
@@ -228,6 +234,7 @@ export async function openChild(input: {
       .then((created) => {
         if (signal?.aborted) return created.dispose()
         child = created
+        return undefined
       })
     await Promise.race([creating, cancelled])
     signal?.throwIfAborted()
@@ -324,11 +331,12 @@ const textOf = (message: AssistantMessage) =>
   message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
 
 /** Starts a run with the parent's messages and waits for it to settle. */
-async function runMessages(child: AgentRuntimeSession, texts: string[]): Promise<void> {
-  const [first, ...rest] = texts
-  const run = child.session.sendCustomMessage(messageOf(first), { triggerTurn: true })
+async function runMessages(child: AgentRuntimeSession, inputs: SubagentInput[]): Promise<void> {
+  const [first, ...rest] = inputs
+  const run = child.session.sendCustomMessage(messageOf(first.text), { triggerTurn: true, inputId: first.inputId })
   // The run is live once the first message started it, so these are steered into it.
-  for (const text of rest) void child.session.sendCustomMessage(messageOf(text), { triggerTurn: true })
+  for (const input of rest)
+    void child.session.sendCustomMessage(messageOf(input.text), { triggerTurn: true, inputId: input.inputId })
   await run
 }
 
@@ -365,7 +373,7 @@ export async function runSubagent(
     if (signal.aborted) stop('aborted')
     else if (!stopped && 'prompt' in start)
       await session.prompt(start.prompt, { expandPromptTemplates: false, source: 'extension' })
-    else if (!stopped && 'message' in start) await runMessages(child, [start.message])
+    else if (!stopped && 'message' in start) await runMessages(child, [{ text: start.message, inputId: start.inputId }])
     // Messages that came while the run settled start the next run on the same session.
     while (!stopped && inbox.hasPending()) await runMessages(child, inbox.take())
   } catch (thrown) {

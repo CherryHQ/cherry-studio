@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/testing/2026-10-17-agent-harness-evidence.md
-2026-10-17-agent-harness-evidence.md: bc1154cbb1d9c794cd6243b7ab60fe18df619240
-2026-10-17-agent-harness-evidence.zh.md: ea7717bfea8a1a9f4051e848f6fff95a822f3e33
+2026-10-17-agent-harness-evidence.md: 98dd44338b8b2c017bf29ea6c401d6b00cc05a26
+2026-10-17-agent-harness-evidence.zh.md: 05cab532f2941654589f7a6cb1ae0c391e3d08fa

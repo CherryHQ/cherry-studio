@@ -9,20 +9,17 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { finalizeLiveMessages, useQuickConversation } from '../useQuickConversation'
 
 const conversation = vi.hoisted(() => ({
-  sendMessage: vi.fn(),
-  stop: vi.fn(),
-  setMessages: vi.fn(),
+  openStream: vi.fn().mockResolvedValue({ mode: 'started' }),
   resetTopic: vi.fn(),
   persistTopic: vi.fn()
 }))
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: () => ({
-    messages: [],
-    sendMessage: conversation.sendMessage,
-    stop: conversation.stop,
-    setMessages: conversation.setMessages
-  })
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.stream.open' ? conversation.openStream(input) : Promise.resolve(null),
+    on: () => () => {}
+  }
 }))
 
 const lease = vi.hoisted(() => ({ topicId: 'temp-topic' }))
@@ -46,7 +43,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 const overlay = vi.hoisted(() => ({ options: {} as UseExecutionOverlayOptions }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: (_topicId: string, _executions: unknown, _messages: unknown, options = {}) => {
+  useExecutionOverlay: (_topicId: string, _executions: unknown, options = {}) => {
     overlay.options = options
     return { liveAssistants: [], reset: vi.fn(), clear: vi.fn() }
   }
@@ -114,7 +111,7 @@ describe('finalizeLiveMessages', () => {
     // The composer awaits attachment preparation, then calls the send it captured before Save.
     // Dispatching it would reach the now-persisted topic with no branch anchor.
     conversation.persistTopic.mockResolvedValue(undefined)
-    conversation.sendMessage.mockClear()
+    conversation.openStream.mockClear()
     const { result } = renderHook(() => useQuickConversation({}))
     const pendingSend = result.current.send
 
@@ -125,11 +122,11 @@ describe('finalizeLiveMessages', () => {
     act(() => {
       expect(pendingSend('follow-up with attachment')).toBe(false)
     })
-    expect(conversation.sendMessage).not.toHaveBeenCalled()
+    expect(conversation.openStream).not.toHaveBeenCalled()
   })
 
   it('drops a submit that was preparing files across a reset, but sends on the new lease', () => {
-    conversation.sendMessage.mockClear()
+    conversation.openStream.mockClear()
     const { result, rerender } = renderHook(() => useQuickConversation({}))
     const pendingSend = result.current.send
 
@@ -139,7 +136,7 @@ describe('finalizeLiveMessages', () => {
     act(() => {
       expect(pendingSend('meant for the old conversation')).toBe(false)
     })
-    expect(conversation.sendMessage).not.toHaveBeenCalled()
+    expect(conversation.openStream).not.toHaveBeenCalled()
     act(() => {
       expect(result.current.send('meant for the new one')).toBe(true)
     })
@@ -155,7 +152,7 @@ describe('finalizeLiveMessages', () => {
           failPersist = reject
         })
     )
-    conversation.sendMessage.mockClear()
+    conversation.openStream.mockClear()
     const { result } = renderHook(() => useQuickConversation({}))
 
     let saving: Promise<unknown> = Promise.resolve()
@@ -166,7 +163,7 @@ describe('finalizeLiveMessages', () => {
       expect(result.current.send('follow-up during save')).toBe(false)
     })
     expect(result.current.isSaving).toBe(true)
-    expect(conversation.sendMessage).not.toHaveBeenCalled()
+    expect(conversation.openStream).not.toHaveBeenCalled()
 
     await act(async () => {
       failPersist(new Error('disk full'))
@@ -220,13 +217,13 @@ describe('finalizeLiveMessages', () => {
     // Main rejects busy temporary-chat submits; the stream is fire-and-forget, so without
     // this the composer would drop a steered follow-up that never got an answer.
     streamStatus.isPending = true
-    conversation.sendMessage.mockClear()
+    conversation.openStream.mockClear()
     const { result } = renderHook(() => useQuickConversation({}))
 
     act(() => {
       expect(result.current.send('steered follow-up')).toBe(false)
     })
-    expect(conversation.sendMessage).not.toHaveBeenCalled()
+    expect(conversation.openStream).not.toHaveBeenCalled()
   })
 
   it('finalizes streaming content parts without replacing unchanged messages', () => {
@@ -284,15 +281,19 @@ describe('finalizeLiveMessages', () => {
 
 describe('useQuickConversation', () => {
   afterEach(() => {
-    conversation.sendMessage.mockReset()
+    conversation.openStream.mockClear()
   })
 
-  it('forwards the selected model and request controls to the temporary conversation', () => {
+  it('dispatches attachments and request controls through the stream command API', async () => {
     const { result } = renderHook(() => useQuickConversation({}))
 
-    act(() => {
+    await act(async () => {
       expect(
         result.current.send('hello', {
+          userMessageParts: [
+            { type: 'text', text: 'hello' },
+            { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,aGVsbG8=' }
+          ],
           mentionedModels: ['provider::model'],
           reasoningEffort: 'high',
           serviceTier: 'flex',
@@ -301,16 +302,22 @@ describe('useQuickConversation', () => {
       ).toBe(true)
     })
 
-    expect(conversation.sendMessage).toHaveBeenCalledWith(
-      { parts: [{ type: 'text', text: 'hello' }] },
-      {
-        body: {
-          mentionedModels: ['provider::model'],
-          reasoningEffort: 'high',
-          serviceTier: 'flex',
-          fastMode: true
-        }
-      }
-    )
+    expect(conversation.openStream).toHaveBeenCalledWith({
+      trigger: 'submit-message',
+      topicId: 'temp-topic',
+      userMessageParts: [
+        { type: 'text', text: 'hello' },
+        { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,aGVsbG8=' }
+      ],
+      parentAnchorId: undefined,
+      mentionedModelIds: ['provider::model'],
+      reasoningEffort: 'high',
+      serviceTier: 'flex',
+      fastMode: true
+    })
+    expect(Object.values(result.current.partsByMessageId)).toContainEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,aGVsbG8=' }
+    ])
   })
 })

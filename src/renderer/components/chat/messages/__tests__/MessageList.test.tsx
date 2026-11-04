@@ -44,6 +44,8 @@ const messageListSearchMock = vi.hoisted(() => ({
 }))
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
+  sidePaddingPx: 24,
+  messageEndInsetPx: 0,
   setForceWideLayout: () => {},
   setRailGutterPx: vi.fn()
 }))
@@ -444,6 +446,8 @@ describe('MessageList', () => {
     messageCaptureProbes.clear()
     messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
+    chatLayoutModeMock.sidePaddingPx = 24
+    chatLayoutModeMock.messageEndInsetPx = 0
     chatLayoutModeMock.setRailGutterPx.mockReset()
   })
 
@@ -576,6 +580,29 @@ describe('MessageList', () => {
     expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
       paddingLeft: '48px',
       paddingRight: '48px'
+    })
+  })
+
+  it('narrows the message column to the side padding a compact window sets', () => {
+    chatLayoutModeMock.sidePaddingPx = 12
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '12px',
+      paddingRight: '12px'
+    })
+  })
+
+  it('insets only the right edge of the message column by the extra amount a compact window sets', () => {
+    chatLayoutModeMock.sidePaddingPx = 12
+    chatLayoutModeMock.messageEndInsetPx = 12
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '12px',
+      paddingRight: '24px'
     })
   })
 

@@ -164,6 +164,7 @@
   "openclaw.errors.more_issues": "y {{count}} problema(s) más",
   "openclaw.errors.preflight_failed": "Cherry Studio no pudo validar la configuración de OpenClaw.",
   "openclaw.errors.preflight_timeout": "OpenClaw no devolvió el esquema de configuración en {{seconds}} segundos. Cherry Studio dejó de esperar. OpenClaw puede tardar más en iniciarse si el disco es lento o el sistema está muy ocupado. Inténtalo de nuevo.",
+  "openclaw.errors.schema_check_failed": "OpenClaw (versión detectada: {{version}}) no devolvió su esquema de configuración, por lo que Cherry Studio no pudo preparar una configuración compatible. {{details}}",
   "paintings.comfyui.image_download_timeout": "La descarga de una imagen terminada agotó el tiempo tras {{seconds}}s",
   "paintings.comfyui.image_fetch_failed": "ComfyUI no pudo devolver una imagen terminada",
   "paintings.comfyui.list_failed": "No se pudieron listar los flujos de trabajo de ComfyUI",

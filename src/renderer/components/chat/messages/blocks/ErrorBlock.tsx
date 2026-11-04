@@ -65,19 +65,17 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            // Not a router <Link>: the message list also renders in windows without a
-            // router, where navigation goes through the adapter to the main window.
-            provider: (
+            provider: navigateToRoute ? (
               <button
                 type="button"
-                style={{ color: 'var(--link)' }}
-                className="cursor-pointer bg-transparent p-0 underline-offset-2 hover:underline"
+                className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
                 onClick={(event) => {
-                  // The surrounding error row opens the detail popup on click.
                   event.stopPropagation()
-                  void navigateToRoute?.({ path: '/settings/provider', query: { id: providerId } })
+                  void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
                 }}
               />
+            ) : (
+              <span />
             )
           }}
         />

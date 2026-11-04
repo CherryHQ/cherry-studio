@@ -14,9 +14,8 @@ import {
 
 import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
 import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
-import { recallExtension } from './recall'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
-import { createSubagentExtension, type SubagentPort } from './subagent'
+import { createSubagentExtension, type SubagentPort, type SubagentMessageDetails } from './subagent'
 
 export type AgentRuntimeModel = Model<Api>
 
@@ -44,11 +43,12 @@ export interface AgentRuntimeSessionOptions {
   onEvent?: (event: AgentRuntimeEvent) => void
   compaction?: AgentRuntimeCompaction
   offload?: ToolOutputOffload
-  recall?: boolean
   subagents?: SubagentPort
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
+  /** Tools unavailable to this session, including extension and restored tool loadouts. */
+  excludeTools?: string[]
   extensionFactories?: ExtensionFactory[]
   settings?: AgentRuntimeSettings
   /** Native Pi thinking level (default `off`). */
@@ -60,6 +60,8 @@ export const USER_ABORT = 'cherry.user-abort'
 
 export interface AgentRuntimeSession {
   session: AgentSession
+  /** The configured summary callback, for adapter wiring validation. */
+  readonly compactionSummarizer?: AgentRuntimeCompaction['summarize']
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
   /**
@@ -78,6 +80,8 @@ export interface AgentRuntimeSession {
   abort(): Promise<void>
   /** The user stops a background subagent (the host's stop button); false when it is not running. */
   stopSubagent(sessionId: string): boolean
+  /** Admits child input through its owning extension, including stored continuation. */
+  messageSubagent(sessionId: string, message: string, options?: { inputId?: string }): Promise<SubagentMessageDetails>
   /**
    * The user moves a running foreground subagent to the background: its call returns at once and
    * the same run goes on, ending in a notification. False for any other subagent.
@@ -146,25 +150,27 @@ async function buildSession(
   const extensionFactories = [
     // First, so the watch covers every other extension's agent_settled handler.
     settleWatch,
-    ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
     ...(subagents ? [subagents.extension] : []),
     ...(options.extensionFactories ?? []),
     ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
     // Last, so it sees what other `tool_result` handlers made of the output.
     ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
   ]
-  const settingsManager = SettingsManager.inMemory({
-    ...options.settings,
-    // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
-    ...(beforeModelRequest && { cacheWarming: 'off' as const }),
-    ...(compaction && {
-      compaction: {
-        enabled: compaction.enabled ?? true,
-        reserveTokens: compaction.reserveTokens,
-        keepRecentTokens: compaction.keepRecentTokens
-      }
-    })
-  })
+  const settingsManager = SettingsManager.inMemory(
+    {
+      ...options.settings,
+      // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
+      ...(beforeModelRequest && { cacheWarming: 'off' as const }),
+      ...(compaction && {
+        compaction: {
+          enabled: compaction.enabled ?? true,
+          reserveTokens: compaction.reserveTokens,
+          keepRecentTokens: compaction.keepRecentTokens
+        }
+      })
+    },
+    { projectTrusted: options.contextFiles === true }
+  )
   const eventBus = createEventBus()
   const resourceLoader = new DefaultResourceLoader({
     eventBus,
@@ -196,7 +202,8 @@ async function buildSession(
     noTools: 'builtin',
     // `+name` entries add to the (empty) built-in selection without restricting custom/extension tools.
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
-    customTools: options.tools ?? []
+    customTools: options.tools ?? [],
+    excludeTools: options.excludeTools
   })
   if (beforeModelRequest) {
     const stream = session.agent.streamFunction
@@ -227,6 +234,7 @@ async function buildSession(
   }
   const owner: AgentRuntimeSession = {
     session,
+    compactionSummarizer: compaction?.summarize,
     prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
     compact: (customInstructions) => held(() => session.compact(customInstructions)),
     abort() {
@@ -236,6 +244,10 @@ async function buildSession(
         subagents?.controls.userAbort()
       }
       return session.abort()
+    },
+    async messageSubagent(sessionId, message, inputOptions) {
+      if (!subagents) throw new Error('Subagents are not configured.')
+      return subagents.controls.messageSubagent(sessionId, message, inputOptions)
     },
     stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
     backgroundSubagent: (sessionId) => subagents?.controls.backgroundSubagent(sessionId) ?? false,
