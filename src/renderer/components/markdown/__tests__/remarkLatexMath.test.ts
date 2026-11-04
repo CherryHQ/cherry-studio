@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react'
 import type { InlineMath, Math, Nodes, Root } from 'mdast'
 import { createElement } from 'react'
+import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
@@ -13,8 +14,9 @@ import { createLatexMarkdownBlockParser } from '../parseLatexMarkdownBlocks'
 
 vi.unmock('@cherrystudio/ui')
 
-function parse(source: string): Root {
+function parse(source: string, gfm = false): Root {
   const processor = unified().use(remarkParse).use(remarkLatexMath)
+  if (gfm) processor.use(remarkGfm)
   const math = withMath({ singleDollar: true })
   if (!math) throw new Error('Expected the Streamdown math plugin')
   processor.use({ plugins: [math.remarkPlugin] })
@@ -249,6 +251,36 @@ describe('remarkLatexMath', () => {
   ])('does not pair markers across list item ownership', (source) => {
     expect(mathNodes(source)).toEqual([])
     expect(textValue(parse(source))).toContain('\\end{align}')
+  })
+
+  it.each([
+    ['footnote', '[^note]: The closing token is \\end{align}'],
+    ['link definition', '[note]: https://example.com "\\end{align}"'],
+    ['raw HTML', '<div>\n\\end{align}\n</div>']
+  ])('does not close a body setext environment in %s', (_label, tail) => {
+    const source = `See note[^note].\n\n\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${tail}`
+    const tree = parse(source, true)
+    const math: Nodes[] = []
+    const links: Nodes[] = []
+    visit(tree, (node) => {
+      if (node.type === 'math' || node.type === 'inlineMath') math.push(node)
+      if (node.type === 'link') links.push(node)
+    })
+    expect(math).toEqual([])
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+    expect(links).toHaveLength(1)
+    expect(tree.children.some((node) => ['footnoteDefinition', 'definition', 'html'].includes(node.type))).toBe(true)
+  })
+
+  it('repairs a clean environment wholly inside a footnote', () => {
+    const source = 'See note[^n].\n\n[^n]: \\begin{align}\n    a\n    =\n    b\n    \\end{align}'
+    const tree = parse(source, true)
+    const math: Nodes[] = []
+    visit(tree, 'math', (node) => {
+      math.push(node)
+    })
+    expect(math).toHaveLength(1)
+    expect(tree.children.at(-1)?.type).toBe('footnoteDefinition')
   })
 
   it('ignores a closer inside a TeX percent comment', () => {

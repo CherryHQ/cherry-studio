@@ -880,21 +880,29 @@ function promoteDisplayMath(tree: Root, source: string): void {
 function repairSetextEnvironments(tree: Root, source: string): void {
   // Compute same-name balanced pairs once. Re-scanning the remaining source
   // for every unclosed heading would make malformed input quadratic.
-  // Literal code and quoted subtrees cannot provide a closer to an outer
+  // Literal code, definitions, HTML and quoted subtrees cannot close an outer
   // environment. Preorder ranges are ordered; SKIP keeps them disjoint.
   const excludedRanges: Array<{ start: number; end: number }> = []
-  const listRanges: Array<{ start: number; end: number }> = []
+  const containerRanges: Array<{ start: number; end: number }> = []
   visit(tree, (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
-    if (node.type === 'listItem' && start !== undefined && end !== undefined) listRanges.push({ start, end })
-    if (node.type !== 'code' && node.type !== 'inlineCode' && node.type !== 'blockquote') return undefined
+    if ((node.type === 'listItem' || node.type === 'footnoteDefinition') && start !== undefined && end !== undefined)
+      containerRanges.push({ start, end })
+    if (
+      node.type !== 'code' &&
+      node.type !== 'inlineCode' &&
+      node.type !== 'blockquote' &&
+      node.type !== 'definition' &&
+      node.type !== 'html'
+    )
+      return undefined
     if (start !== undefined && end !== undefined) excludedRanges.push({ start, end })
     return SKIP
   })
   let excludedIndex = 0
-  let listIndex = 0
-  const activeLists: number[] = []
+  let containerIndex = 0
+  const activeContainers: number[] = []
   const matchingEnds = new Map<number, number>()
   const openings = new Map<number, Map<string, number[]>>()
   const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
@@ -924,16 +932,20 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     marker.lastIndex = cursor
     const match = marker.exec(source)
     if (!match || !ENVIRONMENT_NAMES.has(match[2])) continue
-    // Consume each list boundary once. Sibling and nested items have
+    // Consume each list/footnote boundary once. Sibling and nested owners have
     // separate marker stacks, so a closer cannot escape its container.
-    while (activeLists.length && listRanges[activeLists[activeLists.length - 1]].end <= cursor) activeLists.pop()
-    while (listIndex < listRanges.length && listRanges[listIndex].start <= cursor) {
-      while (activeLists.length && listRanges[activeLists[activeLists.length - 1]].end <= listRanges[listIndex].start)
-        activeLists.pop()
-      if (listRanges[listIndex].end > cursor) activeLists.push(listIndex)
-      listIndex++
+    while (activeContainers.length && containerRanges[activeContainers[activeContainers.length - 1]].end <= cursor)
+      activeContainers.pop()
+    while (containerIndex < containerRanges.length && containerRanges[containerIndex].start <= cursor) {
+      while (
+        activeContainers.length &&
+        containerRanges[activeContainers[activeContainers.length - 1]].end <= containerRanges[containerIndex].start
+      )
+        activeContainers.pop()
+      if (containerRanges[containerIndex].end > cursor) activeContainers.push(containerIndex)
+      containerIndex++
     }
-    const owner = activeLists.at(-1) ?? -1
+    const owner = activeContainers.at(-1) ?? -1
     const ownerOpenings = openings.get(owner) ?? new Map<string, number[]>()
     openings.set(owner, ownerOpenings)
     const name = match[2]
