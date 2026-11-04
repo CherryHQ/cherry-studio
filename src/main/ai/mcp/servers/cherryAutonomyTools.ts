@@ -1112,7 +1112,9 @@ function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): Call
   logger.info(completed ? 'Bootstrap marked as completed' : 'Bootstrap reset', { agentId: ctx.agentId })
   const text = completed
     ? 'Bootstrap is turned off for this agent. Stop onboarding now; future sessions will skip it unless the user asks to reset it.'
-    : 'Bootstrap has been reset. The next session will run the onboarding flow.'
+    : updated.configuration?.bootstrap_disabled === true
+      ? 'Bootstrap has been reset. Setup stays off until the editor switch "Disable setup prompt" is turned off.'
+      : 'Bootstrap has been reset. The next session will run the onboarding flow.'
   return { content: [{ type: 'text', text }] }
 }
 

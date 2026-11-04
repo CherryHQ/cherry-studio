@@ -133,6 +133,33 @@ describe('diffAgentSaveIntent', () => {
 })
 
 describe('diffAgentUpdate', () => {
+  it('persists the bootstrap opt-out when toggled on', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const next = { ...baseline, bootstrapDisabled: true }
+    expect(diffAgentUpdate(baseline, next)?.dto.configuration).toEqual({ bootstrap_disabled: true })
+  })
+
+  it('omits the bootstrap key when a toggle is reverted to baseline', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const toggled = { ...baseline, bootstrapDisabled: true }
+    const reverted = { ...toggled, bootstrapDisabled: baseline.bootstrapDisabled, avatar: '🚀' }
+    const configuration = diffAgentUpdate(baseline, reverted)?.dto.configuration
+    expect(configuration).toEqual({ avatar: '🚀' })
+    expect(configuration).not.toHaveProperty('bootstrap_disabled')
+  })
+
+  it('does not patch unchanged bootstrap opt-out', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { bootstrap_disabled: true } }))
+    expect(diffAgentUpdate(baseline, { ...baseline })).toBeNull()
+    expect(diffAgentUpdate(baseline, { ...baseline, name: 'Renamed' })?.dto).toEqual({ name: 'Renamed' })
+  })
+
+  it('persists explicit false when turning off a saved bootstrap opt-out', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { bootstrap_disabled: true } }))
+    const next = { ...baseline, bootstrapDisabled: false }
+    expect(diffAgentUpdate(baseline, next)?.dto.configuration).toEqual({ bootstrap_disabled: false })
+  })
+
   it('round-trips an edited heartbeat timeout without changing the interval or toggle', () => {
     const baseline = buildInitialAgentFormState(createAgent({ configuration: { heartbeat_enabled: true } }))
     expect(baseline.heartbeatTimeoutMinutes).toBe(2)

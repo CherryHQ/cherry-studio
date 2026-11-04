@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Overview",
   "library.assistant_catalog.preview_prompt": "Prompt",
   "library.assistant_catalog.title": "Assistant Library",
+  "library.config.agent.field.bootstrap_disabled.hint": "Never show the one-time personalization setup for this Agent. Turning this off restores the normal rule: setup stops only after it has been completed or declined.",
+  "library.config.agent.field.bootstrap_disabled.label": "Disable setup prompt",
   "library.config.agent.field.description.hint": "Helps identify what this agent is for",
   "library.config.agent.field.description.label": "Description",
   "library.config.agent.field.description.placeholder": "What this agent is for…",

@@ -188,6 +188,9 @@ ${content}
 
   // Role instructions do not prove persona setup is complete; they only select the onboarding flow.
   private async shouldRunBootstrap(agentDataPath: string, config?: AgentConfiguration): Promise<boolean> {
+    if (config?.bootstrap_disabled === true) {
+      return false
+    }
     if (config?.bootstrap_completed === true) {
       return false
     }

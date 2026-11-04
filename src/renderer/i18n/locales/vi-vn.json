@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Tổng quan",
   "library.assistant_catalog.preview_prompt": "Lời nhắc",
   "library.assistant_catalog.title": "Thư viện Trợ lý",
+  "library.config.agent.field.bootstrap_disabled.hint": "Không bao giờ hiển thị phần thiết lập cá nhân hóa ban đầu cho Agent này. Tắt tùy chọn này sẽ khôi phục quy tắc thông thường: chỉ ngừng hiển thị thiết lập sau khi đã hoàn tất hoặc từ chối.",
+  "library.config.agent.field.bootstrap_disabled.label": "Tắt lời nhắc thiết lập",
   "library.config.agent.field.description.hint": "Giúp xác định mục đích của Agent này",
   "library.config.agent.field.description.label": "Mô tả",
   "library.config.agent.field.description.placeholder": "Agent này dùng để làm gì…",

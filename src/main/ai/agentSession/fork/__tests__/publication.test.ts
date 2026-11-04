@@ -13,8 +13,10 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { PromptBuilder } from '@main/ai/agents/prompt'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -106,6 +108,32 @@ describe('Agent fork publication', () => {
     if (previous) runtimeDriverRegistry.register(previous)
     vi.restoreAllMocks()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('keeps persisted bootstrap completion when publishing a fork from before setup was declined', async () => {
+    const source = agentSessionService.getById(sessionId)
+    agentSessionMessageService.saveMessages({
+      sessionId,
+      messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'skip' }] } }]
+    })
+    const sourceAgentId = source.agentId!
+    agentService.updateAgent(sourceAgentId, { configuration: { bootstrap_completed: true } })
+
+    const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
+    const child = agentSessionService.getById(childId)
+    expect(child.agentId).toBe(source.agentId)
+    expect(agentSessionMessageService.listSessionMessages(childId).items.map((row) => row.data.parts)).toEqual([
+      [
+        { type: 'text', text: 'Preserved answer' },
+        { type: 'data-agent-session-fork', data: { sourceSessionId: sessionId } }
+      ]
+    ])
+    const agent = agentService.getAgent(sourceAgentId)!
+    expect(agent.configuration?.bootstrap_completed).toBe(true)
+    const agentDataPath = path.join(directory, 'agent-data')
+    await mkdir(agentDataPath)
+    const { context } = await new PromptBuilder().buildPromptParts(directory, agent.configuration, true, agentDataPath)
+    expect(context).not.toMatch(/## Bootstrap [Mm]ode/)
   })
 
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {

@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Genel Bakış",
   "library.assistant_catalog.preview_prompt": "İstem",
   "library.assistant_catalog.title": "Asistan Kitaplığı",
+  "library.config.agent.field.bootstrap_disabled.hint": "Bu ajan için ilk kişiselleştirme kurulumunu bir daha gösterme. Bu seçeneği kapattığınızda normal kural geçerli olur: kurulum yalnızca tamamlandıktan veya reddedildikten sonra gösterilmez.",
+  "library.config.agent.field.bootstrap_disabled.label": "Kurulum istemini devre dışı bırak",
   "library.config.agent.field.description.hint": "Bu ajanın amacını belirlemeye yardımcı olur",
   "library.config.agent.field.description.label": "Açıklama",
   "library.config.agent.field.description.placeholder": "Bu ajanın amacı…",
