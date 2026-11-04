@@ -4740,7 +4740,7 @@ describe('editing queued items through async API claims', () => {
         payload: {
           ...(payload('A edited') as { text: string; userMessageParts: never[] }),
           chatTarget: taken.payload.chatTarget
-        } as never
+        }
       }))
     })
     const body = postTrigger.mock.calls[0][0].body
