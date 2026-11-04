@@ -310,10 +310,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     behavior: {
       // NOTE: QuickAssistant intentionally does NOT declare `hideOnBlur` here.
       // Its blur handler calls `hideQuickAssistant()`, which is platform-specific
-      // business policy (Windows uses minimize + setOpacity(0) to avoid flicker;
-      // macOS <26 additionally calls `app.hide()` to return focus to the previous
-      // app). `behavior.hideOnBlur` would only invoke `window.hide()` — losing
-      // both behaviors on those platforms. QuickAssistantService keeps its
+      // business policy (Windows uses blur + hide + setOpacity(0) to return focus
+      // to the previous app; macOS <26 additionally calls `app.hide()` to return
+      // focus to the previous app). `behavior.hideOnBlur` would only invoke
+      // `window.hide()` — losing both behaviors on those platforms. QuickAssistantService keeps its
       // blur handler and its internal `isPinnedQuickAssistant` flag.
       // `new BrowserWindow({ alwaysOnTop: true })` cannot accept a level — the
       // floating level is applied by applyWindowBehavior on create, and kept
