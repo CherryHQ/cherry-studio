@@ -8,6 +8,8 @@ This tooling owns the content mapping, three-way reconciliation, GitHub synchron
 
 Run `pnpm website-docs:check`, `pnpm website-docs:build`, or `pnpm website-docs:dev`. They require Node 24, Git 2.43 or later, a Corepack-enabled `pnpm`, and network access for the pinned renderer and dependencies. Both uncommitted and untracked candidate files are overlaid into `.context/website-docs-renderer/`. The website's package manager and lockfile remain independent. `--no-install` skips dependency installation after a successful preparation.
 
+The pinned website generator currently derives page identifiers from native path separators. Run generation and export on a POSIX host (Linux CI, WSL, or a Linux container); native Windows generation can report missing redirects even when the target Markdown exists. The launcher normalizes its Git checkout boundary and starts pnpm without a shell on Windows, but it does not patch the separately owned renderer.
+
 Run focused contracts with `pnpm test:scripts scripts/websiteDocs/content.test.ts`. Tests use real Git trees and merges; they do not prove GitHub App access or production publication.
 
 ## Activation
