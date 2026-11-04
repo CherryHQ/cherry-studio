@@ -880,10 +880,27 @@ function promoteDisplayMath(tree: Root, source: string): void {
 function repairSetextEnvironments(tree: Root, source: string): void {
   // Compute same-name balanced pairs once. Re-scanning the remaining source
   // for every unclosed heading would make malformed input quadratic.
+  // Code nodes are literal Markdown, never TeX marker sources. Tree order
+  // gives disjoint, ordered leaf ranges, so the source scan skips each once.
+  const codeRanges: Array<{ start: number; end: number }> = []
+  visit(tree, (node) => {
+    if (node.type !== 'code' && node.type !== 'inlineCode') return
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start !== undefined && end !== undefined) codeRanges.push({ start, end })
+  })
+  let codeIndex = 0
   const matchingEnds = new Map<number, number>()
   const openings = new Map<string, number[]>()
   const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
   for (let cursor = 0; cursor < source.length; cursor++) {
+    while (codeIndex < codeRanges.length && codeRanges[codeIndex].end <= cursor) codeIndex++
+    const codeRange = codeRanges[codeIndex]
+    if (codeRange && cursor >= codeRange.start) {
+      cursor = codeRange.end - 1
+      continue
+    }
+
     // TeX comments run through the physical line ending. Their marker text
     // must not close a real environment. Escaped percent signs are data.
     if (source[cursor] === '%') {

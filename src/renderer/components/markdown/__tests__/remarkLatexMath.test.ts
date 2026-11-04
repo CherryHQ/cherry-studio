@@ -202,6 +202,23 @@ describe('remarkLatexMath', () => {
     expect(mathNodes(source)).toEqual([])
   })
 
+  it.each([
+    ['indented code', '    \\end{align}'],
+    ['fenced code', '```tex\n\\end{align}\n```'],
+    ['inline code', '`\\end{align}`']
+  ])('does not close an unmatched setext environment inside %s', (_label, code) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${code}`
+    const tree = parse(source)
+    expect(mathNodes(source)).toEqual([])
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+    const links: Nodes[] = []
+    visit(tree, 'link', (node) => {
+      links.push(node)
+    })
+    expect(links).toHaveLength(1)
+    expect(textValue(tree)).toContain('\\end{align}')
+  })
+
   it('ignores a closer inside a TeX percent comment', () => {
     const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
