@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-02-local-agent-history-import.md
-2026-11-02-local-agent-history-import.md: 28fc36f0b0d4a9da6100b6cf2013175f4549e9b2
-2026-11-02-local-agent-history-import.zh.md: 7c8296c0a059e652041bfeb83b50f6b6db71ea0d
+2026-11-02-local-agent-history-import.md: 06357cd72e6d48aa697f1102a4118b650007fb34
+2026-11-02-local-agent-history-import.zh.md: 2ef53b34b00c3d10c568025cf7634a7b947b4bcb
