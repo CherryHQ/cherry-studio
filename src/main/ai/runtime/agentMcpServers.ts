@@ -167,7 +167,11 @@ export function buildAgentMcpServers(
     servers['assistant-files'] = {
       name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
       connect: serveAgentMcpServer(() =>
-        createAssistantFileToolsServer({ sessionId: session.id, workspacePath: session.workspace.path })
+        createAssistantFileToolsServer({
+          sessionId: session.id,
+          workspacePath: session.workspace.path,
+          workspaceType: session.workspace.type
+        })
       )
     }
   }

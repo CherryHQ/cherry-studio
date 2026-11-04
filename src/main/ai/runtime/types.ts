@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -81,6 +82,8 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /** Product position captured before asynchronous connection work. */
+  branchHead?: string
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
@@ -208,6 +211,8 @@ export interface AgentRuntimeConnection {
    * the agent a new turn runs under, so a config re-derived from the old owner cannot serve it.
    */
   readonly agentId?: string
+  /** The configured Runtime owner remains resident until explicit retirement. */
+  readonly retainWhileIdle?: boolean
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
@@ -231,10 +236,7 @@ export interface AgentRuntimeConnection {
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
-   * pinning the host uses for `connect`. `servesAcceptedTurn` mirrors the connect flag: the
-   * reconcile serves a turn already accepted and frozen to this connection's agent, so snapshot
-   * capture validates that agent itself instead of requiring the session row to still point at
-   * it.
+   * pinning the host uses for `connect`.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
@@ -259,6 +261,14 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
+  childProjection?(
+    toolCallId: string
+  ): Promise<
+    { snapshot(): AgentChildView; subscribe(listener: (update: AgentChildUpdate) => void): () => void } | undefined
+  >
+  messageChild?(contextId: string, text: string): Promise<void>
+  /** Wait for admitted child execution and its archive writes; does not close the owner. */
+  drainChildWrites?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

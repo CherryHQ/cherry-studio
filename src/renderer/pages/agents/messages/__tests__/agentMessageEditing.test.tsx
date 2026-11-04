@@ -1,12 +1,10 @@
 import { renderHook } from '@testing-library/react'
-import { expect, it, vi } from 'vitest'
+import { expect, it } from 'vitest'
 
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentMessageListProviderValue } from '../agentMessageListAdapter'
-
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 
 it('offers editing on earlier user messages and disables it while the session is busy', () => {
   const messages: CherryUIMessage[] = [

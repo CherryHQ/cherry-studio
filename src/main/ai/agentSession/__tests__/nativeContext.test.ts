@@ -343,6 +343,24 @@ describe('native context storage and reconciliation', () => {
     expect(faux.state.callCount).toBe(0)
   })
 
+  it('rejects a prepared payload if its retained message changed before submission', async () => {
+    const { backend, runtime, options, faux } = await pi()
+    const created = await createPiContext(sessionId, backend.id, runtime, options)
+    const id = message('original')
+    const parts = messages.getSessionMessage(sessionId, id).data.parts
+    messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'edited' }] } })
+    expect(() =>
+      prepareNativeSubmission(sessionId, id, created.context.id, 'reject', { text: 'wrapped original', parts })
+    ).toThrow('content changed')
+    expect(messages.inputBinding(sessionId, id)).toBeUndefined()
+    expect(faux.state.callCount).toBe(0)
+    const draft = prepareNativeSubmission(sessionId, id, created.context.id, 'reject', {
+      text: 'wrapped edited',
+      parts: [{ type: 'text', text: 'edited' }]
+    })
+    expect(draft).toEqual({ inputId: id, text: 'wrapped edited', whenBusy: 'reject' })
+  })
+
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
     const { backend, runtime, faux, options } = await durable()
     const created = await createDurableContext(sessionId, backend.id, runtime, {

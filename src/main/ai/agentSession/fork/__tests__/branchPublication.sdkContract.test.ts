@@ -13,6 +13,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { forkPiSession } from '@main/ai/runtime/pi/piFork'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
@@ -132,11 +133,18 @@ describe('Pi branch publication with native files', () => {
         }
       )
     }
+    const originalContext = preparePiBranch('product', old.id, source.getSessionId())
+    prepareNativeSubmission('product', old.id, originalContext.id, 'reject')
+    const originalSubmission = messages.inputBinding('product', old.id)
     const first = await edit(old.id)
+    expect(messages.inputBinding('product', old.id)).toEqual(originalSubmission)
+    expect(messages.inputBinding('product', first.row.id)).toBeUndefined()
     const child = SessionManager.open(resolveResumeTokenSessionFile(first.nativeId, sessions)!, sessions, directory)
     expect(JSON.stringify(child.buildSessionContext().messages)).toContain('Shared answer')
     expect(JSON.stringify(child.buildSessionContext().messages)).not.toContain('Old question')
     child.appendMessage({ role: 'user', content: 'Edited question', timestamp: Date.now() })
+    const childContext = preparePiBranch('product', first.row.id, first.nativeId)
+    prepareNativeSubmission('product', first.row.id, childContext.id, 'reject')
     const childAnswer = answer('Edited answer', child)
     messages.selectBranch('product', old.id)
     expect(messages.getLastRuntimeResumeToken('product')).toBe(source.getSessionId())
@@ -146,6 +154,8 @@ describe('Pi branch publication with native files', () => {
     expect(messages.listSessionMessages('product').items[0].id).toBe(childAnswer.id)
     const second = await edit(first.row.id)
     expect(second.nativeId).not.toBe(first.nativeId)
+    expect(messages.inputBinding('product', first.row.id)).toBeDefined()
+    expect(messages.inputBinding('product', second.row.id)).toBeUndefined()
     expect(await readFile(source.getSessionFile()!, 'utf8')).toBe(originalFile)
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, shared.id)).get()
