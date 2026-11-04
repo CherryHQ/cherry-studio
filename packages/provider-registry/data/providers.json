@@ -812,6 +812,31 @@
       "name": "TokenDance"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "UberLLM - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.uberllm.dev"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.uberllm.dev"
+        }
+      },
+      "id": "uberllm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://uberllm.dev/dashboard/keys",
+          "docs": "https://uberllm.dev/docs",
+          "models": "https://uberllm.dev/models",
+          "official": "https://uberllm.dev"
+        }
+      },
+      "name": "UberLLM"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
@@ -2968,5 +2993,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a6291a3a00ded246"
+  "version": "a3d72a4b8834f38e"
 }
