@@ -3,6 +3,9 @@ description: AiStreamManager active-stream registry — listener fan-out, reconn
 sources:
   - src/main/ai/streamManager/AiStreamManager.ts
   - src/main/ai/streamManager/pipeStreamLoop.ts
+  - src/main/ai/streamManager/withIllustrations.ts
+  - src/main/ai/IllustrationService.ts
+  - src/main/ai/streamManager/persistence/backends
   - src/main/ai/streamManager/context
 ---
 
@@ -592,6 +595,26 @@ const stream: ReadableStream<UIMessageChunk> = await aiService.streamText({
 **Step 2 — wrap with `withIdleTimeout`.** Resets per chunk; on idle
 timeout it aborts `exec.abortController`, which the upstream request is
 already wired to.
+
+Before the tee, enabled ordinary chat also passes through `withIllustrations`.
+It preserves text order, recognizes `[[IMAGE]]...[[/IMAGE]]` across chunks
+outside code, and emits a stable `data-illustration` placeholder at the opening
+marker. A complete prompt starts `IllustrationService` work without blocking
+subsequent text. The per-reply maximum defaults to one (range 1–10); excess
+intents are hidden without reserving a placeholder or submitting image work.
+Incomplete prompts become failed placeholders. The mode and count policy are
+captured at admission; Agent sessions, prompt lifecycles and multi-model reply
+groups are excluded, including single-message retries from a multi-model group.
+
+`IllustrationService` reuses the default painting model and limits concurrent
+image requests to two. It broadcasts revisioned state through
+`ai.illustration.changed`; rendering or reconnecting only reads state. Both
+persistence backends merge the latest image state synchronously with terminal
+message persistence, then hand subsequent image updates to the saved message.
+Managed image files are referenced by the message, including when a temporary
+topic is saved. Cancellation and explicit retry use `ai.illustration.cancel`
+and `ai.illustration.retry`. Interrupted jobs after restart become failures;
+they do not automatically submit another image request.
 
 **Step 3 — `pipeStreamLoop` isolates source errors before teeing the stream.**
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-03-reply-illustrations.md
+2026-11-03-reply-illustrations.md: 879cbcd6543b185b265c2b6f3ba4e4308946347a
+2026-11-03-reply-illustrations.zh.md: 2d25cce062d4353efd58f31c7623481ed3c08417
