@@ -287,12 +287,6 @@ importers:
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
-      '@cherrystudio/remote-protocol':
-        specifier: workspace:*
-        version: link:packages/remote-protocol
-      '@cherrystudio/remote-transport':
-        specifier: workspace:*
-        version: link:packages/remote-transport
       '@cherrystudio/system-speech':
         specifier: workspace:*
         version: link:native/system-speech
@@ -317,9 +311,6 @@ importers:
       '@huggingface/transformers':
         specifier: 4.2.0
         version: 4.2.0(@types/node@24.10.4)
-      '@larksuiteoapi/node-sdk':
-        specifier: ^1.73.0
-        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -356,9 +347,6 @@ importers:
       graceful-fs:
         specifier: 4.2.11
         version: 4.2.11
-      grammy:
-        specifier: ^1.36.3
-        version: 1.41.1(encoding@0.1.13)(supports-color@8.1.1)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0(supports-color@8.1.1)
@@ -377,9 +365,6 @@ importers:
       opus-decoder:
         specifier: 0.7.12
         version: 0.7.12
-      os-proxy-config:
-        specifier: 1.1.2
-        version: 1.1.2
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
@@ -534,9 +519,15 @@ importers:
       '@cherrystudio/provider-registry':
         specifier: workspace:*
         version: link:packages/provider-registry
+      '@cherrystudio/remote-protocol':
+        specifier: workspace:*
+        version: link:packages/remote-protocol
       '@cherrystudio/remote-protocol-v0':
         specifier: npm:@cherrystudio/remote-protocol@0.1.0
         version: '@cherrystudio/remote-protocol@0.1.0(zod@4.4.3)'
+      '@cherrystudio/remote-transport':
+        specifier: workspace:*
+        version: link:packages/remote-transport
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
@@ -636,6 +627,9 @@ importers:
       '@j178/prek':
         specifier: ^0.3.4
         version: 0.3.4(debug@4.4.3(supports-color@8.1.1))
+      '@larksuiteoapi/node-sdk':
+        specifier: ^1.73.0
+        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
@@ -1134,6 +1128,9 @@ importers:
       gpt-tokenizer:
         specifier: ^3.4.0
         version: 3.4.0
+      grammy:
+        specifier: ^1.36.3
+        version: 1.41.1(encoding@0.1.13)(supports-color@8.1.1)
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -1263,6 +1260,9 @@ importers:
       open:
         specifier: ^8.4.2
         version: 8.4.2
+      os-proxy-config:
+        specifier: 1.1.2
+        version: 1.1.2
       oxc-parser:
         specifier: 0.142.0
         version: 0.142.0
