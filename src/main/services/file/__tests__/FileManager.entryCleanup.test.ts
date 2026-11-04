@@ -1,5 +1,5 @@
 // Real storage supports initialization; cleanup passes are stubbed to isolate
-// scheduling and idle gates (docs/references/file/file-entry-cleanup.md §5.5).
+// scheduling and idle gates (docs/dev/references/file/file-entry-cleanup.md §5.5).
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'

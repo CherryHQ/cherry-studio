@@ -1,3 +1,4 @@
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type {
@@ -73,13 +74,13 @@ function narrowFileProcessingCheckJobPayload(
   if (!input) return null
   const basePayload = narrowItemJobPayload(rawInput)
   if (!basePayload) return null
-  if (typeof input.fileProcessingJobId !== 'string') return null
+  if (typeof input.fileProcessingTaskId !== 'string') return null
   if (typeof input.processedRelativePath !== 'string') return null
 
   return {
     baseId: basePayload.baseId,
     itemId: basePayload.itemId,
-    fileProcessingJobId: input.fileProcessingJobId,
+    fileProcessingTaskId: input.fileProcessingTaskId as FileProcessingTaskId,
     processedRelativePath: input.processedRelativePath
   }
 }

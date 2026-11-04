@@ -214,22 +214,50 @@
     {
       "idx": 30,
       "version": "6",
-      "when": 1792959580520,
-      "tag": "0030_early_red_ghost",
+      "when": 1793181295484,
+      "tag": "0030_skill_mirror_export",
       "breakpoints": true
     },
     {
       "idx": 31,
       "version": "6",
-      "when": 1792959580521,
-      "tag": "0031_modern_oracle",
+      "when": 1793700315599,
+      "tag": "0031_agent_native_contexts",
       "breakpoints": true
     },
     {
       "idx": 32,
       "version": "6",
-      "when": 1792959580522,
-      "tag": "0032_flawless_turbo",
+      "when": 1793700436233,
+      "tag": "0032_agent_message_tree",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1793743411274,
+      "tag": "0033_child_context_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1793743411275,
+      "tag": "0034_early_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1793743411276,
+      "tag": "0035_modern_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1793743411277,
+      "tag": "0036_flawless_turbo",
       "breakpoints": true
     }
   ],
