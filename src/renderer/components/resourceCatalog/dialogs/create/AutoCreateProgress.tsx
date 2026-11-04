@@ -6,15 +6,21 @@ import { Button, EmojiAvatar, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { generateAgentInstructions, selectInstalledSkillIds } from '@renderer/utils/resourceCatalog'
+import { useSkillInstall } from '@renderer/hooks/useSkills'
+import {
+  generateAgentInstructions,
+  recommendMarketplaceSkills,
+  selectInstalledSkillIds
+} from '@renderer/utils/resourceCatalog'
 import type { Model } from '@shared/data/types/model'
+import type { InstalledSkill } from '@shared/types/skill'
 
 import type { ResourceCreateWizardValues } from './types'
 
 const logger = loggerService.withContext('AutoCreateProgress')
 
 type StepState = 'pending' | 'running' | 'done' | 'warning'
-type StepId = 'prompt' | 'skills' | 'create'
+type StepId = 'prompt' | 'skills' | 'recommend' | 'create'
 
 export type AutoCreateInput = Omit<ResourceCreateWizardValues, 'prompt' | 'skillIds' | 'knowledgeBaseIds'>
 
@@ -28,17 +34,21 @@ type AutoCreateProgressProps = {
 
 /**
  * Runs "Agent create": writes the system prompt, enables every installed skill (built-in tools stay
- * fully enabled), then creates the Agent through the wizard's `onSubmit`. Model failures fall back to
- * the user's input; only a failed create stops the flow and offers a way back.
+ * fully enabled), installs up to two marketplace skills chosen for the purpose, then creates the
+ * Agent through the wizard's `onSubmit`. Model, search, and install failures fall back or are shown;
+ * only a failed create stops the flow and offers a way back.
  */
 export function AutoCreateProgress({ input, model, onSubmit, onBack, onRunningChange }: AutoCreateProgressProps) {
   const { t } = useTranslation()
   const [states, setStates] = useState<Record<StepId, StepState>>({
     prompt: 'running',
     skills: 'pending',
+    recommend: 'pending',
     create: 'pending'
   })
   const [skillCount, setSkillCount] = useState<number | null>(null)
+  const [recommendation, setRecommendation] = useState<{ installedNames: string[]; failed: boolean } | null>(null)
+  const { install: installSkill } = useSkillInstall()
   const [createError, setCreateError] = useState<string | null>(null)
   const run = useEffectEvent(async (signal: AbortSignal) => {
     const mark = (id: StepId, state: StepState) => {
@@ -56,15 +66,40 @@ export function AutoCreateProgress({ input, model, onSubmit, onBack, onRunningCh
       mark('prompt', generated ? 'done' : 'warning')
 
       mark('skills', 'running')
-      let skillIds: string[] = []
+      let installedSkills: InstalledSkill[] = []
       try {
-        skillIds = selectInstalledSkillIds(await dataApiService.get('/skills'))
+        installedSkills = await dataApiService.get('/skills')
       } catch (error) {
         logger.warn('Failed to list installed skills for Agent create', { error })
       }
       signal.throwIfAborted()
+      const skillIds = selectInstalledSkillIds(installedSkills)
       setSkillCount(skillIds.length)
       mark('skills', 'done')
+
+      mark('recommend', 'running')
+      const recommended = await recommendMarketplaceSkills({
+        name: input.name,
+        purpose: input.description,
+        model,
+        installedNames: installedSkills.map((skill) => skill.name),
+        signal
+      })
+      const installedNames: string[] = []
+      let installFailed = false
+      for (const candidate of recommended) {
+        signal.throwIfAborted()
+        const { skill } = await installSkill(candidate.installSource)
+        if (skill) {
+          skillIds.push(skill.id)
+          installedNames.push(skill.name)
+        } else {
+          installFailed = true
+        }
+      }
+      signal.throwIfAborted()
+      setRecommendation({ installedNames, failed: installFailed })
+      mark('recommend', installFailed && installedNames.length === 0 ? 'warning' : 'done')
 
       mark('create', 'running')
       await onSubmit({
@@ -72,7 +107,7 @@ export function AutoCreateProgress({ input, model, onSubmit, onBack, onRunningCh
         prompt: instructions,
         skillIds,
         knowledgeBaseIds: [],
-        setupIncomplete: !generated
+        setupIncomplete: !generated || installFailed
       })
       mark('create', 'done')
     } catch (error) {
@@ -117,6 +152,23 @@ export function AutoCreateProgress({ input, model, onSubmit, onBack, onRunningCh
         skillCount === null
           ? t('library.config.dialogs.create.auto.step.skills_pending')
           : t('library.config.dialogs.create.auto.step.skills_detail', { count: skillCount })
+    },
+    {
+      id: 'recommend',
+      title: t('library.config.dialogs.create.auto.step.recommend'),
+      detail: !recommendation
+        ? states.recommend === 'running'
+          ? t('library.config.dialogs.create.auto.step.recommend_searching')
+          : null
+        : recommendation.installedNames.length > 0
+          ? t('library.config.dialogs.create.auto.step.recommend_installed', {
+              names: recommendation.installedNames.join(', ')
+            })
+          : t(
+              recommendation.failed
+                ? 'library.config.dialogs.create.auto.step.recommend_failed'
+                : 'library.config.dialogs.create.auto.step.recommend_none'
+            )
     },
     {
       id: 'create',
