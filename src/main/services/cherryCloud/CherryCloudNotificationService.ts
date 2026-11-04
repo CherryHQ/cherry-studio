@@ -24,6 +24,8 @@ const RETRY_MAX_MS = 60_000
 const SEEN_ID_LIMIT = 500
 // The server sends a heartbeat every 15 seconds; three missed ones mean a dead connection.
 const IDLE_TIMEOUT_MS = 45_000
+// One catch-up page, body included; a stalled transport must not keep the stream from reconnecting.
+const PAGE_TIMEOUT_MS = 30_000
 
 /** The backend has the notification endpoints switched off; focus refresh stays the only path. */
 class NotificationsUnavailableError extends Error {}
@@ -47,6 +49,15 @@ function retryAfterMs(response: Response): number {
   const seconds = Number(header)
   const ms = Number.isFinite(seconds) ? seconds * 1_000 : Date.parse(header) - Date.now()
   return Number.isFinite(ms) ? Math.min(Math.max(ms, 0), RETRY_MAX_MS) : 0
+}
+
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    if (signal.aborted) return abort()
+    signal.addEventListener('abort', abort, { once: true })
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
+  })
 }
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -140,8 +151,13 @@ export class CherryCloudNotificationService extends BaseService {
     let after = cursor
     for (;;) {
       const query = new URLSearchParams({ after, limit: String(PAGE_LIMIT) })
-      const response = await this.request(`${PAGE_PATH}?${query}`, signal)
-      const page = cloudNotificationPageSchema.parse(await response.json())
+      const deadline = AbortSignal.any([signal, AbortSignal.timeout(PAGE_TIMEOUT_MS)])
+      const page = await untilAborted(
+        this.request(`${PAGE_PATH}?${query}`, deadline).then(async (response) =>
+          cloudNotificationPageSchema.parse(await response.json())
+        ),
+        deadline
+      )
       const unseen = page.items.filter((notification) => !this.seenIds.has(notification.id))
       if (unseen.some(asksForRefresh)) await this.refreshAccount(signal)
       unseen.forEach((notification) => this.remember(notification.id))

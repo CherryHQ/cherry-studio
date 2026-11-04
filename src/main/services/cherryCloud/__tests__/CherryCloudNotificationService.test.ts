@@ -238,6 +238,25 @@ describe('CherryCloudNotificationService', () => {
     }
   })
 
+  it('gives up on a stalled catch-up page and reconnects', async () => {
+    vi.useFakeTimers()
+    const deadline = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal)
+    try {
+      application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'c-5' })
+      await start()
+      await vi.waitFor(() => expect(requestedPaths()).toEqual(['/api/v1/notifications?after=c-5&limit=50']))
+
+      deadline.abort(new DOMException('The operation timed out.', 'TimeoutError'))
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(requestedPaths().length).toBeGreaterThanOrEqual(2)
+    } finally {
+      timeout.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('stops without retrying when the notification endpoints are not available', async () => {
     vi.useFakeTimers()
     try {
