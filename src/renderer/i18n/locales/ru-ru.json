@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "Быстрый перевод с помощью 3-х пробелов",
   "settings.input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
   "settings.input.target_language.label": "Целевой язык",
-  "settings.lab.navigation_layout.both": "По умолчанию",
+  "settings.lab.navigation_layout.both": "Боковая панель + вкладки",
   "settings.lab.navigation_layout.sidebar": "Боковая панель",
   "settings.lab.navigation_layout.tabs": "Вкладки",
   "settings.lab.navigation_layout.title": "Макет навигации",

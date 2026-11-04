@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "3 boşlukla hızlıca çevir",
   "settings.input.show_translate_confirm": "Çeviri onay iletişim kutusunu göster",
   "settings.input.target_language.label": "Hedef dil",
-  "settings.lab.navigation_layout.both": "Varsayılan",
+  "settings.lab.navigation_layout.both": "Kenar çubuğu + sekmeler",
   "settings.lab.navigation_layout.sidebar": "Kenar çubuğu",
   "settings.lab.navigation_layout.tabs": "Sekmeler",
   "settings.lab.navigation_layout.title": "Gezinme düzeni",

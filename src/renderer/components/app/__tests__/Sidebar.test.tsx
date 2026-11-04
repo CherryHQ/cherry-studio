@@ -61,7 +61,7 @@ vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({ useOpenReleaseNotes: () 
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   useSidebarShortcuts: () => ({ shortcuts: mocks.shortcuts, remove: mocks.remove, reorder: mocks.reorder })
 }))
-vi.mock('@renderer/hooks/useWorkspaceTaskStatuses', () => ({
+vi.mock('../useWorkspaceTaskStatuses', () => ({
   useWorkspaceTaskStatuses: () => mocks.workspaceTaskStatuses
 }))
 vi.mock('../sidebarShortcuts', () => ({

@@ -29,7 +29,7 @@ vi.mock('@renderer/data/CacheService', () => ({
 // The main-owned status entry is observed read-only (useSharedCacheValue);
 // the window-owned lastSeenCompletion marker keeps the writable hook.
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCache: (key: string) => {
+  useCache: (key: string) => {
     if (key.startsWith('topic.stream.last_seen_completion.')) {
       return [lastSeenCompletion, setLastSeenCompletion]
     }

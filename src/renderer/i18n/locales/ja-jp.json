@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "スペースを3回押して翻訳",
   "settings.input.show_translate_confirm": "翻訳確認ダイアログを表示",
   "settings.input.target_language.label": "目標言語",
-  "settings.lab.navigation_layout.both": "デフォルト",
+  "settings.lab.navigation_layout.both": "サイドバー + タブ",
   "settings.lab.navigation_layout.sidebar": "サイドバー",
   "settings.lab.navigation_layout.tabs": "タブ",
   "settings.lab.navigation_layout.title": "ナビゲーションレイアウト",

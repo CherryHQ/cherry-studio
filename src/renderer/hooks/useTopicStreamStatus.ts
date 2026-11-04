@@ -1,12 +1,11 @@
 // Per-topic stream state. Main owns the shared status entry (incl.
-// `lastCompletedAt`); the "last completion this window has acknowledged"
-// marker is a separate cross-window shared cache key.
+// `lastCompletedAt`); each renderer owns its window-local read receipt.
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
-import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import {
   type ActiveExecution,
   classifyTurn,
@@ -42,9 +41,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   // `lastSeenCompletion` stays on the writable hook — this window OWNS the
   // read-receipt marker and writes it via markSeen.
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
-  const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
-    `topic.stream.last_seen_completion.${topicId}` as const
-  )
+  const [lastSeenCompletion, setLastSeenCompletion] = useCache(`topic.stream.last_seen_completion.${topicId}` as const)
 
   const status = entry?.status
   const lastCompletedAt = entry?.lastCompletedAt ?? null

@@ -165,6 +165,8 @@ export type UseCacheSchema = {
   // Topic management
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
+  // Per-window read receipt for the latest completed topic stream.
+  'topic.stream.last_seen_completion.${topicId}': number | null
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
@@ -260,6 +262,7 @@ export const DefaultUseCache: UseCacheSchema = {
   // Topic management
   'topic.renaming': [],
   'topic.newly_renamed': [],
+  'topic.stream.last_seen_completion.${topicId}': null,
 
   // Agent management
   'agent.session.waiting_id_map': {},
@@ -325,7 +328,6 @@ export type SharedCacheSchema = {
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
-  'topic.stream.last_seen_completion.${topicId}': number | null
   // Main-owned persistent-conversation statuses used by Sidebar task indicators.
   'topic.stream.status_index': TopicStatusSnapshotIndex
   // Renderer acknowledgement event; Main removes the matching completed index entry.
@@ -405,7 +407,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
-  'topic.stream.last_seen_completion.${topicId}': null,
   'topic.stream.status_index': {},
   'topic.stream.completion_seen': null,
   'feature.openclaw.gateway_status': 'stopped',

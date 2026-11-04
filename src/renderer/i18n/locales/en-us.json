@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "Quickly translate with 3 spaces",
   "settings.input.show_translate_confirm": "Show translation confirmation dialog",
   "settings.input.target_language.label": "Target language",
-  "settings.lab.navigation_layout.both": "Default",
+  "settings.lab.navigation_layout.both": "Sidebar + Tabs",
   "settings.lab.navigation_layout.sidebar": "Sidebar",
   "settings.lab.navigation_layout.tabs": "Tabs",
   "settings.lab.navigation_layout.title": "Navigation layout",

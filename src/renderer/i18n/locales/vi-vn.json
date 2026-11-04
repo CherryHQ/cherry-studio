@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "Dịch nhanh với 3 dấu cách",
   "settings.input.show_translate_confirm": "Hiển thị hộp thoại xác nhận dịch",
   "settings.input.target_language.label": "Ngôn ngữ đích",
-  "settings.lab.navigation_layout.both": "Mặc định",
+  "settings.lab.navigation_layout.both": "Thanh bên + tab",
   "settings.lab.navigation_layout.sidebar": "Thanh bên",
   "settings.lab.navigation_layout.tabs": "Thẻ",
   "settings.lab.navigation_layout.title": "Bố cục điều hướng",

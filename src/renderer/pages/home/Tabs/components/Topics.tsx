@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { useSharedCacheSelector } from '@data/hooks/useCache'
+import { useCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -1631,11 +1631,12 @@ const selectTopicStreamState = (
     : EMPTY_TOPIC_STREAM_STATE
 }
 
-const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
-  useSharedCacheSelector(
-    [getTopicStreamStatusCacheKey(topicId), getTopicStreamLastSeenCompletionCacheKey(topicId)],
-    selectTopicStreamState
-  )
+const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
+  const statusEntry = useSharedCacheValue(getTopicStreamStatusCacheKey(topicId))
+  const [lastSeenCompletion] = useCache(getTopicStreamLastSeenCompletionCacheKey(topicId))
+
+  return useMemo(() => selectTopicStreamState([statusEntry, lastSeenCompletion]), [lastSeenCompletion, statusEntry])
+}
 
 interface TopicListBodyProps {
   activeTopic?: Topic

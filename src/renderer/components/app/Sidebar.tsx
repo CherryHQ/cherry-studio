@@ -23,7 +23,6 @@ import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
-import { useWorkspaceTaskStatuses, type WorkspaceTaskStatus } from '@renderer/hooks/useWorkspaceTaskStatuses'
 import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -53,6 +52,7 @@ import {
   useSidebarShortcutActivation,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
+import { useWorkspaceTaskStatuses, type WorkspaceTaskStatus } from './useWorkspaceTaskStatuses'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 

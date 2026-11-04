@@ -93,7 +93,7 @@ it('sends a queued follow-up when completion has already been marked read', asyn
       awaitingApprovalAnchors: [],
       lastCompletedAt: 100
     })
-    cacheService.setShared('topic.stream.last_seen_completion.topic', 100)
+    cacheService.set('topic.stream.last_seen_completion.topic', 100)
   })
   expect(delivered).toEqual(['next'])
   expect(result.current.items).toEqual([])
@@ -122,7 +122,7 @@ it('resumes a paused queue after the current conversation was marked read', asyn
       awaitingApprovalAnchors: [],
       lastCompletedAt: 100
     })
-    cacheService.setShared('topic.stream.last_seen_completion.topic', 100)
+    cacheService.set('topic.stream.last_seen_completion.topic', 100)
   })
   expect(delivered).toEqual([])
   await act(async () => result.current.setPaused(false))

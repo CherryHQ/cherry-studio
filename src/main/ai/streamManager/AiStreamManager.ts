@@ -671,7 +671,6 @@ export class AiStreamManager extends BaseService {
           changed = true
         }
         cacheService.setShared(`topic.stream.statuses.${topicId}`, null)
-        cacheService.setShared(`topic.stream.last_seen_completion.${topicId}`, null)
       }
 
       if (changed) cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, nextIndex)

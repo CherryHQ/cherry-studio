@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "Traduire en frappant rapidement 3 fois l'espace",
   "settings.input.show_translate_confirm": "Afficher la boîte de dialogue de confirmation de traduction",
   "settings.input.target_language.label": "Langue cible",
-  "settings.lab.navigation_layout.both": "Par défaut",
+  "settings.lab.navigation_layout.both": "Barre latérale + onglets",
   "settings.lab.navigation_layout.sidebar": "Barre latérale",
   "settings.lab.navigation_layout.tabs": "Onglets",
   "settings.lab.navigation_layout.title": "Disposition de navigation",

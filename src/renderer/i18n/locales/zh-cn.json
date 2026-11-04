@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "3 个空格快速翻译",
   "settings.input.show_translate_confirm": "显示翻译确认对话框",
   "settings.input.target_language.label": "目标语言",
-  "settings.lab.navigation_layout.both": "默认",
+  "settings.lab.navigation_layout.both": "侧边栏 + 多标签页",
   "settings.lab.navigation_layout.sidebar": "侧边栏",
   "settings.lab.navigation_layout.tabs": "多标签页",
   "settings.lab.navigation_layout.title": "导航布局",

@@ -4731,7 +4731,7 @@
   "settings.input.auto_translate_with_space": "快速敲擊 3 次空格翻譯",
   "settings.input.show_translate_confirm": "顯示翻譯確認對話框",
   "settings.input.target_language.label": "目標語言",
-  "settings.lab.navigation_layout.both": "預設",
+  "settings.lab.navigation_layout.both": "側邊欄 + 多分頁",
   "settings.lab.navigation_layout.sidebar": "側邊欄",
   "settings.lab.navigation_layout.tabs": "多分頁",
   "settings.lab.navigation_layout.title": "導覽版面配置",
