@@ -32,7 +32,6 @@ vi.mock('@renderer/components/icons/miniAppsLogo', async (importOriginal) => {
   )
   CompoundLogo.colorPrimary = '#000000'
   return {
-    ...actual,
     getMiniAppsLogoRef: (logo: unknown) =>
       logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' || logo === 'loading-logo'
         ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
@@ -42,7 +41,7 @@ vi.mock('@renderer/components/icons/miniAppsLogo', async (importOriginal) => {
 })
 
 describe('MiniAppIcon', () => {
-  it.each(['minimax', 'mintop3', '3mintop', 'ling'])(
+  it.each(['minimax', 'zeroone', 'mintop3', '3mintop', 'claude', 'ling'])(
     'keeps the aliased %s artwork inside the sidebar glyph target',
     (logo) => {
       const { getByLabelText } = render(
