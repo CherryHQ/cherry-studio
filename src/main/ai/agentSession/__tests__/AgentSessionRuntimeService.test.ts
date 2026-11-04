@@ -2712,6 +2712,39 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeDefined()
   })
 
+  it('keeps a background-only connection when a stale-owner verdict follows its agent reassignment', async () => {
+    // The foreground response has settled; its Pi child still runs on the same connection. A
+    // top-bar switch re-points the session row, but the accepted work still belongs to the frozen
+    // owner — an ownership-only verdict must not close the connection and interrupt the child.
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('stale-owner')
+    }
+    entry.connection = connection
+    service.markTurnTerminal('session-1', 'success')
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockImplementation((id: string) =>
+      id === 'agent-1' ? { id: 'agent-1', type: 'test-runtime', model: switchedModelId } : undefined
+    )
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { disabledTools: ['Bash'] },
+      { id: 'agent-1', model: switchedModelId }
+    )
+
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    expect(service.inspect('session-1')).toBeDefined()
+  })
+
   it('replaces a warm connection owned by the previous agent instead of reconciling it for the new agent', async () => {
     const warmEvents = createAsyncQueue<any>()
     // Agent-1 finished and its connection idles warm; the top-bar switch moved the session to
@@ -7543,43 +7576,148 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('tears the session down on any turn abort (steer no longer interrupts — abort is always a user Stop)', async () => {
-    const events = createAsyncQueue<any>()
-    const connection = {
-      events: events.iterable,
-      send: vi.fn(),
-      close: vi.fn()
+  it.each(['stop', 'shutdown', 'app-shutdown'] as const)(
+    'retires a durable owner after %s with the correct cancellation state',
+    async (action) => {
+      const events = createAsyncQueue<any>()
+      const cancellation = createDeferred<void>()
+      let cancelled = false
+      let closed: boolean | undefined
+      const connection: AgentRuntimeConnection = {
+        events: events.iterable,
+        send: async () => {},
+        reconcile: async () => 'current',
+        interrupt: async () => {
+          await cancellation.promise
+          cancelled = true
+        },
+        close: () => {
+          closed = cancelled
+        }
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: async () => connection,
+        validateSession: async () => {},
+        listAvailableTools: async () => []
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const controller = new AbortController()
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: controller.signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(getEntry(service).connection).toBe(connection))
+      if (action === 'stop') {
+        const connectionLoop = getEntry(service).connectionLoop
+        controller.abort('agent-runtime-interrupt')
+        expect(service.inspect('session-1')).toBeUndefined()
+        events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'tail', delta: 'late output' } })
+        await connectionLoop
+        expect(closed).toBeUndefined()
+        cancellation.resolve()
+        await vi.waitFor(() => expect(closed).toBe(true))
+      } else {
+        if (action === 'app-shutdown') controller.abort('app-shutdown')
+        await service.closeSession('session-1')
+        expect(closed).toBe(false)
+      }
+      await reader.cancel().catch(() => undefined)
     }
-    runtimeDriverRegistry.register({
-      type: 'test-runtime',
-      capabilities: ['agent-session'],
-      connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
-    })
-    const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-    const controller = new AbortController()
-    const stream = service.openTurnStream({
-      sessionId: 'session-1',
-      turnId: handle.turnId,
-      signal: controller.signal
-    })
-    const reader = stream.getReader()
+  )
 
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() =>
-      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
-    )
+  it.each(['stop', 'shutdown', 'stop with failed cleanup'] as const)(
+    'preserves %s intent until a pending connection returns',
+    async (action) => {
+      const connecting = createDeferred<void>()
+      const connected = createDeferred<AgentRuntimeConnection>()
+      let cancelled = false
+      let closed: boolean | undefined
+      const connection: AgentRuntimeConnection = {
+        events: createAsyncQueue<AgentRuntimeEvent>().iterable,
+        send: async () => {},
+        reconcile: async () => 'current',
+        interrupt: async () => {
+          cancelled = true
+        },
+        close: () => {
+          closed = cancelled
+        }
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: () => {
+          connecting.resolve()
+          return connected.promise
+        },
+        validateSession: async () => {},
+        listAvailableTools: async () => []
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const controller = new AbortController()
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await connecting.promise
+      if (action === 'stop with failed cleanup')
+        mocks.cacheDeleteShared.mockImplementationOnce(() => {
+          throw new Error('cache cleanup failed')
+        })
+      controller.abort(action === 'shutdown' ? 'app-shutdown' : 'agent-runtime-interrupt')
+      const closing = service.closeSession('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(closed).toBeUndefined()
+      connected.resolve(connection)
+      await closing
+      expect(closed).toBe(action !== 'shutdown')
+      await vi.waitFor(() => expect(() => service.assertSessionEditable('session-1')).not.toThrow())
+      await reader.cancel().catch(() => undefined)
+    }
+  )
 
-    // Steer no longer interrupts, so the only abort source is a user Stop — which always tears the
-    // session down (closeSession → connection.close), regardless of the signal reason.
-    controller.abort('agent-runtime-interrupt')
-
-    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
-    expect(service.inspect('session-1')).toBeUndefined()
-    await reader.cancel().catch(() => undefined)
-  })
+  it.each([false, true])(
+    'attempts teardown after interruption rejects and retains both errors when close fails: %s',
+    async (closeFails) => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const interruptError = new Error('cancellation unconfirmed')
+      const closeError = new Error('teardown failed')
+      let released = false
+      const connection = {
+        events: [],
+        send: async () => {},
+        interrupt: async () => {
+          throw interruptError
+        },
+        close: async () => {
+          released = true
+          if (closeFails) throw closeError
+        }
+      }
+      getEntry(service).connection = connection
+      await service.closeSession('session-1', true)
+      expect(released).toBe(true)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Agent runtime connection close failed',
+        expect.objectContaining({
+          sessionId: 'session-1',
+          error: closeFails ? expect.objectContaining({ errors: [interruptError, closeError] }) : interruptError
+        })
+      )
+      connection.close = async () => {}
+      await service.closeSessionForArchive('session-1')
+      expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+    }
+  )
 
   it('persists errored assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()

@@ -327,7 +327,7 @@ export function buildPathRegistry() {
         : path.join(appExtraResources, 'system-speech', voiceHelperFilename)
       : path.join(
           app.getAppPath(),
-          'packages',
+          'native',
           'system-speech',
           'dist',
           'native',

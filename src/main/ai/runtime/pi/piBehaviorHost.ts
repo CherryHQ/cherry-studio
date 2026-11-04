@@ -4,9 +4,8 @@ import { isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
-import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
-import type { PiRuntimeBehavior } from '@cherrystudio/agent-runtime-pi'
+import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent, SubagentOrigin } from '@cherrystudio/agent-behavior'
+import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -27,6 +26,7 @@ type HostOptions = {
   root: ThreadId
   binding: Binding
   model: Model
+  bindModel?: (model: Model) => Promise<Binding>
   approval: PiApprovalContext
   toolCallId(call: CallRef): Promise<string>
   emit(event: AgentRuntimeEvent): void
@@ -42,7 +42,10 @@ const callSchema = z.object({ thread: z.string(), key: z.string() })
 const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
-export async function createPiBehaviorHost(options: HostOptions): Promise<PiRuntimeBehavior> {
+export async function createPiBehaviorHost(options: HostOptions): Promise<{
+  host: HostPorts
+  configureChild(child: { thread: Thread; parent: Thread; origin: SubagentOrigin }): Promise<Binding>
+}> {
   const { DEFAULT_MAX_BACKGROUND } = await import('@cherrystudio/agent-behavior')
   const { input, approval, binding } = options
   const rootKey = `${binding.model.provider}/${binding.model.id}`
@@ -152,11 +155,13 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<PiRunt
   return {
     host,
     async configureChild({ thread, origin }) {
+      if (!models.has(origin.modelKey)) await host.models.find('')
       const model = models.get(origin.modelKey)
       if (!model) throw new Error(`Unknown subagent model: ${origin.modelKey}`)
       let child = bindings.get(origin.modelKey)
       if (!child) {
-        child = await createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model)
+        child = await (options.bindModel?.(model) ??
+          createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
         bindings.set(origin.modelKey, child)
       }
       threads.set(thread.id, origin.modelKey)
