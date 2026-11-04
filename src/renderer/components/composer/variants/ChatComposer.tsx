@@ -785,6 +785,8 @@ const ChatComposerInner = ({
   const submittedMentionedModels =
     assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   const { models: queueModels, isLoading: areModelsLoading } = useModels()
+  const resolveCurrentModelRecord = (candidate: Model, currentModels: readonly Model[]) =>
+    currentModels.find((current) => current.id === candidate.id) ?? candidate
   const directModels = editingMessageForCurrentTopic?.lockedMentionedModels ?? EMPTY_MODELS
   const resendModelIds = resolveResendModelIds(
     directModels.map((model) => model.id),
@@ -799,9 +801,7 @@ const ChatComposerInner = ({
   const validationPending =
     isEditingUserMessage && resendModelIds.length === 0 ? isModelPending : pendingModels.length > 0 && areModelsLoading
   const isValidationBlockingSend = validationPending && editingMessageForCurrentTopic?.message.role !== 'assistant'
-  const currentSubmittedModels = validationModels.map(
-    (model) => queueModels.find((currentModel) => currentModel.id === model.id) ?? model
-  )
+  const currentSubmittedModels = validationModels.map((model) => resolveCurrentModelRecord(model, queueModels))
   // Current records are authoritative for capability classification: a retained selection/lock
   // snapshot decides membership (and is the fallback when its record is gone), not capability.
   const hasNonChatModel = !validationPending && currentSubmittedModels.some(isNonChatModel)
@@ -1412,7 +1412,7 @@ const ChatComposerInner = ({
       const payloadModels = payload.mentionedModels?.length
         ? queueModels.filter((model) => payload.mentionedModels?.includes(model.id))
         : runtimeModel
-          ? [runtimeModel]
+          ? [resolveCurrentModelRecord(runtimeModel, queueModels)]
           : EMPTY_MODELS
       if (payloadModels.some(isNonChatModel)) return false
       setIsSending(true)

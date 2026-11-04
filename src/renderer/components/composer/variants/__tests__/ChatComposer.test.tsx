@@ -58,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   assistant: undefined as any,
   model: undefined as Model | undefined,
   modelB: undefined as Model | undefined,
+  modelsRecords: undefined as Model[] | undefined,
   assistantLoading: false,
   modelPending: false,
   modelsLoading: false,
@@ -559,7 +560,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
-    return { models: [mocks.model ?? model, mocks.modelB ?? modelB], isLoading: mocks.modelsLoading }
+    return {
+      models: mocks.modelsRecords ?? [mocks.model ?? model, mocks.modelB ?? modelB],
+      isLoading: mocks.modelsLoading
+    }
   }
 }))
 
@@ -815,6 +819,7 @@ describe('ChatComposer', () => {
     }
     mocks.model = model
     mocks.modelB = undefined
+    mocks.modelsRecords = undefined
     mocks.assistantLoading = false
     mocks.modelPending = false
     mocks.modelsLoading = false
@@ -5170,6 +5175,191 @@ describe('ChatComposer', () => {
       'draft after capability correction',
       expect.objectContaining({ mentionedModels: [model.id, modelB.id] })
     )
+  })
+
+  it('dispatches an implicit send when the stale default is chat-capable in the current records', async ({
+    onTestFinished
+  }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.assistant = undefined
+    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.modelsRecords = [modelB, mocks.model]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'corrected default draft' } })
+    await screen.findByText('corrected default draft')
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'true')
+
+    mocks.modelsRecords = [modelB, { ...model, capabilities: [] }]
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    expect(screen.queryByText('chat.input.non_chat_model')).not.toBeInTheDocument()
+    expect(send).toHaveAttribute('aria-disabled', 'false')
+    await user.click(send)
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(onSend).toHaveBeenCalledWith(
+      'corrected default draft',
+      expect.objectContaining({ mentionedModels: undefined })
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.errorFromException).not.toHaveBeenCalled()
+  })
+
+  it('drains an implicit queued followup when the stale default is chat-capable in the current records', async () => {
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.topicPending = true
+    mocks.topicStatus = 'streaming'
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'corrected default followup' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeVisible())
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.modelsRecords = [modelB, { ...model, capabilities: [] }]
+    mocks.topicPending = false
+    mocks.topicStatus = 'done'
+    mocks.lastCompletedAt = 100
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(onSend).toHaveBeenCalledWith(
+      'corrected default followup',
+      expect.objectContaining({ mentionedModels: undefined })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.title' })).not.toBeInTheDocument()
+    )
+    expect(screen.queryByText('corrected default followup')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.resume' })).not.toBeInTheDocument()
+  })
+
+  it('keeps an implicit queued followup paused when the stale default has no current record', async () => {
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.topicPending = true
+    mocks.topicStatus = 'streaming'
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'missing default followup' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeVisible())
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.modelsRecords = [modelB]
+    mocks.topicPending = false
+    mocks.topicStatus = 'done'
+    mocks.lastCompletedAt = 100
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.followup_queue.resume' })).toBeVisible())
+    expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeInTheDocument()
+    expect(screen.getByText('missing default followup')).toBeInTheDocument()
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('drains an implicit queued followup when the current record is absent but the snapshot is chat-capable', async () => {
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.topicPending = true
+    mocks.topicStatus = 'streaming'
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'missing chat default followup' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeVisible())
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.modelsRecords = [modelB]
+    mocks.topicPending = false
+    mocks.topicStatus = 'done'
+    mocks.lastCompletedAt = 100
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(onSend).toHaveBeenCalledWith(
+      'missing chat default followup',
+      expect.objectContaining({ mentionedModels: undefined })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.title' })).not.toBeInTheDocument()
+    )
+    expect(screen.queryByText('missing chat default followup')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.resume' })).not.toBeInTheDocument()
+  })
+
+  it('keeps an implicit queued followup paused when the current record becomes non-chat', async () => {
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.topicPending = true
+    mocks.topicStatus = 'streaming'
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'non-chat current default followup' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeVisible())
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.modelsRecords = [{ ...model, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }, modelB]
+    mocks.topicPending = false
+    mocks.topicStatus = 'done'
+    mocks.lastCompletedAt = 100
+    view.rerender(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.followup_queue.resume' })).toBeVisible())
+    expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeInTheDocument()
+    expect(screen.getByText('non-chat current default followup')).toBeInTheDocument()
+    expect(onSend).not.toHaveBeenCalled()
   })
 
   // Catches a missing current record bypassing the retained snapshot's non-chat classification.
