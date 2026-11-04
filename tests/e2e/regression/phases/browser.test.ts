@@ -457,14 +457,16 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     const message = chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
     const link = message.getByRole('link').filter({ hasText: title })
     await expect(link).toHaveAttribute('href', url)
-    const chatBox = await chat.getByRole('region', { name: 'Messages', exact: true }).boundingBox()
+    const chatRegion = chat.getByRole('region', { name: 'Messages', exact: true })
+    const chatBox = await chatRegion.boundingBox()
     const linkBox = await link.boundingBox()
     if (!chatBox || !linkBox) throw new Error('Chat result has no layout bounds')
     const targetY = chatBox.y + chatBox.height / 2
     await page.mouse.move(chatBox.x + chatBox.width - 80, targetY)
     await page.mouse.wheel(0, linkBox.y - targetY)
     await expect(link).toBeInViewport()
-    // Wheel scrolling animates on Windows, so the position is only comparable once it stops moving.
+    // Wheel scrolling animates, so read the position only after the animation stops: two
+    // samples 100ms apart still agree mid-scroll, so require three slower consecutive ones.
     const settledLinkY = async (): Promise<number> => {
       let previous = Number.NaN
       let stableSamples = 0
@@ -476,11 +478,13 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
             previous = y
             return stableSamples
           },
-          { timeout: 10_000, intervals: [100, 150, 200, 250] }
+          { timeout: 15_000, intervals: [200, 300, 400, 500] }
         )
-        .toBeGreaterThanOrEqual(2)
+        .toBeGreaterThanOrEqual(3)
       return previous
     }
+    const beforeHeight = (await chatRegion.boundingBox())?.height
+    if (!beforeHeight) throw new Error('Chat result has no layout bounds')
     const beforeY = await settledLinkY()
     await attachScreenshot('MP-124 clickable result in conversation')
     const originalTabs = await page.locator('[data-ui~="app.tab-bar"] [data-tab-id]').count()
@@ -521,6 +525,14 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(chat).toBeVisible()
     await expect(link).toBeInViewport()
     await expect(topicRow).toBeVisible()
+    // Opening the tab shrinks the conversation area, so its height must be back before the two
+    // positions are comparable; a reflow in progress would hide a real jump or invent one.
+    await expect
+      .poll(async () => Math.abs(((await chatRegion.boundingBox())?.height ?? Number.NaN) - beforeHeight), {
+        timeout: 15_000,
+        intervals: [100, 150, 200, 250]
+      })
+      .toBeLessThanOrEqual(1)
     const afterY = await settledLinkY()
     expect(Math.abs(afterY - beforeY)).toBeLessThanOrEqual(3)
     const saved = await page.evaluate(
