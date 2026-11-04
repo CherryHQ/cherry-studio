@@ -103,6 +103,21 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.child.attach': async ({ sessionId, toolCallId, subscriptionId }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (!sender || senderId === null) throw new Error('Child subscription requires a window')
+    return application
+      .get('AgentSessionRuntimeService')
+      .attachChild(sender, sessionId, toolCallId, subscriptionId, (update) =>
+        application.get('IpcApiService').send(senderId, 'ai.agent.child.changed', { subscriptionId, update })
+      )
+  },
+  'ai.agent.child.detach': async ({ subscriptionId }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (sender) application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
+  },
+  'ai.agent.child.message': ({ sessionId, contextId, text }) =>
+    application.get('AgentSessionRuntimeService').messageChild(sessionId, contextId, text),
   'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
   'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
