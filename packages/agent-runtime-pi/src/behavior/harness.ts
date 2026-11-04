@@ -174,8 +174,17 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
             if (scope.opening) scope.opening.push(...applied.jobs)
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
-                launch(openNative(child)).catch((error: unknown) => {
+                launch(openNative(child)).catch(async (error: unknown) => {
                   conversations.delete(child.thread)
+                  await lifecycle(
+                    (handlers, ports) =>
+                      handlers.onChildOpenFailed?.(
+                        thread,
+                        child.thread,
+                        error instanceof Error ? error.message : String(error),
+                        ports
+                      ) ?? Promise.resolve()
+                  )
                   throw error
                 })
               )

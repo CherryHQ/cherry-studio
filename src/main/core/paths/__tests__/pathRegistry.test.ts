@@ -137,8 +137,8 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
-    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
-    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
+    expect(registry['feature.agents.outputs']).toBe(path.join('/mock/userData', 'Data', 'Agents', '.outputs'))
+    expect(shouldAutoEnsure('feature.agents.outputs')).toBe(true)
   })
 
   it('keeps the provider registry override under userData Runtime', () => {
@@ -157,6 +157,30 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps the uv cache under Cherry home', () => {
+    const registry = buildPathRegistry()
+    const cacheRoot = path.join(registry['cherry.home'], 'cache', 'uv')
+
+    expect(path.relative(cacheRoot, registry['feature.binary.data.uv_cache'])).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('leaves uv cache materialization to binary management', () => {
+    expect(shouldAutoEnsure('feature.binary.data.uv_cache')).toBe(false)
+  })
+
+  it('separates uv caches by resolved profile identity without copying a spaced suffix into the cache leaf', () => {
+    const uvCache = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.binary.data.uv_cache']
+    }
+
+    const first = uvCache('/profiles/first/Dev Oslo')
+    expect(uvCache('/profiles/second/Dev Oslo')).not.toBe(first)
+    expect(uvCache('/profiles/first/./Dev Oslo')).toBe(first)
+    expect(path.basename(first)).toMatch(/^[a-f0-9]{64}$/)
+    expect(path.relative(path.join(buildPathRegistry()['cherry.home'], 'cache', 'uv'), first)).not.toMatch(/\s/u)
   })
 
   it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {

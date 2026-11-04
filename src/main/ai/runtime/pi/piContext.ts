@@ -1,0 +1,26 @@
+import { v4 as uuid } from 'uuid'
+
+import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
+
+export function reservePiBranchTx(tx: DbOrTx, sessionId: string, anchorMessageId: string, nativeId: string) {
+  const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
+  return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId, nativeThreadId: nativeId })
+}
+
+export function preparePiBranch(sessionId: string, messageId?: string, nativeId?: string) {
+  return application.get('DbService').withWriteTx((tx) => {
+    const root = ensureAgentSessionRootTx(tx, sessionId)
+    const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
+    if (existing) {
+      if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi')
+        throw new Error('The selected branch belongs to another runtime')
+      if (nativeId && existing.nativeThreadId !== nativeId)
+        throw new Error('Requested Pi identity does not match the captured branch')
+      return existing
+    }
+    return reservePiBranchTx(tx, sessionId, root, nativeId ?? uuid())
+  })
+}
