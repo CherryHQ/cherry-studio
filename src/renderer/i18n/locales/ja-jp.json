@@ -1744,7 +1744,6 @@
   "history_import.error_title": "インポートに問題があります",
   "history_import.existing": "{{owner}} にインポート済みです。複製や移動はしません。",
   "history_import.filtered_empty": "インポートできる会話はありません。元のファイルとインポート済みの会話は変更されません。",
-  "history_import.filtered_summary": "除外済み：Guardian レビュー {{guardian}} 件 · ユーザーのタスクがないセッション {{noTask}} 件。",
   "history_import.folder": "フォルダーを選択",
   "history_import.line": "{{line}} 行目",
   "history_import.losses": "スキップ：{{skipped}} · 変換したブロック：{{downgraded}}",

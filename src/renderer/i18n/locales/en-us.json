@@ -1744,7 +1744,6 @@
   "history_import.error_title": "Import needs attention",
   "history_import.existing": "Already imported under {{owner}}. This will not copy or move the conversation.",
   "history_import.filtered_empty": "No conversations remain to import. Source files and previously imported conversations are unchanged.",
-  "history_import.filtered_summary": "Filtered: {{guardian}} Guardian reviews \u00b7 {{noTask}} sessions without user tasks.",
   "history_import.folder": "Choose folder",
   "history_import.line": "Line {{line}}",
   "history_import.losses": "Skipped records: {{skipped}} · Converted content blocks: {{downgraded}}",
