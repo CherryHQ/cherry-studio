@@ -39,6 +39,7 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
 
@@ -71,7 +72,7 @@ export { toFileInfo } from './toFileInfo'
 // Path-level system helpers. `safeOpen` is the public default-open primitive and
 // `openRequestPath` is the only sanctioned door for renderer-supplied path text;
 // raw Electron shell access remains internal to the file module.
-export { safeOpen, showInFolder } from './system'
+export { copyFileToClipboard, getClipboardCopyStatus, safeOpen, showInFolder } from './system'
 
 // Handle dispatch — resolves a `FileHandle` to its operation. The public
 // entry point for the File IPC handlers (kept out of `internal/` deep imports).
@@ -90,3 +91,5 @@ export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'
+
+export { FileIntakeService, FileIntakeError, type FileIntakeOwner } from './FileIntakeService'

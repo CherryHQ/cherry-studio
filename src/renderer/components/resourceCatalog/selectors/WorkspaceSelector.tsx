@@ -2,19 +2,21 @@ import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
 import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { useDataChange, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
@@ -67,15 +69,14 @@ export function WorkspaceSelector({
   const [internalOpen, setInternalOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [deletingWorkspace, setDeletingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   const open = openProp ?? internalOpen
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetch())
-  const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
-    refresh: ['/agent-workspaces']
-  })
+  const invalidate = useInvalidateCache()
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -139,14 +140,20 @@ export function WorkspaceSelector({
 
     if (!folderPath) return
 
+    setIsCreatingWorkspace(true)
     try {
-      const workspace = await createWorkspace({ body: { path: folderPath } })
+      const workspace = await ipcApi.request('ai.agent.workspace.register', {
+        path: AbsoluteFilePathSchema.parse(folderPath)
+      })
+      await invalidate('/agent-workspaces')
       await onChange(workspace.id)
     } catch (error) {
       logger.error('Failed to create workspace from folder', error as Error, { folderPath })
       toast.error(t('agent.session.workspace_selector.create_failed'))
+    } finally {
+      setIsCreatingWorkspace(false)
     }
-  }, [createWorkspace, handleOpenChange, onChange, t])
+  }, [handleOpenChange, invalidate, onChange, t])
 
   const handleRequestDeleteWorkspace = useCallback(
     (workspace: AgentWorkspaceEntity) => {
@@ -246,15 +253,18 @@ export function WorkspaceSelector({
           const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
           return (
-            <Scrollbar
-              ref={listRef}
-              id={listboxId}
-              role="listbox"
-              tabIndex={-1}
-              className="min-h-0 flex-1 px-1 py-1 outline-none"
+            <ScrollArea
+              viewportProps={{
+                ref: listRef,
+                id: listboxId,
+                role: 'listbox',
+                tabIndex: -1,
+                className: 'px-1 py-1 outline-none'
+              }}
+              className="min-h-0 flex-1"
               style={{ height: listHeight }}>
               {workspaceListContent}
-            </Scrollbar>
+            </ScrollArea>
           )
         }}
       </SelectorShell>

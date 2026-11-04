@@ -3,11 +3,15 @@ import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'a
 
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import type { AutomationRun } from '@main/services/automation'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import { mergeHeaders } from '@main/utils/http'
 import {
@@ -25,7 +29,7 @@ import {
   MAX_TOOL_CALLS,
   MIN_TOOL_CALLS
 } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
@@ -55,7 +59,7 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
-  stripRejectedSamplingParams
+  stripUnsupportedModelParams
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
@@ -91,6 +95,7 @@ const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' 
 
 export interface BuildAgentParamsInput {
   request: AiChatRequest & {
+    system?: string
     messageId?: string
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
@@ -161,11 +166,15 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const canOffloadToolOutputs =
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request, assistant) : undefined
+  const toolSignals =
+    !request.disableTools && canModelConsumeTools(model)
+      ? await resolveRequestToolSignals(request, assistant)
+      : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.browserEnabled === true ||
+        toolSignals.computerUseEnabled === true ||
         toolSignals.mcpToolIds.size > 0 ||
         // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
         // mistaken for a request that loads no function tool.
@@ -180,7 +189,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds } = toolSignals
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,
         assistant,
@@ -197,7 +206,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         deferredEntries: [] as ToolEntry[],
         hasCitableTools: false,
         mcpToolIds: new Set<string>(),
-        mcpResourceServerIds: new Set<string>()
+        mcpResourceServerIds: new Set<string>(),
+        mcpServerIds: new Set<string>()
       }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
@@ -243,11 +253,49 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
+  let automationRun: Promise<AutomationRun> | undefined
+  const automationAbort = new AbortController()
+  let automationFinished = false
+  const getAutomationRun =
+    assistant && request.conversation.topicId && (toolSignals?.browserEnabled || toolSignals?.computerUseEnabled)
+      ? () => {
+          if (automationFinished) throw new Error('Automation request has finished')
+          const topicId = request.conversation.topicId!
+          automationRun ??= application.get('AutomationReplService').acquireRun(
+            {
+              kind: 'topic',
+              sessionId: topicId,
+              ownerId: assistant.id,
+              label: `${assistant.name} · ${topicId.slice(0, 8)}`
+            },
+            request.messageId ?? crypto.randomUUID(),
+            () => {
+              if (topicService.getById(topicId).assistantId !== assistant.id)
+                throw new Error('Conversation owner changed')
+              const settings = assistantDataService.getById(assistant.id).settings
+              return {
+                browser:
+                  toolSignals?.browserEnabled === true &&
+                  settings.enableBrowser !== false &&
+                  application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+                computer:
+                  toolSignals?.computerUseEnabled === true &&
+                  application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
+              }
+            },
+            signal ? AbortSignal.any([signal, automationAbort.signal]) : automationAbort.signal
+          )
+          return automationRun
+        }
+      : undefined
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
+    windowId: request.interactionWindowId,
+    model: request.uniqueModelId ?? createUniqueModelId(provider.id, model.id),
     assistant,
     abortSignal: signal,
+    automationRun: getAutomationRun,
     fileAttachments,
     knowledgeBaseIds,
     // fs_read's exact allow-list: blobs referenced by the conversation, plus
@@ -291,14 +339,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({
-    assistant,
-    model,
-    tools,
-    deferredEntries,
-    hasCitableTools,
-    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none'
-  })
+  const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
+  const system =
+    request.system !== undefined
+      ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+      : await assembleSystemPrompt({
+          assistant,
+          model,
+          tools,
+          deferredEntries,
+          hasCitableTools,
+          webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+          mcpInstructions
+        })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -308,6 +361,24 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   )
   applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
+  const hookParts = [...contributions.hookParts]
+  if (getAutomationRun) {
+    const finish = async () => {
+      automationFinished = true
+      automationAbort.abort(new Error('Automation request has finished'))
+      const run = await automationRun?.catch(() => undefined)
+      await run?.finish()
+    }
+    hookParts.push({
+      onFinish: finish,
+      onAbort: finish,
+      onError: async () => {
+        await finish()
+        return 'abort' as const
+      }
+    })
+  }
+
   return {
     sdkConfig,
     credentialReceipt,
@@ -315,7 +386,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     plugins: contributions.modelAdapters,
     system,
     options,
-    hookParts: contributions.hookParts,
+    hookParts,
     nativeFileSupport,
     fileAttachments
   }
@@ -374,6 +445,7 @@ async function resolveRequestToolSignals(
   mcpResourceServerIds: ReadonlySet<string>
   hasAnyKnowledgeBase: boolean
   browserEnabled?: boolean
+  computerUseEnabled?: boolean
 }> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
@@ -387,6 +459,12 @@ async function resolveRequestToolSignals(
       assistant &&
       assistant.settings.enableBrowser !== false &&
       application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    ),
+    computerUseEnabled: Boolean(
+      request.conversation.topicId &&
+      assistant &&
+      request.contextOwner !== 'caller' &&
+      application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
     ),
     hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
   }
@@ -413,8 +491,9 @@ export async function resolveTools(
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
+  mcpServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled } =
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled, computerUseEnabled } =
     signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
@@ -427,6 +506,7 @@ export async function resolveTools(
     assistant,
     paintingModel: paintingModel ?? undefined,
     browserEnabled,
+    computerUseEnabled,
     mcpToolIds,
     mcpResourceServerIds,
     hasFileAttachments,
@@ -472,7 +552,13 @@ export async function resolveTools(
     deferredEntries: exposed.deferredEntries,
     hasCitableTools,
     mcpToolIds,
-    mcpResourceServerIds
+    mcpResourceServerIds,
+    mcpServerIds: new Set([
+      ...mcpResourceServerIds,
+      ...activeEntries.flatMap((entry) =>
+        entry.namespace.startsWith('mcp:') && !clientToolNames.has(entry.name) ? [entry.namespace.slice(4)] : []
+      )
+    ])
   }
 }
 
@@ -655,7 +741,7 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const sanitized = stripRejectedSamplingParams(
+  const sanitized = stripUnsupportedModelParams(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )

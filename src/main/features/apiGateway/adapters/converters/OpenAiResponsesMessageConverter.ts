@@ -84,8 +84,7 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
 
 /**
  * The reasoning chain a client echoed back. `content` (`reasoning_text`) is the raw chain and
- * wins; `summary` is the fallback, since that is what most clients round-trip. Encrypted-only
- * items carry nothing readable — they resolve to `''` and are skipped.
+ * wins; `summary` is the fallback. Encrypted-only items retain their metadata with empty text.
  */
 function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string {
   const content = item.content?.map((part) => part.text).join('') ?? ''
@@ -151,15 +150,23 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       // function_call it belongs to, and `coalesceConsecutiveSameRole` merges the two.
       if ('type' in item && item.type === 'reasoning') {
         const text = reasoningItemText(item)
-        if (text) {
-          const part: ReasoningUIPart = { type: 'reasoning', text }
+        if (text || item.id || item.encrypted_content) {
+          const metadata = {
+            itemId: item.id,
+            ...(item.encrypted_content != null && { reasoningEncryptedContent: item.encrypted_content })
+          }
+          const part: ReasoningUIPart = {
+            type: 'reasoning',
+            text,
+            providerMetadata: { openai: metadata, azure: metadata }
+          }
           messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
         }
         continue
       }
-      // EasyInputMessage (role + content)
+      // Input or replayed output message (role + content)
       if ('role' in item && 'content' in item) {
-        const converted = this.convertEasyInputMessage(item as EasyInputMessage)
+        const converted = this.convertMessage(item)
         if (converted) messages.push(converted)
         continue
       }
@@ -190,9 +197,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
   }
 
   /**
-   * Convert EasyInputMessage to a UIMessage (or null to skip).
+   * Convert an input or replayed output message to a UIMessage (or null to skip).
    */
-  private convertEasyInputMessage(msg: EasyInputMessage): CherryUIMessage | null {
+  private convertMessage(msg: EasyInputMessage | OpenAI.Responses.ResponseOutputMessage): CherryUIMessage | null {
     switch (msg.role) {
       case 'developer':
       case 'system':
@@ -245,14 +252,16 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     return null
   }
 
-  private convertAssistantMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
+  private convertAssistantMessage(
+    content: EasyInputMessage['content'] | OpenAI.Responses.ResponseOutputMessage['content']
+  ): CherryUIMessage | null {
     const parts: CherryUIMessage['parts'] = []
 
     if (typeof content === 'string') {
       parts.push({ type: 'text', text: content })
     } else {
       for (const part of content) {
-        if (part.type === 'input_text') parts.push({ type: 'text', text: part.text })
+        if (part.type === 'input_text' || part.type === 'output_text') parts.push({ type: 'text', text: part.text })
       }
     }
 

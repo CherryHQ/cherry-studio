@@ -16,13 +16,13 @@ import {
   DropdownMenuTrigger,
   Kbd,
   RowFlex,
+  ScrollArea,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingGroup, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,
@@ -577,7 +577,7 @@ const ShortcutSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
-        <Scrollbar className={settingsContentScrollClassName}>
+        <ScrollArea className={settingsContentScrollClassName}>
           <SettingsContentBody className="pt-4">
             <div className={cn(settingsContentHeaderClassName, 'flex items-center justify-between gap-3')}>
               <h1 className={cn(settingsContentHeaderTitleClassName, 'shrink-0')}>{t('settings.shortcuts.title')}</h1>
@@ -653,7 +653,7 @@ const ShortcutSettings: FC = () => {
               )}
             </SettingGroup>
           </SettingsContentBody>
-        </Scrollbar>
+        </ScrollArea>
       </div>
     </div>
   )

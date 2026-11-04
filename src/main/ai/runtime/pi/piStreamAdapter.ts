@@ -158,7 +158,7 @@ export class PiStreamAdapter {
     }
   }
 
-  private handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
+  handleToolStart(toolCallId: string, toolName: string, args: unknown): void {
     if (this.startedTools.has(toolCallId)) return
     this.startedTools.add(toolCallId)
     this.sink.enqueue({
@@ -180,14 +180,16 @@ export class PiStreamAdapter {
     })
   }
 
-  private handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+  handleToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean, preliminary = false): void {
     // A tool result with no preceding start (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) this.handleToolStart(toolCallId, toolName, {})
     if (isError) {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
-        errorText: stringifyResult(result),
+        errorText: stringifyResult(
+          toolName.startsWith('mcp__automation__') ? projectPiToolOutput(toolName, result) : result
+        ),
         dynamic: true,
         providerExecuted: true,
         providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
@@ -196,6 +198,7 @@ export class PiStreamAdapter {
     }
     this.sink.enqueue({
       type: 'tool-output-available',
+      preliminary,
       toolCallId,
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
@@ -204,7 +207,7 @@ export class PiStreamAdapter {
     })
   }
 
-  private handleTurnEnd(message: unknown): void {
+  handleTurnEnd(message: unknown): void {
     const usage = extractAssistantUsage(message)
     if (!usage) return
     const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite
@@ -257,6 +260,8 @@ function projectPiToolOutput(toolName: string, result: unknown): unknown {
   }
   if (toolName.startsWith('mcp__')) {
     const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
+    // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
+    if (toolName.startsWith('mcp__automation__')) return mcpResult ?? toolResult
     return mcpResult?.structuredContent ?? unwrapMcpContent(toolResult)
   }
   return toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
@@ -264,7 +269,7 @@ function projectPiToolOutput(toolName: string, result: unknown): unknown {
 
 /**
  * `tool_call` returns the target tool's MCP result verbatim, hiding an all-text payload inside a
- * JSON string. Unwrap it the way the Claude Code / dsh adapters do, so tool cards and citation
+ * JSON string. Unwrap it the way the Claude Code adapter do, so tool cards and citation
  * resolution see one shape across runtimes.
  */
 function unwrapMcpContent({ content }: AgentToolResult<unknown>): unknown {

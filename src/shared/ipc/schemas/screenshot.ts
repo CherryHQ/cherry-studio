@@ -65,6 +65,13 @@ export type OcrRecognitionResult = z.infer<typeof ocrRecognitionResult>
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const screenshotRequestSchemas = {
+  'screenshot.submit_result': defineRoute({
+    input: z.object({
+      pngBytes: uint8ArraySchema.refine((bytes) => bytes.byteLength <= MAX_RESULT_BYTES),
+      text: z.string().max(10000)
+    }),
+    output: z.void()
+  }),
   /**
    * Start a capture session from an in-app control, e.g. a composer's screenshot button.
    * The shortcut does not come through here — it runs in main via `CommandService`.
@@ -72,6 +79,8 @@ export const screenshotRequestSchemas = {
   'screenshot.capture': defineRoute({ input: z.void(), output: z.void() }),
   /** Selection confirmed — copy to the clipboard and dismiss every overlay. */
   'screenshot.commit': defineRoute({ input: screenshotResultSchema, output: z.void() }),
+  /** Copy the selection to the clipboard without dismissing the overlays. */
+  'screenshot.copy': defineRoute({ input: screenshotResultSchema, output: z.void() }),
   /** Selection confirmed — save to a user-chosen file and dismiss every overlay. */
   'screenshot.save': defineRoute({ input: screenshotResultSchema, output: z.void() }),
   /** Dismiss every overlay without producing anything. */

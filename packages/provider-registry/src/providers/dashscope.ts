@@ -12,7 +12,7 @@ import {
   qwen38Support,
   qwenChatWire
 } from './qwenFamily'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const webSearchModelPrefixes = [
@@ -37,12 +37,7 @@ const webSearchModelPrefixes = [
   'deepseek-v3-2',
   'deepseek-v3-1',
   'deepseek-r1',
-  'deepseek-v3',
-  'kimi-k2',
-  'kimi-k3',
-  'kimi-latest',
-  'glm-4',
-  'glm-5'
+  'deepseek-v3'
 ]
 
 // Web-extractor (help.aliyun.com/zh/model-studio/web-extractor) is served for the Qwen Max/Plus/Flash
@@ -196,12 +191,8 @@ const responsesModels = new Set([
   'qwen3.8-max-preview'
 ])
 
-/**
- * Dual-endpoint SKUs whose built-in search only works on Chat Completions. Bailian serves the Responses
- * `web_search` tool for the Qwen3.x line only ("Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、
- * qwen3-max"), while these aliases search via `enable_search` on Chat. Order Chat first so the default
- * endpoint is the one where their search actually works; Responses stays selectable.
- */
+// These Qwen aliases serve search through Chat's `enable_search`, so Chat leads.
+// Responses stays selectable for inference; see `servesResponsesWebSearch` in src/main/ai/utils/websearch.ts.
 const chatWebSearchOnlyModels = new Set(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])
 
 /**
@@ -215,23 +206,23 @@ const chatWebSearchOnlyModels = new Set(['qwen-plus', 'qwen-flash', 'qwen-plus-c
  * model availability — see `chatWebSearchOnlyModels` and `servesResponsesWebSearch` in
  * `src/main/ai/utils/websearch.ts`. Everything else inherits the safe chat default.
  */
-const endpointPin = (modelId: string): Partial<ProviderModelOverride> =>
+const endpointPin = (modelId: string): Pick<ProviderModelOverride, 'endpointTypes'> =>
   chatWebSearchOnlyModels.has(modelId)
     ? { endpointTypes: ['openai-chat-completions', 'openai-responses'] }
     : responsesModels.has(modelId)
       ? { endpointTypes: ['openai-responses', 'openai-chat-completions'] }
       : {}
 
-const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.map((modelId) => ({
-  modelId,
-  ...endpointPin(modelId),
+const qwenReasoningOverrides: ProviderModelOffer[] = qwenChatModels.map((apiModelId) => ({
+  apiModelId,
+  ...endpointPin(apiModelId),
   reasoningContracts: {
     'openai-chat-completions': { wire: qwenChatWire },
     'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
   }
 }))
 
-const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
+const endpointReasoningOverrides: ProviderModelOffer[] = [
   ...qwenReasoningOverrides,
   {
     apiModelId: 'qwen3.8-flash',
@@ -264,7 +255,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     }
   },
   {
-    modelId: 'minimax-m3',
+    apiModelId: 'minimax-m3',
     ...endpointPin('minimax-m3'),
     reasoningContracts: {
       'openai-chat-completions': {
@@ -273,9 +264,9 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
       }
     }
   },
-  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5.1', 'glm-5.2'].map((modelId) => ({
-    modelId,
-    ...endpointPin(modelId),
+  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5.1', 'glm-5.2'].map((apiModelId) => ({
+    apiModelId,
+    ...endpointPin(apiModelId),
     reasoningContracts: {
       'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
     }
@@ -296,16 +287,16 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   // (`qwen-flash-character` / `qwen3.5-ocr` are not in the catalog yet — skipped.)
   ...(
     [
-      { modelId: 'qwq-plus' },
-      { modelId: 'qwen-plus-character' },
-      { modelId: 'deepseek-r1' },
-      { modelId: 'deepseek-v3' },
+      { apiModelId: 'qwq-plus' },
+      { apiModelId: 'qwen-plus-character' },
+      { apiModelId: 'deepseek-r1' },
+      { apiModelId: 'deepseek-v3' },
       { apiModelId: 'deepseek-v3.2', modelId: 'deepseek-v3-2' },
       { apiModelId: 'deepseek-v3.1', modelId: 'deepseek-v3-1' },
       { apiModelId: 'Moonshot-Kimi-K2-Instruct', modelId: 'kimi-k2' },
       { apiModelId: 'MiniMax-M2.1', modelId: 'minimax-m2-1' }
-    ] satisfies Partial<ProviderModelOverride>[]
-  ).map((row) => ({ ...row, ...endpointPin(row.modelId) }))
+    ] satisfies ProviderModelOffer[]
+  ).map((row) => ({ ...row, ...endpointPin(row.modelId ?? row.apiModelId) }))
 ]
 
 export default defineProvider({
@@ -313,24 +304,24 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
-  // Rebranded to Qwen AI Platform (mainland China); the 'dashscope' id and endpoints stay
-  // unchanged so existing users' keys and configs keep working (ref #18432).
+  // Keep the 'dashscope' identity so existing credentials and saved endpoint
+  // overrides stay attached to the rebranded mainland provider (ref #18432).
   name: 'Qwen AI Platform',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic'
+      baseUrl: 'https://maas.qianwenaiapi.com/apps/anthropic'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }
   },
@@ -339,13 +330,41 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
-      modelIds: ['minimax-m2-1']
+      modelIds: ['minimax-m2-1', 'glm-5-2', 'kimi-k3'],
+      endpointTypes: ['openai-chat-completions', 'openai-responses']
     },
     {
       id: 'url-context',
       modelScope: 'model-dependent',
-      modelIdPrefixes: webExtractorModelPrefixes
-    }
+      modelIdPrefixes: webExtractorModelPrefixes,
+      endpointTypes: ['openai-chat-completions', 'openai-responses']
+    },
+    // https://platform.qianwenai.com/docs/developer-guides/tool-calling/web-scraping
+    ...(['web-search', 'url-context'] as const).map((id) => ({
+      id,
+      modelScope: 'model-dependent' as const,
+      modelIdPrefixes: [
+        'qwen3-7-max',
+        'qwen3-7-plus',
+        'qwen3-7-flash',
+        'qwen3-6-plus',
+        'qwen3-6-flash',
+        'qwen3-5-plus',
+        'qwen3-5-flash'
+      ],
+      modelIds: [
+        'qwen3-8-max',
+        'qwen3-8-flash',
+        'qwen3-8-27b',
+        'qwen3-8-2-4t-a95b',
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-1-flash',
+        'glm-5-2',
+        'kimi-k3'
+      ],
+      endpointTypes: ['anthropic-messages' as const]
+    }))
   ],
   metadata: {
     website: {

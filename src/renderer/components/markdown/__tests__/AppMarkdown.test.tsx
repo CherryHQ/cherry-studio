@@ -96,6 +96,17 @@ After`}</AppMarkdown>
     expect(screen.queryByRole('button', { name: 'code_block.edit.label' })).not.toBeInTheDocument()
   })
 
+  it('keeps chat-style relative images on the default pipeline without an image resolver', () => {
+    const { container } = render(
+      <MarkdownHostProvider openFilePath={vi.fn()}>
+        <AppMarkdown>{'![](images/diagram.png)\n\n![diagram](images/diagram.png)\n\n![icon](./icon.svg)'}</AppMarkdown>
+      </MarkdownHostProvider>
+    )
+    expect(screen.getByText('diagram')).toBeVisible()
+    expect(container.querySelectorAll('img')).toHaveLength(1)
+    expect(screen.getByRole('img', { name: 'icon' })).toHaveAttribute('src', '/icon.svg')
+  })
+
   it('opens relative links only through an explicitly supplied host', async () => {
     const user = userEvent.setup()
     const openFilePath = vi.fn()
@@ -107,4 +118,16 @@ After`}</AppMarkdown>
     await user.click(screen.getByRole('link', { name: 'Guide' }))
     expect(openFilePath).toHaveBeenCalledWith('./guide.md')
   })
+})
+
+it.each([false, true])('keeps knowledge hrefs through AppMarkdown (streaming: %s)', (isStreaming) => {
+  const hrefs = ['zotero://select/items/Note', 'obsidian://new?file=Note', 'siyuan://blocks/Note']
+  render(
+    <AppMarkdown id="knowledge-protocols" isStreaming={isStreaming}>
+      {hrefs.map((href, index) => `[Note ${index}](${href})`).join('\n\n')}
+    </AppMarkdown>
+  )
+  hrefs.forEach((href, index) =>
+    expect(screen.getByRole('link', { name: `Note ${index}` })).toHaveAttribute('href', href)
+  )
 })

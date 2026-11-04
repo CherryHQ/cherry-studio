@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -94,6 +93,9 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
   return runtime !== null
 }
 
+/** In-place navigation a routed host supplies; without it the fork-source link is hidden. */
+export type NavigateToForkSource = (input: { sourceSessionId: string; returnSessionId?: string }) => Promise<void>
+
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
@@ -114,16 +116,21 @@ interface AgentMessageListParams {
   openArtifactFile?: MessageListActions['openArtifactFile']
   openBrowserUrl?: MessageListActions['openBrowserUrl']
   openExternalUrl?: MessageListActions['openExternalUrl']
+  previewInputFile?: MessageListActions['previewInputFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
+  navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 /**
@@ -175,23 +182,27 @@ export function useAgentMessageListProviderValue({
   isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
+  previewInputFile,
   openBrowserUrl,
   openExternalUrl,
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval,
+  navigateToForkSource,
   imageActionConsumer,
   messageNavigation,
   workspacePath,
-  messageTail
+  messageTail,
+  afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
-  const navigate = useNavigate()
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -389,17 +400,14 @@ export function useAgentMessageListProviderValue({
     async (sourceSessionId: string) => {
       try {
         await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
-        await navigate({
-          to: '/app/agents',
-          search: { sessionId: sourceSessionId, forkReturnSessionId: sessionId ?? undefined }
-        })
+        await navigateToForkSource?.({ sourceSessionId, returnSessionId: sessionId ?? undefined })
       } catch (error) {
         notifyError(
           isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
         )
       }
     },
-    [navigate, notifyError, sessionId, t]
+    [navigateToForkSource, notifyError, sessionId, t]
   )
   const forkSession = useCallback(
     async (messageId: string) => {
@@ -424,11 +432,13 @@ export function useAgentMessageListProviderValue({
   const state = useMemo<MessageListState>(
     () => ({
       topic,
+      getMessageSiblings,
       messages: messageItems,
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
       messageTail: normalInteractionsEnabled ? messageTail : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -444,6 +454,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       getMessageActivityState,
+      getMessageSiblings,
       hasOlder,
       isLoading,
       leafCapabilities,
@@ -453,6 +464,7 @@ export function useAgentMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageTail,
+      afterMessages,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
@@ -466,6 +478,7 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
@@ -474,7 +487,7 @@ export function useAgentMessageListProviderValue({
             void startEditing(message.id)
           }
         : undefined,
-      openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
+      openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
@@ -497,6 +510,7 @@ export function useAgentMessageListProviderValue({
       isDirectory,
       openPath,
       openArtifactFile,
+      previewInputFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
       isAgentToolFlowActive,
@@ -511,8 +525,10 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      setActiveBranch,
       startEditing,
       editBusy,
+      navigateToForkSource,
       openForkSourceSession,
       t,
       abortTool,
@@ -532,6 +548,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       openCitationsPanel,
       openArtifactFile,
+      previewInputFile,
       openDiagnosticReport,
       openBrowserUrl,
       openExternalUrl,

@@ -1,5 +1,4 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
-import type { ProviderModelOverride } from '../schemas/provider-models'
 import { fixedSamplingParameterSupport } from './parameterSupports'
 import {
   effortChatWire,
@@ -11,7 +10,7 @@ import {
   qwen38Support,
   qwenChatWire
 } from './qwenFamily'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
 
 /**
@@ -76,10 +75,15 @@ const qwencloudResponsesSupport: ReasoningSupport = {
   supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
-const responsesEffortWire = modeWire(
+/**
+ * Hosted DeepSeek-V4 / GLM-5.2 default to `high` on Responses, and an `xhigh` ask maps to
+ * `max` server-side (api-reference/chat/openai-responses) — the endpoint-wide `xhigh` auto
+ * default would silently select their maximum effort tier.
+ */
+const hostedResponsesEffortWire = modeWire(
   'reasoningEffort',
   { off: 'none', auto: EFFORT, effort: EFFORT },
-  { autoEffort: 'xhigh' }
+  { autoEffort: 'high' }
 )
 
 /**
@@ -95,6 +99,13 @@ const listedModels = [
   'glm-5.3',
   'kimi-k2.7-code',
   'qwen3.8-2.4t-a95b',
+  'qwen3.8-27b',
+  'qwen3.6-27b',
+  'qwen3.6-35b-a3b',
+  'qwen3.5-27b',
+  'qwen3.5-35b-a3b',
+  'qwen3.5-122b-a10b',
+  'qwen3.5-397b-a17b',
   'qwq-plus',
   'qwen-vl-max',
   'qwen-vl-plus',
@@ -106,29 +117,37 @@ const listedModels = [
 ]
 
 /**
- * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table; omni
- * lines ride the multimodal API. Prefixes hit canonical ids, so dated snapshots and `-preview` fold in.
+ * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table.
+ * Max uses an exact canonical id to exclude the undocumented Qwen3.8 Max Preview variant.
  */
 const webSearchModelPrefixes = [
-  'qwen3-8-max',
+  'qwen3-8-flash',
   'qwen3-8-2-4t-a95b',
+  'qwen3-8-27b',
   'qwen3-7-max',
   'qwen3-7-plus',
   'qwen3-7-flash',
   'qwen3-6-plus',
   'qwen3-6-flash',
+  'qwen3-6-27b',
+  'qwen3-6-35b-a3b',
   'qwen3-5-plus',
   'qwen3-5-flash',
+  'qwen3-5-27b',
+  'qwen3-5-35b-a3b',
+  'qwen3-5-122b-a10b',
+  'qwen3-5-397b-a17b',
   'qwen3-max'
 ]
 
 /**
  * Responses `web_search` tool lines from the same table — a CLOSED id list, not a family prefix:
  * `deepseek-v4` would also claim flash-vision-exp and `glm-5-2` the -fast variant, neither of
- * which the docs serve search on. Dated snapshots pro-0813/flash-0731 are listed upstream but
- * absent from the catalog; append them here once models.dev carries them.
+ * which the docs serve search on. kimi-k3 is documented "supported only by the Responses API".
+ * Dated snapshots 0813/0731/1017 are listed upstream but absent from the catalog; append them
+ * here once models.dev carries them.
  */
-const responsesSearchModelIds = ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2']
+const responsesSearchModelIds = ['deepseek-v4-1-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2', 'kimi-k3']
 
 /** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
 const qwenImage3Mode: ImageModeDef = {
@@ -240,29 +259,27 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://dashscope-intl.aliyuncs.com/apps/anthropic'
+      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/apps/anthropic'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/',
+      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  // Strategy tiers stay per model: `getWebSearchParams` narrows `search_strategy` by the same table.
-  // Two declarations split the serving scope by endpoint: qwen3.x lines search via Chat's
-  // enable_search, the DeepSeek/GLM ids via the Responses `web_search` tool only ("Responses API
-  // only" in the docs table) — pinning Chat on those models drops the server side instead of
-  // silently sending no search.
+  // Anthropic scope follows the explicit example and regional DeepSeek support in
+  // https://docs.qwencloud.com/developer-guides/tool-calling/web-scraping.
   serverTools: [
     {
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
+      modelIds: ['qwen3-8-max', 'qwen3-8-omni-flash'],
       endpointTypes: ['openai-chat-completions']
     },
     {
@@ -270,7 +287,13 @@ export default defineProvider({
       modelScope: 'model-dependent',
       modelIds: responsesSearchModelIds,
       endpointTypes: ['openai-responses']
-    }
+    },
+    ...(['web-search', 'url-context'] as const).map((id) => ({
+      id,
+      modelScope: 'model-dependent' as const,
+      modelIds: ['qwen3-8-max', 'deepseek-v4-1-flash'],
+      endpointTypes: ['anthropic-messages' as const]
+    }))
   ],
   metadata: {
     website: {
@@ -282,23 +305,23 @@ export default defineProvider({
   },
   overrides: [
     ...qwenChatModels.map(
-      (modelId): Partial<ProviderModelOverride> => ({
-        modelId,
+      (apiModelId): ProviderModelOffer => ({
+        apiModelId,
         reasoningContracts: {
           'openai-chat-completions': { wire: qwenChatWire }
         }
       })
     ),
     ...highMaxModels.map(
-      (modelId): Partial<ProviderModelOverride> => ({
-        modelId,
+      (apiModelId): ProviderModelOffer => ({
+        apiModelId,
         reasoningContracts: {
           'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
         }
       })
     ),
     {
-      modelId: 'glm-5.1',
+      apiModelId: 'glm-5.1',
       reasoningContracts: {
         'openai-chat-completions': { support: glm51ChatSupport, wire: effortChatWire }
       }
@@ -328,9 +351,21 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'kimi-k3',
+      // The standalone Omni preset serves Chat search with the agent strategy.
+      apiModelId: 'qwen3.8-omni-flash',
+      modelId: 'qwen3-8-omni-flash',
+      name: 'Qwen3.8 Omni Flash',
+      reasoningContracts: {
+        'openai-chat-completions': { wire: qwenChatWire }
+      }
+    },
+    {
+      apiModelId: 'kimi-k3',
       // Same passthrough as dashscope: the intl endpoint forwards to Moonshot's backend too.
+      // Responses stays selectable because Kimi K3's native web search is documented
+      // Responses-only ("supported only by the Responses API" in the web-search table).
       parameterSupport: fixedSamplingParameterSupport,
+      endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
       }
@@ -338,25 +373,25 @@ export default defineProvider({
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only — Responses stays the
     // default endpoint so their search is reachable, Chat remains selectable for plain requests. Both
     // endpoints carry their documented Chat/Responses effort ladders (see the constants above).
-    ...(['deepseek-v4-pro', 'deepseek-v4-flash'] as const).map(
-      (modelId): Partial<ProviderModelOverride> => ({
-        modelId,
+    ...(['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash'] as const).map(
+      (apiModelId): ProviderModelOffer => ({
+        apiModelId,
         endpointTypes: ['openai-responses', 'openai-chat-completions'],
         reasoningContracts: {
           'openai-chat-completions': { support: deepseekV4ChatSupport, wire: effortChatWire },
-          'openai-responses': { support: qwencloudResponsesSupport, wire: responsesEffortWire }
+          'openai-responses': { support: qwencloudResponsesSupport, wire: hostedResponsesEffortWire }
         }
       })
     ),
     {
-      modelId: 'glm-5.2',
+      apiModelId: 'glm-5.2',
       endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { support: glm52ChatSupport, wire: effortChatWire },
-        'openai-responses': { support: qwencloudResponsesSupport, wire: responsesEffortWire }
+        'openai-responses': { support: qwencloudResponsesSupport, wire: hostedResponsesEffortWire }
       }
     },
-    ...listedModels.map((modelId): Partial<ProviderModelOverride> => ({ modelId })),
+    ...listedModels.map((apiModelId): ProviderModelOffer => ({ apiModelId })),
     /**
      * Image SKUs per the QwenCloud image-models catalog (docs.qwencloud.com): sync multimodal
      * qwen-image-2.x/3.x + z-image lines, legacy async wan/qwen-image SKUs shared with the mainland

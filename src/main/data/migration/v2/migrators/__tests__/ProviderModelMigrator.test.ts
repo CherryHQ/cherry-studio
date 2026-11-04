@@ -168,23 +168,26 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
-    it.each(['github', 'yi'])('skips retired %s providers and preset-derived copies', async (providerId) => {
-      const migrationContext = createContext(dbh.db, {
-        llm: {
-          providers: [
-            makeProvider(providerId, [{ id: 'legacy-model' }]),
-            { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
-            makeProvider('openai')
-          ]
-        }
-      })
+    it.each(['github', 'yi', 'hunyuan', 'tencent-cloud-ti'])(
+      'skips retired %s providers and preset-derived copies',
+      async (providerId) => {
+        const migrationContext = createContext(dbh.db, {
+          llm: {
+            providers: [
+              makeProvider(providerId, [{ id: 'legacy-model' }]),
+              { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
+              makeProvider('openai')
+            ]
+          }
+        })
 
-      const result = await migrator.prepare(migrationContext)
+        const result = await migrator.prepare(migrationContext)
 
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(1)
-      expect(result.warnings).toContain('Skipped 2 retired provider(s)')
-    })
+        expect(result.success).toBe(true)
+        expect(result.itemCount).toBe(1)
+        expect(result.warnings).toContain('Skipped 2 retired provider(s)')
+      }
+    )
 
     it('returns an error ID when preparation fails', async () => {
       const cause = new Error('redux state unreadable')
@@ -782,9 +785,9 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(registryFixtures.loaderPaths.at(-1)).toEqual({
-        models: '/mock/feature.provider_registry.data/models.json',
-        providers: '/mock/feature.provider_registry.data/providers.json',
-        providerModels: '/mock/feature.provider_registry.data/provider-models.json'
+        models: path.resolve('/mock/feature.provider_registry.data/models.json'),
+        providers: path.resolve('/mock/feature.provider_registry.data/providers.json'),
+        providerModels: path.resolve('/mock/feature.provider_registry.data/provider-models.json')
       })
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...

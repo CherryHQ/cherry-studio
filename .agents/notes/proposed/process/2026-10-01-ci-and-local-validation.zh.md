@@ -82,7 +82,7 @@ CI 和本地 coding agent 花费时间检查无关代码，但各自维护的任
 
 不同 worktree 主要竞争 CPU、内存和 I/O。同一 worktree 内并发执行还会共享可变构建产物、缓存及 native binary。本轮没有进行本地多 agent 负载基准或冲突复现；资源竞争机制由命令结构支持，但本机减速比例尚未测量。
 
-Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文件，不能把“启用增量”当作缺失功能。[二进制下载器](../../../../scripts/download-binaries.js)已有按版本共享的缓存，不能未经测量就假设每次都重复下载。Native 边界见 [ABI 契约](../../../../docs/references/testing/database-testing.md#better-sqlite3-native-module-abi)。
+Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文件，不能把“启用增量”当作缺失功能。[二进制下载器](../../../../scripts/download-binaries.js)已有按版本共享的缓存，不能未经测量就假设每次都重复下载。Native 边界见 [ABI 契约](../../../../docs/dev/references/testing/database-testing.md#better-sqlite3-native-module-abi)。
 
 ## Proposal
 
@@ -174,12 +174,10 @@ job/step 时间戳，发布摘要与 JSON artifact，仅比较任务范围、run
 
 ## Acceptance criteria
 
-| 阶段 | 工作 | 验证 |
-| --- | --- | --- |
-| 1 | 统一清单、改动分类、文档路径、补齐 package 测试、取消旧 PR 运行 | 重放代表性历史文件集，证明各 package 测试被选中，门禁语义仍正确 |
-| 2 | 本地命令契约明确化和限制并发 | 文件参数只进入目标项目；检查模式不改 tracked 源码；指令与命令一致 |
-| 3 | CI 重检查独立调度、复用准备 | 对比等价 CI 的总耗时、runner 分钟数、准备时间和失败情况 |
-| 4 | 缓存和更细依赖选择 | 验证冷热失效、删除及重命名、资源改动，不复用过期成功结果 |
+- AC1 — 代表性历史文件集会选择统一清单、文档路径及每个独立 package 的测试；必需门禁保持有效，同时取消被替代的 PR 运行。（verification: scripts 单元测试及必需汇总门禁）
+- AC2 — 文件参数只进入目标项目，检查模式不改 tracked 源码，本地执行保持有界，且指令与实际命令一致。（verification: scripts 单元测试及干净工作树命令运行）
+- AC3 — CI 重检查可独立调度并复用准备，等价运行会报告总耗时、runner 分钟数、准备时间和失败情况。（verification: CI workflow fixtures 及 metrics artifacts）
+- AC4 — 冷热缓存会在删除、重命名及资源改动时失效，且不会复用过期的成功结果。（verification: 缓存失效测试及等价冷热运行）
 
 选择规则的场景必须包括普通文档、源码 README、运行时 Markdown、main-only、renderer-only、shared、每个独立 package、preload 契约、locale、migration、scripts、根依赖及配置、未知路径、混合改动、删除、重命名、未跟踪输入和缺失 git 历史。计划内 job 失败或取消必须让门禁失败；有意不执行任务必须可见。
 
@@ -197,4 +195,4 @@ job/step 时间戳，发布摘要与 JSON artifact，仅比较任务范围、run
 - [Vitest related tests](https://vitest.dev/guide/cli.html#vitest-related) 与 [worker 限制](https://vitest.dev/config/maxworkers)：静态依赖边界和单次调用的 worker 控制。
 - [TypeScript 增量编译](https://www.typescriptlang.org/tsconfig/incremental.html)：现有项目缓存行为。
 - [GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)：过滤、并发及跳过必需工作流的行为。
-- [文档治理提案](2026-08-18-docs-governance-and-spec-workflow.zh.md)：本 proposed Agent Note 的归属，以及工作流实际执行与本地脚本别名的区别。
+- [文档治理提案](../../implemented/process/2026-08-18-docs-governance-and-spec-workflow.md)：本 proposed Agent Note 的归属，以及工作流实际执行与本地脚本别名的区别。

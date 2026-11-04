@@ -66,6 +66,21 @@ describe('search', () => {
     expect(getSearchMatchScore('gpt ---', fields)).toBeNull()
   })
 
+  it('adds Chinese initials only after existing matches, preserving score and field rules', () => {
+    const fields: ModelSearchField[] = [{ value: '知识库模型', weight: 0, allowAbbreviation: true }]
+    expect(getSearchMatchScore('zskmx', fields)).not.toBeNull()
+    expect(getSearchMatchScore('zkm', fields)).toBeNull()
+    expect(getSearchMatchScore('知识', fields)).toBe(0)
+    expect(getSearchMatchScore('zsk missing', fields)).toBeNull()
+    expect(getSearchMatchScore('zsk', [{ value: '知识库', weight: 30 }])).toBeNull()
+    expect(getSearchMatchScore('zsk', [{ value: '知识库', weight: 2, allowPinyin: true }])).not.toBeNull()
+    const literalScore = getSearchMatchScore('zsk', [{ value: 'zsk', weight: 30 }])!
+    expect(getSearchMatchScore('zsk', [...fields, { value: 'zsk', weight: 30 }])).toBe(literalScore)
+    expect(getSearchMatchScore('zsk', fields)).toBeGreaterThan(
+      getSearchMatchScore('zsk', [{ value: 'zsk', weight: 0 }])!
+    )
+  })
+
   describe('ranking and abbreviations contract tests', () => {
     const testFields = [
       { value: 'DeepSeek-V3', weight: 0, allowAbbreviation: true },

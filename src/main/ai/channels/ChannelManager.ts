@@ -21,7 +21,7 @@ const logger = loggerService.withContext('ChannelManager')
 
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
+@DependsOn(['WindowManager', 'FileManager', 'PowerService'])
 export class ChannelManager extends BaseService {
   readonly registration = new ChannelRegistration()
   private readonly runtimes = new Map<string, ChannelRuntime>()
@@ -29,6 +29,7 @@ export class ChannelManager extends BaseService {
   private acceptingConnections = false
 
   protected async onReady(): Promise<void> {
+    this.registerDisposable(application.get('PowerService').onResume(() => this.handleSystemResume()))
     await this.start()
   }
 
@@ -124,6 +125,10 @@ export class ChannelManager extends BaseService {
 
   getChannelLogs(channelId: string): ChannelLogEntry[] {
     return this.channelLogs.get(channelId)
+  }
+
+  private handleSystemResume(): void {
+    for (const runtime of this.runtimes.values()) runtime.adapter?.handleSystemResume()
   }
 
   private getOrCreateRuntime(channelId: string): ChannelRuntime {

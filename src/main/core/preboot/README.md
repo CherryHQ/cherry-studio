@@ -118,9 +118,11 @@ preboot/
 │                        (if any) at the top of startApp(), after the
 │                        single-instance lock and the frozen path registry,
 │                        before v2MigrationGate reads the DB. Thin shell that
-│                        never throws — except when recovery left no live DB
-│                        at all (booting on would create a fresh empty
-│                        database), where it fails fast instead. The
+│                        synchronously isolates sessionData before Sentry or
+│                        asynchronous startup can open the live profile. An
+│                        isolated restore launch relaunches before bootstrap;
+│                        the next normal launch cleans up the temporary session.
+│                        Stranded DBs and unresolved isolated journals fail fast. The
 │                        promotion logic lives in src/main/data/db/restore/
 │                        (same layering as v2MigrationGate → MigrationEngine).
 ├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
@@ -150,6 +152,8 @@ development profile must be isolated. Cherry home, BootConfig, legacy config
 discovery, Electron `userData`, and logs are placed below that root. Relative
 paths and the filesystem root abort startup. Packaged builds ignore the
 variable. When set, it takes precedence over `CS_DEV_USER_DATA_SUFFIX`.
+Electron's temporary directory is explicitly set to `{profileRoot}/home/temp`
+before the path registry is initialized; macOS does not honor `TMPDIR` for this API.
 
 ```bash
 CS_DEV_PROFILE_ROOT=/absolute/path/to/cherry-profile pnpm dev

@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
+import { Check, CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +9,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { CodeCli } from '@shared/types/codeCli'
 
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import { ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 
 const LEGAL_AND_COMPLIANCE_URL = 'https://code.claude.com/docs/en/legal-and-compliance'
@@ -26,6 +27,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
   const [launching, setLaunching] = useState(false)
+  const [commandCopied, copyCommand] = useCopyToClipboard()
 
   const checkLogin = useCallback(async () => {
     setChecking(true)
@@ -61,16 +63,6 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
       toast.error(t('settings.provider.claude_code.launch_failed'))
     } finally {
       setLaunching(false)
-    }
-  }, [t])
-
-  const handleCopyCommand = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(LOGIN_COMMAND)
-      toast.success(t('common.copied'))
-    } catch (error) {
-      logger.error('Failed to copy login command', error as Error)
-      toast.error(t('common.copy_failed'))
     }
   }, [t])
 
@@ -124,8 +116,8 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
               <TerminalSquare className="size-4" />
               {t('settings.provider.claude_code.open_terminal')}
             </Button>
-            <Button variant="secondary" onClick={() => void handleCopyCommand()}>
-              <Copy className="size-4" />
+            <Button variant="secondary" onClick={() => void copyCommand(LOGIN_COMMAND)}>
+              {commandCopied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
               <code className="font-mono">{LOGIN_COMMAND}</code>
             </Button>
             <Button variant="secondary" disabled={checking} onClick={() => void checkLogin()}>

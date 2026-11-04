@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -19,6 +20,7 @@ import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
+import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -73,6 +75,8 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /** Product position captured before asynchronous connection work. */
+  branchHead?: string
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
@@ -116,6 +120,8 @@ export type AgentRuntimeEvent =
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
+        /** Present only when the driver froze pricing at the provider invocation boundary. */
+        pricingSnapshot?: AiUsagePricingSnapshot | null
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
         usage?: {
@@ -146,7 +152,7 @@ export type AgentRuntimeEvent =
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
-  | { type: 'compaction-error'; error: string }
+  | { type: 'compaction-error'; error: string; aborted?: boolean }
   /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
@@ -189,6 +195,8 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /** The configured Runtime owner remains resident until explicit retirement. */
+  readonly retainWhileIdle?: boolean
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
@@ -236,12 +244,26 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
+  childProjection?(
+    toolCallId: string
+  ): Promise<
+    { snapshot(): AgentChildView; subscribe(listener: (update: AgentChildUpdate) => void): () => void } | undefined
+  >
+  messageChild?(contextId: string, text: string): Promise<void>
+  /** Wait for admitted child execution and its archive writes; does not close the owner. */
+  drainChildWrites?(): Promise<void>
+  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  interrupt?(): Promise<void>
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  /** Native artifact ownership and checkpoint remapping before session recovery. */
+  readonly workspaceRelocation?: RuntimeWorkspaceRelocation
+  /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
+  recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
@@ -271,6 +293,19 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
     keptResumeTokens: ReadonlySet<string>,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
+  /**
+   * Reclaim artifacts for exactly these known, permanently purged resume tokens.
+   * This is not a discovery sweep: the caller has drained the runtime and deleted
+   * the rows, so no freshness gate applies. Never touch artifacts for tokens
+   * outside the set, even when another session writes in the same tree.
+   * Must be idempotent and no-op when the runtime root does not exist.
+   */
+  reclaimPurgedSessions?(purgedResumeTokens: ReadonlySet<string>): Promise<{ removed: string[] }>
+  /**
+   * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
+   * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
+   */
+  readTranscriptEvidence?(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined>
 }
 
 export interface OrphanSessionReclaimOptions {

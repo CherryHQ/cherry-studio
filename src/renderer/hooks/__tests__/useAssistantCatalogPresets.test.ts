@@ -97,6 +97,20 @@ describe('assistant catalog presets', () => {
     expect(filterAssistantCatalogPresets(presets, ASSISTANT_CATALOG_MY_TAB, 'product')).toEqual([])
   })
 
+  it('searches preset names by initials within the selected category without romanizing prompts', () => {
+    const presets = [
+      { id: 'name', name: '知识库助手', group: ['Career'] },
+      { id: 'prompt', name: 'Other', prompt: '知识库助手', group: ['Career'] },
+      { id: 'category', name: '知识库助手', group: ['Business'] }
+    ]
+    expect(filterAssistantCatalogPresets(presets, 'Career', 'ZSKZS').map((preset) => preset.id)).toEqual(['name'])
+    expect(filterAssistantCatalogPresets(presets, 'Career', '知识').map((preset) => preset.id)).toEqual([
+      'name',
+      'prompt'
+    ])
+    expect(filterAssistantCatalogPresets(presets, 'Career', 'zk')).toEqual([])
+  })
+
   it('builds a DataApi create payload from a catalog preset without legacy fields', () => {
     const dto = toCreateAssistantDtoFromCatalogPreset({
       id: '550e8400-e29b-41d4-a716-446655440000',

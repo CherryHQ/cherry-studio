@@ -5,6 +5,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@renderer/data/CacheService'
 import {
   agentBrowserRuntimeService as runtime,
   topicBrowserRuntimeService as topicRuntime
@@ -266,6 +267,52 @@ describe('AgentBrowserRuntimeHost', () => {
     const chatSelection = selectContents(messages)
     emitCursorState(pressed(2))
     expect(chatSelection.rangeCount).toBe(0)
+  })
+
+  it.each(['switch', 'close'] as const)('keeps a running guest after tab %s until its turn ends', async (action) => {
+    const key = 'topic.stream.statuses.agent-session:session-a' as const
+    const status = { activeExecutions: [], awaitingApprovalAnchors: [] }
+    cacheService.setShared(key, { ...status, status: 'streaming' })
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    if (action === 'switch') act(() => runtime.declare('session-b', 'tab-a'))
+    else bridge.tabs = []
+    view.rerender(<Harness visible={false} />)
+    act(() => runtime.reconcileOwners(new Set(bridge.tabs.map((tab) => tab.id))))
+    act(() => cacheService.setShared(key, { ...status, status: 'awaiting-approval' }))
+    act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'session-a' }))
+
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    expect(bridge.binding).toBe(42)
+    expect(runtime.get('session-a')?.anchor).toBeNull()
+    act(() => cacheService.setShared(key, { ...status, status: 'done' }))
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+    expect(guest.isConnected).toBe(false)
+    expect(runtime.get('session-a')).toBeUndefined()
+    act(() => runtime.ensure('session-a'))
+    expect(runtime.get('session-a')).toBeUndefined()
+  })
+
+  it('can create a guest after switching away during a pending turn and retain it when switching back', async () => {
+    const key = 'topic.stream.statuses.agent-session:session-a' as const
+    const status = { activeExecutions: [], awaitingApprovalAnchors: [] }
+    cacheService.setShared(key, { ...status, status: 'pending' })
+    const view = render(<Harness visible={false} />)
+    act(() => runtime.declare('session-b', 'tab-a'))
+    act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'session-a' }))
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    act(() => runtime.declare('session-a', 'tab-a'))
+    view.rerender(<Harness visible />)
+    act(() => cacheService.setShared(key, { ...status, status: 'done' }))
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    expect(bridge.binding).toBe(42)
+    act(() => runtime.close('session-a'))
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
   })
 
   it('releases the previous session guest when its only owning tab changes sessions', async () => {

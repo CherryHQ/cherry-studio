@@ -1,9 +1,13 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { Agent } from 'undici'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport,
+  type ImageTransportDescriptor
 } from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
@@ -27,6 +31,14 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
  */
 
 export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://dashscope.aliyuncs.com'
+
+// undici abandons response headers after 300s, below a sync image model's submit budget;
+// an injected fetch has no such bound, so this only backs the global-fetch fallback.
+const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+const longRunningDispatcher = new Agent({
+  headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
+  bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
+})
 
 export class DashScopeApiError extends Error {
   constructor(
@@ -110,8 +122,8 @@ export interface DashScopeProviderParams {
 export interface DashScopeTransportSettings {
   apiKey: string
   imageBaseURL?: string
-  /** Proxy-aware fetch from the provider config (Electron `net`); defaults to global fetch. */
-  fetch?: typeof globalThis.fetch
+  /** Proxy-aware fetch from provider settings; falls back to global `fetch` when unset. */
+  fetch?: FetchFunction
   /** Provider-level extra headers merged into every image request. */
   headers?: Record<string, string>
 }
@@ -373,6 +385,7 @@ function buildRequestBody(
     case 'wanx-v1':
       return buildWanxV1Body(input, bag)
     case 'wan2.5-i2i-preview':
+    case 'wan2-5-i2i-preview':
       return buildWan25I2IBody(input, bag)
     case 'qwen-mt-image':
       return buildQwenMtImageBody(input, bag)
@@ -386,14 +399,14 @@ function buildRequestBody(
 class DashScopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
-  private fetchFn: typeof globalThis.fetch | undefined
+  private fetch?: FetchFunction
   private extraHeaders: Record<string, string> | undefined
   private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
 
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
-    this.fetchFn = settings.fetch
+    this.fetch = settings.fetch
     this.extraHeaders = settings.headers
   }
 
@@ -407,7 +420,7 @@ class DashScopeTransport implements ImageGenerationTransport {
     const extraHeaders: Record<string, string> = descriptor.isSync ? {} : { 'X-DashScope-Async': 'enable' }
 
     const response = await this.request<DashScopeTaskResult>(descriptor.endpoint, 'POST', body, {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal,
       extraHeaders
     })
@@ -539,7 +552,7 @@ class DashScopeTransport implements ImageGenerationTransport {
       externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { dispatcher?: Agent } = {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -552,9 +565,10 @@ class DashScopeTransport implements ImageGenerationTransport {
     if (method === 'POST' && body !== undefined) {
       fetchOptions.body = JSON.stringify(body)
     }
+    if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
-      const response = await (this.fetchFn ?? fetch)(`${this.baseURL}${path}`, fetchOptions)
+      const response = await (this.fetch ?? fetch)(`${this.baseURL}${path}`, fetchOptions)
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new DashScopeApiError(`DashScope API error: ${response.status} - ${errorText}`, response.status)

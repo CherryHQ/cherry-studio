@@ -11,6 +11,12 @@ const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
   '/clear': 'chat.input.slash_commands.commands.clear',
   '/compact': 'chat.input.slash_commands.commands.compact',
   '/context': 'chat.input.slash_commands.commands.context',
+  '/goal': 'chat.input.slash_commands.commands.goal',
+  '/insights': 'chat.input.slash_commands.commands.insights',
+  '/list-agents': 'chat.input.slash_commands.commands.list_agents',
+  '/recap': 'chat.input.slash_commands.commands.recap',
+  '/security-review': 'chat.input.slash_commands.commands.security_review',
+  '/team-onboarding': 'chat.input.slash_commands.commands.team_onboarding',
   '/usage': 'chat.input.slash_commands.commands.usage'
 }
 
@@ -63,9 +69,9 @@ const slashCommandsTool = defineTool({
         const slashCommandsLabel = t('chat.input.slash_commands.title')
         // Prefer the live SDK catalog for this session (custom commands included); fall back to the
         // static builtin list before the runtime has reported one (e.g. first paint, no run yet).
-        const slashCommands = session?.slashCommands?.length
-          ? session.slashCommands
-          : getBuiltinSlashCommands(session?.agentType)
+        const liveCommands = session?.slashCommands?.length ? session.slashCommands : undefined
+        const slashCommands: NonNullable<typeof liveCommands> =
+          liveCommands ?? getBuiltinSlashCommands(session?.agentType)
 
         if (slashCommands.length === 0) {
           return []
@@ -74,7 +80,11 @@ const slashCommandsTool = defineTool({
         // Flat root-panel launchers: each slash command is its own "/" root suggestion row.
         // `sources: ['root-panel']` keeps them out of the "+" popover menu.
         const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
-          const descriptionKey = SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+          const descriptionKey = liveCommands
+            ? cmd.builtin === true
+              ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+              : undefined
+            : SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
 
           return {
             id: `slash-command:${cmd.command}`,

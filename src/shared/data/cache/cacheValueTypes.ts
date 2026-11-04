@@ -1,6 +1,7 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 
@@ -12,7 +13,6 @@ import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
-import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
@@ -33,13 +33,14 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
-export type CacheMiniAppType = MiniApp
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  /** Set while `connecting` waits for the user to finish OAuth in the browser. */
+  authorizing?: boolean
 }
 
 /**
@@ -147,6 +148,8 @@ export interface CacheComposerSerializedToken {
 
 export interface CacheComposerAttachment {
   fileTokenSourceId: string
+  /** In-memory attachment; shared by drafts, undo history and queued sends. */
+  blob?: Blob
   path?: AbsoluteFilePath
   name: string
   origin_name: string
@@ -239,3 +242,5 @@ export type CacheMiniAppAttention = {
 
 /** System Doctor run state; see `@shared/types/doctor`. */
 export type CacheDoctorState = DoctorState
+/** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
+export type CacheDoctorAgentState = DoctorAgentState

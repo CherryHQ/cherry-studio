@@ -1,8 +1,10 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import type { CreateMessageRequestParamsBase } from '@modelcontextprotocol/client'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { modelMessageSchema } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -13,6 +15,7 @@ import type * as ImageTransportRegistryModule from '../provider/custom/imageTran
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
+import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
@@ -68,7 +71,8 @@ const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
-    get: mockApplicationGet,
+    get: (name: string) =>
+      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mockApplicationGet(name),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
@@ -165,9 +169,10 @@ vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args),
   definePlugin: (plugin: unknown) => plugin,
   embedMany: async (...args: unknown[]) => {
+    const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
+    const handler = params.onProviderCallStart?.()
     const result = await mockEmbedMany(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
+    handler?.({
       modality: 'embedding',
       requestId: 'ai-core:embedding:test',
       providerId: args[0],
@@ -179,9 +184,10 @@ vi.mock('@cherrystudio/ai-core', () => ({
     return result
   },
   generateImage: async (...args: unknown[]) => {
+    const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
+    const handler = params.onProviderCallStart?.()
     const result = await mockGenerateImage(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
+    handler?.({
       modality: 'image',
       requestId: 'ai-core:image:test',
       providerId: args[0],
@@ -193,9 +199,10 @@ vi.mock('@cherrystudio/ai-core', () => ({
     return result
   },
   rerank: async (...args: unknown[]) => {
+    const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
+    const handler = params.onProviderCallStart?.()
     const result = await mockRerank(...args)
-    const params = args[2] as { onProviderCall?: (event: unknown) => void }
-    params.onProviderCall?.({
+    handler?.({
       modality: 'rerank',
       requestId: 'ai-core:rerank:test',
       providerId: args[0],
@@ -261,6 +268,8 @@ describe('AiService', () => {
     mockAgentGenerate.mockResolvedValue({
       text: 'ok',
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
+      finishReason: 'stop',
+      rawFinishReason: 'end_turn',
       steps: []
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
@@ -292,6 +301,114 @@ describe('AiService', () => {
     // Default: resolve, like the real usage-record store's best-effort contract. Individual
     // tests override with mockRejectedValueOnce to exercise the failure path.
     mockRecordRequest.mockResolvedValue(undefined)
+  })
+
+  describe('sleep prevention', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it.each(['text', 'image', 'embedding', 'rerank'] as const)(
+      'holds independently for concurrent %s requests and releases on success, error, and abort',
+      async (modality) => {
+        const holds = new Set<symbol>()
+        vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+          const token = Symbol()
+          holds.add(token)
+          return {
+            dispose: vi.fn(() => {
+              holds.delete(token)
+            })
+          }
+        })
+        const imageSave = Promise.withResolvers<unknown>()
+        let savingImage = false
+        mockApplicationGet.mockImplementation((name: string) =>
+          name === 'FileManager'
+            ? {
+                createInternalEntry: () => {
+                  savingImage = true
+                  return imageSave.promise
+                }
+              }
+            : defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+        )
+        const service = createService()
+        const transport = {
+          sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+          credentialReceipt: { attribution: 'unknown' },
+          provider: mockProviderGetByProviderId(),
+          model: mockModelGetByKey(),
+          plugins: [],
+          options: {},
+          hookParts: [],
+          nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+        }
+        vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue(transport)
+        vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue(transport)
+        mockResolveImageTransport.mockReturnValue(undefined)
+        const pending: Array<ReturnType<typeof Promise.withResolvers<unknown>>> = []
+        const providerCall = (...args: unknown[]) => {
+          const call = Promise.withResolvers<unknown>()
+          const { abortSignal: signal } = (modality === 'text' ? args[0] : args[2]) as { abortSignal?: AbortSignal }
+          signal?.addEventListener('abort', () => call.reject(signal.reason), { once: true })
+          pending.push(call)
+          return call.promise
+        }
+        const sdkMock = {
+          text: mockAgentGenerate,
+          image: mockGenerateImage,
+          embedding: mockEmbedMany,
+          rerank: mockRerank
+        }[modality]
+        sdkMock.mockImplementation(providerCall)
+        const request = { uniqueModelId: 'test-provider::test-model' as const }
+        const run = (signal?: AbortSignal) => {
+          const input = { ...request, requestOptions: { signal, maxRetries: 0 } }
+          switch (modality) {
+            case 'text':
+              return service.generateText({ ...input, conversation: { id: 'power-test' }, prompt: 'hi' })
+            case 'image':
+              return service.generateImage({ ...input, prompt: 'a cherry', paramValues: {}, cleanupPolicy: 'manual' })
+            case 'embedding':
+              return service.embedMany({ ...input, values: ['hi'] })
+            case 'rerank':
+              return service.rerank({ ...input, query: 'hi', documents: ['hi'] })
+          }
+        }
+        const first = run()
+        const second = run()
+        await vi.waitFor(() => expect(pending).toHaveLength(2))
+        expect(holds.size).toBe(2)
+        pending[0].resolve({
+          text: 'ok',
+          usage: {},
+          steps: [],
+          images: [{ base64: 'YQ==' }],
+          embeddings: [[1]],
+          ranking: []
+        })
+        if (modality === 'image') {
+          await vi.waitFor(() => expect(savingImage).toBe(true))
+          expect(holds.size).toBe(2)
+          imageSave.resolve({ id: 'saved-image' })
+        }
+        await first
+        expect(holds.size).toBe(1)
+        const failure = new Error('provider failed')
+        const rejected = expect(second).rejects.toThrow('provider failed')
+        pending[1].reject(failure)
+        await rejected
+        expect(holds.size).toBe(0)
+
+        const controller = new AbortController()
+        const cancelled = run(controller.signal)
+        await vi.waitFor(() => expect(pending).toHaveLength(3))
+        expect(holds.size).toBe(1)
+        const aborted = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+        controller.abort()
+        await aborted
+        expect(holds.size).toBe(0)
+      }
+    )
   })
 
   it.each(['embedding', 'rerank', 'image'] as const)(
@@ -344,6 +461,127 @@ describe('AiService', () => {
   it('requires one stream topic while allowing a distinct conversation identity', () => {
     expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
     expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
+  })
+
+  it('converts MCP sampling text and media into valid AI SDK messages without enabling tools', async () => {
+    const service = createService()
+    const signal = new AbortController().signal
+    const generate = vi.spyOn(service, 'generateText').mockImplementation(async (request) => {
+      expect(request.messages?.map((message) => modelMessageSchema.parse(message))).toEqual([
+        { role: 'user', content: [{ type: 'text', text: 'Describe these attachments.' }] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Previous attachments:' },
+            { type: 'file', data: 'aW1hZ2U=', mediaType: 'image/png' },
+            { type: 'file', data: 'YXVkaW8=', mediaType: 'audio/wav' }
+          ]
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'image', image: 'aW1hZ2U=', mediaType: 'image/png' },
+            { type: 'file', data: 'YXVkaW8=', mediaType: 'audio/wav' }
+          ]
+        }
+      ])
+      expect(request).toMatchObject({
+        uniqueModelId: 'test-provider::test-model',
+        system: 'Be concise.',
+        disableTools: true,
+        callOverrides: { maxOutputTokens: 100, temperature: 0.2, stopSequences: ['END'] },
+        requestOptions: { signal }
+      })
+      return { text: 'An image and audio.', finishReason: 'stop', rawFinishReason: 'end_turn' }
+    })
+    try {
+      await expect(
+        service.generateMcpSampling(
+          'test-provider::test-model',
+          {
+            systemPrompt: 'Be concise.',
+            maxTokens: 100,
+            temperature: 0.2,
+            stopSequences: ['END'],
+            messages: [
+              { role: 'user', content: { type: 'text', text: 'Describe these attachments.' } },
+              {
+                role: 'assistant',
+                content: [
+                  { type: 'text', text: 'Previous attachments:' },
+                  { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+                  { type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' }
+                ]
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+                  { type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' }
+                ]
+              }
+            ]
+          },
+          signal
+        )
+      ).resolves.toEqual({
+        model: 'test-provider::test-model',
+        role: 'assistant',
+        content: { type: 'text', text: 'An image and audio.' },
+        stopReason: 'endTurn'
+      })
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
+  it.each([
+    { finishReason: 'length' as const, rawFinishReason: 'max_tokens', stopReason: 'maxTokens' },
+    { finishReason: 'stop' as const, rawFinishReason: 'stop_sequence', stopReason: 'stopSequence' },
+    { finishReason: 'stop' as const, rawFinishReason: 'end_turn', stopReason: 'endTurn' }
+  ])(
+    'maps $rawFinishReason sampling completion to $stopReason',
+    async ({ finishReason, rawFinishReason, stopReason }) => {
+      const service = createService()
+      const generate = vi
+        .spyOn(service, 'generateText')
+        .mockResolvedValue({ text: 'answer', finishReason, rawFinishReason })
+      try {
+        await expect(
+          service.generateMcpSampling(
+            'test-provider::test-model',
+            { maxTokens: 100, messages: [{ role: 'user', content: { type: 'text', text: 'Question' } }] },
+            new AbortController().signal
+          )
+        ).resolves.toMatchObject({ stopReason })
+      } finally {
+        generate.mockRestore()
+      }
+    }
+  )
+
+  it.each(['tool_use', 'tool_result'] as const)('rejects unsupported sampling %s before generation', async (type) => {
+    const service = createService()
+    const generate = vi.spyOn(service, 'generateText')
+    try {
+      const content =
+        type === 'tool_use'
+          ? { type, id: 'tool-1', name: 'read_file', input: {} }
+          : { type, toolUseId: 'tool-1', content: [{ type: 'text', text: 'secret' }] }
+      await expect(
+        service.generateMcpSampling(
+          'test-provider::test-model',
+          {
+            maxTokens: 100,
+            messages: [{ role: 'assistant', content }]
+          } as CreateMessageRequestParamsBase,
+          new AbortController().signal
+        )
+      ).rejects.toThrow(`Unsupported MCP sampling content type: ${type}`)
+      expect(generate).not.toHaveBeenCalled()
+    } finally {
+      generate.mockRestore()
+    }
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
@@ -1015,7 +1253,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -1064,7 +1302,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1095,7 +1333,6 @@ describe('AiService tool approval', () => {
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         topicId: 'topic-1',
@@ -1110,7 +1347,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
@@ -1141,7 +1378,7 @@ describe('AiService tool approval', () => {
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream }
       return undefined
     })
     const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
@@ -1166,7 +1403,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1188,7 +1425,6 @@ describe('AiService tool approval', () => {
     // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         approvalDecisions: [{ approvalId: 'mcp-approval-missing', approved: false }]
@@ -1201,7 +1437,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1234,7 +1470,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1266,7 +1502,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1865,7 +2101,7 @@ describe('AiService tool approval', () => {
 
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]
@@ -1882,7 +2118,7 @@ describe('AiService tool approval', () => {
 
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1910,7 +2146,7 @@ describe('AiService tool approval', () => {
 
   it('disables reasoning on the text-generation probe', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1957,7 +2193,7 @@ describe('AiService tool approval', () => {
   it('checks image-only models through the image endpoint, not chat', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-image',
       providerId: 'test-provider',
@@ -1979,7 +2215,7 @@ describe('AiService tool approval', () => {
   it('checks chat models that can also generate images through text generation', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-multimodal',
       providerId: 'test-provider',
@@ -2296,6 +2532,98 @@ describe('AiService tool approval', () => {
     })
 
     await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
+  })
+
+  describe('checkModel — OpenRouter rerank', () => {
+    let service: InstanceType<typeof AiService>
+    let fetchMock: ReturnType<typeof vi.mocked<typeof CustomFetchModule.customFetch>>
+    const uniqueModelId = 'openrouter::cohere/rerank-4-pro'
+    const apiKey = 'openrouter-health-check-key'
+
+    beforeEach(async () => {
+      // Keep the existing service/HTTP harness, but load AiService against real ai-core.
+      vi.doUnmock('@cherrystudio/ai-core')
+      vi.resetModules()
+      const { AiService: RealAiService } = await import('../AiService')
+      const { BaseService: RealBaseService } = await import('@main/core/lifecycle/BaseService')
+      RealBaseService.resetInstances()
+      service = new (RealAiService as any)()
+      const { customFetch } = await import('../utils/customFetch')
+      fetchMock = vi.mocked(customFetch)
+      fetchMock.mockReset()
+      fetchMock.mockResolvedValue(Response.json({ results: [{ index: 0, relevance_score: 0.91 }] }))
+      mockApplicationGet.mockImplementation(
+        (name: keyof typeof defaultServiceInstances) => defaultServiceInstances[name]
+      )
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'https://openrouter.ai/api/v1/'
+            }
+          }
+        })
+      )
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'openrouter',
+          apiModelId: 'cohere/rerank-4-pro',
+          name: 'Cohere Rerank 4 Pro',
+          capabilities: [MODEL_CAPABILITY.RERANK]
+        })
+      )
+      mockProviderResolveApiKey.mockReturnValue({ value: apiKey, apiKeySelection: { attribution: 'unknown' } })
+    })
+
+    afterEach(() => fetchMock.mockReset())
+
+    it('reranks through the OpenRouter provider factory', async () => {
+      const result = await service.checkModel({ uniqueModelId })
+
+      expect(result.latency).toEqual(expect.any(Number))
+      expect(result.latency).toBeGreaterThanOrEqual(0)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(String(url)).toBe('https://openrouter.ai/api/v1/rerank')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'cohere/rerank-4-pro',
+        query: 'test',
+        documents: ['test'],
+        top_n: 1
+      })
+      expect(new Headers(init?.headers).get('Authorization') === `Bearer ${apiKey}`).toBe(true)
+    })
+
+    it('surfaces an empty ranking from the real path', async () => {
+      fetchMock.mockResolvedValue(Response.json({ results: [] }))
+
+      await expect(service.checkModel({ uniqueModelId })).rejects.toThrow('Rerank health check returned empty ranking')
+    })
+
+    it('normalizes a proxy base URL with a trailing slash', async () => {
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'http://127.0.0.1:11435/openrouter/api/v1/'
+            }
+          }
+        })
+      )
+
+      await expect(service.checkModel({ uniqueModelId })).resolves.toEqual({ latency: expect.any(Number) })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:11435/openrouter/api/v1/rerank')
+    })
   })
 })
 

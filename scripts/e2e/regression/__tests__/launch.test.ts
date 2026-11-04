@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,17 +7,21 @@ import { vi } from 'vitest'
 const { execFileSync, spawn } = vi.hoisted(() => ({ execFileSync: vi.fn(), spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 
-import { launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
+import { ensureProfile, launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
 
 it.each(['macos', 'windows'] as const)(
-  'launches a prepared %s checkout without repeating runtime builds',
+  'isolates the %s profile and launches Node directly to retain process-group ownership',
   async (platform) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-prepared-launch-'))
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
+    vi.stubEnv('CS_DEV_PROFILE_ROOT', '/unrelated/developer-profile')
+    for (const key of ['HOME', 'USERPROFILE', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'APPDATA', 'LOCALAPPDATA']) {
+      vi.stubEnv(key, `/unrelated/developer-${key}`)
+    }
     let launched = false
     execFileSync.mockImplementation(() => (launched ? '42001' : ''))
     spawn.mockImplementation(() => {
@@ -39,15 +43,45 @@ it.each(['macos', 'windows'] as const)(
         restartCount: 1
       })
       const [command, args, options] = spawn.mock.calls[0]
-      const launch = platform === 'windows' ? args.at(-1) : [command, ...args].join(' ')
-      expect(launch).toBe('pnpm exec dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222')
-      if (platform === 'windows') expect([command, ...args.slice(0, 3)]).toEqual(['cmd.exe', '/d', '/s', '/c'])
+      expect(command).toBe(process.execPath)
+      expect(args).toEqual([
+        join(directory, 'node_modules', 'dotenv-cli', 'cli.js'),
+        '--',
+        process.execPath,
+        join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
+        '--',
+        '--inspect=9229',
+        '--sourcemap',
+        '--remote-debugging-port=9222',
+        '--disable-backgrounding-occluded-windows'
+      ])
+      expect(options.detached).toBe(true)
+      expect(options.env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
+      const isolatedHome = join(paths.profiles, 'authenticated', 'home')
+      expect(options.env.HOME).toBe(isolatedHome)
+      expect(options.env.USERPROFILE).toBe(isolatedHome)
+      expect(options.env.TEMP).toBe(join(isolatedHome, 'temp'))
+      expect(options.env.TMP).toBe(join(isolatedHome, 'temp'))
+      expect(options.env.TMPDIR).toBe(join(isolatedHome, 'temp'))
+      expect(existsSync(options.env.TEMP)).toBe(true)
+      expect(options.env.CLAUDE_CONFIG_DIR).toBe(join(isolatedHome, '.claude'))
+      expect(options.env.CODEX_HOME).toBe(join(isolatedHome, '.codex'))
+      expect(existsSync(isolatedHome)).toBe(true)
+      if (process.platform === 'win32') {
+        expect(options.env.APPDATA).toBe(join(isolatedHome, 'AppData', 'Roaming'))
+        expect(options.env.LOCALAPPDATA).toBe(join(isolatedHome, 'AppData', 'Local'))
+        expect(existsSync(options.env.APPDATA)).toBe(true)
+        expect(existsSync(options.env.LOCALAPPDATA)).toBe(true)
+      }
       expect(options.cwd).toBe(directory)
+      expect(process.env.CODEX_HOME).toBe('/unrelated/developer-CODEX_HOME')
+      expect(process.env.USERPROFILE).toBe('/unrelated/developer-USERPROFILE')
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
       expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
     } finally {
       vi.restoreAllMocks()
       vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
       rmSync(directory, { recursive: true, force: true })
     }
   }
@@ -84,14 +118,49 @@ it('starts Windows installers with both owned inspector and renderer CDP ports',
       runKey: 'test'
     })
     expect(record.electronPid).toBe(42001)
+    const isolatedHome = join(paths.profiles, 'authenticated', 'home')
+    expect(spawn.mock.calls[0][2].env).toMatchObject({
+      HOME: isolatedHome,
+      USERPROFILE: isolatedHome,
+      TEMP: join(isolatedHome, 'temp'),
+      TMP: join(isolatedHome, 'temp'),
+      TMPDIR: join(isolatedHome, 'temp'),
+      CLAUDE_CONFIG_DIR: join(isolatedHome, '.claude'),
+      CODEX_HOME: join(isolatedHome, '.codex')
+    })
     expect(spawn.mock.calls[0][1]).toEqual([
       '--inspect=9229',
       '--remote-debugging-port=9222',
+      '--disable-backgrounding-occluded-windows',
       `--user-data-dir=${join(paths.profiles, 'authenticated')}`
     ])
   } finally {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('refuses to launch when another process owns the inspector port', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-inspector-owned-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  execFileSync.mockImplementation((file: string, args: string[]) =>
+    file === 'lsof' && args[1] === '-iTCP:9229' ? '9999' : ''
+  )
+  try {
+    await expect(
+      launchApp(paths, {
+        mode: 'branch',
+        platform: 'macos',
+        profile: 'clean',
+        targetRoot: directory,
+        runKey: 'inspector-owned'
+      })
+    ).rejects.toThrow('Inspector port 9229 is already owned by process 9999')
+    expect(spawn).not.toHaveBeenCalled()
+  } finally {
+    vi.restoreAllMocks()
     rmSync(directory, { recursive: true, force: true })
   }
 })
@@ -102,10 +171,17 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
   ensureRunDirectories(paths)
   let childAlive = true
   let denyTermination = true
-  spawn.mockReturnValue({ pid: 42000, unref() {} })
-  execFileSync.mockImplementation((file: string) =>
-    file === 'ps' && childAlive ? `42001 42000 electron ${directory}` : ''
-  )
+  let launched = false
+  spawn.mockImplementation(() => {
+    launched = true
+    return { pid: 42000, unref() {} }
+  })
+  execFileSync.mockImplementation((file: string, args: string[]) => {
+    if (file === 'lsof' && launched && childAlive) return args.some((arg) => arg.includes('9229')) ? '42003' : '42002'
+    if (file === 'ps' && childAlive)
+      return args.includes('pgid=,stat=') ? '42000 S' : `42001 42000 electron ${directory}`
+    return ''
+  })
   vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
     if (pid === -42000 && signal === 'SIGTERM') {
       if (denyTermination) throw new Error('Termination denied')
@@ -125,7 +201,7 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
     }).catch((error: unknown) => error)
     expect(error).toBeInstanceOf(AggregateError)
     expect((error as AggregateError).errors.map((cause: Error) => cause.message)).toEqual([
-      'Application runner 42000 exited before CDP became ready',
+      'Application runner 42000 exited before CDP became ready; CDP port 9222 listener pid: 42002; inspector port 9229 listener pid: 42003; process group 42000 has live members: true',
       'Termination denied'
     ])
     expect(JSON.parse(readFileSync(paths.appRecord, 'utf8'))).toMatchObject({
@@ -133,6 +209,9 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
       runKey: 'failed-launch'
     })
     expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+    expect(readFileSync(join(paths.logs, 'electron-clean.log'), 'utf8')).toContain(
+      '[launch-failure] CDP port 9222 listener pid: 42002; inspector port 9229 listener pid: 42003; process group 42000 has live members: true\n'
+    )
     expect(childAlive).toBe(true)
     denyTermination = false
     await stopOwnedApp(paths)
@@ -191,3 +270,103 @@ it.each([true, false])(
     }
   }
 )
+
+it.each([
+  ['macos', false],
+  ['windows', false],
+  ['macos', true],
+  ['windows', true]
+] as const)(
+  'recovers the requested %s profile after its owned launch exits (main was ready: %s)',
+  async (platform, wasReady) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    writeFileSync(
+      paths.appRecord,
+      JSON.stringify({
+        schemaVersion: 1,
+        ownership: 'regression-driver',
+        policy: 'ephemeral',
+        mode: 'branch',
+        platform,
+        profile: 'authenticated',
+        runKey: 'promotion',
+        targetRoot: directory,
+        runnerPid: 42000,
+        cdpPort: 9222,
+        logPath: join(paths.logs, 'electron.log'),
+        restartCount: 1,
+        ...(wasReady ? { electronPid: 42002, targetUrl: 'http://localhost:5173/windows/main/index.html' } : {})
+      })
+    )
+    let launched = false
+    execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+    spawn.mockImplementation(() => {
+      launched = true
+      return { pid: 42001, unref() {} }
+    })
+    vi.spyOn(process, 'kill').mockImplementation((pid) => {
+      if (pid === 42001) return true
+      throw new Error('Process not found')
+    })
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+    }))
+    try {
+      if (!wasReady) expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+      const ready = await ensureProfile(paths, 'authenticated')
+      expect(ready).toMatchObject({
+        electronPid: 42001,
+        profile: 'authenticated',
+        runKey: 'promotion',
+        restartCount: 2
+      })
+      expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+)
+
+it('blocks a recorded recovery failure and clears a failure recorded during a successful launch', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-marker-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const options = {
+    mode: 'branch',
+    platform: 'macos',
+    profile: 'clean',
+    targetRoot: directory,
+    runKey: 'test'
+  } as const
+  const { mkdirSync } = await import('node:fs')
+  mkdirSync(join(directory, 'state'))
+  writeFileSync(paths.appLaunchFailure, JSON.stringify({ reason: 'runner exited', recordedAt: 'now', runnerPid: 42 }))
+  try {
+    await expect(launchApp(paths, options)).rejects.toThrow('Previous application relaunch failed: runner exited')
+    expect(spawn).not.toHaveBeenCalled()
+    rmSync(paths.appLaunchFailure)
+    let launched = false
+    execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+    spawn.mockImplementation(() => {
+      launched = true
+      writeFileSync(paths.appLaunchFailure, JSON.stringify({ reason: 'old failure' }))
+      return { pid: 42001, unref() {} }
+    })
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => [{ type: 'page', url: 'http://localhost/windows/main/index.html' }]
+    }))
+    await launchApp(paths, options)
+    expect(existsSync(paths.appLaunchFailure)).toBe(false)
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
