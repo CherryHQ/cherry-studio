@@ -83,6 +83,30 @@ describe('inline illustration stream contract', () => {
     expect(parts).toEqual([{ type: 'text', text, state: 'done' }])
   })
 
+  describe('multiline code span regression', () => {
+    // Code examples must never submit their illustration markers as image requests.
+    it.each([
+      ['single backticks', '`example\n[[IMAGE]]\nprivate example\n[[/IMAGE]]\n`'],
+      ['matching double backticks', '``example ` literal\n[[IMAGE]]\nprivate example\n[[/IMAGE]]\n``'],
+      ['backslashes inside code', '``example \\`\n[[IMAGE]]\nprivate example\n[[/IMAGE]]\n``']
+    ])('preserves markers inside %s', async (_name, text) => {
+      const { parts, completed } = await parse([...text])
+      expect(completed).toEqual([])
+      expect(parts).toEqual([{ type: 'text', text, state: 'done' }])
+    })
+
+    it.each(['`example\ncode`', '`example\\`', 'escaped \\`', '```markdown\n`\n```'])(
+      'recognizes illustrations after %s',
+      async (prefix) => {
+        const { parts, completed } = await parse([...`${prefix}\n[[IMAGE]]a red bird[[/IMAGE]]\nAfter`])
+        expect(completed).toEqual([expect.objectContaining({ status: 'generating', prompt: 'a red bird' })])
+        expect(parts.map((part) => part.type)).toEqual(['text', 'data-illustration', 'text'])
+        expect(parts[0]).toMatchObject({ text: `${prefix}\n` })
+        expect(parts[2]).toMatchObject({ text: '\nAfter' })
+      }
+    )
+  })
+
   it('hides a truncated prompt and records a terminal failure', async () => {
     const { parts, completed } = await parse(['Kept\n[[IMAGE]]\nprivate unfinished prompt'])
     expect(parts).toEqual([

@@ -26,6 +26,9 @@ export function withIllustrations(
   let pending = ''
   let line = ''
   let fence: string | undefined
+  let codeSpanDelimiter = 0
+  let backtickRun = 0
+  let escaped = false
   let illustrationId: string | undefined
   let ignoredIllustration = false
   let illustrationCount = 0
@@ -55,6 +58,16 @@ export function withIllustrations(
         const ordinary = (value: string) => {
           output += value
           for (const char of value) {
+            // Code spans cross chunks and lines; only an equally long backtick run closes them.
+            if (!fence) {
+              if (char === '`' && (!escaped || codeSpanDelimiter > 0)) backtickRun++
+              else if (backtickRun) {
+                if (!codeSpanDelimiter) codeSpanDelimiter = backtickRun
+                else if (codeSpanDelimiter === backtickRun) codeSpanDelimiter = 0
+                backtickRun = 0
+              }
+              escaped = !codeSpanDelimiter && char === '\\' && !escaped
+            }
             if (char === '\n') {
               const match = /^ {0,3}(`{3,}|~{3,})/.exec(line)
               if (match) {
@@ -63,6 +76,9 @@ export function withIllustrations(
                 else if (marker[0] === fence[0] && marker.length >= fence.length && /^ {0,3}(`+|~+)\s*$/.test(line)) {
                   fence = undefined
                 }
+                codeSpanDelimiter = 0
+                backtickRun = 0
+                escaped = false
               }
               line = ''
             } else if (line.length < MAX_PROMPT_LENGTH) line += char
@@ -103,7 +119,7 @@ export function withIllustrations(
               }
               continue
             }
-            if (!fence && line === '') {
+            if (!fence && !codeSpanDelimiter && line === '') {
               pending += char
               if (pending === OPEN) {
                 endText()
@@ -139,6 +155,9 @@ export function withIllustrations(
           start = undefined
           line = ''
           fence = undefined
+          codeSpanDelimiter = 0
+          backtickRun = 0
+          escaped = false
           if (chunk.type === 'text-end') return
         }
         controller.enqueue(chunk)

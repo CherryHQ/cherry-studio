@@ -47,14 +47,14 @@ The checkout implements the prompt section, pre-tee stream parser, background im
 | AC1 | The real settings Select and Preference hook persist all three modes; Electron also verifies SQLite-backed settings after a renderer reload. |
 | AC2, AC3 | The actual stream manager, parser, image service and SQLite backend preserve text/image/text order with delayed completion. Electron verifies later text remains visible during generation, a managed image loads at that position, and reloading retains it. |
 | AC4 | Repeated state reads and stale events do not generate again; Electron observes exactly one local image HTTP request across the saved-answer reload. |
-| AC5 | Parser tests cover every delimiter split, one-character chunks, multiple images, fenced/inline/indented code, truncated prompts and prompt-length boundaries. |
+| AC5 | Parser tests cover every delimiter split, one-character chunks, multiple images, fenced/inline/indented code, truncated prompts and prompt-length boundaries. Seven additional regressions verify multiline code spans, matching backtick lengths, escaping and subsequent real illustration intents. |
 | AC6 | Service and renderer tests cover provider failure, cancellation, explicit retry and ignoring a late cancelled result. |
 | AC7 | Electron runs against local OpenAI-compatible text/image fixtures through the application's existing model dispatch, without this repository's standalone MCP or loopback image server. |
 | AC8, AC9 | Scoped tests cover saved count controls, reducing the target with the maximum, system-prompt quantity rules, rejecting excess intents, and expanding or collapsing plain-text prompts beside illustrations. |
 
 The repeatable desktop scenario is [replyIllustrations.test.ts](../../../../tests/e2e/smoke/replyIllustrations.test.ts). The scoped Vitest runs also include the existing stream-manager, persistence-listener, temporary-chat, message-service, message-rendering and settings-search consumers. The Electron application bundles and utility-process entries build successfully. No live paid provider was used; the desktop image fixture returns an existing repository PNG.
 
-Node and web project typechecks report diagnostics in unchanged files (including Bun/Node `fetch` and stream type incompatibilities), with no diagnostics in the modified feature files. The E2E project is checked separately. The full project typecheck gate is therefore not claimed as passing.
+Node, web and E2E project typechecks report diagnostics in unchanged files (including Bun/Node `fetch` and stream type incompatibilities), with no diagnostics in the modified feature files. The full project typecheck gate is therefore not claimed as passing.
 
 ## Alternatives considered
 
