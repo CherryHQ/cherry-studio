@@ -5,7 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { claudeCodeAdapter } from '../claudeCode'
-import { IMPORT_LIMITS } from '../types'
+import { IMPORT_LIMITS, type SessionRef } from '../types'
 
 let root: string
 beforeEach(async () => {
@@ -186,7 +186,7 @@ describe('Claude history projection', () => {
       { type: 'system', subtype: 'local_command', uuid: 'local', parentUuid: 'r', content: 'local result' }
     ])
     expect(result.filteredReason).toBe('claude_no_user_task')
-    const refs = []
+    const refs: SessionRef[] = []
     for await (const ref of claudeCodeAdapter.discover(root, new AbortController().signal)) refs.push(ref)
     expect(refs[0].filteredReason).toBe('claude_no_user_task')
     for (const content of [
