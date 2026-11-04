@@ -992,6 +992,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     finish()
   } else if (method === 'session/cancel' || method === 'turn/interrupt') {
     if (id) reply(id, {})
-    finish()
+    // Cursor callbacks finish after receiving their reply, so shutdown cannot race its receipt.
+    if (scenario !== 'cursor-question' && scenario !== 'cursor-plan') finish()
   } else if (id) reply(id, {})
 })

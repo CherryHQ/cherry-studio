@@ -931,14 +931,16 @@ describe('local protocol processes', () => {
   })
 
   it.each(['cursor-question', 'cursor-plan'])('cancels %s on close without approval', async (scenario) => {
-    const { connection, events } = create('acp', scenario)
+    const { connection, events, drained } = create('acp', scenario)
     await connection.start(cwd)
     const sending = connection.send(input)
     await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
     await connection.close()
     await sending
-    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
-    expect(wire).toContain('"outcome":{"outcome":"cancelled"}')
+    await drained
+    expect(await readWire()).toContainEqual(
+      expect.objectContaining({ id: 'cursor-extension', result: { outcome: { outcome: 'cancelled' } } })
+    )
     expect(toolApprovalRegistry.hasSession('session')).toBe(false)
   })
 
