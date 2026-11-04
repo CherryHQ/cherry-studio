@@ -7,8 +7,6 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
-import { SubscriptionTag } from '@renderer/components/tags/Model'
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
@@ -97,7 +95,6 @@ export function ChatConversationControls({
       : getProviderDisplayNameById(model.providerId)
     : undefined
   const modelLabel = model ? `${model.name} | ${modelProviderName}` : selectModelLabel
-  const { isModelLocked } = useCherryCloudModelAvailability()
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
@@ -207,7 +204,6 @@ export function ChatConversationControls({
               <span className={cn('max-w-52', modelLabelClassName)} title={modelLabel}>
                 {modelLabel}
               </span>
-              {model && !iconOnly && isModelLocked(model, false) ? <SubscriptionTag size={10} /> : null}
               <ChevronDown
                 size={14}
                 aria-hidden

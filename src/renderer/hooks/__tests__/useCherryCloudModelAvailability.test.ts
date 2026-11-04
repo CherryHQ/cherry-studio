@@ -99,22 +99,6 @@ describe('useCherryCloudModelAvailability', () => {
     expect(result.current.isModelHidden(regular, false)).toBe(false)
   })
 
-  it('flags a selected Cloud model the account cannot use, but not before the first snapshot', async () => {
-    let resolve: (value: CherryCloudModelSyncResult) => void = () => {}
-    mocks.ipcRequest.mockReturnValue(new Promise((r) => (resolve = r)))
-    const owned = cloud('owned')
-    const unowned = cloud('unowned')
-    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
-
-    expect(result.current.isModelLocked(unowned, false)).toBe(false)
-    await act(async () => resolve(snapshot({ availableModelIds: { agent: [owned.id], general: [owned.id] } })))
-
-    expect(result.current.isModelLocked(unowned, false)).toBe(true)
-    expect(result.current.isModelLocked(unowned, true)).toBe(true)
-    expect(result.current.isModelLocked(owned, false)).toBe(false)
-    expect(result.current.isModelLocked(regular, false)).toBe(false)
-  })
-
   it('shows a Work-only model only in Agent pickers and a shared model everywhere', async () => {
     const workOnly = cloud('work-only')
     const shared = cloud('shared')
