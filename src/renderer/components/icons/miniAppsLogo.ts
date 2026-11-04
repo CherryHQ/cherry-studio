@@ -1,8 +1,3 @@
-// [v2] TODO: The legacy app/model/provider PNG/WebP logos were removed by the icon-system
-// overhaul (#12858). Mini-apps map to brand icon refs from @cherrystudio/ui/icons as a
-// stop-gap. A proper design should decouple mini-app icon resolution (e.g. a dedicated
-// registry) rather than hard-coding catalog keys here.
-
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { type IconRef, modelIconRef, providerIconRef, useIcon } from '@cherrystudio/ui/icons'
 
@@ -18,14 +13,14 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   jimeng: providerIconRef('jimeng'),
   kling: providerIconRef('kling'),
   'coze-cn': providerIconRef('coze'),
-  miaoda: providerIconRef('application'),
-  tingwu: providerIconRef('application'),
-  'ant-afu': providerIconRef('application'),
-  gamma: providerIconRef('application'),
-  canva: providerIconRef('application'),
+  miaoda: providerIconRef('miaoda'),
+  tingwu: providerIconRef('tingwu'),
+  'ant-afu': providerIconRef('ant-afu'),
+  gamma: providerIconRef('gamma'),
+  canva: providerIconRef('canva'),
   suno: providerIconRef('suno'),
-  napkin: providerIconRef('application'),
-  lovable: providerIconRef('application'),
+  napkin: providerIconRef('napkin'),
+  lovable: providerIconRef('lovable'),
   v0: modelIconRef('v0'),
   qianwen: providerIconRef('qwen'),
   'minimax-agent-cn': providerIconRef('minimax-agent'),
