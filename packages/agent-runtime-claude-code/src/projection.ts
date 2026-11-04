@@ -383,7 +383,7 @@ export class ClaudeProjection {
     const ids = new Set(content.map((message) => message.id))
     const retained = new Map<string | undefined, RuntimeMessage[]>()
     let anchor: string | undefined
-    for (const message of before.messages) {
+    for (const message of this.feed.snapshot.messages) {
       if (ids.has(message.id)) anchor = message.id
       else if (!this.retracted.has(message.id)) retained.set(anchor, [...(retained.get(anchor) ?? []), message])
     }

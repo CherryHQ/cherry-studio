@@ -1,11 +1,23 @@
 import { randomUUID } from 'node:crypto'
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage, SDKPermissionDeniedMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { claudeThread, type ClaudeObservation } from '../src'
 import { confirmed, observe, textOf } from './nativeFixture'
 import { wireFixture } from './wireFixture'
+
+function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessage {
+  return {
+    type: 'system',
+    subtype: 'permission_denied',
+    tool_use_id: toolUseId,
+    tool_name: 'Bash',
+    message: 'Permission denied',
+    uuid: randomUUID(),
+    session_id: sessionId
+  }
+}
 
 it('delivers queued final content before close without waiting for a detached or slow consumer', async () => {
   const test = await wireFixture()
@@ -184,6 +196,22 @@ it('keeps a missing parent unresolved and rejects older run state after continua
   }
 })
 
+it('retains permission denials for every invocation in a late observer baseline', async () => {
+  const test = await wireFixture()
+  try {
+    const denials = [denied(test.sessionId, 'call-a'), denied(test.sessionId, 'call-b')]
+    for (const denial of denials) test.send(denial)
+    await test.view.event((message) => message.uuid === denials[1].uuid)
+    const late = await observe(test.root)
+    await expect.poll(() => late.batches.length).toBeGreaterThan(0)
+    expect(
+      late.native.filter((message) => message.type === 'system' && message.subtype === 'permission_denied')
+    ).toEqual(denials)
+  } finally {
+    await test.close()
+  }
+})
+
 it('recovers a slow observer with a paired native baseline while other observers keep receiving', async () => {
   const test = await wireFixture()
   let resume!: () => void
@@ -199,6 +227,8 @@ it('recovers a slow observer with a paired native baseline while other observers
       })
     )
     await expect.poll(() => batches.length).toBe(1)
+    const denials = [denied(test.sessionId, 'call-a'), denied(test.sessionId, 'call-b')]
+    for (const denial of denials) test.send(denial)
     for (let index = 0; index < 150; index++) test.send(test.assistant(`Block ${index}`))
     await expect.poll(() => test.view.snapshot.messages.length).toBe(150)
     expect(batches).toHaveLength(1)
@@ -214,6 +244,11 @@ it('recovers a slow observer with a paired native baseline while other observers
     const snapshot = baseline.events.find((event) => event.type === 'snapshot')!
     expect(baseline.native.filter((entry) => entry.message.type === 'assistant')).toHaveLength(snapshot.messages.length)
     expect(new Set(snapshot.messages.map((item) => item.id)).size).toBe(snapshot.messages.length)
+    expect(
+      baseline.native.flatMap(({ message }) =>
+        message.type === 'system' && 'subtype' in message && message.subtype === 'permission_denied' ? [message] : []
+      )
+    ).toEqual(denials)
   } finally {
     resume()
     await test.close()

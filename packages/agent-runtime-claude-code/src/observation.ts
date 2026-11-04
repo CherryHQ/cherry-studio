@@ -66,7 +66,9 @@ export class ClaudeFeed {
       }
       const key =
         message.type === 'system' && 'subtype' in message
-          ? `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
+          ? message.subtype === 'permission_denied'
+            ? `${message.subtype}:${message.tool_use_id}`
+            : `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
           : message.uuid
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
         this.native.set(key, structuredClone(value))

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
+import { rename, rm } from 'node:fs/promises'
 
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
@@ -544,6 +544,49 @@ it('reopens native history without starting work and rejects missing storage or 
     await test.close()
   }
 }, 30000)
+
+it.each(['rejected-loader', 'missing-configuration', 'missing-archive'] as const)(
+  'retries concurrent opens after %s initialization recovers',
+  async (failure) => {
+    const test = await fixture()
+    try {
+      const creator = test.runtime()
+      const root = confirmed(await creator.create(test.options))
+      const view = await observe(root)
+      await root.input!.submit({ inputId: inputId(), text: 'Save before reopening', whenBusy: 'steer' })
+      const request = await test.request()
+      request.reply.block({ type: 'text', text: 'Retained answer' })
+      request.reply.finish()
+      await view.event((message) => message.type === 'result')
+      confirmed(await creator.shutdown())
+
+      let failed = true
+      let loads = 0
+      const reopened = test.runtime(async () => {
+        loads++
+        if (failed && failure === 'rejected-loader') throw new Error('Configuration temporarily unavailable')
+        if (failed && failure === 'missing-configuration') return undefined
+        return test.options
+      })
+      if (failure === 'missing-archive') await rename(test.configDir, `${test.configDir}.saved`)
+      const attempts = await Promise.all([reopened.open(root.thread), reopened.open(root.thread)])
+      expect(attempts.map((result) => result.status)).toEqual(['rejected', 'rejected'])
+      failed = false
+      if (failure === 'missing-archive') await rename(`${test.configDir}.saved`, test.configDir)
+
+      const restored = await Promise.all([reopened.open(root.thread), reopened.open(root.thread)])
+      for (const result of restored) {
+        const current = await observe(confirmed(result))
+        await expect.poll(() => textOf(current.snapshot)).toContain('Retained answer')
+      }
+      expect(loads).toBe(2)
+      expect(test.children).toHaveLength(1)
+    } finally {
+      await test.close()
+    }
+  },
+  30000
+)
 
 it('closes stale admission on clear and binds the new native session to the same Query', async () => {
   const test = await fixture()

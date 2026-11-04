@@ -15,6 +15,7 @@ import {
   type ClaudeObservation,
   type ClaudeCommandLifecycle,
   type ClaudeSessionOptions,
+  type ClaudeCodeRuntimeOptions,
   type ClaudeThreadHandle
 } from '../src'
 
@@ -137,11 +138,11 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
   }
   const backendId = runtimeId<'backend'>(randomUUID())
   const runtimes: ReturnType<typeof createClaudeCodeRuntime>[] = []
-  const runtime = () => {
+  const runtime = (load: ClaudeCodeRuntimeOptions['load'] = async () => options) => {
     const result = createClaudeCodeRuntime({
       backendId,
       configDir,
-      load: async () => options,
+      load,
       onError: (error) => errors.push(error)
     })
     runtimes.push(result)

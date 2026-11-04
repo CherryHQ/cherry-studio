@@ -152,7 +152,12 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           })()
           owners.set(sessionId, pending)
         }
-        const owner = await pending
+        let owner: ClaudeOwner | undefined
+        try {
+          owner = await pending
+        } finally {
+          if (!owner && owners.get(sessionId) === pending) owners.delete(sessionId)
+        }
         if (closed) return rejected('open', 'closed')
         const projection = owner?.projections.get(thread.id)
         if (!owner || !projection) return rejected('open', 'native-storage-missing')
