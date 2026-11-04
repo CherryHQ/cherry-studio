@@ -186,6 +186,7 @@
   "openclaw.errors.port_in_use": "Порт {{port}} занят другим приложением. Выберите другой порт.",
   "openclaw.errors.preflight_failed": "Cherry Studio не смогла проверить конфигурацию OpenClaw.",
   "openclaw.errors.preflight_timeout": "OpenClaw не вернул схему конфигурации за {{seconds}} секунд. Cherry Studio прекратила ожидание. На медленном диске или при высокой нагрузке запуск OpenClaw может занять больше времени. Повторите попытку.",
+  "openclaw.errors.schema_check_failed": "OpenClaw (обнаруженная версия: {{version}}) не вернул схему конфигурации, поэтому Cherry Studio не удалось подготовить совместимую конфигурацию. {{details}}",
   "openclaw.errors.sessions_active": "OpenClaw всё ещё используется в беседе. Закройте связанные вкладки чата и повторите попытку.",
   "openclaw.errors.shutting_down": "OpenClaw завершает работу. Повторите попытку после остановки.",
   "paintings.comfyui.image_download_timeout": "Загрузка готового изображения не завершилась за {{seconds}} с",

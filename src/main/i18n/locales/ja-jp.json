@@ -186,6 +186,7 @@
   "openclaw.errors.port_in_use": "ポート {{port}} は他のアプリケーションで使用されています。別のポートを選択してください。",
   "openclaw.errors.preflight_failed": "Cherry Studio は OpenClaw の設定を検証できませんでした。",
   "openclaw.errors.preflight_timeout": "OpenClaw が {{seconds}} 秒以内に設定スキーマを返さなかったため、Cherry Studio は待機を終了しました。ディスクが遅い場合や負荷が高い場合、OpenClaw の起動に時間がかかることがあります。もう一度お試しください。",
+  "openclaw.errors.schema_check_failed": "OpenClaw（検出されたバージョン：{{version}}）が設定スキーマを返さなかったため、Cherry Studio は互換性のある設定を準備できませんでした。{{details}}",
   "openclaw.errors.sessions_active": "OpenClaw は会話で使用中です。関連するチャットタブを閉じてから再試行してください。",
   "openclaw.errors.shutting_down": "OpenClaw を停止しています。停止後に再試行してください。",
   "paintings.comfyui.image_download_timeout": "生成された画像のダウンロードが {{seconds}} 秒でタイムアウトしました",

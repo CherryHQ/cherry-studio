@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 
-import { buildCreateSessionSeed, buildCreateSessionSeedIndex } from '../Sessions'
+import { buildCreateSessionSeed, buildCreateSessionSeedIndex } from '../createSessionSeed'
 
 const workspace = (path: string) => ({
   id: `workspace-${path}`,

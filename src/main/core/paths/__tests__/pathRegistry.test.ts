@@ -1,7 +1,9 @@
+import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 
 const packagedState = vi.hoisted(() => ({ value: false }))
 const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
@@ -60,6 +62,26 @@ describe('buildPathRegistry', () => {
   it('leaves managed ACP materialization to the installation owner', () => {
     expect(shouldAutoEnsure('feature.acp.agents')).toBe(false)
   })
+  it.each(['feature.pdfjs.cmaps', 'feature.pdfjs.standard_fonts'] as const)(
+    'reads %s from the extraResources directory electron-builder ships',
+    (key) => {
+      const repoRoot = path.resolve(import.meta.dirname, '../../../../..')
+      const { extraResources } = parse(readFileSync(path.join(repoRoot, 'electron-builder.yml'), 'utf8')) as {
+        extraResources: { from: string; to: string }[]
+      }
+      vi.stubGlobal(
+        'process',
+        Object.defineProperties(Object.create(process), { resourcesPath: { value: '/mock/resources' } })
+      )
+      packagedState.value = true
+      const shipped = path.relative('/mock/resources', buildPathRegistry()[key]).split(path.sep).join('/')
+      packagedState.value = false
+      const source = path.relative('/mock/app', buildPathRegistry()[key]).split(path.sep).join('/')
+
+      expect(extraResources).toContainEqual({ from: source, to: shipped })
+      expect(existsSync(path.join(repoRoot, source))).toBe(true)
+    }
+  )
 
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {

@@ -17,6 +17,25 @@ describe('toolResponse adapter', () => {
     expect(response).toMatchObject({ tool: { name: 'ACP: Edit example', type: 'provider' }, arguments: input })
   })
 
+  it('keeps preliminary tool output visible as running until the final result arrives', () => {
+    const part: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolCallId: 'child-bash',
+      toolName: 'bash',
+      state: 'output-available',
+      preliminary: true,
+      input: { command: 'long-running-command' },
+      output: { content: [{ type: 'text', text: 'first output' }] },
+      callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+    }
+    expect(buildToolResponseFromPart(part)).toMatchObject({
+      status: 'invoking',
+      tool: { type: 'provider', name: 'Bash' },
+      response: [{ type: 'text', text: 'first output' }]
+    })
+    expect(buildToolResponseFromPart({ ...part, preliminary: false })).toMatchObject({ status: 'done' })
+  })
+
   it('maps structured dynamic-tool output metadata to MCP tool fields', () => {
     const part = {
       type: 'dynamic-tool',

@@ -70,7 +70,9 @@ use the heartbeat toggle off/on to reset that pause explicitly.
 
 `agent_session.type` distinguishes `conversation` from `background`. Heartbeat
 runs create background sessions, including replacements after failed admission;
-ordinary scheduled tasks retain their conversation behavior. The type is internal
+owned child archives also use this classification and an `ownerSessionId` pointing
+to the root product session. Ordinary scheduled tasks retain their conversation
+behavior. The type is internal
 to Main and is not a renderer-controlled visibility flag.
 
 Conversation lists (including pins), latest-session selection, discovery search,
@@ -81,7 +83,13 @@ interactive conversation and a known background id is not addressable from the
 renderer surface. Runtime lookups retain access to all sessions through the
 internal `getById` method and service methods. Background activity publishes
 detail/message changes without invalidating the conversation navigation read
-models.
+models. Child output uses owner-scoped IPC attachment/control; it cannot open as
+an independent root. Parent trash/restore includes its child archives, hard deletion
+cascades their rows, and native-file retention includes their context identities.
+
+Each child archive is identified by `(parentContextId, nativeThreadId)` and inherits
+its backend from that parent context. The spawn tool-call ID records provenance;
+continuing the same native Thread reuses its archive.
 
 The appended migration classifies existing sessions only when retained job
 records identify heartbeat execution — the fire ran on a schedule whose
@@ -830,16 +838,29 @@ parts. Environment facts (disabled tools, protected paths, delegation attendance
 and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
 whether to run, ask or block. No new approval table is required.
 
-The Pi facet resolves behavior call keys to native tool ids. Each live child is
-observed separately and attached to its spawn card through the existing
-background-flow transport. Foreground completion can continue the same child in
-the background. User stop still observes the shared ownership rules.
+The Pi facet resolves behavior call keys to native tool ids. Each child has one
+Main observation owner and an independent product archive. Its panel receives a
+snapshot and ordered message/part patches through IpcApi and uses the shared message
+renderer. Parent parts retain task metadata and the navigation entry; they no longer
+carry child output. Foreground completion can continue the same child in the background.
+User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
+
+Child attachment waits for the shared root connection and an executing subagent's native projection
+before subscribing. Failed child creation or owner/turn completion ends the wait. A detached or
+destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
+and orders evidenced rows by committed native history followed by live content, correcting saved
+parent links when necessary; rows outside current native/live coverage remain retained in place.
 
 `PiRuntimeConnection` remains responsible for product branch bindings, input
 persistence, UI chunks and configuration reconciliation. It can retire after
 `AgentSessionRuntimeService` consumes the common Runtime directly; enabling
-shared behavior does not by itself replace those responsibilities. A reopened
-root restores history, but live children are not reconstructed after restart.
+shared behavior does not by itself replace those responsibilities. A reopened root
+restores identity-checked child files without starting execution. Saved output remains
+readable when native access cannot be restored. A child's native initialization failure is isolated
+from the parent and healthy siblings and leaves completed task results unchanged. Successful root
+opening clears startup failure state while keeping diagnostics in the log. Child input goes through that owner;
+its archive cannot open as an independent writable root. Public projection code consumes
+`ThreadHandle`; Pi history reads and input dispatch stay in the Pi connection.
 
 ### Pi code mode
 
@@ -921,7 +942,7 @@ owns retries; the native HTTP client and gateway do not retry the same request i
 
 ## Internal Agent continuation normalization
 
-When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format and its converted UIMessage list ends with an assistant attachment whose parts are all `text` or `reasoning`, the gateway appends an ephemeral user continuation after conversion, including for reasoning-only attachments. Eligibility depends on part types, not text length; empty text or reasoning and an empty parts array do not prevent continuation. Attachments containing tool parts or any other part type do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format, the gateway appends an ephemeral user continuation after conversion if the final assistant attachment has an empty parts array, or contains only text, reasoning, and terminal local tool parts and ends in text or reasoning. A terminal local tool has `providerExecuted !== true` and state `output-error`, `output-denied`, or `output-available` with `preliminary !== true`. Eligibility depends on part types and order, not text length; empty text or reasoning does not prevent continuation. Attachments ending in a tool, or containing pending, preliminary, or provider-executed tools, data parts, files, sources, step markers, or other unsupported parts, do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
 The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params
@@ -1005,8 +1026,11 @@ the last hold's disposal re-kicks it. New-turn admission through `prepareDispatc
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
 parts and runtime close barriers that may still flush external state after their entry is removed.
-The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
-lifecycle pause and never touches service state.
+Root stream writes belong to `AiStreamManager`'s drain. Child input is rejected while paused or shutting
+down and is registered before dispatch. The runtime drain waits for admitted child input, then asks
+the owning connection to settle native child work and flush its archives, including work continuing
+after an input acknowledgement. Timeouts and failed archive flushes report the root as a straggler;
+a later drain can retry. This is distinct from the BaseService lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
 hold is live, tracks validation/claim/send handoffs in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks

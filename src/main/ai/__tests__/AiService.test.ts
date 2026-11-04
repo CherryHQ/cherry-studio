@@ -15,6 +15,7 @@ import type * as ImageTransportRegistryModule from '../provider/custom/imageTran
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
+import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
@@ -2533,6 +2534,98 @@ describe('AiService tool approval', () => {
     })
 
     await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
+  })
+
+  describe('checkModel — OpenRouter rerank', () => {
+    let service: InstanceType<typeof AiService>
+    let fetchMock: ReturnType<typeof vi.mocked<typeof CustomFetchModule.customFetch>>
+    const uniqueModelId = 'openrouter::cohere/rerank-4-pro'
+    const apiKey = 'openrouter-health-check-key'
+
+    beforeEach(async () => {
+      // Keep the existing service/HTTP harness, but load AiService against real ai-core.
+      vi.doUnmock('@cherrystudio/ai-core')
+      vi.resetModules()
+      const { AiService: RealAiService } = await import('../AiService')
+      const { BaseService: RealBaseService } = await import('@main/core/lifecycle/BaseService')
+      RealBaseService.resetInstances()
+      service = new (RealAiService as any)()
+      const { customFetch } = await import('../utils/customFetch')
+      fetchMock = vi.mocked(customFetch)
+      fetchMock.mockReset()
+      fetchMock.mockResolvedValue(Response.json({ results: [{ index: 0, relevance_score: 0.91 }] }))
+      mockApplicationGet.mockImplementation(
+        (name: keyof typeof defaultServiceInstances) => defaultServiceInstances[name]
+      )
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'https://openrouter.ai/api/v1/'
+            }
+          }
+        })
+      )
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'openrouter',
+          apiModelId: 'cohere/rerank-4-pro',
+          name: 'Cohere Rerank 4 Pro',
+          capabilities: [MODEL_CAPABILITY.RERANK]
+        })
+      )
+      mockProviderResolveApiKey.mockReturnValue({ value: apiKey, apiKeySelection: { attribution: 'unknown' } })
+    })
+
+    afterEach(() => fetchMock.mockReset())
+
+    it('reranks through the OpenRouter provider factory', async () => {
+      const result = await service.checkModel({ uniqueModelId })
+
+      expect(result.latency).toEqual(expect.any(Number))
+      expect(result.latency).toBeGreaterThanOrEqual(0)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(String(url)).toBe('https://openrouter.ai/api/v1/rerank')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'cohere/rerank-4-pro',
+        query: 'test',
+        documents: ['test'],
+        top_n: 1
+      })
+      expect(new Headers(init?.headers).get('Authorization') === `Bearer ${apiKey}`).toBe(true)
+    })
+
+    it('surfaces an empty ranking from the real path', async () => {
+      fetchMock.mockResolvedValue(Response.json({ results: [] }))
+
+      await expect(service.checkModel({ uniqueModelId })).rejects.toThrow('Rerank health check returned empty ranking')
+    })
+
+    it('normalizes a proxy base URL with a trailing slash', async () => {
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'http://127.0.0.1:11435/openrouter/api/v1/'
+            }
+          }
+        })
+      )
+
+      await expect(service.checkModel({ uniqueModelId })).resolves.toEqual({ latency: expect.any(Number) })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:11435/openrouter/api/v1/rerank')
+    })
   })
 })
 

@@ -186,6 +186,7 @@
   "openclaw.errors.port_in_use": "{{port}} bağlantı noktası başka bir uygulama tarafından kullanılıyor. Başka bir bağlantı noktası seçin.",
   "openclaw.errors.preflight_failed": "Cherry Studio, OpenClaw yapılandırmasını doğrulayamadı.",
   "openclaw.errors.preflight_timeout": "OpenClaw yapılandırma şemasını {{seconds}} saniye içinde döndürmedi. Cherry Studio beklemeyi durdurdu. Yavaş bir diskte veya yüksek yük altında OpenClaw daha geç başlayabilir. Tekrar deneyin.",
+  "openclaw.errors.schema_check_failed": "OpenClaw (algılanan sürüm: {{version}}) yapılandırma şemasını döndürmediğinden Cherry Studio uyumlu bir yapılandırma hazırlayamadı. {{details}}",
   "openclaw.errors.sessions_active": "OpenClaw hâlâ bir konuşma tarafından kullanılıyor. İlgili sohbet sekmelerini kapatıp yeniden deneyin.",
   "openclaw.errors.shutting_down": "OpenClaw kapatılıyor. Durduktan sonra yeniden deneyin.",
   "paintings.comfyui.image_download_timeout": "Tamamlanan bir görüntünün indirilmesi {{seconds}} sn sonra zaman aşımına uğradı",

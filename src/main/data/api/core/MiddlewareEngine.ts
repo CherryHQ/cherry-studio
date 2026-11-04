@@ -94,7 +94,7 @@ export class MiddlewareEngine {
       execute: async (req: DataRequest, res: DataResponse, next: () => Promise<void>) => {
         logger.debug(`Incoming request: ${req.method} ${req.path}`, {
           id: req.id,
-          params: req.params,
+          params: redactDeep(req.params),
           body: redactDeep(req.body)
         })
 

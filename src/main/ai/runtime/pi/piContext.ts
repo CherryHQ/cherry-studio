@@ -4,6 +4,7 @@ import { application } from '@application'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
+import { agentSessionService } from '@data/services/AgentSessionService'
 
 export function reservePiBranchTx(tx: DbOrTx, sessionId: string, anchorMessageId: string, nativeId: string) {
   const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
@@ -11,6 +12,7 @@ export function reservePiBranchTx(tx: DbOrTx, sessionId: string, anchorMessageId
 }
 
 export function preparePiBranch(sessionId: string, messageId?: string, nativeId?: string) {
+  agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const existing = contexts.branchTx(tx, sessionId, messageId ?? root)

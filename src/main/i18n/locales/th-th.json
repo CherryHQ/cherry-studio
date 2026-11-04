@@ -186,6 +186,7 @@
   "openclaw.errors.port_in_use": "พอร์ต {{port}} ถูกแอปพลิเคชันอื่นใช้งานอยู่ โปรดเลือกพอร์ตอื่น",
   "openclaw.errors.preflight_failed": "Cherry Studio ไม่สามารถตรวจสอบความถูกต้องของคอนฟิก OpenClaw ได้",
   "openclaw.errors.preflight_timeout": "OpenClaw ไม่ส่ง schema ของการตั้งค่ากลับภายใน {{seconds}} วินาที Cherry Studio จึงหยุดรอ OpenClaw อาจเริ่มช้าบนดิสก์ช้าหรือโหลดหนัก ลองอีกครั้ง",
+  "openclaw.errors.schema_check_failed": "OpenClaw (เวอร์ชันที่ตรวจพบ: {{version}}) ไม่ได้ส่งคืนสคีมาการกำหนดค่า ทำให้ Cherry Studio ไม่สามารถเตรียมการกำหนดค่าที่เข้ากันได้ {{details}}",
   "openclaw.errors.sessions_active": "การสนทนายังคงใช้งาน OpenClaw อยู่ โปรดปิดแท็บแชทที่เกี่ยวข้องแล้วลองอีกครั้ง",
   "openclaw.errors.shutting_down": "OpenClaw กำลังหยุดทำงาน โปรดลองอีกครั้งหลังจากหยุดแล้ว",
   "paintings.comfyui.image_download_timeout": "ดาวน์โหลดรูปที่สำเร็จแล้วหมดเวลาหลัง {{seconds}} วินาที",

@@ -186,6 +186,7 @@
   "openclaw.errors.port_in_use": "Cổng {{port}} đang được ứng dụng khác sử dụng. Hãy chọn cổng khác.",
   "openclaw.errors.preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw.",
   "openclaw.errors.preflight_timeout": "OpenClaw không trả về lược đồ cấu hình trong vòng {{seconds}} giây. Cherry Studio đã ngừng chờ. OpenClaw có thể khởi động chậm trên ổ đĩa chậm hoặc khi hệ thống tải cao. Hãy thử lại.",
+  "openclaw.errors.schema_check_failed": "OpenClaw (phiên bản phát hiện: {{version}}) không trả về lược đồ cấu hình, vì vậy Cherry Studio không thể chuẩn bị cấu hình tương thích. {{details}}",
   "openclaw.errors.sessions_active": "Một cuộc trò chuyện vẫn đang sử dụng OpenClaw. Hãy đóng các thẻ trò chuyện liên quan rồi thử lại.",
   "openclaw.errors.shutting_down": "OpenClaw đang dừng. Hãy thử lại sau khi dừng xong.",
   "paintings.comfyui.image_download_timeout": "Tải xuống ảnh đã hoàn thành hết thời gian chờ sau {{seconds}}s",

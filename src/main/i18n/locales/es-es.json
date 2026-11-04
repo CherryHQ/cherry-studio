@@ -186,6 +186,7 @@
   "openclaw.errors.port_in_use": "Otra aplicación está usando el puerto {{port}}. Elija otro puerto.",
   "openclaw.errors.preflight_failed": "Cherry Studio no pudo validar la configuración de OpenClaw.",
   "openclaw.errors.preflight_timeout": "OpenClaw no devolvió el esquema de configuración en {{seconds}} segundos. Cherry Studio dejó de esperar. OpenClaw puede tardar más en iniciarse si el disco es lento o el sistema está muy ocupado. Inténtalo de nuevo.",
+  "openclaw.errors.schema_check_failed": "OpenClaw (versión detectada: {{version}}) no devolvió su esquema de configuración, por lo que Cherry Studio no pudo preparar una configuración compatible. {{details}}",
   "openclaw.errors.sessions_active": "Una conversación sigue usando OpenClaw. Cierre las pestañas de chat relacionadas e inténtelo de nuevo.",
   "openclaw.errors.shutting_down": "OpenClaw se está deteniendo. Inténtelo de nuevo cuando termine.",
   "paintings.comfyui.image_download_timeout": "La descarga de una imagen terminada agotó el tiempo tras {{seconds}}s",
