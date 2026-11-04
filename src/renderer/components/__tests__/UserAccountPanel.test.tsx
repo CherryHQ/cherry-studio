@@ -314,7 +314,7 @@ describe('UserAccountPanel', () => {
     )
   })
 
-  it('shows the tightest remaining limit instead of adding overlapping quota windows', async () => {
+  it('shows the tightest remaining limit, from settled usage, instead of adding overlapping quota windows', async () => {
     plans = paidPlans('Pro')
     plans.entitlements[0].quota_pools[0].windows.push({
       window_type: 'calendar_day',
@@ -326,12 +326,13 @@ describe('UserAccountPanel', () => {
     })
     renderAccount(<UserAccountPanel />)
 
-    expect(await screen.findByRole('button', { name: '用量 剩余 25.00%' })).toBeEnabled()
+    // 13 of 20 settled; the 2 reserved by a running request are not counted yet.
+    expect(await screen.findByRole('button', { name: '用量 剩余 35.00%' })).toBeEnabled()
   })
 
   it('shows zero remaining when a quota window is exhausted', async () => {
     plans = paidPlans('Pro')
-    plans.entitlements[0].quota_pools[0].windows[0].remaining_units = 0
+    Object.assign(plans.entitlements[0].quota_pools[0].windows[0], { used_units: 100, remaining_units: 0 })
     renderAccount(<UserAccountPanel />)
 
     expect(await screen.findByRole('button', { name: '用量 剩余 0.00%' })).toBeEnabled()
@@ -344,6 +345,7 @@ describe('UserAccountPanel', () => {
     plans = paidPlans('Plus')
     Object.assign(plans.entitlements[0].quota_pools[0].windows[0], {
       limit_units: 40_000_000,
+      used_units: 40_000_000 - remaining,
       remaining_units: remaining
     })
     renderAccount(<UserAccountPanel />)
