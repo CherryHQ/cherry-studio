@@ -30,25 +30,24 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    Scrollbar: ({ children, ref: passedRef, ...props }: ComponentProps<typeof CherryUiModule.Scrollbar>) => (
-      <actual.Scrollbar
+    ScrollArea: ({ viewportProps, ...props }: ComponentProps<typeof CherryUiModule.ScrollArea>) => (
+      <actual.ScrollArea
         {...props}
-        data-testid="provider-list-scrollbar"
-        ref={(element) => {
-          if (element) {
-            element.getBoundingClientRect = () =>
-              ({
-                bottom: scrollerRect.bottom,
-                top: scrollerRect.top
-              }) as DOMRect
+        viewportProps={{
+          ...viewportProps,
+          'data-testid': 'provider-list-scrollbar',
+          ref: (element) => {
+            if (element) {
+              element.getBoundingClientRect = () =>
+                ({
+                  bottom: scrollerRect.bottom,
+                  top: scrollerRect.top
+                }) as DOMRect
+            }
+            if (typeof viewportProps?.ref === 'function') viewportProps.ref(element)
           }
-
-          if (typeof passedRef === 'function') {
-            passedRef(element)
-          }
-        }}>
-        {children}
-      </actual.Scrollbar>
+        }}
+      />
     ),
     ReorderableList: ({ visibleItems, renderItem, onReorder, onReorderError }: any) => (
       <div data-provider-list-scroller>

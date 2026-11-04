@@ -8,7 +8,7 @@ import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import Scrollbar from '../scrollbar'
+import { ScrollArea } from '../../primitives/scroll-area'
 
 /**
  * A page-owned floating side panel. It portals into the nearest portal container
@@ -161,11 +161,12 @@ function PageSidePanel({
               </div>
             )}
 
-            <Scrollbar
-              data-slot="page-side-panel-body"
-              className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
+            <ScrollArea
+              viewportProps={{ 'data-slot': 'page-side-panel-body', className: 'px-6 py-4' }}
+              contentProps={{ className: 'space-y-4' }}
+              className={cn('min-h-0 flex-1', bodyClassName)}>
               {children}
-            </Scrollbar>
+            </ScrollArea>
 
             {footer && (
               <div

@@ -74,7 +74,6 @@ export {
   PageSidePanelSection,
   type PageSidePanelSectionProps
 } from './composites/page-side-panel'
-export { default as Scrollbar } from './composites/scrollbar'
 export { SearchInput, type SearchInputProps } from './composites/search-input'
 export { SelectDropdown, type SelectDropdownProps } from './composites/select-dropdown'
 

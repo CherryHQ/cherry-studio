@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Editor } from '@tiptap/core'
@@ -119,11 +120,7 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  Scrollbar: ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => (
-    <div {...props} className={className} data-testid="composer-surface-scrollbar">
-      {children}
-    </div>
-  ),
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,

@@ -1,15 +1,7 @@
 import type { Virtualizer } from '@tanstack/react-virtual'
-import type {
-  ComponentProps,
-  CSSProperties,
-  KeyboardEvent as ReactKeyboardEvent,
-  ReactNode,
-  Ref,
-  RefObject
-} from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 
-import { ScrollArea } from '@cherrystudio/ui'
 import {
   buildGroupedVirtualRows,
   type DynamicVirtualListRef,
@@ -120,16 +112,12 @@ function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
   return group.__resourceListKind === 'section'
 }
 
-function ResourceListScrollArea(props: ComponentProps<'div'>) {
-  return <ScrollArea {...props} rootClassName="-mr-2" />
-}
-
 function getListViewportClassName(className?: string) {
   return cn(
-    'min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [contain:layout_paint]',
-    '[&>div>[data-index]]:transition-transform [&>div>[data-index]]:duration-200 [&>div>[data-index]]:ease-out',
-    'motion-reduce:[&>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>[data-index]]:transition-none',
-    '[&:has([data-dragging=true])>div>[data-index]]:transition-none',
+    'py-1.5 pt-0.5! pr-2 [contain:layout_paint]',
+    '[&>div>div>[data-index]]:transition-transform [&>div>div>[data-index]]:duration-200 [&>div>div>[data-index]]:ease-out',
+    'motion-reduce:[&>div>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>div>[data-index]]:transition-none',
+    '[&:has([data-dragging=true])>div>div>[data-index]]:transition-none',
     '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!',
     className
   )
@@ -543,7 +531,9 @@ export function VirtualItems<T extends ResourceListItemBase>({
           onKeyDown: handleListboxKeyDown,
           tabIndex: 0
         }}
-        scrollerComponent={ResourceListScrollArea}
+        scrollAreaClassName="-mr-2 min-h-0 flex-1"
+        autoHideScrollbar
+        scrollHideDelay={1200}
         getItemKey={getVirtualRowKey}
         itemContainerStyle={itemContainerStyle}
         onChange={handleVirtualizerChange}
@@ -782,7 +772,9 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
           onKeyDown: handleListboxKeyDown,
           tabIndex: 0
         }}
-        scrollerComponent={ResourceListScrollArea}
+        scrollAreaClassName="-mr-2 min-h-0 flex-1"
+        autoHideScrollbar
+        scrollHideDelay={1200}
         getItemKey={getVirtualRowKey}
         itemContainerStyle={itemContainerStyle}
         onChange={handleVirtualizerChange}

@@ -3,7 +3,7 @@ import type { KeyboardEvent, Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
 import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
@@ -133,7 +133,7 @@ const TranslateInputPane = ({
         </IconButton>
       </div>
       <div className="relative min-h-0 flex-1">
-        <Scrollbar ref={ref} onScroll={onScroll} className="h-full overflow-x-hidden">
+        <ScrollArea viewportProps={{ ref: ref, onScroll: onScroll, className: 'overflow-x-hidden' }} className="h-full">
           <textarea
             ref={textareaRef}
             data-voice-target-id={TARGET_ID}
@@ -151,7 +151,7 @@ const TranslateInputPane = ({
               isDictationIdle && 'pr-20'
             )}
           />
-        </Scrollbar>
+        </ScrollArea>
       </div>
       {!text && (
         <button

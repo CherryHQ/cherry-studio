@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import React, { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -413,60 +413,6 @@ describe('DynamicVirtualList', () => {
       const firstItem = items[0] as HTMLElement
       expect(firstItem.style.transform).toContain('translateY(0px)')
       expect(firstItem).toHaveStyle('width: 100%')
-    })
-  })
-
-  describe('auto hide scrollbar', () => {
-    it('should always show scrollbar when autoHideScrollbar is false', () => {
-      render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={false} />)
-
-      const scrollContainer = document.querySelector('.dynamic-virtual-list') as HTMLElement
-      expect(scrollContainer).toBeInTheDocument()
-
-      // When autoHideScrollbar is false, scrollbar should always be visible
-      expect(scrollContainer).not.toHaveAttribute('aria-hidden', 'true')
-    })
-
-    it('should hide only the scrollbar visuals when autoHideScrollbar is true', async () => {
-      vi.useFakeTimers()
-
-      render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={true} />)
-
-      const scrollContainer = document.querySelector('.dynamic-virtual-list') as HTMLElement
-      expect(scrollContainer).toBeInTheDocument()
-
-      // The content container remains exposed to assistive technology.
-      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
-      expect(scrollContainer).toHaveStyle('scrollbar-color: transparent transparent')
-
-      // We can't easily simulate real scroll events in JSDOM, so we'll test the internal logic directly
-      // by calling the onChange handler which should update the state
-      const onChangeCallback = mocks.useVirtualizer.mock.calls[0][0].onChange
-
-      // Simulate scroll start
-      act(() => {
-        onChangeCallback({ isScrolling: true }, true)
-      })
-
-      // After scrolling starts, scrollbar should be visible
-      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
-      expect(scrollContainer).toHaveStyle('scrollbar-color: var(--scrollbar-thumb) transparent')
-
-      // Simulate scroll end
-      act(() => {
-        onChangeCallback({ isScrolling: false }, true)
-      })
-
-      // Advance timers to trigger the hide timeout
-      act(() => {
-        vi.advanceTimersByTime(10000)
-      })
-
-      // After timeout, scrollbar visuals should be hidden again
-      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
-      expect(scrollContainer).toHaveStyle('scrollbar-color: transparent transparent')
-
-      vi.useRealTimers()
     })
   })
 })

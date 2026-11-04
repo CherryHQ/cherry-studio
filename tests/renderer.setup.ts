@@ -705,8 +705,6 @@ vi.mock('@cherrystudio/ui', async () => {
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     ScrollArea: MockCherrystudioUI.ScrollArea,
-    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
-      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Dropzone: ({
       children,
       getFilesFromEvent: _getFilesFromEvent,
@@ -988,8 +986,6 @@ vi.mock('@cherrystudio/ui', async () => {
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
     ScrollArea: MockCherrystudioUI.ScrollArea,
-    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
-      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
     AvatarImage: ({ src, ...props }) => React.createElement('img', { ...props, src, 'data-testid': 'avatar-image' }),

@@ -326,19 +326,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     <div
       ref={wrapperRef}
       className={classNames(
-        // right-4 keeps the ticks clear of the scrollbar gutter (~15px) so the
-        // thumb never overlaps them while scrolling. The gutter is 15px because
-        // the Scrollbar composite's inline scrollbar-color opts Chromium out of
-        // the global 6px ::-webkit-scrollbar styling into the standard CSS
-        // scrollbar; scrollbar-gutter:stable only keeps it reserved while hidden.
-        // top-2.5 sits just below the header; bottom-8 keeps the last tick clear
-        // of the very bottom edge. The composer is inset to the left of this
-        // gutter, so the ticks clear it. The fade opacity lives on the tick
-        // strip below — NOT here — so the hover preview card stays fully
-        // opaque and readable even while the ticks are still fading in. The
-        // strip's width (hitStripWidth) grows with the gutter so it never
-        // covers message content mid-fade — the visible ticks are clickable at
-        // any fade stage, and clicks left of the strip reach the messages.
+        // Keep the tick hit strip clear of the shared overlay scrollbar.
         'group absolute top-2.5 right-4 bottom-8 z-20 select-none',
         !visible && 'pointer-events-none'
       )}

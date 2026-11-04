@@ -12,7 +12,7 @@ Conversation lists combine `scrollbar-color` with WebKit scrollbar styling. Blin
 
 The UI package provides a Radix-backed `ScrollArea` with a native scroll viewport and an overlaid solid-color thumb. Hover widens the thumb without resizing the viewport. Radix owns pointer dragging and scrollbar visibility; CSS animates its exit. Resource lists remove their duplicated scrollbar gradient and fade timers.
 
-`DynamicVirtualList` accepts an optional viewport component whose ref exposes the real scroll element. Other consumers retain the default div. Both sortable and non-sortable resource lists select the UI scroll area. Their local adapter preserves the existing negative 8px root margin and 8px viewport padding, placing the scrollbar at the pane edge while keeping row insets unchanged.
+`DynamicVirtualList` uses the shared UI scroll area for internal scrolling and exposes the native viewport through its ref. Both sortable and non-sortable resource lists keep the existing negative 8px root margin and 8px viewport padding. The scrollbar sits at the pane edge, and the row insets stay the same.
 
 ## Alternatives considered
 

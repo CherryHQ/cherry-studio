@@ -1,19 +1,9 @@
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import React, { memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-
-const SCROLLBAR_AUTO_HIDE_DELAY = 2000
 
 type InheritedVirtualizerOptions = Partial<
   Omit<
@@ -106,8 +96,10 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    */
   scrollerStyle?: React.CSSProperties
 
-  /** Optional viewport component; its ref must expose the native scroll element. */
-  scrollerComponent?: React.ComponentType<React.ComponentPropsWithRef<'div'>>
+  /** Layout classes for the scroll area root. */
+  scrollAreaClassName?: string
+
+  scrollHideDelay?: number
 
   /**
    * Scroll container role
@@ -168,7 +160,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     rangeExtractor: customRangeExtractor,
     itemContainerStyle,
     scrollerStyle,
-    scrollerComponent: Scroller = 'div',
+    scrollAreaClassName,
+    scrollHideDelay = 2000,
     role = 'region',
     scrollElementRef,
     scrollerProps,
@@ -179,8 +172,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     ...restOptions
   } = props
 
-  const [showScrollbar, setShowScrollbar] = useState(!autoHideScrollbar)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const internalScrollerRef = useRef<HTMLDivElement>(null)
   const setScrollerRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -294,33 +285,13 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   )
   const resolvedRangeExtractor = keepMountedIndexes.length > 0 ? rangeExtractorWithKeptIndexes : baseRangeExtractor
 
-  const handleScrollbarHide = useCallback(
-    (isScrolling: boolean) => {
-      if (!autoHideScrollbar) return
-
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      if (isScrolling) {
-        setShowScrollbar(true)
-      } else {
-        timeoutRef.current = setTimeout(() => {
-          setShowScrollbar(false)
-        }, SCROLLBAR_AUTO_HIDE_DELAY)
-      }
-    },
-    [autoHideScrollbar]
-  )
-
   const virtualizer = useVirtualizer({
     ...restOptions,
     count: list.length,
     getScrollElement: () => (usesExternalScroll ? externalScrollElement : internalScrollerRef.current),
     scrollMargin,
     estimateSize,
-    rangeExtractor: resolvedRangeExtractor,
-    onChange: (instance, sync) => {
-      restOptions.onChange?.(instance, sync)
-      handleScrollbarHide(instance.isScrolling)
-    }
+    rangeExtractor: resolvedRangeExtractor
   })
   const previousListLengthRef = useRef(list.length)
 
@@ -332,14 +303,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       virtualizer.measure()
     }
   }, [list.length, virtualizer])
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [autoHideScrollbar])
 
   useImperativeHandle(
     ref,
@@ -365,27 +328,17 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     : itemContainerStyle?.height !== undefined
   const measureItemElement = hasFixedItemSize ? undefined : virtualizer.measureElement
 
-  return (
-    <Scroller
-      {...scrollerProps}
-      ref={setScrollerRef}
-      className={cn(
-        'dynamic-virtual-list [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
-        isSticky && 'isolate',
-        autoHideScrollbar && !showScrollbar
-          ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
-          : '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]',
-        className
-      )}
-      role={role}
-      onScroll={onScroll}
-      style={{
-        overflow: usesExternalScroll ? 'visible' : 'auto',
-        scrollbarColor:
-          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--scrollbar-thumb) transparent',
-        ...(usesExternalScroll ? {} : horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
-        ...scrollerStyle
-      }}>
+  const viewportProps = {
+    ...scrollerProps,
+    ref: setScrollerRef,
+    className: cn('dynamic-virtual-list', isSticky && 'isolate', className),
+    role,
+    onScroll,
+    style: scrollerStyle
+  }
+
+  const content = (
+    <>
       {header}
       <div
         ref={contentRef}
@@ -468,7 +421,31 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           )
         })}
       </div>
-    </Scroller>
+    </>
+  )
+
+  if (usesExternalScroll) {
+    return (
+      <div {...viewportProps} style={{ ...scrollerStyle, overflow: 'visible' }}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <ScrollArea
+      className={scrollAreaClassName}
+      style={{
+        ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
+        pointerEvents: scrollerStyle?.pointerEvents
+      }}
+      orientation={horizontal ? 'horizontal' : scrollerStyle?.overflowX === 'auto' ? 'both' : 'vertical'}
+      type={autoHideScrollbar ? 'scroll' : 'auto'}
+      scrollHideDelay={scrollHideDelay}
+      viewportProps={viewportProps}
+      contentProps={horizontal ? { className: 'h-full' } : undefined}>
+      {content}
+    </ScrollArea>
   )
 }
 
