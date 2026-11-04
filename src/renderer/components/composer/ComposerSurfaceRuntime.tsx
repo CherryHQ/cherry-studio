@@ -15,7 +15,7 @@ import React, {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
@@ -810,7 +810,6 @@ export default function ComposerSurfaceRuntime({
     compactFrameStyle,
     fitContentHeight,
     editorContentStyle,
-    editorElementStyle,
     frameRef,
     frameStyle,
     handleResizeKeyDown,
@@ -1580,11 +1579,9 @@ export default function ComposerSurfaceRuntime({
         dir: 'auto',
         // Keep the input focusable while a send temporarily makes it read-only.
         tabindex: '0',
-        class: cn(
-          'composer-tiptap box-border block w-full overflow-auto rounded-none break-words whitespace-pre-wrap text-foreground transition-none! outline-none [&::-webkit-scrollbar]:w-[3px]',
-          hasCustomHeight && 'h-full'
-        ),
-        style: `${editorElementStyle}; text-align: start`
+        class:
+          'composer-tiptap box-border block w-full rounded-none break-words whitespace-pre-wrap text-foreground transition-none! outline-none',
+        style: 'text-align: start'
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
@@ -1769,7 +1766,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [editorElementStyle, hasCustomHeight, scheduleCompositionEndInputNotify, submitDraft]
+    [scheduleCompositionEndInputNotify, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -2431,16 +2428,25 @@ export default function ComposerSurfaceRuntime({
           )}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
-          <EditorContent
-            editor={editor}
-            className="min-w-0 flex-1"
+          <ScrollArea
+            type="auto"
+            className={cn(
+              'min-w-0 flex-1 [-webkit-app-region:no-drag]',
+              isCompact && '[&>[data-slot=scroll-area-scrollbar]]:hidden'
+            )}
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
-            onFocus={() => {
-              onVoiceTargetInteraction?.()
-              onFocus?.()
-              pasteHandling.setLastFocusedComponent('inputbar')
-            }}
-          />
+            viewportProps={{ style: isCompact ? { overflowY: 'hidden' } : undefined }}
+            contentProps={{ className: 'grid min-h-full' }}>
+            <EditorContent
+              editor={editor}
+              className="grid min-w-0"
+              onFocus={() => {
+                onVoiceTargetInteraction?.()
+                onFocus?.()
+                pasteHandling.setLastFocusedComponent('inputbar')
+              }}
+            />
+          </ScrollArea>
           <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
@@ -2480,7 +2486,7 @@ export default function ComposerSurfaceRuntime({
     <NarrowLayout
       narrowMode={narrowMode}
       withSidePadding={!embedded}
-      className="pointer-events-auto"
+      className="pointer-events-none"
       // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
       // gutter mirrored on both sides keeps the composer centred and aligned with
       // the message column. Other callers keep NarrowLayout's default padding.
@@ -2493,7 +2499,7 @@ export default function ComposerSurfaceRuntime({
             }
           : {})
       }}>
-      <div className="w-full">
+      <div className="pointer-events-auto w-full">
         <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"

@@ -71,6 +71,7 @@
   "backup.restore.failed": "Geri yükleme başarısız",
   "backup.restore.retry": "Yedek geri yüklenemedi. Önceki verileriniz korundu. Lütfen geri yüklemeyi yeniden deneyin.",
   "chat.conversation.new": "Yeni Sohbet",
+  "common.agent_compaction_unchanged": "Özet kaydedilmedi; konuşma değişmedi.",
   "common.channel_available_commands": "Kullanılabilir komutlar:",
   "common.channel_command_processing_error": "⚠️ Komut işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
   "common.channel_error": "Hata: {{error}}",

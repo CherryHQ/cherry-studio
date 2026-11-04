@@ -3,7 +3,7 @@ import type { Ref } from 'react'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { AppMarkdown } from '@renderer/components/markdown'
 import { readTextAloud } from '@renderer/services/voice'
 
@@ -46,10 +46,9 @@ const TranslateOutputPane = ({
 
   return (
     <div data-ui="translate.output" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <Scrollbar
-        ref={ref}
-        onScroll={onScroll}
-        className="selectable min-h-0 flex-1 overflow-x-hidden p-4 pr-12 text-base leading-relaxed">
+      <ScrollArea
+        viewportProps={{ ref: ref, onScroll: onScroll, className: 'overflow-x-hidden p-4 pr-12' }}
+        className="selectable min-h-0 flex-1 text-base leading-relaxed">
         <div className="flex min-h-full flex-col">
           {translating && !translatedContent ? (
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -64,7 +63,7 @@ const TranslateOutputPane = ({
             )
           ) : null}
         </div>
-      </Scrollbar>
+      </ScrollArea>
       <div className="absolute top-4 right-3 flex">
         <IconButton size="sm" onClick={onCopy} disabled={!translatedContent} aria-label={t('common.copy')}>
           {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}

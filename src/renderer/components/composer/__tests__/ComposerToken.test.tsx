@@ -1,4 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
@@ -55,11 +56,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     Button,
-    Scrollbar: ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => (
-      <div {...props} className={className} data-testid="composer-token-scrollbar">
-        {children}
-      </div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     NormalTooltip: ({
       children,
       content,
@@ -891,7 +888,7 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-popover-content')).not.toHaveTextContent('已粘贴的文本.txt')
     expect(screen.getByTestId('composer-token-popover-content')).not.toHaveTextContent('TXT')
     expect(screen.getByTestId('composer-token-popover-content')).not.toHaveTextContent('23 KB')
-    const textScrollbar = screen.getByTestId('composer-token-scrollbar')
+    const textScrollbar = document.querySelector('[data-file-token-text-scrollbar]')!
     expect(textScrollbar).toHaveAttribute('data-file-token-text-scrollbar', '')
     const textPreview = textScrollbar.querySelector('pre')
     expect(textPreview).toHaveTextContent('第一段粘贴文本')

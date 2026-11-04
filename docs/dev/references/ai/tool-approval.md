@@ -114,7 +114,7 @@ carries only IDs, the card uses earlier streamed tool input, and a configured
 `src/main/ai/runtime/claudeCode/streamAdapter.ts:1954`,
 `src/renderer/components/chat/messages/tools/toolResponse.ts:238`,
 `src/main/ai/runtime/claudeCode/settingsBuilder.ts:335`). The pinned
-`@anthropic-ai/claude-agent-sdk` 0.3.284 (`package.json:134`) permits this through
+`@anthropic-ai/claude-agent-sdk` 0.3.311 (`package.json:206`) permits this through
 `PreToolUseHookSpecificOutput.updatedInput`. The renderer also
 cannot distinguish every JSON value type: the string `"false"` and boolean
 `false` render identically

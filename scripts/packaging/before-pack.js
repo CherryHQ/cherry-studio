@@ -6,7 +6,7 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('../linux-native/download')
-const { buildSelectionPanel } = require('../../native/darwin/build')
+const { buildSelectionPanel } = require('../../native/selection-panel/build')
 const { buildExternalApp } = require('../../native/external-app/build.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
@@ -172,7 +172,7 @@ exports.keepPackages = keepPackages
 
 function prepareSystemSpeechHelper(
   context,
-  buildNativeHelper = require('../../packages/system-speech/scripts/build-native.cjs').buildNativeHelper
+  buildNativeHelper = require('../../native/system-speech/scripts/build-native.cjs').buildNativeHelper
 ) {
   const platform = platformToArch[context.packager.platform.name]
   const arch = Arch[context.arch]
@@ -185,7 +185,7 @@ function prepareSystemSpeechHelper(
     if (arch === 'x64') {
       buildNativeHelper(arch, platform)
       resources.push({
-        from: 'packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        from: 'native/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
         to: destination
       })
     }

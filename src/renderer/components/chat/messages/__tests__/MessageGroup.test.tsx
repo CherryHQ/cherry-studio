@@ -883,12 +883,14 @@ describe('MessageGroup', () => {
     expect(outerWrapper).not.toBeNull()
     expect(getComputedStyle(outerWrapper!).overflowY).toBe('visible')
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    )
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
     expect(contentContainer).toHaveAttribute('tabindex', '0')
 
-    const horizontalGroup = outerWrapper!.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper!.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')
     expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
   })
@@ -904,8 +906,8 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    const contentContainers = container.querySelectorAll('.message-content-container')
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+    const contentContainers = container.querySelectorAll('.message-content-container [data-slot=scroll-area-viewport]')
 
     expect(horizontalGroup).not.toBeNull()
     expect(contentContainers).toHaveLength(2)
@@ -936,7 +938,7 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 0,
@@ -964,7 +966,9 @@ describe('MessageGroup', () => {
       </div>
     )
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -986,8 +990,10 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 0,
@@ -1018,7 +1024,9 @@ describe('MessageGroup', () => {
       </div>
     )
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -1038,7 +1046,9 @@ describe('MessageGroup', () => {
 
     const { container } = render(<MessageGroup messages={messages} />)
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -1062,7 +1072,7 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     expect(horizontalGroup).not.toBeNull()
 
     setElementSize(horizontalGroup, {
@@ -1088,7 +1098,7 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 500,
