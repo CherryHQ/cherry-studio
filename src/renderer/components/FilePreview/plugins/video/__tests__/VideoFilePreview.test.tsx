@@ -1,7 +1,8 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentType, HTMLAttributes } from 'react'
+import type { ComponentType } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -19,7 +20,7 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({

@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 export interface RunPaths {
   root: string
   appRecord: string
+  appLaunchFailure: string
   artifacts: string
   evidence: string
   fixtures: string
@@ -23,6 +24,7 @@ export function getRunPaths(runDirectory: string): RunPaths {
   return {
     root,
     appRecord: join(root, 'app.json'),
+    appLaunchFailure: join(root, 'state', 'app-launch-failure.json'),
     artifacts: join(root, 'release'),
     evidence: join(root, 'evidence'),
     fixtures: join(root, 'fixtures'),

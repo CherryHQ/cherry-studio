@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -34,11 +35,7 @@ vi.mock('@cherrystudio/ui', async () => ({
       {children}
     </button>
   ),
-  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} {...props}>
-      {children}
-    </div>
-  ),
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 

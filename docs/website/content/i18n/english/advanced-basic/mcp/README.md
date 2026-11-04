@@ -23,6 +23,10 @@ If you only need a fixed workflow, use a Skill; if you only need to search a Che
 
 Path: **Settings → MCP → MCP Servers → Add**.
 
+The **Add** menu provides Quick Create, Import from JSON, Import DXT Package, Import MCPB Bundle and **Export as JSON**. Export saves every eligible server to `mcp-servers.json`, regardless of the current search or filter; built-in and in-memory servers are excluded. Duplicate eligible server names or the name `__proto__` block the entire export. To import on the destination, open **Import from JSON**, paste the file contents and confirm; names already present on the destination still cause import conflicts.
+
+Export preserves stored credentials in environment variables, headers, URLs, commands and arguments unchanged, without automatic masking. Review the file and remove sensitive information before sharing. Package and local-path servers still require their files, binaries and usable paths on the destination; JSON does not bundle those dependencies.
+
 {% stepper %}
 {% step %}
 #### 1. Confirm the connection type
@@ -77,7 +81,7 @@ The panel only shows servers that are connected within the current conversation 
 | -------- | -------------- | ----------------- | --------- | ------------- | ------------ |
 | Server status | Depends on the configuration after adding | Enable one at a time and verify | Controls whether the server is available | First-time setup, troubleshooting | When several servers fail at once, it's hard to pinpoint |
 | Agent binding | Servers aren't bound automatically | Bind only the servers the Agent needs | Controls the scope of capabilities | Several Agents with different roles | Keeps irrelevant tools from filling up the context |
-| Environment variables | No keys prefilled | Use credentials with the minimum permissions the service requires | Provides authentication or runtime parameters | Private services | Mask sensitive content before screenshots and exports |
+| Environment variables | No keys prefilled | Use credentials with the minimum permissions the service requires | Provides authentication or runtime parameters | Private services | Mask screenshots; JSON export retains credentials, so review and remove them before sharing |
 | Tool approval | Decided by the Agent's permission mode | Keep confirmation on for tools that write or cost money | Prevents unintended actions | Databases, files, external APIs | Channel entry points can use a stricter mode |
 
 ### Example: Connecting a Project Database to an Analysis Agent

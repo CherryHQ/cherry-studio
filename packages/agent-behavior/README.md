@@ -7,6 +7,10 @@ its harness behaves as the ports promise. The decisions behind it are in the
 [Agent Note](../../.agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md); this README is the
 contract documentation adapters follow.
 
+When a committed child's native session fails to open, the adapter reports `onChildOpenFailed` before
+starting that commit's jobs. Behavior records the first run as failed through the normal run-end decision,
+freeing background capacity and allowing the idle driver to continue. Successful siblings retain their work.
+
 ## What this package is
 
 ```text
@@ -306,9 +310,9 @@ only, so neither messaging nor stopping redirects to another child with the same
 a separate operation that creates a new child. The shared contract tests continuation history and run identity,
 stale stops and parent cancellation on both the fake and Pi. A child absent from the harness's facts is refused before
 writing a continuation record or report job; a stored parent record alone does not establish an available context.
-Durable's behavior adapter is not implemented; its
-immutable conversation ownership remains a limitation to resolve or reject before writing the continuation's run
-record and report job, without silently forking.
+The [Durable adapter](../agent-runtime-pi-durable/README.md#shared-behavior) implements these ports. Its immutable
+conversation ownership still prevents independent continuation of a completed foreground child; the adapter rejects
+that continuation before writing its run record or report job, without silently forking.
 
 `vcc_recall` reads the full active lineage, including compaction-folded messages and the running turn.
 `#N` numbers user, assistant, tool-result and marker messages; records and compaction entries do not consume a number.
@@ -419,9 +423,10 @@ needs (tools, jobs, tool gate, context filter, request meter, lifecycle). The ha
 | `restart()`               | Lose everything in memory and reopen from storage: install runs again, `abandon` jobs are dropped, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue.     |
 | `close()`                 | Call `onClose` for every conversation, then shut down.                                                                                                                                                                  |
 
-A harness may skip only the cases whose `needs` it lacks, and `needs` has two values:
+A harness may skip only the cases whose `needs` it lacks:
 
 - `restart`: coding-agent skips these, because its runs do not resume.
+- `foreground-continuation`: Durable skips this because a completed foreground child's native owner cannot be detached.
 - `context-filter`: Durable skips this, because it never consults `ContextFilter` (H10, a declared difference: a round
   withdrawn after it started, or cut by a restart before its admission, stays visible to later model requests there).
 

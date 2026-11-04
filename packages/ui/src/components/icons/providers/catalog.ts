@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-11-02T09:05:30.000Z
- * Total icons: 167
+ * Generated at: 2026-11-04T07:38:09.129Z
+ * Total icons: 174
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -18,6 +18,7 @@ import { AihubmixIcon } from './aihubmix'
 import { AionlabsIcon } from './aionlabs'
 import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
+import { AntAfuIcon } from './ant-afu/ant-afu'
 import { AnthropicIcon } from './anthropic'
 import { ApplicationIcon } from './application'
 import { ArceeAiIcon } from './arcee-ai'
@@ -33,6 +34,7 @@ import { BochaIcon } from './bocha'
 import { BoltNewIcon } from './bolt-new'
 import { BurncloudIcon } from './burncloud'
 import { BytedanceIcon } from './bytedance'
+import { CanvaIcon } from './canva/canva'
 import { CephalonIcon } from './cephalon'
 import { CerebrasIcon } from './cerebras'
 import { CherryinIcon } from './cherryin'
@@ -64,6 +66,7 @@ import { FeloIcon } from './felo'
 import { FirecrawlIcon } from './firecrawl'
 import { FireworksIcon } from './fireworks'
 import { FlowithIcon } from './flowith'
+import { GammaIcon } from './gamma/gamma'
 import { GensparkIcon } from './genspark'
 import { GiteeAiIcon } from './gitee-ai'
 import { GithubIcon } from './github'
@@ -95,12 +98,14 @@ import { LiquidIcon } from './liquid'
 import { LitellmIcon } from './litellm/litellm'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
+import { LovableIcon } from './lovable/lovable'
 import { MacosIcon } from './macos'
 import { McpIcon } from './mcp'
 import { McpsoIcon } from './mcpso'
 import { MetaIcon } from './meta'
 import { type ProviderIconKey } from './meta-catalog'
 import { MetasoIcon } from './metaso'
+import { MiaodaIcon } from './miaoda/miaoda'
 import { MineruIcon } from './mineru'
 import { MinimaxIcon } from './minimax'
 import { MinimaxAgentIcon } from './minimax-agent'
@@ -111,6 +116,7 @@ import { MonicaIcon } from './monica'
 import { MoonshotIcon } from './moonshot'
 import { N8nIcon } from './n8n'
 import { NamiAiIcon } from './nami-ai'
+import { NapkinIcon } from './napkin/napkin'
 import { NeteaseYoudaoIcon } from './netease-youdao'
 import { NewapiIcon } from './newapi'
 import { NomicIcon } from './nomic'
@@ -155,6 +161,7 @@ import { TavilyIcon } from './tavily'
 import { TencentCloudTiIcon } from './tencent-cloud-ti'
 import { TesseractJsIcon } from './tesseract-js'
 import { ThinkAnyIcon } from './think-any'
+import { TingwuIcon } from './tingwu/tingwu'
 import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
 import { TokendanceIcon } from './tokendance'
@@ -188,6 +195,7 @@ export const PROVIDER_ICON_CATALOG = {
   aionlabs: AionlabsIcon,
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
+  'ant-afu': AntAfuIcon,
   anthropic: AnthropicIcon,
   application: ApplicationIcon,
   'arcee-ai': ArceeAiIcon,
@@ -203,6 +211,7 @@ export const PROVIDER_ICON_CATALOG = {
   'bolt-new': BoltNewIcon,
   burncloud: BurncloudIcon,
   bytedance: BytedanceIcon,
+  canva: CanvaIcon,
   cephalon: CephalonIcon,
   cerebras: CerebrasIcon,
   cherryin: CherryinIcon,
@@ -234,6 +243,7 @@ export const PROVIDER_ICON_CATALOG = {
   firecrawl: FirecrawlIcon,
   fireworks: FireworksIcon,
   flowith: FlowithIcon,
+  gamma: GammaIcon,
   genspark: GensparkIcon,
   'gitee-ai': GiteeAiIcon,
   github: GithubIcon,
@@ -265,11 +275,13 @@ export const PROVIDER_ICON_CATALOG = {
   litellm: LitellmIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
+  lovable: LovableIcon,
   macos: MacosIcon,
   mcp: McpIcon,
   mcpso: McpsoIcon,
   meta: MetaIcon,
   metaso: MetasoIcon,
+  miaoda: MiaodaIcon,
   mineru: MineruIcon,
   minimax: MinimaxIcon,
   'minimax-agent': MinimaxAgentIcon,
@@ -280,6 +292,7 @@ export const PROVIDER_ICON_CATALOG = {
   moonshot: MoonshotIcon,
   n8n: N8nIcon,
   'nami-ai': NamiAiIcon,
+  napkin: NapkinIcon,
   'netease-youdao': NeteaseYoudaoIcon,
   newapi: NewapiIcon,
   nomic: NomicIcon,
@@ -324,6 +337,7 @@ export const PROVIDER_ICON_CATALOG = {
   'tencent-cloud-ti': TencentCloudTiIcon,
   'tesseract-js': TesseractJsIcon,
   'think-any': ThinkAnyIcon,
+  tingwu: TingwuIcon,
   tng: TngIcon,
   together: TogetherIcon,
   tokendance: TokendanceIcon,
