@@ -17,7 +17,8 @@ interface Props {
 
 const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsByMessageId }) => {
   return (
-    <Scrollbar className="bubble mb-auto flex max-h-full w-full flex-row justify-start bg-transparent! [-webkit-app-region:no-drag]">
+    // Only the stationary viewport excludes dragging; inherited regions move outside it when scrolled.
+    <Scrollbar className="bubble mb-auto flex max-h-full w-full flex-row justify-start bg-transparent! [-webkit-app-region:no-drag] [&_*]:[-webkit-app-region:initial]">
       <Messages
         assistant={assistant}
         route={route}

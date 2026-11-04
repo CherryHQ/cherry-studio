@@ -86,7 +86,8 @@ const FeatureMenus = ({
   }))
 
   return (
-    <Scrollbar className="h-auto shrink-0 [-webkit-app-region:no-drag]">
+    // Keep menu items from emitting no-drag regions outside the viewport when scrolled.
+    <Scrollbar className="h-auto shrink-0 [-webkit-app-region:no-drag] [&_*]:[-webkit-app-region:initial]">
       <div className="flex cursor-pointer flex-col gap-1">
         {features.map((feature, index) => (
           <button
