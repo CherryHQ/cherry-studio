@@ -15,6 +15,7 @@
  */
 
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
 import mime from 'mime'
@@ -27,7 +28,7 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { HeifRenditionSource } from '@shared/ipc/schemas/file'
+import type { HeifRendition, HeifRenditionSource } from '@shared/ipc/schemas/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { HeifAttachmentError } from './HeifAttachmentError'
@@ -36,6 +37,13 @@ const isHeifExt = (value: string) => /\.he(?:ic|if)$/i.test(value)
 const isHeifMime = (value: string) => /^image\/hei[cf](?:-sequence)?$/i.test(value)
 
 const logger = loggerService.withContext('ai:fileProcessor')
+
+// Stay below the service's eight waiting slots to leave room for preview conversions.
+const HEIF_CONCURRENCY = 4
+const HEIF_BUSY_RETRIES = 2
+const HEIF_BUSY_BACKOFF_MS = 50
+const waitingHeif = new Set<() => void>()
+let activeHeif = 0
 
 // `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
 // placeholder the ai-sdk gateway converters emit for remote images with no
@@ -202,16 +210,70 @@ async function materializeInner(part: FileUIPart, signal?: AbortSignal): Promise
 
 async function heifToDataUrl(source: HeifRenditionSource, signal?: AbortSignal) {
   try {
-    const rendition = await application.get('HeifRenditionService').getRendition(source, signal)
+    const rendition = await limitedHeifRendition(source, signal)
     return {
       url: `data:image/png;base64,${Buffer.from(rendition.content).toString('base64')}`,
       mediaType: 'image/png',
       heif: true
     }
   } catch (error) {
-    if (signal?.aborted) throw error
+    if (signal?.aborted) throw signal.reason
     throw new HeifAttachmentError(error)
   }
+}
+
+function limitedHeifRendition(source: HeifRenditionSource, signal?: AbortSignal): Promise<HeifRendition> {
+  return new Promise((resolve, reject) => {
+    let started = false
+    let settled = false
+    const finish = () => {
+      if (settled) return false
+      settled = true
+      signal?.removeEventListener('abort', onAbort)
+      waitingHeif.delete(start)
+      if (started) {
+        activeHeif--
+        waitingHeif.values().next().value?.()
+      }
+      return true
+    }
+    const onAbort = () => {
+      if (finish()) reject(signal!.reason)
+    }
+    const start = () => {
+      waitingHeif.delete(start)
+      started = true
+      activeHeif++
+      void requestHeifRendition(source, signal).then(
+        (rendition) => {
+          if (finish()) resolve(rendition)
+        },
+        (error: unknown) => {
+          if (finish()) reject(error)
+        }
+      )
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
+    else if (activeHeif < HEIF_CONCURRENCY) start()
+    else waitingHeif.add(start)
+  })
+}
+
+async function requestHeifRendition(source: HeifRenditionSource, signal?: AbortSignal): Promise<HeifRendition> {
+  const service = application.get('HeifRenditionService')
+  for (let retry = 0; retry < HEIF_BUSY_RETRIES; retry++) {
+    signal?.throwIfAborted()
+    try {
+      return await service.getRendition(source, signal)
+    } catch (error) {
+      signal?.throwIfAborted()
+      if (!(error instanceof IpcError) || error.code !== fileErrorCodes.HEIF_BUSY) throw error
+      await delay(HEIF_BUSY_BACKOFF_MS, undefined, { signal })
+    }
+  }
+  signal?.throwIfAborted()
+  return service.getRendition(source, signal)
 }
 
 function renditionPart(part: FileUIPart, inlined: { url: string; mediaType: string; heif?: boolean }): FileUIPart {

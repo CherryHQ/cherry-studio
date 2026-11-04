@@ -3,10 +3,15 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { BaseService } from '@main/core/lifecycle'
+import { HeifRenditionService } from '@main/services/HeifRenditionService'
 import { assertQuadrants } from '@main/utils/__tests__/heifFixture'
-import type { FileUIPart } from '@shared/data/types/message'
+import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -28,7 +33,9 @@ vi.mock('@application', async () => {
 })
 
 import { transcodeHeifToPng } from '@main/utils/image'
+import * as imageUtils from '@main/utils/image'
 
+import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 import { materializeNativeFilePart } from '../fileProcessor'
 import { HeifAttachmentError } from '../HeifAttachmentError'
 
@@ -209,4 +216,190 @@ it('rejects oversized inline HEIF before passing decoded bytes to the rendition 
     materializeNativeFilePart(filePart({ mediaType: 'image/heic', url: 'data:image/heic;base64,' + payload }))
   ).rejects.toMatchObject({ name: 'HeifAttachmentError', detailI18nKey: 'heif_detail_too_large' })
   expect(renditionMock).not.toHaveBeenCalled()
+})
+
+describe('HEIF history concurrency', () => {
+  let service: HeifRenditionService
+  let tmpDir: string
+  let inputs: Buffer[]
+  const png = {
+    content: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+      'base64'
+    ),
+    mediaType: 'image/png' as const,
+    width: 1,
+    height: 1
+  }
+
+  beforeAll(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-heif-history-'))
+    const fixture = await fs.readFile('tests/fixtures/heif/quadrants.heic')
+    // 26 exceeds eight waiting + one active + sixteen cached renditions, so cache growth cannot hide overload.
+    inputs = Array.from({ length: 26 }, (_, i) => Buffer.concat([fixture, Buffer.from([i])]))
+    await Promise.all(inputs.map((content, i) => fs.writeFile(path.join(tmpDir, `${i}.heic`), content)))
+  })
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    service = new HeifRenditionService()
+    MockApplicationUtils.setService('HeifRenditionService', service)
+    MockApplicationUtils.setService('FileManager', {
+      getById: async () => ({ ext: '.heic' }),
+      getVersion: async (id: string) => ({ size: inputs[Number(id)].length, mtime: 1 }),
+      readChunk: async (id: string) => ({
+        content: inputs[Number(id)],
+        version: { size: inputs[Number(id)].length, mtime: 1 }
+      })
+    })
+  })
+
+  afterEach(async () => {
+    await service._doStop()
+    MockApplicationUtils.resetServices()
+    vi.restoreAllMocks()
+  })
+
+  afterAll(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  const history = (branch = 'data', count = inputs.length): CherryUIMessage[] =>
+    inputs.slice(0, count).map((content, i) => ({
+      id: `history-${i}`,
+      role: 'user',
+      parts: [
+        { type: 'text', text: `photo ${i}` },
+        filePart({
+          filename: `${i}.heic`,
+          mediaType: 'image/heic',
+          url:
+            branch === 'data'
+              ? 'data:image/heic;base64,' + content.toString('base64')
+              : `file://${path.join(tmpDir, `${i}.heic`)}`,
+          ...(branch === 'entry' && { providerMetadata: { cherry: { fileEntryId: String(i) } } })
+        })
+      ]
+    }))
+
+  const prepare = (messages: CherryUIMessage[], signal?: AbortSignal) =>
+    prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: false,
+      signal
+    })
+
+  const expected = (messages: CherryUIMessage[]) =>
+    messages.map((message, i) => ({
+      ...message,
+      parts: [
+        message.parts[0],
+        {
+          ...message.parts[1],
+          filename: `${i}.png`,
+          mediaType: 'image/png',
+          url: `data:image/png;base64,${png.content.toString('base64')}`
+        }
+      ]
+    }))
+
+  it.each(['entry', 'path', 'data'])(
+    'prepares 26 distinct %s HEIF attachments in order within capacity',
+    async (branch) => {
+      let transcodes = 0,
+        peakTranscodes = 0,
+        consumers = 0,
+        peakConsumers = 0
+      vi.spyOn(imageUtils, 'transcodeHeifToPng').mockImplementation(async () => {
+        peakTranscodes = Math.max(peakTranscodes, ++transcodes)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        transcodes--
+        return png
+      })
+      const getRendition = service.getRendition.bind(service)
+      vi.spyOn(service, 'getRendition').mockImplementation(async (...args) => {
+        peakConsumers = Math.max(peakConsumers, ++consumers)
+        try {
+          return await getRendition(...args)
+        } finally {
+          consumers--
+        }
+      })
+      const messages = history(branch)
+      await expect(prepare(messages)).resolves.toEqual(expected(messages))
+      expect(peakTranscodes).toBeGreaterThan(0)
+      expect(peakTranscodes).toBeLessThanOrEqual(4)
+      // The service serializes transcodes itself; admitted consumers expose whether chat work is actually bounded.
+      expect(peakConsumers).toBeLessThanOrEqual(4)
+    }
+  )
+
+  it('retries a transient busy attachment and prepares the turn', async () => {
+    vi.spyOn(imageUtils, 'transcodeHeifToPng').mockResolvedValue(png)
+    const attempts = vi.spyOn(service, 'getRendition').mockRejectedValueOnce(new IpcError(fileErrorCodes.HEIF_BUSY))
+    const messages = history('data', 1)
+    await expect(prepare(messages)).resolves.toEqual(expected(messages))
+    expect(attempts.mock.calls.length).toBe(2)
+  })
+
+  it('rejects the turn with the busy detail after at most two retries', async () => {
+    const attempts = vi.spyOn(service, 'getRendition').mockRejectedValue(new IpcError(fileErrorCodes.HEIF_BUSY))
+    await expect(prepare(history('data', 1))).rejects.toMatchObject({
+      name: 'HeifAttachmentError',
+      detailI18nKey: 'heif_detail_busy'
+    })
+    expect(attempts.mock.calls.length).toBe(3)
+  })
+
+  it('releases active and queued work on abort even while a rendition remains pending', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('history cancelled', 'AbortError')
+    const admitted: string[] = []
+    let recoveryCount = 0
+    let releaseRecovery!: () => void
+    const recoveryGate = new Promise<void>((resolve) => {
+      releaseRecovery = resolve
+    })
+    const getRendition = service.getRendition.bind(service)
+    vi.spyOn(imageUtils, 'transcodeHeifToPng').mockResolvedValue(png)
+    vi.spyOn(service, 'getRendition').mockImplementation(async (source, signal) => {
+      if (signal === controller.signal) {
+        admitted.push(source.kind)
+        return new Promise(() => {})
+      }
+      recoveryCount++
+      await recoveryGate
+      return getRendition(source, signal)
+    })
+    const pending = prepare(history(), controller.signal).catch((error: unknown) => error)
+    await vi.waitFor(() => expect(admitted.length).toBeGreaterThan(0))
+    controller.abort(reason)
+    const outcome = await Promise.race([
+      pending,
+      new Promise((resolve) => setTimeout(() => resolve('abort did not release HEIF work'), 100))
+    ])
+    expect(outcome).toBe(reason)
+    const messages = history('data', 4)
+    const recovery = prepare(messages)
+    await vi.waitFor(() => expect(recoveryCount).toBe(4))
+    releaseRecovery()
+    await expect(recovery).resolves.toEqual(expected(messages))
+    expect(admitted.length).toBeLessThanOrEqual(4)
+  })
+
+  it('cancels busy backoff with the original abort and does not retry cancelled work', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('cancel busy retry', 'AbortError')
+    vi.spyOn(imageUtils, 'transcodeHeifToPng').mockResolvedValue(png)
+    const attempts = vi.spyOn(service, 'getRendition').mockRejectedValueOnce(new IpcError(fileErrorCodes.HEIF_BUSY))
+    const pending = prepare(history('data', 1), controller.signal)
+    const rejected = expect(pending).rejects.toBe(reason)
+    await vi.waitFor(() => expect(attempts.mock.calls.length).toBe(1), { interval: 1 })
+    controller.abort(reason)
+    await rejected
+    const messages = history('data', 1)
+    await expect(prepare(messages)).resolves.toEqual(expected(messages))
+    expect(attempts.mock.calls.length).toBe(2)
+  })
 })
