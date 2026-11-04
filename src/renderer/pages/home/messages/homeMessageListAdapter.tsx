@@ -867,7 +867,13 @@ export function useHomeMessageListProviderValue({
       translateMessage,
       abortMessageTranslation,
       removeMessageTranslation,
-      renderRegenerateModelPicker
+      renderRegenerateModelPicker,
+      retryIllustration: normalInteractionsEnabled
+        ? (target) => ipcApi.request('ai.illustration.retry', target)
+        : undefined,
+      cancelIllustration: normalInteractionsEnabled
+        ? (target) => ipcApi.request('ai.illustration.cancel', target)
+        : undefined
     }),
     [
       abortTool,

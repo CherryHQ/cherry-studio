@@ -84,6 +84,7 @@ import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import MessageCompactionStatus from './MessageCompactionStatus'
+import MessageIllustrationBlock from './MessageIllustrationBlock'
 import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
@@ -729,6 +730,14 @@ function renderPart(
       : undefined
 
   switch (partType) {
+    case 'data-illustration':
+      return (
+        <MessageIllustrationBlock
+          key={partId}
+          target={{ topicId: message.topicId, messageId: message.id, id: part.data.id }}
+          data={part.data}
+        />
+      )
     case 'reasoning': {
       const reasoningPart = part
       const isReasoningStreaming = !options?.settleStreamingReasoning && reasoningPart.state === 'streaming'

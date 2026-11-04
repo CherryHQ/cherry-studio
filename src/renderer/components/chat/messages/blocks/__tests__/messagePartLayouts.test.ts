@@ -95,6 +95,15 @@ function nonTextIndexes(items: readonly PartEntry[]): number[] {
 }
 
 describe('projectLiveMessageParts', () => {
+  it('keeps inline illustrations and surrounding text together in live and completed answers', () => {
+    const parts = entries([
+      { type: 'text', text: 'Before' },
+      { type: 'data-illustration', data: { id: 'image', status: 'generating', prompt: '', revision: 1 } },
+      { type: 'text', text: 'After' }
+    ])
+    expect(indexes(projectCompletedMessageParts(parts).resultEntries)).toEqual([0, 1, 2])
+    expect(projectCompletedMessageParts(parts).historyEntries).toEqual([])
+  })
   it('keeps special parts on their existing side of live process boundaries when enabled', () => {
     const parts = entriesWithSpecialParts()
     const before = projectLiveMessageParts(parts)

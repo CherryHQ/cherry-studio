@@ -11,6 +11,12 @@ const messagesGroup = 'settings.messages.title'
 
 export const entries: SettingsSearchEntry[] = [
   {
+    anchorId: 'illustrations',
+    titleKey: 'settings.messages.illustration.label',
+    groupKey: messagesGroup,
+    aliases: ['插图', 'illustration']
+  },
+  {
     anchorId: 'theme-mode',
     titleKey: 'settings.theme.title',
     groupKey: 'settings.theme.title',

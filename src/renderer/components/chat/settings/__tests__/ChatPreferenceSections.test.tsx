@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import ChatPreferenceSections from '../ChatPreferenceSections'
+vi.mock('../IllustrationSettings', () => ({ IllustrationSettings: () => null }))
 
 const mocks = vi.hoisted(() => ({
   loadThemeNames: vi.fn(async () => ['auto', 'github']),
