@@ -406,8 +406,10 @@ export function useModelSelectorData({
 
     displayGroups.forEach((group) => {
       const isCherryAiGroup = group.id === CHERRYAI_DISPLAY_GROUP.id
+      // A locked offer never shows in the pinned group, so a pin kept from before sign-out must not hide it.
       const visibleModels = group.models.filter(
-        ({ model }) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
+        ({ model }) =>
+          lockedModelIds.has(model.id) || !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
       )
       // Free models trail subscription models; a search keeps its relevance order.
       const filteredModels =

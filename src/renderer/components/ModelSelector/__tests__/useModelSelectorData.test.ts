@@ -245,6 +245,40 @@ describe('useModelSelectorData', () => {
     }
   })
 
+  it('still offers a paid model that was pinned before it became locked', () => {
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [],
+      pinnedIds: [`${CHERRY_CLOUD_PROVIDER_ID}::plus-model`]
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 1,
+          purchase_available: true,
+          models: [{ id: 'plus-model', display_name: 'Plus model', available_features: ['agent', 'chat', 'translate'] }]
+        }
+      ]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.modelItems.filter((item) => item.locked).map((item) => item.model.name)).toEqual([
+        'Plus model'
+      ])
+    } finally {
+      cloudPlans.data = undefined
+    }
+  })
+
   it('lists a model offered by several paid plans as one locked row', () => {
     wireDeps({ providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)], models: [] })
     const shared = { id: 'shared-model', display_name: 'Shared', available_features: ['agent', 'chat', 'translate'] }
