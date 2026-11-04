@@ -1612,3 +1612,48 @@ it.skipIf(process.platform === 'win32')(
     }
   }
 )
+
+it.skipIf(process.platform === 'win32')(
+  'replays port-only Node requests against their default localhost destination',
+  async () => {
+    const received: string[] = []
+    const server = createServer((req, res) => {
+      received.push(req.url ?? '')
+      res.end('ok')
+    })
+    await new Promise<void>((resolve) => server.listen(0, resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        original: (...args: unknown[]) => unknown,
+        source: 'http'
+      ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+    }
+    try {
+      const request = state.wrapHttpMethod(
+        httpRequest as (...args: unknown[]) => unknown,
+        'http'
+      )({ port: (server.address() as { port: number }).port, path: '/v1/chat' })
+      await new Promise<void>((resolve, reject) => {
+        request.on('response', (res) => {
+          res.resume()
+          res.on('end', resolve)
+        })
+        request.on('error', reject)
+        request.end()
+      })
+      const event = state.events[0]
+      expect(new URL(event.url).hostname).toBe('localhost')
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      await promisify(execFile)('/bin/sh', ['-c', sandbox.buildCurlCommand?.(event) as string], { timeout: 5000 })
+      expect(received).toEqual(['/v1/chat', '/v1/chat'])
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)

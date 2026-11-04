@@ -133,7 +133,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   // Node converts URL fields first, then overlays options (including undefined).
   // Keep hostname and port separate so an override cannot retain the URL's old port.
   const effectiveOptions = { ...(parsedUrl ? urlToHttpOptions(parsedUrl) : {}), ...options }
-  const host = normalizeOptionValue(effectiveOptions.hostname ?? effectiveOptions.host) ?? 'unknown'
+  const host = normalizeOptionValue(effectiveOptions.hostname ?? effectiveOptions.host) || 'localhost'
   const port = normalizeOptionValue(effectiveOptions.port)
   const hostname = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
   const authority = port ? `${hostname}:${port}` : hostname
