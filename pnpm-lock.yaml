@@ -2374,11 +2374,11 @@ importers:
 packages:
 
   '@cherrystudio/relay-client@file:.context/relay-packages/relay-client.tgz':
-    resolution: {integrity: sha512-ZF0V3ITdgvkZuWc5ZnUzoPjMOLhGWQqksggicG4VuOdBED9mCLygFH88vGVbu8VOIYJerxQq50iYpYitldp5QQ==, tarball: file:.context/relay-packages/relay-client.tgz}
+    resolution: {integrity: sha512-H09/EoDQ6sfWi8lG98LS33S5D30F1XeYPppCmmMKXgSHd9LlwiuJ+VV0Pz0Y35q8czb4IG73vJiujH9feOadgA==, tarball: file:.context/relay-packages/relay-client.tgz}
     version: 0.0.0
 
   '@cherrystudio/relay-protocol@file:.context/relay-packages/relay-protocol.tgz':
-    resolution: {integrity: sha512-3dsaOZl+fDVm2CRbtGIPn7A+uXfhE8jl/s5APdmIYc0xVI3QSjdZ9WJUQsh0Lk/MeUe3eZZjWQ/VgCV3EMzruQ==, tarball: file:.context/relay-packages/relay-protocol.tgz}
+    resolution: {integrity: sha512-mAiCo22Q+25K5v4EaQnGf6+BDLqHG+XXtVxEA7CwO9vmDAuLZ9l2X7Pl8UeK/rER2MzKsm5qzEvAhQPb2mGxcw==, tarball: file:.context/relay-packages/relay-protocol.tgz}
     version: 0.0.0
 
 

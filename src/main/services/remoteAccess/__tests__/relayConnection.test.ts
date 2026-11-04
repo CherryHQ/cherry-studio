@@ -3,14 +3,19 @@ import { EventEmitter } from 'node:events'
 
 import { afterEach, expect, it, vi } from 'vitest'
 
+import type * as RelayClient from '@cherrystudio/relay-client'
 import { defaultRelayLimits, targetKeyDomain } from '@cherrystudio/relay-protocol'
 
 const state = vi.hoisted(() => ({ sockets: [] as any[], attach: vi.fn() }))
-vi.mock('@cherrystudio/relay-client', () => ({ attachRelayStream: state.attach }))
+vi.mock('@cherrystudio/relay-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof RelayClient>()),
+  attachRelayStream: state.attach
+}))
 vi.mock('ws', () => ({
   default: class extends EventEmitter {
     static OPEN = 1
     readyState = 1
+    bufferedAmount = 0
     sent: any[] = []
     terminate = vi.fn(() => {
       this.readyState = 3
@@ -60,6 +65,9 @@ function start() {
   operations.push({ abort, promise })
   const socket = state.sockets.at(-1)
   socket.emit('open')
+  deliver(socket, { v: 1, type: 'probe', nonce: 'a'.repeat(32) })
+  expect(socket.sent.at(-1)).toEqual({ v: 1, type: 'probe_ack', nonce: 'a'.repeat(32) })
+  socket.sent.pop()
   deliver(socket, { v: 1, type: 'listening', targetId, ownerEpoch: 'epoch' })
   return { abort, promise, socket, onStatus, onStream }
 }
@@ -69,6 +77,14 @@ afterEach(async () => {
   state.sockets.length = 0
   state.attach.mockReset()
   vi.useRealTimers()
+})
+
+it('answers DO transport receipts after admission without opening a data session', () => {
+  const run = start()
+  deliver(run.socket, { v: 1, type: 'probe', nonce: 'b'.repeat(32) })
+  expect(run.socket.sent.at(-1)).toEqual({ v: 1, type: 'probe_ack', nonce: 'b'.repeat(32) })
+  expect(state.attach).not.toHaveBeenCalled()
+  expect(run.socket.terminate).not.toHaveBeenCalled()
 })
 
 it('cancels waiting attaches on listener loss while ready streams survive until configuration cancellation', async () => {

@@ -3,7 +3,12 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import WebSocket from 'ws'
 
-import { attachRelayStream, type RelayConnectOptions, type RelayStream } from '@cherrystudio/relay-client'
+import {
+  attachRelayStream,
+  respondToRelayProbe,
+  type RelayConnectOptions,
+  type RelayStream
+} from '@cherrystudio/relay-client'
 import { parseServerControl, targetKeyDomain } from '@cherrystudio/relay-protocol'
 import type { RelayEndpoint } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
@@ -95,7 +100,9 @@ function listen(options: RelayConnectionOptions, endpoint: RelayEndpoint, connec
       if (finished) return
       try {
         if (binary) throw new Error('Expected Relay control')
-        const message = parseServerControl(data.toString())
+        const text = data.toString()
+        if (respondToRelayProbe(socket, text)) return
+        const message = parseServerControl(text)
         if (!admitted) {
           if (message.type !== 'listening' || message.targetId !== endpoint.targetId)
             throw new Error('Invalid Relay target')
