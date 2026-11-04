@@ -11,6 +11,7 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
   let resolve!: (value: unknown) => void
   let subscriptionId = ''
   const view: AgentChildView = {
+    kind: 'child',
     contextId: 'c',
     sessionId: 'archive',
     revision: 0,
@@ -23,7 +24,7 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
     return () => {}
   })
   const request = vi.spyOn(window.api.ipcApi, 'request').mockImplementation(async (route, input) => {
-    if (route !== 'ai.agent.child.attach') return { ok: true, data: undefined }
+    if (route !== 'ai.projection.attach') return { ok: true, data: undefined }
     subscriptionId = (input as { subscriptionId: string }).subscriptionId
     return new Promise((done) => {
       resolve = done
@@ -33,6 +34,9 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
     initialProps: { child: 'one' }
   })
   const patch: AgentChildUpdate = {
+    kind: 'child',
+    sessionId: 'archive',
+    contextId: 'c',
     revision: 1,
     patches: [{ type: 'append', messageId: 'm', part: 0, text: ' second' }],
     order: ['m'],
@@ -56,7 +60,7 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
   expect(result.current?.view?.messages[0].parts[0]).toMatchObject({ text: 'recovered' })
   const old = subscriptionId
   rerender({ child: 'two' })
-  expect(result.current).toBeUndefined()
+  expect(result.current?.view).toBeNull()
   act(() => deliver({ subscriptionId: old, update: { ...patch, revision: 4 } }))
   await act(async () => {
     resolve({ ok: true, data: { ...view, contextId: 'other', messages: [] } })
@@ -78,7 +82,7 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
   expect(result.current?.view?.messages[0].parts[0]).toMatchObject({ text: 'latest' })
   unmount()
   expect(
-    request.mock.calls.every(([route]) => route === 'ai.agent.child.attach' || route === 'ai.agent.child.detach')
+    request.mock.calls.every(([route]) => route === 'ai.projection.attach' || route === 'ai.projection.detach')
   ).toBe(true)
   vi.restoreAllMocks()
 })

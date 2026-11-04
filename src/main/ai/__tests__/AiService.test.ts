@@ -1253,7 +1253,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -1302,7 +1302,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1333,7 +1333,6 @@ describe('AiService tool approval', () => {
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         topicId: 'topic-1',
@@ -1348,7 +1347,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
@@ -1379,7 +1378,7 @@ describe('AiService tool approval', () => {
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream }
       return undefined
     })
     const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
@@ -1404,7 +1403,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1426,7 +1425,6 @@ describe('AiService tool approval', () => {
     // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         approvalDecisions: [{ approvalId: 'mcp-approval-missing', approved: false }]
@@ -1439,7 +1437,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1472,7 +1470,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1504,7 +1502,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
