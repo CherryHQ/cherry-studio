@@ -213,7 +213,7 @@ it('releases stalled preview slots at the deadline for a later owner', async () 
   const stalled = renderHook(() => useHeifRenditions(sources))
   const later = renderHook(() => useHeifRendition('/tmp/later.heic'))
 
-  await act(async () => vi.advanceTimersByTimeAsync(30_001))
+  await act(async () => vi.advanceTimersByTimeAsync(60_001))
 
   expect(stalled.result.current).toEqual(sources.map(() => ({ loading: false, error: 'error.heif_detail_timeout' })))
   expect(later.result.current).toEqual({ loading: false, url: 'blob:first' })

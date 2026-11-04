@@ -9,7 +9,9 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 const HEIF_CONCURRENCY = 4
 const HEIF_BUSY_RETRIES = 5
 const HEIF_BUSY_BACKOFF_MS = 50
-const HEIF_PREVIEW_DEADLINE_MS = 30_000
+// The liveness guard must exceed source-read time plus the service's 30 s conversion deadline;
+// 60 s guards against a stalled read, not a 30 s conversion SLA.
+const HEIF_READ_LIVENESS_GUARD_MS = 60_000
 const queue = new PQueue({ concurrency: HEIF_CONCURRENCY })
 
 export interface HeifImageState {
@@ -59,7 +61,7 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
           const deadline = new Promise<undefined>((resolve, reject) => {
             cancel = () => resolve(undefined)
             cancellations.add(cancel)
-            timer = setTimeout(() => reject(new IpcError(fileErrorCodes.HEIF_TIMEOUT)), HEIF_PREVIEW_DEADLINE_MS)
+            timer = setTimeout(() => reject(new IpcError(fileErrorCodes.HEIF_TIMEOUT)), HEIF_READ_LIVENESS_GUARD_MS)
           })
           const convert = async () => {
             for (let retry = 0; !disposed && !finished; retry++) {
