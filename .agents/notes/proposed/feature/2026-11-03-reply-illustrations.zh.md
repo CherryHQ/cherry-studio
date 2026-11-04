@@ -8,19 +8,19 @@ Status: proposed
 
 独立的图片 MCP 会等生图结束后，才向回答模型返回 Markdown 图片。它无法观察普通助手回答，也无法控制 Cherry Studio 正文中的占位。所需体验是让同一次文字模型回答包含插图意图，立即预留位置，继续显示文字，并在生图结束后替换占位。
 
-用户已选择将功能集成进 Cherry Studio，不再协调单独启动的 MCP 服务。设置必须提供自动、强制开启、强制关闭三种模式。[术语表](../../../../GLOSSARY.md)区分回答插图与现有绘画功能。
+用户已选择将功能集成进 Cherry Studio，不再协调单独启动的 MCP 服务。设置必须提供自动、强制开启、强制关闭三种模式。回答插图对应助手回答中的某一段内容，与单独生成的绘画作品不同。
 
 ## Proposal
 
 ### 已确定的方向
 
-在当前源码中增加功能。通过提示词让回答模型在普通回答中输出带分隔标记的插图意图。处理这些意图，避免在渲染后的回答中展示其原始文本。生图不得阻塞后续文字输出。
+在当前源码中增加功能。通过提示词让回答模型在普通回答中输出带分隔标记的插图意图。处理这些意图，避免在渲染后的回答中展示其原始文本。生图不得阻塞后续文字输出。使用 `[[IMAGE]]...[[/IMAGE]]` 包裹每段纯文本生图提示词：起始标记预留占位，结束标记立即提交完整提示词，不等待回答结束。
 
 适当复用现有[生图入口](../../../../src/main/ai/AiService.ts)和[图片 IPC 契约](../../../../src/shared/ipc/schemas/ai.ts)。生成图片应使用应用管理的文件系统，并由持久化消息持有。集成功能不需要外部 stdio 进程和本机回环图片服务。
 
 在实时渲染与最终消息持久化分流之前处理文本流。重复流式更新和视图重新挂载时保持插图身份稳定，避免显示回答本身再次触发付费请求。保留文字和插图的顺序。
 
-用户已于 2026-11-03 在实现会话中批准以下决策。本文仍放在 proposed 目录，遵循仓库后续评审流程；本地实现已经获得授权。
+本方案等待针对当前 Spec PR head 的明确人类 Approval。本地探索不等于上游审批；记录该审批前，实现层必须保持草稿状态。
 
 ### 已确认的产品决策
 
@@ -34,27 +34,11 @@ Status: proposed
 
 三档通过系统提示词控制：自动档说可以按需插图，强制开启要求至少一张，强制关闭不注入插图指令且不解析标记。插图上限不依赖模型是否遵循提示词，由解析器硬性执行。开启强制张数后，提示词要求模型恰好输出目标张数；模型漏写或截断标记时，不会另调 LLM 创建或修复提示词。启用档可以处理不超过上限的多个完整插图意图，每张独立标识。提示词保留在插图数据中，不会混入回答正文；用户可从图片或占位旁的按钮展开查看纯文本。停止回答时取消未完成的生图，保留已完成图片；失败或取消的图片可以手动重试。模型设置复用已有默认绘画模型选择器。
 
+主进程负责图片任务身份、取消、文件引用及带版本号的更新。最多并行两项图片请求，每项活动请求五分钟超时；在接纳回答时固定模式和数量设置。重启后放弃未完成请求，只有用户显式重试才会再次提交，并可能产生新的服务商费用。
+
 ### 验证计划
 
 使用延迟返回的图片服务验证实际流式和消息结果。覆盖分片之间拆开的标记、不完整标记、包含示例标记的普通代码、图片请求失败、重复更新，以及重新打开已完成回答。实现后在 Electron 中操作实际设置和正文占位。检查范围限定为改动模块及其消费者。
-
-### 本地实现与验证证据
-
-当前源码已实现提示词段落、分流前的文本解析、后台生图服务、持久化插图消息片段、文件引用、带版本号的 IPC 更新、设置和正文渲染，无需修改独立 MCP。生图最多并行两项，单项五分钟超时。模式在接纳请求时确定；向正在执行的回复追加模型，不会重写该回复已使用的提示词。
-
-| 验收项 | 已执行证据 |
-| --- | --- |
-| AC1 | 使用真实设置 Select 和 Preference hook 验证三档保存；Electron 还验证了基于 SQLite 的设置在界面重载后保留。 |
-| AC2, AC3 | 使用真实流管理器、解析器、生图服务与 SQLite 后端，验证延迟完成时保留文字／图片／文字顺序。Electron 验证生图期间后续文字已显示、管理的图片在原位置加载，重载后仍保留。 |
-| AC4 | 重复读取状态和旧版本事件不会重新生图；Electron 在已保存回答重载前后只观察到一次本地图片 HTTP 请求。 |
-| AC5 | 解析测试覆盖全部分隔标记切分位置、逐字分片、多图、围栏／行内／缩进代码、不完整提示词及长度边界。另增七项回归用例，验证跨行代码片段、反引号长度匹配、转义及代码之后的真实插图意图。 |
-| AC6 | 服务和渲染测试覆盖服务商失败、取消、显式重试，并忽略取消后迟到的结果。 |
-| AC7 | Electron 通过应用现有模型调用链访问本地兼容 OpenAI 的文字／图片模拟服务，无需本仓库的独立 MCP 或回环图片服务器。 |
-| AC8, AC9 | 定向测试覆盖数量设置保存、降低上限时收缩目标张数、系统提示词的数量要求、拒绝超限意图，以及在插图旁展开或收起纯文本提示词。 |
-
-可重复运行的桌面场景为 [replyIllustrations.test.ts](../../../../tests/e2e/smoke/replyIllustrations.test.ts)。定向 Vitest 还包含现有流管理、持久化监听、临时聊天、消息服务、消息渲染及设置搜索的消费者测试。Electron 应用包和工具进程入口均构建成功。未调用真实付费服务；桌面图片模拟服务返回仓库已有 PNG。
-
-Node、web 与 E2E 项目的类型检查在未修改文件中报告错误，包括 Bun／Node 的 `fetch` 和流类型不兼容；本功能修改文件没有类型诊断。因此不宣称全项目类型检查关卡已通过。
 
 ## Alternatives considered
 
@@ -65,15 +49,15 @@ Node、web 与 E2E 项目的类型检查在未修改文件中报告错误，包�
 
 ## Acceptance criteria
 
-- AC1 — 设置提供自动、强制开启、强制关闭三种插图模式，应用重启后保留所选模式 (verification: renderer and main integration tests)
-- AC2 — 在启用模式下，插图起始标记在原始回答位置预留占位，意图完整后启动生图，图片就绪前后续文字继续输出 (verification: stream integration tests and Electron)
-- AC3 — 生图成功后在预留位置显示图片，不替换或重排周围文字，重新打开已保存回答仍可查看该图片 (verification: persistence integration tests and Electron)
-- AC4 — 重复流式更新和视图重新挂载不能重复提交同一插图意图 (verification: stream integration tests)
-- AC5 — 分片边界和不完整插图标记不会暴露隐藏提示词片段或丢弃普通回答文字，代码中的示例标记仍作为普通代码处理 (verification: parser and renderer tests)
-- AC6 — 生图失败保留已输出回答，并为插图显示明确失败状态，不会无限转圈 (verification: stream integration tests and Electron)
-- AC7 — 集成功能运行时无需单独启动 MCP 进程，也不依赖独立项目的本机回环图片服务 (verification: Electron)
-- AC8 — 设置提供每条回答插图上限（默认 1，范围 1–10）、默认关闭的强制张数开关，以及不超过上限的目标张数；流解析器绝不接纳超过上限的插图 (verification: settings, prompt, and stream parser tests)
-- AC9 — 每张插图的提示词不会显示在回答正文中，并提供按钮，可在图片或占位旁展开查看完整纯文本提示词 (verification: renderer test)
+- AC1 — 设置提供自动、强制开启、强制关闭三种插图模式，应用重启后保留所选模式 (verification: Leezehuan / implementation author; renderer and main integration tests)
+- AC2 — 在启用模式下，插图起始标记在原始回答位置预留占位，意图完整后启动生图，图片就绪前后续文字继续输出 (verification: Leezehuan / implementation author; stream integration tests and Electron)
+- AC3 — 生图成功后在预留位置显示图片，不替换或重排周围文字，重新打开已保存回答仍可查看该图片 (verification: Leezehuan / implementation author; persistence integration tests and Electron)
+- AC4 — 重复流式更新和视图重新挂载不能重复提交同一插图意图 (verification: Leezehuan / implementation author; stream integration tests)
+- AC5 — 分片边界和不完整插图标记不会暴露隐藏提示词片段或丢弃普通回答文字，代码中的示例标记仍作为普通代码处理 (verification: Leezehuan / implementation author; parser and renderer tests)
+- AC6 — 生图失败保留已输出回答，并为插图显示明确失败状态，不会无限转圈 (verification: Leezehuan / implementation author; stream integration tests and Electron)
+- AC7 — 集成功能运行时无需单独启动 MCP 进程，也不依赖独立项目的本机回环图片服务 (verification: Leezehuan / implementation author; Electron)
+- AC8 — 设置提供每条回答插图上限（默认 1，范围 1–10）、默认关闭的强制张数开关，以及不超过上限的目标张数；流解析器绝不接纳超过上限的插图 (verification: Leezehuan / implementation author; settings, prompt, and stream parser tests)
+- AC9 — 每张插图的提示词不会显示在回答正文中，并提供按钮，可在图片或占位旁展开查看完整纯文本提示词 (verification: Leezehuan / implementation author; renderer test)
 
 ## Risks
 
