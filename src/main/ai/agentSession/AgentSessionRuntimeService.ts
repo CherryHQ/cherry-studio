@@ -2968,7 +2968,17 @@ export class AgentSessionRuntimeService extends BaseService {
       // Retiring on a weaker edge leaves that generation to inherit whatever responder remains.
       const turn = this.currentTurn(entry)
       const feedingLiveTool = (turn?.activeToolIds.size ?? 0) > 0
-      if (hasAgentSessionRuntimeOpenStream(entry.runtimeState) && feedingLiveTool) {
+      const report = (data.summary ?? data.error ?? '').trim()
+      const streamManager = application.get('AiStreamManager')
+      // A completion that owes a stashed chat a report is delivered as that report, never parked
+      // for a later wake: SDK 0.3.284 can fold several completions into ONE receive-only
+      // generation, so forwarding that generation would hand the requesting chat whatever private
+      // work was folded in alongside it. A task-specific report has exactly one audience.
+      if (report && streamManager.isStashedWakeTaskOwed(entry.topicId, data.taskId)) {
+        authorities?.delete(data.taskId)
+        this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
+        streamManager.deliverStashedWakeTaskResult(entry.topicId, data.taskId, report)
+      } else if (hasAgentSessionRuntimeOpenStream(entry.runtimeState) && feedingLiveTool) {
         // The open foreground query consumed the notification inside its own turn — no
         // receive-only generation follows, so no wake will ever pay this debt. Membership removal
         // may already have moved the authority into the completion ledger when the driver drained
@@ -2979,8 +2989,6 @@ export class AgentSessionRuntimeService extends BaseService {
         // requesting chat would otherwise see only its acknowledgment.
         authorities?.delete(data.taskId)
         this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
-        const report = (data.summary ?? data.error ?? '').trim()
-        const streamManager = application.get('AiStreamManager')
         if (report) streamManager.deliverStashedWakeTaskResult(entry.topicId, data.taskId, report)
         else streamManager.retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
       } else if (authorities && authority !== undefined) {

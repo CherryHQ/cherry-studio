@@ -1035,6 +1035,15 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Whether this task still owes the stashed channel recipients a delivery. A completion that owes
+   * them is reported as its own terminal: forwarding it through a later wake would ship the whole
+   * generation — including unrelated desktop work folded into the same response.
+   */
+  isStashedWakeTaskOwed(topicId: string, taskId: string): boolean {
+    return this.pendingChannelListeners.get(topicId)?.owesTaskIds.has(taskId) === true
+  }
+
+  /**
    * Deliver a consumed task's own result to the recipients its fire stashed, then retire the debt.
    * A desktop tool continuation consumes the completion inside a stream that excludes channel
    * listeners, so without a task-specific report the requesting chat sees only its acknowledgment.

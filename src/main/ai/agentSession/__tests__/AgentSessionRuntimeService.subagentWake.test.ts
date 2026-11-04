@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   stashedWakeRecipientsDischarged: vi.fn(),
   retireStashedWakeTaskIds: vi.fn(),
   deliverStashedWakeTaskResult: vi.fn(),
+  isStashedWakeTaskOwed: vi.fn(() => false),
   renewClaimedWakeRecipients: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    sharesBranch: () => true,
     branchTip: (_sessionId: string, messageId: string) => messageId,
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
@@ -133,6 +135,7 @@ beforeEach(() => {
         stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
         retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds,
         deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult,
+        isStashedWakeTaskOwed: mocks.isStashedWakeTaskOwed,
         renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients
       }
     }

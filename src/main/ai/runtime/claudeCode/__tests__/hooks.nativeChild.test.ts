@@ -176,6 +176,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     replaceMessageParts: vi.fn(),
     getSessionMessage: vi.fn(),
     hasSessionMessage: vi.fn(() => true),
+    sharesBranch: vi.fn(() => true),
+    branchTip: vi.fn((_sessionId: string, messageId: string) => messageId),
     applyToolApprovalDecision: vi.fn(() => true),
     getLastRuntimeResumeToken: vi.fn(() => null),
     getNativeSessionId: vi.fn(() => undefined),

@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   clearPendingChannelListeners: vi.fn(),
   retireStashedWakeTaskIds: vi.fn(),
   deliverStashedWakeTaskResult: vi.fn(),
+  isStashedWakeTaskOwed: vi.fn(() => false),
   // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
   stashedWakeRecipientsDischarged: vi.fn(() => true),
   renewClaimedWakeRecipients: vi.fn(),
@@ -549,6 +550,7 @@ describe('AgentSessionRuntimeService', () => {
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
     mocks.sharesBranch.mockReturnValue(true)
+    mocks.isStashedWakeTaskOwed.mockReturnValue(false)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
       id: message.id ?? 'generated-message-id',
@@ -597,7 +599,8 @@ describe('AgentSessionRuntimeService', () => {
           stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
           renewClaimedWakeRecipients: mocks.renewClaimedWakeRecipients,
           retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds,
-          deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult
+          deliverStashedWakeTaskResult: mocks.deliverStashedWakeTaskResult,
+          isStashedWakeTaskOwed: mocks.isStashedWakeTaskOwed
         }
       }
       if (name === 'CacheService')
@@ -1218,6 +1221,7 @@ describe('AgentSessionRuntimeService', () => {
       turn.activeToolIds.add('tool-call-1')
       mocks.retireStashedWakeTaskIds.mockClear()
       mocks.deliverStashedWakeTaskResult.mockClear()
+      mocks.isStashedWakeTaskOwed.mockReturnValue(true)
 
       ;(service as any).publishBackgroundTaskEvent(entry, {
         taskId: 'task-channel',
@@ -1233,6 +1237,36 @@ describe('AgentSessionRuntimeService', () => {
         'PRIVATE desktop task result'
       )
       expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
+    // A settled turn's owed completion must not ride a later wake: SDK 0.3.284 can fold a private
+    // desktop task into the same receive-only generation, and the wake carries the whole mixed
+    // output to the stashed chat. The task's own report is delivered here instead, retiring the
+    // debt so no wake can claim those recipients.
+    it('delivers an owed completion as its own report instead of parking it for a mixed wake', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      ;(service as any).rememberBackgroundTaskIds(entry, [{ id: 'task-channel', status: 'running' }] as any)
+      service.markTurnTerminal('session-1', 'success')
+      mocks.deliverStashedWakeTaskResult.mockClear()
+      mocks.isStashedWakeTaskOwed.mockReturnValue(true)
+
+      ;(service as any).publishBackgroundTaskEvent(entry, {
+        taskId: 'task-channel',
+        event: 'notification',
+        status: 'completed',
+        summary: 'channel task report'
+      } as any)
+      const completed = (service as any).completedBackgroundTasks.get('session-1') as Map<string, boolean> | undefined
+      expect(completed?.has('task-channel')).toBe(false)
+      expect(mocks.deliverStashedWakeTaskResult).toHaveBeenCalledWith(
+        'agent-session:session-1',
+        'task-channel',
+        'channel task report'
+      )
       void service.closeSession('session-1')
     })
 

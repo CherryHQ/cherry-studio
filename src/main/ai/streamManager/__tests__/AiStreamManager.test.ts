@@ -774,6 +774,7 @@ describe('AiStreamManager', () => {
     await vi.waitFor(() => expect(sent).toEqual(['working on it']))
     // The fire settles owing two tasks a delivery, then a desktop follow-up drops the recipients.
     mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-server']))
+    expect(mgr.isStashedWakeTaskOwed(topicId, 'task-a')).toBe(true)
     mgr.startRuntimeTurn({
       topicId,
       modelId: 'provider-a::model-a',
@@ -787,6 +788,8 @@ describe('AiStreamManager', () => {
     await vi.waitFor(() => expect(sent).toEqual(['working on it', 'task-a private result']))
 
     // That obligation is paid; the co-spawned task's debt still holds the stash.
+    expect(mgr.isStashedWakeTaskOwed(topicId, 'task-a')).toBe(false)
+    expect(mgr.isStashedWakeTaskOwed(topicId, 'task-server')).toBe(true)
     expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-server']))).toBe(false)
     // Replaying the same completion delivers nothing twice.
     mgr.deliverStashedWakeTaskResult(topicId, 'task-a', 'task-a private result')

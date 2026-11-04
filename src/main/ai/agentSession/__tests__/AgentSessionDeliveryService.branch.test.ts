@@ -46,6 +46,8 @@ describe('durable delivery native branch admission', () => {
       hasLiveStream: () => false,
       hasUnsettledTopicWork: () => false,
       terminateHeldTopicStream: () => {},
+      clearPendingChannelListeners: () => {},
+      finalizeHeldTopicStream: async () => {},
       send: (input: Parameters<AiStreamManager['send']>[0]) => {
         const request = input.models[0].request.runtime!
         if (request.kind !== 'agent-session') throw new Error('Expected an agent session')
