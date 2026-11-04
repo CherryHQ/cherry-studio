@@ -36,6 +36,8 @@
 
 Cherry Studio is an AI workstation for Windows, macOS, and Linux. Chat with multiple models, work with agents, build knowledge bases, create images, and automate everyday tasks in one place.
 
+Fork-specific changes: [Reply illustrations — 中文修改说明](./README.changes.zh-CN.md).
+
 **[Download Desktop](https://cherryai.com/download)** · **[Getting Started](https://cherryai.com/docs/en/getting-started/quick-start/)**
 
 📱 **Cherry Studio Mobile is now available for iOS and Android!** [Download](https://cherryai.com/mobile) · [GitHub repository](https://github.com/CherryHQ/cherry-studio-app).
