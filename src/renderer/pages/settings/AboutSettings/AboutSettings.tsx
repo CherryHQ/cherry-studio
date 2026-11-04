@@ -11,7 +11,7 @@ import {
   CircularProgress,
   Divider,
   IndicatorLight,
-  Scrollbar,
+  ScrollArea,
   SegmentedControl,
   Switch,
   Tooltip
@@ -303,9 +303,9 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <Divider className="my-3" />
-          <Scrollbar className="max-h-96 overflow-x-hidden pr-2">
+          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-2' }} className="max-h-96">
             <UpgradeReleaseNotes releaseInfo={appUpdateState.info} />
-          </Scrollbar>
+          </ScrollArea>
         </SettingGroup>
       )}
 

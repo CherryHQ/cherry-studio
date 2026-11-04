@@ -673,8 +673,8 @@ vi.mock('../components/AgentCreateDialog', () => ({
     ) : null
 }))
 
-vi.mock('../components/Sessions', () => ({
-  default: ({
+vi.mock('../components/sessions', () => ({
+  Sessions: ({
     agentSessionsSource,
     agentIdFilter,
     onSetPanePosition,

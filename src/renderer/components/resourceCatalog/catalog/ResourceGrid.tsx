@@ -39,7 +39,7 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   Input,
-  Scrollbar,
+  ScrollArea,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -571,7 +571,9 @@ export const ResourceGrid: FC<Props> = ({
         />
       </div>
 
-      <Scrollbar ref={scrollRef} className={cn('min-h-0 flex-1', isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4')}>
+      <ScrollArea
+        viewportProps={{ ref: scrollRef }}
+        className={cn('min-h-0 flex-1', isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4')}>
         <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-3xl')}>
           {isLoading ? (
             <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
@@ -599,7 +601,7 @@ export const ResourceGrid: FC<Props> = ({
             />
           )}
         </div>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }
