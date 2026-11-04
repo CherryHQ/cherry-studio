@@ -16,12 +16,15 @@ import {
   type SessionMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { startTestHttpServer } from '@test-helpers/http/server'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 import { AsyncEventQueue } from '@shared/utils/async/AsyncEventQueue'
 
+// Native startup, resume, history reads, and shutdown share the complete-test budget.
+vi.setConfig({ testTimeout: 60_000 })
+
 const run = promisify(execFile)
-const timeoutMs = 10_000
+const timeoutMs = 30_000
 
 type ReplyBlock = { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: object }
 
@@ -92,7 +95,10 @@ async function nativeProbe(options: Pick<Options, 'agents'> = {}) {
   await mkdir(cwd)
   await mkdir(config)
   let input = new AsyncEventQueue<SDKUserMessage>()
-  const requests = new AsyncEventQueue<{ reply: ReturnType<typeof modelReply>; body: { messages: unknown[] } }>()
+  const requests = new AsyncEventQueue<{
+    reply: ReturnType<typeof modelReply>
+    body: { messages: SDKUserMessage['message'][] }
+  }>()
   const incoming = requests[Symbol.asyncIterator]()
   const responses = new Set<ServerResponse>()
   const failures: unknown[] = []
@@ -597,7 +603,16 @@ it.each([false, true])('preserves child identity but starts a new run on SendMes
     })
     followup.reply.finish('tool_use')
     const pending = [await probe.request(), await probe.request()]
-    const resumed = pending.find(({ body }) => JSON.stringify(body.messages).includes('Original child answer'))!
+    const resumedRequests = pending.filter(({ body }) =>
+      body.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          Array.isArray(message.content) &&
+          message.content.some((block) => block.type === 'text' && block.text === 'Original child answer')
+      )
+    )
+    expect(resumedRequests).toHaveLength(1)
+    const resumed = resumedRequests[0]
     const resumedParent = pending.find((request) => request !== resumed)!
     expect(JSON.stringify(resumed.body.messages)).toContain('Continue with the original context')
     resumedParent.reply.block({ type: 'text', text: 'Parent need not wait for continuation' })
