@@ -245,6 +245,40 @@ describe('useModelSelectorData', () => {
     }
   })
 
+  it('lists the CherryAI group first even when only locked offers create it', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 1,
+          purchase_available: true,
+          models: [{ id: 'plus-model', display_name: 'Plus model', available_features: ['agent', 'chat', 'translate'] }]
+        }
+      ]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.listItems.filter((item) => item.type === 'group').map((item) => item.key)).toEqual([
+        'provider-cherryai',
+        'provider-openai'
+      ])
+    } finally {
+      cloudPlans.data = undefined
+    }
+  })
+
   it('still offers a paid model that was pinned before it became locked', () => {
     wireDeps({
       providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],

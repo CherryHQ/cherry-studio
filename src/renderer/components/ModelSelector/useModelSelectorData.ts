@@ -369,7 +369,10 @@ export function useModelSelectorData({
         })
     }
     const lockedModelIds = new Set(lockedModels.map(({ model }) => model.id))
-    const displayGroups = [...displayGroupsById.values()]
+    // CherryAI leads the list, even when only its locked offers create the group.
+    const displayGroups = sortBy([...displayGroupsById.values()], (group) =>
+      group.id === CHERRYAI_DISPLAY_GROUP.id ? 0 : 1
+    )
     const duplicateModelNamesByDisplayGroup = new Map(
       displayGroups.map((group) => [group.id, getDuplicateModelNames(group.models.map(({ model }) => model))])
     )
