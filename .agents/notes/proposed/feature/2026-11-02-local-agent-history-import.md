@@ -128,6 +128,30 @@ Tencent's [directory documentation](https://cloud.tencent.cn/document/product/18
 
 All adapters support automatic default-store discovery and explicit store selection. Register default store paths under `external.*` in [the path registry](../../../../src/main/core/paths/pathRegistry.ts), preserving no-auto-create behavior. Do not scan the entire user home or read account secrets. Store paths and working directories are different inputs.
 
+### Filtering non-conversation sessions
+
+Filter confirmed internal review and setup-only sessions before showing import candidates. This is a source-session eligibility rule, separate from hiding the preamble inside an imported conversation. The initial scope is Codex Guardian review and Claude Code histories without a real user task. Keep existing imported sessions and source files intact.
+
+Use three classification results: retain as a conversation candidate, exclude with a reason, or undecided. Undecided sessions remain visible and use the existing validation diagnostics. Missing metadata, unknown versions, malformed records, incomplete parent chains, and read limits do not prove that a session has no user task. Do not filter by title, message count, transcript length, or tool density.
+
+| Source | Required evidence | Result |
+|---|---|---|
+| Codex Guardian review | A validated `session_meta.payload.source.subagent.other` equals `guardian` | Exclude as `codex_guardian_review`, even after a title change or when synthetic user-role messages exist |
+| Claude Code setup-only history | A completely read, recognized transcript has no real user task on any recoverable branch, with all user-role records classified | Exclude as `claude_no_user_task` |
+| Uncertain or mixed evidence | A title-only match, unrecognized content, conflicting copies, or an unresolved branch | Keep the candidate for normal validation; do not guess an exclusion |
+
+For Codex, the text “Guardian review” is not sufficient evidence. Keep ordinary chats with that title and ordinary `thread_spawn` subagents. Group physical files by source ID before filtering. If copies disagree about source type, retain the conflict rather than dropping one copy and making the other look valid. Only verified metadata layouts qualify. Local read-only inspection found the Guardian marker in 39 of 86 rollout files, all from `0.164.0-alpha.11.1`; this is evidence for that layout, not all Codex versions.
+
+For Claude Code, a real user task is either nonempty user-authored text or an explicit user attachment, including an image/document without accompanying text. A single question qualifies even without an assistant answer. `tool_result`, generated `isMeta` records, local-command notices/output, and verified configuration or lifecycle commands do not count as a user task. Recognize commands from their structured records, not a leading slash in ordinary text. Keep commands with user-task semantics; an unknown custom command is undecided, not setup-only. Local samples include command-only `/model` and `/exit` in `2.1.207`, and a local `/recap` record in `2.1.211`, each without real user content. These samples establish narrow command cases, not a blanket exclusion of slash commands.
+
+Evaluate the complete Claude transcript for discovery. Settings followed by a real question remain one importable candidate. If any recoverable branch contains a task, keep the session. Preview then evaluates the selected branch. A setup-only selected branch may offer another branch that contains a task; it does not make the entire source session permanently ineligible. A broken or unresolved branch must not be silently removed as an empty session.
+
+Adapters own source-specific classification and reuse it during discovery and preview. The Main coordinator returns only retained or undecided candidates, plus aggregate exclusion counts by reason. Add a distinct filtered outcome for an old selection that becomes confirmed ineligible during revalidation; it creates no session or workspace and is not an import failure. Keep source-fingerprint and preview-expiry checks. Commit must not bypass eligibility or accept a changed snapshot. Parse and classify outside the write transaction. Apply read-size, scan-work and memory bounds to excluded inputs too, and honor cancellation. Excluded items do not consume the 100-session selection quota.
+
+The dialog shows one compact count of excluded internal-review/setup-only sessions. Excluded entries do not occupy selection slots, select-all results, or success/failure counts. If all discovered sessions are excluded, show a clear empty state and the reason counts. Do not offer directory/branch repair or a retry for a wholly excluded session. Preserve the existing separate retry for failed initialization of an already saved session. Do not add an override that imports a confirmed internal session.
+
+Implement shared classification/result contracts, counts, and the Claude rule in the first implementation layer; put the Guardian-specific rule in the Codex layer. Use synthetic fixtures derived from these structures. Required boundaries include a renamed Guardian session, a normal chat titled Guardian review, ordinary subagents, configuration followed by a real question, attachment-only input, a one-message question, tool results under the user role, custom commands, multiple branches, conflicting physical copies, malformed/truncated data, and a selection invalidated between discovery and commit. This section is design-only until those implementation checks are completed.
+
 ### Message projection and continuation
 
 | Source content | Imported representation |
@@ -268,6 +292,9 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
 - AC22 — Imported assistant headers use the current destination Agent's name/avatar, including old imports and Agent renames, while retaining the source model. Source conversation titles do not appear as authors; ordinary Cherry author snapshots remain unchanged. (verification: renderer author/provenance/capture cases and Electron)
 - AC23 — After loading the actual beginning and finding the first real user message, hide only earlier imported setup records. Partial pages, later records, stored history and continuation context remain intact. Image export applies the same preamble rule. (verification: renderer paging/projection/capture cases and Electron)
+- AC24 — Codex sessions with a verified Guardian source marker are excluded before candidate display and cannot bypass filtering through an old selection. Renaming them does not change classification; title-only matches, ordinary subagents and conflicting copies are not silently excluded. (verification: versioned adapter fixtures and coordinator revalidation)
+- AC25 — Claude setup-only sessions are excluded only after a complete recognized history proves there is no real user task on any recoverable branch. Real questions, attachment-only input, mixed setting/task histories and user-task commands remain eligible; uncertain records and unresolved branches remain visible for validation. (verification: versioned adapter content/branch fixtures)
+- AC26 — Discovery reports exclusion counts separately from import outcomes, selection limits and errors. Filtering and revalidation create no sessions/workspaces, preserve source files and existing imports, and do not block valid sessions in the same batch. All-excluded results have an explanatory empty state without ineffective retry/repair choices. (verification: coordinator state/source checks, renderer counts/empty-state/mixed-batch cases and Electron)
 
 Use `setupTestDatabase()` for database cases and explicit affected-test paths per layer. Native platform checks are not replaced by platform simulations. These criteria are future product verification, not evidence supplied by this documentation PR.
 
