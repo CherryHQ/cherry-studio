@@ -1447,7 +1447,7 @@ it.skipIf(process.platform === 'win32').each([undefined, 'text/plain', 'applicat
         method: 'POST',
         body: form
       })
-      const headers = type ? { 'Content-Type': type } : {}
+      const headers: Record<string, string> = type ? { 'Content-Type': type } : {}
       await (await fetch(request, { headers })).text()
       await waitFor(() => state.events[0]?.requestBody !== undefined)
       expect(received[0]).toContain('multipart-private-marker')
