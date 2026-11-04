@@ -424,10 +424,9 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       // runtime, so it returns to `pending` and stays eligible for a later admission.
       if (state.execution.kind === 'turn' && state.execution.turn === event.turn) {
         if (state.execution.admission !== 'submitting') return { state, effects: [] }
-        return {
-          state: { ...state, execution: { ...state.execution, admission: 'pending' } },
-          effects: []
-        }
+        const execution = { ...state.execution, admission: 'pending' as const }
+        delete execution.terminal
+        return { state: { ...state, execution }, effects: [] }
       }
       if (
         state.execution.kind === 'autonomous-turn' &&
@@ -484,8 +483,13 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       if (execution.kind === 'turn') {
         // An unconfirmed prompt owns no success: a result landing before admission belongs to
         // another generation on the connection. Paused/error still settle it (stop/failure paths).
+        // The exception is a submission awaiting confirmation: Pi's async send() can finish the
+        // whole turn (manual /compact) before it returns, so its success is latched under this
+        // submission and settled once `turn-admitted` confirms it. A discarded submission clears
+        // the latch instead of inheriting it.
         if (event.outcome.status === 'success' && execution.admission !== 'admitted') {
-          return { state, effects: [] }
+          if (execution.admission !== 'submitting' || execution.terminal) return { state, effects: [] }
+          return { state: { ...state, execution: { ...execution, terminal: event.outcome } }, effects: [] }
         }
         if (
           event.outcome.status === 'success' &&

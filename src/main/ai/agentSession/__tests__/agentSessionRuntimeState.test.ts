@@ -554,6 +554,39 @@ describe('agentSessionRuntimeState', () => {
     expect(persisted.state.execution).toEqual({ kind: 'idle', lastTurn: current })
   })
 
+  it('latches a completion that arrives while the submission is awaiting confirmation', () => {
+    // Pi's async send() can finish a manual /compact before it returns: the terminal lands while
+    // admission is still `submitting`, and dropping it leaves the stream open with the turn busy.
+    const current = turn('user')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } }).state
+
+    expect(state.execution).toMatchObject({
+      kind: 'turn',
+      admission: 'submitting',
+      terminal: { status: 'success' }
+    })
+
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
+    const flushed = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
+    expect(flushed.effects).toEqual([{ type: 'settle-turn', turn: current, outcome: { status: 'success' } }])
+    expect(flushed.state.execution).toMatchObject({ stream: 'awaiting-persistence', admission: 'admitted' })
+  })
+
+  it('drops a latched completion when the submission is discarded', () => {
+    const current = turn('user')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-send-discarded', turn: current }).state
+
+    expect(state.execution).toMatchObject({ kind: 'turn', admission: 'pending' })
+    expect((state.execution as { terminal?: unknown }).terminal).toBeUndefined()
+  })
+
   it('keeps a deferred admitted turn admitted when the receive-only placeholder is abandoned', () => {
     // startReceiveOnlyTurn abandons the autonomous turn when its placeholder save fails; restoring
     // the host turn as `pending` would re-send a prompt the runtime already accepted.

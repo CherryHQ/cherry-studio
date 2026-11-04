@@ -3,7 +3,17 @@ import { Check, Plus, Search, X } from 'lucide-react'
 import { type KeyboardEvent, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input,
+  ScrollArea,
+  Skeleton
+} from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import {
@@ -228,10 +238,10 @@ export function AssistantLibraryDialog({
             </div>
           </div>
 
-          <div
-            ref={listScrollRef}
-            aria-busy={isLoading || undefined}
-            className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
+          <ScrollArea
+            type="auto"
+            className="min-h-0 flex-1"
+            viewportProps={{ ref: listScrollRef, 'aria-busy': isLoading || undefined, className: 'px-5 pt-4 pb-1' }}>
             {isLoading ? (
               <AssistantLibraryPresetListSkeleton />
             ) : visiblePresets.length === 0 ? (
@@ -258,7 +268,7 @@ export function AssistantLibraryDialog({
                 onPreviewPreset={setPreviewPreset}
               />
             )}
-          </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 

@@ -9,6 +9,7 @@ import type { RunPaths } from './paths'
 
 export const FIXTURE_MARKERS = {
   agentFile: 'AGENT_FILE_TASK_PASS',
+  attachmentPdf: 'canary-seven',
   knowledge: 'CHERRY_KNOWLEDGE_58597',
   pdf: 'PDF_TRANSLATION_MARKER_314159',
   selection: 'SELECTION_ASSISTANT_PASS',
@@ -108,6 +109,17 @@ See [sample](${pathToFileURL(join(documents, 'sample-chinese.md')).href}).
   const pdfBytes = await pdf.save()
   writeFileSync(pdfFile, pdfBytes)
   writeFileSync(join(documents, 'sample.pdf'), pdfBytes)
+
+  const attachmentPdf = await PDFDocument.create()
+  const attachmentFont = await attachmentPdf.embedFont(StandardFonts.Helvetica)
+  for (const text of [
+    'Cherry attachment parsing page 1',
+    `Page 2 keyword ${FIXTURE_MARKERS.attachmentPdf}`,
+    'Cherry attachment parsing page 3'
+  ]) {
+    attachmentPdf.addPage([612, 792]).drawText(text, { x: 72, y: 700, font: attachmentFont, size: 14 })
+  }
+  writeFileSync(join(documents, 'attachment-pages.pdf'), await attachmentPdf.save())
 
   writeFileSync(
     join(paths.workspace, 'TASK.md'),
