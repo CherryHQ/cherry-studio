@@ -46,6 +46,8 @@ interface UseFollowupQueueParams {
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
+  /** Defer dispatch until payload validation is ready, without pausing the queue. */
+  drainReady?: boolean
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when a send fails and leaves the queued draft paused for retry. */
@@ -88,6 +90,7 @@ export function useFollowupQueue({
   scopeKey,
   status,
   lastCompletedAt,
+  drainReady = true,
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
@@ -218,6 +221,7 @@ export function useFollowupQueue({
 
   const sendItem = useCallback(
     async (id: string, completedAt?: number): Promise<boolean> => {
+      if (!drainReady) return false
       const item = loadQueue(scopeKey).find((entry) => entry.id === id)
       const drained = loadCompletion(scopeKey)
       if (!item || drained.pendingIds.includes(id)) return false
@@ -260,7 +264,7 @@ export function useFollowupQueue({
         )
       }
     },
-    [scopeKey, removeId, setPaused]
+    [drainReady, scopeKey, removeId, setPaused]
   )
   const sendId = useCallback(
     (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
@@ -268,12 +272,13 @@ export function useFollowupQueue({
   )
 
   useEffect(() => {
-    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
+    if (!drainReady || state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null)
+      return
     const head = state.items[0]
     const drained = loadCompletion(scopeKey)
     if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
     void sendItem(head.id, lastCompletedAt)
-  }, [scopeKey, status, lastCompletedAt, state, sendItem])
+  }, [drainReady, scopeKey, status, lastCompletedAt, state, sendItem])
 
   return {
     items: state.items,

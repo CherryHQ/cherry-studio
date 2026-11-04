@@ -14,6 +14,7 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
+import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -58,10 +59,13 @@ const mocks = vi.hoisted(() => ({
   model: undefined as Model | undefined,
   assistantLoading: false,
   modelPending: false,
+  modelsLoading: false,
   modelMissing: undefined as boolean | undefined,
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
   topicPending: false,
+  topicStatus: undefined as TopicStreamStatus | undefined,
+  lastCompletedAt: null as number | null,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
@@ -554,7 +558,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
-    return { models: [mocks.model ?? model, modelB] }
+    return { models: [mocks.model ?? model, modelB], isLoading: mocks.modelsLoading }
   }
 }))
 
@@ -601,7 +605,13 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: mocks.topicPending,
+    status: mocks.topicStatus,
+    lastCompletedAt: mocks.lastCompletedAt,
+    isFulfilled: false,
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', async (importOriginal) => ({
@@ -805,10 +815,13 @@ describe('ChatComposer', () => {
     mocks.model = model
     mocks.assistantLoading = false
     mocks.modelPending = false
+    mocks.modelsLoading = false
     mocks.modelMissing = undefined
     mocks.selectedModel = undefined
     mocks.modelSelectorProps = []
     mocks.topicPending = false
+    mocks.topicStatus = undefined
+    mocks.lastCompletedAt = null
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
     mocks.realSurface = undefined
@@ -4906,6 +4919,120 @@ describe('ChatComposer', () => {
       expect(voiceTargetManager.insertIntoCurrent('late transcript', 'user_recovery')).toBe('inserted')
     })
     expect(await screen.findByText('late transcript')).toBeVisible()
+  })
+
+  // Catches model loading pausing or dropping a queued draft instead of retrying when ready.
+  it('waits for model validation without pausing and automatically sends the queued payload when ready', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.topicPending = true
+    mocks.topicStatus = 'streaming'
+    mocks.mentionedModels = [model]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const composer = () => (
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const view = render(composer())
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'waiting queued payload' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    await screen.findByRole('button', { name: 'chat.input.followup_queue.title' })
+
+    mocks.modelsLoading = true
+    mocks.topicPending = false
+    mocks.topicStatus = 'done'
+    mocks.lastCompletedAt = 100
+    view.rerender(composer())
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.title' }))
+    expect(screen.getByText('waiting queued payload')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.resume' })).not.toBeInTheDocument()
+    expect(onSend).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.steer' }))
+    expect(screen.getByText('waiting queued payload')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.resume' })).not.toBeInTheDocument()
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.modelsLoading = false
+    view.rerender(composer())
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith(
+        'waiting queued payload',
+        expect.objectContaining({ mentionedModels: [model.id] })
+      )
+    )
+    expect(onSend).toHaveBeenCalledTimes(1)
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.title' })).not.toBeInTheDocument()
+    )
+  })
+
+  // Catches a silent rejected send while explicit model validation is loading.
+  it('disables direct send with a visible loading reason and preserves the draft until models are ready', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelsLoading = true
+    mocks.mentionedModels = [model]
+    const onSend = vi.fn()
+    render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'waiting direct draft' } })
+    await screen.findByText('waiting direct draft')
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText('common.loading')).toBeVisible()
+    expect(screen.queryByText('chat.input.non_chat_model')).not.toBeInTheDocument()
+    await user.click(send)
+    expect(toast.error).toHaveBeenCalledWith('common.loading')
+    expect(onSend).not.toHaveBeenCalled()
+    expect(screen.getByText('waiting direct draft')).toBeVisible()
+  })
+
+  // Catches pending validation showing a non-chat warning or disabling the save-only edit action.
+  it('saves a locked edit while model validation is loading without resending', async ({ onTestFinished }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelsLoading = true
+    mocks.mentionedModels = [model]
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage, forkAndResend }
+    const message = { id: 'loading-save', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    const lockedModels = [model, { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }]
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount
+            message={message}
+            parts={[{ type: 'text', text: 'saved while loading' }]}
+            lockedMentionedModels={lockedModels}
+          />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('saved while loading'))
+    expect(screen.queryByText('chat.input.non_chat_model_locked')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() =>
+      expect(editMessage).toHaveBeenCalledWith('loading-save', [{ type: 'text', text: 'saved while loading' }])
+    )
+    expect(forkAndResend).not.toHaveBeenCalled()
   })
 
   // Catches a blocked historical model losing the draft or remaining blocked after replacement.
