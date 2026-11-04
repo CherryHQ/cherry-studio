@@ -10,7 +10,7 @@ export function claudeCodeBinaryManifest(root: string) {
   const sdk = JSON.parse(
     readFileSync(path.join(path.dirname(require.resolve('@anthropic-ai/claude-agent-sdk')), 'package.json'), 'utf8')
   )
-  if (sdk.version !== project.dependencies['@anthropic-ai/claude-agent-sdk']) {
+  if (sdk.version !== project.devDependencies['@anthropic-ai/claude-agent-sdk']) {
     throw new Error('Claude SDK installation does not match package.json')
   }
   const lock = parseAllDocuments(readFileSync(path.join(root, 'pnpm-lock.yaml'), 'utf8'))
