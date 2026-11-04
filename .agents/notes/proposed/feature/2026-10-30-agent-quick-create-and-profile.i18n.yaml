@@ -1,5 +1,5 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-30-agent-quick-create-and-profile.md
-2026-10-30-agent-quick-create-and-profile.md: 5271d695dce74e5f1125358fa9ea2d4443fa0d43
-2026-10-30-agent-quick-create-and-profile.zh.md: c92afec1be9fc21e9dec65859c318b0d104acdd8
+2026-10-30-agent-quick-create-and-profile.md: d5ba04e33a147838e51767d47ffdc1ea78389836
+2026-10-30-agent-quick-create-and-profile.zh.md: 83b23bc7a9c6efefb3e3117f3128e52b4a177289

@@ -8,12 +8,12 @@ English | [中文](2026-10-30-agent-quick-create-and-profile.zh.md)
 
 Creating an Agent takes a four-step wizard: users choose a runtime, a permission mode, and a model, write a system prompt (or press "Generate"), and pick skills and knowledge bases before anything exists. Most users only know what they want the Agent to do, so they either stall on the wizard or end up with an Agent that lacks the skills its job needs. Opening an existing Agent drops straight into a tabbed form, so its identity and scheduled tasks are never the first thing shown, and the tab rail spreads its configuration across eight pages.
 
-The 2026-10-29 community sync decided: an Agent should be usable from a name and a purpose; configuration should be automatic for most users and still reachable for the rest; the runtime choice goes away now that Pi is the default; and opening an Agent should show a profile before its settings.
+The 2026-10-29 community sync decided: an Agent should be usable from a name and a purpose; configuration should be automatic for most users and still reachable for the rest; the runtime choice goes away now that Pi is the default; and opening an Agent should show a profile before its settings. Pi Durable, a durable variant of Pi added to `main` after the meeting, became the runtime for new Agents (decided 2026-11-04).
 
 ## Proposal
 
 - **Quick create.** Agent creation opens a single page with the avatar, a name field, and a purpose field. A primary "Agent create" button and a secondary "Manual create" button are enabled once a name exists and a model is resolved. The usable default model is preselected silently; only when none exists does the page show a model picker with a prompt to choose one. Assistant creation is unchanged.
-- **Manual create.** "Manual create" opens the existing guided wizard with the avatar, name, description (from purpose), and system prompt (from purpose) prefilled, and a "Back to quick create" action that keeps what was typed. The wizard no longer offers a runtime or permission-mode choice: every new Agent uses Pi with the runtime's default permission mode, which stays editable in More settings. Existing Claude Agent SDK Agents keep working and show their runtime read-only.
+- **Manual create.** "Manual create" opens the existing guided wizard with the avatar, name, description (from purpose), and system prompt (from purpose) prefilled, and a "Back to quick create" action that keeps what was typed. The wizard no longer offers a runtime or permission-mode choice: every new Agent uses Pi Durable with the runtime's default permission mode, which stays editable in More settings. Existing Pi and Claude Agent SDK Agents keep working and show their runtime read-only.
 - **Agent create.** "Agent create" runs inside the same dialog with visible progress:
   1. Generate a system prompt from the name and purpose with the selected model. If generation fails, the purpose (or the name) becomes the prompt.
   2. Enable every installed skill; built-in tools stay fully enabled (an empty `disabledTools`).
@@ -37,12 +37,12 @@ The 2026-10-29 community sync decided: an Agent should be usable from a name and
 ## Acceptance criteria
 
 - AC1 — Agent creation opens a page with avatar, name, and purpose; "Agent create" and "Manual create" stay disabled until a name exists and a model is resolved, and a model picker with a prompt appears only when no usable default model exists. (verification: renderer)
-- AC2 — "Manual create" opens the guided wizard prefilled with avatar, name, description, and system prompt from the quick-create page, offers no runtime or permission-mode choice, can go back to quick create, and creates a Pi Agent. (verification: renderer)
-- AC3 — "Agent create" shows progress, creates a Pi Agent whose system prompt is generated from the name and purpose, enables every installed skill, and leaves all built-in tools enabled; when generation fails the Agent is still created with the user's input. (verification: unit + renderer)
+- AC2 — "Manual create" opens the guided wizard prefilled with avatar, name, description, and system prompt from the quick-create page, offers no runtime or permission-mode choice, can go back to quick create, and creates a Pi Durable Agent. (verification: renderer)
+- AC3 — "Agent create" shows progress, creates a Pi Durable Agent whose system prompt is generated from the name and purpose, enables every installed skill, and leaves all built-in tools enabled; when generation fails the Agent is still created with the user's input. (verification: unit + renderer)
 - AC4 — "Agent create" installs and enables at most two marketplace skills chosen for the purpose and lists them in the progress view; search, choice, or install failures are shown without blocking creation. (verification: unit + renderer)
 - AC5 — Opening an Agent shows a profile card with avatar, name, model, description, and its scheduled tasks with their last run or status, or an empty state; "Start chat" opens the Agent and "More settings" opens its settings, while explicit Edit actions and deep links open the settings directly. Creating an Agent from either path lands on its profile card, which flags an automatic setup that fell back. (verification: unit + renderer + Electron)
 - AC6 — More settings is one grouped page without a tab rail exposing every setting of the previous edit dialog; built-in tools, skills, MCP servers, and knowledge bases open searchable switch lists in place, `tools.skills` / `tools.mcp` deep links open the matching list, and returning to the profile card saves pending edits. (verification: renderer + Electron)
-- AC7 — Existing Claude Agent SDK Agents open, show their runtime read-only, and keep every setting editable. (verification: renderer)
+- AC7 — Existing Pi and Claude Agent SDK Agents open, show their runtime read-only, and keep every setting editable. (verification: renderer)
 
 ## Risks
 
