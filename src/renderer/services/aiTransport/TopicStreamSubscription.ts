@@ -274,10 +274,19 @@ export class TopicStreamSubscription {
       if (!branch.openedTools.has(chunk.toolCallId)) {
         branch.openedTools.add(chunk.toolCallId)
         if (live && this.#liveReplayAttempts.has(attemptId)) {
+          // Preserve dynamic identity and tool metadata so a surviving dynamic
+          // `tool-input-available` rebuilds one dynamic-tool part instead of
+          // splitting into a static part (output, no input) plus a stuck
+          // dynamic part (#23519 review). Mirrors buildCompactReplay's repair.
           branch.controller?.enqueue({
             type: 'tool-input-start',
             toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName ?? 'unknown-tool'
+            toolName: chunk.toolName ?? 'unknown-tool',
+            ...(chunk.dynamic !== undefined ? { dynamic: chunk.dynamic } : {}),
+            ...(chunk.title !== undefined ? { title: chunk.title } : {}),
+            ...(chunk.providerExecuted !== undefined ? { providerExecuted: chunk.providerExecuted } : {}),
+            ...(chunk.providerMetadata !== undefined ? { providerMetadata: chunk.providerMetadata } : {}),
+            ...(chunk.toolMetadata !== undefined ? { toolMetadata: chunk.toolMetadata } : {})
           })
         }
       }
@@ -294,11 +303,25 @@ export class TopicStreamSubscription {
       // so it is synthesized immediately as unknown-tool and cannot be
       // patched when available arrives later (already on the wire). Reload
       // heals via buildCompactReplay's patch-once repair; the persisted tee
-      // stays authoritative.
+      // stays authoritative. When the trigger carries dynamic identity
+      // (tool-output-available/error), forward it so the synthesized opener
+      // stays in the same static/dynamic family as the surviving chunks.
       const toolCallId = chunk.toolCallId
       if (!branch.openedTools.has(toolCallId)) {
         branch.openedTools.add(toolCallId)
-        branch.controller?.enqueue({ type: 'tool-input-start', toolCallId, toolName: 'unknown-tool' })
+        if (chunk.type === 'tool-output-available' || chunk.type === 'tool-output-error') {
+          branch.controller?.enqueue({
+            type: 'tool-input-start',
+            toolCallId,
+            toolName: 'unknown-tool',
+            ...(chunk.dynamic !== undefined ? { dynamic: chunk.dynamic } : {}),
+            ...(chunk.providerExecuted !== undefined ? { providerExecuted: chunk.providerExecuted } : {}),
+            ...(chunk.providerMetadata !== undefined ? { providerMetadata: chunk.providerMetadata } : {}),
+            ...(chunk.toolMetadata !== undefined ? { toolMetadata: chunk.toolMetadata } : {})
+          })
+        } else {
+          branch.controller?.enqueue({ type: 'tool-input-start', toolCallId, toolName: 'unknown-tool' })
+        }
       }
     }
     branch.controller?.enqueue(chunk)

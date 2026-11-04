@@ -587,6 +587,57 @@ describe('TopicStreamSubscription', () => {
     }
   )
 
+  it('preserves dynamic tool identity when live covers replay without opener (#23519)', async () => {
+    const attach = Promise.withResolvers<unknown>()
+    mock.mockApi.streamAttach.mockReturnValueOnce(attach.promise)
+    const sub = new TopicStreamSubscription(TOPIC)
+    const stream = sub.register(A, 'answer', 1)
+    const toolCallId = 'call-dyn-1'
+    const available = {
+      type: 'tool-input-available',
+      toolCallId,
+      toolName: 'search',
+      input: { q: 'hello' },
+      dynamic: true
+    } as const
+    const output = {
+      type: 'tool-output-available',
+      toolCallId,
+      output: { ok: true },
+      dynamic: true
+    } as const
+    // Queued live traffic covers the attach replay; the opener was evicted.
+    mock.emitChunk(TOPIC, A, available, 'answer', 1, 1, 1)
+    mock.emitChunk(TOPIC, A, output, 'answer', 1, 2)
+    attach.resolve({
+      status: 'attached',
+      replayFrom: { 1: 1 },
+      replayThrough: { 1: 2 },
+      bufferedChunks: [available, output].map((chunk) => ({
+        topicId: TOPIC,
+        executionId: A,
+        attemptId: 1,
+        anchorMessageId: 'answer',
+        chunk
+      }))
+    })
+    await tick()
+    mock.emitDone(TOPIC, A, 'success', true, 'answer')
+
+    let message
+    for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
+    const tools = (message?.parts ?? []).filter((part) => part.type === 'dynamic-tool')
+    expect(tools).toHaveLength(1)
+    expect(tools[0]).toMatchObject({
+      toolCallId,
+      toolName: 'search',
+      state: 'output-available',
+      input: { q: 'hello' },
+      output: { ok: true }
+    })
+    sub.dispose()
+  })
+
   it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',

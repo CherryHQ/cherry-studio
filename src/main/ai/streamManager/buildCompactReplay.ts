@@ -184,10 +184,17 @@ export function buildCompactReplay(
     pending = undefined
   }
 
+  type ToolIdentitySource = Partial<
+    Pick<
+      Extract<StreamChunkPayload['chunk'], { type: 'tool-input-start' }>,
+      'toolName' | 'dynamic' | 'title' | 'providerExecuted' | 'providerMetadata' | 'toolMetadata'
+    >
+  >
+
   const synthesizeToolStart = (
     payload: StreamChunkPayload,
     toolCallId: string,
-    from?: Extract<StreamChunkPayload['chunk'], { type: 'tool-input-available' }>
+    from?: ToolIdentitySource
   ): StreamChunkPayload => ({
     ...payload,
     chunk: {
@@ -196,10 +203,14 @@ export function buildCompactReplay(
       // Prefer the surviving name when the trigger carries it (typically
       // tool-input-available) — a static `tool-${toolName}` part is only
       // created on push, so `unknown-tool` would otherwise stick permanently.
+      // Preserve dynamic identity and tool metadata so a surviving dynamic
+      // chunk rebuilds one dynamic-tool part instead of splitting (#23519).
       toolName: from?.toolName ?? 'unknown-tool',
       ...(from?.dynamic !== undefined ? { dynamic: from.dynamic } : {}),
       ...(from?.title !== undefined ? { title: from.title } : {}),
-      ...(from?.providerMetadata !== undefined ? { providerMetadata: from.providerMetadata } : {})
+      ...(from?.providerExecuted !== undefined ? { providerExecuted: from.providerExecuted } : {}),
+      ...(from?.providerMetadata !== undefined ? { providerMetadata: from.providerMetadata } : {}),
+      ...(from?.toolMetadata !== undefined ? { toolMetadata: from.toolMetadata } : {})
     }
   })
 
@@ -208,26 +219,43 @@ export function buildCompactReplay(
   // (deltas arrive before available, so the first synthesis has no name).
   const synthesizedStartIndex = new Map<string, number>()
 
-  const ensureToolOpen = (
-    payload: StreamChunkPayload,
-    toolCallId: string,
-    from?: Extract<StreamChunkPayload['chunk'], { type: 'tool-input-available' }>
-  ): void => {
+  const ensureToolOpen = (payload: StreamChunkPayload, toolCallId: string, from?: ToolIdentitySource): void => {
     const key = openToolKey(payload, toolCallId)
     if (!openTools.has(key)) {
       openTools.add(key)
       synthesizedStartIndex.set(key, compact.length)
       compact.push(synthesizeToolStart(payload, toolCallId, from))
-    } else if (from?.toolName) {
+    } else if (from) {
       const at = synthesizedStartIndex.get(key)
       if (at !== undefined) {
         const existing = compact[at]
-        if (existing && existing.chunk.type === 'tool-input-start' && existing.chunk.toolName === 'unknown-tool') {
-          compact[at] = synthesizeToolStart(existing, toolCallId, from)
+        if (existing && existing.chunk.type === 'tool-input-start') {
+          const hasName = !!from.toolName
+          const needsPatch =
+            (hasName && existing.chunk.toolName === 'unknown-tool') ||
+            (from.dynamic !== undefined && existing.chunk.dynamic === undefined)
+          if (needsPatch) {
+            // Merge so an output-triggered dynamic patch keeps the slot for a
+            // later name patch, while an available-triggered patch fills both.
+            const mergedSource: ToolIdentitySource = {
+              toolName: from.toolName ?? existing.chunk.toolName,
+              dynamic: from.dynamic ?? existing.chunk.dynamic,
+              title: from.title ?? existing.chunk.title,
+              providerExecuted: from.providerExecuted ?? existing.chunk.providerExecuted,
+              providerMetadata: from.providerMetadata ?? existing.chunk.providerMetadata,
+              toolMetadata: from.toolMetadata ?? existing.chunk.toolMetadata
+            }
+            compact[at] = synthesizeToolStart(existing, toolCallId, mergedSource)
+          }
+          // Only consume the patch slot once the real name lands — a real
+          // start was never indexed, so this also no-ops when the opener
+          // survived eviction. Output-triggered dynamic patches keep the slot.
+          if (hasName) synthesizedStartIndex.delete(key)
+        } else {
+          // Only patch once — a real start was never indexed, so this also
+          // no-ops when the opener survived eviction.
+          synthesizedStartIndex.delete(key)
         }
-        // Only patch once — a real start was never indexed, so this also
-        // no-ops when the opener survived eviction.
-        synthesizedStartIndex.delete(key)
       }
     }
   }
@@ -301,7 +329,20 @@ export function buildCompactReplay(
         flushPending()
         const toolCallId = (payload.chunk as { toolCallId?: string }).toolCallId
         if (toolCallId && !openTools.has(openToolKey(payload, toolCallId))) {
-          ensureToolOpen(payload, toolCallId)
+          // Forward dynamic identity when the trigger carries it
+          // (output-available/error) so the synthesized opener stays in the
+          // same static/dynamic family (#23519). Denied/approval carry no
+          // identity, so they synthesize a bare unknown-tool start.
+          if (chunk.type === 'tool-output-available' || chunk.type === 'tool-output-error') {
+            ensureToolOpen(payload, toolCallId, chunk)
+          } else {
+            ensureToolOpen(payload, toolCallId)
+          }
+        } else if (toolCallId && (chunk.type === 'tool-output-available' || chunk.type === 'tool-output-error')) {
+          // Deltas may have synthesized a static placeholder before a dynamic
+          // output arrived — patch dynamic identity while keeping the slot for
+          // a later name patch from tool-input-available.
+          ensureToolOpen(payload, toolCallId, chunk)
         }
         compact.push(payload)
         break

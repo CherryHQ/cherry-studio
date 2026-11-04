@@ -274,6 +274,29 @@ describe('buildCompactReplay', () => {
         'tool-output-available'
       ])
     })
+
+    it('preserves dynamic identity on synthesized tool start (#23519)', () => {
+      const result = buildCompactReplay([
+        {
+          topicId: 'topic-1',
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId: 'tc1',
+            toolName: 'search',
+            input: { q: 'hello' },
+            dynamic: true
+          }
+        },
+        { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
+      ])
+
+      expect(result[0].chunk).toMatchObject({
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search',
+        dynamic: true
+      })
+    })
   })
 
   describe('mergeDeltaPayload segmentation', () => {
