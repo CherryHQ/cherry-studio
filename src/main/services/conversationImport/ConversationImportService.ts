@@ -18,6 +18,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import type { HistorySource } from '@shared/data/types/conversationImport'
 import type {
   ImportCandidate,
+  ImportFilterCounts,
   ImportOutcome,
   ImportPreviewItem,
   ImportSelection
@@ -77,17 +78,23 @@ export class ConversationImportService extends BaseService {
     }
     this.scans.set(owner, scan)
     const candidates: ImportCandidate[] = []
+    const filtered: ImportFilterCounts = { codex_guardian_review: 0, claude_no_user_task: 0 }
+    let scanned = 0
     try {
       for await (const reference of scan.adapter.discover(root, scan.abort.signal)) {
         const file = reference.path
-        if (candidates.length >= 10_000) throw new Error('scan_limit')
+        if (++scanned > 10_000) throw new Error('scan_limit')
         const canonical = await realpath(file)
         if (!within(root, canonical)) throw new Error('source_changed')
+        if (reference.filteredReason) {
+          filtered[reference.filteredReason]++
+          continue
+        }
         const ref = randomUUID()
         scan.refs.set(ref, { ...reference, path: canonical })
         candidates.push({ ref, title: reference.title ?? path.basename(file, '.jsonl'), sourcePath: canonical })
       }
-      return { scanId: scan.id, root, candidates }
+      return { scanId: scan.id, root, candidates, filtered }
     } catch (error) {
       if (this.scans.get(owner) === scan) this.cancel(owner)
       throw error
@@ -146,6 +153,7 @@ export class ConversationImportService extends BaseService {
           if (inputBytes > IMPORT_LIMITS.batch || normalizedBytes > IMPORT_LIMITS.batch) throw new Error('batch_limit')
           const item: ImportPreviewItem = {
             ...base,
+            filteredReason: session.filteredReason,
             title: session.title,
             originalSessionId: session.originalSessionId,
             branches: session.branches,
@@ -160,6 +168,10 @@ export class ConversationImportService extends BaseService {
             diagnostics: [...session.diagnostics],
             skippedRecords: session.skippedRecords,
             downgradedParts: session.downgradedParts
+          }
+          if (session.filteredReason) {
+            items.set(selection.ref, { item, session })
+            continue
           }
           const ambiguous = item.diagnostics.some((d) => d.code === 'directory_required')
           if (selection.directory && (session.workingDirectory || ambiguous))
@@ -234,6 +246,10 @@ export class ConversationImportService extends BaseService {
           continue
         }
         const { item, session } = preview.items.get(ref)!
+        if (item.filteredReason) {
+          outcomes.push({ ref, status: 'filtered', reason: item.filteredReason })
+          continue
+        }
         if (!session || item.diagnostics.some((d) => d.severity === 'error')) {
           outcomes.push({ ref, status: 'failed', reason: 'preview_blocked' })
           continue
@@ -243,6 +259,10 @@ export class ConversationImportService extends BaseService {
           if ((await realpath(item.sourcePath)) !== item.sourcePath) throw new Error('source_changed')
           const fresh = await scan.adapter.read(scan.refs.get(ref)!, scan.abort.signal, item.branchId)
           if (fresh.sourceFingerprint !== session.sourceFingerprint) throw new Error('source_changed')
+          if (fresh.filteredReason) {
+            outcomes.push({ ref, status: 'filtered', reason: fresh.filteredReason })
+            continue
+          }
           if (item.directory && (await this.validateDirectory(item.directory)) !== item.directory)
             throw new Error('directory_required')
           const end = session.messages.at(-1)!.timestamp

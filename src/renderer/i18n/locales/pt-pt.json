@@ -1743,6 +1743,8 @@
   "history_import.error": "A operação falhou. Verifique a localização de origem, o agente de destino e o diretório de trabalho e tente novamente.",
   "history_import.error_title": "A importação requer atenção",
   "history_import.existing": "Já importada para {{owner}}. A conversa não será copiada nem movida.",
+  "history_import.filtered_empty": "Não restam conversas para importar. Os ficheiros de origem e as conversas já importadas permanecem inalterados.",
+  "history_import.filtered_summary": "Filtradas: {{guardian}} revisões Guardian · {{noTask}} sessões sem tarefas do utilizador.",
   "history_import.folder": "Escolher pasta",
   "history_import.line": "Linha {{line}}",
   "history_import.losses": "Registos ignorados: {{skipped}} · Blocos convertidos: {{downgraded}}",

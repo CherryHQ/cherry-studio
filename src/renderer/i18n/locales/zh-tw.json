@@ -1743,6 +1743,8 @@
   "history_import.error": "操作失敗。請檢查來源位置、目標智慧體和工作目錄，然後重試。",
   "history_import.error_title": "匯入遇到問題",
   "history_import.existing": "已匯入至 {{owner}}，不會複製或移動對話。",
+  "history_import.filtered_empty": "沒有可匯入的會話。來源檔案和已匯入的會話保持不變。",
+  "history_import.filtered_summary": "已過濾：{{guardian}} 個 Guardian 審查會話 · {{noTask}} 個無使用者任務的會話。",
   "history_import.folder": "選擇目錄",
   "history_import.line": "第 {{line}} 行",
   "history_import.losses": "略過記錄：{{skipped}} · 降級內容區塊：{{downgraded}}",

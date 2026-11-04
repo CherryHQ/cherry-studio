@@ -356,4 +356,37 @@ describe('local history import dialog', () => {
     expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(101)
     expect(screen.getByText(/Selected 100 of 101 conversations/)).toBeInTheDocument()
   })
+  it('explains an all-filtered scan without selectable records or an error dialog', async () => {
+    request.mockResolvedValue({
+      scanId: 'scan',
+      root: '/source',
+      candidates: [],
+      filtered: { codex_guardian_review: 3, claude_no_user_task: 0 }
+    })
+    agents([{ id: 'pi', name: 'Alpha', type: 'pi' }])
+    render(<LocalHistoryImportDialog open source="codex" resolve={() => {}} />)
+    expect(await screen.findByText(enUS['history_import.filtered_empty'])).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('3 Guardian reviews')
+    expect(screen.getByRole('checkbox', { name: enUS['common.select_all'] })).toBeDisabled()
+    expect(screen.getByRole('button', { name: enUS['history_import.confirm'] })).toBeDisabled()
+    expect(screen.queryByText(enUS['history_import.error_title'])).not.toBeInTheDocument()
+  })
+  it('removes revalidated filtered selections without showing retry or failure actions', async () => {
+    const original = request.getMockImplementation()!
+    request.mockImplementation(async (route, input) => {
+      if (route === 'conversation_import.commit')
+        return [{ ref: 'ref', status: 'filtered', reason: 'claude_no_user_task' }]
+      return original(route, input)
+    })
+    agents([{ id: 'pi', name: 'Alpha', type: 'pi' }])
+    const user = userEvent.setup()
+    render(<LocalHistoryImportDialog open source="claude-code" resolve={() => {}} />)
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    expect(await screen.findByText(enUS['history_import.filtered_empty'])).toBeVisible()
+    expect(screen.queryByText('Original task')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: enUS['common.retry'] })).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['history_import.results.failed'])).not.toBeInTheDocument()
+  })
 })
