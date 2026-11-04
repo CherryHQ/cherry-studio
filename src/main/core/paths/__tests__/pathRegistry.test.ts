@@ -92,9 +92,9 @@ describe('buildPathRegistry', () => {
   })
 
   it.each([
-    ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
+    ['win32', 'x64', false, '/mock/app/native/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
     ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
-    ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
+    ['darwin', 'arm64', false, '/mock/app/native/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
     ['darwin', 'x64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech'],
     ['darwin', 'arm64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech']
   ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {

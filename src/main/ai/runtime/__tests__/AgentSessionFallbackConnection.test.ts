@@ -187,6 +187,34 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('forwards native child-owner capabilities to the wrapped connection', async () => {
+    const childProjection = vi.fn(async () => undefined)
+    const messageChild = vi.fn(async () => undefined)
+    const drainChildWrites = vi.fn(async () => undefined)
+    const primary = {
+      ...fakeConnection(),
+      retainWhileIdle: true,
+      childProjection,
+      messageChild,
+      drainChildWrites
+    }
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+
+    expect(wrapper.retainWhileIdle).toBe(true)
+    await wrapper.childProjection('call-1')
+    await wrapper.messageChild('ctx-1', 'hello')
+    await wrapper.drainChildWrites()
+    expect(childProjection).toHaveBeenCalledWith('call-1')
+    expect(messageChild).toHaveBeenCalledWith('ctx-1', 'hello')
+    expect(drainChildWrites).toHaveBeenCalledTimes(1)
+    await wrapper.close()
+  })
+
   it('falls back when an empty text block closes before the provider failure', async () => {
     const primary = fakeConnection()
     const fallback = fakeConnection()

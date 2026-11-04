@@ -239,6 +239,10 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     return this.current.usageCapture
   }
 
+  get retainWhileIdle() {
+    return this.current.retainWhileIdle
+  }
+
   async send(input: AgentRuntimeUserInput): Promise<void> {
     this.lastInput = input
     // Captured at admission: a later save must reach the NEXT fresh turn, not this turn's replay.
@@ -321,6 +325,20 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
 
   getSupportedCommands() {
     return this.current.getSupportedCommands?.() ?? Promise.resolve(null)
+  }
+
+  // Child ownership lives on the wrapped connection, not on this wrapper: the host's child
+  // projection, message and drain paths must reach the connection that spawned the child.
+  childProjection(toolCallId: string) {
+    return this.current.childProjection?.(toolCallId) ?? Promise.resolve(undefined)
+  }
+
+  messageChild(contextId: string, text: string) {
+    return this.current.messageChild?.(contextId, text) ?? Promise.resolve()
+  }
+
+  drainChildWrites() {
+    return this.current.drainChildWrites?.() ?? Promise.resolve()
   }
 
   stopTask(taskId: string) {
