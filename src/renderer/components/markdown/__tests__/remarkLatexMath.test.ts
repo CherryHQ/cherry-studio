@@ -152,6 +152,31 @@ describe('remarkLatexMath', () => {
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
   })
 
+  it.each(['.', ' trailing prose'])('does not scan past the first closer with%s', (suffix) => {
+    const first = `\\begin{align}\na\n=\nb\n\\end{align}${suffix}`
+    const second = '\\begin{align}\nc=d\n\\end{align}'
+    const source = `${first}\n\n# Keep heading\n\n[Keep link](https://example.com)\n\n${second}`
+    const tree = parse(source)
+    expect(tree.children.some((child) => child.type === 'heading' && textValue(child).includes('Keep heading'))).toBe(
+      true
+    )
+    expect(textValue(tree)).toContain('Keep link')
+    expect(mathNodes(source).some((node) => node.value.includes('Keep heading'))).toBe(false)
+    expect(mathNodes(source).some((node) => node.value === second)).toBe(true)
+  })
+
+  it('waits for the outer same-name closer across a sibling boundary', () => {
+    const source = '\\begin{aligned}\na\n=\nb\n\\begin{aligned}\nc=d\n\\end{aligned}\n\nouter tail\n\\end{aligned}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
+  it('leaves many unclosed setext environments unchanged without searching later siblings', () => {
+    const source = Array.from({ length: 4000 }, () => '\\begin{align}\na\n=\nb').join('\n\n')
+    const tree = parse(source)
+    expect(tree.children.some((node) => node.type === 'math')).toBe(false)
+    expect(textValue(tree)).toContain('b')
+  })
+
   it('balances nested environments with the same name', () => {
     const source = '\\begin{aligned}\na\\begin{aligned}b\\end{aligned}c\n\\end{aligned}。'
     expect(mathNodes(source)).toMatchObject([

@@ -878,27 +878,74 @@ function promoteDisplayMath(tree: Root, source: string): void {
 
 // A lone `=`/`-` line inside an environment makes CommonMark read the preceding lines as a setext heading.
 function repairSetextEnvironments(tree: Root, source: string): void {
+  // Compute same-name balanced pairs once. Re-scanning the remaining source
+  // for every unclosed heading would make malformed input quadratic.
+  const matchingEnds = new Map<number, number>()
+  const openings = new Map<string, number[]>()
+  const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
+  for (let cursor = 0; cursor < source.length; cursor++) {
+    if (source.charCodeAt(cursor) !== BACKSLASH) continue
+    if (source.charCodeAt(cursor + 1) === BACKSLASH) {
+      cursor++
+      continue
+    }
+    marker.lastIndex = cursor
+    const match = marker.exec(source)
+    if (!match || !ENVIRONMENT_NAMES.has(match[2])) continue
+    const name = match[2]
+    if (match[1] === 'begin') {
+      const stack = openings.get(name) ?? []
+      stack.push(cursor)
+      openings.set(name, stack)
+    } else {
+      const start = openings.get(name)?.pop()
+      if (start !== undefined) matchingEnds.set(start, marker.lastIndex)
+    }
+    cursor = marker.lastIndex - 1
+  }
+
   visit(tree, (parent) => {
     if (!('children' in parent)) return
     const children = parent.children as RootContent[]
+    const repaired: RootContent[] = []
     for (let i = 0; i < children.length; i++) {
       const node = children[i]
       const start = node.position?.start.offset
-      if (node.type !== 'heading' || start === undefined) continue
-      const name = /^ {0,3}\\begin\{([^}\r\n]+)\}/.exec(source.slice(start, node.position?.end.offset))?.[1]
-      if (!name || !ENVIRONMENT_NAMES.has(name)) continue
-
-      const closing = `\\end{${name}}`
-      for (let j = i; j < children.length; j++) {
-        const end = children[j].position?.end.offset
-        if (end === undefined) break
-        const raw = source.slice(start, end).trim()
-        if (!raw.endsWith(closing)) continue
-        const position = { start: node.position!.start, end: children[j].position!.end }
-        children.splice(i, j - i + 1, createDisplayMath({ type: 'inlineMath', value: raw, position }))
-        break
+      const name =
+        node.type === 'heading' && start !== undefined
+          ? /^ {0,3}\\begin\{([^}\r\n]+)\}/.exec(source.slice(start, node.position?.end.offset))?.[1]
+          : undefined
+      const markerStart =
+        start === undefined ? undefined : start + (source.slice(start, start + 3).match(/^ */)?.[0].length ?? 0)
+      const closeEnd = markerStart === undefined ? undefined : matchingEnds.get(markerStart)
+      if (!name || !ENVIRONMENT_NAMES.has(name) || closeEnd === undefined || start === undefined) {
+        repaired.push(node)
+        continue
       }
+      // Child positions are ordered. Locate the first balanced closer's sibling
+      // without scanning all later siblings again for nested heading candidates.
+      let lo = i
+      let hi = children.length
+      while (lo < hi) {
+        const mid = lo + Math.floor((hi - lo) / 2)
+        const end = children[mid].position?.end.offset
+        if (end !== undefined && end < closeEnd) lo = mid + 1
+        else hi = mid
+      }
+      const endNode = children[lo]
+      const end = endNode?.position?.end.offset
+      if (end === undefined || end < closeEnd || source.slice(closeEnd, end).trim()) {
+        // The first balanced closer has trailing prose: preserve the original
+        // unsupported path instead of consuming unrelated Markdown later on.
+        repaired.push(node)
+        continue
+      }
+      const raw = source.slice(start, closeEnd).trim()
+      const position = { start: node.position!.start, end: endNode.position!.end }
+      repaired.push(createDisplayMath({ type: 'inlineMath', value: raw, position }))
+      i = lo
     }
+    parent.children = repaired
   })
 }
 
