@@ -283,6 +283,27 @@ describe('remarkLatexMath', () => {
     expect(tree.children.at(-1)?.type).toBe('footnoteDefinition')
   })
 
+  it.each([
+    'Command | Meaning\n--- | ---\nclose | \\end{align}',
+    '| Command | Meaning |\n| --- | --- |\n| close | \\end{align} |',
+    '- item\n\n  Command | Meaning\n  --- | ---\n  close | \\end{align}'
+  ])('does not close a body setext environment inside a GFM table', (table) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${table}`
+    const tree = parse(source, true)
+    const math: Nodes[] = []
+    const tables: Nodes[] = []
+    const links: Nodes[] = []
+    visit(tree, (node) => {
+      if (node.type === 'math' || node.type === 'inlineMath') math.push(node)
+      if (node.type === 'table') tables.push(node)
+      if (node.type === 'link') links.push(node)
+    })
+    expect(math).toEqual([])
+    expect(tables).toHaveLength(1)
+    expect(links).toHaveLength(1)
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+  })
+
   it('ignores a closer inside a TeX percent comment', () => {
     const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])

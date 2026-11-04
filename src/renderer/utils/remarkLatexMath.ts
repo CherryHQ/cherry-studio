@@ -880,7 +880,7 @@ function promoteDisplayMath(tree: Root, source: string): void {
 function repairSetextEnvironments(tree: Root, source: string): void {
   // Compute same-name balanced pairs once. Re-scanning the remaining source
   // for every unclosed heading would make malformed input quadratic.
-  // Literal code, definitions, HTML and quoted subtrees cannot close an outer
+  // Literal code, definitions, HTML, tables and quotes cannot close an outer
   // environment. Preorder ranges are ordered; SKIP keeps them disjoint.
   const excludedRanges: Array<{ start: number; end: number }> = []
   const containerRanges: Array<{ start: number; end: number }> = []
@@ -894,7 +894,8 @@ function repairSetextEnvironments(tree: Root, source: string): void {
       node.type !== 'inlineCode' &&
       node.type !== 'blockquote' &&
       node.type !== 'definition' &&
-      node.type !== 'html'
+      node.type !== 'html' &&
+      node.type !== 'table'
     )
       return undefined
     if (start !== undefined && end !== undefined) excludedRanges.push({ start, end })
