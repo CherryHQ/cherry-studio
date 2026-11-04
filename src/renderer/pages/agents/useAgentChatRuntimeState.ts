@@ -414,7 +414,7 @@ export function useAgentChatRuntimeState({
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, {
     onUpdate: (_executionId, event) => {
       const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
       const turnOrigin =
@@ -440,7 +440,7 @@ export function useAgentChatRuntimeState({
   >({})
 
   // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged sessionTopicId, and the fresh {} literal would defeat React's

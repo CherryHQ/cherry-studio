@@ -153,6 +153,7 @@ export interface StreamExecution {
   pendingApprovalToolCallIds?: Set<string>
   /** `awaitToolSettled` waiters by toolCallId, resolved when the accumulated message settles that tool. */
   toolSettleWaiters?: Map<string, Set<(settled: boolean) => void>>
+  resolvedToolApprovals?: Map<string, boolean>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError

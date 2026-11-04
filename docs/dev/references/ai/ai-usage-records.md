@@ -425,8 +425,8 @@ Historical Pi and DSH invocation records remain available after runtime migratio
 ### Gateway-backed Agent
 
 The connection carries `{ owner: 'provider-calls' }`; SDK usage events do not
-create billing records. Pi always uses this path; native usage remains available
-for context and display. Trusted in-process gateway context supplies the active assistant
+create billing records. Pi and Pi Durable always use this path; native usage
+remains available for context and display. Trusted in-process gateway context supplies the active assistant
 message id (or a reserved steer continuation id) and frozen source to the
 normal AiService language middleware.
 When a `PreToolUse` hook actually injects a steer, the driver synchronously
@@ -521,6 +521,6 @@ global SWR focus/reconnect revalidation is disabled.
 | `src/main/ai/hooks/billingHook.ts` | Language middleware and operation coverage |
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
-| `src/main/ai/runtime/pi/gatewayModelBinding.ts` | Pi gateway binding and native context/display usage |
+| `src/main/ai/runtime/pi/gatewayModelBinding.ts` | Shared Pi/Durable gateway binding and native context/display usage |
 | `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

@@ -55,9 +55,9 @@ describe('useAgentModelFilter', () => {
     expect(result.current(model([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
   })
 
-  describe('pi agents', () => {
+  describe.each(['pi', 'pi-durable'] as const)('%s agents', (agentType) => {
     it('allows models on providers pi can drive', () => {
-      const { result } = renderHook(() => useAgentModelFilter('pi'))
+      const { result } = renderHook(() => useAgentModelFilter(agentType))
 
       expect(
         result.current({ ...model(), providerId: 'openai', id: 'openai::gpt-4o' }, providers.openai as Provider)
@@ -74,7 +74,7 @@ describe('useAgentModelFilter', () => {
     })
 
     it('keeps gateway-routable models available while filtering missing providers', () => {
-      const { result } = renderHook(() => useAgentModelFilter('pi'))
+      const { result } = renderHook(() => useAgentModelFilter(agentType))
 
       // Vertex retains its model through the local gateway.
       expect(
@@ -85,13 +85,13 @@ describe('useAgentModelFilter', () => {
     })
 
     it('still rejects non-chat model classes for pi', () => {
-      const { result } = renderHook(() => useAgentModelFilter('pi'))
+      const { result } = renderHook(() => useAgentModelFilter(agentType))
 
       expect(result.current({ ...model([MODEL_CAPABILITY.EMBEDDING]), providerId: 'openai' })).toBe(false)
     })
 
     it('rejects a native-compatible model whose provider id cannot be routed by the gateway', () => {
-      const { result } = renderHook(() => useAgentModelFilter('pi'))
+      const { result } = renderHook(() => useAgentModelFilter(agentType))
       const provider = { ...providers.anthropic, id: 'custom:anthropic' } as Provider
 
       expect(result.current({ ...model(), id: 'custom:anthropic::claude', providerId: provider.id }, provider)).toBe(

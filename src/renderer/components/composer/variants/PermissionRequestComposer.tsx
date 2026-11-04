@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -14,7 +15,6 @@ import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/ch
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
@@ -86,9 +86,11 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
   }
 
   return (
-    <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-builtin-body-scroll">
+    <ScrollArea
+      viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-builtin-body-scroll' }}
+      className="max-h-60">
       {children}
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 
@@ -147,9 +149,11 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
-        <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
+        <ScrollArea
+          viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
+          className="max-h-60">
           <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
-        </Scrollbar>
+        </ScrollArea>
       ) : (
         <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
       )}

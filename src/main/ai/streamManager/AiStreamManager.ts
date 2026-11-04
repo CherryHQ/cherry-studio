@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import type { UIMessageChunk } from 'ai'
+import { isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
+import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
 import {
@@ -25,6 +26,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -62,6 +64,7 @@ import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { isToolPartSettled } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
+import { TopicMessageProjection } from './TopicMessageProjection'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -75,6 +78,20 @@ import type {
   TransportTimings
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
+
+function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
+  if (!exec.resolvedToolApprovals?.size) return message
+  return {
+    ...message,
+    parts: message.parts.map((part) => {
+      if (!isToolUIPart(part) || part.state !== 'approval-requested') return part
+      const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
+      return approved === undefined
+        ? part
+        : { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+    })
+  }
+}
 
 const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
@@ -337,6 +354,62 @@ export class AiStreamManager extends BaseService {
   private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
+  private readonly projections = new Map<string, TopicMessageProjection>()
+  private readonly projectionSubscriptions = new ProjectionSubscriptions()
+
+  private topicProjection(topicId: string): TopicMessageProjection {
+    let projection = this.projections.get(topicId)
+    if (!projection) {
+      projection = new TopicMessageProjection(topicId, (message) => projectStreamMessageForRenderer(topicId, message))
+      this.projections.set(topicId, projection)
+    }
+    return projection
+  }
+
+  async dispatchCommand(request: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    try {
+      return await this.dispatch(this.topicProjection(request.topicId), request)
+    } finally {
+      this.releaseProjection(request.topicId)
+    }
+  }
+
+  attachProjection(
+    sender: Electron.WebContents,
+    topicId: string,
+    subscriptionId: string,
+    send: (update: MessageProjectionUpdate) => void
+  ): Promise<MessageProjectionView | null> {
+    return this.projectionSubscriptions.attach(
+      sender,
+      subscriptionId,
+      () => {
+        const projection = this.topicProjection(topicId)
+        return {
+          snapshot: () => projection.snapshot(),
+          subscribe: (listener) => {
+            const stop = projection.subscribe(listener)
+            return () => {
+              stop()
+              this.releaseProjection(topicId)
+            }
+          }
+        }
+      },
+      send
+    )
+  }
+
+  detachProjection(sender: Electron.WebContents, subscriptionId: string): void {
+    this.projectionSubscriptions.detach(sender, subscriptionId)
+  }
+
+  private releaseProjection(topicId: string): void {
+    const projection = this.projections.get(topicId)
+    if (this.activeStreams.has(topicId) || projection?.observed) return
+    projection?.dispose()
+    this.projections.delete(topicId)
+  }
   /** Serialises `prepareDispatch → send` per topic so concurrent `ai.stream.open` requests can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
@@ -652,6 +725,9 @@ export class AiStreamManager extends BaseService {
   }
 
   protected onDestroy(): void {
+    this.projectionSubscriptions.dispose()
+    for (const projection of this.projections.values()) projection.dispose()
+    this.projections.clear()
     this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
   }
@@ -790,6 +866,7 @@ export class AiStreamManager extends BaseService {
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
       existing.executions.set(model.modelId, nextExecution)
+      this.projections.get(input.topicId)?.begin([toActiveExecution(nextExecution)], false)
       existing.isMultiModel = existing.executions.size > 1
       existing.status = hasLiveSibling ? 'streaming' : 'pending'
       existing.lifecycle.onActiveExecutionsChanged(existing)
@@ -873,6 +950,11 @@ export class AiStreamManager extends BaseService {
       isPersistentConversation: input.isPersistentConversation === true
     }
     this.activeStreams.set(input.topicId, stream)
+    if (stream.lifecycle !== promptStreamLifecycle) {
+      const projection = this.topicProjection(input.topicId)
+      projection.begin([...executions.values()].map(toActiveExecution), true)
+      stream.listeners.set(projection.id, projection)
+    }
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
     stream.lifecycle.onCreated(stream)
 
@@ -1247,6 +1329,7 @@ export class AiStreamManager extends BaseService {
       const pendingApprovals = exec.pendingApprovalToolCallIds
       if (!pendingApprovals?.delete(toolCallId)) continue
       exec.runtimeTiming.finishApproval({ toolCallId })
+      ;(exec.resolvedToolApprovals ??= new Map()).set(toolCallId, approved)
       changed = true
       if (approved) {
         // AI SDK has no UI-stream approval-response chunk. Replaying the input advances the part
@@ -1255,6 +1338,10 @@ export class AiStreamManager extends BaseService {
         if (inputChunk) this.onChunk(topicId, exec.modelId, inputChunk, exec)
       } else {
         this.onChunk(topicId, exec.modelId, { type: 'tool-output-denied', toolCallId }, exec)
+      }
+      if (exec.finalMessage) {
+        exec.finalMessage = withResolvedApprovals(exec.finalMessage, exec)
+        this.projections.get(topicId)?.accumulate(exec.modelId, exec.attemptId, exec.finalMessage)
       }
       if (pendingApprovals.size === 0) pendingApprovalFlipped = true
     }
@@ -1450,7 +1537,11 @@ export class AiStreamManager extends BaseService {
     for (const id of dead) stream.listeners.delete(id)
 
     // `backgroundMode: 'abort'` policy — drive through aborted → paused so partial output persists as `paused`.
-    if (stream.listeners.size === 0 && this.config.backgroundMode === 'abort') {
+    if (
+      this.config.backgroundMode === 'abort' &&
+      ![...stream.listeners.values()].some((listener) => listener !== this.projections.get(topicId)) &&
+      !this.projections.get(topicId)?.observed
+    ) {
       this.abort(topicId, 'no-subscribers')
     }
   }
@@ -1654,6 +1745,7 @@ export class AiStreamManager extends BaseService {
     const isTopicDone = !isLiveStatus(stream.status)
     const result: StreamErrorResult = {
       error,
+      persistence: { status: 'failed', failure: toExecutionFailure(error, modelId, 'host') },
       status: 'error',
       modelId,
       attemptId: exec?.attemptId,
@@ -1738,6 +1830,7 @@ export class AiStreamManager extends BaseService {
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
         this.activeStreams.delete(stream.topicId)
+        this.releaseProjection(stream.topicId)
       }
     })
   }
@@ -2064,6 +2157,8 @@ export class AiStreamManager extends BaseService {
           const at = anchors.findIndex((a) => a.id === anchorId)
           if (at >= 0) anchors[at] = { id: anchorId, data }
           else anchors.push({ id: anchorId, data })
+          exec.finalMessage = withCompactionAnchors(exec.finalMessage ?? ensureTerminalFinalMessage(exec), exec)
+          this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
         }
       })
     } catch (err) {
@@ -2101,8 +2196,9 @@ export class AiStreamManager extends BaseService {
       },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
-        exec.finalMessage = withCompactionAnchors(msg, exec)
+        exec.finalMessage = withResolvedApprovals(withCompactionAnchors(msg, exec), exec)
         this.resolveToolSettleWaiters(exec)
+        this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
       }
     })
 
@@ -2290,5 +2386,6 @@ export class AiStreamManager extends BaseService {
       endRootSpan(exec, 'aborted')
     }
     this.activeStreams.delete(topicId)
+    this.releaseProjection(topicId)
   }
 }

@@ -10,6 +10,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
+import { PiDurableRuntimeDriver } from './piDurable/PiDurableRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
 import type {
   AgentRuntimeConnectInput,
@@ -148,4 +149,5 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
+  runtimeDriverRegistry.register(new PiDurableRuntimeDriver())
 }
