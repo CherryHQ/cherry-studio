@@ -793,9 +793,11 @@ const ChatComposerInner = ({
   const isEditingUserMessage =
     Boolean(editingMessageForCurrentTopic) && editingMessageForCurrentTopic?.message.role !== 'assistant'
   const resendModels = directModels.filter((model) => resendModelIds.includes(model.id))
-  const validationModels = isEditingUserMessage ? resendModels : effectiveSubmittedModels
+  const resendValidationModels = resendModelIds.length > 0 ? resendModels : model ? [model] : EMPTY_MODELS
+  const validationModels = isEditingUserMessage ? resendValidationModels : effectiveSubmittedModels
   const pendingModels = isEditingUserMessage ? resendModels : submittedMentionedModels
-  const validationPending = pendingModels.length > 0 && areModelsLoading
+  const validationPending =
+    isEditingUserMessage && resendModelIds.length === 0 ? isModelPending : pendingModels.length > 0 && areModelsLoading
   const isValidationBlockingSend = validationPending && editingMessageForCurrentTopic?.message.role !== 'assistant'
   const currentSubmittedModels = validationModels.map(
     (model) => queueModels.find((currentModel) => currentModel.id === model.id) ?? model
