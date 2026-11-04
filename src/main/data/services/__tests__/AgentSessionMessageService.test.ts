@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -16,6 +16,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
@@ -1098,7 +1099,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id })
           .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .where(and(eq(agentSessionMessageTable.sessionId, 'sender'), ne(agentSessionMessageTable.role, 'root')))
           .all()
       ).toEqual([])
       expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
@@ -1132,7 +1133,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id })
           .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .where(and(eq(agentSessionMessageTable.sessionId, 'sender'), ne(agentSessionMessageTable.role, 'root')))
           .all()
       ).toEqual([])
       expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
@@ -1244,7 +1245,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id })
           .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .where(and(eq(agentSessionMessageTable.sessionId, 'sender'), ne(agentSessionMessageTable.role, 'root')))
           .all()
       ).toEqual([])
       expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
@@ -1932,8 +1933,9 @@ describe('AgentSessionMessageService', () => {
     const rows = await dbh.db.select().from(agentSessionMessageTable)
     const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
 
-    expect(rows).toHaveLength(2)
-    expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
+    const content = rows.filter((row) => row.role !== 'root')
+    expect(content).toHaveLength(2)
+    expect(content.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
@@ -2089,6 +2091,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       cursor: 'not-a-cursor',
       limit: 1
@@ -2142,6 +2145,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const firstPage = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       messageId: target,
       limit: 2
@@ -2184,6 +2188,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       messageId: otherMessageId
     })

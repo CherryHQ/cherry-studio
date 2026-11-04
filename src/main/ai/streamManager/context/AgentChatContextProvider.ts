@@ -16,9 +16,11 @@ import {
   agentSessionMessageService,
   type ExpectedAgent
 } from '@data/services/AgentSessionMessageService'
+import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { getProviderModelId } from '@shared/ai/executionIdentity'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
@@ -57,6 +59,7 @@ export type ValidatedAgentDispatch = {
   sessionId: string
   topicId: string
   agentId: string
+  parentMessageId: string
   agentUpdatedAt: string
   agentType: string
   agentName: string
@@ -133,6 +136,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!driver) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
+    const parentMessageId = agentSessionMessageService.captureHead(sessionId)
     await driver.validateSession(session)
 
     const deliveryMessage = req.agentDeliveryMessage
@@ -154,6 +158,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         isOpenClawTechnicalTitle(session.name))
     return {
       sessionId,
+      parentMessageId,
       topicId: req.topicId,
       agentId,
       agentUpdatedAt: agent.updatedAt,
@@ -192,13 +197,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: ExpectedAgent
+    expectedAgent?: ExpectedAgent,
+    intent: 'append' | 'edit' = 'append'
   ): PersistedAgentDispatch {
+    if (intent === 'append') this.assertAppendable(validated, tx)
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
       tx,
       {
         sessionId: validated.sessionId,
+        parentId: validated.parentMessageId,
         messages: [
           {
             id: validated.userMessageId,
@@ -224,6 +232,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
       traceId: agentSessionService.ensureTraceIdTx(tx, validated.sessionId),
       userMessage: savedMessages[0],
       savedMessages
+    }
+  }
+
+  private assertAppendable(validated: ValidatedAgentDispatch, tx?: DbOrTx): void {
+    if (
+      !validated.deliveryMessage &&
+      agentSessionMessageService.branchTip(validated.sessionId, validated.parentMessageId, tx) !==
+        validated.parentMessageId
+    ) {
+      throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'a changed message branch')
     }
   }
 
@@ -334,12 +352,20 @@ export class AgentChatContextProvider implements ChatContextProvider {
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
       const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
-        const result = this.persistDispatchTx(tx, validated, {
-          id: validated.agentId,
-          updatedAt: validated.agentUpdatedAt,
-          model: getProviderModelId(validated.uniqueModelId) ?? null,
-          type: validated.agentType
-        })
+        validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
+        const result = this.persistDispatchTx(
+          tx,
+          validated,
+          {
+            id: validated.agentId,
+            updatedAt: validated.agentUpdatedAt,
+            model: getProviderModelId(validated.uniqueModelId) ?? null,
+            type: validated.agentType
+          },
+          'edit'
+        )
+        if (validated.agentType === 'pi')
+          reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         return result
       })
@@ -353,14 +379,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
       return this.activateDispatch(persisted, subscriber)
     }
 
+    await runtime.prepareBranch(validated.sessionId, validated.deliveryMessage?.id ?? validated.parentMessageId)
+
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.
     if (application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
+      this.assertAppendable(validated)
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
+        parentId: validated.parentMessageId,
         message: {
           id: validated.userMessageId,
           role: 'user',

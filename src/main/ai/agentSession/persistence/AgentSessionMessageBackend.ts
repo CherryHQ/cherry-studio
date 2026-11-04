@@ -11,6 +11,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -59,13 +60,18 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }
     }
-    const save = (runtimeAnchor?: RuntimeForkAnchor) =>
-      agentSessionMessageService.saveMessage(
+    const save = (runtimeAnchor?: RuntimeForkAnchor) => {
+      const nativeContext =
+        runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
+          ? preparePiBranch(this.opts.sessionId, finalMessage?.id ?? this.opts.assistantMessageId, runtimeResumeToken)
+          : undefined
+      return agentSessionMessageService.saveMessage(
         {
           sessionId: this.opts.sessionId,
           runtimeAnchor,
           localSessionCost: this.opts.localSessionCost?.(),
           localTurnUsage: this.opts.localTurnUsage?.(),
+          ...(runtimeAnchor && nativeContext ? { nativeContextId: nativeContext.id } : {}),
           ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
           ...(runtimeStats ? { runtimeStats } : {}),
           message: {
@@ -79,6 +85,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         },
         { publishDataChange: true }
       )
+    }
     let saved
     try {
       saved = save(forkAnchor)

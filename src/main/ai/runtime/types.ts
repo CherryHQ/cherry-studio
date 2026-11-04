@@ -79,6 +79,8 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /** Product position captured before asynchronous connection work. */
+  branchHead?: string
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
@@ -207,6 +209,8 @@ export interface AgentRuntimeConnection {
   setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
   setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>
+  /** The configured Runtime owner remains resident until explicit retirement. */
+  readonly retainWhileIdle?: boolean
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */

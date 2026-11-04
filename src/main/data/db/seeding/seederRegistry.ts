@@ -1,5 +1,6 @@
 import type { ISeeder } from '../types'
 import { AgentSessionContextSeeder } from './seeders/AgentSessionContextSeeder'
+import { AgentSessionMessageTreeSeeder } from './seeders/AgentSessionMessageTreeSeeder'
 import { BrowserCapabilityUpgradeSeeder } from './seeders/browserCapabilityUpgradeSeeder'
 import { BuiltinMcpServerSeeder } from './seeders/builtinMcpServerSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
@@ -16,6 +17,7 @@ import { PoeChatEndpointUpgradeSeeder } from './seeders/PoeChatEndpointUpgradeSe
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { RetiredAgentRuntimeSeeder } from './seeders/RetiredAgentRuntimeSeeder'
+import { SelectionActionItemsUpgradeSeeder } from './seeders/selectionActionItemsUpgradeSeeder'
 import { SidebarShortcutMigrationSeeder } from './seeders/sidebarShortcutMigrationSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceUpgradeSeeder'
@@ -32,6 +34,7 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
 export const seeders: ISeeder[] = [
   new RetiredAgentRuntimeSeeder(),
   new AgentSessionContextSeeder(),
+  new AgentSessionMessageTreeSeeder(),
   new KnowledgeBaseOrderSeeder(),
   new BrowserCapabilityUpgradeSeeder(),
   new LegacyFileCleanupPolicySeeder(),
@@ -45,6 +48,7 @@ export const seeders: ISeeder[] = [
   new LongTextPastePreferenceUpgradeSeeder(),
   new WebSearchPreferenceUpgradeSeeder(),
   new SidebarShortcutMigrationSeeder(),
+  new SelectionActionItemsUpgradeSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new LocalModelSeeder(),

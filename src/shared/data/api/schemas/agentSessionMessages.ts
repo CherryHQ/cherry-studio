@@ -55,6 +55,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   id: z.string(),
   /** Session ID this message belongs to */
   sessionId: z.string(),
+  siblings: z.array(z.string()).optional(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
@@ -89,6 +90,8 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 // API Schema definitions
 // ============================================================================
 
+export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
+
 export type AgentSessionMessageSchemas = {
   '/agent-sessions/:sessionId/cost': {
     GET: {
@@ -97,6 +100,13 @@ export type AgentSessionMessageSchemas = {
     }
   }
 
+  '/agent-sessions/:sessionId/branch': {
+    PUT: {
+      params: { sessionId: string }
+      body: z.infer<typeof SelectAgentSessionBranchSchema>
+      response: void
+    }
+  }
   '/agent-sessions/:sessionId/messages': {
     GET: {
       params: { sessionId: string }

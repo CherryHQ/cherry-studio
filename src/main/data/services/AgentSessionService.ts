@@ -42,6 +42,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
 
+import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -340,6 +341,7 @@ export class AgentSessionService {
       createdAt,
       updatedAt: createdAt
     })
+    ensureAgentSessionRootTx(tx, id)
   }
 
   /** Bump metadata modification time from a foreign service's transaction. */
@@ -606,6 +608,7 @@ export class AgentSessionService {
                   SELECT 1
                   FROM ${agentSessionMessageTable}
                   WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+                    AND ${agentSessionMessageTable.role} != 'root'
                 )`
               )
             )
@@ -979,7 +982,7 @@ export class AgentSessionService {
     const [message] = tx
       .select({ id: agentSessionMessageTable.id })
       .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
       .limit(1)
       .all()
     if (message) {

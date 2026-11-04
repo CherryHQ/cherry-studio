@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { ProtocolMcpInstallRequest, ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
@@ -13,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   pendingProtocolInstalls: [] as ProtocolMcpInstallRequest[],
   protocolInstallRequestId: 'request-1',
-  refetch: vi.fn()
+  refetch: vi.fn(),
+  servers: [] as McpServer[]
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -26,7 +28,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({
-    mcpServers: [],
+    mcpServers: mocks.servers,
     addMcpServer: mocks.addMcpServer,
     reorderMcpServers: vi.fn(),
     refetch: mocks.refetch
@@ -44,7 +46,6 @@ vi.mock('@tanstack/react-router', () => ({
   })
 }))
 
-vi.mock('@renderer/components/CollapsibleSearchBar', () => ({ default: () => null }))
 vi.mock('@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies', () => ({ default: () => null }))
 vi.mock('../AddMcpServerModal', () => ({ default: () => null }))
 vi.mock('../QuickCreateMcpServerDialog', () => ({ default: () => null }))
@@ -54,7 +55,17 @@ vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
   return {
     ...actual,
-    useTranslation: () => ({ t: (key: string) => key })
+    useTranslation: () => ({
+      t: (key: string, values?: { name?: string }) =>
+        ({
+          'settings.mcp.exportAsJson': 'Export as JSON',
+          'settings.mcp.exportFailed': 'Failed to export MCP servers',
+          'settings.mcp.exportDuplicateName': `Cannot export MCP servers with duplicate names: ${values?.name}`,
+          'common.add': 'Add',
+          'settings.mcp.search.tooltip': 'Search MCP servers',
+          'common.no_results': 'No results'
+        })[key] ?? key
+    })
   }
 })
 
@@ -82,6 +93,7 @@ const protocolServers: ProtocolMcpServerInstall[] = [
 describe('McpServersList protocol install', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.servers = []
     mocks.protocolInstallRequestId = 'request-1'
     mocks.pendingProtocolInstalls = [{ requestId: 'request-1', servers: protocolServers }]
     mocks.ipcRequest.mockImplementation(async (route: string, input?: { requestId: string }) => {
@@ -208,5 +220,69 @@ describe('McpServersList protocol install', () => {
         search: { autoEnable: 'true' }
       })
     )
+  })
+})
+
+describe('MCP JSON export', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.servers = []
+    mocks.ipcRequest.mockResolvedValue([])
+    Object.assign(window.api.file, { save: vi.fn() })
+  })
+
+  it('disables export for builtins only and exports the complete list when search hides every row', async () => {
+    const user = userEvent.setup()
+    const save = vi.spyOn(window.api.file, 'save').mockResolvedValue(null)
+    mocks.servers = [{ id: 'builtin', name: '@cherry/filesystem', type: 'stdio', isActive: true }]
+    const view = render(<McpServersList />)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    mocks.servers = [{ id: 'user', name: 'User server', type: 'stdio', command: 'node', isActive: false }]
+    view.rerender(<McpServersList />)
+    await user.click(screen.getByRole('button', { name: 'Search MCP servers' }))
+    await user.type(screen.getByRole('searchbox', { name: 'Search MCP servers' }), 'no matching server')
+    expect(await screen.findByText('No results')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect(save.mock.calls[0][0]).toBe('mcp-servers.json')
+    expect(ArrayBuffer.isView(save.mock.calls[0][1])).toBe(true)
+    expect(Object.prototype.toString.call(save.mock.calls[0][1])).toBe('[object Uint8Array]')
+    expect(JSON.parse(new TextDecoder().decode(save.mock.calls[0][1] as Uint8Array))).toEqual({
+      mcpServers: { 'User server': { name: 'User server', type: 'stdio', command: 'node' } }
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('refuses duplicate names before Save and disables a second export while Save is pending', async () => {
+    const user = userEvent.setup()
+    const save = vi.spyOn(window.api.file, 'save')
+    mocks.servers = [
+      { id: 'a', name: 'same', isActive: false },
+      { id: 'b', name: 'same', isActive: true }
+    ]
+    const view = render(<McpServersList />)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    expect(save).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('Cannot export MCP servers with duplicate names: same')
+    mocks.servers = [mocks.servers[0]]
+    let resolve!: (path: string | null) => void
+    save.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    view.rerender(<McpServersList />)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeDisabled()
+    await act(async () => resolve(null))
+    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeEnabled()
   })
 })

@@ -106,6 +106,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     loadNext: vi.fn(),
     refresh: vi.fn()
   }),
+  useDataChange: vi.fn(),
   useMutation: useMutationMock,
   useQuery: useQueryMock
 }))

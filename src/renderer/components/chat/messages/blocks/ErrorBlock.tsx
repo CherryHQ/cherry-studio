@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -39,6 +38,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+  const { navigateToRoute } = useMessageListActions()
 
   if (getProviderAuthenticationFailure(error)) return null
 
@@ -68,7 +68,18 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: navigateToRoute ? (
+              <button
+                type="button"
+                className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
+                }}
+              />
+            ) : (
+              <span />
+            )
           }}
         />
       )
