@@ -347,8 +347,12 @@ export function useAgentMessageListProviderValue({
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+      const unsubscribeSend = EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
+        if (topicId === topic.id) runtime.scrollToBottom()
+      })
 
       return () => {
+        unsubscribeSend()
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
