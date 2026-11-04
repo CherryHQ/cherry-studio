@@ -21,7 +21,7 @@ icon: grid
 | [小程序](../../cherry-studio/preview/app/) | 在 Cherry Studio 中使用网页应用 |
 | [知识库](knowledge-base.md) | 导入资料并进行检索和问答 |
 | [文件](files.md) | 查看和管理应用内使用的文件 |
-| [编码搭档](code-cli.md) | 安装、配置和启动 AI 编程 CLI 工具 |
+| [编码搭档](../../advanced-basic/developer-tools/code-cli.md) | 安装、配置和启动 AI 编程 CLI 工具 |
 | [笔记](notes.md) | 创建和整理 Markdown 笔记 |
 
 ## 调整应用顺序

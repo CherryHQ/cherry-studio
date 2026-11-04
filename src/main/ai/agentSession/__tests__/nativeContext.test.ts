@@ -1,4 +1,14 @@
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -6,7 +16,8 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
 import { createRegistry } from '@earendil-works/pi-durable'
-import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite'
+import { NodeSqliteDatabase, openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
@@ -28,20 +39,45 @@ import {
   type PiDurableRuntimeOptions
 } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionContextSeeder } from '@data/db/seeding/seeders/AgentSessionContextSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
+import { allocateDurableBackendTx, prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
 
-import { reconcileDurableBackend, createDurableBackend, loadPiSession, openDurableStorage } from '../nativeContext'
+import {
+  reconcileDurableBackend,
+  createDurableBackend as initializeDurableBackend,
+  openDurableStorage,
+  prepareDurableRoot
+} from '../durableNativeContext'
 import { applyNativeSubmissionResult, bindNativeInput, prepareNativeSubmission } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
+}
+
+function loadPiSession(backendId: string, nativeId: string, cwd?: string): SessionManager {
+  if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nativeId)) throw new Error('Invalid Pi session identity')
+  const directory = application.getPath('feature.agents.pi.sessions')
+  const files = readdirSync(directory).filter((file) => file.endsWith(`_${nativeId}.jsonl`))
+  if (files.length !== 1) throw new Error('Pi session is missing or ambiguous')
+  const file = application.getPath('feature.agents.pi.sessions', files[0])
+  if (!lstatSync(file).isFile()) throw new Error('Pi session must be a regular file')
+  return SessionManager.openExisting(file, nativeId, cwd)
+}
+
+async function createDurableBackend() {
+  const backend = application.get('DbService').withWriteTx(allocateDurableBackendTx)
+  return initializeDurableBackend(backend.id)
 }
 
 async function openDurableBackend(backendId: string, harness: PiDurableRuntimeOptions['harness']) {
@@ -203,6 +239,114 @@ describe('native context storage and reconciliation', () => {
     return { backend, runtime, options, faux }
   }
 
+  it('reserves one Durable branch without opening storage or permitting another harness to reuse it', () => {
+    const intent = prepareDurableBranch(sessionId)
+    const backend = contexts.backend(intent.backendId)
+    if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+    expect(backend.state).toBe('creating')
+    expect(existsSync(application.getPath('feature.agents.durable.stores', backend.locator.fileName))).toBe(false)
+    expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
+    expect(() => preparePiBranch(sessionId)).toThrow('another runtime')
+    expect(contexts.forSession(sessionId).map((context) => context.id)).toEqual([intent.id])
+    expect(
+      dbh.db
+        .select()
+        .from(agentRuntimeBackendTable)
+        .all()
+        .map((row) => row.id)
+    ).toEqual([backend.id])
+  })
+
+  it.each([false, true])(
+    'recovers the Durable root before confirmation with a reserved identity: %s',
+    async (reserved) => {
+      const intent = prepareDurableBranch(sessionId)
+      const root = await prepareDurableRoot(intent.id)
+      const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
+      const runtime = confirmed(
+        await createPiDurableRuntime({
+          backendId: runtimeId(intent.backendId),
+          openStorage: async () => root.storage,
+          harness: { models: createModels(), registry: createRegistry() }
+        })
+      )
+      cleanup.push(() => runtime.shutdown())
+      const handle = confirmed(await runtime.create({ ownership: { kind: 'ownerless' }, init: root.init }))
+      if (reserved)
+        dbh.db
+          .update(agentSessionContextTable)
+          .set({ nativeThreadId: handle.thread.id })
+          .where(eq(agentSessionContextTable.id, intent.id))
+          .run()
+      expect(contexts.context(intent.id).bindingState).toBe('pending')
+      await runtime.shutdown()
+      const recovered = await prepareDurableRoot(intent.id)
+      try {
+        expect(recovered.nativeId).toBe(handle.thread.id)
+        expect(contexts.context(intent.id)).toMatchObject({ nativeThreadId: handle.thread.id, bindingState: 'bound' })
+        expect((await recovered.storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(
+          1
+        )
+      } finally {
+        await recovered.storage.close(BACKGROUND_CONTEXT)
+      }
+    }
+  )
+
+  it.each(['schema', 'identity'] as const)(
+    'retries a Durable %s initialization failure on the same branch',
+    async (stage) => {
+      const intent = prepareDurableBranch(sessionId)
+      const backend = contexts.backend(intent.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const failure = new Error('native initialization failed')
+      const fault =
+        stage === 'schema'
+          ? vi.spyOn(NodeSqliteDatabase.prototype, 'exec').mockRejectedValueOnce(failure)
+          : vi.spyOn(SqliteStorage.prototype, 'commit').mockRejectedValueOnce(failure)
+
+      await expect(prepareDurableRoot(intent.id)).rejects.toThrow(failure)
+      fault.mockRestore()
+      expect(contexts.backend(backend.id).state).toBe('creating')
+      expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
+
+      const root = await prepareDurableRoot(intent.id)
+      try {
+        expect(contexts.backend(backend.id).state).toBe('bound')
+        expect((await root.storage.scanConversations({}, 10, undefined, BACKGROUND_CONTEXT)).items).toEqual([])
+      } finally {
+        await root.storage.close(BACKGROUND_CONTEXT)
+      }
+      const reopened = await openDurableStorage(contexts.backend(backend.id))
+      await reopened.close(BACKGROUND_CONTEXT)
+    }
+  )
+
+  it.each(['empty', 'unmarked', 'foreign'] as const)(
+    'does not replace a %s store during Durable creation retry',
+    async (kind) => {
+      const intent = prepareDurableBranch(sessionId)
+      const backend = contexts.backend(intent.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const path = application.getPath('feature.agents.durable.stores', backend.locator.fileName)
+      mkdirSync(application.getPath('feature.agents.durable.stores'), { recursive: true })
+      if (kind === 'empty') writeFileSync(path, '')
+      else if (kind === 'unmarked') {
+        const storage = await openNodeSqliteStorage(path)
+        await storage.close(BACKGROUND_CONTEXT)
+      } else {
+        const other = await createDurableBackend()
+        if (other.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+        copyFileSync(application.getPath('feature.agents.durable.stores', other.locator.fileName), path)
+      }
+      const before = readFileSync(path)
+      await expect(prepareDurableRoot(intent.id)).rejects.toThrow()
+      expect(readFileSync(path)).toEqual(before)
+      expect(contexts.backend(backend.id).state).toBe('creating')
+      expect(contexts.context(intent.id).bindingState).toBe('pending')
+    }
+  )
+
   it('keeps an unflushed Pi context unresolved, then strictly restores its original native history', async () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
@@ -343,6 +487,24 @@ describe('native context storage and reconciliation', () => {
     expect(faux.state.callCount).toBe(0)
   })
 
+  it('rejects a prepared payload if its retained message changed before submission', async () => {
+    const { backend, runtime, options, faux } = await pi()
+    const created = await createPiContext(sessionId, backend.id, runtime, options)
+    const id = message('original')
+    const parts = messages.getSessionMessage(sessionId, id).data.parts
+    messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'edited' }] } })
+    expect(() =>
+      prepareNativeSubmission(sessionId, id, created.context.id, 'reject', { text: 'wrapped original', parts })
+    ).toThrow('content changed')
+    expect(messages.inputBinding(sessionId, id)).toBeUndefined()
+    expect(faux.state.callCount).toBe(0)
+    const draft = prepareNativeSubmission(sessionId, id, created.context.id, 'reject', {
+      text: 'wrapped edited',
+      parts: [{ type: 'text', text: 'edited' }]
+    })
+    expect(draft).toEqual({ inputId: id, text: 'wrapped edited', whenBusy: 'reject' })
+  })
+
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
     const { backend, runtime, faux, options } = await durable()
     const created = await createDurableContext(sessionId, backend.id, runtime, {
@@ -418,6 +580,46 @@ describe('native context storage and reconciliation', () => {
       })
       .toBe('completed')
     expect(faux.state.callCount).toBe(before + 1)
+  })
+
+  it('recovers a queued Durable input by native identity before it has a transcript entry', async () => {
+    const { backend, runtime, faux, options } = await durable()
+    const reached = Promise.withResolvers<void>()
+    faux.setResponses([
+      (_context, stream) =>
+        new Promise((_, reject) => {
+          reached.resolve()
+          const signal = stream!.signal!
+          if (signal.aborted) reject(signal.reason)
+          else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    ])
+    const created = await createDurableContext(sessionId, backend.id, runtime, {
+      ownership: { kind: 'ownerless' },
+      agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+    })
+    const handle = confirmed(created.result)
+    await submitInput(handle, message('running'), created.context.id)
+    await reached.promise
+    const queuedId = message('queued')
+    const receipt = await submitInput(handle, queuedId, created.context.id, 'follow-up')
+    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Expected native queued receipt')
+    expect(receipt.facts).toContain('queued')
+    await runtime.shutdown()
+    const before = faux.state.callCount
+    const reopened = confirmed(await openDurableBackend(backend.id, options))
+    cleanup.push(() => reopened.shutdown())
+    const restored = confirmed(await reopened.open(handle.thread))
+    const found = confirmed(await restored.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
+    if (!found.found) throw new Error('Queued native input was lost')
+    expect(found.input.inputId).toBeUndefined()
+    expect(found.input.facts).toEqual(['accepted', 'queued'])
+    expect(bindNativeInput(sessionId, created.context.id, found.input)).toBe(queuedId)
+    expect(messages.inputBinding(sessionId, queuedId)).toEqual({
+      contextId: created.context.id,
+      nativeInputId: receipt.nativeInput.id
+    })
+    expect(faux.state.callCount).toBe(before)
   })
 
   it('retains an unresolved Durable creation intent when the native create succeeds but binding fails', async () => {

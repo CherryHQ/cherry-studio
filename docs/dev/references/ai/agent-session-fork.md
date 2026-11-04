@@ -18,6 +18,8 @@ sources:
 ## Behavior
 
 Pi and Claude Code support **Fork** on completed assistant messages.
+Pi Durable does not yet expose desktop fork checkpoints or **Edit and resend**;
+these operations reject unsupported native history rather than rebuilding it from product messages.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
@@ -128,7 +130,7 @@ compression settings to Agent forks.
 
 | Adapter | Native boundary | Fork implementation |
 |---|---|---|
-| Pi | Runtime session ID and leaf ID | Stages the newest matching native file, as normal resume does, then branches with `SessionManager` and maps checkpoints to the child session ID |
+| Pi | Runtime session ID and leaf ID | Stages the newest matching native file, then branches with `SessionManager` and maps checkpoints to the child session ID |
 | Claude Code | Runtime session ID, main assistant UUID, and config directory | Its private worker calls the SDK fork API and maps assistant UUIDs into the child's transcript |
 
 Claude creates its own worker and pass them to `runForkWorker`. The

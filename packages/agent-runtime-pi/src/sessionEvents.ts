@@ -24,7 +24,7 @@ export type AgentRuntimeEvent =
       errorMessage?: string
     }
   | { type: 'compaction-start'; reason: CompactionReason }
-  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }
+  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string; aborted?: boolean }
   | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
 
 /** Observes native entries; the session manager remains the only persistence writer. */
@@ -85,6 +85,7 @@ export class SessionEvents {
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
+          aborted: event.aborted,
           ...(entryId ? { entryId } : {}),
           ...(error ? { error } : {})
         })

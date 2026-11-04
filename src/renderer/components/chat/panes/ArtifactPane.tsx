@@ -51,6 +51,7 @@ import {
 } from '@renderer/hooks/useFileEditSession'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import {
   type ComposerFileReference,
@@ -64,6 +65,7 @@ import { isMac, isWin } from '@renderer/utils/platform'
 import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import { ArtifactPaneBreadcrumb } from './ArtifactPaneBreadcrumb'
 import { ArtifactPaneFileTabs } from './ArtifactPaneFileTabs'
@@ -114,6 +116,20 @@ const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '
 const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 const SPLIT_MIN_WIDTH_PX = 672
 
+type CopyFileState = 'ready' | 'checking' | 'unavailable'
+
+async function getCopyFileState(path: string): Promise<CopyFileState> {
+  try {
+    const status = await ipcApi.request(
+      'file.get_clipboard_status',
+      createFilePathHandle(AbsoluteFilePathSchema.parse(path))
+    )
+    return status.ok ? 'ready' : 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
+}
+
 /** The shared "Copy" submenu for a file or folder in the tree and the open-file header. */
 function buildCopyMenu({
   t,
@@ -121,7 +137,8 @@ function buildCopyMenu({
   onCopyContent,
   absolutePath,
   relativePath,
-  fileName
+  fileName,
+  copyFile
 }: {
   t: TFunction
   copy: (text: string) => void
@@ -129,6 +146,7 @@ function buildCopyMenu({
   absolutePath: string
   relativePath: string | null
   fileName: string
+  copyFile: { state: CopyFileState; onSelect: () => void }
 }): CommandContextMenuExtraItem {
   return {
     type: 'submenu',
@@ -167,6 +185,19 @@ function buildCopyMenu({
         id: 'artifact-pane.overlay.copy-file-name',
         label: t('agent.preview_pane.copy_menu.file_name'),
         onSelect: () => copy(fileName)
+      },
+      {
+        type: 'item',
+        id: 'artifact-pane.overlay.copy-file',
+        label: t(
+          copyFile.state === 'ready'
+            ? 'agent.preview_pane.copy_menu.file'
+            : copyFile.state === 'checking'
+              ? 'agent.preview_pane.copy_menu.file_checking'
+              : 'agent.preview_pane.copy_menu.file_unavailable'
+        ),
+        enabled: copyFile.state === 'ready',
+        onSelect: copyFile.onSelect
       }
     ]
   }
@@ -526,6 +557,19 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [t]
   )
 
+  const copyFile = useCallback(
+    async (path: string) => {
+      try {
+        await ipcApi.request('file.copy_to_clipboard', createFilePathHandle(AbsoluteFilePathSchema.parse(path)))
+        toast.success(t('message.copy.success'))
+      } catch (error) {
+        logger.error('Failed to copy file', error as Error)
+        toast.error(t('message.copy.failed'))
+      }
+    },
+    [t]
+  )
+
   const handleCopyPreviewContent = useCallback(async () => {
     const { filePath, workspacePath } = overlayPathsRef.current
     if (!filePath || !workspacePath || !canCopyPreviewContentRef.current) return
@@ -565,7 +609,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       if (!targetPath) return []
 
       const pathKind = node.kind === 'file' ? 'file' : 'directory'
-      const openItems = await loadOpenTargetMenuItems({ targetPath, pathKind, t })
+      const [openItems, copyState] = await Promise.all([
+        loadOpenTargetMenuItems({ targetPath, pathKind, t }),
+        getCopyFileState(targetPath)
+      ])
       return [
         ...attachMenuItems(targetPath, pathKind),
         buildCopyMenu({
@@ -573,12 +620,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           copy: (text) => void copyPath(text),
           absolutePath: getCopyableAbsolutePath(targetPath, isWin),
           relativePath: node.id === WORKSPACE_ROOT_ID ? null : node.id,
-          fileName: node.name
+          fileName: node.name,
+          copyFile: { state: copyState, onSelect: () => void copyFile(targetPath) }
         }),
         ...(openItems.length ? [{ type: 'separator' as const }, ...openItems] : [])
       ]
     },
-    [attachMenuItems, copyPath, t, workspacePath]
+    [attachMenuItems, copyFile, copyPath, t, workspacePath]
   )
 
   const getFolderMenuItems = useCallback(
@@ -668,6 +716,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     (
       selection: ArtifactPaneFileSelection,
       openItems: readonly CommandContextMenuExtraItem[],
+      copyState: CopyFileState,
       onCopyContent?: () => void
     ): CommandContextMenuExtraItem[] => {
       const absolutePath = getArtifactPaneSelectionDisplayPath(selection)
@@ -681,19 +730,32 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           onCopyContent,
           absolutePath: getCopyableAbsolutePath(absolutePath, isWin),
           relativePath,
-          fileName: getPreviewFileTitle(selection)
+          fileName: getPreviewFileTitle(selection),
+          copyFile: { state: copyState, onSelect: () => void copyFile(getArtifactPaneSelectionPath(selection)) }
         }),
         ...(openItems.length ? [{ type: 'separator' as const }, ...openItems] : [])
       ]
     },
-    [attachMenuItems, copyPath, t, workspacePath]
+    [attachMenuItems, copyFile, copyPath, t, workspacePath]
   )
   const activeOpenItems = useMemo(
     () => buildOpenTargetMenuItems({ targets: fileOpenTargets, onOpen: handleOpenFileTarget, t }),
     [fileOpenTargets, handleOpenFileTarget, t]
   )
   const copyActiveContent = canCopyPreviewContent ? () => void handleCopyPreviewContent() : undefined
-  const fileMenuItems = overlaySelection ? buildFileMenuItems(overlaySelection, activeOpenItems, copyActiveContent) : []
+  const fileMenuItems = overlaySelection
+    ? buildFileMenuItems(overlaySelection, activeOpenItems, 'checking', copyActiveContent)
+    : []
+
+  const getFileMenuItems = async () =>
+    overlaySelection
+      ? buildFileMenuItems(
+          overlaySelection,
+          activeOpenItems,
+          await getCopyFileState(getArtifactPaneSelectionPath(overlaySelection)),
+          copyActiveContent
+        )
+      : []
 
   const treeShown = isWide ? treePinned : treeRevealed
   const tabKey = (tab: ArtifactPaneFileSelection) =>
@@ -710,9 +772,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     const tab = findTab(key)
     if (!tab) return []
     const active = key === activeTabKey
-    const openItems = active
-      ? activeOpenItems
-      : await loadOpenTargetMenuItems({ targetPath: getArtifactPaneSelectionPath(tab), pathKind: 'file', t })
+    const [openItems, copyState] = await Promise.all([
+      active
+        ? Promise.resolve(activeOpenItems)
+        : loadOpenTargetMenuItems({ targetPath: getArtifactPaneSelectionPath(tab), pathKind: 'file', t }),
+      getCopyFileState(getArtifactPaneSelectionPath(tab))
+    ])
     const closeItem = (id: string, label: string, onSelect: () => void): CommandContextMenuExtraItem => ({
       type: 'item',
       id: `artifact-pane.tab.${id}`,
@@ -720,7 +785,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       onSelect
     })
     return [
-      ...buildFileMenuItems(tab, openItems, active ? copyActiveContent : undefined),
+      ...buildFileMenuItems(tab, openItems, copyState, active ? copyActiveContent : undefined),
       { type: 'separator' },
       closeItem('close', t('agent.preview_pane.tabs.close'), () => closeTab(key)),
       ...(onRetainFileTab
@@ -911,6 +976,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   onOpenFile={handleSelectedChange}
                   onLoadFolder={model.loadFolder}
                   fileMenuItems={fileMenuItems}
+                  getFileMenuItems={getFileMenuItems}
                   getFolderMenuItems={getFolderMenuItems}
                 />
               </div>

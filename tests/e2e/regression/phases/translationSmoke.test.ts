@@ -1,4 +1,7 @@
+import { join } from 'node:path'
+
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
+import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp } from '../helpers/navigation'
@@ -33,4 +36,23 @@ test(...caseDefinition('T-01'), async ({ app, mainWindow: page }) => {
 
   await page.getByRole('button', { name: 'Translation History', exact: true }).click()
   await expect(page.getByText('CherryStudio Neptune 27182 TRANSLATION_MARKER', { exact: true }).last()).toBeVisible()
+})
+
+test(...caseDefinition('T-02'), async ({ app, mainWindow: page }) => {
+  const providerId = await ensureCustomChatProvider(app, page)
+  await closeSettings(page)
+  await selectTranslationModel(page, app.config.customProvider.chatModel, providerId)
+
+  const clear = page.getByText('Clear', { exact: true })
+  if (await clear.isVisible().catch(() => false)) await clear.click()
+
+  await page.getByRole('button', { name: 'Drop or click to upload image/document', exact: true }).click()
+  await page.waitForTimeout(1_000)
+  chooseNativeFile(app.record.platform, app.paths, join(app.paths.fixtures, 'translation.pdf'))
+
+  await expect(page.getByText('PDF detected', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await page.locator('[data-ui~="translate.view"]').getByRole('button', { name: 'Translate', exact: true }).click()
+  await expect(page.locator('[data-ui~="translate.output"]')).toContainText('PDF_TRANSLATION_MARKER_314159', {
+    timeout: 2 * 60_000
+  })
 })

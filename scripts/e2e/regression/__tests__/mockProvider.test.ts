@@ -132,6 +132,6 @@ it('still stops the mock when application cleanup fails, while retaining the cle
 })
 
 it('refuses unsupported knowledge and whole-suite mock acceptance before launching', () => {
-  for (const task of ['knowledge', 'notes', 'translation', 'mini-app', 'all'] as const)
+  for (const task of ['knowledge', 'knowledge-smoke', 'notes', 'translation', 'mini-app', 'all'] as const)
     expect(() => assertMockTask(task)).toThrow('provider_mode=real')
 })
