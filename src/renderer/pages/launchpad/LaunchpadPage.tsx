@@ -14,6 +14,7 @@ import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
+import scheduledTasksIcon from '@renderer/assets/images/apps/launchpad-scheduled-tasks.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
@@ -41,7 +42,7 @@ const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
-  scheduled_tasks: undefined,
+  scheduled_tasks: scheduledTasksIcon,
   paintings: paintingsIcon,
   translate: translateIcon,
   mini_app: miniAppIcon,
