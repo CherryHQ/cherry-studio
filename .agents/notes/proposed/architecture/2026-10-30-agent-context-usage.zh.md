@@ -46,9 +46,11 @@ contextUsage(): Promise<OperationResult<ThreadContextUsage>>
 
 | Runtime | 实现边界 |
 |---|---|
-| Claude Code | 在 `agent-runtime-claude-code` 内归一化 `Query.getContextUsage()`，映射原生稳定 ID/kind 和资源列表；原生名称兼容仅留在该适配器。显式解析声明的网关容量与原生套餐限制。已观测到网关 `maxTokens` 和 `rawMaxTokens` 都可能是缩减预算，不能无条件将其中任意一个作为完整窗口。 |
+| Claude Code | 在 `agent-runtime-claude-code` 内归一化 `Query.getContextUsage()`，映射原生稳定 ID/kind 和资源列表；原生名称兼容仅留在该适配器。显式解析声明的网关容量与原生套餐限制。根据原生语义和经过验证的网关配置解释 `maxTokens` 与 `rawMaxTokens`；任一字段名称本身都不足以确定完整窗口。 |
 | Pi | 使用 `AgentSession.getContextUsage()` 获取原生占用估算和模型窗口。额外分类只从原生实际准备的系统提示词、活跃工具 schema 和投影后的上下文推导，并复用原生估算能力。保留 loader 的资源来源。如果公共 API 未暴露一致的已准备上下文，应补上游读取接口，而非在 Main 重建。 |
 | Pi Durable | 在生成和阈值压缩使用的上下文准备边界增加被动原生读数，复用选定上下文范围、已解析模型、工具过滤/加载及 `estimateContext` 语义。通过 Durable 公共 API 暴露，在 `agent-runtime-pi-durable` 内归一化；不得深导入依赖私有路径或在 Cherry 重写生成流程。 |
+
+AC2 使用一组验收 fixture：`maxTokens = rawMaxTokens = 854560`，另行确定的可用完整窗口为 `1000000`。该 fixture 验证分母区分，不是生产环境的采集读数。要在真实部署中验证这些数值，需要提供 SDK 版本、模型与网关配置、脱敏原生响应，以及可用完整窗口的依据。
 
 Pi 当前原生实现可能在压缩之后、下一次响应之前返回未知占用，应保留这个合法状态。Durable 内部已经为压缩估算上下文；缺少公共读取 API 是上游能力缺口，不能据此将 Durable 永久排除在公共契约之外。必要的固定版本依赖补丁仅限于该原生读取接口，并须有上游层测试。
 
@@ -79,7 +81,7 @@ Pi 当前原生实现可能在压缩之后、下一次响应之前返回未知�
 ## 验收标准
 
 - AC1 — 三个适配器均暴露同一个必需的被动上下文用量操作；缺失、已释放和不支持的子线程访问返回明确结果，且不执行模型或工具。 (verification: unit — 真实适配器上的公共契约矩阵)
-- AC2 — Claude 原生、Claude 网关和 Pi 模型读数区分完整窗口、输入上限与压缩阈值；输入框和明细使用同一分母，包括已观测到的 854560 预算/1000000 窗口网关情况。 (verification: unit — 适配器 fixture 和 Renderer 集成)
+- AC2 — Claude 原生、Claude 网关和 Pi 模型读数区分完整窗口、输入上限与压缩阈值；输入框和明细使用同一分母，包括上述缩减预算的网关 fixture。 (verification: unit — 适配器 fixture 和 Renderer 集成)
 - AC3 — Pi 和 Durable 从原生上下文准备过程提供真实根读数；估算值与压缩后未知值可区分，根实现不能无条件返回不支持。 (verification: unit — 原生包及适配器集成)
 - AC4 — 已包含、延迟加载、预留和空闲 token 不重复计数；部分明细和未知分配事实保持明确，资源列表保留身份、来源与加载状态。 (verification: unit — 原生 fixture 和公共语义矩阵)
 - AC5 — 子线程读数保持线程隔离；压缩、重置、fork/rewind 和模型切换使旧读数失效，替换连接的迟到读数不能覆盖当前状态。 (verification: unit — 原生状态转换与宿主竞争测试)
