@@ -867,7 +867,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://proxy.example.com/openai')
       expect(settings.apiVersion).toBe('2024-10-21')
       expect(settings.useDeploymentBasedUrls).toBe(true)
-      expect(settings.fetch).toBe(customFetch)
+      // Chat-completions fetches carry the stream_options 400 fallback (#23368).
+      expect(typeof settings.fetch).toBe('function')
+      expect(settings.fetch).not.toBe(customFetch)
     })
   })
 
@@ -1536,9 +1538,93 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.includeUsage).toBe(true)
       expect(settings.apiKey).toBe('sk-test-key')
       expect(settings.name).toBeUndefined()
-      // A builder that installs no fetch of its own must default to the proxy-aware customFetch
-      // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
+      // A builder that installs no fetch of its own defaults to the proxy-aware customFetch,
+      // wrapped with the stream_options 400 fallback when includeUsage is true (#23368).
+      expect(typeof settings.fetch).toBe('function')
+      expect(settings.fetch).not.toBe(customFetch)
+    })
+
+    it('wraps the openai-family chat-completions fetch too (SDK sends stream_options unconditionally, #23368)', async () => {
+      const provider = makeProvider({
+        id: 'custom-openai',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://custom.example.com/v1',
+            adapterFamily: 'openai'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-openai',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      // Generic builder sets no includeUsage, yet the openai SDK always sends
+      // stream_options in doStream — the fallback must still be installed.
+      expect(settings.includeUsage).toBeUndefined()
+      expect(typeof settings.fetch).toBe('function')
+      expect(settings.fetch).not.toBe(customFetch)
+    })
+
+    it('leaves non-chat-completions fetches unwrapped (stream_options is chat-only)', async () => {
+      const provider = makeProvider({
+        id: 'custom-resp',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://custom.example.com/v1',
+            adapterFamily: 'openai'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-resp',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(typeof settings.fetch).toBe('function')
       expect(settings.fetch).toBe(customFetch)
+    })
+
+    it('omits stream_options upfront when the dialect disables it (no 400 needed, #23368)', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const provider = makeProvider({
+        id: 'custom-no-usage',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://custom.example.com/v1',
+            adapterFamily: 'openai',
+            dialect: { streamOptions: false }
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-no-usage',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as { baseURL: string; fetch: typeof fetch }
+      await settings.fetch(`${settings.baseURL}/chat/completions`, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'm', stream: true, stream_options: { include_usage: true } })
+      })
+
+      expect(net.fetch).toHaveBeenCalledTimes(1)
+      const sentBody = JSON.parse((vi.mocked(net.fetch).mock.calls[0][1]?.body ?? '{}') as string) as Record<
+        string,
+        unknown
+      >
+      expect(sentBody).not.toHaveProperty('stream_options')
+      expect(sentBody).toMatchObject({ model: 'm', stream: true })
     })
 
     it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {
