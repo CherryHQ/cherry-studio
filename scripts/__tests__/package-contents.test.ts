@@ -115,7 +115,13 @@ describe('packaged dependency contents', () => {
       ]) {
         expect(includesFile(`${root}/${file}`), file).toBe(false)
       }
-      for (const file of ['package.json', 'lib/database.js', 'build/Release/better_sqlite3.node']) {
+      for (const file of [
+        'package.json',
+        'lib/database.js',
+        'build/Release/better_sqlite3.node',
+        'prebuilds/linux-x64.node',
+        'prebuilds/linux-arm64.node'
+      ]) {
         expect(includesFile(`${root}/${file}`), file).toBe(true)
       }
     }

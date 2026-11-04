@@ -1659,19 +1659,47 @@ describe('MainWindowService', () => {
     expect(webPreferences).toEqual({})
   })
 
-  it('keeps OAuth popup BrowserWindows on the existing persistent MiniApp session', () => {
+  it.each([
+    'https://account.siliconflow.cn/oauth/callback',
+    'https://console.inferera.com/token?state=test',
+    'https://dash.302.ai/sso/login',
+    'https://maas.aiionly.com/login'
+  ])('preserves the opener without exposing Node or preload APIs for %s', (url) => {
     ;(svc as any).setupWebContentsHandlers(win)
     const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
     if (!handler) throw new Error('window open handler was not registered')
 
-    expect(handler({ url: 'https://account.siliconflow.cn/oauth/callback' })).toEqual({
+    expect(handler({ url })).toEqual({
       action: 'allow',
       overrideBrowserWindowOptions: {
         webPreferences: {
-          partition: getWebviewPartition(WebviewSecurityProfile.MiniApp)
+          partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+          sandbox: false,
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: undefined,
+          webviewTag: false
         }
       }
     })
+  })
+
+  it.each([
+    'https://account.siliconflow.cn/oauth-evil',
+    'https://account.siliconflow.cn.evil.example/oauth',
+    'http://account.siliconflow.cn/oauth'
+  ])('does not grant popup privileges to %s', (url) => {
+    ;(svc as any).setupWebContentsHandlers(win)
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(handler({ url })).toEqual({ action: 'deny' })
+  })
+
+  it('keeps billing popups sandboxed', () => {
+    ;(svc as any).setupWebContentsHandlers(win)
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(handler({ url: 'https://dash.302.ai/charge' }).overrideBrowserWindowOptions.webPreferences.sandbox).toBe(
+      true
+    )
   })
 
   // The origin/app-root decision itself is covered by validateSender's tests; these
