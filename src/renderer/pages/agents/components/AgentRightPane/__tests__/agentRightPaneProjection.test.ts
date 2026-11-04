@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { getSubagentTaskStatus } from '@renderer/components/chat/messages/tools/agent'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -169,6 +170,41 @@ describe('agent right pane projections', () => {
     )
   })
 
+  it.each([
+    ['in_progress', 'invoking'],
+    ['completed', 'done'],
+    ['error', 'error'],
+    ['stopped', 'cancelled']
+  ] as const)('preserves nested task status %s across flow projection', (status, expected) => {
+    const started: CherryMessagePart = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'nested-task', toolUseId: 'child', status: 'in_progress' }
+    }
+    const updated: CherryMessagePart = {
+      type: 'data-agent-task-event',
+      data: { event: 'notification', taskId: 'nested-task', status }
+    }
+    const unrelated: CherryMessagePart = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'other-task', toolUseId: 'other', status: 'in_progress' }
+    }
+    const parts = [
+      toolPart('root', 'Agent'),
+      toolPart('child', 'Agent', 'root', 'output-available', {}, { status: 'async_launched' }),
+      started,
+      unrelated
+    ]
+    const projection = buildAgentToolFlowProjection(
+      [message('m1', parts), message('m2', [updated])],
+      { m1: parts, m2: [updated] },
+      'root'
+    )
+    const flowParts = projection.partsByMessageId['root:agent-flow-assistant']
+
+    expect(flowParts.filter((part) => part.type === 'data-agent-task-event')).toEqual([started, updated])
+    expect(getSubagentTaskStatus(flowParts, 'child', 'done')).toBe(expected)
+  })
+
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {
     const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'root' } }
     const selected = toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, deferred)
@@ -238,6 +274,66 @@ describe('agent right pane projections', () => {
     expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
     expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
     expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  it.each([true, false])('renders Pi child content once without its background=%s control receipt', (background) => {
+    const selected = toolPart(
+      'root',
+      'subagent',
+      undefined,
+      'output-available',
+      { prompt: 'Read facts' },
+      {
+        content: [{ type: 'text', text: 'Child report\n(id: private-child-id — continue with message_subagent)' }],
+        details: { sessionId: 'private-child-id', background, outcome: background ? undefined : 'completed' }
+      }
+    )
+    const parts = [selected, textPart('Child report', 'root')]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: 'Child report' })
+    ])
+    expect(JSON.stringify(projection.messages)).not.toContain('private-child-id')
+  })
+
+  it('keeps a Pi foreground report when no child text was observed', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'subagent',
+        undefined,
+        'output-available',
+        { prompt: 'Read facts' },
+        {
+          content: [{ type: 'text', text: 'Child report' }],
+          details: { sessionId: 'child-id', background: false, outcome: 'completed' }
+        }
+      )
+    ]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([{ type: 'text', text: 'Child report' }])
+  })
+
+  it('does not turn a Pi background launch receipt into an assistant reply before child output arrives', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'subagent',
+        undefined,
+        'output-available',
+        { prompt: 'Read facts' },
+        {
+          content: [{ type: 'text', text: 'Started private-child-id' }],
+          details: { sessionId: 'private-child-id', background: true }
+        }
+      )
+    ]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.messages.map((item) => item.role)).toEqual(['user'])
+    expect(JSON.stringify(projection.messages)).not.toContain('private-child-id')
   })
 
   it.each(['async_launched', 'remote_launched'] as const)(

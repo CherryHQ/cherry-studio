@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -454,11 +454,33 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     }
   })
 
-  it('rename() returns false when the source node is missing', async () => {
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+  it('keeps the watcher add fallback when unlink wins the rename race', async () => {
+    const oldPath = path.join(tmp, 'old.md')
+    const newPath = path.join(tmp, 'new.md')
+    const oldNorm = oldPath.replace(/\\/g, '/')
+    const newNorm = newPath.replace(/\\/g, '/')
+    await writeFile(oldPath, 'retained note')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {
-      const applied = builder.rename(path.join(tmp, 'missing.md'), path.join(tmp, 'whatever.md'))
+      let applied: boolean | undefined
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => {
+        events.push(event)
+        if (event.type === 'removed' && event.path === oldNorm) {
+          applied = builder.rename(oldPath, newPath)
+        }
+      })
+      const added = waitForEvent(builder, (event) => event.type === 'added' && event.path === newNorm)
+      await rename(oldPath, newPath)
+      await added
+
       expect(applied).toBe(false)
+      expect(builder.getNode(oldPath)).toBeNull()
+      expect(builder.getNode(newPath)?.stats).toBeDefined()
+      expect(builder.root.hasChild('new.md')).toBe(true)
+      expect(events.map((event) => event.type)).toEqual(['removed', 'added'])
+      expect(await readFile(newPath, 'utf8')).toBe('retained note')
+      subscription.dispose()
     } finally {
       await builder.disposeAsync()
     }

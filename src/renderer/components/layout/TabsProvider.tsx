@@ -1,3 +1,4 @@
+import { isEqual } from 'es-toolkit/compat'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -120,9 +121,7 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: bo
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
-  // Chat / agent tabs are page-titled (topic / session name + assistant / agent
-  // emoji set by their page) — never auto-localize, or the route title clobbers
-  // the page title even for the bare `/app/chat` default tab.
+  // Chat / agent tabs are page-titled — never auto-localize, or the route title clobbers them.
   if (isPageTitledRoute(tab.url)) {
     return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
@@ -297,6 +296,12 @@ export function TabsProvider({
   // Active tab ID - in-memory storage, seeded from the restored session
   const [activeTabId, setActiveTabIdState] = useState<string>(() => initialSessionRef.current!.activeTabId)
 
+  const activeTabIdRef = useRef(activeTabId)
+  const setActiveTabId = useCallback((id: string) => {
+    activeTabIdRef.current = id
+    setActiveTabIdState(id)
+  }, [])
+
   // Render the normalized pinned set on the first pass, then commit it to the persistent cache.
   // This avoids mounting background pinned routers before the effect runs while keeping the cache
   // as the source of truth for all subsequent pinned-tab updates.
@@ -350,41 +355,44 @@ export function TabsProvider({
     projectedTabsRef.current = tabs
   }, [tabs])
 
-  const prepareTabsForCommit = useCallback((nextTabs: Tab[], nextActiveTabId: string) => {
-    const hibernatedIds = new Set(lruManagerRef.current!.checkAndGetDormantCandidates(nextTabs, nextActiveTabId))
-    if (hibernatedIds.size === 0) {
-      projectedTabsRef.current = nextTabs
-      return hibernatedIds
-    }
-
-    for (const tab of nextTabs) {
-      if (hibernatedIds.has(tab.id)) {
-        logger.info('Tab auto-hibernated (LRU)', { tabId: tab.id, route: tab.url })
-      }
-    }
-    projectedTabsRef.current = nextTabs.map((tab) => hibernateTab(tab, hibernatedIds))
-    return hibernatedIds
+  const applyTabLimit = useCallback((nextTabs: Tab[], nextActiveTabId: string) => {
+    const awake = nextTabs.map((tab) =>
+      tab.id === nextActiveTabId && tab.isDormant ? { ...tab, isDormant: false } : tab
+    )
+    const hibernatedIds = new Set(lruManagerRef.current!.checkAndGetDormantCandidates(awake, nextActiveTabId))
+    const prepared = awake.map((tab) => hibernateTab(tab, hibernatedIds))
+    projectedTabsRef.current = prepared
+    return prepared
   }, [])
 
-  // Run LRU over the merged stores so the hard fuse can see pinned tabs. This effect is
-  // the fallback for external persisted-cache updates; local actions update both stores together.
-  useEffect(() => {
-    const hibernatedIdSet = prepareTabsForCommit(tabs, activeTabId)
-    if (hibernatedIdSet.size === 0) return
+  const commitTabs = useCallback(
+    (nextTabs: Tab[], primaryId: string) => {
+      const prepared = applyTabLimit(nextTabs, primaryId)
+      const normal = prepared.filter((tab) => !storesPinned(tab))
+      setNormalTabs((prev) => (isEqual(prev, normal) ? prev : normal))
+      if (includePinnedTabs) {
+        const pinned = prepared.filter(storesPinned)
+        setPinnedTabs((prev) => (isEqual(prev, pinned) ? [...prev] : pinned))
+      }
+      setActiveTabId(primaryId)
+    },
+    [applyTabLimit, storesPinned, includePinnedTabs, setPinnedTabs, setActiveTabId]
+  )
 
-    const hibernatingTabs = tabs.filter((tab) => hibernatedIdSet.has(tab.id))
-    if (hibernatingTabs.some((tab) => !storesPinned(tab))) {
-      setNormalTabs((prev) => prev.map((tab) => hibernateTab(tab, hibernatedIdSet)))
-    }
-    if (hibernatingTabs.some(storesPinned)) {
-      setPinnedTabs((prev) => prev.map((tab) => hibernateTab(tab, hibernatedIdSet)))
-    }
-  }, [tabs, activeTabId, prepareTabsForCommit, storesPinned, setPinnedTabs])
+  // Reconcile external persisted-cache changes through the same route-page budget.
+  useEffect(() => {
+    const prepared = applyTabLimit(tabs, activeTabId)
+    if (prepared.every((tab, index) => tab === tabs[index])) return
+    const changed = prepared.filter((tab, index) => tab !== tabs[index])
+    if (changed.some((tab) => !storesPinned(tab))) setNormalTabs(prepared.filter((tab) => !storesPinned(tab)))
+    if (includePinnedTabs && changed.some(storesPinned)) setPinnedTabs(prepared.filter(storesPinned))
+  }, [tabs, activeTabId, applyTabLimit, storesPinned, includePinnedTabs, setPinnedTabs])
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
-      const tab = tabs.find((t) => t.id === id)
+      const tab = projectedTabsRef.current.find((t) => t.id === id)
       if (!tab) return
+      projectedTabsRef.current = projectedTabsRef.current.map((t) => (t.id === id ? { ...t, ...updates } : t))
 
       const resolvedUpdates =
         updates.url !== undefined && !Object.prototype.hasOwnProperty.call(updates, 'workspaceKey')
@@ -397,7 +405,7 @@ export function TabsProvider({
         setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...resolvedUpdates } : t)))
       }
     },
-    [tabs, setPinnedTabs, storesPinned]
+    [setPinnedTabs, storesPinned]
   )
 
   const setActiveTab = useCallback(
@@ -435,77 +443,28 @@ export function TabsProvider({
               }
             : tab
         )
-      const hibernatedIds = prepareTabsForCommit(nextTabs, id)
-      const hibernatingTabs = nextTabs.filter((tab) => hibernatedIds.has(tab.id))
-      const update = (tab: Tab) =>
-        hibernateTab(
-          tab.id === id
-            ? {
-                ...tab,
-                lastAccessTime,
-                isDormant: false,
-                isTabBarVisible: navigationLayout !== 'sidebar' ? true : tab.isTabBarVisible
-              }
-            : tab,
-          hibernatedIds
-        )
-
-      if (
-        storesPinned(targetTab) ||
-        hibernatingTabs.some(storesPinned) ||
-        (discardedFocusedTab && storesPinned(discardedFocusedTab))
-      ) {
-        setPinnedTabs((prev) => prev.filter((tab) => tab.id !== discardedFocusedTab?.id).map(update))
-      }
-      if (
-        !storesPinned(targetTab) ||
-        hibernatingTabs.some((tab) => !storesPinned(tab)) ||
-        (discardedFocusedTab && !storesPinned(discardedFocusedTab))
-      ) {
-        setNormalTabs((prev) => prev.filter((tab) => tab.id !== discardedFocusedTab?.id).map(update))
-      }
-
-      setActiveTabIdState(id)
+      commitTabs(nextTabs, id)
     },
-    [activeTabId, navigationLayout, prepareTabsForCommit, setPinnedTabs, storesPinned]
+    [activeTabId, commitTabs, navigationLayout]
   )
 
   const addTab = useCallback(
-    (tab: Tab) => {
-      const exists = projectedTabsRef.current.find((t) => t.id === tab.id)
-      if (exists) {
-        setActiveTab(tab.id)
-        return
-      }
-
-      const newTab: Tab = {
+    (tab: Tab, position: OpenTabOptions['position'] = 'after-active') => {
+      const currentTabs = projectedTabsRef.current
+      const exists = currentTabs.some((item) => item.id === tab.id)
+      const activeIndex = position === 'end' ? -1 : currentTabs.findIndex((item) => item.id === activeTabIdRef.current)
+      const refreshed: Tab = {
         ...tab,
         lastAccessTime: Date.now(),
         isDormant: false,
-        isTabBarVisible: navigationLayout !== 'sidebar'
+        isTabBarVisible: navigationLayout !== 'sidebar' ? true : tab.isTabBarVisible
       }
-
-      const nextTabs = [...projectedTabsRef.current, newTab]
-      const hibernatedIds = prepareTabsForCommit(nextTabs, newTab.id)
-      const hibernatingTabs = nextTabs.filter((candidate) => hibernatedIds.has(candidate.id))
-      const newTabIsPinned = storesPinned(newTab)
-
-      if (newTabIsPinned || hibernatingTabs.some(storesPinned)) {
-        setPinnedTabs((prev) => {
-          const next = newTabIsPinned ? [...prev, newTab] : [...prev]
-          return next.map((candidate) => hibernateTab(candidate, hibernatedIds))
-        })
-      }
-      if (!newTabIsPinned || hibernatingTabs.some((candidate) => !storesPinned(candidate))) {
-        setNormalTabs((prev) => {
-          const next = newTabIsPinned ? prev : [...prev, newTab]
-          return next.map((candidate) => hibernateTab(candidate, hibernatedIds))
-        })
-      }
-
-      setActiveTabIdState(tab.id)
+      const next = exists
+        ? currentTabs.map((item) => (item.id === tab.id ? refreshed : item))
+        : currentTabs.toSpliced(activeIndex < 0 ? currentTabs.length : activeIndex + 1, 0, refreshed)
+      commitTabs(next, tab.id)
     },
-    [navigationLayout, prepareTabsForCommit, setActiveTab, setPinnedTabs, storesPinned]
+    [commitTabs, navigationLayout]
   )
 
   const closeTabs = useCallback(
@@ -520,8 +479,15 @@ export function TabsProvider({
       const remainingTabs = currentTabs.filter((tab) => !closingIdSet.has(tab.id))
       const navigationTabs = navigationLayout !== 'sidebar' ? currentTabs.filter(isTabVisibleInTabBar) : currentTabs
       let fallbackTab: Tab | null = null
-      let newActiveId = activeTabId
-      if (closingIdSet.has(activeTabId)) {
+      const currentActiveId = activeTabIdRef.current
+      let newActiveId = currentActiveId
+      if (remainingTabs.length === 0) {
+        fallbackTab = {
+          ...createLaunchpadFallbackTab(),
+          isTabBarVisible: navigationLayout !== 'sidebar'
+        }
+        newActiveId = fallbackTab.id
+      } else if (closingIdSet.has(currentActiveId)) {
         // Prefer the caller-designated survivor (e.g. the tab whose menu ran
         // "close others"); otherwise hand the slot to the right neighbor and
         // fall back to the left one at the end of the strip.
@@ -529,7 +495,7 @@ export function TabsProvider({
         if (preferredTab) {
           newActiveId = preferredTab.id
         } else {
-          const activeIndex = navigationTabs.findIndex((tab) => tab.id === activeTabId)
+          const activeIndex = navigationTabs.findIndex((tab) => tab.id === currentActiveId)
           const leftTab = [...navigationTabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
           const rightTab = navigationTabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
           const hiddenLaunchpad =
@@ -551,19 +517,12 @@ export function TabsProvider({
         }
       }
 
-      const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
-      const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
-
       // Activating a tab must also wake it — a dormant tab is not rendered, so
       // only switching activeTabId would leave the content area blank.
       const reselectedTab =
-        newActiveId !== activeTabId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
+        newActiveId !== currentActiveId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
       const shouldRevealReselectedTab =
         navigationLayout !== 'sidebar' && !!reselectedTab && !isTabVisibleInTabBar(reselectedTab)
-      const updateReselectedPinned =
-        !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab) && storesPinned(reselectedTab)
-      const updateReselectedNormal =
-        !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab) && !storesPinned(reselectedTab)
       const select = (tab: Tab) =>
         tab.id === newActiveId
           ? {
@@ -576,27 +535,9 @@ export function TabsProvider({
 
       const shouldUpdateReselectedTab = !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab)
       const projectedRemainingTabs = shouldUpdateReselectedTab ? remainingTabs.map(select) : remainingTabs
-      projectedTabsRef.current = fallbackTab ? [...projectedRemainingTabs, fallbackTab] : projectedRemainingTabs
-
-      if (pinnedIds.size > 0 || updateReselectedPinned) {
-        setPinnedTabs((prev) => {
-          // The persist-cache updater receives a readonly view and must return
-          // a fresh mutable array, so the no-filter branch copies.
-          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : [...prev]
-          return updateReselectedPinned ? next.map(select) : next
-        })
-      }
-      if (normalIds.size > 0 || fallbackTab || updateReselectedNormal) {
-        setNormalTabs((prev) => {
-          let next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
-          if (updateReselectedNormal) next = next.map(select)
-          return fallbackTab ? [...next, fallbackTab] : next
-        })
-      }
-
-      setActiveTabIdState(newActiveId)
+      commitTabs(fallbackTab ? [fallbackTab] : projectedRemainingTabs, newActiveId)
     },
-    [activeTabId, navigationLayout, setPinnedTabs, storesPinned]
+    [commitTabs, navigationLayout]
   )
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
@@ -621,12 +562,12 @@ export function TabsProvider({
    */
   const openTabRaw = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata, workspaceKey, isPinned } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, workspaceKey, isPinned, position } = options
 
       if (!forceNew) {
-        const existingTab = tabs.find((t) => t.type === type && t.url === url)
+        const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
         if (existingTab) {
-          setActiveTab(existingTab.id)
+          addTab(existingTab)
           return existingTab.id
         }
       }
@@ -644,10 +585,10 @@ export function TabsProvider({
         isDormant: false
       }
 
-      addTab(newTab)
+      addTab(newTab, position)
       return newTab.id
     },
-    [addTab, navigationLayout, setActiveTab, tabs]
+    [addTab, navigationLayout]
   )
 
   const ensureWorkspaceShortcuts = useCallback(
@@ -948,6 +889,11 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === id)
       if (!tab || tab.isPinned || isTransientMiniAppTab(tab)) return
 
+      if (!includePinnedTabs) {
+        updateTab(id, { isPinned: true })
+        return
+      }
+
       // Remove from normalTabs
       setNormalTabs((prev) => prev.filter((t) => t.id !== id))
       // Add to pinnedTabs
@@ -955,7 +901,7 @@ export function TabsProvider({
 
       logger.info('Tab pinned', { tabId: id })
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, includePinnedTabs, updateTab]
   )
 
   /**
@@ -966,6 +912,11 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === id)
       if (!tab || !tab.isPinned) return
 
+      if (!includePinnedTabs) {
+        updateTab(id, { isPinned: false })
+        return
+      }
+
       // Remove from pinnedTabs
       setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
       // Add to normalTabs
@@ -973,7 +924,7 @@ export function TabsProvider({
 
       logger.info('Tab unpinned', { tabId: id })
     },
-    [tabs, setPinnedTabs]
+    [tabs, setPinnedTabs, includePinnedTabs, updateTab]
   )
 
   /**
@@ -1008,17 +959,16 @@ export function TabsProvider({
    * Detach a tab to a new window
    */
   const detachTab = useCallback(
-    (tabId: string) => {
+    (tabId: string, activateId?: string) => {
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
 
-      // Send IPC message to create new window
-      void ipcApi.request('tab.detach', tab)
-
-      // Remove tab from current window — closeTab handles both pinned and normal tabs
-      closeTab(tabId)
+      void ipcApi
+        .request('tab.detach', tab)
+        .then(() => closeTabs([tabId], activateId))
+        .catch((error) => logger.error('Tab detach failed', error))
     },
-    [tabs, closeTab]
+    [tabs, closeTabs]
   )
 
   /**

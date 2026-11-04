@@ -59,13 +59,10 @@ export const grokOAuthProvider = {
   // OAuth is the only credential; logout/token loss disables the provider.
   clearDisablesProvider: true,
   transport: {
-    type: 'loopback',
-    config: {
-      hosts: [GROK_CONFIG.CALLBACK_HOST],
-      port: GROK_CONFIG.CALLBACK_PORT,
-      path: GROK_CONFIG.CALLBACK_PATH,
-      redirectUri: GROK_CONFIG.REDIRECT_URI
-    }
+    hosts: [GROK_CONFIG.CALLBACK_HOST],
+    port: GROK_CONFIG.CALLBACK_PORT,
+    path: GROK_CONFIG.CALLBACK_PATH,
+    redirectUri: GROK_CONFIG.REDIRECT_URI
   },
   createClient: async (context?: OAuthRuntimeProviderContext) => {
     const discovery = await discoverGrok(context?.signal)

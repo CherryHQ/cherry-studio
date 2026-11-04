@@ -14,7 +14,6 @@ import {
   PinIcon,
   PinOffIcon,
   Sparkles,
-  Trash2,
   UploadIcon
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -62,7 +61,6 @@ export interface TopicActionContext {
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
   onDelete: TopicDeleteHandler
-  onDeletePermanently?: TopicDeleteHandler
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -268,11 +266,6 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.delete',
   run: ({ onDelete, topic }) => onDelete(topic)
-})
-
-topicActionRegistry.registerCommand({
-  id: 'topic.delete-permanently',
-  run: ({ onDeletePermanently, topic }) => onDeletePermanently?.(topic)
 })
 
 topicActionRegistry.registerAction({
@@ -543,29 +536,6 @@ topicActionRegistry.registerAction({
     visible: !topic.pinned,
     enabled: !isArchiveBlocked,
     reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
-  })
-})
-
-topicActionRegistry.registerAction({
-  id: 'topic.delete-permanently',
-  commandId: 'topic.delete-permanently',
-  label: ({ t }) => t('common.delete_permanently'),
-  icon: () => <Trash2 size={14} />,
-  group: 'danger',
-  order: 100,
-  surface: 'menu',
-  danger: true,
-  availability: ({ isArchiveBlocked, t, topic, onDeletePermanently }) => ({
-    visible: !topic.pinned && !!onDeletePermanently,
-    enabled: !isArchiveBlocked,
-    reason: isArchiveBlocked ? t('chat.topics.delete.blocked_generation') : undefined
-  }),
-  confirm: ({ t, topic }) => ({
-    title: t('settings.data.trash.permanent_delete.confirm_title'),
-    description: `${topic.name}\n${t('settings.data.trash.permanent_delete.confirm_content')}`,
-    confirmText: t('common.delete_permanently'),
-    cancelText: t('common.cancel'),
-    destructive: true
   })
 })
 

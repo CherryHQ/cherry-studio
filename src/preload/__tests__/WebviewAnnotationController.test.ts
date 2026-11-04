@@ -1741,6 +1741,81 @@ describe('WebviewAnnotationController interactions', () => {
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Committed')
   })
 
+  it.each([
+    { label: 'a resolved host colour', accent: 'rgb(0, 185, 107)', expected: 'rgb(0, 185, 107)' },
+    { label: 'an omitted colour', accent: undefined, expected: '#4f46e5' },
+    { label: 'an unresolved variable', accent: 'var(--primary)', expected: '#4f46e5' },
+    { label: 'declaration text', accent: 'red; background: url(x)', expected: '#4f46e5' }
+  ])('paints the overlay accent from %# $label', ({ accent, expected }) => {
+    controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'light', accent })
+
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-accent')).toBe(expected)
+  })
+
+  it('keeps the dark indigo accent when the host sends no colour', () => {
+    controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'dark' })
+
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-accent')).toBe('#818cf8')
+  })
+
+  it.each([
+    { label: 'a resolved host colour', accentForeground: '#000000', expected: '#000000' },
+    { label: 'an omitted colour', accentForeground: undefined, expected: 'white' },
+    { label: 'an unresolved variable', accentForeground: 'var(--primary)', expected: 'white' },
+    { label: 'declaration text', accentForeground: 'black; background: url(x)', expected: 'white' }
+  ])('paints the pin foreground from %# $label', ({ accentForeground, expected }) => {
+    controller.handleCommand({
+      type: 'configure',
+      sessionId,
+      locale,
+      theme: 'light',
+      accent: 'rgb(0, 185, 107)',
+      accentForeground
+    })
+
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-accent-foreground')).toBe(
+      expected
+    )
+  })
+
+  it('derives the focus ring from the resolved host accent instead of matching it', () => {
+    controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'light', accent: 'rgb(0, 185, 107)' })
+
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-focus')).toBe(
+      'color-mix(in srgb, var(--annotation-accent) 70%, black)'
+    )
+
+    controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'dark', accent: 'rgb(0, 185, 107)' })
+
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-focus')).toBe(
+      'color-mix(in srgb, var(--annotation-accent) 70%, white)'
+    )
+  })
+
+  it('keeps the indigo focus ring when the host sends no colour', () => {
+    controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'light' })
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-focus')).toBe('#3730a3')
+
+    controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'dark' })
+    expect(privateController(controller).overlayHost?.style.getPropertyValue('--annotation-focus')).toBe('#c7d2fe')
+  })
+
+  it('marks the highlight active only for the element the editor is open on', () => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    mockRect(target, 10, 20, 100, 40)
+    const internals = privateController(controller)
+    const highlight = () => internals.overlayRoot?.querySelector<HTMLElement>('.highlight')
+
+    internals.highlightElement = target
+    internals.updatePositions()
+    expect(highlight()?.classList.contains('active')).toBe(false)
+
+    internals.openEditor({ mode: 'create-element', element: target })
+    internals.updatePositions()
+    expect(highlight()?.classList.contains('active')).toBe(true)
+  })
+
   it('enforces annotation and comment limits', () => {
     const internals = privateController(controller)
     for (let index = 0; index < WEBVIEW_ANNOTATION_LIMITS.annotations + 1; index++) {

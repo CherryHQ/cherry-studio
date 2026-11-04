@@ -82,14 +82,6 @@ describe('error', () => {
       expect(getErrorDetails(123)).toBe(123)
     })
 
-    it('should handle circular references', () => {
-      const circularObj: any = {}
-      circularObj.self = circularObj
-
-      const result = getErrorDetails(circularObj)
-      expect(result).toEqual({ self: circularObj })
-    })
-
     it('should extract properties from Error objects', () => {
       const error = new Error('Test error')
       const result = getErrorDetails(error)

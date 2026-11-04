@@ -1,10 +1,12 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
+import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
 import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
@@ -108,18 +110,22 @@ describe('BasicInfoStep', () => {
     ).toBeVisible()
   })
 
-  it('exposes every supported runtime as a selectable card with immutable guidance', () => {
+  it('offers Pi before Claude for creation without exposing DeepSeek Harness', () => {
     render(<Harness runtimeSelectable />)
 
+    expect(screen.getAllByRole('radio')).toEqual([
+      screen.getByRole('radio', { name: /runtime.option.pi/ }),
+      screen.getByRole('radio', { name: /runtime.option.claude_code/ })
+    ])
     expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
     expect(screen.queryByRole('img', { name: /runtime\.immutable_hint/ })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).not.toBeChecked()
+    expect(screen.queryByRole('radio', { name: /runtime.option.dsh/ })).not.toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
   })
 
-  it('uses smart approval for Claude and Pi while DSH auto-accepts edits', async () => {
+  it('uses smart approval when switching between Claude and Pi', async () => {
     const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
 
@@ -135,13 +141,27 @@ describe('BasicInfoStep', () => {
     )
     expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
 
-    await user.click(screen.getByRole('radio', { name: /runtime.option.dsh/ }))
+    await user.click(screen.getByRole('radio', { name: /runtime.option.claude_code/ }))
 
-    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.acceptEdits.title'
+      'agent.settings.tooling.permissionMode.auto.title'
     )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('acceptEdits')
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+  })
+
+  it.each(['pi', 'claude-code'] as const)('still displays the runtime summary for an existing %s agent', (runtime) => {
+    function ExistingAgentRuntime() {
+      const { t } = useTranslation()
+      return <AgentRuntimeSummary value={runtime} t={t} />
+    }
+
+    render(<ExistingAgentRuntime />)
+
+    const key = runtime === 'pi' ? 'pi' : 'claude_code'
+    expect(screen.getByText(`library.config.agent.field.runtime.option.${key}`)).toBeVisible()
+    expect(screen.getByText(`library.config.agent.field.runtime.option_description.${key}`)).toBeVisible()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {

@@ -8,7 +8,17 @@ import {
   type SupportSpec
 } from '@cherrystudio/provider-registry'
 
+/** Fallback cap on edit reference images when the model declares no per-edit limit. */
 const MAX_INPUT_IMAGES = 1
+
+/**
+ * Tool-contract cap on edit reference images: the model's declared per-edit `maxInputImages`, else
+ * {@link MAX_INPUT_IMAGES}. Mirrors the renderer paintings-page enforcement (`canonicalGenerate`) so
+ * the agent/chat tool and the page share one rule.
+ */
+export function editInputImageLimit(support: ImageGenerationSupport | null | undefined): number {
+  return support?.modes.edit?.maxInputImages ?? MAX_INPUT_IMAGES
+}
 
 const GENERATE_IMAGE_PROMPT_FIELD = z
   .string()
@@ -147,8 +157,8 @@ export function buildGenerateImageToolSchema(
     const imageIds = z
       .array(z.string().trim().min(1))
       .min(1)
-      .max(MAX_INPUT_IMAGES)
-      .describe('FileEntry id of an existing image to edit or use as a reference. Omit to generate a new image.')
+      .max(editInputImageLimit(support))
+      .describe('FileEntry ids of existing images to edit or use as references. Omit to generate a new image.')
     const editOnly = !modes.includes('generate')
     inputShape.image_ids = editOnly ? imageIds : imageIds.optional()
   }
@@ -159,6 +169,6 @@ export function buildGenerateImageToolSchema(
 /** Fallback contract used when the configured model has no registry capability block. */
 export const generateImageInputSchema = buildGenerateImageToolSchema(undefined)
 
-export function limitGenerateImageInputIds(imageIds: readonly string[]): string[] {
-  return imageIds.slice(0, MAX_INPUT_IMAGES)
+export function limitGenerateImageInputIds(imageIds: readonly string[], max: number): string[] {
+  return imageIds.slice(0, max)
 }

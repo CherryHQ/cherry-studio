@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
+import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
@@ -30,6 +31,7 @@ const isCompactMinWidthRoute = (url?: string): boolean =>
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
+  const tabsApi = useTabs()
   const {
     tabs,
     tabBarTabs,
@@ -45,14 +47,15 @@ export const AppShell = () => {
     openTab,
     navigationLayout,
     closeFocusedRoute
-  } = useTabs()
+  } = tabsApi
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
-  const previousLegacyTabIdRef = useRef<string | undefined>(undefined)
+  const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
-    previousLegacyTabIdRef.current = activeTab.id
-  } else if (isSettingsTabActive && !previousLegacyTabIdRef.current) {
-    previousLegacyTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+    previousWorkspaceTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
+    previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
       if (isSettingsPath(tab.url)) return latest
       return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
     }, undefined)?.id
@@ -67,8 +70,7 @@ export const AppShell = () => {
   )
   const canCycleTabs = visibleTabBarTabs.length > 1 && visibleTabBarTabs.some((tab) => tab.id === activeTabId)
   const isFullscreen = useNativeFullscreen()
-  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
-  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const [split, setSplit] = useCache('mini_app.split')
   const hasMiniAppTab = tabs.some((tab) => miniAppIdFromTabUrl(tab.url) !== null)
   const hadMiniAppTabRef = useRef(hasMiniAppTab)
 
@@ -76,30 +78,29 @@ export const AppShell = () => {
   // the next mini app would open into a stale split with its app still pooled.
   const clearSplitWithLastMiniAppTab = useCallback(
     (id: string, url: string | undefined) => {
-      if (!splitOpen || !miniAppIdFromTabUrl(url)) return
+      if (!split || !miniAppIdFromTabUrl(url)) return
       const hasOtherMiniAppTab = tabs.some(
         (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
       )
       if (hasOtherMiniAppTab) return
-      setSplitOpen(false)
-      setSplitMiniAppId('')
+      setSplit(null)
     },
-    [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
+    [setSplit, split, tabs]
   )
 
   useEffect(() => {
     const hadMiniAppTab = hadMiniAppTabRef.current
     hadMiniAppTabRef.current = hasMiniAppTab
-    if (!splitOpen || hasMiniAppTab || !hadMiniAppTab) return
-    setSplitOpen(false)
-    setSplitMiniAppId('')
-  }, [hasMiniAppTab, setSplitMiniAppId, setSplitOpen, splitOpen])
+    if (!split || hasMiniAppTab || !hadMiniAppTab) return
+    setSplit(null)
+  }, [hasMiniAppTab, setSplit, split])
 
+  const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
       if (navigationLayout === 'both' && isSettingsPath(tab?.url)) {
-        closeTabs([id], previousLegacyTabIdRef.current)
+        closeTabs([id], previousWorkspaceTabIdRef.current)
         return
       }
       if (navigationLayout !== 'both' && tab && !getTabWorkspaceKey(tab)) {
@@ -117,15 +118,16 @@ export const AppShell = () => {
       const tab = tabs.find((candidate) => candidate.id === id)
       const returnWorkspaceId =
         typeof tab?.metadata?.returnWorkspaceId === 'string' ? tab.metadata.returnWorkspaceId : undefined
+      const fallbackId =
+        navigationLayout === 'both' && isSettingsPath(tab?.url)
+          ? previousWorkspaceTabIdRef.current
+          : tab && !getTabWorkspaceKey(tab)
+            ? returnWorkspaceId
+            : undefined
       clearSplitWithLastMiniAppTab(id, tab?.url)
-      detachTab(id)
-      if (navigationLayout === 'both' && isSettingsPath(tab?.url) && previousLegacyTabIdRef.current) {
-        setActiveTab(previousLegacyTabIdRef.current)
-      } else if (tab && !getTabWorkspaceKey(tab) && returnWorkspaceId) {
-        setActiveTab(returnWorkspaceId)
-      }
+      detachTab(id, fallbackId)
     },
-    [clearSplitWithLastMiniAppTab, detachTab, navigationLayout, setActiveTab, tabs]
+    [clearSplitWithLastMiniAppTab, detachTab, navigationLayout, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
@@ -147,7 +149,13 @@ export const AppShell = () => {
     [visibleTabBarTabs, activeTabId, setActiveTab]
   )
 
+  const handleCloseActiveTab = useCallback(() => {
+    if (!activeTabId) return
+    handleCloseTab(activeTabId)
+  }, [activeTabId, handleCloseTab])
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
@@ -181,13 +189,7 @@ export const AppShell = () => {
     recordRouteVisit(activeTab)
   }, [activeTab, recordRouteVisit])
 
-  // Sync internal navigation back to tab state. For route-titled tabs we also
-  // refresh the title and clear the per-entity icon (it was supplied for a
-  // specific URL, e.g. a mini-app logo on /app/mini-app/<id>, and no longer
-  // applies once the user navigates elsewhere inside the tab). Chat / agent
-  // tabs are page-titled — their HomePage/AgentPage owns title + icon (topic /
-  // session name + assistant / agent emoji), so we only sync the url and leave
-  // title/icon alone, or navigating between topics would wipe them.
+  // Chat / agent tabs are page-titled (topic / session name + emoji), so navigation keeps them.
   const handleUrlChange = (tabId: string, url: string) => {
     const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
@@ -237,7 +239,7 @@ export const AppShell = () => {
   )
 
   const contentArea = (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', showsSidebar ? 'pr-2' : 'px-2')}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-1.5', showsSidebar ? 'pr-1.5' : 'px-1.5')}>
       <main
         data-ui="app.content"
         className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
@@ -270,7 +272,8 @@ export const AppShell = () => {
     </div>
   )
 
-  if (!isMac) {
+  // Leading Linux WCO controls take the top-left corner like macOS traffic lights do.
+  if (!isMac && !hasLeadingWindowControls) {
     return (
       <div
         className={cn(

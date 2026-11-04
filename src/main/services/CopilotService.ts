@@ -5,7 +5,9 @@ import { net, safeStorage } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { atomicWriteFile } from '@main/utils/file'
 import { mergeHeaders } from '@main/utils/http'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('CopilotService')
 
@@ -251,7 +253,9 @@ class CopilotService {
         await fs.promises.mkdir(dir, { recursive: true })
       }
 
-      await fs.promises.writeFile(this.tokenFilePath, encryptedToken)
+      // A plain writeFile truncates first: a crash in between leaves an empty
+      // token file and forces the user through device authorization again.
+      await atomicWriteFile(AbsoluteFilePathSchema.parse(this.tokenFilePath), encryptedToken, { mode: 0o600 })
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)

@@ -31,6 +31,12 @@ function resolvePrimaryEndpoint(provider: Provider | undefined): EndpointType {
     }
   }
 
+  // Providers without chat endpoints need their host stored on an endpoint they actually use.
+  const declared = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
+  if (declared.length > 0) {
+    return declared[0]
+  }
+
   return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 }
 

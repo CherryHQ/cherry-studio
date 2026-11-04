@@ -1,6 +1,7 @@
-import type { Editor, JSONContent } from '@tiptap/core'
+import { type Editor, getChangedRanges, type JSONContent } from '@tiptap/core'
+import { isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { NodeSelection, type Selection } from '@tiptap/pm/state'
+import { NodeSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 
 import { type ComposerTokenMarkerRule, createComposerTokenMarkerInlineContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, requestComposerPromptVariableEdit } from './ComposerTokenNode'
@@ -10,6 +11,8 @@ import { normalizeComposerTokenAttrs } from './tokens'
 export type PromptVariableSegment =
   | { type: 'text'; text: string }
   | { type: 'variable'; index: number; raw: string; variableName: string }
+
+export const PROMPT_VARIABLE_TOKENIZATION_META = 'composerTokenizePromptVariables'
 
 const PROMPT_VARIABLE_PATTERN = /\$\{([^}\r\n]+)\}/g
 const PROMPT_VARIABLE_ID_PATTERN = /^prompt-variable:(\d+):/
@@ -113,7 +116,10 @@ export function createPromptVariableContent(text: string): JSONContent {
   }
 }
 
-export function tokenizePromptVariablesInEditor(editor: Editor): boolean {
+export function tokenizePromptVariablesInEditor(editor: Editor, update: Transaction): boolean {
+  if (update.getMeta(PROMPT_VARIABLE_TOKENIZATION_META) === false || isHistoryTransaction(update)) return false
+  const changedRanges = getChangedRanges(update)
+
   const replacements: Array<{ from: number; to: number; token: ComposerDraftToken }> = []
   let variableIndex = getNextPromptVariableIndex(editor)
 
@@ -129,12 +135,16 @@ export function tokenizePromptVariablesInEditor(editor: Editor): boolean {
         continue
       }
 
-      replacements.push({
-        from: position + offset,
-        to: position + offset + segment.raw.length,
-        token: createPromptVariableToken(segment.variableName, segment.raw, variableIndex)
-      })
-      variableIndex += 1
+      const from = position + offset
+      const to = from + segment.raw.length
+      if (changedRanges.some(({ newRange }) => newRange.from < to && newRange.to > from)) {
+        replacements.push({
+          from,
+          to,
+          token: createPromptVariableToken(segment.variableName, segment.raw, variableIndex)
+        })
+        variableIndex += 1
+      }
       offset += segment.raw.length
     }
   })

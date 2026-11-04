@@ -538,7 +538,7 @@ describe('useDoctorController', () => {
     await act(async () => result.current.executeAction('config-hardware-acceleration', { kind: 'relaunch' }))
 
     expect(onNavigate).toHaveBeenCalledWith('/settings/provider')
-    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://cherry-ai.com/status')
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherry-ai.com/status')
     expect(mocks.request).toHaveBeenCalledWith('app.relaunch')
   })
 })

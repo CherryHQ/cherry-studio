@@ -5,6 +5,7 @@ import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 export interface SidebarIconPresentation {
   slotSize: number
   glyphSize: number
+  active?: boolean
 }
 
 /**

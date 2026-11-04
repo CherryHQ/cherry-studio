@@ -33,6 +33,7 @@ export interface AgentToolFlowOpenInput {
 }
 
 export interface AgentToolFlowNode {
+  title?: string
   toolCallId: string
   toolName: string
   parentToolCallId?: string
@@ -428,7 +429,14 @@ export function buildAgentToolFlowProjection(
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
+      const input = getToolPartInput(part)
+      const title = isRecord(input)
+        ? [input.description, input.subject, input.title, input.name].find(
+            (value) => typeof value === 'string' && value.trim()
+          )
+        : undefined
       const node: AgentToolFlowNode = {
+        ...(typeof title === 'string' ? { title: title.trim() } : {}),
         toolCallId,
         toolName: getToolNameFromPart(part) ?? toolCallId,
         parentToolCallId,
@@ -477,10 +485,28 @@ export function buildAgentToolFlowProjection(
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
+    const taskIds = new Set<string>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (
+          part.type === 'data-agent-task-event' &&
+          part.data.toolUseId &&
+          part.data.toolUseId !== selectedToolCallId &&
+          selectedToolCallIds.has(part.data.toolUseId)
+        ) {
+          taskIds.add(part.data.taskId)
+        }
+      }
+    }
+
     const assistantParts: CherryMessagePart[] = []
     for (const { parts } of messageEntries) {
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex]
+        if (part.type === 'data-agent-task-event') {
+          if (taskIds.has(part.data.taskId)) assistantParts.push(part)
+          continue
+        }
         const toolCallId = getToolCallId(part)
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
@@ -496,15 +522,26 @@ export function buildAgentToolFlowProjection(
     const selectedOutput =
       selectedToolOutput !== undefined
         ? selectedToolOutput
-        : selectedToolPart
-          ? getToolPartOutput(selectedToolPart)
+        : selectedToolPart && 'output' in selectedToolPart
+          ? selectedToolPart.output
           : undefined
     const selectedOutputText = textFromContent(selectedOutput)
+    const details = isRecord(selectedOutput) ? selectedOutput.details : undefined
+    const isPiSubagentReceipt =
+      selectedToolPart &&
+      isToolUIPart(selectedToolPart) &&
+      getToolName(selectedToolPart) === 'subagent' &&
+      isRecord(details) &&
+      typeof details.sessionId === 'string' &&
+      typeof details.background === 'boolean'
+    const hasChildText = assistantParts.some((part) => part.type === 'text' && part.text.trim())
     // A detached Agent result is only a control receipt and may expose internal ids or paths. Its
     // actual conversation already arrives through the child flow parts collected above.
-    const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
-      ? undefined
-      : selectedOutputText
+    const outputText =
+      isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText) ||
+      (isPiSubagentReceipt && (details.background || hasChildText))
+        ? undefined
+        : selectedOutputText
     if (outputText) assistantParts.push({ type: 'text', text: outputText })
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)

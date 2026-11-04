@@ -1,8 +1,10 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
+  Bot,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   FolderSearch,
   Import,
   LayoutGrid,
@@ -61,20 +63,25 @@ const RESOURCE_CARD_ROW_ESTIMATE_PX = 92
 
 interface Props {
   resources: ResourceItem[]
+  /** True when a catalog-level filter hides otherwise available resources. */
+  hasHiddenResources?: boolean
   isLoading?: boolean
   activeResourceType: ResourceType
   search: string
   onSearchChange: (v: string) => void
   onEdit: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
-  onDelete: (r: ResourceItem, permanent?: boolean) => void
+  onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
   onCreate: (type: ResourceType) => void
   onImportAssistant: () => void
+  onExportAssistants: () => void
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
   onOpenSkillMarketplace: () => void
   onOpenSystemSkills?: () => void
+  onCreateSkillWithAgent?: () => void
+  onLaunchSkill?: (resource: ResourceItem) => void
   groups: GroupItem[]
   activeGroupId: string | null
   onGroupFilter: (groupId: string | null) => void
@@ -128,13 +135,14 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 interface AssistantAddActionsProps {
   onNew: () => void
   onImport: () => void
+  onExportAssistants: () => void
   onOpenLibrary?: () => void
 }
 
 /**
  * Assistant creation actions are intentionally flat so each entry point stays visible in the toolbar.
  */
-function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddActionsProps) {
+function AssistantAddActions({ onNew, onImport, onExportAssistants, onOpenLibrary }: AssistantAddActionsProps) {
   const { t } = useTranslation()
 
   return (
@@ -153,17 +161,27 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
         <Import size={12} />
         <span>{t('assistants.presets.import.action')}</span>
       </Button>
+      <Button variant="outline" size="sm" onClick={onExportAssistants} className="shrink-0">
+        <Download size={12} />
+        <span>{t('assistants.presets.export.action')}</span>
+      </Button>
     </>
   )
 }
 
 interface SkillAddActionsProps {
+  onCreateWithAgent?: () => void
   onSearchMarketplace: () => void
   onSearchSystem?: () => void
   onImportLocal: () => void
 }
 
-function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }: SkillAddActionsProps) {
+function SkillAddActions({
+  onCreateWithAgent,
+  onSearchMarketplace,
+  onSearchSystem,
+  onImportLocal
+}: SkillAddActionsProps) {
   const { t } = useTranslation()
 
   return (
@@ -176,6 +194,12 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }:
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
+        {onCreateWithAgent ? (
+          <DropdownMenuItem onSelect={onCreateWithAgent} className="gap-2">
+            <Bot size={13} />
+            <span>{t('library.skill_add.create_with_agent')}</span>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onSelect={onSearchMarketplace} className="gap-2">
           <Search size={13} />
           <span>{t('library.skill_add.online_search')}</span>
@@ -197,6 +221,7 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }:
 
 export const ResourceGrid: FC<Props> = ({
   resources,
+  hasHiddenResources = false,
   isLoading = false,
   activeResourceType,
   search,
@@ -207,9 +232,12 @@ export const ResourceGrid: FC<Props> = ({
   onExport,
   onCreate,
   onImportAssistant,
+  onExportAssistants,
   onOpenAssistantLibrary,
   onOpenSkillMarketplace,
   onOpenSystemSkills,
+  onCreateSkillWithAgent,
+  onLaunchSkill,
   groups,
   activeGroupId,
   onGroupFilter,
@@ -223,12 +251,14 @@ export const ResourceGrid: FC<Props> = ({
   allowColumnToggle = false
 }) => {
   const { t } = useTranslation()
+  const hasNoMatches = Boolean(search) || hasHiddenResources
   const isSettings = variant === 'settings'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const responsiveColumnCount = useGridColumnCount(scrollRef)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const responsiveColumnCount = useGridColumnCount(isSettings ? contentRef : scrollRef)
   const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
   const columnCount = isSettings
     ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
@@ -331,10 +361,12 @@ export const ResourceGrid: FC<Props> = ({
       <AssistantAddActions
         onNew={() => onCreate('assistant')}
         onImport={onImportAssistant}
+        onExportAssistants={onExportAssistants}
         onOpenLibrary={onOpenAssistantLibrary}
       />
     ) : activeResourceType === 'skill' ? (
       <SkillAddActions
+        onCreateWithAgent={onCreateSkillWithAgent}
         onSearchMarketplace={onOpenSkillMarketplace}
         onSearchSystem={onOpenSystemSkills}
         onImportLocal={() => onCreate('skill')}
@@ -361,7 +393,11 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-subtle border-b')}>
+      <div
+        className={cn(
+          'flex shrink-0 flex-col',
+          isSettings ? 'mx-auto w-[calc(100%-3rem)] max-w-3xl' : 'border-b border-border-subtle'
+        )}>
         {isSettings ? (
           <div className="flex min-w-0 items-center justify-between gap-4">
             <div className="min-w-0">
@@ -396,19 +432,24 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
-        {toolbarFooter || (isSettings && allowColumnToggle) ? (
-          <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-border-subtle border-b">
+        {toolbarFooter || (isSettings && (toolbarLeading || allowColumnToggle)) ? (
+          <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle">
             {toolbarFooter}
-            {isSettings && allowColumnToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={layoutLabel}
-                title={layoutLabel}
-                disabled={responsiveColumnCount < 2}
-                onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
-                {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
-              </Button>
+            {isSettings && (toolbarLeading || allowColumnToggle) && (
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                {toolbarLeading}
+                {allowColumnToggle && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={layoutLabel}
+                    title={layoutLabel}
+                    disabled={responsiveColumnCount < 2}
+                    onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
+                    {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         ) : null}
@@ -432,7 +473,7 @@ export const ResourceGrid: FC<Props> = ({
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
                         activeGroupId === group.id
                           ? 'border-border-selected bg-secondary text-secondary-foreground hover:text-secondary-foreground'
-                          : 'border-border-subtle text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground'
+                          : 'text-muted-foreground hover:border-border-strong border-border-subtle hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
                       <span className="text-foreground-tertiary text-xs tabular-nums">{group.count}</span>
@@ -458,7 +499,7 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_groups')}
                   title={t('library.toolbar.all_groups')}
                   onClick={() => setShowAllGroups((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
+                  className="text-muted-foreground size-6 shrink-0 rounded-full hover:bg-accent hover:text-foreground">
                   {showAllGroups ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
@@ -466,7 +507,7 @@ export const ResourceGrid: FC<Props> = ({
               <Button
                 variant="ghost"
                 onClick={() => setCreateGroupDialogOpen(true)}
-                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
+                className="text-muted-foreground hover:border-border-strong flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-dashed border-border-subtle px-2 text-xs shadow-none hover:bg-accent hover:text-foreground">
                 <Plus size={11} /> {t('library.toolbar.group_button')}
               </Button>
             </div>
@@ -529,29 +570,34 @@ export const ResourceGrid: FC<Props> = ({
         />
       </div>
 
-      <Scrollbar ref={scrollRef} className={cn('min-h-0 flex-1', isSettings ? 'pt-4 pb-3' : 'px-5 py-4')}>
-        {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
-        ) : resources.length === 0 ? (
-          <EmptyState
-            preset={search ? 'no-result' : 'no-resource'}
-            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
-            description={search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')}
-            className="py-20"
-          />
-        ) : (
-          <VirtualizedResourceGrid
-            scrollRef={scrollRef}
-            columnCount={columnCount}
-            resources={resources}
-            variant={variant}
-            allGroups={allGroups}
-            onDelete={onDelete}
-            onDuplicate={onDuplicate}
-            onEdit={onEdit}
-            onExport={onExport}
-          />
-        )}
+      <Scrollbar ref={scrollRef} className={cn('min-h-0 flex-1', isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4')}>
+        <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-3xl')}>
+          {isLoading ? (
+            <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
+          ) : resources.length === 0 ? (
+            <EmptyState
+              preset={hasNoMatches ? 'no-result' : 'no-resource'}
+              title={hasNoMatches ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+              description={
+                hasNoMatches ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
+              }
+              className="py-20"
+            />
+          ) : (
+            <VirtualizedResourceGrid
+              scrollRef={scrollRef}
+              columnCount={columnCount}
+              resources={resources}
+              variant={variant}
+              allGroups={allGroups}
+              onDelete={onDelete}
+              onDuplicate={onDuplicate}
+              onEdit={onEdit}
+              onExport={onExport}
+              onLaunchSkill={onLaunchSkill}
+            />
+          )}
+        </div>
       </Scrollbar>
     </div>
   )
@@ -591,10 +637,11 @@ interface VirtualizedResourceGridProps {
   resources: ResourceItem[]
   variant: 'library' | 'settings'
   allGroups: Group[]
-  onDelete: (r: ResourceItem, permanent?: boolean) => void
+  onDelete: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
   onEdit: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
+  onLaunchSkill?: (r: ResourceItem) => void
 }
 
 function VirtualizedResourceGrid({
@@ -606,7 +653,8 @@ function VirtualizedResourceGrid({
   onDelete,
   onDuplicate,
   onEdit,
-  onExport
+  onExport,
+  onLaunchSkill
 }: VirtualizedResourceGridProps) {
   const rows = useMemo(() => {
     const nextRows: ResourceItem[][] = []
@@ -646,11 +694,13 @@ function VirtualizedResourceGrid({
                 key={resource.id}
                 resource={resource}
                 variant={variant}
+                columnCount={columnCount}
                 allGroups={allGroups}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
                 onEdit={onEdit}
                 onExport={onExport}
+                onLaunchSkill={onLaunchSkill}
               />
             ))}
           </div>

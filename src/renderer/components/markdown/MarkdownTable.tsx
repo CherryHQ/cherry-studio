@@ -1,0 +1,156 @@
+import { Check, FileSpreadsheet } from 'lucide-react'
+import MarkdownIt from 'markdown-it'
+import React, { memo, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { extractTableDataFromElement } from 'streamdown'
+import type { Node, Position } from 'unist'
+
+import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+
+import { useMarkdownHost } from './useMarkdownHost'
+
+const logger = loggerService.withContext('Table')
+
+interface Props {
+  children?: React.ReactNode
+  node?: Omit<Node, 'type'>
+}
+
+/**
+ * 自定义 Markdown 表格组件，提供 copy 功能。
+ */
+const MarkdownTable: React.FC<Props> = ({ children, node }) => {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const mdCtx = useMarkdownBlockContext()
+  const actions = useMarkdownHost()
+  const tableRef = useRef<HTMLTableElement>(null)
+  const canCopyTable = !!actions?.copyRichContent
+  const canExportExcel = !!actions?.exportTableAsExcel
+
+  const handleCopyTable = useCallback(async () => {
+    const tableMarkdown = extractTableMarkdown(node?.position, mdCtx?.content)
+    if (!tableMarkdown) {
+      actions?.notifyError?.(t('message.error.table.invalid'))
+      return
+    }
+
+    try {
+      const tableHtml = convertMarkdownTableToHtml(tableMarkdown)
+      await actions?.copyRichContent?.(
+        {
+          plainText: tableMarkdown,
+          html: tableHtml
+        },
+        { successMessage: t('message.copied') }
+      )
+      setCopied(true)
+    } catch (error) {
+      logger.error('Failed to copy table to clipboard', { error })
+      actions?.notifyError?.(t('message.copy.failed'))
+    }
+  }, [actions, node?.position, setCopied, t, mdCtx?.content])
+
+  const handleExportExcel = useCallback(async () => {
+    if (!tableRef.current) {
+      actions?.notifyError?.(t('message.error.table.invalid'))
+      return
+    }
+
+    const { headers, rows } = extractTableDataFromElement(tableRef.current)
+    const data = headers.length > 0 ? [headers, ...rows] : rows
+
+    if (data.length === 0) {
+      actions?.notifyError?.(t('message.error.table.invalid'))
+      return
+    }
+
+    try {
+      const result = await actions?.exportTableAsExcel?.(data)
+      if (result) {
+        actions?.notifySuccess?.(t('message.success.excel.export'))
+      }
+    } catch (error) {
+      logger.error('Failed to export table to Excel', { error })
+      actions?.notifyError?.(t('message.error.excel.export'))
+    }
+  }, [actions, t])
+
+  return (
+    <div className="table-wrapper relative my-2 w-full max-w-full min-w-0 hover:[&_.table-toolbar]:opacity-100">
+      <div className="table-scroll-viewport w-full max-w-full min-w-0 overflow-x-auto">
+        {/* Fill the available reading width without forcing compact chat panes to scroll. Wide content can still overflow this viewport naturally. */}
+        <table
+          ref={tableRef}
+          className="[&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:leading-(--line-height-body-md) [&&]:text-foreground [&&_tbody]:bg-transparent [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:border-border-subtle [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_td]:wrap-break-word [&&_td:last-child]:border-r-0 [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:border-border-subtle [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_th]:wrap-break-word [&&_th:last-child]:border-r-0 [&&_thead]:bg-transparent [&&_tr]:bg-transparent [&&_tr:last-child_td]:border-b-0"
+          style={{
+            border: '0.5px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            borderSpacing: 0,
+            margin: 0,
+            overflow: 'hidden'
+          }}>
+          {children}
+        </table>
+      </div>
+      {(canCopyTable || canExportExcel) && (
+        <div className="table-toolbar absolute top-2 right-2 z-10 flex transform-[translateZ(0)] gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
+          {canCopyTable && (
+            <Tooltip content={t('common.copy')} delay={800}>
+              <button
+                type="button"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] select-none hover:bg-accent hover:text-foreground hover:shadow-xs"
+                aria-label={t('common.copy')}
+                onClick={handleCopyTable}>
+                {copied ? <Check size={14} color="var(--primary)" /> : <CopyIcon size={14} />}
+              </button>
+            </Tooltip>
+          )}
+          {canExportExcel && (
+            <Tooltip content={t('common.export.excel')} delay={800}>
+              <button
+                type="button"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] select-none hover:bg-accent hover:text-foreground hover:shadow-xs"
+                aria-label={t('common.export.excel')}
+                onClick={handleExportExcel}>
+                <FileSpreadsheet size={14} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 从原始 Markdown 内容中提取表格源代码
+ * @param position 表格节点的位置信息
+ * @param markdownContent 原始 markdown 内容（来自 MarkdownBlockContext）
+ * @returns 源代码
+ */
+export function extractTableMarkdown(position: Position | null | undefined, markdownContent?: string): string {
+  if (!position || !markdownContent) return ''
+
+  const { start, end } = position
+  const lines = markdownContent.split('\n')
+
+  // 提取表格对应的行（行号从1开始，数组索引从0开始）
+  const tableLines = lines.slice(start.line - 1, end.line)
+  return tableLines.join('\n').trim()
+}
+
+function convertMarkdownTableToHtml(markdownTable: string): string {
+  const md = new MarkdownIt({
+    html: true,
+    breaks: false,
+    linkify: false
+  })
+
+  return md.render(markdownTable)
+}
+
+export default memo(MarkdownTable)
