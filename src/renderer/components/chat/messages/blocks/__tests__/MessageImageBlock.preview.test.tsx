@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 
@@ -46,6 +46,42 @@ it('keeps the PNG preview open when an earlier grouped HEIF rendition finishes',
   expect(within(container).queryByRole('status', { hidden: true })).not.toBeInTheDocument()
   expect(screen.getByRole('dialog')).toBe(dialog)
   expect(within(dialog).getByAltText('')).toHaveAttribute('src', 'file:///tmp/ordinary.png')
+})
+
+it('keeps the navigated PNG selected when an earlier grouped HEIF rendition finishes', async () => {
+  const user = userEvent.setup()
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:heif-rendition') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+  let resolveRendition!: (result: { content: Uint8Array }) => void
+  mocks.request.mockReturnValue(
+    new Promise((resolve) => {
+      resolveRendition = resolve
+    })
+  )
+  render(
+    <CommandSharedPreferencesContext value={{ menuPresentationMode: 'cherry', shortcutPreferences: {} }}>
+      <MessageImageBlock
+        sources={[
+          { url: 'file:///tmp/photo.heic', mediaType: 'image/heic' },
+          { url: 'file:///tmp/alpha.png', mediaType: 'image/png' },
+          { url: 'file:///tmp/beta.png', mediaType: 'image/png' }
+        ]}
+      />
+    </CommandSharedPreferencesContext>
+  )
+  expect(screen.getByRole('status')).toBeInTheDocument()
+  expect(screen.getAllByRole('img')).toHaveLength(2)
+  await user.click(screen.getAllByRole('img')[0])
+  const dialog = await screen.findByRole('dialog')
+  expect(within(screen.getByRole('dialog')).getByAltText('')).toHaveAttribute('src', 'file:///tmp/alpha.png')
+
+  fireEvent.keyDown(dialog, { key: 'ArrowRight' })
+  expect(within(screen.getByRole('dialog')).getByAltText('')).toHaveAttribute('src', 'file:///tmp/beta.png')
+
+  await act(async () => resolveRendition({ content: new Uint8Array([137, 80, 78, 71]) }))
+
+  expect(screen.getByRole('dialog')).toBe(dialog)
+  expect(within(screen.getByRole('dialog')).getByAltText('')).toHaveAttribute('src', 'file:///tmp/beta.png')
 })
 
 it('opens a gallery supplied as plain strings', async () => {
