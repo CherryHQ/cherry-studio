@@ -110,6 +110,7 @@ function scopeFor(file) {
   if (file.startsWith('scripts/')) return 'scripts'
   const process = /^src\/(main|renderer|shared)\//.exec(file)?.[1]
   if (process) return process
+  if (file.startsWith('native/system-speech/')) return 'system-speech'
   const pkg = /^packages\/([^/]+)\//.exec(file)?.[1]
   return pkg && consumers[pkg] ? pkg : 'all'
 }

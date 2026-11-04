@@ -52,7 +52,7 @@ describe('validation selection', () => {
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
-    ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
+    ['native/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
     ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
@@ -75,7 +75,7 @@ describe('validation selection', () => {
     expect(selectedGroups(plan).packages).toBe(true)
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
-    const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])
+    const plan = createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts'])
     expect(plan.tasks).toContain('types-system-speech')
     expect(plan.tasks).toContain('types-node')
     expect(plan.projects).not.toContain('renderer')
@@ -244,7 +244,7 @@ describe('validation execution', () => {
           ...process.env,
           npm_execpath: pnpm,
           COMMAND_LOG: log,
-          VALIDATION_PLAN: JSON.stringify(createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts']))
+          VALIDATION_PLAN: JSON.stringify(createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts']))
         },
         encoding: 'utf8'
       })
@@ -259,8 +259,7 @@ describe('validation execution', () => {
       } else {
         const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
         expect(test).toContain('system-speech')
-        if (group === 'platform')
-          expect(test).toContain('packages/system-speech/tests/SystemSpeechNativeClient.test.ts')
+        if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
       }
     }
   )

@@ -18,6 +18,7 @@
     "src/main/services/nutstore/sso/lib/**",
     "src/renderer/ui/**",
     "packages/**/dist",
+    "native/system-speech/dist",
     "eslint.config.mjs",
     "scripts/data-classify/**"
   ],
