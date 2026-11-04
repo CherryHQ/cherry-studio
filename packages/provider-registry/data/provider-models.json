@@ -18154,29 +18154,6 @@
       "providerId": "ionet"
     },
     {
-      "apiModelId": "mistralai/Devstral-Small-2505",
-      "modelId": "devstral-small",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.025
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.22
-        }
-      },
-      "providerId": "ionet"
-    },
-    {
       "apiModelId": "zai-org/GLM-4.6",
       "modelId": "glm-4-6",
       "pricing": {
@@ -18216,6 +18193,9 @@
     },
     {
       "apiModelId": "openai/gpt-oss-20b",
+      "limits": {
+        "contextWindow": 64000
+      },
       "modelId": "gpt-oss-20b",
       "pricing": {
         "cacheRead": {
@@ -18272,29 +18252,6 @@
       "providerId": "ionet"
     },
     {
-      "apiModelId": "meta-llama/Llama-3.2-90B-Vision-Instruct",
-      "modelId": "llama-3-2-90b-vision-instruct",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        }
-      },
-      "providerId": "ionet"
-    },
-    {
       "apiModelId": "meta-llama/Llama-3.3-70B-Instruct",
       "modelId": "llama-3-3-70b-instruct",
       "pricing": {
@@ -18333,56 +18290,18 @@
       "providerId": "ionet"
     },
     {
-      "apiModelId": "mistralai/Magistral-Small-2506",
-      "modelId": "magistral-small",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        }
-      },
-      "providerId": "ionet"
-    },
-    {
-      "apiModelId": "mistralai/Mistral-Large-Instruct-2411",
-      "modelId": "mistral-large-instruct",
-      "name": "Mistral Large Instruct 2411",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 6
-        }
-      },
-      "providerId": "ionet"
-    },
-    {
       "apiModelId": "mistralai/Mistral-Nemo-Instruct-2407",
+      "capabilities": {
+        "force": ["function-call"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 128000
+      },
       "modelId": "mistral-nemo-instruct",
       "name": "Mistral Nemo Instruct 2407",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -18400,56 +18319,18 @@
       "providerId": "ionet"
     },
     {
-      "apiModelId": "Qwen/Qwen2.5-VL-32B-Instruct",
-      "modelId": "qwen2-5-vl-32b-instruct",
-      "name": "Qwen 2.5 VL 32B Instruct",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.025
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.22
-        }
-      },
-      "providerId": "ionet"
-    },
-    {
-      "apiModelId": "Qwen/Qwen3-235B-A22B-Thinking-2507",
-      "modelId": "qwen3-235b-a22b",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.055
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.22
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.11
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.6
-        }
-      },
-      "providerId": "ionet"
-    },
-    {
       "apiModelId": "Intel/Qwen3-Coder-480B-A35B-Instruct-int4-mixed-ar",
+      "capabilities": {
+        "force": ["function-call"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 106000
+      },
       "modelId": "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
       "name": "Qwen 3 Coder 480B",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -44962,5 +44843,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2f3d5707468b07c4"
+  "version": "8d1a7af05436efde"
 }
