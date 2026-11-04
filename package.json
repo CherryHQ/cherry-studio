@@ -145,6 +145,8 @@
     "@cherrystudio/computer-use": "0.1.9",
     "@cherrystudio/mlx-asr": "github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr",
     "@cherrystudio/mlx-tts": "github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts",
+    "@cherrystudio/relay-client": "file:.context/relay-packages/relay-client.tgz",
+    "@cherrystudio/relay-protocol": "file:.context/relay-packages/relay-protocol.tgz",
     "@cherrystudio/remote-protocol": "workspace:*",
     "@cherrystudio/remote-transport": "workspace:*",
     "@cherrystudio/system-speech": "workspace:*",

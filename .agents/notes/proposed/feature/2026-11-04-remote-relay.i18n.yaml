@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-04-remote-relay.md
+2026-11-04-remote-relay.md: d80a7e687985bb605db71c153a1d099280ff578f
+2026-11-04-remote-relay.zh.md: 41c9c507a69446c53365a7eb4e39447e0dded883

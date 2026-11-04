@@ -34,6 +34,8 @@ export type { DirectEndpoint } from './discovery'
 
 export { pairingQrSchema } from './pairing'
 export type { PairingQr } from './pairing'
+export { relayOriginSchema, relayEndpointSchema } from './relay'
+export type { RelayEndpoint } from './relay'
 
 export { uploadTransferLimits, uploadChunkHeaderSchema, uploadAckSchema, isUploadChunk } from './records'
 export type { UploadChunkHeader, UploadChunk, UploadAck } from './records'

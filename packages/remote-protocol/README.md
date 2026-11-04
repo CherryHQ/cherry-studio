@@ -25,7 +25,11 @@ for atomic recovery; their weakly held cache entries disappear with those object
 `connection.hello.connectionEndpointsVersion: 1` advertises `connection.endpoints`.
 The request names an already approved domain; the desktop rechecks its current grant
 before and after preparing the response. The result contains the desktop identity and
-at most 32 direct endpoints, with no invitation or VPN credentials. Clients pin the
+at most 32 direct endpoints plus optional `relay: { origin, targetId } | null`, with no
+invitation, Relay host key or VPN credentials. An omitted Relay field preserves the saved
+value when talking to an older peer; explicit null clears it. QR v4 carries direct endpoints
+and/or a Relay address; v2/v3 remain accepted. Relay origins are canonical HTTPS origins,
+without credentials, paths, queries or fragments. Clients pin the
 identity, keep suggestions ephemeral, and persist only explicitly verified selections.
 Peers without this optional capability retain existing pairing and manual-address flows.
 

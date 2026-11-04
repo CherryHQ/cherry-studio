@@ -121,5 +121,92 @@
       "endpoints": []
     },
     "valid": false
+  },
+  {
+    "name": "Relay-only v4",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 4,
+      "endpoints": [],
+      "relay": {
+        "origin": "https://relay.example",
+        "targetId": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "v4 requires a connection path",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 4,
+      "endpoints": []
+    },
+    "valid": false
+  },
+  {
+    "name": "Relay origin rejects credentials",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 4,
+      "endpoints": [],
+      "relay": {
+        "origin": "https://user:secret@relay.example",
+        "targetId": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "Relay metadata rejects host keys",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 4,
+      "endpoints": [],
+      "relay": {
+        "origin": "https://relay.example",
+        "targetId": "abababababababababababababababababababababababababababababababab",
+        "hostKey": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "Relay rejects cleartext",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 4,
+      "endpoints": [],
+      "relay": {
+        "origin": "http://relay.example",
+        "targetId": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    "valid": false
   }
 ]

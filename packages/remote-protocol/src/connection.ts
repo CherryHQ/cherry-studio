@@ -4,6 +4,7 @@ import { remoteCapabilitiesSchema, remoteCapabilitySchema } from './authorizatio
 import { directEndpointSchema } from './discovery'
 import { remoteFailureSchema } from './errors'
 import { protocolSupportSchema } from './negotiation'
+import { relayEndpointSchema } from './relay'
 import { opaqueId, timestamp, unicodeText } from './values'
 
 export const remoteLimits = Object.freeze({
@@ -31,7 +32,8 @@ export const remoteLimits = Object.freeze({
 const empty = z.strictObject({})
 export const remoteEndpointSnapshotSchema = z.looseObject({
   desktopIdentity: opaqueId,
-  endpoints: z.array(directEndpointSchema).max(32)
+  endpoints: z.array(directEndpointSchema).max(32),
+  relay: relayEndpointSchema.nullable().optional()
 })
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
   params,

@@ -312,10 +312,26 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
-    const endpoint = await this.getRemoteEndpoint()
-    if (endpoint.endpoints.length === 0) throw new Error('No connection address is available')
-    const invitation = await application.get('RemoteAccessService').createInvitation()
-    return { ...endpoint, ...invitation }
+    const remote = application.get('RemoteAccessService')
+    const relay = remote.getRelayEndpoint()
+    const directReady =
+      this.isRunning() &&
+      this.getCurrentConfig().enabled &&
+      this.getCurrentConfig().host === '0.0.0.0' &&
+      this.apiGateway?.getHost() === '0.0.0.0'
+    const endpoint = directReady
+      ? await this.getRemoteEndpoint()
+      : {
+          advertisedEndpoint: null,
+          endpoints: [],
+          addresses: [],
+          addressOptions: [],
+          port: this.getCurrentConfig().port,
+          hostname: hostname()
+        }
+    if (endpoint.endpoints.length === 0 && !relay) throw new Error('Device connections are disabled')
+    const invitation = await remote.createInvitation()
+    return { ...endpoint, ...invitation, relay }
   }
 
   async getRemoteEndpoint() {
