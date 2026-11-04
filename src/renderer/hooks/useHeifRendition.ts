@@ -1,6 +1,12 @@
+import PQueue from 'p-queue'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { heifErrorKey, type HeifImageSource, isHeifImage, resolveHeifImage } from '@renderer/utils/heif'
+
+// Leave room in the service queue for other preview owners and sends.
+const HEIF_CONCURRENCY = 4
+const HEIF_BUSY_RETRIES = 2
+const HEIF_BUSY_BACKOFF_MS = 50
 
 export interface HeifImageState {
   url?: string
@@ -36,11 +42,31 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
   useEffect(() => {
     let disposed = false
     const urls: string[] = []
+    const queue = new PQueue({ concurrency: HEIF_CONCURRENCY })
+    const retryDelays = new Map<ReturnType<typeof setTimeout>, () => void>()
     stableSources.forEach((item, index) => {
       if (!isHeifImage(item)) return
-      void resolveHeifImage(item.source)
+      void queue
+        .add(async () => {
+          for (let retry = 0; !disposed; retry++) {
+            try {
+              return await resolveHeifImage(item.source)
+            } catch (error) {
+              if (disposed) return
+              if (heifErrorKey(error) !== 'error.heif_detail_busy' || retry >= HEIF_BUSY_RETRIES) throw error
+              await new Promise<void>((resolve) => {
+                const timer = setTimeout(() => {
+                  retryDelays.delete(timer)
+                  resolve()
+                }, HEIF_BUSY_BACKOFF_MS)
+                retryDelays.set(timer, resolve)
+              })
+            }
+          }
+          return undefined
+        })
         .then((blob) => {
-          if (disposed) return
+          if (disposed || !blob) return
           const url = URL.createObjectURL(blob)
           urls.push(url)
           update({ url, loading: false })
@@ -60,6 +86,12 @@ export function useHeifRenditions(sources: readonly HeifImageSource[], refreshKe
     })
     return () => {
       disposed = true
+      queue.clear()
+      retryDelays.forEach((resolve, timer) => {
+        clearTimeout(timer)
+        resolve()
+      })
+      retryDelays.clear()
       urls.forEach((url) => URL.revokeObjectURL(url))
     }
   }, [stableSources, initial, refreshKey])

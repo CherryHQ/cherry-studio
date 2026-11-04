@@ -20,6 +20,7 @@ beforeEach(() => {
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
 })
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -107,7 +108,6 @@ it('gives simultaneous owners separate URLs and revokes each on replacement or u
 it.each([
   ['FILE_HEIF_TOO_LARGE', 'error.heif_detail_too_large'],
   ['FILE_HEIF_UNAVAILABLE', 'error.heif_detail_unavailable'],
-  ['FILE_HEIF_BUSY', 'error.heif_detail_busy'],
   ['FILE_HEIF_TIMEOUT', 'error.heif_detail_timeout'],
   ['FILE_HEIF_INVALID', 'error.heif_detail_convert']
 ])('maps %s to actionable copy without creating a raw HEIF URL', async (code, key) => {
@@ -124,4 +124,101 @@ it('recognizes a HEIF path even when its display name has no extension', async (
   expect(mocks.request).toHaveBeenCalledWith('file.get_heif_rendition', {
     source: { kind: 'path', path: '/tmp/photo.HEIC' }
   })
+})
+
+it('loads twelve uncached HEIF previews without exceeding four in-flight requests', async () => {
+  let inFlight = 0
+  let peak = 0
+  let urlIndex = 0
+  vi.mocked(URL.createObjectURL)
+    .mockReset()
+    .mockImplementation(() => `blob:preview-${urlIndex++}`)
+  mocks.request.mockImplementation(async () => {
+    inFlight++
+    peak = Math.max(peak, inFlight)
+    try {
+      if (inFlight > 9) throw new IpcError('FILE_HEIF_BUSY')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      return png
+    } finally {
+      inFlight--
+    }
+  })
+  const sources = Array.from({ length: 12 }, (_, index) => ({ source: `/tmp/photo-${index}.heic` }))
+  const { result } = renderHook(() => useHeifRenditions(sources))
+
+  await waitFor(() => expect(result.current.every((state) => !state.loading)).toBe(true))
+
+  expect(result.current).toEqual(sources.map(() => ({ loading: false, url: expect.stringMatching(/^blob:preview-/) })))
+  expect(new Set(result.current.map((state) => state.url)).size).toBe(12)
+  expect(peak).toBeLessThanOrEqual(4)
+})
+
+it.each([1, 2, 3])('retries busy previews at most twice after %i busy failures', async (busyFailures) => {
+  vi.useFakeTimers()
+  let attempts = 0
+  mocks.request.mockImplementation(async () => {
+    if (attempts++ < busyFailures) throw new IpcError('FILE_HEIF_BUSY')
+    return png
+  })
+  const { result } = renderHook(() => useHeifRendition('/tmp/photo.heic'))
+
+  await act(async () => vi.advanceTimersByTimeAsync(1000))
+
+  expect(result.current).toEqual(
+    busyFailures < 3 ? { loading: false, url: 'blob:first' } : { loading: false, error: 'error.heif_detail_busy' }
+  )
+})
+
+it('cancels queued previews on unmount and revokes created URLs exactly once', async () => {
+  const pending: (() => void)[] = []
+  const started: string[] = []
+  const created: string[] = []
+  const revoked: string[] = []
+  vi.mocked(URL.createObjectURL)
+    .mockReset()
+    .mockImplementation(() => {
+      const url = `blob:preview-${created.length}`
+      created.push(url)
+      return url
+    })
+  vi.mocked(URL.revokeObjectURL).mockImplementation((url) => revoked.push(url))
+  mocks.request.mockImplementation(
+    (_route, { source }) =>
+      new Promise((resolve) => {
+        started.push(source.path)
+        pending.push(() => resolve(png))
+      })
+  )
+  const sources = Array.from({ length: 12 }, (_, index) => ({ source: `/tmp/photo-${index}.heic` }))
+  const { result, unmount } = renderHook(() => useHeifRenditions(sources))
+  await act(async () => pending.shift()!())
+  expect(result.current[0]).toEqual({ loading: false, url: 'blob:preview-0' })
+  const startedBeforeUnmount = [...started]
+  unmount()
+  await act(async () => pending.splice(0).forEach((complete) => complete()))
+
+  expect(started).toEqual(startedBeforeUnmount)
+  expect(started).toEqual(sources.slice(0, 5).map((item) => item.source))
+  expect(created).toEqual(['blob:preview-0'])
+  expect(revoked).toEqual(created)
+})
+
+it('does not retry or start queued previews after unmount during busy backoff', async () => {
+  vi.useFakeTimers()
+  const started: string[] = []
+  mocks.request.mockImplementation(async (_route, { source }) => {
+    started.push(source.path)
+    throw new IpcError('FILE_HEIF_BUSY')
+  })
+  const sources = Array.from({ length: 12 }, (_, index) => ({ source: `/tmp/photo-${index}.heic` }))
+  const { unmount } = renderHook(() => useHeifRenditions(sources))
+  await act(async () => vi.advanceTimersByTimeAsync(0))
+  const startedBeforeUnmount = [...started]
+  unmount()
+  await act(async () => vi.advanceTimersByTimeAsync(1000))
+
+  expect(started).toEqual(startedBeforeUnmount)
+  expect(started).toEqual(sources.slice(0, 4).map((item) => item.source))
+  expect(URL.createObjectURL).not.toHaveBeenCalled()
 })
