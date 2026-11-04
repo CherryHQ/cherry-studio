@@ -25,6 +25,7 @@ import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiSta
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
+import { resolveResendModelIds } from '@renderer/utils/chat/resendModelIds'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -408,8 +409,7 @@ export function useChatWriteActions(params: Params): Result {
       const refreshed = await refresh()
       setMessages(refreshed)
       logger.info('Forked user message', { sourceId: messageId, newId: newMessage.id })
-      const shouldPreserveInheritedModelIds =
-        inheritedModelIds.length > 1 || (!topic.assistantId && inheritedModelIds.length === 1)
+      const resendModelIds = resolveResendModelIds(inheritedModelIds, Boolean(topic.assistantId))
 
       // Bypass `regenerateWithCapabilities` here: its `uiMessages`
       // closure is still the pre-fork snapshot in this microtask (the
@@ -420,7 +420,7 @@ export function useChatWriteActions(params: Params): Result {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
-        ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds }),
+        ...(resendModelIds.length > 0 && { mentionedModelIds: resendModelIds }),
         ...turnOptionsRequestFields(effectiveTurnOptions)
       })
 

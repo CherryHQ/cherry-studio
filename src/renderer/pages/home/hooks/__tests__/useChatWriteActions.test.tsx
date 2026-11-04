@@ -60,7 +60,8 @@ function renderActions(
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false,
-  stop: () => Promise<void> = vi.fn(async () => {})
+  stop: () => Promise<void> = vi.fn(async () => {}),
+  topic = { id: 't1' } as Topic
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
@@ -69,7 +70,7 @@ function renderActions(
   const { result, rerender } = renderHook(
     ({ composerModelId }) =>
       useChatWriteActions({
-        topic: { id: 't1' } as Topic,
+        topic,
         uiMessages,
         activeNodeId,
         regenerate,
@@ -827,6 +828,42 @@ describe('useChatWriteActions — fork and resend', () => {
         fastMode: true
       })
     )
+  })
+
+  // Catches a single inherited model overriding the linked assistant default.
+  it('omits the single direct model when the topic has an assistant', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    const { actions } = renderActions(
+      [uiMsg('u1', 'user', 'vroot'), assistantMessage],
+      cache,
+      undefined,
+      false,
+      undefined,
+      { id: 't1', assistantId: 'assistant-1' } as Topic
+    )
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledOnce()
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('mentionedModelIds')
+  })
+
+  // Catches losing the single direct model when no assistant can provide a default.
+  it('includes the single direct model when the topic has no assistant', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(expect.objectContaining({ mentionedModelIds: ['provider::model-a'] }))
   })
 
   it('rejects edit-and-resend when stream open is blocked', async () => {

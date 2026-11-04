@@ -4971,6 +4971,27 @@ describe('ChatComposer', () => {
     )
   })
 
+  // Catches model loading blocking a normal assistant conversation without explicit mentions.
+  it('sends an unmentioned assistant draft while models are loading', async () => {
+    const user = userEvent.setup()
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelsLoading = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(
+      <QuickPanelProvider>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    fireEvent.change(editor, { target: { value: 'normal draft' } })
+    await screen.findByText('normal draft')
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.queryByText('common.loading')).not.toBeInTheDocument()
+    await user.click(send)
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('normal draft', expect.any(Object)))
+  })
+
   // Catches a silent rejected send while explicit model validation is loading.
   it('disables direct send with a visible loading reason and preserves the draft until models are ready', async () => {
     const user = userEvent.setup()
@@ -5292,6 +5313,210 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('saved text'))
     await user.click(await screen.findByRole('button', { name: 'common.save' }))
     await waitFor(() => expect(editMessage).toHaveBeenCalledWith('locked-save', [{ type: 'text', text: 'saved text' }]))
+    expect(forkAndResend).not.toHaveBeenCalled()
+  })
+
+  // Catches retained mentions blocking an edit that dispatches only the assistant default.
+  it('resends a single-model edit with the assistant default despite a retained non-chat mention', async ({
+    onTestFinished
+  }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.mentionedModels = [model, mocks.modelB]
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
+    const message = { id: 'single', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    const parts = [{ type: 'text', text: 'Edited text' }]
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount message={message} parts={parts} lockedMentionedModels={[model]} />
+          <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Edited text'))
+    expect(screen.queryByText('chat.input.non_chat_model')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'false')
+    await userEvent.click(screen.getByRole('button', { name: 'chat.input.send' }))
+    await waitFor(() =>
+      expect(forkAndResend).toHaveBeenCalledWith('single', [{ type: 'text', text: 'Edited text' }], expect.any(Object))
+    )
+  })
+
+  // Catches retained mentions incorrectly blocking an assistant-default edit while models load.
+  it('resends a single-model assistant edit while models load despite retained mentions', async ({
+    onTestFinished
+  }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelsLoading = true
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.mentionedModels = [model, mocks.modelB]
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
+    const message = {
+      id: 'loading-linked',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01',
+      status: 'success'
+    }
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount
+            message={message}
+            parts={[{ type: 'text', text: 'Linked edit' }]}
+            lockedMentionedModels={[model]}
+          />
+          <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Linked edit'))
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.queryByText('common.loading')).not.toBeInTheDocument()
+    expect(screen.queryByText('chat.input.non_chat_model')).not.toBeInTheDocument()
+    expect(screen.queryByText('chat.input.non_chat_model_locked')).not.toBeInTheDocument()
+    await userEvent.click(send)
+    await waitFor(() => expect(forkAndResend).toHaveBeenCalled())
+  })
+
+  // Catches validating an edit with records that have not loaded yet.
+  it('blocks a linked multi-model edit while the model records are loading', async ({ onTestFinished }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelsLoading = true
+    mocks.mentionedModels = []
+    const forkAndResend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
+    const message = {
+      id: 'loading-linked-multi',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01',
+      status: 'success'
+    }
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount
+            message={message}
+            parts={[{ type: 'text', text: 'Linked edit' }]}
+            lockedMentionedModels={[
+              { ...model, capabilities: [] },
+              { ...modelB, capabilities: [] }
+            ]}
+          />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Linked edit'))
+    const send = screen.getByRole('button', { name: 'chat.input.send' })
+    expect(send).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText('common.loading')).toBeVisible()
+    await userEvent.click(send)
+    expect(forkAndResend).not.toHaveBeenCalled()
+  })
+
+  // Catches an unlinked edit dispatching a non-chat direct model despite chat-capable mentions.
+  it('blocks an unlinked single-model edit when its current direct model is non-chat', async ({ onTestFinished }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.modelB = { ...modelB, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    mocks.mentionedModels = [model]
+    const forkAndResend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
+    const message = {
+      id: 'unlinked-single',
+      role: 'user',
+      topicId: unlinkedTopic.id,
+      createdAt: '2026-01-01',
+      status: 'success'
+    }
+    const parts = [{ type: 'text', text: 'Existing edit' }]
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount message={message} parts={parts} lockedMentionedModels={[modelB]} />
+          <ChatComposer topic={unlinkedTopic} onSend={vi.fn()} useMentionedModelSelector />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Existing edit'))
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'chat.input.send' }))
+    expect(forkAndResend).not.toHaveBeenCalled()
+  })
+
+  // Catches a missing current record bypassing a direct model's non-chat snapshot.
+  it('blocks an unlinked edit when a missing direct model snapshot is non-chat', async ({ onTestFinished }) => {
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    mocks.mentionedModels = [model]
+    const forkAndResend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), forkAndResend }
+    const message = {
+      id: 'missing-direct',
+      role: 'user',
+      topicId: unlinkedTopic.id,
+      createdAt: '2026-01-01',
+      status: 'success'
+    }
+    const parts = [{ type: 'text', text: 'Existing edit' }]
+    const missing = { ...modelB, id: 'provider::missing' as const, capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION] }
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingWithLockedModelsOnMount message={message} parts={parts} lockedMentionedModels={[missing]} />
+          <ChatComposer topic={unlinkedTopic} onSend={vi.fn()} useMentionedModelSelector />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Existing edit'))
+    expect(screen.getByText('chat.input.non_chat_model')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'chat.input.send' }))
     expect(forkAndResend).not.toHaveBeenCalled()
   })
 

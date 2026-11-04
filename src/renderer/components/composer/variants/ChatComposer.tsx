@@ -50,6 +50,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
+import { resolveResendModelIds } from '@renderer/utils/chat/resendModelIds'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -784,9 +785,19 @@ const ChatComposerInner = ({
   const submittedMentionedModels =
     assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   const { models: queueModels, isLoading: areModelsLoading } = useModels()
-  const validationPending = submittedMentionedModels.length > 0 && areModelsLoading
+  const directModels = editingMessageForCurrentTopic?.lockedMentionedModels ?? EMPTY_MODELS
+  const resendModelIds = resolveResendModelIds(
+    directModels.map((model) => model.id),
+    Boolean(assistantId)
+  )
+  const isEditingUserMessage =
+    Boolean(editingMessageForCurrentTopic) && editingMessageForCurrentTopic?.message.role !== 'assistant'
+  const resendModels = directModels.filter((model) => resendModelIds.includes(model.id))
+  const validationModels = isEditingUserMessage ? resendModels : effectiveSubmittedModels
+  const pendingModels = isEditingUserMessage ? resendModels : submittedMentionedModels
+  const validationPending = pendingModels.length > 0 && areModelsLoading
   const isValidationBlockingSend = validationPending && editingMessageForCurrentTopic?.message.role !== 'assistant'
-  const currentSubmittedModels = effectiveSubmittedModels.map(
+  const currentSubmittedModels = validationModels.map(
     (model) => queueModels.find((currentModel) => currentModel.id === model.id) ?? model
   )
   // Current records are authoritative for capability classification: a retained selection/lock
