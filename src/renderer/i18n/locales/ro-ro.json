@@ -1743,6 +1743,8 @@
   "history_import.error": "Operația a eșuat. Verificați locația sursă, agentul țintă și directorul de lucru, apoi reîncercați.",
   "history_import.error_title": "Importul necesită atenție",
   "history_import.existing": "Deja importată în {{owner}}. Conversația nu va fi copiată sau mutată.",
+  "history_import.filtered_empty": "Nu mai sunt conversații de importat. Fișierele sursă și conversațiile deja importate rămân neschimbate.",
+  "history_import.filtered_summary": "Filtrate: {{guardian}} verificări Guardian · {{noTask}} sesiuni fără sarcini de la utilizator.",
   "history_import.folder": "Alege folderul",
   "history_import.line": "Linia {{line}}",
   "history_import.losses": "Înregistrări omise: {{skipped}} · Blocuri convertite: {{downgraded}}",

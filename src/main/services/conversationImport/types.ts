@@ -1,6 +1,6 @@
 import type { MessageProvenance, HistorySource } from '@shared/data/types/conversationImport'
 import type { MessageData, MessageSnapshot } from '@shared/data/types/message'
-import type { ImportDiagnostic } from '@shared/ipc/schemas/conversationImport'
+import type { ImportDiagnostic, ImportFilterReason } from '@shared/ipc/schemas/conversationImport'
 
 export const IMPORT_LIMITS = {
   line: 4 * 1024 * 1024,
@@ -19,6 +19,7 @@ export interface NormalizedMessage {
   messageSnapshot: MessageSnapshot | null
 }
 export interface NormalizedSession {
+  filteredReason?: ImportFilterReason
   source: HistorySource
   originalSessionId: string
   sourcePaths: string[]
@@ -35,6 +36,7 @@ export interface NormalizedSession {
   downgradedParts: number
 }
 export interface SessionRef {
+  filteredReason?: ImportFilterReason
   path: string
   sourcePaths?: string[]
   originalSessionId?: string

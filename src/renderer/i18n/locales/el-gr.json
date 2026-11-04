@@ -1743,6 +1743,8 @@
   "history_import.error": "Η ενέργεια απέτυχε. Ελέγξτε την προέλευση, τον πράκτορα προορισμού και τον κατάλογο εργασίας και δοκιμάστε ξανά.",
   "history_import.error_title": "Η εισαγωγή χρειάζεται προσοχή",
   "history_import.existing": "Έχει ήδη εισαχθεί στον {{owner}}. Δεν θα αντιγραφεί ούτε θα μετακινηθεί.",
+  "history_import.filtered_empty": "Δεν απομένουν συνομιλίες για εισαγωγή. Τα αρχεία προέλευσης και οι ήδη εισαγμένες συνομιλίες παραμένουν αμετάβλητα.",
+  "history_import.filtered_summary": "Φιλτραρίστηκαν: {{guardian}} έλεγχοι Guardian · {{noTask}} συνεδρίες χωρίς εργασίες χρήστη.",
   "history_import.folder": "Επιλογή φακέλου",
   "history_import.line": "Γραμμή {{line}}",
   "history_import.losses": "Εγγραφές που παραλείφθηκαν: {{skipped}} · Μετατροπές μπλοκ: {{downgraded}}",

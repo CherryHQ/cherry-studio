@@ -168,4 +168,69 @@ describe('Claude history projection', () => {
     ])
     expect(result.title).toBe('Actual request')
   })
+  it('filters only complete recognized setup histories, including user-role tool results', async () => {
+    const command = {
+      ...record('c', null),
+      message: {
+        content:
+          '<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args></command-args>'
+      }
+    }
+    const generated = {
+      ...record('r', 'c'),
+      message: { content: [{ type: 'tool_result', tool_use_id: 'tool', content: 'done' }] }
+    }
+    const result = await read([
+      command,
+      generated,
+      { type: 'system', subtype: 'local_command', uuid: 'local', parentUuid: 'r', content: 'local result' }
+    ])
+    expect(result.filteredReason).toBe('claude_no_user_task')
+    const refs = []
+    for await (const ref of claudeCodeAdapter.discover(root, new AbortController().signal)) refs.push(ref)
+    expect(refs[0].filteredReason).toBe('claude_no_user_task')
+    for (const content of [
+      'Hi',
+      [{ type: 'image', source: { type: 'base64', data: 'image' } }],
+      [{ type: 'document', source: { type: 'text', data: 'doc' } }],
+      '/model explain this command'
+    ]) {
+      expect((await read([command, { ...record('u', 'c'), message: { content } }])).filteredReason).toBeUndefined()
+    }
+  })
+  it('keeps unknown commands, damaged records, missing ancestors and unknown versions visible', async () => {
+    const setup = { ...record('c', null), isMeta: true }
+    const unknown = {
+      ...record('u', 'c'),
+      message: {
+        content:
+          '<command-name>/my-task</command-name><command-message>my-task</command-message><command-args></command-args>'
+      }
+    }
+    for (const rows of [
+      [setup, unknown],
+      [setup, '{broken'],
+      [setup, { type: 'future-record' }],
+      [{ ...setup, version: '2.1.999' }],
+      [{ ...setup, parentUuid: 'missing' }],
+      [{ ...setup, parentUuid: 'c' }],
+      [{ ...setup, parentUuid: undefined }],
+      [setup, { ...record('r', 'c'), message: { content: [{ type: 'future-block' }] } }]
+    ])
+      expect((await read(rows)).filteredReason).toBeUndefined()
+  })
+  it('keeps useful branches and asks to switch away from a setup-only branch', async () => {
+    const rows = [
+      { ...record('setup', null), isMeta: true },
+      { ...record('settings', 'setup'), isMeta: true },
+      record('task', 'setup')
+    ]
+    expect((await read(rows)).filteredReason).toBeUndefined()
+    const setup = await read(rows, 'settings')
+    expect(setup.filteredReason).toBeUndefined()
+    expect(setup.diagnostics).toContainEqual(expect.objectContaining({ code: 'branch_required', severity: 'error' }))
+    const task = await read(rows, 'task')
+    expect(task.diagnostics.some((d) => d.severity === 'error')).toBe(false)
+    expect(task.messages.at(-1)?.role).toBe('user')
+  })
 })
