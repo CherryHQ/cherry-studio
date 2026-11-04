@@ -10,7 +10,8 @@ import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessag
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
-function submissionDraft(message: AgentSessionMessageRow, whenBusy: BusyPolicy): InputDraft {
+function submissionDraft(message: AgentSessionMessageRow, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
+  if (preparedText !== undefined) return { inputId: runtimeId(message.id), text: preparedText, whenBusy }
   if (!message.data.parts?.length) throw new Error('Native submission requires message content')
   const text = message.data.parts
     .map((part) => {
@@ -25,11 +26,14 @@ export function prepareNativeSubmission(
   sessionId: string,
   messageId: string,
   contextId: string,
-  whenBusy: BusyPolicy
+  whenBusy: BusyPolicy,
+  prepared?: { text: string; parts: AgentSessionMessageRow['data']['parts'] }
 ): InputDraft {
   return application.get('DbService').withWriteTx((tx) => {
     const message = messages.bindInputContextTx(tx, sessionId, messageId, contextId)
-    return submissionDraft(message, whenBusy)
+    if (prepared && JSON.stringify(message.data.parts) !== JSON.stringify(prepared.parts))
+      throw new Error('Native input content changed during preparation')
+    return submissionDraft(message, whenBusy, prepared?.text)
   })
 }
 

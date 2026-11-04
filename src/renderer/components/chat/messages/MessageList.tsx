@@ -52,9 +52,6 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
 const MessageOutline = lazy(() => import('./frame/MessageOutline'))
-/** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
- * override is invisible until the rail gutter adds onto it. */
-const CHAT_SIDE_PADDING_PX = 24
 /** Max gutter the content yields on both sides as the column widens. The total
  * (base + max = 48px) exactly covers the rail's 32px hit strip + its margin, so
  * hover growth never touches the content nor does content enter the strip. */
@@ -112,6 +109,8 @@ type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   isLive: boolean
   narrowMode: boolean
   railGutterPx: number
+  sidePaddingPx: number
+  messageEndInsetPx: number
 }
 
 function MessageGroupLayer({
@@ -119,6 +118,8 @@ function MessageGroupLayer({
   isLive,
   narrowMode,
   railGutterPx,
+  sidePaddingPx,
+  messageEndInsetPx,
   messages,
   partsByMessageId,
   ...messageGroupProps
@@ -132,8 +133,8 @@ function MessageGroupLayer({
         // The gutter is mirrored on the left so the column stays
         // centred and both margins match while the rail fades in.
         style={{
-          paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-          paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+          paddingLeft: sidePaddingPx + railGutterPx,
+          paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
         }}>
         <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
       </NarrowLayout>
@@ -166,6 +167,8 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.groupKey === next.groupKey &&
     previous.narrowMode === next.narrowMode &&
     previous.railGutterPx === next.railGutterPx &&
+    previous.sidePaddingPx === next.sidePaddingPx &&
+    previous.messageEndInsetPx === next.messageEndInsetPx &&
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.captureMode === next.captureMode &&
@@ -193,7 +196,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // the composer yields the same right-hand space and stays aligned with the
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
-  const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
+  const { setForceWideLayout, railGutterPx, setRailGutterPx, sidePaddingPx, messageEndInsetPx } = useChatLayoutMode()
   const { topic, messages, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -793,8 +796,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           withSidePadding
           className="shrink-0"
           style={{
-            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+            paddingLeft: sidePaddingPx + railGutterPx,
+            paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
           }}>
           {beforeList}
         </NarrowLayout>
@@ -837,8 +840,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                     narrowMode={messageListNarrowMode}
                     withSidePadding
                     style={{
-                      paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-                      paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+                      paddingLeft: sidePaddingPx + railGutterPx,
+                      paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
                     }}>
                     {afterMessages}
                   </NarrowLayout>
@@ -854,6 +857,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                 isLive: index >= firstLiveGroupIndex,
                 narrowMode: messageListNarrowMode,
                 railGutterPx,
+                sidePaddingPx,
+                messageEndInsetPx,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,

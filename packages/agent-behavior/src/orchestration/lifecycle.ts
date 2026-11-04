@@ -3,6 +3,8 @@ import { ensureDriver } from '../core/driver/jobs'
 import { decideOnOpen } from '../core/driver/lifecycle'
 import { goalForRequest } from '../core/goal/goalHistory'
 import { keys } from '../core/keys'
+import { decideRunEnd } from '../core/subagents/subagentDecisions'
+import { runReport } from '../core/subagents/subagentText'
 import type { LifecycleHandlers } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { emitViews, gatherInputs, step } from './step'
@@ -18,6 +20,10 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
       await step(context, thread, (facts) => decideOnOpen(facts, inputs, { ...open, supportsTools }))
       // The host lost the views it showed, and a crash may have fallen between a step's commit and its views.
       if (open.reopened) await emitViews(context, thread)
+    },
+    async onChildOpenFailed(parent, child, error, ports) {
+      const answer = { outcome: 'failed' as const, text: '', error }
+      await step({ ports, host }, parent, (facts) => decideRunEnd(facts, child, 1, answer, runReport(answer)))
     },
     async onCompacting(thread, request, ports) {
       const { key, signal, history, ...summarize } = request
