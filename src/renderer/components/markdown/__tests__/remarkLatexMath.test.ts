@@ -304,6 +304,26 @@ describe('remarkLatexMath', () => {
     expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
   })
 
+  it.each([
+    ['description', 'Term\n: The closing token is \\end{align}'],
+    ['term', 'The closing token is \\end{align}\n: description'],
+    ['streaming description', 'Term\n: The closing token is \\end{align}']
+  ])('preserves unrelated definition %s through the production Markdown pipeline', (_label, tail) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${tail}`
+    const { container, getByRole } = render(
+      createElement(_label.startsWith('streaming') ? StreamingMarkdown : Markdown, {
+        id: `definition-${_label}`,
+        plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
+        remarkPlugins: [remarkLatexMath],
+        children: source
+      })
+    )
+    expect(getByRole('heading', { name: 'Explanation' })).toBeTruthy()
+    expect(container.querySelector('[data-streamdown="link"]')?.textContent).toBe('Reference')
+    expect(container.querySelector('dl')).toBeTruthy()
+    expect(container.querySelector('.katex-error')).toBeNull()
+  })
+
   it('ignores a closer inside a TeX percent comment', () => {
     const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])

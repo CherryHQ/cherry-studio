@@ -887,7 +887,12 @@ function repairSetextEnvironments(tree: Root, source: string): void {
   visit(tree, (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
-    if ((node.type === 'listItem' || node.type === 'footnoteDefinition') && start !== undefined && end !== undefined)
+    const nodeType: string = node.type
+    if (
+      (nodeType === 'listItem' || nodeType === 'footnoteDefinition' || nodeType === 'defListDescription') &&
+      start !== undefined &&
+      end !== undefined
+    )
       containerRanges.push({ start, end })
     if (
       node.type !== 'code' &&
@@ -895,7 +900,8 @@ function repairSetextEnvironments(tree: Root, source: string): void {
       node.type !== 'blockquote' &&
       node.type !== 'definition' &&
       node.type !== 'html' &&
-      node.type !== 'table'
+      node.type !== 'table' &&
+      nodeType !== 'defListTerm'
     )
       return undefined
     if (start !== undefined && end !== undefined) excludedRanges.push({ start, end })
@@ -933,7 +939,7 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     marker.lastIndex = cursor
     const match = marker.exec(source)
     if (!match || !ENVIRONMENT_NAMES.has(match[2])) continue
-    // Consume each list/footnote boundary once. Sibling and nested owners have
+    // Consume each flow-container boundary once. Sibling and nested owners have
     // separate marker stacks, so a closer cannot escape its container.
     while (activeContainers.length && containerRanges[activeContainers[activeContainers.length - 1]].end <= cursor)
       activeContainers.pop()
