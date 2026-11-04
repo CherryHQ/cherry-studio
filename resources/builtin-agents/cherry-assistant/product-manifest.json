@@ -600,6 +600,10 @@
         "name": "LiteLLM"
       },
       {
+        "id": "watt-cloud",
+        "name": "Watt Cloud"
+      },
+      {
         "id": "anthropic",
         "name": "Anthropic"
       },

@@ -164,6 +164,7 @@ import { VertexaiIcon } from './vertexai'
 import { ViduIcon } from './vidu'
 import { VolcengineIcon } from './volcengine'
 import { VoyageIcon } from './voyage'
+import { WattCloudIcon } from './watt-cloud/watt-cloud'
 import { WenxinIcon } from './wenxin'
 import { WorkersAiIcon } from './workers-ai'
 import { XiaoyiIcon } from './xiaoyi'
@@ -332,6 +333,7 @@ export const PROVIDER_ICON_CATALOG = {
   vidu: ViduIcon,
   volcengine: VolcengineIcon,
   voyage: VoyageIcon,
+  'watt-cloud': WattCloudIcon,
   wenxin: WenxinIcon,
   'workers-ai': WorkersAiIcon,
   xiaoyi: XiaoyiIcon,
