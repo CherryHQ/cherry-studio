@@ -13,6 +13,32 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('replays signed edited reasoning as a plain <think> text block', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'reasoning',
+            text: 'corrected thought',
+            providerMetadata: { cherry: { editedReasoningReplay: 'think' } }
+          },
+          { type: 'text', text: 'answer' }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '<think>\ncorrected thought\n</think>' },
+        { type: 'text', text: 'answer' }
+      ]
+    })
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [

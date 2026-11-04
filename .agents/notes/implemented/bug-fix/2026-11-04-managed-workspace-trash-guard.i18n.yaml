@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-managed-workspace-trash-guard.md
+2026-11-04-managed-workspace-trash-guard.md: c6f6510d2bed64633242e5e0698fdef85e1d420e
+2026-11-04-managed-workspace-trash-guard.zh.md: ca3b1f70daded5b32df66e591644956fe98a3e97

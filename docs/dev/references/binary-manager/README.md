@@ -2,6 +2,7 @@
 description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
 sources:
   - src/main/services/binaryManager/BinaryManager.ts
+  - src/main/services/binaryManager/claudeNpm.ts
   - src/main/services/binaryManager/pythonRuntime.ts
   - src/shared/data/presets/binaryTools.ts
   - src/main/ipc/handlers/binary.ts
@@ -19,6 +20,8 @@ sources:
 BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
 Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
+
+On Windows ARM64, the fixed `claude` recipe downloads the official `@anthropic-ai/claude-code-win32-arm64` npm archive. npm metadata supplies the version and SHA-512 digest; mise's HTTP backend verifies and extracts the native executable without an npm launcher or Node runtime. Installation and version checks honor the npm registry setting. The official registry and npmmirror fall back to each other; a custom registry remains exclusive. The recipe identity stays `claude`, so existing managed installations retain their launch, update, and removal paths. Agent SDK binaries remain independently managed.
 
 ## Tool definitions and runtime facts
 
