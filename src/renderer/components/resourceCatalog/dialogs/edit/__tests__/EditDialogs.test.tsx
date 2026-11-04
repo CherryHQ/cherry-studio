@@ -693,7 +693,11 @@ beforeEach(() => {
       return { trigger: createPromptMock, isLoading: false, error: undefined }
     }
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
-      return { trigger: updateAssistantMock, isLoading: false, error: undefined }
+      return {
+        trigger: ({ body }: { body: unknown }) => updateAssistantMock({ body }),
+        isLoading: false,
+        error: undefined
+      }
     }
     if (method === 'PATCH' && path.startsWith('/agents/')) {
       return { trigger: updateAgentMock, isLoading: false, error: undefined }

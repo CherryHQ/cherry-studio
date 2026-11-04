@@ -332,9 +332,13 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       data-composer-presentation="regular"
       onPointerDownCapture={markVoiceTargetCurrent}
       onFocusCapture={markVoiceTargetCurrent}
-      className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm ${
-        belowControls ? 'mb-0.5' : 'mb-3'
-      }`}>
+      className={
+        props.embedded
+          ? 'inputbar-container relative'
+          : `inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-composer-surface pt-2 shadow-sm ${
+              belowControls ? 'mb-0.5' : 'mb-3'
+            }`
+      }>
       {props.topContent}
       <div className={props.leadingContent ? 'flex items-start' : 'contents'}>
         {props.leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{props.leadingContent}</div> : null}
@@ -452,14 +456,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   return (
     <NarrowLayout
       narrowMode={props.narrowMode}
-      withSidePadding
+      withSidePadding={!props.embedded}
       className="pointer-events-auto"
       style={{
         width: '100%',
         ...(props.railGutterPx != null
           ? {
-              paddingLeft: COMPOSER_SIDE_PADDING_PX + props.railGutterPx,
-              paddingRight: COMPOSER_SIDE_PADDING_PX + props.railGutterPx
+              paddingLeft: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx,
+              paddingRight: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
             }
           : {})
       }}>

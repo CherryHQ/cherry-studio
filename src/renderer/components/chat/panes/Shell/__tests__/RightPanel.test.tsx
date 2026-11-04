@@ -295,13 +295,14 @@ describe('RightPanel', () => {
     expect(screen.getByText('first:1')).toBe(first)
   })
 
-  it('replaces state when a panel identity changes', () => {
+  it('closes a replaced instance until the user explicitly opens its replacement', async () => {
+    const user = userEvent.setup()
     const { rerender } = render(
       <Harness defaultOpen>
         <RightPanel />
       </Harness>
     )
-    fireEvent.click(screen.getByText('first:0'))
+    await user.click(screen.getByRole('button', { name: 'first:0' }))
 
     rerender(
       <Harness defaultOpen scope={{ ...readyScope, firstKey: 'replacement' }}>
@@ -309,7 +310,84 @@ describe('RightPanel', () => {
       </Harness>
     )
 
-    expect(screen.getByText('first:0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'first:0' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'second:0' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByRole('button', { name: 'first:0' })).toBeVisible()
+  })
+
+  it('closes an unavailable selection without opening another panel or reopening on recovery', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+
+    rerender(
+      <Harness defaultOpen scope={{ ...readyScope, firstReadiness: 'unavailable' }}>
+        <RightPanel />
+      </Harness>
+    )
+
+    expect(screen.queryByRole('button', { name: 'first:0' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'second:0' })).not.toBeInTheDocument()
+    rerender(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+    expect(screen.queryByRole('button', { name: 'first:0' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'open second' }))
+    expect(screen.getByRole('button', { name: 'second:0' })).toBeVisible()
+  })
+
+  it('keeps the selected stable instance open when another instance changes', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <Harness>
+        <RightPanel />
+      </Harness>
+    )
+    await user.click(screen.getByRole('button', { name: 'open second' }))
+    await user.click(screen.getByRole('button', { name: 'second:0' }))
+
+    rerender(
+      <Harness scope={{ ...readyScope, firstKey: 'replacement' }}>
+        <RightPanel />
+      </Harness>
+    )
+
+    expect(screen.getByRole('button', { name: 'second:1' })).toBeVisible()
+  })
+
+  it('opens an instance created in the same batch as its selection request', async () => {
+    function OpenDynamicPanel({ onCreate }: { onCreate: () => void }) {
+      const actions = useRightPanelActions()
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            onCreate()
+            actions.requestOpen('first')
+          }}>
+          create panel
+        </button>
+      )
+    }
+    function DynamicHarness() {
+      const [created, setCreated] = useState(false)
+      return (
+        <RightPanelProvider capabilities={created ? capabilities : []} scope={readyScope}>
+          <OpenDynamicPanel onCreate={() => setCreated(true)} />
+          <RightPanel />
+        </RightPanelProvider>
+      )
+    }
+    const user = userEvent.setup()
+    render(<DynamicHarness />)
+    await user.click(screen.getByRole('button', { name: 'create panel' }))
+    expect(screen.getByRole('button', { name: 'first:0' })).toBeVisible()
   })
 
   it('preserves open intent while environmental presentation is disabled', () => {
@@ -356,6 +434,21 @@ describe('RightPanel', () => {
 
     rerender(<Harness />)
     expect(screen.getByTestId('presentation-open')).toHaveTextContent('false')
+  })
+
+  it('opens the default available panel when the parent opens without naming a panel', () => {
+    const pane = (defaultOpen: boolean) => (
+      <RightPanelProvider capabilities={capabilities} scope={readyScope} defaultOpen={defaultOpen}>
+        <ControllerProbe />
+        <RightPanelViewport />
+      </RightPanelProvider>
+    )
+    const { rerender } = render(pane(false))
+
+    rerender(pane(true))
+
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+    expect(screen.getByRole('button', { name: 'first:0' })).toBeVisible()
   })
 
   it('uses one toggle behavior for shortcuts', () => {

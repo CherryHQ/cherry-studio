@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     'code-highlight': 'src/code-highlight.ts',
     'code-block': 'src/code-block.ts',
+    mermaid: 'src/mermaid.ts',
     'components/index': 'src/components/index.ts',
     'icons/index': 'src/components/icons/index.ts',
     'icons/providers/index': 'src/components/icons/providers/index.ts',

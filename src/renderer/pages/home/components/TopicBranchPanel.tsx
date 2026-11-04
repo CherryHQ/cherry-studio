@@ -1,8 +1,9 @@
 import { CopyPlus, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ConfirmDialog } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -22,6 +23,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
+import { planBranchDeletion } from '../utils/topicBranchDeletion'
 
 interface Props {
   open: boolean
@@ -59,6 +61,16 @@ const TopicBranchPanel: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
+  const [deletionTarget, setDeletionTarget] = useState<{
+    topicId: string
+    messageId: string
+    awaitingInputOnly: boolean
+  } | null>(null)
+  const deletingRef = useRef(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  useEffect(() => {
+    setDeletionTarget(null)
+  }, [open, topicId])
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
   const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
@@ -78,7 +90,7 @@ const TopicBranchPanel: FC<Props> = ({
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
-  const { reserveBranch, deleteReservedBranch } = useTopicBranchActions(topicId)
+  const { reserveBranch, deleteBranch } = useTopicBranchActions(topicId)
 
   const tree = useMemo(
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
@@ -161,25 +173,28 @@ const TopicBranchPanel: FC<Props> = ({
     [copyBranchToNewTopic, t, topicId]
   )
 
-  const handleDeleteAwaitingInputMessage = useCallback(
-    async (messageId: string) => {
-      const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (!selectedNode?.data.isAwaitingInput) return
-
-      try {
-        await deleteReservedBranch(messageId)
-        toast.success(t('common.delete_success'))
-      } catch (err) {
-        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
-          logger.warn('deleteAwaitingInputMessage from topic flow on missing message', { messageId, topicId })
-          return
-        }
-        logger.error('Failed to delete awaiting-input message from topic flow', err as Error)
-        toast.error(t('common.delete_failed'))
+  const handleConfirmDeleteBranch = useCallback(async () => {
+    if (!open || !deletionTarget || deletionTarget.topicId !== topicId || deletingRef.current) return false
+    const { messageId, awaitingInputOnly } = deletionTarget
+    deletingRef.current = true
+    setIsDeleting(true)
+    try {
+      await deleteBranch(messageId, awaitingInputOnly)
+      toast.success(t('common.delete_success'))
+    } catch (err) {
+      if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
+        logger.warn('deleteBranch from topic flow on missing message', { messageId, topicId })
+        return true
       }
-    },
-    [deleteReservedBranch, graph.nodes, t, topicId]
-  )
+      logger.error('Failed to delete topic branch from topic flow', err as Error)
+      toast.error(t('common.delete_failed'))
+    } finally {
+      deletingRef.current = false
+      setIsDeleting(false)
+      setDeletionTarget(null)
+    }
+    return true
+  }, [deleteBranch, deletionTarget, open, t, topicId])
 
   const handleNodeContextMenu = useCallback((messageId: string) => {
     contextMenuMessageIdRef.current = messageId
@@ -192,7 +207,7 @@ const TopicBranchPanel: FC<Props> = ({
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       const canShowStartBranch = selectedNode?.data.role === 'assistant'
-      const canDeleteAwaitingInput = selectedNode?.data.isAwaitingInput === true
+      const deletionPlan = planBranchDeletion(data ?? emptyTree, messageId)
 
       const actions: ResolvedAction[] = [
         {
@@ -221,14 +236,15 @@ const TopicBranchPanel: FC<Props> = ({
           children: []
         },
         {
-          id: 'topic-flow.delete-awaiting-input',
-          label: t('common.delete'),
+          id: 'topic-flow.delete-branch',
+          label: t('chat.message.flow.delete_branch.label'),
           icon: <DeleteIcon size={14} />,
           group: 'delete',
           danger: true,
           availability: {
-            visible: canDeleteAwaitingInput,
-            enabled: canDeleteAwaitingInput
+            visible: !deletionPlan.reason || deletionPlan.reason === 'pending',
+            enabled: !deletionPlan.reason,
+            reason: deletionPlan.reason === 'pending' ? t('message.delete.generating_unavailable') : undefined
           },
           children: []
         }
@@ -244,12 +260,12 @@ const TopicBranchPanel: FC<Props> = ({
           void handleCopyBranchToNewTopic(messageId)
           return
         }
-        if (action.id === 'topic-flow.delete-awaiting-input') {
-          void handleDeleteAwaitingInputMessage(messageId)
+        if (action.id === 'topic-flow.delete-branch') {
+          setDeletionTarget({ topicId, messageId, awaitingInputOnly: deletionPlan.awaitingInputOnly })
         }
       })
     },
-    [graph.nodes, handleCopyBranchToNewTopic, handleDeleteAwaitingInputMessage, handleStartNodeBranch, t]
+    [data, graph.nodes, handleCopyBranchToNewTopic, handleStartNodeBranch, t, topicId]
   )
 
   const handleContextMenuOpenChange = useCallback((open: boolean) => {
@@ -300,6 +316,19 @@ const TopicBranchPanel: FC<Props> = ({
           </CommandContextMenu>
         )}
       </div>
+      <ConfirmDialog
+        open={open && deletionTarget?.topicId === topicId}
+        onOpenChange={(dialogOpen) => {
+          if (!dialogOpen) setDeletionTarget(null)
+        }}
+        title={t('chat.message.flow.delete_branch.confirm_title')}
+        description={t('chat.message.flow.delete_branch.confirm_description')}
+        confirmText={t('chat.message.flow.delete_branch.label')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={isDeleting}
+        onConfirm={handleConfirmDeleteBranch}
+      />
     </div>
   )
 }

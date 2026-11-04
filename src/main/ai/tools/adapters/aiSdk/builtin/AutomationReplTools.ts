@@ -1,22 +1,19 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import { tool } from 'ai'
 
-import { automationReplDescription, automationReplInput, automationReplResetInput } from '@main/ai/tools/automationRepl'
+import {
+  automationReplDescription,
+  automationReplInput,
+  automationReplResetInput,
+  buildAutomationReplDescription
+} from '@main/ai/tools/automationRepl'
 
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
 export function createAutomationReplToolEntries(): ToolEntry[] {
-  return [false, true].map((reset) => ({
-    name: reset ? 'automation_repl_reset' : 'automation_repl',
-    namespace: 'automation',
-    description: reset
-      ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'
-      : automationReplDescription,
-    defer: 'never',
-    truncatable: false,
-    applies: (scope) => scope.browserEnabled === true || scope.computerUseEnabled === true,
-    tool: tool<Record<string, unknown>, CallToolResult>({
+  return [false, true].map((reset) => {
+    const fallbackTool = tool<Record<string, unknown>, CallToolResult>({
       description: reset
         ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'
         : automationReplDescription,
@@ -39,5 +36,25 @@ export function createAutomationReplToolEntries(): ToolEntry[] {
         })
       })
     })
-  }))
+    return {
+      name: reset ? 'automation_repl_reset' : 'automation_repl',
+      namespace: 'automation',
+      description: reset
+        ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'
+        : "Execute standard JavaScript in the persistent automation REPL, with only this request's enabled capabilities.",
+      defer: 'never',
+      truncatable: false,
+      applies: (scope) => scope.browserEnabled === true || scope.computerUseEnabled === true,
+      tool: fallbackTool,
+      ...(!reset && {
+        buildTool: (scope) => ({
+          ...fallbackTool,
+          description: buildAutomationReplDescription({
+            browser: scope.browserEnabled === true,
+            computer: scope.computerUseEnabled === true
+          })
+        })
+      })
+    }
+  })
 }

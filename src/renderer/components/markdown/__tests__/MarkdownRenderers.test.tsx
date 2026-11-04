@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import type { Element } from 'hast'
-import type { ComponentType, ImgHTMLAttributes, PropsWithChildren } from 'react'
+import type { ComponentType, ImgHTMLAttributes, MouseEvent, PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MarkdownHostProvider } from '../MarkdownHostProvider'
@@ -30,7 +30,7 @@ vi.mock('@renderer/components/ImageViewer', () => ({
 }))
 
 vi.mock('@renderer/components/OgCard', () => ({
-  OgCard: () => null
+  OgCard: () => <span data-testid="metadata-card" />
 }))
 
 const imageNode = {
@@ -177,4 +177,83 @@ describe('MarkdownRenderers', () => {
     expect(screen.getByText('code')).toBeVisible()
     expect(document.body).not.toHaveTextContent('[object Object]')
   })
+})
+
+describe('application URL links', () => {
+  it.each(['zotero://select/items/Note', 'obsidian://new?file=Note', 'siyuan://blocks/Note', 'vscode://file/tmp/note'])(
+    'opens %s once without mounting web metadata',
+    (href) => {
+      const openExternalUrl = vi.fn()
+      render(
+        <MarkdownHostProvider openExternalUrl={openExternalUrl}>
+          <Renderer name="a" href={href}>
+            Application note
+          </Renderer>
+        </MarkdownHostProvider>
+      )
+      const anchor = screen.getByRole('link', { name: 'Application note' })
+      const event = createEvent.click(anchor)
+      fireEvent(anchor, event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(href)
+      expect(screen.queryByTestId('metadata-card')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+    }
+  )
+})
+
+it.each(['http://example.test', 'https://example.test'])(
+  'preserves web clicks, modifiers and caller cancellation for %s',
+  (href) => {
+    const openExternalUrl = vi.fn()
+    const onClick = vi.fn()
+    const view = render(
+      <Renderer name="a" href={href} openExternalUrl={openExternalUrl} onClick={onClick}>
+        Website
+      </Renderer>
+    )
+    const anchor = screen.getByRole('link', { name: 'Website' })
+    for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
+      const event = createEvent.click(anchor, { [modifier]: true })
+      fireEvent(anchor, event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    const middleClick = createEvent.click(anchor, { button: 1 })
+    fireEvent(anchor, middleClick)
+    expect(middleClick.defaultPrevented).toBe(false)
+    expect(openExternalUrl).not.toHaveBeenCalled()
+    const event = createEvent.click(anchor)
+    fireEvent(anchor, event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(href)
+    expect(onClick).toHaveBeenCalled()
+    openExternalUrl.mockClear()
+    view.rerender(
+      <Renderer
+        name="a"
+        href={href}
+        openExternalUrl={openExternalUrl}
+        onClick={(click: MouseEvent) => click.preventDefault()}>
+        Website
+      </Renderer>
+    )
+    fireEvent.click(anchor)
+    expect(openExternalUrl).not.toHaveBeenCalled()
+  }
+)
+
+it('keeps file capability routing ahead of external URL routing', () => {
+  const openFilePath = vi.fn()
+  const openExternalUrl = vi.fn()
+  render(
+    <Renderer name="a" href="./notes.md" openFilePath={openFilePath} openExternalUrl={openExternalUrl}>
+      File note
+    </Renderer>
+  )
+  const anchor = screen.getByRole('link', { name: 'File note' })
+  const event = createEvent.click(anchor)
+  fireEvent(anchor, event)
+  expect(event.defaultPrevented).toBe(true)
+  expect(openFilePath).toHaveBeenCalledExactlyOnceWith('./notes.md')
+  expect(openExternalUrl).not.toHaveBeenCalled()
 })
