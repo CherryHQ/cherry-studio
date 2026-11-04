@@ -7,7 +7,11 @@ export default async function conversationScrollbar(context: ScenarioContext): P
   const { page } = context
   await context.ensureChinese()
   await page.evaluate(() =>
-    window.api.preference.setMultiple({ 'app.onboarding.provider_setup.status': 'skipped', 'topic.tab.show': true })
+    window.api.preference.setMultiple({
+      'app.onboarding.provider_setup.status': 'skipped',
+      'app.privacy.data_collection.enabled': false,
+      'topic.tab.show': true
+    })
   )
   await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 30_000 })
   const prefix = '滚动条验证'
@@ -29,6 +33,7 @@ export default async function conversationScrollbar(context: ScenarioContext): P
     }
   }, prefix)
   await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.bringToFront()
   await page.locator('button[aria-label="对话"][data-dnd-row-control=true]').click()
   const showSidebar = page.getByRole('button', { name: '显示侧边栏', exact: true }).first()
   const hideSidebar = page.getByRole('button', { name: '隐藏侧边栏', exact: true }).first()
