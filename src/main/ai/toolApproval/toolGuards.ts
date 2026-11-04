@@ -26,6 +26,7 @@ export interface ToolGuardInteractionState {
 
 /** Read-only per-invocation snapshot; every field is resolved at fire-time by the caller. */
 export interface ToolGuardContext {
+  readonly sessionId?: string
   readonly toolName: string
   readonly input: Readonly<Record<string, unknown>> | undefined
   readonly permissionMode: AgentPermissionMode | undefined

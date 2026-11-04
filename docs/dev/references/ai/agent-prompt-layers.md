@@ -29,6 +29,10 @@ Lower-priority guidance still applies when it does not conflict with a higher-pr
 
 The hierarchy is an explicit instruction contract provided to the model, not a deterministic enforcement or security boundary; application and runtime hooks independently enforce hard runtime and tool-safety constraints. Prompt composition still preserves existing workspace and `SOUL.md` content verbatim. This change does not structurally remove legacy role text, so resolving conflicts remains model-mediated rather than guaranteed.
 
+Remote MCP skill instructions enter as origin-labeled tool results, not System
+Prompt authority or local skill installations. Their tool approval and
+integrity boundary is described in [MCP Skills Client](./mcp-skills-client.md).
+
 ## System Prompt authoring
 
 Assistant and Agent editors both call the field **System Prompt** and expose variable insertion, resolved preview, generation, and polishing. Their storage and runtimes remain different: Assistant stores `assistant.prompt`; Agent stores `agent.instructions`. The editor's resolved preview is display-only: unresolved source text is persisted, and Main resolves it independently when materializing a connection.

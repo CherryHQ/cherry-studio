@@ -46,6 +46,8 @@ Model metadata, native errors and tool validation follow Pi's provider implement
 catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
 interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
 an interactive user turn. Child tools use the root's live agent policy.
+The interaction host also binds remote-skill approvals to their original provenance, cancels them
+on invalidation, and forwards single-use load receipts through the shared gate's approved arguments.
 
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the

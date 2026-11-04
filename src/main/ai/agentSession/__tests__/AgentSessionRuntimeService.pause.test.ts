@@ -55,7 +55,9 @@ vi.mock('@main/services/TopicNamingService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: (name: string) =>
-      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mocks.applicationGet(name)
+      name === 'RuntimeActivityService' || name === 'McpSkillService'
+        ? defaultServiceInstances[name]
+        : mocks.applicationGet(name)
   }
 }))
 

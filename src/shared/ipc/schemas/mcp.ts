@@ -10,6 +10,7 @@ import {
   McpResourceTemplateSchema,
   McpServerInstructionsSchema
 } from '@shared/types/mcp'
+import { McpSkillEntrySchema } from '@shared/types/mcpSkills'
 
 import { defineRoute } from '../define'
 
@@ -43,6 +44,10 @@ export const mcpRequestSchemas = {
   'mcp.server.stop': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.cancel_authorization': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.refresh_tools': defineRoute({ input: serverId, output: z.void() }),
+  'mcp.server.list_skills': defineRoute({
+    input: serverIdNonEmpty.extend({ requestId: z.uuid() }),
+    output: McpSkillEntrySchema.array()
+  }),
   'mcp.server.list_prompts': defineRoute({ input: serverIdNonEmpty, output: McpPromptSchema.array() }),
   'mcp.server.list_resources': defineRoute({ input: serverIdNonEmpty, output: McpResourceSchema.array() }),
   'mcp.server.list_resource_templates': defineRoute({

@@ -6,6 +6,7 @@ import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { McpSkillContextSchema, type McpSkillContext } from '@data/db/mcpSkillContext'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
@@ -129,7 +130,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.mcpSkills'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -330,6 +331,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   const result = { ...data }
   delete result.runtimeAnchor
   delete result.nativeSessionId
+  delete result.mcpSkills
   delete result.deliveryReplyAnchor
   return result
 }
@@ -1020,6 +1022,101 @@ export class AgentSessionMessageService {
     return { items, nextCursor }
   }
 
+  recordMcpSkill(sessionId: string, messageId: string, skill: McpSkillContext): void {
+    application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
+      const row = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+      const skills = (row.data.mcpSkills ?? []).filter(
+        (entry) => entry.serverId !== skill.serverId || entry.uri !== skill.uri
+      )
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...row.data, mcpSkills: [...skills, skill] } })
+        .where(eq(sessionMessagesTable.id, messageId))
+        .run()
+    })
+  }
+
+  invalidateMcpSkill(sessionId: string, serverId: string, uri: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select({ id: sessionMessagesTable.id, data: sessionMessagesTable.data })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql`json_type(${sessionMessagesTable.data}, '$.mcpSkills') = 'array'`
+          )
+        )
+        .all()
+      for (const row of rows) {
+        if (
+          !row.data.mcpSkills?.some((entry) => entry.serverId === serverId && entry.uri === uri && !entry.invalidated)
+        )
+          continue
+        const mcpSkills = row.data.mcpSkills.map((entry) =>
+          entry.serverId === serverId && entry.uri === uri ? { ...entry, invalidated: true } : entry
+        )
+        tx.update(sessionMessagesTable)
+          .set({ data: { ...row.data, mcpSkills } })
+          .where(eq(sessionMessagesTable.id, row.id))
+          .run()
+      }
+    })
+  }
+
+  listMcpSkillContexts(filter: {
+    serverId?: string
+    uri?: string
+    agentId?: string
+  }): { sessionId: string; skill: McpSkillContext }[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ sessionId: sessionMessagesTable.sessionId, data: sessionMessagesTable.data })
+      .from(sessionMessagesTable)
+      .innerJoin(sessionTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
+      .where(
+        and(
+          filter.agentId === undefined ? undefined : eq(sessionTable.agentId, filter.agentId),
+          sql`exists (
+        select 1 from json_each(${sessionMessagesTable.data}, '$.mcpSkills') as skill
+        where ${filter.serverId === undefined ? sql`1` : sql`json_extract(skill.value, '$.serverId') = ${filter.serverId}`}
+          and ${filter.uri === undefined ? sql`1` : sql`json_extract(skill.value, '$.uri') = ${filter.uri}`}
+          and json_extract(skill.value, '$.invalidated') = 0
+      )`
+        )
+      )
+      .all()
+      .flatMap(({ sessionId, data }) =>
+        McpSkillContextSchema.array()
+          .parse(data.mcpSkills)
+          .filter(
+            (skill) =>
+              (filter.serverId === undefined || skill.serverId === filter.serverId) &&
+              (filter.uri === undefined || skill.uri === filter.uri) &&
+              !skill.invalidated
+          )
+          .map((skill) => ({ sessionId, skill }))
+      )
+  }
+
+  listMcpSkills(sessionId: string): McpSkillContext[] {
+    const db = application.get('DbService').getDb()
+    this.assertActiveSession(db, sessionId)
+    return db
+      .select({ data: sessionMessagesTable.data })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.mcpSkills') = 'array'`
+        )
+      )
+      .all()
+      .flatMap(({ data }) => McpSkillContextSchema.array().parse(data.mcpSkills))
+  }
+
   listApprovalMessages(sessionId: string): AgentSessionMessageEntity[] {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
@@ -1049,6 +1146,13 @@ export class AgentSessionMessageService {
     this.assertActiveSession(database, sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
+    if (existing?.data.mcpSkills?.length) {
+      throw DataApiErrorFactory.resourceLocked(
+        'Message',
+        messageId,
+        'MCP skill instructions retained in native session history'
+      )
+    }
     if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
     }
@@ -1090,10 +1194,11 @@ export class AgentSessionMessageService {
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
+      const data = { ...mergedData, ...(existing.data.mcpSkills ? { mcpSkills: existing.data.mcpSkills } : {}) }
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
-        .set({ data: mergedData, updatedAt })
+        .set({ data, updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
@@ -1388,6 +1493,7 @@ export class AgentSessionMessageService {
     if (params.deliveryReplyAnchor) data.deliveryReplyAnchor = params.deliveryReplyAnchor
 
     if (existingRow) {
+      if (existingRow.data.mcpSkills) data.mcpSkills = existingRow.data.mcpSkills
       if (
         existingRow.inputContextId &&
         (JSON.stringify(existingRow.data.parts) !== JSON.stringify(data.parts) || message.role !== existingRow.role)

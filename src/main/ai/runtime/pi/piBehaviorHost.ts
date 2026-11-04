@@ -10,6 +10,7 @@ import type { PiRuntimeBehavior } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import type { McpSkillService } from '@main/ai/skills/McpSkillService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -171,6 +172,7 @@ export async function createPiInteractionPorts(
   const { callKeyOf } = await import('@cherrystudio/agent-behavior')
   const { input, approval } = options
   const outcomes = new Map<string, ApprovalOutcome>()
+  const skillApprovals = new WeakMap<CallRef, NonNullable<ReturnType<McpSkillService['toolApproval']>>>()
 
   async function ask(call: CallRef, name: string, args: Record<string, JsonValue>, signal: AbortSignal) {
     signal.throwIfAborted()
@@ -209,12 +211,53 @@ export async function createPiInteractionPorts(
 
   return {
     approvals: {
-      facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args)),
+      async facts(call, tool) {
+        const args = recordSchema.parse(tool.args)
+        const skills = application.get('McpSkillService')
+        const denied = skills.guardTool(input.sessionId, tool.name)
+        const skillApproval =
+          !denied && skills.toolApproval(input.sessionId, tool.name, args, approval.getPermissionMode())
+        if (skillApproval) skillApprovals.set(call, skillApproval)
+        const facts = await readPiApprovalFacts(approval, tool.name, args)
+        return {
+          ...facts,
+          disabled:
+            facts.disabled ||
+            !!denied ||
+            !!(skillApproval && skillApproval.signal.aborted) ||
+            !!skills.guardTool(input.sessionId, tool.name),
+          approvalRequired: facts.approvalRequired || !!skillApproval
+        }
+      },
       async ask({ call, tool }, signal) {
         const id = approvalId(call)
         outcomes.set(id, { call, state: 'pending' })
         try {
-          const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal)
+          const args = recordSchema.parse(tool.args)
+          const skills = application.get('McpSkillService')
+          const denial = skills.guardTool(input.sessionId, tool.name)
+          if (denial) {
+            outcomes.set(id, { call, state: 'denied' })
+            return { kind: 'denied' }
+          }
+          const skillApproval = skillApprovals.get(call)
+          skillApprovals.delete(call)
+          let decision: DispatchDecision | undefined
+          try {
+            decision = await ask(
+              call,
+              tool.name,
+              args,
+              skillApproval ? AbortSignal.any([signal, skillApproval.signal]) : signal
+            )
+            if (decision?.approved && skillApproval) {
+              if (decision.updatedInput) decision = { approved: false }
+              else decision = { ...decision, updatedInput: skillApproval.approve() }
+            }
+          } catch (error) {
+            if (!skillApproval || signal.aborted) throw error
+            decision = { approved: false }
+          }
           const feedback = decision?.reasonSource === 'user' ? decision.reason : undefined
           outcomes.set(id, {
             call,
