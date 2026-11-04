@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "ID do projeto Google Cloud",
   "local_agents.auth_region_unavailable": "Esta conta não pode utilizar o agente na região atual.",
   "local_agents.auth_runtime_credentials": "Credenciais de execução",
-  "local_agents.auth_status_unknown": "Não é possível confirmar o estado da sessão. Se já iniciou sessão, não precisa de fazer nada.",
   "local_agents.auth_waiting": "A iniciar sessão… Siga as instruções abertas pelo agente.",
   "local_agents.badge": "Local",
   "local_agents.chat_busy": "Está uma operação em curso. Tente novamente dentro de instantes.",

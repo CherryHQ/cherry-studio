@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "Google Cloud プロジェクト ID",
   "local_agents.auth_region_unavailable": "このアカウントの地域では、このエージェントを利用できません。",
   "local_agents.auth_runtime_credentials": "ランタイム認証情報",
-  "local_agents.auth_status_unknown": "ログイン状態を確認できません。すでにログイン済みの場合、操作は不要です。",
   "local_agents.auth_waiting": "ログイン中…エージェントが開いた案内に従ってください。",
   "local_agents.badge": "ローカル",
   "local_agents.chat_busy": "操作を実行中です。しばらくしてから再試行してください。",

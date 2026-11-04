@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "Google Cloud project ID",
   "local_agents.auth_region_unavailable": "This account is not eligible to use the agent in its current region.",
   "local_agents.auth_runtime_credentials": "Runtime credentials",
-  "local_agents.auth_status_unknown": "Sign-in status cannot be confirmed. If you are already signed in, no action is needed.",
   "local_agents.auth_waiting": "Signing in… Follow any instructions opened by the agent.",
   "local_agents.badge": "Local",
   "local_agents.chat_busy": "An operation is in progress. Please try again shortly.",

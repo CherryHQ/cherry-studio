@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "ID proiect Google Cloud",
   "local_agents.auth_region_unavailable": "Acest cont nu poate utiliza agentul în regiunea actuală.",
   "local_agents.auth_runtime_credentials": "Date de autentificare la execuție",
-  "local_agents.auth_status_unknown": "Starea autentificării nu poate fi confirmată. Dacă sunteți deja autentificat, nu este necesară nicio acțiune.",
   "local_agents.auth_waiting": "Se autentifică… Urmați instrucțiunile deschise de agent.",
   "local_agents.badge": "Local",
   "local_agents.chat_busy": "O operațiune este în curs. Încearcă din nou în câteva momente.",

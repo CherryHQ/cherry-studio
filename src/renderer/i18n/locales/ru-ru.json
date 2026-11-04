@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "ID проекта Google Cloud",
   "local_agents.auth_region_unavailable": "Этот аккаунт не может использовать агента в текущем регионе.",
   "local_agents.auth_runtime_credentials": "Учётные данные среды выполнения",
-  "local_agents.auth_status_unknown": "Не удалось подтвердить вход. Если вы уже вошли, никаких действий не требуется.",
   "local_agents.auth_waiting": "Выполняется вход… Следуйте инструкциям, открытым агентом.",
   "local_agents.badge": "Локальный",
   "local_agents.chat_busy": "Выполняется операция. Повторите попытку чуть позже.",

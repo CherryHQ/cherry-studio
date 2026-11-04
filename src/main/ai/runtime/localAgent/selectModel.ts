@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentService } from '@data/services/AgentService'
 import { t } from '@main/i18n'
 import { getEnvironmentValue } from '@main/utils/env'
@@ -109,7 +108,6 @@ export async function selectLocalAgentModel(
       return updated
     }
   )
-  notifyLocalModelChange(updated.id)
   return updated
 }
 
@@ -118,7 +116,7 @@ export function syncLocalAgentConfigModel(
   files: CliConfigWriteFile[],
   preserveModelSource = false,
   shellEnv: Record<string, string | undefined> = {}
-): string | undefined {
+): void {
   const entry = Object.entries(LOCAL_AGENT_MODEL_CONFIG).find(([, config]) => config.tool === tool)
   if (!entry) return
   const [presetId, native] = entry
@@ -146,12 +144,4 @@ export function syncLocalAgentConfigModel(
       }
     }
   })
-  return agent.id
-}
-
-export function notifyLocalModelChange(agentId: string) {
-  notifyDataApiDataChange([
-    { endpoint: '/agents', kind: 'projection', entityIds: [agentId] },
-    { endpoint: '/agents/:agentId', entityIds: [agentId] }
-  ])
 }

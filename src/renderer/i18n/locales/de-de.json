@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "Google Cloud-Projekt-ID",
   "local_agents.auth_region_unavailable": "Dieses Konto kann den Agenten in seiner aktuellen Region nicht nutzen.",
   "local_agents.auth_runtime_credentials": "Laufzeit-Anmeldedaten",
-  "local_agents.auth_status_unknown": "Der Anmeldestatus kann nicht bestätigt werden. Wenn Sie bereits angemeldet sind, ist keine Aktion nötig.",
   "local_agents.auth_waiting": "Anmeldung läuft… Folgen Sie den vom Agenten geöffneten Anweisungen.",
   "local_agents.badge": "Lokal",
   "local_agents.chat_busy": "Ein Vorgang läuft. Bitte versuche es gleich erneut.",

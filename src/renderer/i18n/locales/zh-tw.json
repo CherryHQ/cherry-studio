@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "Google Cloud 專案 ID",
   "local_agents.auth_region_unavailable": "目前帳號所在地區暫不支援此智慧體。",
   "local_agents.auth_runtime_credentials": "執行階段憑證",
-  "local_agents.auth_status_unknown": "無法確認目前登入狀態。如果已經登入，無需重複操作。",
   "local_agents.auth_waiting": "正在登入…請依照智慧體開啟的提示完成操作。",
   "local_agents.badge": "本機",
   "local_agents.chat_busy": "操作進行中，請稍後再試。",

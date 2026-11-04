@@ -261,7 +261,9 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(await new LocalAgentInstallService().install('antigravity-acp')).toMatchObject({ ok: true, reused: true })
     expect(fs.existsSync(path.join(state.root, 'agy'))).toBe(true)
     expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain(
-      'https://antigravity.google/cli/install.sh'
+      process.platform === 'win32'
+        ? 'https://antigravity.google/cli/install.ps1'
+        : 'https://antigravity.google/cli/install.sh'
     )
   })
 

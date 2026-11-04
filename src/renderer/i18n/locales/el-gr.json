@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "ID έργου Google Cloud",
   "local_agents.auth_region_unavailable": "Αυτός ο λογαριασμός δεν μπορεί να χρησιμοποιήσει τον πράκτορα στην τρέχουσα περιοχή.",
   "local_agents.auth_runtime_credentials": "Διαπιστευτήρια εκτέλεσης",
-  "local_agents.auth_status_unknown": "Δεν είναι δυνατή η επιβεβαίωση της σύνδεσης. Αν έχετε ήδη συνδεθεί, δεν απαιτείται ενέργεια.",
   "local_agents.auth_waiting": "Γίνεται σύνδεση… Ακολουθήστε τις οδηγίες που ανοίγει ο πράκτορας.",
   "local_agents.badge": "Τοπικό",
   "local_agents.chat_busy": "Μια λειτουργία βρίσκεται σε εξέλιξη. Δοκιμάστε ξανά σε λίγο.",

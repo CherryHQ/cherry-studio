@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "Google Cloud 项目 ID",
   "local_agents.auth_region_unavailable": "当前账号所在地区暂不支持此智能体。",
   "local_agents.auth_runtime_credentials": "运行时凭证",
-  "local_agents.auth_status_unknown": "无法确认当前登录状态。如果已经登录，无需重复操作。",
   "local_agents.auth_waiting": "正在登录…请按智能体打开的提示完成操作。",
   "local_agents.badge": "本地",
   "local_agents.chat_busy": "操作进行中，请稍后再试。",

@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "ID progetto Google Cloud",
   "local_agents.auth_region_unavailable": "Questo account non è abilitato a usare l’agente nella regione attuale.",
   "local_agents.auth_runtime_credentials": "Credenziali di esecuzione",
-  "local_agents.auth_status_unknown": "Impossibile confermare lo stato di accesso. Se hai già effettuato l’accesso, non devi fare nulla.",
   "local_agents.auth_waiting": "Accesso in corso… Segui le istruzioni aperte dall’agente.",
   "local_agents.badge": "Locale",
   "local_agents.chat_busy": "È in corso un’operazione. Riprova tra poco.",

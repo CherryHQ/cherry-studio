@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "รหัสโปรเจ็กต์ Google Cloud",
   "local_agents.auth_region_unavailable": "บัญชีนี้ไม่มีสิทธิ์ใช้เอเจนต์ในภูมิภาคปัจจุบัน",
   "local_agents.auth_runtime_credentials": "ข้อมูลรับรองรันไทม์",
-  "local_agents.auth_status_unknown": "ไม่สามารถยืนยันสถานะการลงชื่อเข้าใช้ได้ หากลงชื่อเข้าใช้แล้ว ไม่จำเป็นต้องดำเนินการใด ๆ",
   "local_agents.auth_waiting": "กำลังลงชื่อเข้าใช้… ทำตามคำแนะนำที่เอเจนต์เปิดขึ้น",
   "local_agents.badge": "ในเครื่อง",
   "local_agents.chat_busy": "กำลังดำเนินการ โปรดลองอีกครั้งในอีกสักครู่",

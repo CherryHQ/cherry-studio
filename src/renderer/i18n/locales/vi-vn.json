@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "ID dự án Google Cloud",
   "local_agents.auth_region_unavailable": "Tài khoản này không thể sử dụng tác nhân ở khu vực hiện tại.",
   "local_agents.auth_runtime_credentials": "Thông tin xác thực thời gian chạy",
-  "local_agents.auth_status_unknown": "Không thể xác nhận trạng thái đăng nhập. Nếu đã đăng nhập, bạn không cần thao tác thêm.",
   "local_agents.auth_waiting": "Đang đăng nhập… Làm theo hướng dẫn do tác tử mở.",
   "local_agents.badge": "Cục bộ",
   "local_agents.chat_busy": "Một thao tác đang diễn ra. Vui lòng thử lại sau giây lát.",

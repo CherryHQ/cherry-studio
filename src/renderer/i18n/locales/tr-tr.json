@@ -2290,7 +2290,6 @@
   "local_agents.auth_project": "Google Cloud proje kimliği",
   "local_agents.auth_region_unavailable": "Bu hesap mevcut bölgesinde bu aracıyı kullanamıyor.",
   "local_agents.auth_runtime_credentials": "Çalışma zamanı kimlik bilgileri",
-  "local_agents.auth_status_unknown": "Oturum durumu doğrulanamıyor. Zaten oturum açtıysanız işlem yapmanız gerekmez.",
   "local_agents.auth_waiting": "Oturum açılıyor… Aracının açtığı yönergeleri izleyin.",
   "local_agents.badge": "Yerel",
   "local_agents.chat_busy": "Bir işlem devam ediyor. Lütfen birazdan tekrar deneyin.",
