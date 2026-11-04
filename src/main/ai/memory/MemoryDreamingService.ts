@@ -170,8 +170,12 @@ export class MemoryDreamingService extends BaseService {
         const candidates = scopes
           .map((scope) => states.get(memoryScopeKey(scope)) ?? readDreamingState(scope))
           .filter((state) => state.manual || (automatic && !state.cancelled))
-        const priority = (state: DreamingState) =>
-          manualReady(state, now) ? 0 : Object.values(state.files).some((file) => needsDreaming(file, now)) ? 1 : 2
+        const priority = (state: DreamingState) => {
+          if (manualReady(state, now)) return 0
+          const entry = state.files[MEMORY_ENTRY]
+          if (entry && entry.attempts >= 2 && entry.reason === 'budget') return 2
+          return Object.values(state.files).some((file) => needsDreaming(file, now)) ? 1 : 2
+        }
         candidates.sort((left, right) => priority(left) - priority(right) || left.lastScanAt - right.lastScanAt)
         if (!candidates[0]) return { idle: true }
         return this.organize(candidates[0].scope, ctx)
