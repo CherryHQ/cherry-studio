@@ -71,6 +71,7 @@ export function ShellTabBarActions() {
   return (
     <div className="flex h-full shrink-0 items-stretch">
       <div className="flex items-center gap-1 pr-2 [-webkit-app-region:no-drag]">
+        {sidebarLayout !== 'full' ? <AppUpdateButton /> : null}
         {quickAssistantEnabled && showQuickAssistantInTabBar ? (
           <Tooltip placement="bottom" content={t('quickAssistant.tooltip.open')} delay={800}>
             <Button
@@ -84,7 +85,6 @@ export function ShellTabBarActions() {
             </Button>
           </Tooltip>
         ) : null}
-        {sidebarLayout !== 'full' ? <AppUpdateButton /> : null}
         <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
           <Button
             type="button"

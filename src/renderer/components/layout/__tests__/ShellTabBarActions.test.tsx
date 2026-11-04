@@ -191,6 +191,7 @@ describe('ShellTabBarActions', () => {
 
   it('keeps the update action at the left of the hidden-sidebar action group', () => {
     cacheService.setPersist('ui.sidebar.width', 0)
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
     updateState.available = true
     updateState.downloaded = true
     updateState.info = { version: '2.0.0' }
@@ -199,6 +200,7 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
+      'Open Quick Assistant',
       'Open global search',
       'Settings'
     ])
