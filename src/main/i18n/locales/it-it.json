@@ -156,6 +156,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU non ha completato l'elaborazione del documento (stato: {{status}}). Controlla il server e riprova.",
   "file_processing.errors.open_mineru_unreachable": "Impossibile connettersi a Open MinerU. Verifica che il server sia in esecuzione e che l'indirizzo sia corretto.",
   "file_processing.errors.pdf_page_limit_exceeded": "Questo PDF supera il limite di {{maxPages}} pagine del servizio attuale di analisi dei documenti. Dividi manualmente il PDF, quindi aggiungilo di nuovo.",
+  "models.check.incomplete_stream": "La verifica del modello è terminata prima che la risposta fosse completa. Riprova.",
   "notification.action_required.agent": "L'agente richiede il tuo intervento",
   "notification.action_required.assistant": "L'assistente richiede il tuo intervento",
   "notification.completion.agent": "Attività dell'agente completata",

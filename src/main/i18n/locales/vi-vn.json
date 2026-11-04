@@ -156,6 +156,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU chưa hoàn tất xử lý tài liệu (trạng thái: {{status}}). Hãy kiểm tra máy chủ rồi thử lại.",
   "file_processing.errors.open_mineru_unreachable": "Không thể kết nối với Open MinerU. Hãy kiểm tra xem máy chủ có đang chạy và địa chỉ có chính xác không.",
   "file_processing.errors.pdf_page_limit_exceeded": "Tệp PDF này vượt quá giới hạn {{maxPages}} trang của dịch vụ phân tích tài liệu hiện tại. Hãy chia nhỏ PDF theo cách thủ công rồi thêm lại.",
+  "models.check.incomplete_stream": "Quá trình kiểm tra mô hình đã kết thúc trước khi phản hồi hoàn tất. Vui lòng thử lại.",
   "notification.action_required.agent": "Agent cần phản hồi của bạn",
   "notification.action_required.assistant": "Trợ lý cần phản hồi của bạn",
   "notification.completion.agent": "Nhiệm vụ của Agent đã hoàn tất",

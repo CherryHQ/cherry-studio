@@ -37,6 +37,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -46,7 +47,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
-import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import {
@@ -1544,14 +1545,53 @@ export class AiService extends BaseService {
       } else {
         // Latency is the probe's measured output — thinking tokens would pollute it
         // for reasoning-capable models whose provider default enables reasoning.
-        probe = this.generateText({
+        const textRequest = {
           ...probeRequest,
           // A health check has no topic; each probe is its own conversation.
           conversation: { id: `check:${randomUUID()}` },
           system: 'test',
           prompt: 'hi',
-          reasoningEffort: 'none'
-        })
+          reasoningEffort: 'none' as const
+        }
+        probe =
+          resolveEffectiveEndpoint(provider, model).endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+            ? this.withRuntimeActivity('ai:check-model', async () => {
+                const stream = await this.streamText({
+                  ...textRequest,
+                  conversation: { ...textRequest.conversation, topicId: textRequest.conversation.id },
+                  trigger: 'submit-message',
+                  messages: [{ id: randomUUID(), role: 'user', parts: [{ type: 'text', text: textRequest.prompt }] }]
+                })
+                const reader = stream.getReader()
+                let finished = false
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) break
+                    if (value.type === 'error') throw new Error(value.errorText)
+                    if (value.type === 'abort') {
+                      signal.throwIfAborted()
+                      throw new Error(t('models.check.incomplete_stream'))
+                    }
+                    if (value.type === 'finish') {
+                      // The SDK can emit an EOF finish with `other` for a truncated response.
+                      if (!value.finishReason || value.finishReason === 'other' || value.finishReason === 'error') {
+                        throw new Error(t('models.check.incomplete_stream'))
+                      }
+                      finished = true
+                    }
+                  }
+                  signal.throwIfAborted()
+                  if (!finished) throw new Error(t('models.check.incomplete_stream'))
+                } catch (error) {
+                  controller.abort(error)
+                  await reader.cancel(error).catch(() => {})
+                  throw error
+                } finally {
+                  reader.releaseLock()
+                }
+              })
+            : this.generateText(textRequest)
       }
 
       await Promise.race([probe, aborted])
