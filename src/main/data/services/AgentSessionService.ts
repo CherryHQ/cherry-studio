@@ -378,9 +378,11 @@ export class AgentSessionService {
     const [firstMessage] = tx
       .select({ id: agentSessionMessageTable.id })
       .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
       .limit(1)
       .all()
+    // Session creation always inserts the contentless `root` row, so emptiness must be judged on
+    // real messages — otherwise a brand-new conversation could never switch runtime types.
     if (!firstMessage) return
     const runtimeTypes = tx
       .select({ id: agentsTable.id, type: agentsTable.type })
