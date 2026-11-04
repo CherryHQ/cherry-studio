@@ -150,8 +150,7 @@ const MessageErrorInfo: React.FC<{
     () =>
       cherryCloudQuotaRejection && error
         ? stripClaudeCodeRejectionPrefix(
-            getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data }) ||
-              getSafeProviderErrorMessage({ responseBody: error.message, message: error.message })
+            providerErrorText(error) || getSafeProviderErrorMessage({ responseBody: error.message })
           )
         : '',
     [cherryCloudQuotaRejection, error]
@@ -291,7 +290,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        {cherryCloudQuotaRejection ? cherryCloudQuotaText : <ErrorMessage error={error} />}
+        {cherryCloudQuotaText || <ErrorMessage error={error} />}
       </div>
 
       {/* Footer */}
