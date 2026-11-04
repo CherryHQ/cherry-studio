@@ -205,68 +205,50 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.9 - Diagrams, File Pane, and Provider Updates
+    Cherry Studio 2.1.10 - File Comments, Touch Reorder, and Update Timeline
 
     ✨ New Features
-    - [Diagrams] Mermaid diagrams now render with a faster engine in the background, match the app's light/dark theme, and open as previews from .mmd/.mermaid files.
-    - [Agent Files] Open files in tabs with a breadcrumb, resize the tree, and configure autosave, indent, and word wrap in pane settings. Right-click to attach files or folders as context.
-    - [Agents] Archive all conversations of an Agent in one action, with a confirmation showing the count. Delete conversation branches from the Branch Management panel.
-    - [Web Search] Add Desearch and SearchApi as web search providers.
-    - [Providers] Add QwenCloud with chat, image, reasoning controls and native web search. Rebrand DashScope to Qwen AI Platform with updated endpoints and icons. Add Anthropic prompt caching support for Vercel AI Gateway.
-    - [Code Theme] New default “Cherry” code theme blends into the app background in light and dark mode.
-    - [Thinking] Edit a message's reasoning content directly in the assistant message editor.
-    - [Permissions] Enabling Full Access now shows a scope confirmation before taking effect.
-    - [Tabs] The active conversation tab has a clearer selected outline and slightly bolder title.
-    - [Notes] Open a newly saved note directly from the export success toast.
+    - [Agent Files] Comment on files for the agent. In a text file, hover a line and click '+' (or drag across several lines) to write a comment. In Word, Excel, PDF and PowerPoint files, pick a part and click Comment. Each comment is added to the message as a chip with its location.
+    - [Updates] View skipped stable-version release notes in a collapsible timeline; single-version updates show their notes directly. Markdown footnote navigation now works correctly with backlinks.
+    - [Proxy] Test proxy connection in General Settings before saving, with support for PAC proxy/direct fallback reporting.
+    - [Touch] Reorder lists by pressing and holding a row. Buttons inside a row no longer start a drag. Selection Assistant settings now show enabled and disabled actions in one list separated by a divider.
 
     🐛 Bug Fixes
-    - [Tooltips] Fixed tooltips being cut off at the edge of dialogs, such as the help tooltips in the Selection Assistant custom action dialog.
-    - [Chat] Long silent reasoning phases no longer abort after 30 minutes; the idle bound is now 120 minutes. Fixed misleading error when an assistant's model no longer exists after an update.
-    - [Tabs] Show the conversation name and assistant icon on tabs again. New tabs open next to the active tab; the plus button appends at the end.
-    - [Navigation] Unified sidebar and tab selection style with clearer contrast in light and dark themes.
-    - [Notes] Fixed a freeze when typing a diagram code block. New diagram blocks open in edit mode.
-    - [Knowledge] Fixed rebuilds resetting chunking rules, imports timing out while waiting, interrupted conversions resuming after restart, and stuck “preparing” states.
-    - [Browser] Preserve unsaved input and page state when following fragment links in local HTML files.
-    - [File Links] Removed the hover reveal icon from chat file links; use the context menu to reveal a file.
-    - [Web Search] Fixed DashScope models failing with “This model does not support enable_search”. Blacklist rules now exclude domains on Bocha and Querit.
-    - [TTS] Kokoro Chinese text-to-speech now initializes correctly on Windows with the required Mandarin eSpeak data.
-    - [MCP] Fixed built-in MCP server documentation links that opened a removed page.
-    - [AiHubMix] Fix Claude chats failing with HTTP 400 when built-in tools include input examples.
+    - [Chat] The message list no longer jumps back to the first message while scrolling a conversation that contains code blocks.
+    - [Agents] Existing conversations resume correctly after moving the data directory, preserving their history.
+    - [Local Dictation] Fix local speech recognition silently losing the second half of long utterances.
+    - [Streaming] Fix missing or duplicated response text when stream replay overlaps incoming output.
+    - [Composer] Option descriptions in question panels are no longer truncated.
+    - [Right Panel] The browser sidebar no longer opens unexpectedly when creating or switching Agent tasks.
+    - [Code Block] Diagram preview toolbars are no longer clipped. Mermaid, Graphviz, SVG, LaTeX, and ECharts previews blend into the message background.
+    - [Knowledge] File conversion progress starts from 0% and updates immediately instead of every 5 seconds.
+    - [Conversation List] Recent conversations no longer sort to the bottom after midnight.
+    - [MiMo] Fix MiMo models returning “Unsupported model” errors.
 
     ⚡ Performance
-    - [Knowledge] Deleting or reindexing items in large knowledge bases is much faster.
-    - [Conversations] Fixed slow branch switching and message deletion in very long conversations. Loading earlier messages is faster.
+    - [Code Blocks] Reduce unnecessary rendering work while scrolling conversations with code blocks.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.9 - 图表、文件窗格与提供商更新
+    Cherry Studio 2.1.10 - 文件评论、触控排序与更新时间轴
 
     ✨ 新功能
-    - [图表] Mermaid 图表现在在后台用更快的引擎渲染，匹配应用的浅色/深色主题，并可直接预览 .mmd/.mermaid 文件。
-    - [智能体文件] 在标签页中打开文件，使用面包屑导航，调整文件树大小，并在窗格设置中配置自动保存、缩进和换行。右键可将文件或文件夹作为上下文附加。
-    - [智能体] 一键归档某个智能体的所有对话，确认框显示数量。从分支管理面板删除对话分支。
-    - [网页搜索] 新增 Desearch 和 SearchApi 网页搜索提供商。
-    - [提供商] 新增 QwenCloud，支持聊天、图像、推理控制和原生网页搜索。DashScope 更名为 Qwen AI Platform，更新端点和图标。Vercel AI Gateway 新增 Anthropic 提示词缓存支持。
-    - [代码主题] 新默认”Cherry”代码主题与浅色/深色模式下的应用背景融为一体。
-    - [思考] 直接在助手消息编辑器中编辑消息的推理内容。
-    - [权限] 启用完全访问权限前现在显示作用域确认。
-    - [标签页] 当前对话标签页带有更清晰的选中描边和略粗的标题。
-    - [笔记] 从导出成功提示直接打开刚保存的笔记。
+    - [智能体文件] 为智能体评论文件。在文本文件中，悬停一行并点击 '+'（或拖动多行）来编写评论。在 Word、Excel、PDF 和 PowerPoint 文件中，选择部分后点击评论。每条评论作为带有位置的芯片添加到消息中。
+    - [更新] 通过可折叠时间轴查看跨越的稳定版本更新日志；仅一个版本时直接展示日志。Markdown 脚注跳转及返回现已正常工作。
+    - [代理] 在通用设置中保存前测试代理连接，支持 PAC 代理/直接回退报告。
+    - [触控] 按住行可重新排序列表。行内按钮不再触发拖动。选区助手设置现以分隔线分隔启用和禁用的操作。
 
     🐛 问题修复
-    - [提示框] 修复对话框边缘的提示框被截断的问题，例如选区助手自定义操作对话框中的帮助提示。
-    - [对话] 长时间的静默推理阶段不再在 30 分钟后中断；空闲限制提升至 120 分钟。修复助手绑定的模型在更新后不存在时的误导性错误。
-    - [标签页] 标签页重新显示对话名称和助手图标。新标签页在当前标签旁打开；加号按钮在末尾追加。
-    - [导航] 统一侧边栏和标签页选中样式，改善浅色/深色主题下的对比度。
-    - [笔记] 修复输入图表代码块时的卡顿。新建图表代码块默认进入编辑模式。
-    - [知识库] 修复重建时重置分块规则、导入在等待时超时、中断的转换在重启后恢复、以及卡在”准备中”状态的问题。
-    - [浏览器] 在本地 HTML 文件中跟踪片段链接时保留未保存的输入和页面状态。
-    - [文件链接] 移除对话文件链接的悬停显示图标；使用右键菜单在系统中显示文件。
-    - [网页搜索] 修复 DashScope 模型在启用网页搜索时失败的问题。黑名单规则现可在博查和 Querit 端排除域名。
-    - [语音合成] Kokoro 中文语音合成现可在 Windows 上正确初始化，并包含所需的中文 eSpeak 数据。
-    - [MCP] 修复内置 MCP 服务器文档链接打开已删除页面的问题。
-    - [AiHubMix] 修复内置工具包含输入示例时 Claude 对话出现 HTTP 400 错误的问题。
+    - [聊天] 滚动包含代码块的会话时，消息列表不再跳回第一条消息。
+    - [智能体] 移动数据目录后，现有对话可正确恢复并保留历史。
+    - [本地语音识别] 修复本地语音识别在长语音后半段静默丢失的问题。
+    - [流式传输] 修复流式回放与传入输出重叠时响应文本丢失或重复的问题。
+    - [编辑器] 问题面板中的选项描述不再被截断。
+    - [右侧面板] 创建或切换智能体任务时，浏览器侧边栏不再意外打开。
+    - [代码块] 图表预览工具栏不再被裁剪。Mermaid、Graphviz、SVG、LaTeX 和 ECharts 预览融入消息背景。
+    - [知识库] 文件转换进度从 0% 开始并即时更新，而非每 5 秒更新一次。
+    - [对话列表] 午夜后最近对话不再排到底部。
+    - [MiMo] 修复 MiMo 模型返回”不支持的模型”错误的问题。
 
     ⚡ 性能优化
-    - [知识库] 在大型知识库中删除或重建索引的速度大幅提升。
-    - [对话] 修复超长对话中分支切换和消息删除缓慢的问题。加载更早的消息更快。
+    - [代码块] 减少滚动包含代码块的会话时的不必要渲染工作。
     <!--LANG:END-->

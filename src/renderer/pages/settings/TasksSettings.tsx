@@ -602,7 +602,7 @@ const TasksSettings: FC = () => {
 
   const createTaskWithAgent = useCallback(async () => {
     try {
-      const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create')
+      const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create', {})
       openRoute('/app/agents', { intent: 'task', sessionId })
     } catch (error) {
       logger.error('Failed to create scheduled task chat session', error as Error)
