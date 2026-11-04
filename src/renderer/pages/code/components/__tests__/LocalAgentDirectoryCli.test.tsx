@@ -84,7 +84,9 @@ it('offers installation before terminal actions for an absent agent', async () =
   render(<LocalAgentDirectory />)
   expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()
-  expect(screen.getByRole('tab', { name: '智能体模型' })).toBeDisabled()
+  expect(screen.getByRole('tab', { name: '智能体模型' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '跟随 CLI' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '刷新' })).toBeDisabled()
   expect(screen.getByRole('tab', { name: '服务商模型' })).toBeDisabled()
 })
 
