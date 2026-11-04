@@ -5,9 +5,13 @@
  * scope-bound endpoint takes `scopeKey` as a query/body field (never a path
  * param — scope keys contain `:` separators).
  *
- * There is no PATCH on `/followup-queues/:id`: items are immutable (edit =
- * restore to composer + remove + re-enqueue). Send arbitration runs through
- * the `claim` / `fail` actions, reorder through the shared order endpoints.
+ * API caller contract: there is no PATCH on `/followup-queues/:id`; items are
+ * immutable. A caller implementing edit/restoration must close the original
+ * and enqueue replacement content with a fresh ID. Closing retains an
+ * idempotency receipt: retrying enqueue with the original ID returns that
+ * receipt, not replacement content. This describes the API contract, not
+ * current renderer wiring. Send arbitration runs through the `claim` / `fail`
+ * actions, reorder through the shared order endpoints.
  */
 
 import * as z from 'zod'
@@ -133,7 +137,7 @@ export type FollowupQueueSchemas = {
    * @example DELETE /followup-queues/abc123
    */
   '/followup-queues/:id': {
-    /** Remove one item (hard delete by item id) */
+    /** Close one item and release its file refs, retaining a same-ID retry receipt. */
     DELETE: {
       params: { id: string }
       response: void
