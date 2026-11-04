@@ -58,10 +58,12 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { subscribeAgentDraftHandoff, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -106,6 +108,7 @@ import { type AgentConversationWorkspace } from './agent/AgentConversationContro
 import {
   type AgentComposerDraftCache,
   type AgentComposerDraftCacheKey,
+  appendConversationDraft,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
@@ -136,7 +139,6 @@ import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBase
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
-import { useLatest } from './shared/useLatest'
 import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('AgentComposer')
@@ -213,6 +215,8 @@ type Props = {
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
+  steerWhileBusy?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -243,6 +247,7 @@ const AgentComposerRoot = ({
   compactWhenSingleLine = false,
   previewInputFile,
   launchOptions,
+  steerWhileBusy = false,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -265,7 +270,10 @@ const AgentComposerRoot = ({
   // Persistence follows the live launch options, not the sticky seed: once the launch message is
   // sent the session owns its draft again, so follow-ups are cached like any other session's.
   const draftPersistenceEnabled = launchOptions === undefined
-  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}`
+  // A draft handed over from another window remounts the composer around the merged draft.
+  const handoffDraftRef = useRef<RestoredAgentComposerDraftCache | null>(null)
+  const [handoffRevision, setHandoffRevision] = useState(0)
+  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}:${handoffRevision}`
   const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
   const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
   const draftCacheKey = getAgentDraftCacheKey(sessionId)
@@ -277,7 +285,7 @@ const AgentComposerRoot = ({
   if (initialDraftRef.current?.instanceKey !== scopedComposerInstanceKey) {
     let draft: RestoredAgentComposerDraftCache
     if (launchInitialDraft === undefined) {
-      draft = readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+      draft = handoffDraftRef.current ?? readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
     } else {
       // A launch draft is never cached, so a scope change (switching the session workspace)
       // has to carry the live edits over itself — re-seeding the template would silently
@@ -302,6 +310,27 @@ const AgentComposerRoot = ({
     initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
   }
   const { draft: initialDraft } = initialDraftRef.current
+
+  useEffect(() => {
+    if (!draftPersistenceEnabled) return
+    const takeHandoffs = () => {
+      const drafts = takeAgentDraftHandoffs(sessionId)
+      if (drafts.length === 0) return
+      handoffDraftRef.current = drafts.reduce(
+        appendConversationDraft,
+        readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+      )
+      setHandoffRevision((revision) => revision + 1)
+    }
+    takeHandoffs()
+    return subscribeAgentDraftHandoff(sessionId, takeHandoffs)
+  }, [agentId, draftCacheKey, draftPersistenceEnabled, sessionId, workspaceKey])
+  // Passive effects run after the replaced composer saved its own draft on unmount, so this write wins.
+  useEffect(() => {
+    if (!handoffDraftRef.current) return
+    writeAgentDraftCache(draftCacheKey, handoffDraftRef.current)
+    handoffDraftRef.current = null
+  }, [draftCacheKey, handoffRevision])
   const handleNewSessionShortcut = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
@@ -377,6 +406,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
+        steerWhileBusy={steerWhileBusy}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
@@ -420,6 +450,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  steerWhileBusy: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
@@ -500,6 +531,7 @@ const AgentComposerInner = ({
   compactWhenSingleLine,
   previewInputFile,
   launchOptions,
+  steerWhileBusy,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
@@ -517,7 +549,7 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [steerShortcut] = usePreference('chat.input.steer_shortcut')
@@ -1200,13 +1232,12 @@ const AgentComposerInner = ({
   const sendKeyLabel = getComposerShortcutLabel(sendMessageShortcut)
   const steerKeyLabel = getComposerShortcutLabel(resolvedSteerShortcut)
 
-  const placeholderText = useMemo(
-    () =>
-      isStreaming
-        ? t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
-        : t('agent.input.placeholder'),
-    [isStreaming, sendKeyLabel, steerKeyLabel, t]
-  )
+  const placeholderText = useMemo(() => {
+    if (!isStreaming) return t('agent.input.placeholder')
+    return steerWhileBusy
+      ? t('agent.input.placeholder_steering')
+      : t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
+  }, [isStreaming, sendKeyLabel, steerKeyLabel, steerWhileBusy, t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -1397,7 +1428,7 @@ const AgentComposerInner = ({
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer) {
+      if (isStreaming && !options?.steer && !steerWhileBusy) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1421,6 +1452,7 @@ const AgentComposerInner = ({
       model,
       sendDisabled,
       sendQueuedPayload,
+      steerWhileBusy,
       t,
       workspaceWarning
     ]
@@ -1593,7 +1625,7 @@ const AgentComposerInner = ({
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
           sendMessageShortcut={sendMessageShortcut}
-          steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
+          steerShortcut={isStreaming && !steerWhileBusy ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
             isDirectSending ||
@@ -1655,6 +1687,7 @@ const AgentComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
+          sidePaddingPx={sidePaddingPx}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}

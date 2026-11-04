@@ -18,7 +18,6 @@ import type {
 import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
-  buildResourceListGroupDropAnchor,
   CONVERSATION_ROW_STATUS_TITLE_CLASS,
   ConversationRowStatus,
   type ConversationRowStatusValue,
@@ -87,7 +86,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
-import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
+import { buildResourceListGroupDropAnchor, withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   applyOptimisticTopicDisplayMove,
   buildAssistantGroupDropAnchor,

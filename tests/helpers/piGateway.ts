@@ -7,6 +7,7 @@ import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-
 import { type AssistantMessage, InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai'
 import {
   type AgentSession,
+  type SessionEntry,
   ModelRuntime,
   type ProviderModelConfig,
   SessionManager
@@ -25,7 +26,7 @@ import { onTestFinished } from 'vitest'
 import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
 import { loadPiApiStreamSimple } from '@main/ai/runtime/pi/piSdk'
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
 
@@ -152,16 +153,18 @@ export function tempDir(label: string): string {
 type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
 export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
   Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+    entries?: SessionEntry[]
+    sessionId?: string
     history?: Message[]
     model?: TestModel
     port: GatewayFixture
   }
 
 export async function createTestSession(options: TestSessionOptions) {
-  const { port, model, history, ...sessionOptions } = options
+  const { port, model, history, entries, sessionId, ...sessionOptions } = options
   const binding = await createTestBinding({ port, model })
   const cwd = options.cwd ?? tempDir('cwd')
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
+  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries)
   for (const message of history ?? []) sessionManager.appendMessage(message)
   const runtime = await createAgentRuntimeSession({
     cwd,
@@ -170,7 +173,20 @@ export async function createTestSession(options: TestSessionOptions) {
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
     settings: { retry: { enabled: false }, ...sessionOptions.settings },
-    ...binding
+    ...binding,
+    subagents: options.subagents && {
+      ...options.subagents,
+      async configure(child, signal) {
+        const configured = await options.subagents!.configure(child, signal)
+        if (!configured.model || child.fork || configured.modelRuntime) return configured
+        const { provider, id, ...spec } = configured.model
+        const childBinding = await createTestBinding({
+          port,
+          model: { ...spec, id: createUniqueModelId(provider, id) }
+        })
+        return { ...configured, ...childBinding }
+      }
+    }
   })
   onTestFinished(() => runtime.dispose())
   return runtime
@@ -181,8 +197,6 @@ export function lastAssistant(session: AgentSession): AssistantMessage {
   if (!message) throw new Error('no assistant message')
   return message
 }
-
-export const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 export const finish = (
   unified: 'stop' | 'tool-calls' | 'length' | 'other',

@@ -14,9 +14,13 @@ afterEach(() => {
 
 describe('validation selection', () => {
   it.each([
-    'docs/contrib/development.md',
+    'docs/dev/contrib/development.md',
     'src/main/core/README.md',
     'packages/ui/README.md',
+    'docs/website/content/pre-basic/settings/README.md',
+    'docs/website/content/assets/screenshot.webp',
+    'docs/website/locales.json',
+    '.github/website-docs-sync-plan.json',
     '.agents/notes/proposed/process/plan.zh.md'
   ])('keeps ordinary documentation out of code tests: %s', (file) => {
     const plan = createPlan([file])
@@ -27,7 +31,7 @@ describe('validation selection', () => {
     const runtime = createPlan(['resources/skills/tool/SKILL.md'])
     expect(runtime.projects).toContain('scripts')
     expect(runtime.projects).toContain('main')
-    const mixed = createPlan(['docs/README.md', 'src/renderer/components/Thing.tsx'])
+    const mixed = createPlan(['docs/dev/README.md', 'src/renderer/components/Thing.tsx'])
     expect(mixed.projects).toContain('renderer')
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
@@ -40,8 +44,9 @@ describe('validation selection', () => {
   it.each([
     [
       'packages/agent-runtime/src/contracts.ts',
-      ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main']
+      ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main']
     ],
+    ['packages/agent-behavior/src/index.ts', ['agent-behavior', 'agent-runtime-pi', 'main']],
     ['packages/agent-runtime-pi/src/runtime.ts', ['agent-runtime-pi', 'main']],
     ['packages/agent-runtime-pi-durable/src/runtime.ts', ['agent-runtime-pi-durable']],
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
@@ -56,6 +61,13 @@ describe('validation selection', () => {
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
+  })
+  // Catches an agent-behavior change that skips its own typecheck or the coding-agent adapter, whose contract test
+  // runs against the package (agent-runtime-pi depends on it, and main bundles agent-runtime-pi).
+  it('checks agent-behavior with its coding-agent adapter', () => {
+    const plan = createPlan(['packages/agent-behavior/src/core/facts.ts'])
+    expect(plan.projects).toEqual(expect.arrayContaining(['main', 'agent-behavior', 'agent-runtime-pi']))
+    expect(plan.tasks).toEqual(expect.arrayContaining(['types-agent-behavior', 'types-agent-runtime-pi']))
   })
   it('selects the portable web search typecheck alongside its Desktop consumers', () => {
     const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
@@ -266,7 +278,7 @@ describe('validation execution', () => {
       ...process.env,
       npm_execpath: pnpm,
       COMMAND_LOG: log,
-      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/contrib/development.md']))
+      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/dev/contrib/development.md']))
     }
     const invoke = (...args: string[]) =>
       spawnSync(process.execPath, ['scripts/validation/run.mjs', ...args], { env, encoding: 'utf8' })

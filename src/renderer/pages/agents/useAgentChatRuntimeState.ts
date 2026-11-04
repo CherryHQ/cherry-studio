@@ -135,6 +135,8 @@ function findAskUserQuestionPartByCallId(
 
 export interface AgentChatRuntimeState {
   sessionId: string
+  getMessageSiblings: ReturnType<typeof useAgentSessionParts>['getMessageSiblings']
+  setActiveBranch: ReturnType<typeof useAgentSessionParts>['setActiveBranch']
   uiMessages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
@@ -255,6 +257,8 @@ export function useAgentChatRuntimeState({
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
+    getMessageSiblings,
+    setActiveBranch,
     persistedPartsByMessageId,
     isLoading,
     hasOlder,
@@ -475,7 +479,12 @@ export function useAgentChatRuntimeState({
   }, [])
 
   const displayMessages = useMemo(
-    () => optimisticMessages ?? mergeMessagesById(uiMessages, liveAssistants),
+    () =>
+      optimisticMessages ??
+      mergeMessagesById(
+        uiMessages,
+        liveAssistants.filter((live) => uiMessages.some((message) => message.id === live.id))
+      ),
     [liveAssistants, optimisticMessages, uiMessages]
   )
 
@@ -626,6 +635,8 @@ export function useAgentChatRuntimeState({
   return {
     sessionId,
     uiMessages: displayMessages,
+    getMessageSiblings,
+    setActiveBranch,
     partsByMessageId,
     streamingLayers,
     optimisticAskUserQuestionInputsByToolCallId,

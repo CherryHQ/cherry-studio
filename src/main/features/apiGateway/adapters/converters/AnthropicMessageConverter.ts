@@ -19,7 +19,7 @@ import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIP
 import { tool, zodSchema } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
 
@@ -309,7 +309,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   /**
    * Convert Anthropic tools to an AI SDK `ToolSet` (client tools, no `execute`).
    */
-  toAiSdkTools(params: MessageCreateParams): ToolSet | undefined {
+  toAiSdkTools(params: MessageCreateParams, targetEndpointType?: EndpointType): ToolSet | undefined {
     const tools = params.tools
     if (!tools || tools.length === 0) return undefined
     this.prepareToolNames(tools)
@@ -326,10 +326,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const aiTool = tool({
         description: sanitizeDescription(toolDef.description || ''),
         inputSchema: zodSchema(schema),
-        // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
-        // Responses strict-mode's all-properties-required contract, so match the
-        // Codex client's dynamic-tool behavior and opt out explicitly.
-        strict: false
+        // Only Responses needs an explicit opt-out; omit elsewhere because CherryIN/Bedrock rejects unknown tool fields (#23378).
+        ...(targetEndpointType === ENDPOINT_TYPE.OPENAI_RESPONSES ? { strict: false } : {})
       })
 
       aiSdkTools[this.toProviderToolName(toolDef.name)] = aiTool
