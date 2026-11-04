@@ -882,6 +882,16 @@ function repairSetextEnvironments(tree: Root, source: string): void {
   // for every unclosed heading would make malformed input quadratic.
   // Literal code, definitions, HTML, tables and quotes cannot close an outer
   // environment. Preorder ranges are ordered; SKIP keeps them disjoint.
+  // Precompute line-prefix eligibility once, rather than scanning a long
+  // line backwards again for each unmatched opener sharing a closer.
+  const linePrefixIsWhitespace = new Uint8Array(source.length)
+  let whitespaceOnly = true
+  for (let offset = 0; offset < source.length; offset++) {
+    linePrefixIsWhitespace[offset] = whitespaceOnly ? 1 : 0
+    const char = source[offset]
+    if (char === '\n' || char === '\r') whitespaceOnly = true
+    else if (char !== ' ' && char !== '\t') whitespaceOnly = false
+  }
   const excludedRanges: Array<{ start: number; end: number }> = []
   const containerRanges: Array<{ start: number; end: number }> = []
   visit(tree, (node) => {
@@ -974,6 +984,19 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     if (parent.type === 'blockquote') return SKIP
     if (!('children' in parent)) return undefined
     const children = parent.children as RootContent[]
+    // A standalone closer still supports Markdown-looking formula bodies.
+    // For an inline closer, unrelated structural siblings are stronger
+    // evidence of prose than blank paragraph breaks alone.
+    const structureCounts = [0]
+    for (const child of children) {
+      let structured = child.type !== 'paragraph'
+      if (!structured) {
+        visit(child, (descendant) => {
+          if (descendant.type === 'link' || descendant.type === 'image') structured = true
+        })
+      }
+      structureCounts.push(structureCounts[structureCounts.length - 1] + (structured ? 1 : 0))
+    }
     const repaired: RootContent[] = []
     for (let i = 0; i < children.length; i++) {
       const node = children[i]
@@ -1004,6 +1027,13 @@ function repairSetextEnvironments(tree: Root, source: string): void {
       if (end === undefined || end < closeEnd || source.slice(closeEnd, end).trim()) {
         // The first balanced closer has trailing prose: preserve the original
         // unsupported path instead of consuming unrelated Markdown later on.
+        repaired.push(node)
+        continue
+      }
+      // After unrelated structured siblings, an inline closing command may
+      // be a prose mention. Preserve those siblings instead of swallowing them.
+      const closerStart = closeEnd - `\\end{${name}}`.length
+      if (structureCounts[lo] > structureCounts[i + 1] && !linePrefixIsWhitespace[closerStart]) {
         repaired.push(node)
         continue
       }

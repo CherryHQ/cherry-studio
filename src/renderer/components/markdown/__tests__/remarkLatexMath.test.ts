@@ -324,6 +324,31 @@ describe('remarkLatexMath', () => {
     expect(container.querySelector('.katex-error')).toBeNull()
   })
 
+  it.each([Markdown, StreamingMarkdown])(
+    'preserves later prose that merely describes an environment closer',
+    (Renderer) => {
+      const source =
+        '\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\nTo close this environment, write \\end{align}'
+      const { container, getByRole } = render(
+        createElement(Renderer, {
+          id: 'prose-closer',
+          plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
+          remarkPlugins: [remarkLatexMath],
+          children: source
+        })
+      )
+      expect(getByRole('heading', { name: 'Explanation' })).toBeTruthy()
+      expect(container.querySelector('[data-streamdown="link"]')?.textContent).toBe('Reference')
+      expect(container.textContent).toContain('To close this environment, write')
+      expect(container.querySelector('.katex-error')).toBeNull()
+    }
+  )
+
+  it('preserves recovery of a blank-line formula with an inline tail closer', () => {
+    const source = '\\begin{align}\na\n=\nb\n\nc=d\\end{align}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
   it('ignores a closer inside a TeX percent comment', () => {
     const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
     expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
