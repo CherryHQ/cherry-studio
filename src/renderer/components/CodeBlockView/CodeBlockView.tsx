@@ -132,7 +132,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
 
-  const [viewState, setViewState] = useState(() => {
+  const [viewState, setViewState] = useState<{ mode: ViewMode; previousMode: ViewMode }>(() => {
     const initialMode: ViewMode = language === 'mermaid' && !mermaidAutoRender ? 'source' : 'special'
     return { mode: initialMode, previousMode: initialMode }
   })

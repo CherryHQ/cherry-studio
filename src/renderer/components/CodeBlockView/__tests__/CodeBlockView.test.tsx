@@ -127,6 +127,17 @@ describe('CodeBlockView', () => {
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('graph TD; A-->B')
   })
 
+  it('keeps a manual edit choice when the preference changes after mounting', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<CodeBlockView language="mermaid">{'graph TD; A-->B'}</CodeBlockView>)
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', false)
+    rerender(<CodeBlockView language="mermaid">{'graph TD; A-->B'}</CodeBlockView>)
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+  })
+
   it('renders display-only code without a toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
