@@ -353,3 +353,35 @@ it('keeps ordinary installs out of destructive-command approval', () => {
   expect(detectDestructiveCommand('& pip.exe install --user x', 'powershell')).toBeNull()
   expect(detectDestructiveCommand('npm i -g x', 'bash')).toBeNull()
 })
+
+it.each([
+  ['echo \\#1; rm -rf dist', 'bash'],
+  ['rm -rf dist', 'bash'],
+  ['if true; then rm -rf dist; fi', 'bash'],
+  ['Remove-Item -Recurse -Force dist', 'powershell'],
+  ["& 'Remove-Item' -Recurse -Force dist", 'powershell'],
+  ['& { Remove-Item -Recurse -Force dist }', 'powershell'],
+  ['& {Remove-Item -Recurse -Force dist}', 'powershell'],
+  [String.raw`& 'C:\Program Files\Git\cmd\git.exe' reset --hard HEAD`, 'powershell'],
+  ['git reset --hard HEAD', 'powershell']
+] as const)('detects command position probe %s', (command, shell) => {
+  expect(detectDestructiveCommand(command, shell)).not.toBeNull()
+})
+
+it.each([
+  ["printf '%s\\n' cleanup\\ #1; rm -rf dist", 'bash', 'file deletion (rm)'],
+  ['if (Test-Path dist) { Remove-Item -Recurse -Force dist }', 'powershell', 'PowerShell file deletion'],
+  ['Write-Output $(Remove-Item -Recurse -Force dist)', 'powershell', 'PowerShell file deletion']
+] as const)('reports the destructive command in %s', (command, shell, reason) => {
+  expect(detectDestructiveCommand(command, shell)).toBe(reason)
+})
+
+it.each([
+  ['"Remove-Item"', 'powershell'],
+  ['for service in api worker; do echo "$service"; done', 'bash'],
+  ['echo "rm -rf dist"', 'bash'],
+  ['sed -n /}/p src/app.ts', 'bash'],
+  ["echo hi # don't ship; rm -rf dist", 'bash']
+] as const)('allows command position probe %s', (command, shell) => {
+  expect(detectDestructiveCommand(command, shell)).toBeNull()
+})

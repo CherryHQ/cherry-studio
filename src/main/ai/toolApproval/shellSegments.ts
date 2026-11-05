@@ -1,11 +1,13 @@
 function scanShellSegments(command: string, separator: RegExp, shell: 'bash' | 'powershell') {
   const segments: string[] = []
   let start = 0
+  let escapedIndex = -1
   let quote: "'" | '"' | undefined
   const contexts: Array<{ closing: ')' | '}' | '`'; quote: typeof quote; literal?: boolean }> = []
   for (let index = 0; index < command.length; index++) {
     const char = command[index]
     if (shell === 'bash' && char === '\\' && quote !== "'") {
+      escapedIndex = index + 1
       index++
     } else if (shell === 'powershell' && quote !== "'" && char === '`' && command[index + 1]) {
       index++
@@ -39,7 +41,7 @@ function scanShellSegments(command: string, separator: RegExp, shell: 'bash' | '
       if (contexts.at(-1)?.closing === char) {
         quote = contexts.pop()!.quote
       }
-    } else if (char === '#' && (index === 0 || /[\s;&|()]/.test(command[index - 1]))) {
+    } else if (char === '#' && (index === 0 || (escapedIndex !== index - 1 && /[\s;&|()]/.test(command[index - 1])))) {
       while (index + 1 < command.length && command[index + 1] !== '\n') index++
     } else {
       const match = separator.exec(command.slice(index))
