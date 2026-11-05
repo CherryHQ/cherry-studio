@@ -20,6 +20,7 @@ import { useCallback, useRef } from 'react'
 
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -202,7 +203,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
-  const [modelSettings, setModelSettings] = usePreference('chat.model_settings')
+  const [modelSettings] = usePreference('chat.model_settings')
   const { providers } = useProviders()
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
@@ -213,9 +214,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   patchAssistantRef.current = patchAssistant
   providersRef.current = providers
   const modelSettingsRef = useRef(modelSettings)
-  const setModelSettingsRef = useRef(setModelSettings)
   modelSettingsRef.current = modelSettings
-  setModelSettingsRef.current = setModelSettings
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -235,7 +234,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const all = modelSettingsRef.current ?? {}
     const next = { ...all, [activeModelId]: { ...all[activeModelId], ...remembered } }
     modelSettingsRef.current = next
-    void setModelSettingsRef.current(next).catch((error) => {
+    void preferenceService.updateModelSettings(activeModelId, remembered).catch((error) => {
       logger.warn('Failed to persist per-model settings', { error })
     })
   }, [])

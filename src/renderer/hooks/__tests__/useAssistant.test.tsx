@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useAssistants } from '../useAssistant'
 
+const updateModelSettings = vi.hoisted(() => vi.fn())
+vi.mock('@data/PreferenceService', () => ({ preferenceService: { updateModelSettings } }))
+
 function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
   return {
     data,
@@ -213,6 +216,13 @@ describe('useAssistant', () => {
     } as never
 
     function setup(savedSettings: Record<string, unknown>) {
+      updateModelSettings.mockImplementation(async (modelId, patch) => {
+        const all = MockUsePreferenceUtils.getPreferenceValue('chat.model_settings') as Record<string, object>
+        MockUsePreferenceUtils.setPreferenceValue('chat.model_settings', {
+          ...all,
+          [modelId]: { ...all[modelId], ...patch }
+        })
+      })
       const trigger = vi.fn().mockResolvedValue({})
       mockUseMutation.mockImplementation(() => ({ trigger, isLoading: false, error: undefined }))
       MockUsePreferenceUtils.setPreferenceValue('chat.model_settings', savedSettings)
@@ -243,6 +253,20 @@ describe('useAssistant', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.model_settings')).toEqual({
         'provider::model-a': { enableWebSearch: false }
       })
+    })
+
+    it('sends only changed fields from independent hook instances while persistence is pending', async () => {
+      const { hook } = setup({ 'provider::model-a': { reasoning_effort: 'high' } })
+      const second = renderHook(() => useAssistant('assistant-1'))
+      updateModelSettings.mockImplementation(() => new Promise(() => {}))
+      await act(async () => {
+        await hook.result.current.updateAssistant({ settings: { reasoning_effort: 'low' } })
+        await second.result.current.updateAssistant({ settings: { enableWebSearch: false } })
+      })
+      expect(updateModelSettings.mock.calls).toEqual([
+        ['provider::model-a', { reasoning_effort: 'low' }],
+        ['provider::model-a', { enableWebSearch: false }]
+      ])
     })
 
     it('restores the saved web search choice when switching to a model', async () => {

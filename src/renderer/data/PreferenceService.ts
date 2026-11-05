@@ -2,6 +2,7 @@ import { isEqual } from 'es-toolkit/compat'
 
 import { loggerService } from '@logger'
 import type {
+  ChatModelSetting,
   PreferenceUpdateOptions,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
@@ -134,6 +135,10 @@ export class PreferenceService {
       logger.error(`Failed to get preference ${key}:`, error as Error)
       return getDefaultValue(key)
     }
+  }
+
+  async updateModelSettings(modelId: string, settings: ChatModelSetting): Promise<void> {
+    await window.api.preference.updateModelSettings(modelId, settings)
   }
 
   /**

@@ -79,6 +79,15 @@ With `{ optimistic: false }`, the renderer waits for Main to confirm persistence
 before changing its cache. Use this when the UI must not present an unconfirmed
 setting as saved.
 
+Per-model web-search and reasoning choices use the narrow
+`preferenceService.updateModelSettings(modelId, settings)` operation instead of
+replacing `chat.model_settings` from a renderer snapshot. Main validates the model
+id and allowed fields, then merges against its current map before its synchronous
+DB/cache write. Separate hooks and windows cannot overwrite unrelated model
+choices or fields while an earlier notification is pending. Existing full-value
+setters retain their replacement behavior; the field operation relies on the
+usual Main preference broadcast to refresh renderer subscribers.
+
 Batch operations apply the same choice to every key in the batch. Main skips
 unchanged values and publishes notifications only after successful writes.
 
