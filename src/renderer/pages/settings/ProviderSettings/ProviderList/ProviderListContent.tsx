@@ -66,7 +66,14 @@ function reorderProviderBlocks({
   }
 
   const sourceIds = new Set(source.providerIds)
-  const targetIds = new Set(target.providerIds)
+  // A mixed-status group is displayed where its enabled members occur, not
+  // where an earlier disabled member sits in storage. Anchor to that displayed
+  // partition while still moving every source member as one full block.
+  const targetMembers = target.kind === 'group' ? target.members : [target.provider]
+  const enabledTargetMembers = targetMembers.filter((provider) => provider.isEnabled)
+  const targetIds = new Set(
+    (enabledTargetMembers.length > 0 ? enabledTargetMembers : targetMembers).map((provider) => provider.id)
+  )
   const moving = providers.filter((provider) => sourceIds.has(provider.id))
   const remaining = providers.filter((provider) => !sourceIds.has(provider.id))
 

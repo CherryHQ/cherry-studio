@@ -176,6 +176,50 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect(onReorder).toHaveBeenCalledWith([all[0], all[4], all[1], all[2], all[3]])
   })
 
+  it('anchors an upward drop to the enabled group row in partitioned display order', () => {
+    const onReorder = vi.fn()
+    const all = [provider('b-disabled', 'b', false), provider('a', 'a'), provider('b-enabled', 'b'), provider('c', 'c')]
+    const visible = [...all.filter((p) => p.isEnabled), ...all.filter((p) => !p.isEnabled)]
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={visible}
+        searchActive={false}
+        expandedGroups={{}}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
+    sortableCalls[0].onSortEnd({ oldIndex: 2, newIndex: 1 })
+    const result = onReorder.mock.calls[0][0] as Provider[]
+    expect(result.filter((p) => p.isEnabled).map((p) => p.id)).toEqual(['a', 'c', 'b-enabled'])
+    expect(result.map((p) => p.id).sort()).toEqual(all.map((p) => p.id).sort())
+  })
+
+  it('anchors a downward drop after enabled target members instead of a late disabled member', () => {
+    const onReorder = vi.fn()
+    const all = [provider('a', 'a'), provider('b-enabled', 'b'), provider('c', 'c'), provider('b-disabled', 'b', false)]
+    const visible = [...all.filter((p) => p.isEnabled), ...all.filter((p) => !p.isEnabled)]
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={visible}
+        searchActive={false}
+        expandedGroups={{}}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
+    sortableCalls[0].onSortEnd({ oldIndex: 0, newIndex: 1 })
+    const result = onReorder.mock.calls[0][0] as Provider[]
+    expect(result.filter((p) => p.isEnabled).map((p) => p.id)).toEqual(['b-enabled', 'a', 'c'])
+    expect(result.map((p) => p.id).sort()).toEqual(all.map((p) => p.id).sort())
+  })
+
   it('moves a group block backward to the head', () => {
     const onReorder = vi.fn()
     const all = renderBlockFixture(onReorder)
