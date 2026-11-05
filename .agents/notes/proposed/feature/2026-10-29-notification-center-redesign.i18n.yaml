@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-29-notification-center-redesign.md
-2026-10-29-notification-center-redesign.md: 012925b78470513da14a7039f99fb45a5fa323d7
-2026-10-29-notification-center-redesign.zh.md: aff65d9ed775a103e2525ed6ed24fb4c9e87988c
+2026-10-29-notification-center-redesign.md: b489e22dd96a703aebc3ae5c60b52ccfedfd1892
+2026-10-29-notification-center-redesign.zh.md: c19193db34ae67e55b1c432f1259230f58e8aa55

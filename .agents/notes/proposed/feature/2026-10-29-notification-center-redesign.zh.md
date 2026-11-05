@@ -80,7 +80,9 @@ Status: proposed
 
 关闭公告开关或停止服务时，移除焦点订阅，取消请求和计时器，并使旧会话失效。旧结果不能写入通知，也不能重新安排计时器。重新开启时，沿用已有启动调度和最近历史补入规则。
 
-保留公开接口 `https://api.cherry-ai.com/api/announcements`、Electron `net.fetch`、`platform=desktop` 和 `getAppEdition()` 到 `global/cn` 的映射。不发送登录、签名或管理端凭证。每轮从 offset 零开始，每页 100 条，每次请求超时 15 秒，只接收最近 30 天的公告；恰好处于保留期边界的记录按过期处理。遇到已有记录不能停止分页。遇到过期记录、到达总数或返回空页时停止。事件键 `announcement:api:${JSON.stringify([id, published_at])}` 保留 `published_at` 原始字符串和小数秒；转换后的时间只用于排序和保留期。失败结束本轮，保留已保存的历史。后续轮次重试未保存记录。服务端下线不擦除本地历史。
+保留公开接口 `https://api.cherry-ai.com/api/announcements` 和 Electron `net.fetch`。社区版客户端（包括海外版与中国版）统一请求 `product=community`，Windows/macOS/Linux 分别映射为 `windows`/`macos`/`linux`。读取当前 `app.language` 偏好（缺失时使用应用语言）：中文语言请求 `language=zh`，其他语言请求 `language=en`。接口只返回对应语言的一份 `title/content`，不返回双语对象，缺少该翻译的公告不返回。语言变化时取消旧请求并立即刷新新语言，不创建第二个轮询 owner。持久化前校验产品、平台、语言及带时区的 RFC3339 时间戳。本次不接入企业版与移动版客户端。
+
+不发送登录、签名或管理端凭证。每轮从 offset 零开始，每页 100 条，每次请求超时 15 秒，只接收最近 30 天的公告；恰好处于保留期边界的记录按过期处理。遇到已有记录不能停止分页。遇到过期记录、到达总数或返回空页时停止。事件键 `announcement:api:${JSON.stringify([id, published_at])}` 保留 `published_at` 原始字符串和小数秒；转换后的时间只用于排序和保留期。线上修正或语言变化时原位更新同一本地记录的标题、摘要和全文，保留已读、隐藏状态及通知标识；完全相同的重复内容不发出数据变更。服务端下线保留本地历史，使用新时间重发则产生新事件。失败结束本轮，保留已保存的历史；后续轮次重试未保存记录。
 
 ### 复用与兼容
 
@@ -113,7 +115,7 @@ Status: proposed
 - AC7 — 公告中的 HTML／Markdown 按原文显示，保留换行和原位展开；重复展开已读记录不重复写入已读状态，版本说明保留更新行为。 (verification: renderer and Windows; owner: notification center)
 - AC8 — 启动五秒后检查，每轮结束三十分钟后再检查，后台也继续；真实前台切换立即请求一次检查，内部窗口和标签切换不触发。 (verification: main with controlled scheduler/focus events; owner: notification center)
 - AC9 — 重叠的定时和焦点触发共用一轮拉取；禁用、停止、重新开启和请求失败不会产生旧结果写入、重复计时器或排队的重复拉取。 (verification: main with controlled in-flight requests; owner: notification center)
-- AC10 — 产品映射、分页、30 天保留期、超时、原始发布时间小数秒去重、部分写入重试和本地历史保留继续符合已有契约。 (verification: main and real SQLite; owner: notification center)
+- AC10 — 社区版产品/平台映射、客户端语言选择、保留已读/隐藏状态的原位修正、分页、30 天保留期、超时、原始小数秒发布时间去重及部分写入重试符合产品公告 API。 (verification: main and real SQLite; owner: notification center)
 - AC11 — 智能体和助手的抽屉条目显示来源图标／名称、去掉会话名前缀的成功回复预览（无回复时回退到状态）和时间，定时任务仍显示状态；长名称、缺失或删除的来源仍可使用，即时提示和系统通知展示保持不变。 (verification: renderer and Windows; owner: task results)
 - AC12 — 任务激活保留消息和末尾跳转，等待历史加载，锚点缺失时回退，并提示已删除目标；定时任务详情能显示紧凑条目省略的已存错误。 (verification: renderer and main navigation tests; owner: task results)
 - AC13 — 运行失败、取消和中断只根据权威最终结果发布一次；定时任务的流／任务归属避免重复，审批等待或暂停输出不能误报为成功完成。 (verification: main and real SQLite; owner: task results)

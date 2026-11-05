@@ -1,4 +1,4 @@
-import { and, count, eq, gt, isNull, lte, sql } from 'drizzle-orm'
+import { and, count, eq, gt, isNull, lte, ne, or, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -57,12 +57,24 @@ class NotificationRecordService {
 
   private createTx(db: DbOrTx, input: CreateNotificationRecordInput): NotificationRecord | null {
     if (input.createdAt <= Date.now() - RETENTION_MS) return null
-    const record = db
-      .insert(table)
-      .values({ ...input, target: input.target ?? null })
-      .onConflictDoNothing({ target: table.eventKey })
-      .returning()
-      .get()
+    const insert = db.insert(table).values({ ...input, target: input.target ?? null })
+    const write =
+      input.category === 'official' && input.kind === 'announcement'
+        ? insert.onConflictDoUpdate({
+            target: table.eventKey,
+            set: { title: input.title, message: input.message, target: input.target ?? null },
+            setWhere: and(
+              eq(table.category, 'official'),
+              eq(table.kind, 'announcement'),
+              or(
+                ne(table.title, input.title),
+                ne(table.message, input.message),
+                sql`${table.target} IS NOT ${JSON.stringify(input.target ?? null)}`
+              )
+            )
+          })
+        : insert.onConflictDoNothing({ target: table.eventKey })
+    const record = write.returning().get()
     return record ?? null
   }
 

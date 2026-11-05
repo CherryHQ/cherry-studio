@@ -4,7 +4,6 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getAppEdition } from '@main/utils/appEdition'
 
 const logger = loggerService.withContext('OfficialAnnouncementService')
 const SCHEDULE_ID = 'official-announcement:poll'
@@ -18,9 +17,13 @@ const AnnouncementPageSchema = z.object({
         id: z.string().min(1),
         title: z.string().min(1),
         content: z.string().min(1),
-        platforms: z.array(z.enum(['desktop', 'android', 'ios'])).min(1),
-        products: z.array(z.enum(['global', 'cn', 'enterprise'])).min(1),
-        published_at: z.iso.datetime()
+        platforms: z
+          .array(z.enum(['windows', 'macos', 'linux']))
+          .min(1)
+          .max(3),
+        product: z.literal('community'),
+        language: z.enum(['zh', 'en']),
+        published_at: z.iso.datetime({ offset: true })
       })
     )
     .max(PAGE_SIZE),
@@ -43,6 +46,7 @@ export class OfficialAnnouncementService extends BaseService {
     this.registerDisposable(
       preferences.subscribeChange('app.notification.center.official.enabled', () => this.configure())
     )
+    this.registerDisposable(preferences.subscribeChange('app.language', () => this.configure(0)))
     this.configure()
   }
 
@@ -59,13 +63,13 @@ export class OfficialAnnouncementService extends BaseService {
     application.get('SchedulerService').unregister(SCHEDULE_ID)
   }
 
-  private configure(): void {
+  private configure(delayMs = 5000): void {
     this.cancel()
     if (!this.ready || !application.get('PreferenceService').get('app.notification.center.official.enabled')) return
     this.hasChecked = false
     this.controller = new AbortController()
     this.observeFocus(this.controller)
-    this.schedule(this.controller, 5000)
+    this.schedule(this.controller, delayMs)
   }
 
   private observeFocus(controller: AbortController): void {
@@ -110,10 +114,21 @@ export class OfficialAnnouncementService extends BaseService {
     application.get('SchedulerService').unregister(SCHEDULE_ID)
     const cutoff = Date.now() - RETENTION_MS
     try {
+      const platform = (
+        { win32: 'windows', darwin: 'macos', linux: 'linux' } as Partial<
+          Record<NodeJS.Platform, 'windows' | 'macos' | 'linux'>
+        >
+      )[process.platform]
+      if (!platform) return
+      const locale = (application.get('PreferenceService').get('app.language') || app.getLocale())
+        .toLowerCase()
+        .replaceAll('_', '-')
+      const language = locale === 'zh' || locale.startsWith('zh-') ? 'zh' : 'en'
       const url = new URL('https://api.cherry-ai.com/api/announcements')
       url.search = new URLSearchParams({
-        platform: 'desktop',
-        product: getAppEdition(),
+        platform,
+        product: 'community',
+        language,
         limit: String(PAGE_SIZE)
       }).toString()
       let offset = 0
@@ -124,6 +139,13 @@ export class OfficialAnnouncementService extends BaseService {
         })
         if (!response.ok) throw new Error(`Announcement request failed with HTTP ${response.status}`)
         const page = AnnouncementPageSchema.parse(await response.json())
+        if (
+          page.items.some(
+            (announcement) => announcement.language !== language || !announcement.platforms.includes(platform)
+          )
+        ) {
+          throw new Error('Announcement response does not match the requested language or platform')
+        }
         for (const announcement of page.items) {
           controller.signal.throwIfAborted()
           const createdAt = Date.parse(announcement.published_at)
