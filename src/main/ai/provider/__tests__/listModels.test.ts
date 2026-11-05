@@ -2047,6 +2047,40 @@ describe('listModels — huggingFaceFetcher (router dialects)', () => {
   )
 })
 
+describe('listModels — HopBase', () => {
+  const provider = makeProvider({
+    id: 'hopbase',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.hop-base.com/v1' },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.hop-base.com' }
+    }
+  })
+
+  it('routes discovered Claude models to Anthropic Messages and keeps the rest on Chat Completions', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'claude-sonnet-5-5' }, { id: 'gpt-6-sol' }, { id: 'glm-5.3-flash' }] }
+    })
+
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(aiSdkGetFromApiMock.mock.calls[0][0].url).toBe('https://api.hop-base.com/v1/models')
+    const byId = Object.fromEntries(models.map((m) => [m.apiModelId, m]))
+    expect(byId['claude-sonnet-5-5'].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    expect(byId['gpt-6-sol'].endpointTypes).toBeUndefined()
+    expect(byId['glm-5.3-flash'].endpointTypes).toBeUndefined()
+
+    expect(resolveEffectiveEndpoint(provider, makeModel({ ...byId['claude-sonnet-5-5'] }))).toMatchObject({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://api.hop-base.com'
+    })
+    expect(resolveEffectiveEndpoint(provider, makeModel({ ...byId['gpt-6-sol'] }))).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://api.hop-base.com/v1'
+    })
+  })
+})
+
 describe('listModels — Poe declared chat endpoints', () => {
   const provider = makeProvider({
     id: 'poe',
