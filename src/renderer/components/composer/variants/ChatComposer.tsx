@@ -1,8 +1,8 @@
-import { Eraser, ScanLine } from 'lucide-react'
+import { BookmarkPlus, Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -75,9 +75,11 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
+import { SavedDraftsDock } from '../SavedDraftsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
+import { useSavedDrafts } from '../useSavedDrafts'
 import {
   type ChatComposerControlsRenderer,
   type ComposerInputAdapter,
@@ -101,6 +103,7 @@ import {
   getComposerTokenIds,
   knowledgeBaseToComposerToken
 } from './chatComposerTokens'
+import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './shared/ComposerControlScaffolding'
 import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
@@ -1494,6 +1497,50 @@ const ChatComposerInner = ({
     ]
   )
 
+  const {
+    items: savedDrafts,
+    save: saveDraft,
+    remove: removeSavedDraft
+  } = useSavedDrafts(selectedKnowledgeBasesScopeKey)
+
+  const handleSaveAsDraft = useCallback(() => {
+    if (editingMessageForCurrentTopic) return
+    const draft = actionsRef.current.getDraft()
+    if (draft.text.trim().length === 0 && files.length === 0) return
+    saveDraft(draft, files)
+    clearCurrentDraft()
+  }, [actionsRef, clearCurrentDraft, editingMessageForCurrentTopic, files, saveDraft])
+
+  // Restoring swaps with the composer: any unsent content is parked as a new draft so nothing is lost.
+  const handleEditSavedDraft = useCallback(
+    (id: string) => {
+      const item = savedDrafts.find((candidate) => candidate.id === id)
+      if (!item || editingMessageForCurrentTopic || directSendInFlightRef.current) return
+      const current = actionsRef.current.getDraft()
+      if (current.text.trim().length > 0 || files.length > 0) saveDraft(current, files)
+      removeSavedDraft(id)
+      releaseFollowupEditRef.current()
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+      skipDraftCacheWriteForHistoryPreviewRef.current = false
+      actionsRef.current.replaceDraft(item.draft)
+      setText(item.draft.text)
+      setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
+      setFiles(item.files)
+    },
+    [
+      actionsRef,
+      editingMessageForCurrentTopic,
+      files,
+      removeSavedDraft,
+      resetHistoryIndex,
+      savedDrafts,
+      saveDraft,
+      setFiles,
+      setText
+    ]
+  )
+
   const buildEditedMessageParts = useCallback(
     async (draft: ComposerSerializedDraft) => {
       const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
@@ -1793,10 +1840,55 @@ const ChatComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
+      <NormalTooltip content={t('chat.input.saved_drafts.save')}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={`${COMPOSER_SEND_ACCESSORY_BUTTON_CLASS} [&>svg]:!size-4.5`}
+          aria-label={t('chat.input.saved_drafts.save')}
+          disabled={(text.trim().length === 0 && files.length === 0) || Boolean(editingMessageForCurrentTopic)}
+          onClick={handleSaveAsDraft}>
+          <BookmarkPlus />
+        </Button>
+      </NormalTooltip>
       <ChatComposerContextUsage usage={contextUsage} />
       <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )
+
+  const followupDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={sendFollowup}
+        onEdit={(id) => {
+          if (directSendInFlightRef.current) return
+          editFollowup(id, {
+            editingMessage: Boolean(editingMessageForCurrentTopic),
+            getDraft: () => actionsRef.current.getDraft(),
+            buildPayload: buildQueuedPayload,
+            hasFiles: files.length > 0,
+            restore: restoreFollowupDraft
+          })
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+  // Keep the followup dock as the sole element when no drafts are saved.
+  const queueContent =
+    savedDrafts.length > 0 ? (
+      <>
+        {followupDock}
+        <SavedDraftsDock items={savedDrafts} onEdit={handleEditSavedDraft} onRemove={removeSavedDraft} />
+      </>
+    ) : (
+      followupDock
+    )
 
   return (
     <ComposerToolDerivedStateProvider
@@ -1867,29 +1959,7 @@ const ChatComposerInner = ({
               : undefined
           }
           onPause={onPause}
-          queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  editFollowup(id, {
-                    editingMessage: Boolean(editingMessageForCurrentTopic),
-                    getDraft: () => actionsRef.current.getDraft(),
-                    buildPayload: buildQueuedPayload,
-                    hasFiles: files.length > 0,
-                    restore: restoreFollowupDraft
-                  })
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
-          }
+          queueContent={queueContent}
           supportedExts={supportedExts}
           setFiles={setFiles}
           previewInputFile={previewInputFile}
