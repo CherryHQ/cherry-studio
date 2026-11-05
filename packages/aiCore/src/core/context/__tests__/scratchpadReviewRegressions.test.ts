@@ -316,3 +316,15 @@ it.each([
 ])('strips private analysis after invalid fence ownership: %s', (input) => {
   expect(ContextPrompts.formatCompactSummary(input)).not.toContain('SECRET')
 })
+
+it('expires outer list ownership at a quote opened before its content column', () => {
+  const raw = '- item\n>\n  ```\n<analysis>MARK</analysis>\n  ```\n'
+  expect(ContextPrompts.formatCompactSummary(raw)).toContain('<analysis>MARK</analysis>')
+})
+it('keeps the outer list when its quote child ends before a continuation fence', () => {
+  const result = ContextPrompts.formatCompactSummary(
+    '- > item\n  ```\n<analysis>MARK</analysis>\n\n<summary>Public</summary>'
+  )
+  expect(result).not.toContain('MARK')
+  expect(result).toContain('Public')
+})

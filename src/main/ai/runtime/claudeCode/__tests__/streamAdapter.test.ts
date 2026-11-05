@@ -6346,6 +6346,15 @@ describe('cherry-pr-review round-11', () => {
       .join('')
   }
 
+  it('preserves a top-level literal fence after an outer list exits through a quote', () => {
+    const answer = '- item\n>\n  ```\n<analysis>MARK</analysis>\n  ```\n'
+    expect(runWithSnapshot([answer], answer)).toBe(answer)
+    expect(runWithSnapshot(Array.from(answer), answer)).toBe(answer)
+    expect(runWithSnapshot([], answer)).toBe(answer)
+    for (let cut = 0; cut <= answer.length; cut++)
+      expect(runWithSnapshot([answer.slice(0, cut), answer.slice(cut)], answer), `split ${cut}`).toBe(answer)
+  })
+
   it('preserves literal code after an empty list ends before a quoted fence', () => {
     const answer = '1. \n> ~~~\n    <analysis>LITERAL</analysis>\n'
     expect(runWithSnapshot(Array.from(answer), answer)).toBe(answer)

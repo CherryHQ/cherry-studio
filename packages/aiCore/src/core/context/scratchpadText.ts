@@ -784,17 +784,19 @@ function inheritedFencePrefixLookup(
     const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
     // Blank lines may remain inside a list; they do not pop the stack.
     if (line.trim() === '') continue
-    if (line.includes('>')) {
-      const prefix = /^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))+/.exec(line)?.[0]
-      if (prefix && parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list'))
-        lists.push({ start, end: fenceContainerEnd(text, lineEndAfter(text, start), prefix), prefix })
-      continue
-    }
     const leading = line.match(/^ */)?.[0].length ?? 0
     // Sibling or dedented content ends the items it no longer reaches.
     while (stack.length && stack[stack.length - 1].contentCol > leading) {
       const ended = stack.pop()
       if (ended) lists[ended.index].end = start
+    }
+    // Quote lines still close unreachable outer lists and can open an outer
+    // list of their own. Only the quote-scoped extent is per-line; skipping
+    // stack maintenance here leaves stale items or loses surviving parents.
+    if (line.includes('>')) {
+      const prefix = /^(?:(?: {0,3}> ?)|(?: {0,3}(?:[-*+]|\d{1,9}[.)]) +))+/.exec(line)?.[0]
+      if (prefix && parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list'))
+        lists.push({ start, end: fenceContainerEnd(text, lineEndAfter(text, start), prefix), prefix })
     }
     const parentCol = stack.length ? stack[stack.length - 1].contentCol : 0
     if (leading - parentCol > 3) continue
