@@ -6053,6 +6053,7 @@
   "settings.voice.model.apple_tts": "Ομιλία συστήματος Apple",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.kokoro_tts": "Kokoro v1.1 (Κινεζικά + Αγγλικά)",
+  "settings.voice.model.parakeet": "Parakeet TDT 0.6B v3 (πολύγλωσσο)",
   "settings.voice.model.qwen3_asr": "Qwen3-ASR 1.7B (8-bit)",
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Αναγνώριση ομιλίας συστήματος Windows",

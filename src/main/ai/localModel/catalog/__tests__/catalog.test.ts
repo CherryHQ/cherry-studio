@@ -109,6 +109,21 @@ describe('local model catalog', () => {
     }
   })
 
+  it.each([
+    ['parakeet-tdt-0.6b-v3-int8', ['encoder', 'decoder', 'joiner', 'tokens', 'voiceActivityDetector']]
+  ] as const)('%s is a pinned sherpa-onnx ASR bundle with its VAD', (id, keys) => {
+    const bundle = LOCAL_MODEL_BUNDLES[id]
+
+    expect(bundle.requires).toEqual(['sherpa-onnx'])
+    expect(bundle.files.map((file) => file.key).sort()).toEqual([...keys].sort())
+    for (const file of bundle.files) {
+      expect(file.sha256).toMatch(/^[0-9a-f]{64}$/)
+      const sources = file.sources ?? []
+      expect(sources.length).toBeGreaterThan(0)
+      for (const source of sources) expect(source.revision).toMatch(/^[0-9a-f]{40}$/)
+    }
+  })
+
   it('includes the Mandarin eSpeak dictionary and language definition in Kokoro installs', () => {
     const files = LOCAL_MODEL_BUNDLES['kokoro-multi-lang-v1.1'].files
 
