@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} days",
   "settings.data.log_retention.help": "Log files older than this are deleted automatically, at startup and once every 12 hours.",
   "settings.data.log_retention.label": "Keep logs for",
-  "settings.data.markdown_export.exclude_citations.help": "Exclude citations and references when exporting to Markdown, keeping only the main content",
+  "settings.data.markdown_export.exclude_citations.help": "Exclude web search citation markers (e.g. [1]) and the references list when exporting to Markdown or Word, keeping only the main content",
   "settings.data.markdown_export.exclude_citations.title": "Exclude Citations",
   "settings.data.markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
   "settings.data.markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
