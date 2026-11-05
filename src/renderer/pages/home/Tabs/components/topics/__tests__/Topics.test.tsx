@@ -524,7 +524,7 @@ import {
   consumePendingTopicImageActions,
   requestTopicImageAction,
   settleTopicImageActionRequest
-} from '../../../messages/topicImageActionBus'
+} from '../../../../messages/topicImageActionBus'
 import { Topics } from '../Topics'
 
 const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
@@ -2629,6 +2629,48 @@ describe('Topics', () => {
     )
     expect(topicRowRenderMocks.counts.get('topic-1')).toBeGreaterThan(initialRenderCounts.get('topic-1') ?? 0)
     expect(topicRowRenderMocks.counts.get('topic-2')).toBeGreaterThan(initialRenderCounts.get('topic-2') ?? 0)
+    expect(topicRowRenderMocks.counts.get('topic-3')).toBe(initialRenderCounts.get('topic-3'))
+  })
+
+  it.each(['time', 'assistant'] as const)('rerenders only the changed topic row in %s mode', (mode) => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({ 'topic.tab.display_mode': mode })
+    const exportMenuOptions = { docx: true, image: true, markdown: true }
+    MockUsePreference.useMultiplePreferences.mockImplementation(() => [exportMenuOptions, vi.fn()] as never)
+    cacheHookMocks.values.set('topic.renaming', [])
+    cacheHookMocks.values.set('topic.newly_renamed', [])
+    const query = {
+      data: [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }
+    const assistantsQuery = { ...query, data: { items: [createAssistant()], total: 1 } }
+    const emptyQuery = { ...query, data: undefined }
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/assistants') return assistantsQuery
+      return path === '/pins' ? query : emptyQuery
+    })
+    const items = createTopicPageItems(3)
+    const assistantTopicsSource = createAssistantTopicsSource(items)
+    const { rerenderTopicList } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-1', name: 'Topic 1' }),
+      assistantTopicsSource,
+      panePosition: 'left'
+    })
+    const initialRenderCounts = new Map(topicRowRenderMocks.counts)
+
+    Object.assign(
+      assistantTopicsSource,
+      createAssistantTopicsSource(
+        items.map((item) => (item.id === 'topic-2' ? { ...item, name: 'Renamed topic' } : { ...item }))
+      )
+    )
+    rerenderTopicList()
+
+    expect(topicRowRenderMocks.counts.get('topic-2')).toBeGreaterThan(initialRenderCounts.get('topic-2') ?? 0)
+    expect(topicRowRenderMocks.counts.get('topic-1')).toBe(initialRenderCounts.get('topic-1'))
     expect(topicRowRenderMocks.counts.get('topic-3')).toBe(initialRenderCounts.get('topic-3'))
   })
 
