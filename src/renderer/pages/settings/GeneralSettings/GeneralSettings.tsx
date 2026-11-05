@@ -25,7 +25,6 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
-import type { PreventSleepMode } from '@shared/data/preference/preferenceTypes'
 import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -89,7 +88,10 @@ const GeneralSettings: FC = () => {
     { value: 'none', label: t('settings.proxy.mode.none') }
   ]
 
-  const preventSleepOptions: { value: PreventSleepMode; label: string }[] = [
+  const preventSleepOptions: {
+    value: typeof preventSleepMode
+    label: string
+  }[] = [
     { value: 'off', label: t('settings.power.prevent_sleep.off') },
     { value: 'tasks', label: t('settings.power.prevent_sleep.tasks') },
     { value: 'always', label: t('settings.power.prevent_sleep.always') }
