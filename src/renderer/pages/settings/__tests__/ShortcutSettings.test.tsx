@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
+import { type CommandId, commandShortcutPreferenceKey, REGISTERED_KEYBINDINGS } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import ShortcutSettings from '../ShortcutSettings'
@@ -197,6 +197,79 @@ describe('ShortcutSettings shortcut recorder', () => {
         onRegistrationConflict: registrationConflictMock
       }
     } as unknown as typeof window.api
+  })
+
+  it('allows the real exit fullscreen shortcut to be edited and bulk disabled', async () => {
+    const rule = REGISTERED_KEYBINDINGS.find((item) => item.command === 'app.fullscreen.exit')!
+    const closeRule = REGISTERED_KEYBINDINGS.find((item) => item.command === 'app.window.close')!
+    const exit = {
+      ...makeShortcut({
+        command: 'app.fullscreen.exit',
+        binding: ['Escape'],
+        enabled: true,
+        defaultPreference: { binding: ['Escape'], enabled: true },
+        label: 'Exit fullscreen'
+      }),
+      keybinding: rule
+    }
+    const close = {
+      ...makeShortcut({ command: 'app.window.close', binding: ['CommandOrControl', 'W'], enabled: true }),
+      keybinding: closeRule
+    }
+    shortcutsMock.shortcuts = [exit, close]
+    const { rerender } = renderShortcutSettings()
+    fireEvent.click(screen.getAllByRole('button', { name: 'switch' })[0])
+    await waitFor(() =>
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.fullscreen.exit', { enabled: false })
+    )
+    shortcutsMock.updatePreference.mockClear()
+    fireEvent.click(screen.getByText('Escape'))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' }), {
+      key: 'Escape',
+      code: 'Escape'
+    })
+    expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('Escape'))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' }), {
+      key: 'K',
+      code: 'KeyK',
+      ctrlKey: true,
+      shiftKey: true
+    })
+    await waitFor(() =>
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.fullscreen.exit', {
+        binding: ['CommandOrControl', 'Shift', 'K'],
+        enabled: true
+      })
+    )
+    shortcutsMock.shortcuts = [
+      { ...exit, preference: { binding: ['CommandOrControl', 'Shift', 'K'], enabled: true } },
+      close
+    ]
+    rerender(
+      <div>
+        <ShortcutSettings />
+      </div>
+    )
+    fireEvent.click(screen.getByText('Exit fullscreen').closest('[id]')!.querySelector('.shortcut-undo-icon')!)
+    await waitFor(() =>
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.fullscreen.exit', {
+        binding: ['Escape'],
+        enabled: true
+      })
+    )
+    shortcutsMock.shortcuts = [exit, close]
+    rerender(
+      <div>
+        <ShortcutSettings />
+      </div>
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.all_disable' }))
+    expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+      'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: false }
+    })
   })
 
   it('uses a non-text focus target while recording shortcuts', () => {
