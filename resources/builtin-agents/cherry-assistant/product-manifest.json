@@ -135,6 +135,19 @@
       }
     },
     {
+      "id": "app.quick_switcher.open",
+      "titleKey": "settings.shortcuts.quick_switcher",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "P"
+        ]
+      }
+    },
+    {
       "id": "app.print",
       "titleKey": "settings.shortcuts.print",
       "categoryKey": "settings.shortcuts.general",
@@ -276,7 +289,60 @@
         "defaultBinding": [
           "CommandOrControl",
           "K"
+        ],
+        "when": "!chat.messages.focused"
+      }
+    },
+    {
+      "id": "chat.conversation.next",
+      "titleKey": "settings.shortcuts.next_conversation",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
         ]
+      }
+    },
+    {
+      "id": "chat.conversation.prev",
+      "titleKey": "settings.shortcuts.prev_conversation",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ]
+      }
+    },
+    {
+      "id": "chat.message.focus_next",
+      "titleKey": "settings.shortcuts.focus_next_message",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "J"
+        ],
+        "when": "chat.messages.focused"
+      }
+    },
+    {
+      "id": "chat.message.focus_prev",
+      "titleKey": "settings.shortcuts.focus_prev_message",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "K"
+        ],
+        "when": "chat.messages.focused"
       }
     },
     {
