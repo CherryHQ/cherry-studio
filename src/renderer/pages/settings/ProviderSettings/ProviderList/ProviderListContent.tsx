@@ -65,6 +65,16 @@ function reorderProviderBlocks({
     return providers
   }
 
+  const sourceMembers = source.kind === 'group' ? source.members : [source.provider]
+  const destinationMembers = target.kind === 'group' ? target.members : [target.provider]
+  // Enabled and disabled rows occupy separate display partitions. Crossing that
+  // boundary cannot change status, so reject the drop rather than persist a jump.
+  if (
+    sourceMembers.some((provider) => provider.isEnabled) !== destinationMembers.some((provider) => provider.isEnabled)
+  ) {
+    return providers
+  }
+
   const sourceIds = new Set(source.providerIds)
   // A mixed-status group is displayed where its enabled members occur, not
   // where an earlier disabled member sits in storage. Anchor to that displayed
@@ -118,7 +128,12 @@ export default function ProviderListContent({
 
   const renderFlat = () => (
     <ReorderableList
-      items={providers}
+      // Match the displayed status partition before translating visible indexes.
+      // Crossing the boundary then leaves each status's relative order intact.
+      items={[
+        ...providers.filter((provider) => provider.isEnabled),
+        ...providers.filter((provider) => !provider.isEnabled)
+      ]}
       visibleItems={visibleProviders}
       getId={(provider) => provider.id}
       onDragStateChange={onDragStateChange}

@@ -109,7 +109,10 @@ export default function ProviderListGroup({
       {expanded && (
         <div id={bodyId} className={providerListClasses.groupBody} data-no-dnd>
           <ReorderableList
-            items={items}
+            items={[
+              ...items.filter((provider) => provider.isEnabled),
+              ...items.filter((provider) => !provider.isEnabled)
+            ]}
             visibleItems={members}
             getId={(provider) => provider.id}
             onDragStateChange={onDragStateChange}

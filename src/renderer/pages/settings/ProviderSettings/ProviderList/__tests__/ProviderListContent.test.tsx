@@ -7,6 +7,7 @@ import type { Provider } from '@shared/data/types/provider'
 // Capture every <ReorderableList> mount's `items` prop so we can assert the
 // grouped path feeds the full cache (C1 regression).
 const reorderableItemsCalls: Provider[][] = []
+const flatReorderCalls: any[] = []
 const groupExpandedCalls: Array<{ presetProviderId: string; expanded: boolean }> = []
 const sortableCalls: Array<{
   items: Array<{ id: string }>
@@ -21,7 +22,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryUiModule>()
   return {
     ...actual,
-    ReorderableList: ({ items }: { items: Provider[] }) => {
+    ReorderableList: (props: any) => {
+      const { items } = props
+      flatReorderCalls.push(props)
       reorderableItemsCalls.push(items)
       return null
     },
@@ -69,6 +72,7 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
 }))
 
 import ProviderListContent from '../ProviderListContent'
+import { reorderVisibleSubset } from '../../../../../../../packages/ui/src/components/composites/reorderable-list/reorder-visible-subset'
 
 function provider(id: string, presetProviderId: string, isEnabled = true): Provider {
   return {
@@ -85,6 +89,7 @@ function provider(id: string, presetProviderId: string, isEnabled = true): Provi
 
 describe('ProviderListContent — C1 grouped reorder', () => {
   beforeEach(() => {
+    flatReorderCalls.length = 0
     reorderableItemsCalls.length = 0
     sortableCalls.length = 0
     groupExpandedCalls.length = 0
@@ -115,6 +120,35 @@ describe('ProviderListContent — C1 grouped reorder', () => {
 
     return all
   }
+
+  it.each([[1, 2], [2, 0]])('keeps displayed enabled order for cross-status flat drop %s to %s', (oldIndex, newIndex) => {
+    const all = [provider('d', 'd', false), provider('a', 'a'), provider('b', 'b')]
+    const visible = [all[1], all[2], all[0]]
+    const onReorder = vi.fn()
+    render(<ProviderListContent providers={all} visibleProviders={visible} searchActive={false}
+      expandedGroups={{}} onToggleGroup={() => {}} onDragStateChange={() => {}}
+      onReorder={onReorder} renderItem={() => null} />)
+    const props = flatReorderCalls.at(-1)
+    if (props) {
+      props.onReorder(reorderVisibleSubset({ items: props.items, visibleItems: props.visibleItems,
+        fromIndex: oldIndex, toIndex: newIndex, getId: props.getId }))
+    } else {
+      sortableCalls.at(-1)!.onSortEnd({ oldIndex, newIndex })
+    }
+    const next = onReorder.mock.calls[0]?.[0] as Provider[] | undefined
+    expect((next ?? all).filter((p) => p.isEnabled).map((p) => p.id)).toEqual(['a', 'b'])
+    expect((next ?? all).map((p) => p.id).sort()).toEqual(['a', 'b', 'd'])
+  })
+
+  it('rejects a cross-status grouped drop without reordering enabled singles', () => {
+    const all = [provider('d1', 'disabled', false), provider('d2', 'disabled', false), provider('a', 'a'), provider('b', 'b')]
+    const onReorder = vi.fn()
+    render(<ProviderListContent providers={all} visibleProviders={[all[2], all[3], all[0], all[1]]}
+      searchActive={false} expandedGroups={{}} onToggleGroup={() => {}} onDragStateChange={() => {}}
+      onReorder={onReorder} renderItem={() => null} />)
+    sortableCalls[0].onSortEnd({ oldIndex: 1, newIndex: 2 })
+    expect(onReorder).not.toHaveBeenCalled()
+  })
 
   it('passes the full unfiltered cache as ReorderableList items in a group', () => {
     // Full cache: 3 providers under the same preset; one disabled and filtered out.
