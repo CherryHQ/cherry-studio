@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Keine Nachrichten ausgewählt",
   "chat.multiple.select.label": "Mehrfachauswahl",
   "chat.navigation.anchor.jump_to_turn": "Springe zu Zug {{number}}",
+  "chat.navigation.anchor.label": "Gesprächsrunden",
   "chat.navigation.bottom": "Zum Boden scrollen",
   "chat.navigation.close": "Schließen",
   "chat.save.file.title": "In lokale Datei speichern",

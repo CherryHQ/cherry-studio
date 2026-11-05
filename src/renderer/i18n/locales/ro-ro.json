@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Niciun mesaj selectat",
   "chat.multiple.select.label": "Selecție multiplă",
   "chat.navigation.anchor.jump_to_turn": "Salt la tura {{number}}",
+  "chat.navigation.anchor.label": "Rândurile conversației",
   "chat.navigation.bottom": "Înapoi jos",
   "chat.navigation.close": "Închide",
   "chat.save.file.title": "Salvează în fișier local",

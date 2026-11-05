@@ -561,6 +561,33 @@ describe('MessageAnchorLine', () => {
       await user.keyboard('{Enter}')
       expect(scrollToMessageId).toHaveBeenCalledWith('user-1')
     })
+
+    it('exposes the rail as a labelled navigation landmark', () => {
+      const { getByRole } = renderRail({ messages })
+
+      expect(getByRole('navigation')).toHaveAttribute('aria-label', 'chat.navigation.anchor.label')
+    })
+
+    it('moves between ticks with arrow, Home and End keys and previews the focused turn', async () => {
+      const user = userEvent.setup()
+      partsMap['user-1'] = [textPart('Question one')]
+      partsMap['user-2'] = [textPart('Question two')]
+      const { container, getByText } = renderRail({ messages })
+      const ticks = container.querySelectorAll('[data-message-anchor-tick]')
+
+      await user.tab()
+      expect(ticks[0]).toHaveFocus()
+      await user.keyboard('{ArrowDown}')
+      expect(ticks[1]).toHaveFocus()
+      expect(getByText('Question two')).toBeInTheDocument()
+      await user.keyboard('{ArrowUp}')
+      expect(ticks[0]).toHaveFocus()
+      await user.keyboard('{End}')
+      expect(ticks[ticks.length - 1]).toHaveFocus()
+      await user.keyboard('{Home}')
+      expect(ticks[0]).toHaveFocus()
+      expect(getByText('Question one')).toBeInTheDocument()
+    })
   })
 
   describe('strip geometry', () => {

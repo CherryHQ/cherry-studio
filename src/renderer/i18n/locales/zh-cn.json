@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "未选中任何消息",
   "chat.multiple.select.label": "多选",
   "chat.navigation.anchor.jump_to_turn": "跳转到第 {{number}} 轮对话",
+  "chat.navigation.anchor.label": "对话轮次",
   "chat.navigation.bottom": "回到底部",
   "chat.navigation.close": "关闭",
   "chat.save.file.title": "保存到本地文件",

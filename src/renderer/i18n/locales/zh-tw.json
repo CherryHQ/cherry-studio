@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "未選取任何訊息",
   "chat.multiple.select.label": "多選",
   "chat.navigation.anchor.jump_to_turn": "跳至第 {{number}} 回合",
+  "chat.navigation.anchor.label": "對話輪次",
   "chat.navigation.bottom": "回到底端",
   "chat.navigation.close": "關閉",
   "chat.save.file.title": "儲存到本機檔案",

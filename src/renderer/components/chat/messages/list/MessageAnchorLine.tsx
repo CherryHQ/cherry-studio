@@ -1,6 +1,7 @@
 import {
   type FC,
   memo,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type UIEvent as ReactUIEvent,
   useCallback,
@@ -98,6 +99,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
+  /** Tick holding keyboard focus; shows the same preview card as hover. */
+  const [keyboardIndex, setKeyboardIndex] = useState<number | null>(null)
   /** Hide the rail only when its measured wrapper height is too short to be usable. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
   const visible = !tooShort
@@ -180,12 +183,14 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   }, [turns.length, railHeight, scrollTop])
 
   // Nearest tick to the cursor, only when the cursor is genuinely near one.
-  const focusedIndex = useMemo(() => {
+  const pointerFocusedIndex = useMemo(() => {
     if (mouseY === null || turns.length === 0 || railHeight === 0) return null
     const raw = Math.round((mouseY - geometry.centerOf(0)) / RAIL_TICK_PITCH_PX)
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
   }, [mouseY, turns.length, railHeight, geometry])
+  const focusedIndex =
+    pointerFocusedIndex ?? (keyboardIndex !== null && keyboardIndex < turns.length ? keyboardIndex : null)
 
   const flushMouseMove = useCallback(() => {
     animationFrameRef.current = null
@@ -219,6 +224,25 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // The rail scrolls independently of the conversation and never auto-follows
   // reading, so a tick's on-screen position is stable until the user scrolls
   // the rail itself. Mirror that offset into state so the card and wave track it.
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const ticks = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
+    const current = ticks.indexOf(document.activeElement as HTMLElement)
+    if (current < 0) return
+    const next =
+      event.key === 'ArrowUp'
+        ? current - 1
+        : event.key === 'ArrowDown'
+          ? current + 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? ticks.length - 1
+              : null
+    if (next === null) return
+    event.preventDefault()
+    ticks[Math.min(Math.max(next, 0), ticks.length - 1)]?.focus()
+  }
+
   const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
 
   // Height-based hiding must clear the wave and preview before the rail returns.
@@ -323,12 +347,15 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
+      role="navigation"
+      aria-label={t('chat.navigation.anchor.label')}
       style={{ width: hitStripWidth }}
       onMouseMove={handleMouseMove}
       onMouseLeave={clearPointerState}>
       <div
         ref={railScrollRef}
         onScroll={handleScroll}
+        onKeyDown={handleKeyDown}
         className={classNames(
           // The scroll viewport is inset by the fixed edge margins (top/bottom),
           // so those margins sit OUTSIDE the scroll and never move while the strip
@@ -370,6 +397,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
                 // the layout classes alone keep the visuals unchanged.
                 className="flex w-full shrink-0 cursor-pointer items-center justify-end rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ height: RAIL_TICK_PITCH_PX }}
+                onFocus={() => setKeyboardIndex(index)}
+                onBlur={() => setKeyboardIndex((current) => (current === index ? null : current))}
                 onClick={() => scrollToMessageId?.(turn.anchorId)}>
                 <div
                   className={classNames(

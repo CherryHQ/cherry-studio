@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "メッセージが選択されていません",
   "chat.multiple.select.label": "選択",
   "chat.navigation.anchor.jump_to_turn": "ターン {{number}} にジャンプ",
+  "chat.navigation.anchor.label": "会話のターン",
   "chat.navigation.bottom": "下部に戻る",
   "chat.navigation.close": "閉じる",
   "chat.save.file.title": "ローカルファイルに保存",

@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Mesaj Seçilmedi",
   "chat.multiple.select.label": "Çoklu Seçim",
   "chat.navigation.anchor.jump_to_turn": "{{number}}. tura atla",
+  "chat.navigation.anchor.label": "Konuşma turları",
   "chat.navigation.bottom": "En alta dön",
   "chat.navigation.close": "Kapat",
   "chat.save.file.title": "Yerel Dosyaya Kaydet",

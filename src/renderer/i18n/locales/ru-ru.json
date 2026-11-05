@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Ничего не выбрано",
   "chat.multiple.select.label": "Множественный выбор",
   "chat.navigation.anchor.jump_to_turn": "Перейти к ходу {{number}}",
+  "chat.navigation.anchor.label": "Реплики диалога",
   "chat.navigation.bottom": "Вернуться вниз",
   "chat.navigation.close": "Закрыть",
   "chat.save.file.title": "Сохранить в локальный файл",

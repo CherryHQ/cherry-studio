@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Không có tin nhắn nào được chọn",
   "chat.multiple.select.label": "Chọn nhiều",
   "chat.navigation.anchor.jump_to_turn": "Nhảy đến lượt {{number}}",
+  "chat.navigation.anchor.label": "Các lượt hội thoại",
   "chat.navigation.bottom": "Quay lại đầu trang",
   "chat.navigation.close": "Đóng",
   "chat.save.file.title": "Lưu vào tệp cục bộ",

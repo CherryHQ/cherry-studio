@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Aucun message sélectionné",
   "chat.multiple.select.label": "Sélection multiple",
   "chat.navigation.anchor.jump_to_turn": "Passer au tour {{number}}",
+  "chat.navigation.anchor.label": "Tours de conversation",
   "chat.navigation.bottom": "Retour en bas",
   "chat.navigation.close": "Fermer",
   "chat.save.file.title": "Enregistrer dans un fichier local",
