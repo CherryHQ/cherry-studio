@@ -66,6 +66,13 @@ async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>)
     streamed.steps,
     streamed.rawFinishReason
   ])
+  // A terminal stream error (e.g. a Codex Responses `response.failed` frame) does not reject
+  // these promises: the SDK closes the run with finishReason "error", empty text and partial
+  // usage, so the aggregate would look like a successful empty generation. Surface it as the
+  // failure it is. Ordinary tool errors carry their own finish reasons and are untouched.
+  if (finishReason === 'error' || steps.some((step) => step.finishReason === 'error')) {
+    throw new Error('Response stream ended with a terminal provider error (finishReason: "error").')
+  }
   return { text, usage, finishReason, steps, rawFinishReason }
 }
 

@@ -40,6 +40,12 @@ const agent = new Agent({
 const stream: ReadableStream<UIMessageChunk> = agent.stream(initialMessages, signal)
 // or (non-streaming; input is { prompt } | { messages })
 const result = await agent.generate({ messages }, signal)
+// generate() drives the non-streaming transport by default; pass
+// { streamingTransport: true } for backends that reject non-streaming
+// requests (OpenAI Codex on the ChatGPT Responses endpoint). The run then
+// goes over SDK streaming internally, and callers still receive one
+// aggregated result — text, usage, finishReason and steps, with terminal
+// stream errors rethrown instead of resolving as an empty success.
 
 // internal observers can also register on the agent:
 const dispose = agent.on('onStepFinish', step => { … })

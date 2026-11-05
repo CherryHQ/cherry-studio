@@ -2204,6 +2204,42 @@ describe('AiService tool approval', () => {
     expect(result.text).toBe('ok')
   })
 
+  it('fails the Codex probe when the Responses stream ends in response.failed', async () => {
+    // A Codex Responses stream that opens an output item and then emits
+    // `response.failed` resolves the SDK aggregation promises with empty text
+    // and finishReason "error" instead of rejecting. generate() must surface
+    // that as a failure — otherwise the health check reports a success
+    // latency for a model the provider refused.
+    const service = createService()
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: Promise.resolve(''),
+      usage: Promise.resolve({ inputTokens: 11, outputTokens: 0, totalTokens: 11 }),
+      finishReason: Promise.resolve('error'),
+      rawFinishReason: Promise.resolve('error'),
+      steps: Promise.resolve([])
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    await expect(
+      service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+    ).rejects.toThrow('terminal provider error')
+    expect(mockAgentStream).toHaveBeenCalledOnce()
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
