@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
@@ -631,7 +632,7 @@ vi.mock('@cherrystudio/ui', () => {
       ...props
     }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => <a {...props}>{children}</a>,
     RowFlex: passthrough('div'),
-    Scrollbar: passthrough('div', 'scrollbar'),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     SearchInput: ({
       'aria-label': ariaLabel,
       clearLabel,
@@ -1199,7 +1200,7 @@ describe('TasksSettings routing and creation', () => {
         sessionId: 'session-task-chat'
       })
     )
-    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create')
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create', {})
   })
 
   it('stays on the page and reports the failure when the chat session cannot be created', async () => {

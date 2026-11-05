@@ -119,9 +119,9 @@ describe('ConversationNavigationService', () => {
   })
 
   it('serializes different anchors while coalescing the same anchor without opening a second tab', async () => {
-    const first = service.focusOrOpen(target, 'Task', null, 'first')
-    expect(service.focusOrOpen(target, 'Task', null, 'first')).toBe(first)
-    const second = service.focusOrOpen(target, 'Task', null, null)
+    const first = service.focusOrOpen(target, 'Task', null, undefined, 'first')
+    expect(service.focusOrOpen(target, 'Task', null, undefined, 'first')).toBe(first)
+    const second = service.focusOrOpen(target, 'Task', null, undefined, null)
     const firstId = ownershipRequestId()
     service.reportOwnership(firstId, 'main-1', false)
     service.reportOwnership(firstId, 'sub-1', true)
@@ -265,7 +265,7 @@ describe('ConversationNavigationService', () => {
         mainWindowCreated = true
       })
 
-      const navigation = service.focusOrOpen(target, 'Refactor project', null, messageId)
+      const navigation = service.focusOrOpen(target, 'Refactor project', null, undefined, messageId)
 
       expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/agents?sessionId=session-1')
       await vi.waitFor(() =>
@@ -293,6 +293,57 @@ describe('ConversationNavigationService', () => {
       ).toHaveLength(messageId === undefined ? 0 : 1)
     }
   )
+
+  describe('draft hand-off', () => {
+    const draft = { text: 'And the tests?', tokens: [], files: [], knowledgeBaseIds: [] }
+
+    it('sends the draft with the focus command to the destination', async () => {
+      const navigation = service.focusOrOpen(target, 'Refactor project', null, draft)
+      const requestId = ownershipRequestId()
+      service.reportOwnership(requestId, 'main-1', false)
+      service.reportOwnership(requestId, 'sub-1', false)
+      await vi.waitFor(() =>
+        expect(mocks.send).toHaveBeenCalledWith('main-1', 'navigation.conversation_focus_or_open_requested', {
+          requestId,
+          target,
+          title: 'Refactor project',
+          draft
+        })
+      )
+      service.reportOwnership(requestId, 'main-1', true)
+      await navigation
+    })
+
+    it('hands the draft to a cold-opened main window once it owns the conversation', async () => {
+      let mainWindowCreated = false
+      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+        mainWindowCreated && type === WindowType.Main ? [windowInfo('main-1', WindowType.Main)] : []
+      )
+      mocks.openRouteInMainWindow.mockImplementation(() => {
+        mainWindowCreated = true
+      })
+
+      const navigation = service.focusOrOpen(target, 'Refactor project', null, draft)
+      await vi.waitFor(() =>
+        expect(
+          mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_ownership_requested')
+        ).not.toHaveLength(0)
+      )
+      const requestId = ownershipRequestId()
+      service.reportOwnership(requestId, 'main-1', true)
+
+      await vi.waitFor(() =>
+        expect(mocks.send).toHaveBeenCalledWith('main-1', 'navigation.conversation_focus_or_open_requested', {
+          requestId,
+          target,
+          title: 'Refactor project',
+          draft
+        })
+      )
+      service.reportOwnership(requestId, 'main-1', true)
+      await navigation
+    })
+  })
 
   it('does not query hidden pooled subwindows for tab ownership', async () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>

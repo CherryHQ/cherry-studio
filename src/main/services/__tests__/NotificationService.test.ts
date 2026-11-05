@@ -720,6 +720,7 @@ describe('NotificationService', () => {
       { conversationType: 'agent', conversationId: 'session-1' },
       'Refactor project',
       null,
+      undefined,
       'message-1'
     )
     mocks.agentSessionGetById.mockImplementation(() => {
@@ -1313,6 +1314,7 @@ describe('NotificationService', () => {
       { conversationType: 'agent', conversationId: 'session-1' },
       'Refactor project',
       null,
+      undefined,
       undefined
     )
   })
@@ -1404,6 +1406,7 @@ describe('NotificationService', () => {
       { conversationType: 'assistant', conversationId: 'topic-1' },
       'Research notes',
       null,
+      undefined,
       undefined
     )
   })
@@ -1460,7 +1463,7 @@ describe('NotificationService', () => {
 
 // Results must coexist with old history using only the prerequisite's production schema.
 describe('notification result storage compatibility', () => {
-  const dbh = setupTestDatabase({ migrationsThrough: '0030_notification_record' })
+  const dbh = setupTestDatabase()
   it.each([
     null,
     { kind: 'conversation' as const, conversationType: 'assistant' as const, conversationId: 'old-topic' }

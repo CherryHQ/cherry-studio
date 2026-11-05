@@ -4,7 +4,7 @@ import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
-import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
+import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -37,9 +37,7 @@ const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockChatWriteValue = vi.hoisted(() => ({ current: null as any }))
 const mockEventEmit = vi.hoisted(() => vi.fn())
 const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
-const mockUseExecutionOverlay = vi.hoisted(() =>
-  vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
-)
+const mockUseExecutionOverlay = vi.hoisted(() => vi.fn<typeof useExecutionOverlay>(() => mockExecutionOverlay.current))
 type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
 type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
 const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
@@ -78,7 +76,7 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
+  useExecutionOverlay: mockUseExecutionOverlay
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', async (importOriginal) => {
@@ -472,6 +470,7 @@ describe('ChatContent', () => {
   })
 
   it('resend opens a regenerate stream and seeds reserved messages without waiting for stream terminal', async () => {
+    const onBranchLiveStateChange = vi.fn()
     const historyUser = createUiMessage('history-user', 'user')
     const historyAssistant = {
       ...createUiMessage('history-assistant', 'assistant'),
@@ -515,7 +514,7 @@ describe('ChatContent', () => {
       activeExecutions: []
     })
 
-    render(<ChatContent topic={topic} />)
+    render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await act(async () => {
       await mockChatWriteValue.current?.resend('history-user')
@@ -530,11 +529,13 @@ describe('ChatContent', () => {
     )
     expect(regenerate).not.toHaveBeenCalled()
     await waitFor(() => {
-      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
-        'topic-1',
-        [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }],
-        expect.any(Array),
-        expect.any(Object)
+      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          activeNodeId: 'reserved-assistant',
+          nodes: expect.arrayContaining([
+            expect.objectContaining({ id: 'reserved-assistant', parentId: 'history-user', status: 'pending' })
+          ])
+        })
       )
     })
   })
@@ -815,14 +816,6 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
-        'topic-1',
-        [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }],
-        expect.any(Array),
-        expect.any(Object)
-      )
-    })
-    await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(
         expect.objectContaining({
           activeNodeId: 'reserved-assistant',
@@ -1065,12 +1058,11 @@ describe('ChatContent', () => {
       )
     })
 
-    const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
-    expect(overlayCall).toBeDefined()
-    const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
+    const finish = mockUseExecutionOverlay.mock.lastCall?.[2]?.onFinish
+    expect(finish).toBeDefined()
 
     act(() => {
-      finish('forked-exec', {
+      finish!('forked-exec', {
         attemptId: 9,
         message: {
           id: 'forked-assistant',
@@ -1476,33 +1468,23 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
-        'topic-1',
-        [
-          {
-            executionId: 'provider::model-a',
-            attemptId: 1,
-            anchorMessageId: 'reserved-assistant-a'
-          },
-          {
-            executionId: 'provider::model-b',
-            attemptId: 2,
-            anchorMessageId: 'reserved-assistant-b'
-          }
-        ],
-        expect.any(Array),
-        expect.any(Object)
+      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({ id: 'reserved-assistant-a', status: 'pending' }),
+            expect.objectContaining({ id: 'reserved-assistant-b', status: 'pending' })
+          ])
+        })
       )
     })
 
-    const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
-    expect(overlayCall).toBeDefined()
-    const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
+    const finish = mockUseExecutionOverlay.mock.lastCall?.[2]?.onFinish
+    expect(finish).toBeDefined()
     const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
     refresh.mockClear()
 
     act(() => {
-      finish('provider::model-a', {
+      finish!('provider::model-a', {
         attemptId: 1,
         message: { ...reservedAssistantA, parts: [{ type: 'text', text: 'model a final' }] as CherryMessagePart[] },
         isAbort: false,
@@ -1518,7 +1500,7 @@ describe('ChatContent', () => {
     expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(disposeOverlay.mock.invocationCallOrder[0])
 
     act(() => {
-      finish('provider::model-b', {
+      finish!('provider::model-b', {
         attemptId: 2,
         message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
         isAbort: false,

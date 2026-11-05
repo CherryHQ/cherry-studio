@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,6 +86,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button type="button" {...props}>
         {children}

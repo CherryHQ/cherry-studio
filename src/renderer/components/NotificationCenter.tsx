@@ -2,7 +2,7 @@ import { Bell, Check } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Drawer, DrawerContent, DrawerTitle, DrawerDescription, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerContent, DrawerTitle, DrawerDescription, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -431,13 +431,13 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               {t('notification.center.mark_all_read')}
             </Button>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-5">
+          <ScrollArea className="min-h-0 flex-1 px-5">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}
               onDismissRequested={() => setRequestedId(null)}
             />
-          </Scrollbar>
+          </ScrollArea>
           <DrawerDescription className="shrink-0 border-t border-border-subtle px-4 py-2 text-xs">
             {t('notification.center.retention')}
           </DrawerDescription>

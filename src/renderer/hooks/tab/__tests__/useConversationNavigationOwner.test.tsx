@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
+import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useConversationNavigationOwner } from '../useConversationNavigationOwner'
@@ -160,6 +161,17 @@ describe('useConversationNavigationOwner', () => {
       requestId: 'request-1',
       ownsTarget: true
     })
+  })
+
+  it("hands a carried draft to the agent session's composer", () => {
+    const draft = { text: 'And the tests?', tokens: [], files: [], knowledgeBaseIds: [] }
+    renderHook(() =>
+      useConversationNavigationOwner({ activeTabId: '', tabs: [], openTab: vi.fn(), setActiveTab: vi.fn() })
+    )
+
+    emit('navigation.conversation_focus_or_open_requested', { requestId: 'request-1', target, title: 'Fix', draft })
+
+    expect(takeAgentDraftHandoffs('session-1')).toEqual([draft])
   })
 
   it('confirms a missing target only after the new tab is committed', async () => {

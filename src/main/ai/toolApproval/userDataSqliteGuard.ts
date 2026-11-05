@@ -16,6 +16,12 @@ interface ToolBinding {
   readonly normalizeStructuredPath?: (value: string) => string
 }
 
+const PI_TOOL_BINDING = {
+  pathFields: { write: 'path', edit: 'path' },
+  shellFields: { bash: 'command' },
+  normalizeStructuredPath: normalizePiNativePathInput
+} satisfies ToolBinding
+
 const TOOL_BINDINGS = {
   'claude-code': {
     pathFields: {
@@ -26,11 +32,8 @@ const TOOL_BINDINGS = {
     },
     shellFields: { Bash: 'command' }
   },
-  pi: {
-    pathFields: { write: 'path', edit: 'path' },
-    shellFields: { bash: 'command' },
-    normalizeStructuredPath: normalizePiNativePathInput
-  }
+  pi: PI_TOOL_BINDING,
+  'pi-durable': PI_TOOL_BINDING
 } satisfies Record<AgentType, ToolBinding>
 
 export const USER_DATA_SQLITE_GUARD_REASON = 'Access to SQLite files inside Cherry Studio user data is blocked.'

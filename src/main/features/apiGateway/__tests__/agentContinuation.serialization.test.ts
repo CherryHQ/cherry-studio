@@ -28,7 +28,7 @@ async function serialize(input: MessageCreateParams, internal = true) {
   const messages = internal ? appendInternalAgentContinuation(converted) : converted
   const tools = converter.toAiSdkTools(input)
   const prompt = await toModelMessages(messages, undefined, tools)
-  let requestBody: { contents: GeminiContent[] } = { contents: [] }
+  let requestBody: { contents: GeminiContent[]; tools?: unknown[] } = { contents: [] }
   const model = createCherryIn({
     apiKey: 'test-key',
     endpointType: 'gemini',
@@ -47,7 +47,7 @@ async function serialize(input: MessageCreateParams, internal = true) {
 
   await generateText({ model, messages: prompt, tools, ...converter.extractStreamOptions(input), maxRetries: 0 })
 
-  return { contents: requestBody.contents, prompt }
+  return { contents: requestBody.contents, prompt, tools: requestBody.tools }
 }
 
 function fixture(content: AssistantContent, shell = false): MessageCreateParams {
@@ -61,6 +61,172 @@ function fixture(content: AssistantContent, shell = false): MessageCreateParams 
 }
 
 describe('internal Agent continuation Gemini serialization', () => {
+  it.each([
+    { label: 'object', input: {} },
+    { label: 'non-object', input: 'not-an-object' }
+  ])('preserves ordered failed-tool history with $label input and appends once', async ({ label, input }) => {
+    const { contents, tools } = await serialize(
+      params({
+        tools: [{ name: 'Bash', input_schema: { type: 'object', properties: {} } }],
+        messages: [
+          { role: 'user', content: 'Continue task' },
+          {
+            role: 'assistant',
+            content: [
+              thinking,
+              { type: 'thinking', thinking: 'Thinking again', signature: '' },
+              { type: 'tool_use', id: 'call_1', name: 'Bash', input },
+              text
+            ]
+          },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
+          }
+        ]
+      })
+    )
+
+    expect(tools).toEqual([
+      { functionDeclarations: [{ name: 'Bash', description: '', parameters: { type: 'object', properties: {} } }] }
+    ])
+    if (label === 'object') {
+      expect(contents.map((entry) => entry.role)).toEqual(['user', 'model', 'user', 'model', 'user'])
+      expect(contents).toEqual([
+        { role: 'user', parts: [{ text: 'Continue task' }] },
+        {
+          role: 'model',
+          parts: [
+            { text: 'Thinking', thought: true },
+            { text: 'Thinking again', thought: true },
+            {
+              functionCall: { id: 'call_1', name: 'Bash', args: {} },
+              thoughtSignature: 'skip_thought_signature_validator'
+            }
+          ]
+        },
+        {
+          role: 'user',
+          parts: [
+            { functionResponse: { id: 'call_1', name: 'Bash', response: { name: 'Bash', content: 'Tool failed' } } }
+          ]
+        },
+        { role: 'model', parts: [{ text: 'Working' }] },
+        { role: 'user', parts: [{ text: AGENT_CONTINUATION_TEXT }] }
+      ])
+    } else {
+      expect(contents.map((entry) => entry.role)).toEqual(['user', 'model', 'user'])
+      expect(contents).toEqual([
+        { role: 'user', parts: [{ text: 'Continue task' }] },
+        {
+          role: 'model',
+          parts: [{ text: 'Thinking', thought: true }, { text: 'Thinking again', thought: true }, { text: 'Working' }]
+        },
+        { role: 'user', parts: [{ text: AGENT_CONTINUATION_TEXT }] }
+      ])
+    }
+  })
+
+  it('preserves reasoning after a settled tool and appends one continuation', async () => {
+    const { contents } = await serialize(
+      params({
+        tools: [{ name: 'get_weather', input_schema: { type: 'object', properties: { city: { type: 'string' } } } }],
+        messages: [
+          { role: 'user', content: 'Continue task' },
+          { role: 'assistant', content: [toolUse, thinking] },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_1', content: '72F' }] }
+        ]
+      })
+    )
+
+    expect(contents.map((entry) => entry.role)).toEqual(['user', 'model', 'user', 'model', 'user'])
+    expect(contents).toEqual([
+      { role: 'user', parts: [{ text: 'Continue task' }] },
+      {
+        role: 'model',
+        parts: [
+          {
+            functionCall: { id: 'call_1', name: 'get_weather', args: { city: 'SF' } },
+            thoughtSignature: 'skip_thought_signature_validator'
+          }
+        ]
+      },
+      {
+        role: 'user',
+        parts: [
+          { functionResponse: { id: 'call_1', name: 'get_weather', response: { name: 'get_weather', content: '72F' } } }
+        ]
+      },
+      { role: 'model', parts: [{ text: 'Thinking', thought: true }] },
+      { role: 'user', parts: [{ text: AGENT_CONTINUATION_TEXT }] }
+    ])
+  })
+
+  it('preserves two sequential settled tool groups and appends only after the final text', async () => {
+    const { contents } = await serialize(
+      params({
+        tools: [{ name: 'get_weather', input_schema: { type: 'object', properties: { city: { type: 'string' } } } }],
+        messages: [
+          { role: 'user', content: 'Continue task' },
+          {
+            role: 'assistant',
+            content: [
+              toolUse,
+              { type: 'text', text: 'Checking next city' },
+              { ...toolUse, id: 'call_2', input: { city: 'NYC' } },
+              text
+            ]
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'tool_result', tool_use_id: 'call_1', content: '72F' },
+              { type: 'tool_result', tool_use_id: 'call_2', content: '65F' }
+            ]
+          }
+        ]
+      })
+    )
+
+    expect(contents.map((entry) => entry.role)).toEqual(['user', 'model', 'user', 'model', 'user', 'model', 'user'])
+    expect(contents).toEqual([
+      { role: 'user', parts: [{ text: 'Continue task' }] },
+      {
+        role: 'model',
+        parts: [
+          {
+            functionCall: { id: 'call_1', name: 'get_weather', args: { city: 'SF' } },
+            thoughtSignature: 'skip_thought_signature_validator'
+          }
+        ]
+      },
+      {
+        role: 'user',
+        parts: [
+          { functionResponse: { id: 'call_1', name: 'get_weather', response: { name: 'get_weather', content: '72F' } } }
+        ]
+      },
+      {
+        role: 'model',
+        parts: [
+          { text: 'Checking next city' },
+          {
+            functionCall: { id: 'call_2', name: 'get_weather', args: { city: 'NYC' } },
+            thoughtSignature: 'skip_thought_signature_validator'
+          }
+        ]
+      },
+      {
+        role: 'user',
+        parts: [
+          { functionResponse: { id: 'call_2', name: 'get_weather', response: { name: 'get_weather', content: '65F' } } }
+        ]
+      },
+      { role: 'model', parts: [{ text: 'Working' }] },
+      { role: 'user', parts: [{ text: AGENT_CONTINUATION_TEXT }] }
+    ])
+  })
+
   it.each([
     {
       label: 'reported thinking + text with empty user shell',

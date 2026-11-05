@@ -237,7 +237,7 @@ export class NotificationService extends BaseService {
       const conversation = { conversationType: target.conversationType, conversationId: target.conversationId }
       await application
         .get('ConversationNavigationService')
-        .focusOrOpen(conversation, this.resolveConversationName(target), null, target.messageId)
+        .focusOrOpen(conversation, this.resolveConversationName(target), null, undefined, target.messageId)
     } else if (target.kind === 'scheduled-task') {
       try {
         if (!agentTaskService.getTaskById(target.taskId)) throw new Error('Deleted task')

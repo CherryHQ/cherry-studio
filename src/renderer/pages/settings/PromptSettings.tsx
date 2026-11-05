@@ -15,7 +15,7 @@ import {
   EmojiIcon,
   EmptyState,
   ReorderableList,
-  Scrollbar,
+  ScrollArea,
   Skeleton,
   type SortableDragHandleProps
 } from '@cherrystudio/ui'
@@ -289,7 +289,7 @@ export function PromptSettings() {
             className="py-14"
           />
         ) : (
-          <Scrollbar className="min-h-0 flex-1 pb-3">
+          <ScrollArea viewportProps={{ className: 'pb-3' }} className="min-h-0 flex-1">
             <ReorderableList
               items={prompts}
               visibleItems={visiblePrompts}
@@ -316,7 +316,7 @@ export function PromptSettings() {
                 />
               )}
             />
-          </Scrollbar>
+          </ScrollArea>
         )}
       </div>
 
@@ -425,8 +425,6 @@ function PromptRow({
         type="button"
         variant="ghost"
         size="icon-sm"
-        {...dragHandleProps?.attributes}
-        {...dragHandleProps?.listeners}
         aria-label={t('settings.prompts.reorder', { title: prompt.title })}
         onClick={(event) => event.stopPropagation()}
         className="shrink-0 cursor-grab text-foreground-tertiary active:cursor-grabbing">
