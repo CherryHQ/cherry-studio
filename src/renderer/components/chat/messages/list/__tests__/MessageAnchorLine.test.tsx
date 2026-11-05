@@ -268,7 +268,10 @@ describe('MessageAnchorLine', () => {
   it('stops the rail above the composer overlay when a bottom inset is provided', () => {
     const { container } = renderRail({ messages, bottomInset: 120 })
 
-    expect((container.firstElementChild as HTMLElement).style.bottom).toBe('calc(2rem + 120px)')
+    // DOM serialization may reorder calc() terms, so assert the sum, not the order.
+    expect((container.firstElementChild as HTMLElement).style.bottom).toMatch(
+      /^calc\((?:2rem \+ 120px|120px \+ 2rem)\)$/
+    )
   })
 
   it('fades the top edge as a hint while older pages remain unloaded', () => {
