@@ -913,6 +913,33 @@
     },
     {
       "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AI Stupid Level - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://aistupidlevel.info/v1",
+          "modelsApiUrls": {
+            "default": "https://aistupidlevel.info/v1/models"
+          },
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "aistupidlevel",
+      "metadata": {
+        "website": {
+          "apiKey": "https://aistupidlevel.info/router/keys",
+          "docs": "https://aistupidlevel.info/router/docs",
+          "models": "https://aistupidlevel.info/router/docs#strategies",
+          "official": "https://aistupidlevel.info"
+        }
+      },
+      "name": "AI Stupid Level"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
       "endpointConfigs": {
@@ -2931,5 +2958,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "70e1e7ba16416870"
+  "version": "5d2df1b92c47b95c"
 }
