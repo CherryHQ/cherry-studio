@@ -12,7 +12,7 @@ import type { MessageListItem } from '../types'
 
 const logger = loggerService.withContext('useMessageTurnFocus')
 
-const INTERACTIVE_TARGET_SELECTOR = 'button,a,input,textarea,select,[role="button"],[contenteditable="true"]'
+const INTERACTIVE_TARGET_SELECTOR = 'button,a,summary,input,textarea,select,[role="button"],[contenteditable="true"]'
 
 type Turn = readonly [key: string, messages: readonly MessageListItem[]]
 

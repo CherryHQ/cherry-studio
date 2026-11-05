@@ -782,8 +782,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     [partsByMessageId, streamingLayers]
   )
   const scrollToTurn = useCallback((key: string) => messageListRef.current?.scrollToKey(key, 'start'), [])
+  // Context-boundary dividers stay rendered but are not navigable turns.
+  const navigableTurns = useMemo(
+    () => groupedMessages.filter(([, groupMessages]) => groupMessages.some((message) => !message.isContextBoundary)),
+    [groupedMessages]
+  )
   const { focusedTurnKey, surfaceProps } = useMessageTurnFocus({
-    turns: groupedMessages,
+    turns: navigableTurns,
     getMessageParts,
     scrollToTurn,
     resetKey: topic.id
