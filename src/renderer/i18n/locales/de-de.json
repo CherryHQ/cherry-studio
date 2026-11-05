@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Gestoppt",
   "apiGateway.title": "API-Server",
   "assistants.abbr": "Assistent",
+  "assistants.archive.description": "Die Archivierung kann rückgängig gemacht werden. Du kannst den Assistenten unter Einstellungen → Archiv wiederherstellen.",
   "assistants.clear.menu_title": "Themen leeren",
   "assistants.delete.content": "Das Löschen des Assistenten löscht alle Themen und Dateien unter diesem Assistenten. Möchten Sie fortfahren?",
   "assistants.delete.title": "Assistent löschen",

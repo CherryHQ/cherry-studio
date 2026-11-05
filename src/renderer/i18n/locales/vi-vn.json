@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Đã dừng",
   "apiGateway.title": "Máy chủ API",
   "assistants.abbr": "Trợ lý",
+  "assistants.archive.description": "Có thể hoàn tác việc lưu trữ. Bạn có thể khôi phục trợ lý từ Cài đặt → Lưu trữ.",
   "assistants.clear.menu_title": "Xóa chủ đề",
   "assistants.delete.content": "Việc xóa trợ lý sẽ xóa toàn bộ chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn xóa không?",
   "assistants.delete.title": "Xóa",

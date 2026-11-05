@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Остановлен",
   "apiGateway.title": "API Сервер",
   "assistants.abbr": "Ассистент",
+  "assistants.archive.description": "Архивацию можно отменить. Вы можете восстановить ассистента в разделе Настройки → Архив.",
   "assistants.clear.menu_title": "Очистить темы",
   "assistants.delete.content": "Удаление ассистента удалит все топики и файлы под ассистентом. Вы уверены, что хотите удалить его?",
   "assistants.delete.title": "Удалить ассистента",

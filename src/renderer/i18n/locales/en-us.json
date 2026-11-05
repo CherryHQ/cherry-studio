@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Stopped",
   "apiGateway.title": "API Gateway",
   "assistants.abbr": "Assistants",
+  "assistants.archive.description": "Archive is reversible. You can restore the assistant from Settings → Archive.",
   "assistants.clear.menu_title": "Clear Topics",
   "assistants.delete.content": "Deleting an assistant will delete all conversations and files under the assistant. Are you sure you want to delete it?",
   "assistants.delete.title": "Delete Assistant",

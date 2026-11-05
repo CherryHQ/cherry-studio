@@ -666,6 +666,7 @@
   "apiGateway.status.stopped": "Arrestato",
   "apiGateway.title": "Gateway API",
   "assistants.abbr": "Assistenti",
+  "assistants.archive.description": "L’archiviazione è reversibile. Puoi ripristinare l’assistente da Impostazioni → Archivio.",
   "assistants.clear.menu_title": "Cancella argomenti",
   "assistants.delete.content": "Eliminando un assistente verranno eliminate tutte le conversazioni e i file associati. Vuoi davvero eliminarlo?",
   "assistants.delete.title": "Elimina assistente",
