@@ -79,6 +79,7 @@ import {
   readAgentSessionPath,
   validateAgentSessionParent
 } from './agentSessionMessageTree'
+import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
@@ -717,6 +718,7 @@ export class AgentSessionMessageService {
           modelId: row.modelId,
           messageSnapshot: row.messageSnapshot,
           runtimeResumeToken: row.runtimeResumeToken,
+          provenance: row.provenance,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt
         })
@@ -986,8 +988,7 @@ export class AgentSessionMessageService {
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
-   * Cursor wire format: `<createdAtMs>:<id>` — composite (createdAt, id) so
-   * the secondary key tiebreaks ties from the ms-precision timestamp.
+   * WorkBuddy cursors preserve the imported prefix independently of timestamps.
    */
   listSessionMessages(
     sessionId: string,
@@ -1025,15 +1026,9 @@ export class AgentSessionMessageService {
       head ? inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)) : sql`0`
     ]
     if (cursor) {
-      filters.push(ordering.where(cursor))
+      filters.push(cursor)
     } else if (anchor) {
-      // Anchor the first page so previews include the matched message and older context.
-      filters.push(
-        or(
-          lt(sessionMessagesTable.createdAt, anchor.createdAt),
-          and(eq(sessionMessagesTable.createdAt, anchor.createdAt), lte(sessionMessagesTable.id, anchor.id))
-        )!
-      )
+      filters.push(ordering.whereRow(anchor, true))
     }
 
     const rows = database
@@ -1061,7 +1056,7 @@ export class AgentSessionMessageService {
       siblings: siblings.filter((sibling) => sibling.parentId === row.parentId).map((sibling) => sibling.id)
     }))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    const nextCursor = hasNext && tail ? ordering.encode(tail) : undefined
 
     return { items, nextCursor }
   }
@@ -1081,7 +1076,7 @@ export class AgentSessionMessageService {
       )`
         )
       )
-      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .orderBy(...sessionMessageOrdering(application.get('DbService').getDb(), sessionId, 'desc').orderBy)
       .all()
       .map((row) => this.rowToEntity(row))
   }

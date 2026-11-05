@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -8,6 +8,8 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx } from '@data/db/types'
+
+import { sessionMessageOrdering } from './agentSessionMessageOrder'
 
 const prefix = 'conversation-import:'
 const StateSchema = z.strictObject({
@@ -55,7 +57,7 @@ export function readImportedHistory(sessionId: string) {
     .select()
     .from(agentSessionMessageTable)
     .where(eq(agentSessionMessageTable.sessionId, sessionId))
-    .orderBy(asc(agentSessionMessageTable.createdAt), asc(agentSessionMessageTable.id))
+    .orderBy(...sessionMessageOrdering(db, sessionId).orderBy)
     .all()
   return { ...session, messages }
 }

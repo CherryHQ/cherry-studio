@@ -152,6 +152,61 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
+  it('keeps WorkBuddy causal order across pages, anchors, forks and native continuation', async () => {
+    const base = Date.UTC(2026, 0, 1)
+    const ids = ['wb-user', 'wb-call', 'wb-result', 'wb-answer']
+    const times = [base, base + 200, base + 9, base + 300]
+    application.get('DbService').withWriteTx((tx) => {
+      agentSessionMessageService.importMessagesTx(
+        tx,
+        SESSION_ID,
+        ids.map((id, sourceOrder) => ({
+          id,
+          role: sourceOrder === 0 ? 'user' : 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: id }] },
+          createdAt: times[sourceOrder],
+          updatedAt: times[sourceOrder],
+          runtimeResumeToken: 'imported-token',
+          provenance: { source: 'workbuddy', originalMessageId: id, sourceOrder, inferredTimestamp: false }
+        }))
+      )
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      runtimeResumeToken: 'native-token',
+      message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'continue' }] } }
+    })
+    const read: string[] = []
+    let cursor: string | undefined
+    do {
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 2, cursor })
+      read.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(read.reverse()).toEqual([...ids, USER_MESSAGE_ID])
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(SESSION_ID, { messageId: 'wb-result', limit: 2 })
+        .items.map((row) => row.id)
+    ).toEqual(['wb-result', 'wb-call'])
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('native-token')
+    const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, 'wb-result')!
+    expect(prefix.map((row) => row.id)).toEqual(ids.slice(0, 3))
+    expect(prefix.map((row) => row.createdAt)).toEqual(times.slice(0, 3))
+    await seedSession({ id: 'wb-copy', name: 'Copy', orderKey: 'wb-copy' })
+    application.get('DbService').withWriteTx((tx) =>
+      agentSessionMessageService.insertForkMessagesTx(
+        tx,
+        'wb-copy',
+        prefix.map((row) => ({ ...row, id: row.id + '-copy' }))
+      )
+    )
+    expect(
+      agentSessionMessageService.listSessionMessages('wb-copy').items.map((row) => row.provenance?.sourceOrder)
+    ).toEqual([2, 1, 0])
+  })
+
   describe('native fork persistence', () => {
     it.each(['cherry-claw', 'claude-code', 'pi'])(
       'matches a Claude checkpoint against the effective runtime of a stored %s agent',
