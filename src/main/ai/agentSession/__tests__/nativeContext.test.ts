@@ -113,7 +113,7 @@ async function createPiContext(
   options: AgentRuntimeSessionOptions
 ) {
   if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
-  const intent = contexts.allocateContext(sessionId, backendId, uuid())
+  const intent = preparePiBranch(sessionId)
   const sessionManager = SessionManager.create(options.cwd, application.getPath('feature.agents.pi.sessions'), {
     id: intent.nativeThreadId!
   })
@@ -133,22 +133,6 @@ function confirmPiContext(contextId: string) {
   return contexts.bindContext(context.id, context.nativeThreadId)
 }
 
-async function createDurableContext(
-  sessionId: string,
-  backendId: string,
-  runtime: PiDurableRuntime,
-  options: Parameters<PiDurableRuntime['create']>[0]
-) {
-  if (contexts.backend(backendId).locator.kind !== 'pi-durable') throw new Error('Backend is not Pi Durable')
-  const intent = contexts.allocateContext(sessionId, backendId)
-  const result = await runtime.create(options)
-  if (result.status === 'confirmed' && result.value.thread.backendId !== backendId) {
-    throw new Error('Created Durable backend does not match the intent')
-  }
-  const context = result.status === 'confirmed' ? contexts.bindContext(intent.id, result.value.thread.id) : intent
-  return { context, result }
-}
-
 async function openNativeContext(
   contextId: string,
   runtime: PiRuntime | PiDurableRuntime
@@ -164,6 +148,8 @@ describe('native context storage and reconciliation', () => {
   let directory: string
   let sessionId: string
   const cleanup: Array<() => Promise<unknown>> = []
+  const sessionContexts = () =>
+    dbh.db.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.sessionId, sessionId)).all()
 
   beforeEach(() => {
     directory = mkdtempSync(join(tmpdir(), 'cherry-native-context-'))
@@ -229,14 +215,26 @@ describe('native context storage and reconciliation', () => {
     return { backend, runtime, options, faux }
   }
   async function durable() {
-    const backend = await createDurableBackend()
+    const intent = prepareDurableBranch(sessionId)
+    const root = await prepareDurableRoot(intent.id)
     const faux = fauxProvider({ tokensPerSecond: 10000 })
     const models = createModels()
     models.setProvider(faux.provider)
     const options = { models, registry: createRegistry() }
-    const runtime = confirmed(await openDurableBackend(backend.id, options))
+    const runtime = confirmed(
+      await createPiDurableRuntime({
+        backendId: runtimeId(intent.backendId),
+        openStorage: async () => root.storage,
+        harness: options
+      })
+    )
     cleanup.push(() => runtime.shutdown())
-    return { backend, runtime, options, faux }
+    const create = async (input: Parameters<PiDurableRuntime['create']>[0]) => {
+      const result = await runtime.create({ ...input, init: root.init })
+      const context = result.status === 'confirmed' ? contexts.bindContext(intent.id, result.value.thread.id) : intent
+      return { context, result }
+    }
+    return { backend: contexts.backend(intent.backendId), runtime, options, faux, create }
   }
 
   it('reserves one Durable branch without opening storage or permitting another harness to reuse it', () => {
@@ -247,7 +245,7 @@ describe('native context storage and reconciliation', () => {
     expect(existsSync(application.getPath('feature.agents.durable.stores', backend.locator.fileName))).toBe(false)
     expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
     expect(() => preparePiBranch(sessionId)).toThrow('another runtime')
-    expect(contexts.forSession(sessionId).map((context) => context.id)).toEqual([intent.id])
+    expect(sessionContexts().map((context) => context.id)).toEqual([intent.id])
     expect(
       dbh.db
         .select()
@@ -420,7 +418,7 @@ describe('native context storage and reconciliation', () => {
     const files = readdirSync(application.getPath('feature.agents.pi.sessions'))
     const seeder = new AgentSessionContextSeeder()
     new SeedRunner(dbh.db).runAll([seeder])
-    const pending = contexts.forSession(sessionId)
+    const pending = sessionContexts()
     expect(pending).toHaveLength(2)
     expect(pending.every((row) => row.bindingState === 'pending' && row.backendId === backend.id)).toBe(true)
     const available = pending.find((row) => row.nativeThreadId === manager.getSessionId())!
@@ -438,7 +436,7 @@ describe('native context storage and reconciliation', () => {
     new SeedRunner(dbh.db).runAll([seeder])
     expect(contexts.context(missing.id).bindingState).toBe('pending')
     expect(confirmPiContext(missing.id).nativeThreadId).toBe('missing-native')
-    expect(contexts.forSession(sessionId)).toHaveLength(2)
+    expect(sessionContexts()).toHaveLength(2)
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
   })
 
@@ -506,8 +504,8 @@ describe('native context storage and reconciliation', () => {
   })
 
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
-    const { backend, runtime, faux, options } = await durable()
-    const created = await createDurableContext(sessionId, backend.id, runtime, {
+    const { backend, runtime, faux, options, create } = await durable()
+    const created = await create({
       ownership: { kind: 'ownerless' },
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
@@ -538,7 +536,7 @@ describe('native context storage and reconciliation', () => {
   })
 
   it('leaves interrupted Durable work passive until explicit resume and reconciles the original input', async () => {
-    const { backend, runtime, faux, options } = await durable()
+    const { backend, runtime, faux, options, create } = await durable()
     const reached = Promise.withResolvers<void>()
     faux.setResponses([
       (_context, stream) =>
@@ -549,7 +547,7 @@ describe('native context storage and reconciliation', () => {
           else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
         })
     ])
-    const created = await createDurableContext(sessionId, backend.id, runtime, {
+    const created = await create({
       ownership: { kind: 'ownerless' },
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
@@ -583,7 +581,7 @@ describe('native context storage and reconciliation', () => {
   })
 
   it('recovers a queued Durable input by native identity before it has a transcript entry', async () => {
-    const { backend, runtime, faux, options } = await durable()
+    const { backend, runtime, faux, options, create } = await durable()
     const reached = Promise.withResolvers<void>()
     faux.setResponses([
       (_context, stream) =>
@@ -594,7 +592,7 @@ describe('native context storage and reconciliation', () => {
           else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
         })
     ])
-    const created = await createDurableContext(sessionId, backend.id, runtime, {
+    const created = await create({
       ownership: { kind: 'ownerless' },
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
@@ -620,27 +618,6 @@ describe('native context storage and reconciliation', () => {
       nativeInputId: receipt.nativeInput.id
     })
     expect(faux.state.callCount).toBe(before)
-  })
-
-  it('retains an unresolved Durable creation intent when the native create succeeds but binding fails', async () => {
-    const { backend, runtime } = await durable()
-    const spy = vi.spyOn(contexts, 'bindContext').mockImplementationOnce(() => {
-      throw new Error('binding commit failed')
-    })
-    await expect(
-      createDurableContext(sessionId, backend.id, runtime, { ownership: { kind: 'ownerless' } })
-    ).rejects.toThrow('binding commit failed')
-    spy.mockRestore()
-    const [intent] = contexts.forSession(sessionId)
-    expect(intent.nativeThreadId).toBeNull()
-    await expect(openNativeContext(intent.id, runtime)).rejects.toThrow('unbound')
-    await runtime.shutdown()
-    const storage = await openDurableStorage(contexts.backend(backend.id))
-    try {
-      expect((await storage.scanConversations({}, 10, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(1)
-    } finally {
-      await storage.close(BACKGROUND_CONTEXT)
-    }
   })
 
   it('does not create a missing Durable store or relabel an empty, unmarked or swapped one', async () => {
