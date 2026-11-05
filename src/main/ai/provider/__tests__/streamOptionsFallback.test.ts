@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   isStreamOptionsRejection,
+  readErrorPrefix,
+  STREAM_OPTIONS_ERROR_PREFIX_LIMIT,
   stripStreamOptionsBody,
   withStreamOptionsFallback,
   withStreamOptionsOmitted
@@ -102,6 +104,57 @@ describe('withStreamOptionsFallback', () => {
     })
     expect(response.status).toBe(200)
     expect(inner).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries when a large 400 carries the match within the inspected prefix', async () => {
+    const prefix = "Unknown parameter: 'stream_options.include_usage'."
+    const inner = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string)
+      if ('stream_options' in body) {
+        return new Response(prefix + 'x'.repeat(STREAM_OPTIONS_ERROR_PREFIX_LIMIT), { status: 400 })
+      }
+      return jsonResponse(200, { ok: true })
+    })
+    const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'm', stream_options: { include_usage: true } })
+    })
+    expect(response.status).toBe(200)
+    expect(inner).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry when the match lies beyond the inspected prefix', async () => {
+    const padding = 'x'.repeat(STREAM_OPTIONS_ERROR_PREFIX_LIMIT + 1024)
+    const inner = vi.fn<typeof fetch>(
+      async () => new Response(padding + 'Unknown parameter: stream_options.include_usage', { status: 400 })
+    )
+    const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'm', stream_options: { include_usage: true } })
+    })
+    expect(response.status).toBe(400)
+    expect(inner).toHaveBeenCalledTimes(1)
+    // The original stays readable so the SDK size guard still applies downstream.
+    expect(await response.text()).toContain('stream_options')
+  })
+
+  it('leaves the original 400 body readable when no retry happens', async () => {
+    const inner = vi.fn<typeof fetch>(async () => jsonResponse(400, { error: { message: 'boom' } }))
+    const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'm' })
+    })
+    expect(response.status).toBe(400)
+    expect(await response.text()).toContain('boom')
+  })
+})
+
+describe('readErrorPrefix', () => {
+  it('bounds the inspected prefix without consuming the original', async () => {
+    const original = new Response('a'.repeat(STREAM_OPTIONS_ERROR_PREFIX_LIMIT + 100), { status: 400 })
+    const prefix = await readErrorPrefix(original)
+    expect(prefix?.length).toBe(STREAM_OPTIONS_ERROR_PREFIX_LIMIT)
+    expect(await original.text()).toHaveLength(STREAM_OPTIONS_ERROR_PREFIX_LIMIT + 100)
   })
 })
 
