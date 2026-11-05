@@ -5597,12 +5597,20 @@ describe('ChatComposer', () => {
 
     it('saves the in-progress draft instead of the previewed history entry', async () => {
       seedInputHistory(['history entry'])
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
       mocks.getDraft.mockImplementation(() => ({
         text: mocks.surfaceProps?.text ?? '',
         tokens: []
       }))
 
-      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
       act(() => {
         mocks.surfaceProps?.onTextChange('original prompt')
@@ -5613,12 +5621,74 @@ describe('ChatComposer', () => {
         expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
       })
       await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
 
       clickSaveAsDraft()
 
       await waitFor(() => expect(readSavedDrafts().map((item) => item.draft.text)).toEqual(['original prompt']))
       await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
       expect(readSavedDrafts().map((item) => item.draft.text)).not.toContain('history entry')
+      // The parked draft keeps the snapshot's knowledge scope, and the live selection is kept,
+      // matching a save made outside a history preview.
+      expect(readSavedDrafts()[0].knowledgeBaseIds).toEqual(['kb-1'])
+      expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+    })
+
+    it('parks nothing and restores the stashed knowledge selection when the pre-preview draft is empty', async () => {
+      seedInputHistory(['history entry'])
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+
+      clickSaveAsDraft()
+
+      expect(readSavedDrafts()).toEqual([])
+      expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+      // Nothing was saved or cleared, so the previewed entry stays visible.
+      expect(mocks.surfaceProps?.text).toBe('history entry')
+    })
+
+    it('leaves the current knowledge selection untouched when editing a draft saved without scope', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+      // Legacy shape: drafts saved before knowledge scope was tracked carry no ids.
+      cacheService.setCasual('saved-drafts.topic-1:assistant-1', [
+        { id: 'legacy-1', draft: { text: 'legacy draft', tokens: [] }, files: [] }
+      ])
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      await act(async () => savedDraftsDock()?.props.onEdit('legacy-1'))
+
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('legacy draft'))
+      expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
     })
 
     it('parks the in-progress draft with its attachments when editing a saved draft from a history preview', async () => {

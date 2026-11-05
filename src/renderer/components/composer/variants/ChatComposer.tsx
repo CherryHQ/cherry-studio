@@ -1525,6 +1525,9 @@ const ChatComposerInner = ({
     }
     saveDraft(draft, draftFiles, knowledgeBaseIdsForSnapshot(historyPreview.tools))
     clearCurrentDraft()
+    // A normal save keeps the conversation-scope knowledge selection; restore the selection the
+    // preview stashed so saving from a history preview behaves the same.
+    if (historyPreview.tools) setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
   }, [
     actionsRef,
     clearCurrentDraft,
