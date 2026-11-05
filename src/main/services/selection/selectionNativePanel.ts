@@ -2,7 +2,7 @@ import type { Rectangle } from 'electron'
 
 import { application } from '@application'
 
-/** [macOS] The selection panel addon built from `native/darwin/selectionPanel.mm`; see `native/README.md`. */
+/** [macOS] The selection panel addon built from `native/selection-panel/selectionPanel.mm`; see `native/README.md`. */
 export interface SelectionNativePanel {
   enableDragCursor(handle: Buffer): void
   configurePanel(handle: Buffer): void

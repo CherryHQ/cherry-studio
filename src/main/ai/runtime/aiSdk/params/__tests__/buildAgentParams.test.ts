@@ -952,6 +952,79 @@ describe('buildAgentParams standard model parameters', () => {
       }
     )
 
+    it.each(['flat custom', 'assistant namespace', 'gateway namespace'])(
+      'removes fixed-sampling Claude top-k from %s before serializing the request',
+      async (source) => {
+        let body: Record<string, unknown> | undefined
+        resolveProviderAiSdkConfigMock.mockResolvedValue({
+          config: {
+            providerId: 'anthropic',
+            providerSettings: {
+              fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+                body = JSON.parse(String(init?.body))
+                throw new Error('request captured')
+              }
+            }
+          },
+          credentialReceipt: { attribution: 'unknown' }
+        })
+        const namespace = { topK: 5, top_k: 5, user: 'probe-user' }
+        const result = await buildAgentParams({
+          request: {
+            conversation: CONVERSATION,
+            callOverrides: {
+              maxOutputTokens: 100,
+              ...(source === 'gateway namespace' && { providerOptions: { anthropic: namespace } })
+            }
+          },
+          signal: undefined,
+          provider: makeProvider({
+            id: 'anthropic',
+            defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          }),
+          model: makeModel({
+            id: 'anthropic::claude-sonnet-5',
+            providerId: 'anthropic',
+            apiModelId: 'claude-sonnet-5'
+          }),
+          assistant:
+            source === 'gateway namespace'
+              ? undefined
+              : makeAssistant({
+                  settings: {
+                    customParameters:
+                      source === 'flat custom'
+                        ? [
+                            { name: 'top_k', type: 'number', value: 5 },
+                            { name: 'user', type: 'string', value: 'probe-user' }
+                          ]
+                        : [{ name: 'anthropic', type: 'json', value: JSON.stringify(namespace) }]
+                  }
+                })
+        })
+        const sdkModel = createAnthropic({
+          apiKey: 'test-key',
+          baseURL: 'https://provider.test/v1',
+          fetch: result.sdkConfig.providerSettings.fetch
+        })('claude-sonnet-5')
+        await expect(
+          sdkModel.doGenerate({
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+            maxOutputTokens: result.options.maxOutputTokens,
+            providerOptions: result.options.providerOptions
+          })
+        ).rejects.toThrow('request captured')
+
+        expect(body).toMatchObject({ model: 'claude-sonnet-5', max_tokens: 100 })
+        expect(body).not.toHaveProperty('top_k')
+        expect(body).not.toHaveProperty('topK')
+        if (source === 'flat custom') expect(body).toHaveProperty('user', 'probe-user')
+        expect(result.options.providerOptions?.anthropic).toMatchObject({ user: 'probe-user' })
+        expect(result.options.providerOptions?.anthropic).not.toHaveProperty('top_k')
+        expect(result.options.providerOptions?.anthropic).not.toHaveProperty('topK')
+      }
+    )
+
     it('falls back to assistant sampling when custom values are explicitly undefined', async () => {
       const { options } = await buildAgentParams({
         request: { conversation: CONVERSATION },

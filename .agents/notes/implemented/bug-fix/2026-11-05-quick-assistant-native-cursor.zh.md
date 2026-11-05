@@ -22,7 +22,7 @@ QuickAssistantService 创建 macOS 面板时，为该窗口启用现有 Node-API
 
 ## Verification
 
-- Regression — `node native/darwin/build.js arm64` 和 `node native/darwin/build.js x64`：两个 macOS addon 目标均编译通过；尚未验证 x64 运行。
+- Regression — `node native/selection-panel/build.js arm64` 和 `node native/selection-panel/build.js x64`：两个 macOS addon 目标均编译通过；尚未验证 x64 运行。
 - Regression — `pnpm test:main src/main/services/__tests__/QuickAssistantService.test.ts`：现有快捷助手生命周期和窗口几何行为测试通过。
 - Regression — 运行中的 macOS Electron 原生光标检查：工具栏空白处为 `NSCursor.openHandCursor`，编辑区为文字光标，离开窗口清除手型。计算后的 CSS 不作为验收信号。
 

@@ -146,6 +146,16 @@ function publishAsrInstallation(snapshot: LocalModelStatusSnapshot) {
   })
 }
 
+function recognitionStatus() {
+  const row = document.getElementById('setting-voice-recognition-model')!
+  const anchor = document.getElementById('setting-voice-recognition-status')!
+  expect(row).toContainElement(anchor)
+  expect(document.querySelectorAll('#setting-voice-recognition-status')).toHaveLength(1)
+  const status = anchor.querySelector<HTMLElement>('[role="status"]')
+  expect(status).not.toBeNull()
+  return status!
+}
+
 async function renderPreviewTest() {
   MockUsePreferenceUtils.setMultiplePreferenceValues({
     'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
@@ -464,15 +474,69 @@ describe('VoiceSettings', () => {
       status: { status: 'not_installed', reason: 'model_required' }
     })
     render(<VoiceSettings />)
-    const status = await screen.findByText('Download a speech recognition model in Local Models.')
+    const status = recognitionStatus()
+    await waitFor(() => expect(status).toHaveTextContent(i18n.t('settings.voice.status.model_required')))
 
     voice.resolveTranscription.mockResolvedValue({ modelId: FUNASR_MODEL_ID, status: { status: 'ready' } })
     publishAsrInstallation({ status: 'ready', percent: 100 })
 
-    await waitFor(() => expect(status).toHaveTextContent('Ready'))
+    await waitFor(() => expect(status).toHaveTextContent(i18n.t('settings.voice.status.ready')))
+    expect(recognitionStatus()).toBe(status)
     expect(screen.getByRole('combobox', { name: 'Recognition model' })).toHaveTextContent('FunASR Nano')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(modelId)
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBeNull()
+  })
+
+  it.each([
+    ['ready', 'not_installed', 'settings.voice.status.not_installed'],
+    ['not_installed', 'not_installed', 'settings.voice.status.not_installed'],
+    ['ready', 'installing', 'settings.voice.status.installing']
+  ] as const)('separates recognition %s copy from TTS %s copy', async (asrStatus, ttsStatus, ttsKey) => {
+    voice.resolveTranscription.mockResolvedValue({
+      modelId: FUNASR_MODEL_ID,
+      status: { status: asrStatus, ...(asrStatus === 'not_installed' && { reason: 'model_required' }) }
+    })
+    voice.listModels.mockResolvedValue({
+      models: [
+        ...models,
+        { id: QWEN3_TTS_MODEL_ID, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+      ],
+      defaultAsrModelId: FUNASR_MODEL_ID,
+      defaultSpeechModelId: QWEN3_TTS_MODEL_ID
+    })
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.speech.model_id', QWEN3_TTS_MODEL_ID)
+    voice.resolveSpeech.mockResolvedValue({
+      modelId: QWEN3_TTS_MODEL_ID,
+      status: { status: ttsStatus, reason: 'model_required' }
+    })
+    render(<VoiceSettings />)
+
+    const speechStatus = screen.getByTestId('speech-status')
+    await waitFor(() => expect(speechStatus).toHaveTextContent(i18n.t(ttsKey)))
+    expect(speechStatus).not.toHaveTextContent(i18n.t('settings.voice.status.model_required'))
+    const speechVoice = screen.getByRole('combobox', { name: 'Speech voice' })
+    expect(speechVoice).toHaveTextContent(i18n.t(ttsKey))
+    expect(speechVoice).not.toHaveTextContent(i18n.t('settings.voice.status.model_required'))
+    await userEvent.setup().click(speechVoice)
+    const defaultVoice = screen.getByRole('option', { name: /Language default/ })
+    expect(defaultVoice).toHaveTextContent(i18n.t(ttsKey))
+    expect(defaultVoice).not.toHaveTextContent(i18n.t('settings.voice.status.model_required'))
+    expect(recognitionStatus()).toHaveTextContent(
+      i18n.t(asrStatus === 'ready' ? 'settings.voice.status.ready' : 'settings.voice.status.model_required')
+    )
+  })
+
+  it('keeps recognition loading and installing ahead of a missing-model reason', async () => {
+    const resolution = deferred<any>()
+    voice.resolveTranscription.mockReturnValue(resolution.promise)
+    render(<VoiceSettings />)
+    const status = recognitionStatus()
+    expect(status).toHaveTextContent(i18n.t('common.loading'))
+    await act(async () => {
+      resolution.resolve({ modelId: FUNASR_MODEL_ID, status: { status: 'installing', reason: 'model_required' } })
+    })
+    await waitFor(() => expect(status).toHaveTextContent(i18n.t('settings.voice.status.installing')))
+    expect(status).not.toHaveTextContent(i18n.t('settings.voice.status.model_required'))
   })
 
   it.each(['downloading', 'ready'] as const)(
@@ -764,8 +828,8 @@ describe('VoiceSettings', () => {
     await act(async () => {
       installation.resolve()
     })
-    const recognitionStatus = within(document.getElementById('setting-voice-recognition-status')!).getByRole('status')
-    await waitFor(() => expect(recognitionStatus).toHaveTextContent('Ready'))
+    const status = recognitionStatus()
+    await waitFor(() => expect(status).toHaveTextContent('Ready'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     expect(within(document.getElementById('setting-voice-speech-status')!).getByRole('status')).toHaveTextContent(
@@ -804,14 +868,12 @@ describe('VoiceSettings', () => {
     await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/download/i))
     await waitFor(() => expect(inspections).toBeGreaterThan(inspectionsBeforeSelection))
-    const recognitionStatus = within(document.getElementById('setting-voice-recognition-status')!).getByRole('status')
-    expect(recognitionStatus).toHaveTextContent('Loading')
+    const status = recognitionStatus()
+    expect(status).toHaveTextContent('Loading')
     await act(async () => {
       refresh.resolve()
     })
-    await waitFor(() =>
-      expect(recognitionStatus).toHaveTextContent('Speech resources must be installed for this language.')
-    )
+    await waitFor(() => expect(status).toHaveTextContent('Speech resources must be installed for this language.'))
     expect(language).toBeEnabled()
     expect(language).toHaveTextContent('Chinese')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
@@ -915,11 +977,14 @@ describe('VoiceSettings', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBeNull()
   })
 
-  it('starts an independent microphone test on demand even when recognition needs a download', async () => {
+  it.each([
+    [APPLE_ASR_MODEL_ID, 'asset_required'],
+    [FUNASR_MODEL_ID, 'model_required']
+  ] as const)('starts an independent microphone test when recognition needs %s / %s', async (modelId, reason) => {
     const done = deferred<void>()
     voice.resolveTranscription.mockResolvedValue({
-      modelId: APPLE_ASR_MODEL_ID,
-      status: { status: 'not_installed', reason: 'asset_required' }
+      modelId,
+      status: { status: 'not_installed', reason }
     })
     voice.testMicrophone.mockImplementation((_signal, _device, ready, level) => {
       ready([{ deviceId: 'usb', label: 'USB' }])

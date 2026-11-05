@@ -57,6 +57,7 @@ const items: ModelSelectorModelItem[] = models.map((model) => ({
 }))
 const data: UseModelSelectorDataResult = {
   availableTags: [],
+  cloudAvailabilityReady: true,
   getModelDescription: () => undefined,
   isModelUnavailable: () => false,
   isLoading: false,

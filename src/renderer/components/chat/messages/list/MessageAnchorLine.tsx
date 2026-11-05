@@ -320,13 +320,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     <div
       ref={wrapperRef}
       className={classNames(
-        // right-4 keeps the ticks clear of the scrollbar gutter (~15px) so the
-        // thumb never overlaps them while scrolling. The gutter is 15px because
-        // the Scrollbar composite's inline scrollbar-color opts Chromium out of
-        // the global 6px ::-webkit-scrollbar styling into the standard CSS
-        // scrollbar; scrollbar-gutter:stable only keeps it reserved while hidden.
-        // Opacity belongs to the tick strip so the preview stays fully opaque.
-        // The gutter-sized hit strip preserves the message and composer hit areas.
+        // Keep the tick hit strip clear of the shared overlay scrollbar.
         'group absolute top-2.5 right-4 bottom-8 z-20 select-none',
         !visible && 'pointer-events-none'
       )}

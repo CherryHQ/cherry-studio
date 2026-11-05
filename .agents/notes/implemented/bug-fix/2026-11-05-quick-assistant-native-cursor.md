@@ -22,7 +22,7 @@ Only explicitly marked panels opt in. Associated objects hold per-window flags w
 
 ## Verification
 
-- Regression — `node native/darwin/build.js arm64` and `node native/darwin/build.js x64`: compile both macOS addon targets; x64 execution remains unverified.
+- Regression — `node native/selection-panel/build.js arm64` and `node native/selection-panel/build.js x64`: compile both macOS addon targets; x64 execution remains unverified.
 - Regression — `pnpm test:main src/main/services/__tests__/QuickAssistantService.test.ts`: existing Quick Assistant lifecycle and geometry contracts pass.
 - Regression — Live macOS Electron with native cursor inspection: toolbar gaps yield `NSCursor.openHandCursor`, editing yields the text cursor, and leaving the window clears the hand. Computed CSS is not used as the acceptance signal.
 

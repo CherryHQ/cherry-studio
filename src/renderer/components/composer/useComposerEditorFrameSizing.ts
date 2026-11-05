@@ -28,16 +28,7 @@ type ComposerEditorContentStyle = CSSProperties & {
   '--composer-editor-min-height': string
   '--composer-editor-font-size': string
   '--composer-editor-line-height': string
-  '--composer-editor-max-height': string
-  '--composer-editor-overflow-y': 'auto' | 'hidden'
-  '--composer-editor-height': 'auto' | '100%'
 }
-
-const COMPOSER_EDITOR_ELEMENT_STYLE = [
-  'max-height: var(--composer-editor-max-height) !important',
-  'overflow-y: var(--composer-editor-overflow-y)',
-  'height: var(--composer-editor-height)'
-].join('; ')
 
 function clampComposerEditorHeightPx(height: number, minHeight: number, maxHeight: number) {
   return Math.min(maxHeight, Math.max(minHeight, Math.round(height)))
@@ -49,15 +40,12 @@ function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight:
 
   if (editorElement) {
     const previousHeight = editorElement.style.height
-    const previousMaxHeight = editorElement.style.maxHeight
 
     try {
-      editorElement.style.height = 'auto'
-      editorElement.style.maxHeight = 'none'
+      editorElement.style.height = 'max-content'
       contentHeight = editorElement.scrollHeight || contentHeight
     } finally {
       editorElement.style.height = previousHeight
-      editorElement.style.maxHeight = previousMaxHeight
     }
   }
 
@@ -68,13 +56,10 @@ function getComposerEditorContentStyle(
   fontSize: number,
   isExpanded: boolean,
   manualEditorFrameHeight: number | null,
-  availableHeight: number,
   compact = false
 ): ComposerEditorContentStyle {
   const minHeight = compact ? getCompactComposerEditorMinHeight(fontSize) : getComposerEditorMinHeight(fontSize)
   const hasCustomHeight = isExpanded || manualEditorFrameHeight !== null
-  const isFixedHeight = compact || hasCustomHeight
-  const maxHeight = compact ? minHeight : isExpanded ? availableHeight : (manualEditorFrameHeight ?? availableHeight)
 
   return {
     height: compact ? minHeight : hasCustomHeight ? '100%' : undefined,
@@ -82,10 +67,7 @@ function getComposerEditorContentStyle(
     '--composer-editor-padding': compact ? '3px 0' : '6px 15px 0',
     '--composer-editor-min-height': `${minHeight}px`,
     '--composer-editor-font-size': `${fontSize}px`,
-    '--composer-editor-line-height': '1.4',
-    '--composer-editor-max-height': `${maxHeight}px`,
-    '--composer-editor-overflow-y': compact ? 'hidden' : 'auto',
-    '--composer-editor-height': isFixedHeight ? '100%' : 'auto'
+    '--composer-editor-line-height': '1.4'
   }
 }
 
@@ -341,8 +323,8 @@ export function useComposerEditorFrameSizing({
   )
 
   const editorContentStyle = useMemo<ComposerEditorContentStyle>(
-    () => getComposerEditorContentStyle(fontSize, isExpanded, manualHeight, maxHeight),
-    [fontSize, isExpanded, manualHeight, maxHeight]
+    () => getComposerEditorContentStyle(fontSize, isExpanded, manualHeight),
+    [fontSize, isExpanded, manualHeight]
   )
   const compactFrameStyle = useMemo<CSSProperties>(
     () => ({
@@ -354,8 +336,8 @@ export function useComposerEditorFrameSizing({
     [compactMinHeight]
   )
   const compactEditorContentStyle = useMemo<ComposerEditorContentStyle>(
-    () => getComposerEditorContentStyle(fontSize, false, null, maxHeight, true),
-    [fontSize, maxHeight]
+    () => getComposerEditorContentStyle(fontSize, false, null, true),
+    [fontSize]
   )
 
   return {
@@ -364,7 +346,6 @@ export function useComposerEditorFrameSizing({
     compactFrameStyle,
     editorContentStyle,
     compactEditorContentStyle,
-    editorElementStyle: COMPOSER_EDITOR_ELEMENT_STYLE,
     minHeight,
     maxHeight,
     resizeHandleValue: isExpanded ? maxHeight : (manualHeight ?? minHeight),

@@ -64,7 +64,7 @@ import {
 } from './components/AssistantConversationPickerDialog'
 import { HomeTabRuntime } from './components/HomeTabRuntime'
 import { TopicRightPane } from './components/TopicRightPane'
-import { Topics } from './Tabs/components/Topics'
+import { Topics } from './Tabs/components/topics'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
