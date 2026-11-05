@@ -3141,6 +3141,8 @@
   "paintings.number_images_tip": "Numărul de imagini de generat ({{min}}-{{max}})",
   "paintings.operation_failed": "Operațiunea a eșuat. Încearcă din nou mai târziu.",
   "paintings.output_compression": "Compresie de ieșire",
+  "paintings.output_format_fixed": "Formatul de ieșire este stabilit de furnizor (de obicei PNG). Acest model nu permite alegerea formatului și nu face conversie locală; fișierul păstrează formatul furnizorului.",
+  "paintings.output_format_selectable": "Formate de ieșire acceptate: {{formats}}. Formatul este produs de furnizor, fără conversie locală; calitatea, transparența și metadatele urmează ieșirea furnizorului.",
   "paintings.person_generation": "Generează oameni",
   "paintings.person_generation_options.allow_adult": "Permite adulți",
   "paintings.person_generation_options.allow_all": "Permite tot",

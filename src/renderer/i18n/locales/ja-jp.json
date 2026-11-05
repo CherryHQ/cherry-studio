@@ -3141,6 +3141,8 @@
   "paintings.number_images_tip": "生成する画像の数（{{min}}～{{max}}）",
   "paintings.operation_failed": "操作に失敗しました。後でもう一度お試しください。",
   "paintings.output_compression": "出力圧縮",
+  "paintings.output_format_fixed": "出力形式はプロバイダーが決定します（通常は PNG）。このモデルでは形式を選択できず、ローカル変換も行いません。保存されるファイルはプロバイダーの形式のままです。",
+  "paintings.output_format_selectable": "対応する出力形式：{{formats}}。形式はプロバイダーが生成し、ローカル変換は行いません。画質・透明度・メタデータはプロバイダーの出力に従います。",
   "paintings.person_generation": "人を生成する",
   "paintings.person_generation_options.allow_adult": "許可する",
   "paintings.person_generation_options.allow_all": "許可する",

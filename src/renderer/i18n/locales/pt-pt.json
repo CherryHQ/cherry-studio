@@ -3141,6 +3141,8 @@
   "paintings.number_images_tip": "Número de imagens a gerar ({{min}}-{{max}})",
   "paintings.operation_failed": "Operação falhou, por favor tente novamente mais tarde",
   "paintings.output_compression": "Compressão de Saída",
+  "paintings.output_format_fixed": "O formato de saída é definido pelo fornecedor (normalmente PNG). Este modelo não permite escolher o formato nem conversão local; o ficheiro mantém o formato do fornecedor.",
+  "paintings.output_format_selectable": "Formatos de saída suportados: {{formats}}. O formato é gerado pelo fornecedor sem conversão local; a qualidade, a transparência e os metadados seguem a saída do fornecedor.",
   "paintings.person_generation": "Gerar pessoas",
   "paintings.person_generation_options.allow_adult": "Permitir adultos",
   "paintings.person_generation_options.allow_all": "Permitir todos",

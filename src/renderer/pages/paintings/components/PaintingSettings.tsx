@@ -56,8 +56,22 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
     [registrySupport, painting.mode]
   )
 
+  const outputFormatItem = configItems.find((item) => item.key === 'outputFormat')
+  const outputFormats = outputFormatItem
+    ? resolveItemOptions(outputFormatItem, paintingParams)
+        .map((option) => String(option.value).toUpperCase())
+        .join(', ')
+    : ''
+
   return (
     <>
+      {registrySupport && (
+        <p className="text-muted-foreground text-xs leading-relaxed" data-testid="painting-output-format-note">
+          {outputFormats
+            ? t('paintings.output_format_selectable', { formats: outputFormats })
+            : t('paintings.output_format_fixed')}
+        </p>
+      )}
       {configItems
         .filter((item) => shouldRenderConfigItem(item, paintingParams))
         .map((item) => (

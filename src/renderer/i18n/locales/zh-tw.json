@@ -3141,6 +3141,8 @@
   "paintings.number_images_tip": "一次產生的圖片數量 ({{min}}-{{max}})",
   "paintings.operation_failed": "操作失敗，請稍後再試",
   "paintings.output_compression": "輸出壓縮",
+  "paintings.output_format_fixed": "輸出格式由服務商決定（通常為 PNG）。此模型不支援選擇格式，也不會進行本機轉換，儲存的檔案沿用服務商回傳的格式。",
+  "paintings.output_format_selectable": "支援的輸出格式：{{formats}}。格式由服務商直接產生，不會進行本機轉換，畫質、透明度與中繼資料以服務商輸出為準。",
   "paintings.person_generation": "產生人物",
   "paintings.person_generation_options.allow_adult": "允許成人",
   "paintings.person_generation_options.allow_all": "允許所有",
