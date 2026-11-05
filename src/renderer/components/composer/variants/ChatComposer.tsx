@@ -701,6 +701,8 @@ const ChatComposerInner = ({
     resolveKnowledgeBaseMarker,
     restoreKnowledgeBaseSelection,
     isKnowledgeBaseDraftHydrated,
+    hasPendingKnowledgeBaseRestore,
+    clearPendingKnowledgeBaseRestore,
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   } = useComposerKnowledgeBaseScope({
@@ -1426,7 +1428,9 @@ const ChatComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setText])
+    // The composer's content is gone: a knowledge restore still pending for it must not land later.
+    clearPendingKnowledgeBaseRestore()
+  }, [clearPendingKnowledgeBaseRestore, resetHistoryIndex, setFiles, setText])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
@@ -1512,7 +1516,9 @@ const ChatComposerInner = ({
   )
 
   const handleSaveAsDraft = useCallback(() => {
-    if (editingMessageForCurrentTopic) return
+    // A pending conversation reference only fills its transcript into the live editor; a parked
+    // snapshot would keep the empty promptText forever, so block saving until it settles.
+    if (editingMessageForCurrentTopic || hasPendingReference) return
     // A history preview shows a recalled entry, not the live draft: the unfinished prompt and its
     // attachments are parked in the history snapshots, so capture them before reading the draft.
     const historyPreview = exitInputHistoryPreview()
@@ -1534,6 +1540,7 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic,
     exitInputHistoryPreview,
     files,
+    hasPendingReference,
     knowledgeBaseIdsForSnapshot,
     saveDraft,
     setSelectedKnowledgeBases
@@ -1543,7 +1550,7 @@ const ChatComposerInner = ({
   const handleEditSavedDraft = useCallback(
     (id: string) => {
       const item = savedDrafts.find((candidate) => candidate.id === id)
-      if (!item || editingMessageForCurrentTopic || directSendInFlightRef.current) return
+      if (!item || editingMessageForCurrentTopic || directSendInFlightRef.current || hasPendingReference) return
       // Exit any history preview first: the visible draft is the recalled entry while the
       // composer's own unsent draft and tool state live in the history snapshots — park those,
       // not the preview, so the swap below loses nothing. This also resets the history nav state.
@@ -1561,13 +1568,20 @@ const ChatComposerInner = ({
       setFiles(item.files)
       // Restore the draft's knowledge scope with it, as queued-followup restoration does: the rich
       // editor's replaceDraft suppresses the update events that would reselect matching bases.
-      if (item.knowledgeBaseIds) restoreKnowledgeBaseSelection(item.knowledgeBaseIds)
+      if (item.knowledgeBaseIds) {
+        restoreKnowledgeBaseSelection(item.knowledgeBaseIds, { retryUnavailable: true })
+      } else {
+        // A legacy draft restores nothing: drop any retry still pending from the content it replaces.
+        clearPendingKnowledgeBaseRestore()
+      }
     },
     [
       actionsRef,
+      clearPendingKnowledgeBaseRestore,
       editingMessageForCurrentTopic,
       exitInputHistoryPreview,
       files,
+      hasPendingReference,
       knowledgeBaseIdsForSnapshot,
       removeSavedDraft,
       restoreKnowledgeBaseSelection,
@@ -1884,7 +1898,11 @@ const ChatComposerInner = ({
           size="icon-sm"
           className={`${COMPOSER_SEND_ACCESSORY_BUTTON_CLASS} [&>svg]:!size-4.5`}
           aria-label={t('chat.input.saved_drafts.save')}
-          disabled={(text.trim().length === 0 && files.length === 0) || Boolean(editingMessageForCurrentTopic)}
+          disabled={
+            (text.trim().length === 0 && files.length === 0) ||
+            Boolean(editingMessageForCurrentTopic) ||
+            hasPendingReference
+          }
           onClick={handleSaveAsDraft}>
           <BookmarkPlus />
         </Button>
@@ -1959,12 +1977,13 @@ const ChatComposerInner = ({
             searching ||
             runtimeModelPending ||
             hasPendingReference ||
+            hasPendingKnowledgeBaseRestore ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference || hasPendingKnowledgeBaseRestore
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }

@@ -40,9 +40,13 @@ interface UseComposerKnowledgeBaseScopeResult {
   selectableKnowledgeBases: KnowledgeBase[]
   selectedKnowledgeBasesInScope: KnowledgeBase[]
   resolveKnowledgeBaseMarker: (marker: string) => ComposerDraftToken | null
-  restoreKnowledgeBaseSelection: (baseIds: readonly string[]) => void
+  restoreKnowledgeBaseSelection: (baseIds: readonly string[], options?: { retryUnavailable?: boolean }) => void
   /** Whether the saved selection has been restored; draft writes must wait for this. */
   isKnowledgeBaseDraftHydrated: boolean
+  /** True while a restored draft still has knowledge-base ids waiting on the loading catalog. */
+  hasPendingKnowledgeBaseRestore: boolean
+  /** Drops restored ids still waiting on the catalog; for content replaced without a restore. */
+  clearPendingKnowledgeBaseRestore: () => void
   /** Ids to persist with the draft, including saved ids that are not selectable right now. */
   knowledgeBaseIdsRef: RefObject<string[]>
   /** Folds the current selection into `knowledgeBaseIdsRef`, keeping ids that are unavailable for now. */
@@ -129,14 +133,52 @@ export function useComposerKnowledgeBaseScope({
    * Re-select a persisted scope by id — used when editing a queued follow-up back into the composer.
    * Mapped through `selectableKnowledgeBases`, not the raw list, so a payload naming a base the
    * assistant no longer configures cannot come back as a checked-but-unsendable pick.
+   *
+   * With `retryUnavailable` (explicit draft restores), ids the catalog cannot offer yet are kept
+   * with the draft and retried on availability changes: knowledge loading can be disabled (empty
+   * composer) until a restored draft needs it, and dropping the ids here would strip their
+   * still-unmatched tokens instead. Draft-cache hydration leaves this off so an unavailable saved
+   * id stays persisted-but-unselected.
    */
+  const [pendingKnowledgeBaseRestoreIds, setPendingKnowledgeBaseRestoreIds] = useState<readonly string[] | null>(null)
   const restoreKnowledgeBaseSelection = useCallback(
-    (baseIds: readonly string[]) => {
+    (baseIds: readonly string[], options?: { retryUnavailable?: boolean }) => {
       const wanted = new Set(baseIds)
-      setSelectedKnowledgeBases(selectableKnowledgeBases.filter((base) => wanted.has(base.id)))
+      const restored = selectableKnowledgeBases.filter((base) => wanted.has(base.id))
+      if (options?.retryUnavailable) {
+        const restoredIds = new Set(restored.map((base) => base.id))
+        const pending = baseIds.filter((id) => !restoredIds.has(id))
+        setPendingKnowledgeBaseRestoreIds(pending.length > 0 ? pending : null)
+        knowledgeBaseIdsRef.current = [...new Set([...knowledgeBaseIdsRef.current, ...baseIds])]
+      } else {
+        // A plain restore replaces the composer content: a retry still pending from previous
+        // content must not merge its ids into the replacement when the catalog later offers them.
+        setPendingKnowledgeBaseRestoreIds(null)
+      }
+      setSelectedKnowledgeBases(restored)
     },
     [selectableKnowledgeBases, setSelectedKnowledgeBases]
   )
+
+  /** Drops restored ids still waiting on the catalog; for content replaced without a restore. */
+  const clearPendingKnowledgeBaseRestore = useCallback(() => {
+    setPendingKnowledgeBaseRestoreIds(null)
+  }, [])
+
+  // Retry restored ids the catalog could not offer when the restore ran.
+  useEffect(() => {
+    if (!pendingKnowledgeBaseRestoreIds || pendingKnowledgeBaseRestoreIds.length === 0) return
+    const wanted = new Set(pendingKnowledgeBaseRestoreIds)
+    const restorable = selectableKnowledgeBases.filter((base) => wanted.has(base.id))
+    if (restorable.length === 0) return
+    const restorableIds = new Set(restorable.map((base) => base.id))
+    const remaining = pendingKnowledgeBaseRestoreIds.filter((id) => !restorableIds.has(id))
+    setPendingKnowledgeBaseRestoreIds(remaining.length > 0 ? remaining : null)
+    setSelectedKnowledgeBases((prev) => {
+      const merged = [...prev, ...restorable.filter((base) => !prev.some((current) => current.id === base.id))]
+      return merged.length === prev.length ? prev : merged
+    })
+  }, [pendingKnowledgeBaseRestoreIds, selectableKnowledgeBases, setSelectedKnowledgeBases])
 
   // Draft-persist effects see selection changes only through this identity, so it must keep these deps.
   const syncKnowledgeBaseIds = useCallback(() => {
@@ -157,6 +199,11 @@ export function useComposerKnowledgeBaseScope({
   useEffect(() => {
     const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== scopeKey
     selectedKnowledgeBasesScopeKeyRef.current = scopeKey
+    if (scopeChanged) {
+      // An assistant switch inside the same topic does not remount this hook: drop a restore
+      // still pending from the previous scope so its ids cannot merge into the new selection.
+      setPendingKnowledgeBaseRestoreIds(null)
+    }
     setSelectedKnowledgeBases((prev) => {
       const next = scopeChanged ? [] : filterSelectableKnowledgeBases(prev)
       if (next.length === prev.length && next.every((base, index) => base.id === prev[index]?.id)) return prev
@@ -186,6 +233,8 @@ export function useComposerKnowledgeBaseScope({
     resolveKnowledgeBaseMarker,
     restoreKnowledgeBaseSelection,
     isKnowledgeBaseDraftHydrated,
+    hasPendingKnowledgeBaseRestore: pendingKnowledgeBaseRestoreIds !== null && isKnowledgeBasesLoading,
+    clearPendingKnowledgeBaseRestore,
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   }

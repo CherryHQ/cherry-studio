@@ -90,6 +90,96 @@ describe('useComposerKnowledgeBaseScope', () => {
 
       expect(result.current.selectedKnowledgeBases).toEqual([bases[0]])
     })
+
+    it('keeps ids pending until the catalog offers them, then selects them', () => {
+      const base = kb('kb-1')
+      const { result, rerender } = renderHook(useScopeHarness, {
+        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
+      expect(result.current.selectedKnowledgeBases).toEqual([])
+      expect(result.current.knowledgeBaseIdsRef.current).toContain('kb-1')
+
+      // The catalog becomes available after the restore (knowledge loading is disabled in an
+      // empty composer until a restored draft needs it).
+      rerender({ allKnowledgeBases: [base], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY })
+      expect(result.current.selectedKnowledgeBases).toEqual([base])
+    })
+
+    it('never selects a pending id the catalog keeps not offering', () => {
+      const { result, rerender } = renderHook(useScopeHarness, {
+        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['deleted-base'], { retryUnavailable: true }))
+
+      rerender({ allKnowledgeBases: [kb('other')], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY })
+      expect(result.current.selectedKnowledgeBases).toEqual([])
+      expect(result.current.selectedKnowledgeBasesInScope).toEqual([])
+    })
+
+    it('reports a pending restore only while the catalog is still loading', () => {
+      const base = kb('kb-1')
+      const { result, rerender } = renderHook(useScopeHarness, {
+        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
+      expect(result.current.hasPendingKnowledgeBaseRestore).toBe(true)
+
+      rerender({ allKnowledgeBases: [base], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY })
+      expect(result.current.selectedKnowledgeBases).toEqual([base])
+      expect(result.current.hasPendingKnowledgeBaseRestore).toBe(false)
+    })
+
+    it('does not report a pending restore for ids the loaded catalog cannot offer', () => {
+      const { result } = renderHook(useScopeHarness, {
+        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['deleted-base'], { retryUnavailable: true }))
+      expect(result.current.hasPendingKnowledgeBaseRestore).toBe(false)
+    })
+
+    it('drops a pending restore when the scope changes', () => {
+      const { result, rerender } = renderHook(useScopeHarness, {
+        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
+      expect(result.current.hasPendingKnowledgeBaseRestore).toBe(true)
+
+      // Switching the assistant inside the same topic changes the scope without a remount.
+      rerender({ allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: 'topic-1:agent-2' })
+      expect(result.current.hasPendingKnowledgeBaseRestore).toBe(false)
+
+      // The old scope's pending id must not merge into the new scope's selection later.
+      rerender({ allKnowledgeBases: [kb('kb-1')], isKnowledgeBasesLoading: false, scopeKey: 'topic-1:agent-2' })
+      expect(result.current.selectedKnowledgeBases).toEqual([])
+      expect(result.current.hasPendingKnowledgeBaseRestore).toBe(false)
+    })
+
+    it('keeps an existing selection while retrying pending ids', () => {
+      const [first, second] = [kb('kb-1'), kb('kb-2')]
+      const { result, rerender } = renderHook(useScopeHarness, {
+        initialProps: {
+          allKnowledgeBases: [first],
+          isKnowledgeBasesLoading: false,
+          scopeKey: SCOPE_KEY,
+          initialSelection: [first]
+        }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-2'], { retryUnavailable: true }))
+      expect(result.current.selectedKnowledgeBases).toEqual([])
+
+      // While the retry is pending the user re-selects the first base; the retry must merge,
+      // not replace.
+      act(() => result.current.setSelectedKnowledgeBases([first]))
+      rerender({ allKnowledgeBases: [first, second], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY })
+      expect(result.current.selectedKnowledgeBases).toEqual([first, second])
+    })
   })
 
   describe('remountsOnScopeChange', () => {

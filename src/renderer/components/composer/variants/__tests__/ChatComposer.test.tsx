@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => ({
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
   knowledgeBases: [] as KnowledgeBase[],
   knowledgeBasesLoading: false,
+  hasPendingReference: false,
   assistant: undefined as any,
   model: undefined as Model | undefined,
   assistantLoading: false,
@@ -541,6 +542,20 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   }
 }))
 
+vi.mock('../shared/useEntityReferenceMentionSource', async (importOriginal) => {
+  // oxlint-disable-next-line consistent-type-imports
+  const actual = await importOriginal<typeof import('../shared/useEntityReferenceMentionSource')>()
+  return {
+    ...actual,
+    useEntityReferenceMentionSource: (...args: unknown[]) => {
+      const real = actual.useEntityReferenceMentionSource(
+        ...(args as Parameters<typeof actual.useEntityReferenceMentionSource>)
+      )
+      return { ...real, hasPendingReference: mocks.hasPendingReference }
+    }
+  }
+})
+
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: (...args: unknown[]) => {
     mocks.knowledgeBaseHookArgs.push(args)
@@ -793,6 +808,7 @@ describe('ChatComposer', () => {
     mocks.files = undefined
     mocks.knowledgeBases = []
     mocks.knowledgeBasesLoading = false
+    mocks.hasPendingReference = false
     mocks.assistant = {
       id: 'assistant-1',
       name: 'Assistant 1',
@@ -5778,6 +5794,280 @@ describe('ChatComposer', () => {
 
       await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
       expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+    })
+
+    it('restores the saved draft knowledge scope once the catalog becomes available', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      act(() => {
+        mocks.surfaceProps?.onTextChange('kb draft')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+
+      // Reopen the chat empty: knowledge loading is disabled until something needs it.
+      mocks.selectedKnowledgeBases = []
+      mocks.knowledgeBases = []
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      const draftId = readSavedDrafts()[0].id
+      await act(async () => savedDraftsDock()?.props.onEdit(draftId))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
+      // The catalog is not loaded yet, so nothing can be selected - but the id must stay pending.
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+
+      // The catalog finishes loading after the restore; the scope must catch up.
+      mocks.knowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    })
+
+    it('blocks send while a restored draft knowledge scope is still loading', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      act(() => {
+        mocks.surfaceProps?.onTextChange('kb draft')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+
+      // Reopen the chat empty with the catalog still loading.
+      mocks.selectedKnowledgeBases = []
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      const draftId = readSavedDrafts()[0].id
+      await act(async () => savedDraftsDock()?.props.onEdit(draftId))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
+      // The restored scope is still waiting on the catalog: send must stay blocked.
+      await waitFor(() => expect(mocks.surfaceProps?.sendDisabled).toBe(true))
+
+      // The catalog arrives: the scope resolves and send unblocks.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+      await waitFor(() => expect(mocks.surfaceProps?.sendDisabled).toBe(false))
+    })
+
+    it('drops a pending knowledge restore when the next restored draft has no knowledge ids', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [
+              { id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] },
+              { id: 'draft-b', draft: { text: 'legacy B', tokens: [] }, files: [] }
+            ]
+          ]
+        ]
+      })
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      // The catalog is still loading.
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+
+      // The replacement predates knowledge ids: no restore runs, so the pending retry must drop.
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-b'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('legacy B'))
+      // The swapped-out draft A is parked with its knowledge ids intact.
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+      expect(readSavedDrafts()[0].knowledgeBaseIds).toEqual(['kb-1'])
+
+      // The catalog arrives: nothing from draft A may merge into legacy B.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+    })
+
+    it('drops a pending knowledge restore when a queued follow-up is restored over it', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.topicPending = true
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      act(() => {
+        mocks.surfaceProps?.onTextChange('draft A')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+
+      // Queue a plain follow-up with no knowledge scope.
+      mocks.selectedKnowledgeBases = []
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'queued item', tokens: [] })
+      })
+      // With no saved drafts the followup dock is the sole queueContent element, not a fragment child.
+      const followupsDock = () => {
+        const content = mocks.surfaceProps?.queueContent as any
+        if (!content?.props) return undefined
+        if ('onSteer' in content.props) return content
+        const children = content.props.children
+        if (!Array.isArray(children)) return undefined
+        return children.find((child) => child && child.props && 'onSteer' in child.props)
+      }
+      const draftsDock = () => {
+        const content = mocks.surfaceProps?.queueContent as any
+        const children = content?.props?.children
+        if (!Array.isArray(children)) return undefined
+        return children.find((child) => child && Array.isArray(child.props?.items) && !('onSteer' in child.props))
+      }
+      await waitFor(() => expect(followupsDock()?.props?.items).toHaveLength(1))
+
+      // Catalog still loading: editing draft A leaves its knowledge id pending.
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await act(async () => draftsDock()?.props.onEdit(readSavedDrafts()[0].id))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+
+      // Restoring the queued follow-up replaces the content without retryUnavailable.
+      await act(async () => followupsDock()?.props.onEdit(followupsDock()?.props.items[0].id))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued item'))
+
+      // The catalog arrives: draft A's knowledge id must not merge into the follow-up.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+    })
+
+    it('does not land a pending knowledge restore in the cleared composer after saving', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      // The catalog is still loading.
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+
+      // Saving parks the current content (keeping its knowledge ids) and clears the composer.
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+      expect(readSavedDrafts()[0].knowledgeBaseIds).toEqual(['kb-1'])
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+      // The catalog arrives: nothing may merge into the cleared composer.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+    })
+
+    it('does not save or swap drafts while a conversation reference is still loading', async () => {
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      // Park a draft first, while no reference is loading.
+      act(() => {
+        mocks.surfaceProps?.onTextChange('parked prompt')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('parked prompt'))
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+
+      act(() => {
+        mocks.surfaceProps?.onTextChange('draft with pending reference')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft with pending reference'))
+
+      // A reference pick is still loading its transcript into the live editor.
+      mocks.hasPendingReference = true
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      // Save is disabled and guarded: a parked snapshot would keep the empty promptText forever.
+      expect(screen.getByLabelText('chat.input.saved_drafts.save')).toBeDisabled()
+      clickSaveAsDraft()
+      expect(readSavedDrafts()).toHaveLength(1)
+
+      // The edit swap is guarded too: it would park the unresolved reference and drop the live token.
+      const draftId = readSavedDrafts()[0].id
+      await act(async () => savedDraftsDock()?.props.onEdit(draftId))
+      expect(mocks.surfaceProps?.text).toBe('draft with pending reference')
+      expect(readSavedDrafts().map((item) => item.draft.text)).toEqual(['parked prompt'])
     })
   })
 
