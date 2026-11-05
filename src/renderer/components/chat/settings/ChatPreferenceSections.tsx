@@ -137,10 +137,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     [t]
   )
 
-  const messageNavigationItems = useMemo<SelectOption<'none' | 'buttons' | 'anchor'>[]>(
+  const messageNavigationItems = useMemo<SelectOption<'none' | 'anchor'>[]>(
     () => [
       { value: 'none', label: t('settings.messages.navigation.none') },
-      { value: 'buttons', label: t('settings.messages.navigation.buttons') },
       { value: 'anchor', label: t('settings.messages.navigation.anchor') }
     ],
     [t]
@@ -418,7 +417,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingDivider />
           <SettingRow id="setting-appearance-message-navigation" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
-            <Select value={messageNavigation} onValueChange={setMessageNavigation}>
+            <Select
+              value={messageNavigation === 'buttons' ? 'none' : messageNavigation}
+              onValueChange={setMessageNavigation}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
