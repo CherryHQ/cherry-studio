@@ -1,12 +1,36 @@
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 
+/**
+ * Install lifecycle stages. `queued` waits on another managed mutation; the
+ * rest follow the work mise performs. Byte totals are not exposed by the
+ * backend, so every stage is indeterminate. `ready` and `failed` are terminal
+ * and are derived from the absence of an operation / a failed operation.
+ */
+export type BinaryInstallStage = 'queued' | 'downloading' | 'verifying' | 'installing' | 'migrating'
+
+/** Fields shared by an in-flight and a failed install, so both show the same version transition. */
+export type BinaryInstallDetails = {
+  /** Epoch ms when the install was requested; elapsed time derives from it. */
+  startedAt?: number
+  /** Version active before the install, when known. */
+  currentVersion?: string
+}
+
 /** Transient main-owned operation state, shared across renderer windows. */
 export type BinaryOperation =
-  | { status: 'installing' }
+  | ({ status: 'installing'; stage?: BinaryInstallStage; targetVersion?: string } & BinaryInstallDetails)
   | { status: 'removing' }
   // `targetVersion` is retained only for a failed one-shot update so Retry can
-  // repeat the same targeted install instead of a name-only no-op.
-  | { status: 'failed'; action: 'install' | 'remove'; error: string; targetVersion?: string }
+  // repeat the same targeted install instead of a name-only no-op. `stage` is the
+  // stage that was running when the install failed.
+  | ({
+      status: 'failed'
+      action: 'install' | 'remove'
+      error: string
+      targetVersion?: string
+      stage?: BinaryInstallStage
+      elapsedMs?: number
+    } & BinaryInstallDetails)
 
 export type BinaryOperations = Record<string, BinaryOperation>
 

@@ -2466,7 +2466,7 @@ describe('BinaryManager', () => {
 
       // Without the retained target, a name-only Retry would hit the applied
       // no-op and silently clear the failure without re-attempting the update.
-      expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual({
+      expect((await service.getToolSnapshots(['fd'])).fd.operation).toMatchObject({
         status: 'failed',
         action: 'install',
         error: 'network is down',
@@ -2519,7 +2519,7 @@ describe('BinaryManager', () => {
           application: { status: 'absent' },
           operation: { status: 'failed', action: 'install', error, targetVersion }
         })
-        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
           uv: { status: 'failed', action: 'install', error, targetVersion }
         })
         await expect(service.getToolInventory()).resolves.toContainEqual({
@@ -2567,7 +2567,7 @@ describe('BinaryManager', () => {
           availability: { source: 'system', path: '/usr/local/bin/fd' },
           operation: { status: 'failed', action: 'install', error, targetVersion: '11.0.0' }
         })
-        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
           fd: { status: 'failed', action: 'install', error, targetVersion: '11.0.0' }
         })
         await expect(service.getToolInventory()).resolves.toContainEqual(
@@ -2592,7 +2592,7 @@ describe('BinaryManager', () => {
       })
 
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('conflicting installation')
-      expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual({
+      expect((await service.getToolSnapshots(['fd'])).fd.operation).toMatchObject({
         status: 'failed',
         action: 'install',
         error: 'Tool fd resolves to a conflicting installation'
@@ -2642,8 +2642,8 @@ describe('BinaryManager', () => {
           error: 'Command lookup exited with code 2',
           ...(targetVersion ? { targetVersion } : {})
         }
-        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({ fd: failed })
-        expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual(failed)
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({ fd: failed })
+        expect((await service.getToolSnapshots(['fd'])).fd.operation).toMatchObject(failed)
         expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
         expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
 
@@ -2890,7 +2890,7 @@ describe('BinaryManager', () => {
       await expect(service.addCustomTool({ name: 'mytool', tool: 'npm:mytool' })).resolves.toBeUndefined()
 
       expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
-      expect(operations()).toEqual({
+      expect(operations()).toMatchObject({
         mytool: {
           status: 'failed',
           action: 'install',
@@ -3952,7 +3952,7 @@ describe('BinaryManager', () => {
       // installByName dedupes by target version, so two name-only installs coalesce.
       const first = service.installByName({ name: 'fd' })
       const second = service.installByName({ name: 'fd' })
-      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
         fd: { status: 'installing' }
       })
       releaseInstall()
@@ -3970,7 +3970,7 @@ describe('BinaryManager', () => {
       const install = service.installByName({ name: 'fd' })
 
       await expect(service.removeTool({ name: 'fd' })).rejects.toThrow('already installing')
-      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
         fd: { status: 'installing' }
       })
 
@@ -4019,7 +4019,7 @@ describe('BinaryManager', () => {
 
       const first = service.installByName({ name: 'fd' })
       await expect(service.installByName({ name: 'fd', targetVersion: '2.0.0' })).rejects.toThrow('already installing')
-      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
         fd: { status: 'installing' }
       })
       releaseInstall()
@@ -4047,8 +4047,8 @@ describe('BinaryManager', () => {
       mockSuccessfulInstall('fd', 'fd')
 
       const pending = service.installByName({ name: 'fd' })
-      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
-        fd: { status: 'installing' }
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
+        fd: { status: 'installing', stage: 'queued', startedAt: expect.any(Number) }
       })
       expect(application.get('CacheService').setShared).not.toHaveBeenCalledWith(
         'feature.binary.install_states',
@@ -4071,11 +4071,13 @@ describe('BinaryManager', () => {
 
       // installByName's failed operation carries no intent — just action + error.
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('timed out')
-      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
         fd: {
           status: 'failed',
           action: 'install',
-          error: expect.stringContaining('timed out')
+          error: expect.stringContaining('timed out'),
+          stage: 'downloading',
+          elapsedMs: expect.any(Number)
         }
       })
 
