@@ -34,9 +34,14 @@ import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
+import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -53,6 +58,7 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
+import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import {
   AvatarField,
@@ -237,6 +243,25 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
+  // Resolve the switch target from the same cached catalog the model selector
+  // lists. A per-model query (`useModelById`) leaves a loading window after
+  // each pick where an autosave/close would commit the new modelId with the
+  // previous model's settings — and the advanced baseline never retries the
+  // restoration once the record arrives.
+  const { models: selectableModels } = useModels({ enabled: true }, { fetchEnabled: open })
+  const { providers: enabledProviders } = useProviders({ enabled: true })
+  const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const switchTargetModel = useMemo(
+    () => selectableModels.find((model) => model.id === values.modelId),
+    [selectableModels, values.modelId]
+  )
+  const switchTargetProvider = switchTargetModel
+    ? enabledProviders.find((provider) => provider.id === switchTargetModel.providerId)
+    : undefined
+  const clientSearchAvailable = Boolean(
+    resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
+  )
+  const [chatModelSettings] = usePreference('chat.model_settings')
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
@@ -309,6 +334,29 @@ function AssistantEditDialogContent({
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
     const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, resource)
     if (!pending) return
+    // A model change also restores the target model's remembered web search /
+    // reasoning effort via the same shared operation as the composer's
+    // `useAssistant.setModel`, merged into this one atomic PATCH. Skipped only
+    // when the target model is outside the selectable catalog: the raw
+    // modelId change saves as before.
+    if (pending.payload.modelId != null && switchTargetModel?.id === pending.payload.modelId) {
+      const switched = resolveModelSwitchSettings({
+        next: switchTargetModel,
+        nextProvider: switchTargetProvider,
+        currentModelId: resource.modelId,
+        currentSettings: { ...resource.settings, ...pending.payload.settings },
+        remembered: chatModelSettings?.[pending.payload.modelId],
+        clientSearchAvailable,
+        hasFunctionToolSignals: getEffectiveMcpMode(resource) !== 'disabled'
+      })
+      if (switched) {
+        pending.payload.settings = {
+          ...pending.payload.settings,
+          ...(switched.enableWebSearch !== undefined ? { enableWebSearch: switched.enableWebSearch } : {}),
+          ...(switched.reasoning_effort !== undefined ? { reasoning_effort: switched.reasoning_effort } : {})
+        }
+      }
+    }
     const attemptedKey = JSON.stringify(submittedValues)
 
     // A close-triggered flush does not cancel the already scheduled debounce.

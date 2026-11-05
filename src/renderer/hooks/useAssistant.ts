@@ -20,16 +20,21 @@ import { useCallback, useRef } from 'react'
 
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
-import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
+import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
+import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
+import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -201,7 +206,9 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
+  const [modelSettings] = usePreference('chat.model_settings')
   const { providers } = useProviders()
+  const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
   const patchAssistantRef = useRef(patchAssistant)
@@ -210,6 +217,15 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   assistantRef.current = assistant
   patchAssistantRef.current = patchAssistant
   providersRef.current = providers
+  const modelSettingsRef = useRef(modelSettings)
+  modelSettingsRef.current = modelSettings
+  // A ready client search provider keeps the (search on, builtin-incompatible
+  // effort) pair servable — model-switch reconciliation must not drop the
+  // flag while that route exists (mirrors `resolveWebToolRoutes`).
+  const clientSearchAvailableRef = useRef(false)
+  clientSearchAvailableRef.current = Boolean(
+    resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
+  )
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -217,36 +233,69 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)
   const isModelMissing = !isModelPending && !model
 
-  const updateAssistantSettings = useCallback((settings: Partial<AssistantSettings>) => {
-    const currentId = idRef.current
-    const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return Promise.resolve(undefined)
-    return patchAssistantRef.current(currentId, { settings })
+  // Remember the user's web search / reasoning effort choice for the active model so it is
+  // restored when they switch back to it.
+  const rememberModelSettings = useCallback((settings: Partial<AssistantSettings> | undefined) => {
+    const activeModelId = assistantRef.current?.modelId
+    if (!activeModelId || !settings) return
+    const remembered: ChatModelSetting = {}
+    if (settings.enableWebSearch !== undefined) remembered.enableWebSearch = settings.enableWebSearch
+    if (settings.reasoning_effort !== undefined) remembered.reasoning_effort = settings.reasoning_effort
+    if (Object.keys(remembered).length === 0) return
+    const all = modelSettingsRef.current ?? {}
+    const next = { ...all, [activeModelId]: { ...all[activeModelId], ...remembered } }
+    modelSettingsRef.current = next
+    void preferenceService.updateModelSettings(activeModelId, remembered).catch((error) => {
+      logger.warn('Failed to persist per-model settings', { error })
+    })
   }, [])
+
+  const updateAssistantSettings = useCallback(
+    (settings: Partial<AssistantSettings>) => {
+      const currentId = idRef.current
+      const currentAssistant = assistantRef.current
+      if (!currentId || !currentAssistant) return Promise.resolve(undefined)
+      rememberModelSettings(settings)
+      return patchAssistantRef.current(currentId, { settings })
+    },
+    [rememberModelSettings]
+  )
 
   const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
-    // reconcile* are v2-native; next.id is the UniqueModelId.
-    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
-    const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
-    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
-    const settingsPatch =
-      extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
-        : undefined
+    // Shared model-switch operation (also used by the assistant edit dialog):
+    // restores the target model's remembered choices and reconciles the pair
+    // against the target model; next.id is the UniqueModelId.
+    const settingsPatch = resolveModelSwitchSettings({
+      next,
+      nextProvider: providersRef.current.find((provider) => provider.id === next.providerId),
+      currentModelId: currentAssistant.modelId,
+      currentSettings: currentAssistant.settings,
+      remembered: modelSettingsRef.current?.[next.id],
+      extraSettings,
+      clientSearchAvailable: clientSearchAvailableRef.current,
+      // MCP mode stands in for the request's eventual function tools (the same
+      // stand-in WebSearchButton uses), so a restored search flag is
+      // reconciled against the Gemini native/function-tool conflict too.
+      hasFunctionToolSignals: getEffectiveMcpMode(currentAssistant) !== 'disabled'
+    })
     return patchAssistantRef.current(
       currentId,
       settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
     )
   }, [])
 
-  const updateAssistant = useCallback((patch: UpdateAssistantDto) => {
-    const currentId = idRef.current
-    if (!currentId) return Promise.resolve(undefined)
-    return patchAssistantRef.current(currentId, patch)
-  }, [])
+  const updateAssistant = useCallback(
+    (patch: UpdateAssistantDto) => {
+      const currentId = idRef.current
+      if (!currentId) return Promise.resolve(undefined)
+      rememberModelSettings(patch.settings)
+      return patchAssistantRef.current(currentId, patch)
+    },
+    [rememberModelSettings]
+  )
 
   return {
     assistant,

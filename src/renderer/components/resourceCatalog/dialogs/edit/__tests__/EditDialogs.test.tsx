@@ -10,6 +10,8 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 
+import { mockPreferenceState } from '../../../../../../../tests/__mocks__/renderer/PreferenceService'
+
 const {
   bindPromptMock,
   applyReorderedListMock,
@@ -22,6 +24,8 @@ const {
   ipcRequestMock,
   knowledgeBasesState,
   mcpStatusState,
+  modelsLoadingState,
+  providersListState,
   openSettingsTabMock,
   promptCatalogState,
   promptProcessorMock,
@@ -65,6 +69,8 @@ const {
     ]
   },
   mcpStatusState: { current: {} },
+  modelsLoadingState: { current: false },
+  providersListState: { current: [{ id: 'provider', name: 'Provider' }] as unknown[] },
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {
@@ -635,13 +641,28 @@ beforeEach(() => {
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
+  modelsLoadingState.current = false
+  providersListState.current = [{ id: 'provider', name: 'Provider' }]
   promptCatalogState.current.bound = []
   boundPromptsRefetchMock.mockResolvedValue(undefined)
   bindPromptMock.mockResolvedValue(undefined)
   createPromptMock.mockResolvedValue(promptCatalogState.current.all[0])
   unbindPromptMock.mockResolvedValue(undefined)
   useQueryMock.mockImplementation((path: string) => {
+    if (path === '/models') {
+      return {
+        data: [MODEL, { ...MODEL, id: 'provider::old-model', name: 'Old Model' }],
+        isLoading: false,
+        refetch: vi.fn()
+      }
+    }
+    if (path === '/providers') {
+      return { data: providersListState.current, isLoading: false, refetch: vi.fn() }
+    }
     if (path.startsWith('/models/')) {
+      if (modelsLoadingState.current) {
+        return { data: undefined, isLoading: true }
+      }
       const id = path.slice('/models/'.length)
       return {
         data: {
@@ -1343,6 +1364,70 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('merges the restored target-model settings into the same atomic PATCH when the model changes', async () => {
+    mockPreferenceState.set('chat.model_settings', { [MODEL.id]: { enableWebSearch: true } })
+    providersListState.current = [
+      {
+        id: 'provider',
+        name: 'Provider',
+        serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+      }
+    ]
+    try {
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+
+      // ASSISTANT has web search off; the picked model's remembered choice
+      // restores it in the same PATCH that carries the modelId.
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            modelId: MODEL.id,
+            settings: expect.objectContaining({ enableWebSearch: true })
+          })
+        })
+      )
+    } finally {
+      mockPreferenceState.delete('chat.model_settings')
+    }
+  })
+
+  it('restores remembered settings even while the per-model query is still loading', async () => {
+    // The switch target resolves from the cached model catalog, so a slow
+    // per-model record query no longer drops the restoration: an autosave or
+    // close in that window still merges the remembered settings into the same
+    // atomic PATCH instead of committing the bare modelId with the previous
+    // model's settings (and advancing the baseline past any retry).
+    modelsLoadingState.current = true
+    mockPreferenceState.set('chat.model_settings', { [MODEL.id]: { enableWebSearch: true } })
+    providersListState.current = [
+      {
+        id: 'provider',
+        name: 'Provider',
+        serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+      }
+    ]
+    try {
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            modelId: MODEL.id,
+            settings: expect.objectContaining({ enableWebSearch: true })
+          })
+        })
+      )
+    } finally {
+      mockPreferenceState.delete('chat.model_settings')
+    }
   })
 
   it('shows the clear model affordance beside the chevron and clears the selected model', async () => {

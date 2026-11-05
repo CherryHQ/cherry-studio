@@ -6,6 +6,7 @@ import type { CreateDirectoryOptions } from 'webdav'
 import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
+  ChatModelSetting,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
@@ -239,6 +240,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
     set: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
+    updateModelSettings: (modelId: string, settings: ChatModelSetting): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Preference_UpdateModelSettings, modelId, settings),
     getMultipleRaw: <K extends UnifiedPreferenceKeyType>(keys: K[]): Promise<UnifiedPreferenceMultipleResultType<K>> =>
       ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
     setMultiple: (updates: Partial<UnifiedPreferenceType>) =>
