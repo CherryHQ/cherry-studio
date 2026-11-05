@@ -55,8 +55,13 @@ export function containerLines(
 const spaces = (s: string, p: number) => /^ */.exec(s.slice(p))![0].length
 const thematic = (s: string) => /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(s)
 const marker = (s: string) => (thematic(s) ? null : /^( {0,3})([-*+]|\d{1,9}[.)])( +|$)(.*)$/.exec(s))
+const fenceOpener = (s: string) => {
+  const fence = /^ {0,3}([`~])\1{2,}/.exec(s)
+  return fence && (fence[1] !== '`' || !s.slice(fence[0].length).includes('`')) ? fence : null
+}
 const interrupts = (s: string) =>
-  /^ {0,3}(?:>|#{1,6}(?: |$)|`{3,}|~{3,})/.test(s) ||
+  /^ {0,3}(?:>|#{1,6}(?: |$))/.test(s) ||
+  fenceOpener(s) !== null ||
   /^[\uE000-\uF8FF]+CODE_FENCE_\d+\uE001[ \t]*$/.test(s.trim()) ||
   thematic(s) ||
   (() => {
@@ -179,8 +184,8 @@ export function containerLine(
     state.code = null
     return { events, code: false, content: rest }
   }
-  const fence = /^ {0,3}([`~])\1{2,}/.exec(rest)
-  if (fence && (fence[1] !== '`' || !rest.slice(fence[0].length).includes('`'))) {
+  const fence = fenceOpener(rest)
+  if (fence) {
     markContent(p)
     const run = fence[0].trim()
     state.fence = { owner: owner(), char: run[0], length: run.length, indent: fence[0].length - run.length }

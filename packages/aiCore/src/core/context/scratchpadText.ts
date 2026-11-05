@@ -785,6 +785,17 @@ function inheritedFencePrefixLookup(
   // events for that distinction, including the paragraph carried from a prior delta.
   const rawContainers = initialContainers ? cloneContainerState(initialContainers) : initialContainerState()
   let rawScanStart = 0
+  const rawVerdictAt = (start: number): ReturnType<typeof containerLine> => {
+    let verdict: ReturnType<typeof containerLine>
+    do {
+      verdict = containerLine(
+        rawContainers,
+        expandFencePrefixTabs(text.slice(rawScanStart, lineContentEnd(text, rawScanStart)))
+      )
+      rawScanStart = lineEndAfter(text, rawScanStart)
+    } while (rawScanStart <= start)
+    return verdict
+  }
   for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
     const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
     // A blank line closes an empty item, but not an item that already owns
@@ -797,6 +808,13 @@ function inheritedFencePrefixLookup(
       continue
     }
     const leading = line.match(/^ */)?.[0].length ?? 0
+    // Invalid backtick info may be a lazy paragraph line inside an item.
+    // It cannot discard that item's fence ancestry merely by being dedented.
+    const invalidFence = /^ {0,3}`{3,}[^\r\n]*`/.test(line)
+    if (invalidFence && stack.length) {
+      const verdict = rawVerdictAt(start)
+      if (rawContainers.paragraph !== null && !verdict.events.some((event) => event.kind === 'close')) continue
+    }
     // Sibling or dedented content ends the items it no longer reaches.
     while (stack.length && stack[stack.length - 1].contentCol > leading) {
       const ended = stack.pop()
@@ -817,14 +835,7 @@ function inheritedFencePrefixLookup(
     if (!marker) continue
     // Ownership is only queried for marker candidates. Advance all intervening
     // raw lines now, so ordinary growing fence bodies do not repeat this scan.
-    let rawVerdict: ReturnType<typeof containerLine>
-    do {
-      rawVerdict = containerLine(
-        rawContainers,
-        expandFencePrefixTabs(text.slice(rawScanStart, lineContentEnd(text, rawScanStart)))
-      )
-      rawScanStart = lineEndAfter(text, rawScanStart)
-    } while (rawScanStart <= start)
+    const rawVerdict = rawVerdictAt(start)
     if (
       !rawVerdict.events.some(
         (event) =>

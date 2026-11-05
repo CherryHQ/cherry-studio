@@ -6346,6 +6346,23 @@ describe('cherry-pr-review round-11', () => {
       .join('')
   }
 
+  it('retains literal XML after an invalid backtick fence and setext underline', () => {
+    const raw = '```aa```\n-\n    <thinking>literal</thinking>\n'
+    expect(runWithSnapshot([raw], raw)).toBe(raw)
+    expect(runWithSnapshot([], raw)).toBe(raw)
+    expect(runWithSnapshot(Array.from(raw), raw)).toBe(raw)
+    for (let cut = 0; cut <= raw.length; cut++)
+      expect(runWithSnapshot([raw.slice(0, cut), raw.slice(cut)], raw), `split ${cut}`).toBe(raw)
+  })
+  it('does not let invalid lazy fence info drop an existing list fence boundary', () => {
+    const raw = '- x\n```aa```\n    ```\n<analysis>MARK</analysis>\n``` a`b\n`'
+    const whole = runWithSnapshot([raw], raw)
+    expect(whole).not.toContain('MARK')
+    expect(runWithSnapshot([], raw)).toBe(whole)
+    expect(runWithSnapshot(Array.from(raw), raw)).toBe(whole)
+    for (let cut = 0; cut <= raw.length; cut++)
+      expect(runWithSnapshot([raw.slice(0, cut), raw.slice(cut)], raw), `split ${cut}`).toBe(whole)
+  })
   it.each([
     ['- item\n  para\n  - \n     +  text\n        ````\n \t<analysis>MARK</analysis>\n        ````\ntail\n', false],
     ['- item\n  para\n   -\n     2)    \n        ```\n \t<analysis>MARK</analysis>\n        ```\n', false],

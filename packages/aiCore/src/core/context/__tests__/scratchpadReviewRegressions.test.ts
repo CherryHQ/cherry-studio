@@ -361,3 +361,21 @@ it.each([
 ])('classifies paragraph marker text without phantom list ownership: %s', (raw, literal) => {
   expect(ContextPrompts.formatCompactSummary(raw).includes('MARK')).toBe(literal)
 })
+
+it('retains indented literal XML after an invalid backtick fence and setext underline', () => {
+  const raw = '```aa```\n-\n    <thinking>literal</thinking>\n'
+  expect(ContextPrompts.formatCompactSummary(raw)).toContain('<thinking>literal</thinking>')
+})
+
+it('does not let invalid lazy fence info drop an existing list fence boundary', () => {
+  const raw = '- x\n```aa```\n    ```\n<analysis>MARK</analysis>\n``` a`b\n`'
+  expect(ContextPrompts.formatCompactSummary(raw)).not.toContain('MARK')
+})
+
+it.fails.each(['--', '==='])(
+  'known limitation: retains an inline literal across invalid fence/list lines: %s',
+  (underline) => {
+    const raw = `- x\n\x60\x60\x60 a\x60b\n\t\t<analysis>MARK</analysis>\n${underline}\n\x60\x60\x60aa\x60\x60\x60\n`
+    expect(ContextPrompts.formatCompactSummary(raw)).toContain('MARK')
+  }
+)
