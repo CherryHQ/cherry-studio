@@ -157,6 +157,9 @@ export function buildPathRegistry() {
     'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
     'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
     'feature.tts.kokoro': path.join(appUserDataRuntime, 'models', 'kokoro-multi-lang-v1.1'),
+    'feature.tts.kokoro_v1': path.join(appUserDataRuntime, 'models', 'kokoro-int8-multi-lang-v1.0'),
+    'feature.tts.piper_faber': path.join(appUserDataRuntime, 'models', 'piper-pt-br-faber-medium'),
+    'feature.tts.piper_cadu': path.join(appUserDataRuntime, 'models', 'piper-pt-br-cadu-medium'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
