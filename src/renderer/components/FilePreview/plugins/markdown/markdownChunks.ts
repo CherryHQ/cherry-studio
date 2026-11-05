@@ -1015,31 +1015,57 @@ function afterColumns(columns: number, line: string): string {
   return expanded.slice(columns) + line.slice(index)
 }
 
-/** The index past a parenthesised run that opens at `open`, or −1 when it never closes. */
+/**
+ * The index past the parenthesised run a link or image opens at `open`, or −1 when what follows is
+ * not a destination with an optional title. A title's own parentheses and closing delimiter are
+ * content, so scanning the run as balanced parens ended it inside a quoted title and turned a link
+ * the parser reads into literal heading text.
+ */
 function pastParenRun(source: string, open: number): number {
-  let depth = 1
-  // An angle-bracketed destination may hold parentheses, so the closing `)` inside `<…>` is not
-  // the run's end. Only the first non-space token after `(` can open one.
-  let angle = false
-  let destinationStart = true
-  for (let index = open + 1; index < source.length; index += 1) {
-    const character = source[index]
-    if (character === '\\') {
-      index += 1
-      continue
-    }
-    if (destinationStart) {
-      if (character === '<') angle = true
-      if (character !== ' ' && character !== '\t') destinationStart = false
-    }
-    if (angle) {
-      if (character === '>') angle = false
-      continue
-    }
-    if (character === '(') depth += 1
-    else if (character === ')' && (depth -= 1) === 0) return index + 1
+  let index = open + 1
+  const whitespace = (): void => {
+    while (index < source.length && /[ \t\n\r]/.test(source[index])) index += 1
   }
-  return -1
+  whitespace()
+  const destinationStart = index
+  if (source[index] === '<') {
+    const length = angleDestinationLength(source, index)
+    if (length === 0) return -1
+    index += length
+  } else {
+    // A bare destination ends at whitespace or the run's own closing `)`; a balanced `(`…`)` is
+    // part of it. Reading the closer as destination text refused every ordinary link.
+    let depth = 0
+    while (index < source.length) {
+      const character = source[index]
+      if (character === '\\') {
+        index += 2
+        continue
+      }
+      if (/[ \t\n\r]/.test(character) || (character === ')' && depth === 0)) break
+      if (character === '(') depth += 1
+      else if (character === ')') depth -= 1
+      index += 1
+    }
+    if (depth !== 0) return -1
+  }
+  const destinationEnd = index
+  whitespace()
+  if (source[index] === ')') return index + 1
+  if (index === destinationStart) return -1
+  // A title has to be separated from the destination by whitespace.
+  if (index === destinationEnd) return -1
+  const delimiter = source[index]
+  if (delimiter !== '"' && delimiter !== "'" && delimiter !== '(') return -1
+  const close = delimiter === '(' ? ')' : delimiter
+  index += 1
+  while (index < source.length && source[index] !== close) {
+    index += source[index] === '\\' ? 2 : 1
+  }
+  if (index >= source.length) return -1
+  index += 1
+  whitespace()
+  return source[index] === ')' ? index + 1 : -1
 }
 
 /**
@@ -2602,6 +2628,8 @@ export function splitMarkdownChunks(
   let previousStatus: 'paragraph' | 'block' = 'block'
   /** Whether the previous line was indented code, where an empty marker cannot open a list. */
   let previousWasIndentedCode = false
+  /** Whether the last non-blank line was indented code — a blank between does not free the marker. */
+  let indentedCodeBlockEnded = false
   /** The container of that indented code, so the guard applies only while it is still held. */
   let previousIndentedCodeContainer: string | null = null
   /** Whether the previous line was a definition, after which a type-7 tag starts a paragraph. */
@@ -2738,9 +2766,12 @@ export function splitMarkdownChunks(
     const line = lines[i]
     const blank = isBlankLine(line)
     const paragraphOpenAtLine = previousStatus === 'paragraph'
-    const afterIndentedCode = previousWasIndentedCode
+    const afterIndentedCode = previousWasIndentedCode || indentedCodeBlockEnded
     const afterDefinition = previousWasDefinition
     const afterIndentedCodeContainer = previousIndentedCodeContainer
+    // Blanks after a code block leave the parser's next block free to open, but an empty or
+    // ordered marker there is paragraph text the same way it is directly under the code.
+    if (!blank) indentedCodeBlockEnded = false
     previousWasIndentedCode = false
     previousWasDefinition = false
     previousIndentedCodeContainer = null
@@ -2932,7 +2963,9 @@ export function splitMarkdownChunks(
           COMPLETE_TAG_LINE.test(uncontained)))
     ) {
       htmlBlankBlock = true
-      endListOutsideItem(line)
+      // A type-7 tag that only continues the item's paragraph keeps the item open: the parser
+      // reads the tag inside it, so clearing ownership here split the next item into a new list.
+      if (!leavesParagraphContainer || opensHtml) endListOutsideItem(line)
       // The block lives in the container it was opened behind, so its lines have to keep that
       // container: the marker chain the opening line carried, and an item's content column.
       // A type-7 tag can stay inside the list item whose paragraph it ended; a block-level tag
@@ -2979,6 +3012,7 @@ export function splitMarkdownChunks(
       (previousStatus === 'block' || opensContainerBlock) &&
       (containerHoldsCode || (innerIndent >= itemCodeFloor && !startsBlock(uncontained)))
     previousWasIndentedCode = indentedCode
+    if (indentedCode) indentedCodeBlockEnded = true
     previousIndentedCodeContainer = indentedCode ? (container?.[0] ?? null) : null
     const indentedContinuation = definitionContainer
       ? insideContainer !== null &&

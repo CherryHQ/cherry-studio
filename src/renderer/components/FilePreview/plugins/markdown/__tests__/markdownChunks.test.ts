@@ -1016,6 +1016,16 @@ describe('splitMarkdownChunks', () => {
     expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['https://right.example'])
   })
 
+  it('treats a definition-shaped line under a marker blank after code as paragraph text', () => {
+    // The blank between the code block and the marker does not free the marker: the parser reads
+    // `-` and the line below as one paragraph, so hoisting that line as a definition turned both
+    // literal `[a]` occurrences into links.
+    const content = '[a]\n\n    code\n\n-\n[a]: /url'
+
+    expect(resolvedReferenceUrls(content)).toEqual([])
+    expect(chunksOf(content).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual([])
+  })
+
   it('treats an empty marker after code as paragraph text for definitions', () => {
     // The marker opens no list, so the definition-shaped line under it is prose and the real
     // definition wins.
@@ -2926,6 +2936,16 @@ describe('document-wide heading slugs', () => {
     expect(chunks.flatMap((chunk) => [...(chunk.headingSlugs?.get('xcc') ?? [])])).toEqual(['xcc', 'xcc-1'])
   })
 
+  it('keeps a quoted title’s parenthesis out of the link scan', () => {
+    // `hello ) world` is the link's title, so both headings render `a`. Scanning the run as
+    // balanced parens ended it inside the title, keyed the first heading on the literal run, and
+    // left the second without the `a-1` id the jump expects.
+    const content = `# [a](b "hello ) world")\n\n${'filler\n\n'.repeat(3072)}# [a](b "hello ) world")\n\n[jump](#chunk--a-1)\n`
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(chunkHeadingIds(content)).toEqual(['chunk--a', 'chunk--a-1'])
+  })
+
   it('keeps a parenthesis inside an angle-bracketed destination out of the heading text', () => {
     // `<b)c>` is the whole destination, so the heading text is `a`. Reading the inner `)` as the
     // link's end left the text as `a-bc`, and the second heading then took the id the jump expects.
@@ -3705,6 +3725,15 @@ describe('heading ids assigned from the text the renderer reads', () => {
 })
 
 describe('a list whose fence holds its items together', () => {
+  it('keeps an item open when a tag continues its paragraph', () => {
+    // `<br>` is a type-7 tag the item's own paragraph holds, so the parser reads one two-item
+    // list; clearing ownership at the tag let a default-budget split restart the numbering.
+    const content = `1. ${'first line\n'.repeat(2500)}<br>\n\n1. second`
+
+    expect(renderedListNumbers(content)).toEqual([1, 2])
+    expect(chunksOf(content).flatMap((chunk) => renderedListNumbers(chunk.text))).toEqual([1, 2])
+  })
+
   it('keeps a list whose item opens a fenced block in one chunk', () => {
     // micromark numbers the two items 1 and 2 of one list; cut apart at the blank line behind the
     // fence, each piece renders a one-item list that starts over at 1.
