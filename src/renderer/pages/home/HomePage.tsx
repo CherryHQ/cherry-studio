@@ -25,7 +25,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -440,6 +440,36 @@ const HomePage: FC = () => {
     },
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
+
+  const isActiveTab = useIsActiveTab()
+  const cycleTopic = useCallback(
+    (step: 1 | -1) => {
+      const scopedTopics = visibleAssistantId
+        ? allTopics.filter((topic) => topic.assistantId === visibleAssistantId)
+        : allTopics
+      if (scopedTopics.length === 0) return
+      const currentIndex = scopedTopics.findIndex((topic) => topic.id === activeTopicId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + scopedTopics.length) % scopedTopics.length
+      const nextTopic = scopedTopics[nextIndex]
+      if (nextTopic.id !== activeTopicId) setActiveTopicAndCloseResourceView(nextTopic)
+    },
+    [activeTopicId, allTopics, setActiveTopicAndCloseResourceView, visibleAssistantId]
+  )
+  const cycleAssistant = useCallback(
+    (step: 1 | -1) => {
+      if (assistants.length === 0) return
+      const currentIndex = assistants.findIndex((assistant) => assistant.id === visibleAssistantId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + assistants.length) % assistants.length
+      const nextAssistant = assistants[nextIndex]
+      if (nextAssistant.id === visibleAssistantId) return
+      void handleAssistantConversationSelect({ type: 'assistant', assistantId: nextAssistant.id })
+    },
+    [assistants, handleAssistantConversationSelect, visibleAssistantId]
+  )
+  useCommandHandler('topic.next', () => cycleTopic(1), { enabled: isActiveTab })
+  useCommandHandler('topic.prev', () => cycleTopic(-1), { enabled: isActiveTab })
+  useCommandHandler('assistant.next', () => cycleAssistant(1), { enabled: isActiveTab })
+  useCommandHandler('assistant.prev', () => cycleAssistant(-1), { enabled: isActiveTab })
 
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {

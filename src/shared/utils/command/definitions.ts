@@ -262,6 +262,42 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'assistant.next',
+    titleKey: 'settings.shortcuts.next_assistant',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Right']
+    }
+  }),
+  defineCommand({
+    id: 'assistant.prev',
+    titleKey: 'settings.shortcuts.prev_assistant',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Left']
+    }
+  }),
+  defineCommand({
+    id: 'topic.next',
+    titleKey: 'settings.shortcuts.next_topic',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Down']
+    }
+  }),
+  defineCommand({
+    id: 'topic.prev',
+    titleKey: 'settings.shortcuts.prev_topic',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Up']
+    }
+  }),
+  defineCommand({
     id: 'tab.close',
     titleKey: 'settings.shortcuts.close_tab',
     categoryKey: 'settings.shortcuts.general',
