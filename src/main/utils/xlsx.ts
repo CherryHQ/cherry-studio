@@ -1,6 +1,7 @@
 import { posix } from 'node:path'
 
 import type { Cell, CellValue } from 'exceljs'
+import type JSZip from 'jszip'
 
 /**
  * Extract the text of an .xlsx workbook: a `Sheet: <name>` line per worksheet, then one line per
@@ -60,6 +61,8 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
       const line = texts.join('\t')
       if (line.trim()) lines.push(line)
     })
+    // Text boxes and shapes, which ExcelJS does not load, after the cells
+    for (const text of stored.drawings.get(worksheet.name) ?? []) lines.push(text)
     sheets.push(lines.join('\n'))
   })
   return sheets.join('\n\n')
@@ -198,12 +201,14 @@ interface StoredCell {
 async function storedWorkbook(data: Uint8Array): Promise<{
   cells: Map<string, Map<string, StoredCell>>
   merges: Map<string, MergeRange[]>
+  drawings: Map<string, string[]>
   data: Uint8Array
 }> {
   const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(data)
   const cells = new Map<string, Map<string, StoredCell>>()
   const merges = new Map<string, MergeRange[]>()
+  const drawings = new Map<string, string[]>()
 
   // The format of each cell style, by its index in <cellXfs>: the stored code of a custom format,
   // and whether the format shows a date or time in any section
@@ -216,8 +221,9 @@ async function storedWorkbook(data: Uint8Array): Promise<{
   }
   const styleCodes: (string | undefined)[] = []
   const dateStyles = new Set<number>()
-  // Date styles whose numbers need the stored value: a numeric section or condition shows the
-  // number's own digits, and an escape is lost on load
+  // Styles whose numbers need the stored value: a date format's numeric section or condition shows
+  // the number's own digits, and an escape is lost on load; and a format that shows a number but that
+  // ExcelJS takes for a date
   const storedStyles = new Set<number>()
   const cellXfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? ''
   for (const [tag] of cellXfs.matchAll(/<xf\b[^>]*>/g)) {
@@ -229,12 +235,13 @@ async function storedWorkbook(data: Uint8Array): Promise<{
       : BUILTIN_DATE_FORMAT_IDS.has(id)
     if (showsDate) dateStyles.add(styleCodes.length)
     if (showsDate && code !== undefined && /[;\\[]/.test(code)) storedStyles.add(styleCodes.length)
+    if (!showsDate && code !== undefined && exceljsReadsAsDate(code)) storedStyles.add(styleCodes.length)
     styleCodes.push(code)
   }
 
   const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
   const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
-  if (!workbookXml || !relsXml) return { cells, merges, data }
+  if (!workbookXml || !relsXml) return { cells, merges, drawings, data }
   // Ranges ExcelJS would expand cell by cell on load and the text does not need
   let stripped = false
   const withoutRanges = (xml: string, pattern: RegExp): string => {
@@ -256,12 +263,17 @@ async function storedWorkbook(data: Uint8Array): Promise<{
     if (name === undefined || !xml) continue
     const ranges = mergeRanges(xml)
     if (ranges.length) merges.set(name, ranges)
+    const shapes = await drawingText(zip, path as string)
+    if (shapes.length) drawings.set(name, shapes)
     zip.file(path as string, withoutRanges(xml, /<(mergeCells|dataValidations)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g))
     // Most sheets hold none of these, so their cells are not walked
     const hasFormulaResult = /<f[\s/>]/.test(xml) && /\st=["'](?:str|b|e)["']/.test(xml)
     // A number outside Date's range has an integer part of at least 99,974,431: eight digits or an exponent
     const mayExceedDate = dateStyles.size > 0 && /<v>\s*-?(?:\d{8}|[\d.]+[eE]\+?\d)/.test(xml)
-    if (!hasFormulaResult && !mayExceedDate && !usesStyle(xml, storedStyles) && !/\st=["']d["']/.test(xml)) continue
+    // A serial that rounds into the next day holds a fraction of at least 0.99999999
+    const mayRollOver = dateStyles.size > 0 && /<v>\s*-?\d*\.99999999/.test(xml)
+    const walk = hasFormulaResult || mayExceedDate || mayRollOver || usesStyle(xml, storedStyles)
+    if (!walk && !/\st=["']d["']/.test(xml)) continue
     const sheetCells = new Map<string, StoredCell>()
     for (const [, attributes, content = ''] of xml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const type = xmlAttribute(attributes, 't') ?? ''
@@ -270,10 +282,11 @@ async function storedWorkbook(data: Uint8Array): Promise<{
       const value = /<v(?:\s*\/>|>([\s\S]*?)<\/v>)/.exec(content)
       // Only a formula's result is converted: a plain text, boolean or error cell reads correctly
       const isFormulaResult = ['str', 'b', 'e'].includes(type) && /<f[\s/>]/.test(content)
+      const serial = Number(value?.[1])
       const isDateStyledNumber =
         (type === '' || type === 'n') &&
-        dateStyles.has(style) &&
-        (storedStyles.has(style) || Math.abs(Number(value?.[1])) >= MAX_DATE_SERIAL)
+        (storedStyles.has(style) ||
+          (dateStyles.has(style) && (Math.abs(serial) >= MAX_DATE_SERIAL || roundsIntoNextDay(serial))))
       if (type !== 'd' && !isFormulaResult && !isDateStyledNumber) continue
       const address = xmlAttribute(attributes, 'r')
       if (address && value) sheetCells.set(address, { type, text: xmlText(value[1] ?? ''), numFmt: styleCodes[style] })
@@ -282,7 +295,48 @@ async function storedWorkbook(data: Uint8Array): Promise<{
   }
   // Repacked without compression only when there were ranges to take out
   const loadData = stripped ? await zip.generateAsync({ type: 'uint8array', compression: 'STORE' }) : data
-  return { cells, merges, data: loadData }
+  return { cells, merges, drawings, data: loadData }
+}
+
+/**
+ * Whether ExcelJS 4.4.0 reads number format `code` as a date: it drops the backslash of each escaped
+ * character on load, then looks for a date or time letter outside quotes and `[...]`. A format that
+ * shows a number, such as `0\d` or `#,##0\ \k\m`, then turns 42 into 1900-02-11 and a large number
+ * into an invalid date.
+ */
+function exceljsReadsAsDate(code: string): boolean {
+  const loaded = code.replace(/[\\](.)/g, '$1')
+  return /[ymdhMsb]/.test(loaded.replace(/\[[^\]]*]/g, '').replace(/"[^"]*"/g, ''))
+}
+
+/**
+ * Whether ExcelJS, which rounds a serial to the millisecond on load, carries it into the next day:
+ * 45565.999999995 is still 2024-09-30, and its date reads from the stored serial.
+ */
+function roundsIntoNextDay(serial: number): boolean {
+  return Number.isFinite(serial) && Math.floor(Math.round(serial * 86_400_000) / 86_400_000) > Math.floor(serial)
+}
+
+/**
+ * The text of the text boxes and shapes in a sheet's drawings, one line per paragraph, as officeparser
+ * read it before: ExcelJS loads pictures from a drawing but not its text. Charts are parts of their
+ * own and stay out; their cached values repeat the cells they plot.
+ */
+async function drawingText(zip: JSZip, sheetPath: string): Promise<string[]> {
+  const dir = posix.dirname(sheetPath)
+  const relsXml = await zip.file(posix.join(dir, '_rels', `${posix.basename(sheetPath)}.rels`))?.async('string')
+  if (!relsXml) return []
+  const lines: string[] = []
+  for (const [tag] of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    if (!(xmlAttribute(tag, 'Type') ?? '').endsWith('/drawing')) continue
+    const target = xmlAttribute(tag, 'Target') ?? ''
+    const xml = await zip.file(target.startsWith('/') ? target.slice(1) : posix.join(dir, target))?.async('string')
+    for (const [, paragraph] of xml?.matchAll(/<a:p\b[^>]*>([\s\S]*?)<\/a:p>/g) ?? []) {
+      const text = Array.from(paragraph.matchAll(/<a:t\b[^>]*>([\s\S]*?)<\/a:t>/g), ([, run]) => xmlText(run)).join('')
+      if (text.trim()) lines.push(text.replace(/[\t\r\n]+/g, ' '))
+    }
+  }
+  return lines
 }
 
 /** A merged range by 1-based row and column bounds. */

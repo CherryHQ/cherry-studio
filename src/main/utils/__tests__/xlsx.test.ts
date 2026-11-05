@@ -19,6 +19,44 @@ async function editSheetXml(data: Uint8Array, path: string, edit: (xml: string) 
   return zip.generateAsync({ type: 'uint8array' })
 }
 
+// A text box as XlsxWriter 3.2.9 writes it (`insert_textbox`), an independent writer: ExcelJS
+// writes no text boxes.
+const TEXT_BOX_DRAWING =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+  '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+  '<xdr:twoCellAnchor><xdr:from><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>' +
+  '<xdr:to><xdr:col>8</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>' +
+  '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="2" name="TextBox 1"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr>' +
+  '<xdr:spPr><a:xfrm><a:off x="1828800" y="190500"/><a:ext cx="3048000" cy="571500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' +
+  '<a:solidFill><a:schemeClr val="lt1"/></a:solidFill><a:ln w="9525" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"><a:shade val="50000"/></a:schemeClr></a:solidFill></a:ln></xdr:spPr>' +
+  '<xdr:style><a:lnRef idx="0"><a:scrgbClr r="0" g="0" b="0"/></a:lnRef><a:fillRef idx="0"><a:scrgbClr r="0" g="0" b="0"/></a:fillRef>' +
+  '<a:effectRef idx="0"><a:scrgbClr r="0" g="0" b="0"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="dk1"/></a:fontRef></xdr:style>' +
+  '<xdr:txBody><a:bodyPr wrap="square" rtlCol="0" anchor="t"/><a:lstStyle/>' +
+  '<a:p><a:r><a:rPr lang="en-US" sz="1100"/><a:t>Payment must arrive before 30 September 2024</a:t></a:r></a:p>' +
+  '<a:p><a:r><a:rPr lang="en-US" sz="1100"/><a:t>Late fees apply</a:t></a:r></a:p>' +
+  '</xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>'
+
+/** Link a drawing part to a worksheet the way a workbook does: a relationship, a `<drawing>` and a content type. */
+async function withDrawing(data: Uint8Array, sheetPath: string, drawingXml: string): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(data)
+  const sheet = await zip.file(sheetPath)?.async('string')
+  const types = await zip.file('[Content_Types].xml')?.async('string')
+  if (sheet === undefined || types === undefined) throw new Error(`no ${sheetPath}`)
+  const relsPath = sheetPath.replace(/([^/]+)$/, '_rels/$1.rels')
+  const relationship =
+    '<Relationship Id="rIdDrawing1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>'
+  const rels =
+    (await zip.file(relsPath)?.async('string')) ??
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+  zip.file(relsPath, rels.replace('</Relationships>', `${relationship}</Relationships>`))
+  zip.file('xl/drawings/drawing1.xml', drawingXml)
+  zip.file(sheetPath, sheet.replace('</worksheet>', '<drawing r:id="rIdDrawing1"/></worksheet>'))
+  const override =
+    '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'
+  zip.file('[Content_Types].xml', types.replace('</Types>', `${override}</Types>`))
+  return zip.generateAsync({ type: 'uint8array' })
+}
+
 describe('extractXlsxText', () => {
   it('keeps each value in its row and column, one block per sheet', async () => {
     const data = await xlsxBytes((workbook) => {
@@ -408,5 +446,50 @@ describe('extractXlsxText', () => {
     })
 
     expect(await extractXlsxText(data)).toBe('Sheet: Negative\n-12:14:24\t-734:24')
+  })
+
+  it('keeps a number whose format shows a number but that ExcelJS takes for a date', async () => {
+    // ExcelJS drops the backslashes on load and reads `0d`, `0.0 h` and `#,##0 km` as date formats:
+    // 42 became 1900-02-11 and 123456789 an invalid date, which read as nothing
+    const data = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Units')
+      sheet.addRow([42, 123456789])
+      sheet.addRow([1.5, 2500])
+      sheet.getCell('A1').numFmt = '0\\d'
+      sheet.getCell('B1').numFmt = '0\\d'
+      sheet.getCell('A2').numFmt = '0.0\\ \\h'
+      sheet.getCell('B2').numFmt = '#,##0\\ \\k\\m'
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Units\n42\t123456789\n1.5\t2500')
+  })
+
+  it('reads the text boxes of a sheet after its cells', async () => {
+    const cells = await xlsxBytes((workbook) => {
+      workbook.addWorksheet('Invoice').addRows([
+        ['Item', 'Amount'],
+        ['Consulting', 1200]
+      ])
+      workbook.addWorksheet('Notes').addRow(['none'])
+    })
+    const data = await withDrawing(cells, 'xl/worksheets/sheet1.xml', TEXT_BOX_DRAWING)
+
+    expect(await extractXlsxText(data)).toBe(
+      'Sheet: Invoice\nItem\tAmount\nConsulting\t1200\nPayment must arrive before 30 September 2024\nLate fees apply\n\nSheet: Notes\nnone'
+    )
+  })
+
+  it('reads a date-only serial just before midnight as its own day', async () => {
+    // ExcelJS rounds a serial to the millisecond on load, and 45565.999999995 rounds to
+    // 2024-10-01 00:00:00.000; with the time shown, Excel rounds it to the next second too
+    const data = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Due')
+      sheet.addRow([45565.999999995, 45565.999999995, 45565.5])
+      sheet.getCell('A1').numFmt = 'yyyy-mm-dd'
+      sheet.getCell('B1').numFmt = 'yyyy-mm-dd hh:mm:ss'
+      sheet.getCell('C1').numFmt = 'yyyy-mm-dd'
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Due\n2024-09-30\t2024-10-01 00:00:00\t2024-09-30')
   })
 })
