@@ -48,7 +48,10 @@ export function reconcileReasoningEffortForModel(
 
 export function reconcileWebSearchForModel(
   nextModel: Model,
-  current: Pick<AssistantSettings, 'enableWebSearch' | 'reasoning_effort'>,
+  current: {
+    enableWebSearch?: boolean | undefined
+    reasoning_effort?: ReasoningEffortOption | undefined
+  },
   provider: Provider | undefined
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
