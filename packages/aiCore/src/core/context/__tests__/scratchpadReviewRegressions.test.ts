@@ -337,3 +337,16 @@ it('expires an empty list at its blank boundary before a top-level literal fence
 it('does not protect private analysis with an indented non-fence after an empty item', () => {
   expect(ContextPrompts.formatCompactSummary('-\n  \n    ~~~\n  <analysis>MARK</analysis>\n')).not.toContain('MARK')
 })
+
+it.each([
+  ['-  \n  ~~~\n<analysis>MARK</analysis>\n', false],
+  ['-  \n   ~~~\n  <analysis>MARK</analysis>\n', true]
+])('uses one content-padding column for an empty marker: %s', (raw, literal) => {
+  expect(ContextPrompts.formatCompactSummary(raw).includes('MARK')).toBe(literal)
+})
+
+it('does not treat an empty marker that cannot interrupt a paragraph as a new item', () => {
+  expect(
+    ContextPrompts.formatCompactSummary('- x\n  *    \n      ~~~\n       <analysis>MARK</analysis>\n')
+  ).not.toContain('MARK')
+})

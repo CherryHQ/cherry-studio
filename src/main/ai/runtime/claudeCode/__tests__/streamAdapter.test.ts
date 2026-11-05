@@ -6347,6 +6347,20 @@ describe('cherry-pr-review round-11', () => {
   }
 
   it.each([
+    '- x\n  *    \n      ~~~\n       <analysis>MARK</analysis>\n',
+    '- x\n  *    \n      ~~~\n       <analysis>MARK</analysis>\n      ~~~\n'
+  ])('does not let empty marker text interrupt a paragraph: %s', (answer) => {
+    const whole = runWithSnapshot([answer], answer)
+    expect(whole).not.toContain('MARK')
+    expect(runWithSnapshot([], answer)).toBe(whole)
+    expect(runWithSnapshot(Array.from(answer), answer)).toBe(whole)
+    for (let cut = 0; cut <= answer.length; cut++)
+      expect(runWithSnapshot([answer.slice(0, cut), answer.slice(cut)], answer), `split ${cut}`).toBe(whole)
+  })
+
+  it.each([
+    ['-  \n  ~~~\n<analysis>MARK</analysis>\n', false],
+    ['-  \n   ~~~\n  <analysis>MARK</analysis>\n', true],
     ['-\n  \n  ```\n<analysis>MARK</analysis>\n  ```\n', true],
     ['-\n  \n    ~~~\n  <analysis>MARK</analysis>\n', false]
   ])('classifies empty-item blank boundaries consistently: %s', (answer, literal) => {

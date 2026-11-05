@@ -763,7 +763,8 @@ function fenceContainerEnd(
 /** Precompute list-container extents once instead of scanning every prefix per fence. */
 function inheritedFencePrefixLookup(
   text: string,
-  initialContainerPrefix?: string
+  initialContainerPrefix?: string,
+  initialContainers?: ContainerState
 ): (openerStart: number, prefix: string) => string {
   const lists: Array<{ start: number; end: number; prefix: string }> = []
   // Incremental streaming seed: containers opened in text already consumed
@@ -780,8 +781,12 @@ function inheritedFencePrefixLookup(
   // prefix model: quote markers must repeat on every line, so their nesting
   // never hides in bare indentation.
   const stack: Array<{ contentCol: number; start: number; index: number; empty: boolean }> = []
+  // Marker-shaped paragraph text is not a new empty item. Use raw ownership
+  // events for that distinction, including the paragraph carried from a prior delta.
+  const rawContainers = initialContainers ? cloneContainerState(initialContainers) : initialContainerState()
   for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
     const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
+    const rawVerdict = containerLine(rawContainers, line)
     // A blank line closes an empty item, but not an item that already owns
     // content. Match the raw container consumer before inheriting a fence.
     if (line.trim() === '') {
@@ -810,7 +815,16 @@ function inheritedFencePrefixLookup(
     if (leading - parentCol > 3) continue
     const marker = /^([-*+]|\d{1,9}[.)])( +|$)/.exec(line.slice(leading))
     if (!marker) continue
-    const padding = marker[2] === '' || marker[2].length > 4 ? 1 : marker[2].length
+    const padding =
+      (line.slice(leading + marker[0].length).trim() === '' &&
+        rawVerdict.events.some(
+          (event) =>
+            event.kind === 'open' && rawContainers.stack.some((item) => item.id === event.id && item.kind === 'item')
+        )) ||
+      marker[2] === '' ||
+      marker[2].length > 4
+        ? 1
+        : marker[2].length
     const contentCol = leading + marker[1].length + padding
     const relWidth = contentCol - parentCol
     const virtual = (stack.length ? lists[stack[stack.length - 1].index].prefix : '') + `-${' '.repeat(relWidth - 1)}`
@@ -2008,7 +2022,7 @@ function enclosingScratchpadTag(
 
 export function maskCodeFences(
   text: string,
-  options?: { initialContainerPrefix?: string }
+  options?: { initialContainerPrefix?: string; initialMaskState?: IndentedMaskState }
 ): {
   text: string
   fences: string[]
@@ -2019,7 +2033,11 @@ export function maskCodeFences(
   const inlineRanges = maskInlineCodeSpans(text).ranges
   const scratchpadScan = { pos: 0, stack: [] as string[] }
   let out = ''
-  const inheritedPrefix = inheritedFencePrefixLookup(text, options?.initialContainerPrefix)
+  const inheritedPrefix = inheritedFencePrefixLookup(
+    text,
+    options?.initialContainerPrefix,
+    options?.initialMaskState?.containers
+  )
   const ownMarkerColumns = ownMarkerFenceLookup(text)
   let pos = 0
   // HTML comments, CDATA, attributes and text-element bodies are opaque:
@@ -2532,9 +2550,13 @@ export function shouldDeferScratchpadStripping(
   return (
     textHasIncompleteMarkup(text) ||
     textHasUnclosedScratchpad(text, seed, options?.initialMaskState) ||
-    textHasUnclosedCodeFence(text, { initialContainerPrefix: seed }) ||
+    textHasUnclosedCodeFence(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }) ||
     textEndsWithPartialFenceMarker(text) ||
-    textHasUnclosedInlineCode(/[`~]{3}/.test(text) ? maskCodeFences(text, { initialContainerPrefix: seed }).text : text)
+    textHasUnclosedInlineCode(
+      /[`~]{3}/.test(text)
+        ? maskCodeFences(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }).text
+        : text
+    )
   )
 }
 
@@ -2555,16 +2577,24 @@ export function deferralIsInlineCodeOnly(
   return (
     !textHasIncompleteMarkup(text) &&
     !textHasUnclosedScratchpad(text, seed, options?.initialMaskState) &&
-    !textHasUnclosedCodeFence(text, { initialContainerPrefix: seed }) &&
+    !textHasUnclosedCodeFence(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }) &&
     !textEndsWithPartialFenceMarker(text) &&
-    textHasUnclosedInlineCode(/[`~]{3}/.test(text) ? maskCodeFences(text, { initialContainerPrefix: seed }).text : text)
+    textHasUnclosedInlineCode(
+      /[`~]{3}/.test(text)
+        ? maskCodeFences(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }).text
+        : text
+    )
   )
 }
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */
 /** Position of the first code fence still open at the end of `text`, if any. */
-function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): { markerStart: number } | null {
-  const inheritedPrefix = inheritedFencePrefixLookup(text, initialContainerPrefix)
+function findUnclosedCodeFence(
+  text: string,
+  initialContainerPrefix?: string,
+  initialContainers?: ContainerState
+): { markerStart: number } | null {
+  const inheritedPrefix = inheritedFencePrefixLookup(text, initialContainerPrefix, initialContainers)
   const ownMarkerColumns = ownMarkerFenceLookup(text)
   let pos = 0
   while (pos < text.length) {
@@ -2621,8 +2651,11 @@ function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): {
   return null
 }
 
-export function textHasUnclosedCodeFence(text: string, options?: { initialContainerPrefix?: string }): boolean {
-  return findUnclosedCodeFence(text, options?.initialContainerPrefix) !== null
+export function textHasUnclosedCodeFence(
+  text: string,
+  options?: { initialContainerPrefix?: string; initialMaskState?: IndentedMaskState }
+): boolean {
+  return findUnclosedCodeFence(text, options?.initialContainerPrefix, options?.initialMaskState?.containers) !== null
 }
 
 /**
@@ -2652,9 +2685,9 @@ export function textHasUnclosedInlineCodeOutsideCodeBlocks(text: string): boolea
  */
 export function confirmedOpenFenceStreamPrefix(
   text: string,
-  options?: { initialContainerPrefix?: string }
+  options?: { initialContainerPrefix?: string; initialMaskState?: IndentedMaskState }
 ): { openerLine: string; stableEnd: number } | null {
-  const fence = findUnclosedCodeFence(text, options?.initialContainerPrefix)
+  const fence = findUnclosedCodeFence(text, options?.initialContainerPrefix, options?.initialMaskState?.containers)
   if (!fence) return null
   // A fence inside a scratchpad block ends at the block's closer: its
   // content is private and must never stream early.
@@ -2734,7 +2767,11 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
   const initialContainerPrefix = options?.initialMaskState
     ? fenceContainerPrefixFromState(options.initialMaskState, raw)
     : undefined
-  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw, { initialContainerPrefix })
+  const {
+    text: fenceMasked,
+    fences,
+    placeholderBase: fenceBase
+  } = maskCodeFences(raw, { initialContainerPrefix, initialMaskState: options?.initialMaskState })
   const {
     text: indentedMasked,
     blocks,

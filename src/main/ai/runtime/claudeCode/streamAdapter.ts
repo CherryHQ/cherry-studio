@@ -1554,7 +1554,8 @@ export class ClaudeCodeStreamAdapter {
     // O(fence^2 / chunk) characters here; incremental advance stays linear.
     this.scratchpadMaskAdvanceWorkChars += span.length
     const maskedAdvance = maskCodeFences(span, {
-      initialContainerPrefix: fenceContainerPrefixFromState(ctx.scratchpadMaskState, span) || undefined
+      initialContainerPrefix: fenceContainerPrefixFromState(ctx.scratchpadMaskState, span) || undefined,
+      initialMaskState: ctx.scratchpadMaskState
     })
     const lastFenceToken = `${maskedAdvance.placeholderBase}CODE_FENCE_${maskedAdvance.fences.length - 1}\uE001`
     if (maskedAdvance.fences.length > 0 && maskedAdvance.text.endsWith(lastFenceToken)) {
