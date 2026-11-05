@@ -310,6 +310,7 @@ describe('resolveModelSwitchSettings (#23582)', () => {
       nextProvider: openAiProvider,
       currentModelId: 'openai::gpt-5',
       currentSettings: { enableWebSearch: true, reasoning_effort: 'low' },
+      remembered: undefined,
       extraSettings: { reasoning_effort: 'high' }
     })
 
