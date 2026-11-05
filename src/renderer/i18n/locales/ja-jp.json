@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} 日",
   "settings.data.log_retention.help": "これより古いログファイルは、起動時と 12 時間ごとに自動的に削除されます。",
   "settings.data.log_retention.label": "ログの保持期間",
-  "settings.data.markdown_export.exclude_citations.help": "Markdownエクスポート時に引用や参考文献を除外し、メインコンテンツのみを保持します。",
+  "settings.data.markdown_export.exclude_citations.help": "MarkdownまたはWordへのエクスポート時にWeb検索の引用マーカー（例: [1]）と参考文献リストを除外し、メインコンテンツのみを保持します。",
   "settings.data.markdown_export.exclude_citations.title": "引用を除外",
   "settings.data.markdown_export.force_dollar_math.help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
   "settings.data.markdown_export.force_dollar_math.title": "LaTeX数式に$$を強制使用",

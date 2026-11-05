@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} วัน",
   "settings.data.log_retention.help": "ไฟล์ log ที่เก่ากว่านี้จะถูกลบโดยอัตโนมัติเมื่อเริ่มต้นแอปและทุก ๆ 12 ชั่วโมง",
   "settings.data.log_retention.label": "ระยะเวลาเก็บ log",
-  "settings.data.markdown_export.exclude_citations.help": "ไม่รวมการอ้างอิงเมื่อส่งออกเป็น Markdown เก็บเฉพาะเนื้อหาหลัก",
+  "settings.data.markdown_export.exclude_citations.help": "ไม่รวมเครื่องหมายอ้างอิงจากการค้นหาเว็บ (เช่น [1]) และรายการแหล่งอ้างอิงเมื่อส่งออกเป็น Markdown หรือ Word เก็บเฉพาะเนื้อหาหลัก",
   "settings.data.markdown_export.exclude_citations.title": "ไม่รวมการอ้างอิง",
   "settings.data.markdown_export.force_dollar_math.help": "เมื่อเปิดใช้ $$ จะถูกบังคับใช้ในการทำเครื่องหมายสูตร LaTeX เมื่อส่งออกเป็น Markdown หมายเหตุ: ตัวเลือกนี้ส่งผลต่อทุกวิธีส่งออกผ่าน Markdown เช่น Notion, Yuque ฯลฯ",
   "settings.data.markdown_export.force_dollar_math.title": "บังคับ $$ สำหรับสูตร LaTeX",

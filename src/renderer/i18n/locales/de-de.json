@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} Tage",
   "settings.data.log_retention.help": "Protokolldateien, die älter sind, werden automatisch gelöscht – beim Start und alle 12 Stunden.",
   "settings.data.log_retention.label": "Protokolle aufbewahren für",
-  "settings.data.markdown_export.exclude_citations.help": "Beim Export nach Markdown Zitate und Referenzen ausschließen, nur Hauptinhalt behalten",
+  "settings.data.markdown_export.exclude_citations.help": "Beim Export nach Markdown oder Word Zitationsmarker aus der Websuche (z. B. [1]) und die Referenzliste ausschließen, nur Hauptinhalt behalten",
   "settings.data.markdown_export.exclude_citations.title": "Zitate nicht exportieren",
   "settings.data.markdown_export.force_dollar_math.help": "Nach Aktivierung wird beim Markdown-Export die Notation $$ für LaTeX-Formeln erzwungen. Hinweis: Gilt auch für alle anderen Exportwege wie Notion, Yuque usw.",
   "settings.data.markdown_export.force_dollar_math.title": "$$-Notation für LaTeX erzwingen",

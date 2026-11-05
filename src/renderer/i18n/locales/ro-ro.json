@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} zile",
   "settings.data.log_retention.help": "Fișierele jurnal mai vechi sunt șterse automat, la pornire și o dată la 12 ore.",
   "settings.data.log_retention.label": "Păstrează jurnalele timp de",
-  "settings.data.markdown_export.exclude_citations.help": "Exclude citările și referințele la exportul în Markdown, păstrând doar conținutul principal",
+  "settings.data.markdown_export.exclude_citations.help": "Exclude marcajele de citare din căutarea web (de ex. [1]) și lista de referințe la exportul în Markdown sau Word, păstrând doar conținutul principal",
   "settings.data.markdown_export.exclude_citations.title": "Exclude citările",
   "settings.data.markdown_export.force_dollar_math.help": "Când este activat, $$ va fi folosit forțat pentru a marca formulele LaTeX la exportul în Markdown. Notă: Această opțiune afectează și toate metodele de export prin Markdown, cum ar fi Notion, Yuque etc.",
   "settings.data.markdown_export.force_dollar_math.title": "Forțează $$ pentru formulele LaTeX",

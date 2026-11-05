@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} giorni",
   "settings.data.log_retention.help": "I file di log più vecchi vengono eliminati automaticamente all'avvio e ogni 12 ore.",
   "settings.data.log_retention.label": "Conserva i log per",
-  "settings.data.markdown_export.exclude_citations.help": "Escludi citazioni e riferimenti dall'esportazione in Markdown, mantenendo solo il contenuto principale",
+  "settings.data.markdown_export.exclude_citations.help": "Escludi i marcatori di citazione della ricerca web (es. [1]) e l'elenco dei riferimenti dall'esportazione in Markdown o Word, mantenendo solo il contenuto principale",
   "settings.data.markdown_export.exclude_citations.title": "Escludi citazioni",
   "settings.data.markdown_export.force_dollar_math.help": "Se attivo, verrà sempre usato $$ per delimitare le formule LaTeX nell'esportazione in Markdown. Nota: questa opzione si applica anche a tutti i metodi di esportazione tramite Markdown, come Notion, Yuque, ecc.",
   "settings.data.markdown_export.force_dollar_math.title": "Forza $$ per le formule LaTeX",

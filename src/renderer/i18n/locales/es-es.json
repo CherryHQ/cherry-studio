@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} días",
   "settings.data.log_retention.help": "Los archivos de registro más antiguos se eliminan automáticamente, al iniciar la aplicación y cada 12 horas.",
   "settings.data.log_retention.label": "Conservar los registros durante",
-  "settings.data.markdown_export.exclude_citations.help": "Al activarse, se excluirá el contenido de las citas al exportar a Markdown.",
+  "settings.data.markdown_export.exclude_citations.help": "Al activarse, se excluirán los marcadores de citación de búsqueda web (p. ej. [1]) y la lista de referencias al exportar a Markdown o Word, conservando solo el contenido principal.",
   "settings.data.markdown_export.exclude_citations.title": "Excluir contenido de citas",
   "settings.data.markdown_export.force_dollar_math.help": "Al activarlo, al exportar a Markdown se usarán $$ para marcar las fórmulas LaTeX. Nota: Esto también afectará a todas las formas de exportación a través de Markdown, como Notion, Yuque, etc.",
   "settings.data.markdown_export.force_dollar_math.title": "Forzar el uso de $$ para marcar fórmulas LaTeX",
