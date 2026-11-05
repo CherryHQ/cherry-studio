@@ -16,8 +16,8 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { AgentSessionFallbackConnection } from '@main/ai/runtime/AgentSessionFallbackConnection'
-import { resolveAgentFallbackPolicy } from '@main/ai/runtime/modelFallback'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { resolveAgentFallbackPolicy } from '@main/ai/runtime/modelFallback'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -1989,9 +1989,11 @@ export class AgentSessionRuntimeService extends BaseService {
       branchHead: entry.branchHead,
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     }
+    const baseConnection = await driver.connect(connectInput)
+    // Read the intent after startup: a Stop that landed while connecting must still cancel the
+    // work the returned connection owns instead of only shutting it down.
     const attempt = this.connectionAttempts.get(entry.sessionId)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
-    const baseConnection = await driver.connect(connectInput)
     // Without a configured fallback the wrapper has nothing to rebuild for; installing it anyway
     // would hide the native connection's child-owner capabilities behind an optional-only surface.
     const fallbackConfigured =
