@@ -138,6 +138,10 @@ type PendingInvocationUsage = {
   metrics?: InvocationMetricSnapshot
   completionObserved: boolean
   isStreamStopped: boolean
+  /** True only when a final usage source was observed: a stop-carrying assistant frame or a
+   *  terminal partial event. SDK per-block frames (stop_reason: null) carry a non-final usage
+   *  snapshot, so their counts must never persist as final. */
+  usageFinal: boolean
 }
 
 type InvocationUsageInput = {
@@ -203,11 +207,11 @@ function pendingInvocationFromAssistant(
 ): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
   // Capture usage from every well-formed assistant frame, not only stop_reason-carrying ones: SDK
-  // per-block frames (stop_reason: null) carry a non-final usage snapshot, and with partial events
-  // disabled those snapshots are the ONLY per-invocation usage source before the result commits —
-  // dropping them persists an invocation with missing counts. Repeated frames for one request id
-  // merge through selectAssistantUsage (the higher output count wins), so the final snapshot — or
-  // the complete frame, when the CLI emits one — stands.
+  // per-block frames (stop_reason: null) are the ONLY per-invocation usage signal with partial
+  // events disabled — but per the SDK contract their usage is NOT final (the turn's stop reason
+  // and total usage arrive on the result message). Keep the best snapshot as a candidate; it is
+  // persisted only when a final source confirms it (a stop-carrying frame, a terminal partial
+  // event) or the result repair below attributes the turn total to a single invocation.
   const usageEligible = message.aborted !== true && message.error === undefined
   const assistantUsage = usageEligible ? invocationUsageBuckets(message.message.usage) : undefined
   return {
@@ -216,7 +220,8 @@ function pendingInvocationFromAssistant(
     messageAssociation,
     ...(assistantUsage ? { assistantUsage } : {}),
     completionObserved: isComplete,
-    isStreamStopped: false
+    isStreamStopped: false,
+    usageFinal: isComplete
   }
 }
 
@@ -275,7 +280,8 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
     ...(timing ? { timing } : {}),
     ...(metrics ? { metrics } : {}),
     completionObserved: current.completionObserved || next.completionObserved,
-    isStreamStopped: current.isStreamStopped || next.isStreamStopped
+    isStreamStopped: current.isStreamStopped || next.isStreamStopped,
+    usageFinal: current.usageFinal || next.usageFinal
   }
 }
 
@@ -310,6 +316,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
    *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
+  /** The PreToolUse hook fires mid-invocation and reports its tool_use_id at arm time; this maps
+   *  top-level tool_use block ids to their provider invocation (SDK message id), so the boundary
+   *  can tell the interrupted invocation's later frames (trailing blocks share its message.id)
+   *  from the post-steer response's NEW invocation. Loop-lag proof: the tool_use block's frame
+   *  precedes every trailing frame of the same invocation, so the entry exists in time. */
+  private readonly toolUseInvocationByTopLevelId = new Map<string, string>()
+  /** tool_use_id of the PreToolUse call the pending steer was injected through (if any). */
+  private steerBoundaryToolUseId?: string
+  /** SDK message id of the current top-level provider invocation (latest message_start/assistant
+   *  frame), used to attribute streamed tool_use blocks to their invocation. */
+  private currentTopLevelInvocationId?: string
+  /** Top-level invocation ids seen in the current turn; drives the single-invocation usage repair. */
+  private readonly turnTopLevelInvocationIds = new Set<string>()
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -401,8 +420,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
     if (this.steerHolder) {
-      this.steerHolder.onInjected = (inputs) => {
+      this.steerHolder.onInjected = (inputs, toolUseId) => {
         this.steerBoundaryPending = inputs
+        this.steerBoundaryToolUseId = toolUseId
         // Reserve the host continuation synchronously before the hook returns. A gateway-backed
         // subprocess can issue its next provider request before the later `message_start` reaches
         // this query loop, so the async `steer-boundary` event is too late for request correlation.
@@ -424,6 +444,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
     this.lastMainAssistantUuid = undefined
+    this.turnTopLevelInvocationIds.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -623,6 +644,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
+    this.steerBoundaryToolUseId = undefined
+    this.toolUseInvocationByTopLevelId.clear()
     this.teardownSession()
     this.eventQueue.close()
     const exited = this.processDiagnostics?.exited
@@ -641,6 +664,44 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
+        // Track top-level tool_use blocks → their provider invocation on every route (not only
+        // agent-sdk accounting), so an armed steer boundary can identify the invocation the
+        // PreToolUse hook interrupted. This must run BEFORE the boundary checks below: the frame
+        // carrying the hook's own tool_use block may itself be the first frame the loop sees
+        // after the arm (the hook channel can overtake queued stdout frames).
+        if (message.type === 'stream_event' && message.parent_tool_use_id == null) {
+          if (message.event.type === 'message_start') {
+            this.currentTopLevelInvocationId = message.event.message?.id
+          } else if (
+            message.event.type === 'content_block_start' &&
+            this.currentTopLevelInvocationId !== undefined &&
+            (message.event.content_block.type === 'tool_use' ||
+              message.event.content_block.type === 'server_tool_use' ||
+              message.event.content_block.type === 'mcp_tool_use')
+          ) {
+            this.toolUseInvocationByTopLevelId.set(message.event.content_block.id, this.currentTopLevelInvocationId)
+          }
+        }
+        if (message.type === 'assistant' && message.parent_tool_use_id == null) {
+          this.currentTopLevelInvocationId = message.message.id
+          for (const block of message.message.content ?? []) {
+            if (block.type === 'tool_use' || block.type === 'server_tool_use' || block.type === 'mcp_tool_use') {
+              this.toolUseInvocationByTopLevelId.set(block.id, message.message.id)
+            }
+          }
+        }
+        // Steer-boundary roll rule: with no hook tool_use_id (legacy inject paths), roll on the
+        // first top-level assistant frame as before. With a tool_use_id, roll only once the
+        // interrupted invocation is identified AND the frame belongs to a different invocation;
+        // while the id is still unresolved (the hook channel can overtake queued stdout frames,
+        // and message_start precedes the tool_use block in the stream), defer instead of rolling
+        // on the interrupted invocation's own frames.
+        const steerBoundaryToolUseId = this.steerBoundaryPending ? this.steerBoundaryToolUseId : undefined
+        const steerBoundaryInterruptedId = this.steerBoundaryPending
+          ? this.steerBoundaryInterruptedInvocationId()
+          : undefined
+        const steerBoundaryUnresolved = steerBoundaryToolUseId !== undefined && steerBoundaryInterruptedId === undefined
+
         // A steer was injected this turn → the first TOP-LEVEL assistant message after it (the model's
         // post-steer response; subagent/nested messages carry a parent_tool_use_id and are skipped) is
         // where the host rolls A1a + A2. Emit the boundary BEFORE the adapter handles this message so it
@@ -649,22 +710,35 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.steerBoundaryPending &&
           message.type === 'stream_event' &&
           message.event.type === 'message_start' &&
-          message.parent_tool_use_id == null
+          message.parent_tool_use_id == null &&
+          !steerBoundaryUnresolved &&
+          (steerBoundaryToolUseId === undefined || message.event.message?.id !== steerBoundaryInterruptedId)
         ) {
           this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
+          this.steerBoundaryToolUseId = undefined
         }
 
         // Partial events disabled (`includePartialMessages: false`): no message_start ever arrives,
-        // so the first complete TOP-LEVEL assistant message after the injection is the post-steer
-        // response start. Emitted BEFORE the adapter handles the message so the boundary lands
-        // ahead of the continuation's content chunks. With partials on this never fires — the
-        // message_start above clears the arm first.
-        if (this.steerBoundaryPending && message.type === 'assistant' && message.parent_tool_use_id == null) {
+        // so the first NEW-invocation TOP-LEVEL assistant frame after the injection is the post-steer
+        // response start. The interrupted invocation's own later frames (a PreToolUse injection
+        // precedes trailing blocks of the same provider invocation, which share its message.id)
+        // must NOT roll the boundary: that committed unfinished usage and moved the original
+        // response's trailing text into A2. Emitted BEFORE the adapter handles the message so the
+        // boundary lands ahead of the continuation's content chunks. With partials on this never
+        // fires — the message_start above clears the arm first.
+        if (
+          this.steerBoundaryPending &&
+          message.type === 'assistant' &&
+          message.parent_tool_use_id == null &&
+          !steerBoundaryUnresolved &&
+          (steerBoundaryToolUseId === undefined || message.message.id !== steerBoundaryInterruptedId)
+        ) {
           this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
+          this.steerBoundaryToolUseId = undefined
         }
 
         // A top-level message_start's input usage IS the current context occupancy — forward it so
@@ -704,11 +778,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           throw error
         }
         if (result.type === 'result') {
+          this.repairSingleInvocationUsageFromResult(result.message)
           this.commitPendingInvocations()
+          this.turnTopLevelInvocationIds.clear()
+          this.toolUseInvocationByTopLevelId.clear()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
           // turn ended right after the gated tool). Drop the arm — no boundary, no empty A2.
           this.steerBoundaryPending = undefined
+          this.steerBoundaryToolUseId = undefined
           // `readUIMessageStream` only reads token counts from `message-metadata`
           // chunks. The streamAdapter's V3-shaped `finish.usage` is ignored, so
           // we project the SDK BetaUsage onto a UIMessageChunk here — keeping
@@ -887,7 +965,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           ...(ttftMs !== undefined ? { ttftMs } : {})
         },
         completionObserved: false,
-        isStreamStopped: false
+        isStreamStopped: false,
+        usageFinal: false
       })
       return
     }
@@ -912,7 +991,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         ...finalized,
         ...(terminalUsage ? { terminalUsage } : {}),
         completionObserved: finalized.completionObserved || isStreamStopped,
-        isStreamStopped: finalized.isStreamStopped || isStreamStopped
+        isStreamStopped: finalized.isStreamStopped || isStreamStopped,
+        usageFinal: finalized.usageFinal || isStreamStopped
       })
       if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
       return
@@ -924,7 +1004,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInvocations.set(requestId, {
         ...this.finalizeInvocationTiming(current),
         completionObserved: true,
-        isStreamStopped: true
+        isStreamStopped: true,
+        usageFinal: true
       })
       if (current.terminalUsage || current.assistantUsage) this.commitInvocationUsage(requestId)
     }
@@ -993,6 +1074,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       return
     }
 
+    if (lane === 'top-level') this.turnTopLevelInvocationIds.add(next.requestId)
     const previousRequestId = this.streamInvocationIdsByLane.get(lane)
     if (previousRequestId && previousRequestId !== next.requestId) {
       this.commitInvocationUsage(previousRequestId)
@@ -1001,6 +1083,30 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const current = this.pendingInvocations.get(next.requestId)
     this.pendingInvocations.set(next.requestId, current ? mergePendingInvocation(current, next) : next)
+  }
+
+  /** The provider invocation a pending PreToolUse steer interrupted, if it is known. */
+  private steerBoundaryInterruptedInvocationId(): string | undefined {
+    return this.steerBoundaryToolUseId ? this.toolUseInvocationByTopLevelId.get(this.steerBoundaryToolUseId) : undefined
+  }
+
+  /**
+   * With partial events off, per-block assistant frames are the only per-invocation usage signal
+   * and the SDK marks them non-final — the turn's totals arrive on the result message. When the
+   * turn ran exactly one top-level invocation, that total IS the invocation's final usage; stamp
+   * it so the persisted record carries final counts. Multi-invocation turns stay explicitly
+   * unavailable rather than guessing an attribution. Subagent lanes are excluded because the
+   * result usage covers the main agent loop only.
+   */
+  private repairSingleInvocationUsageFromResult(resultMessage: SDKResultMessage): void {
+    if (resultMessage.subtype !== 'success') return
+    if (this.turnTopLevelInvocationIds.size !== 1) return
+    const [requestId] = this.turnTopLevelInvocationIds
+    const pending = this.pendingInvocations.get(requestId)
+    if (!pending || pending.usageFinal) return
+    const turnUsage = invocationUsageBuckets(resultMessage.usage)
+    if (!turnUsage) return
+    this.pendingInvocations.set(requestId, { ...pending, terminalUsage: turnUsage, usageFinal: true })
   }
 
   private commitPendingInvocations(): void {
@@ -1034,12 +1140,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
     }
     this.committedInvocationIds.add(pending.requestId)
-    const usage = materializeInvocationUsage(
-      mergeInvocationUsageBuckets(
-        mergeInvocationUsageBuckets(pending.startUsage, pending.assistantUsage),
-        pending.terminalUsage
-      )
-    )
+    // Never persist a non-final snapshot as final counts (SDK per-block frames carry provisional
+    // usage; with partial events off nothing terminal replaces them). The invocation is still
+    // recorded — without counts, explicitly marking them unavailable.
+    const usage = pending.usageFinal
+      ? materializeInvocationUsage(
+          mergeInvocationUsageBuckets(
+            mergeInvocationUsageBuckets(pending.startUsage, pending.assistantUsage),
+            pending.terminalUsage
+          )
+        )
+      : undefined
     this.eventQueue.push({
       type: 'usage',
       invocation: {

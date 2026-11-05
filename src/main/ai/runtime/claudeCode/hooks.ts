@@ -214,7 +214,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       hook: hookEventName
     })
     // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
-    holder.onInjected?.(taken)
+    // PreToolUse interrupts its provider invocation mid-stream, so hand the driver the tool_use id:
+    // it identifies the interrupted invocation and keeps the boundary from rolling on that
+    // invocation's own trailing frames. PostToolBatch runs after the invocation completed.
+    holder.onInjected?.(taken, 'tool_use_id' in input ? input.tool_use_id : undefined)
     return {
       continue: true,
       hookSpecificOutput: { hookEventName, additionalContext: wrapSteerReminder(text) }
