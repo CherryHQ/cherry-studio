@@ -2683,6 +2683,25 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
     })
 
+    it('publishes the persisted pin as the known target of a name-only custom repair', async () => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool', requestedVersion: '2.0.0' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') throw new Error('network is down')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'mytool' })).rejects.toThrow('network is down')
+
+      // The backend installs the persisted requestedVersion, so the operation
+      // keeps that known target for progress display, failure diagnostics and Retry.
+      expect(miseArgs().some((args: string[]) => args[0] === 'use' && args.includes('npm:mytool@2.0.0'))).toBe(true)
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
+        mytool: { status: 'failed', action: 'install', error: 'network is down', targetVersion: '2.0.0' }
+      })
+    })
+
     it('uses the applied custom runtime active version instead of its portable default', async () => {
       const service = makeService()
       manifestRef.value = [

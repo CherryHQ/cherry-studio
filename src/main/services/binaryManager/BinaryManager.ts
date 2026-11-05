@@ -1902,7 +1902,8 @@ export class BinaryManager extends BaseService {
     if (targetVersion && !TOOL_KEY_RE.test(targetVersion)) {
       return Promise.reject(new Error(`Invalid tool version: ${targetVersion}`))
     }
-    if (!this.resolveDefinition(name)) {
+    const definition = this.resolveDefinition(name)
+    if (!definition) {
       return Promise.reject(new Error(`Unknown tool: ${name}`))
     }
     const active = this.activeMutations.get(name)
@@ -1917,13 +1918,16 @@ export class BinaryManager extends BaseService {
     }
     if (!this.miseBin) {
       const error = new Error('Binary backend not available')
-      this.failInstall(name, error.message, targetVersion)
+      this.failInstall(name, error.message, targetVersion ?? definition.requestedVersion)
       return Promise.reject(error)
     }
 
     // Publish before queuing on the global mutex so every renderer can render the
-    // operation while another tool holds mise's process-wide lock.
-    this.startInstall(name, targetVersion)
+    // operation while another tool holds mise's process-wide lock. A name-only
+    // repair of a pinned custom definition still installs its persisted
+    // requestedVersion, so publish that known target for progress display and
+    // failure diagnostics; an explicit one-shot target always wins.
+    this.startInstall(name, targetVersion ?? definition.requestedVersion)
     const promise = this.installByNameImpl(name, targetVersion)
     this.activeMutations.set(name, { action: 'installByName', targetVersion, promise })
     void promise
