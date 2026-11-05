@@ -118,7 +118,7 @@ The first pilot is a product integration check, not a library-only demo. If it f
 
 ### 7. Verification plan
 
-Use the existing [frontend test rules](../../../../docs/references/testing/frontend-testing.md). Renderer tests cover FileEditor's external-update/completion contract, owner/epoch, permissions and persistence integration. No new UI-package test layer is needed. Browser/Electron tests use the real Pierre implementation rather than mocking it into a textarea. Assert saved file/message contents and user-visible recovery, not just callback invocation.
+Use the existing [frontend test rules](../../../../docs/dev/references/testing/frontend-testing.md). Renderer tests cover FileEditor's external-update/completion contract, owner/epoch, permissions and persistence integration. No new UI-package test layer is needed. Browser/Electron tests use the real Pierre implementation rather than mocking it into a textarea. Assert saved file/message contents and user-visible recovery, not just callback invocation.
 
 Run explicit affected test paths per implementation layer, including existing CodeStyleProvider, CodeViewer, CodeBlockView, FileEditSessionProvider/useFileEditSession, FileEditSessionManager, SkillFileBrowser, ArtifactPane, AgentFileDiffView, MarkdownFilePreview and Tiptap codeHighlight consumers as applicable. Add only tests that catch a named regression. New FileEditor tests follow the existing renderer component test layout; a reviewed `tests/e2e/ondemand/specs/file-editor.ts` scenario uses the existing controller. Follow [on-demand scenario conventions](../../../../tests/e2e/ondemand/specs/README.md); do not invent a second Electron launcher or inject successful UI results.
 

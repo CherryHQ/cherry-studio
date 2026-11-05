@@ -143,6 +143,22 @@ describe('mock chat HTTP server', () => {
     })
   }
 
+  it.each([true, false])('exposes rejected store requests with a waiting consumer: %s', async (waitFirst) => {
+    await server.close()
+    server = await startMockChatServer({ rejectOwnStore: true })
+    const waiting = waitFirst ? server.nextRequest() : undefined
+    const response = await post({ model: 'glm', messages: [], stream: true, store: false })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { message: expect.stringContaining('extra_forbidden') } })
+    const request = await (waiting ?? server.nextRequest(1000))
+    expect(request).toMatchObject({ url: '/v1/chat/completions', method: 'POST', body: { model: 'glm', store: false } })
+    await request.closed
+    const error = 'Mock chat request was rejected before a response stream was opened'
+    expect(() => request.sendText('text')).toThrow(error)
+    expect(() => request.complete()).toThrow(error)
+    expect(() => request.fail('error')).toThrow(error)
+  })
+
   it('keeps concurrent requests independently controllable', async () => {
     const firstResponse = post({ model: 'first', messages: [], stream: true })
     const first = await server.nextRequest()
