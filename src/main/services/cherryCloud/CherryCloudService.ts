@@ -95,6 +95,14 @@ function accessExpiresAt(expiresIn: number): number {
   return Date.now() + expiresIn * 1000
 }
 
+/** The server refused a browser sign-in: expired, already used, or the account cannot sign in. */
+class CherryCloudAuthorizationRejectedError extends Error {
+  constructor() {
+    super('Cherry Cloud rejected the desktop authorization')
+    this.name = 'CherryCloudAuthorizationRejectedError'
+  }
+}
+
 export class CherryCloudLoginUnavailableError extends Error {
   constructor() {
     super('Cherry Cloud login service is unavailable')
@@ -121,6 +129,13 @@ class CherryCloudRefreshError extends Error {
     super(`Cherry Cloud session refresh failed (${response.status})`)
     this.name = 'CherryCloudRefreshError'
   }
+}
+
+/** Why the client signed the user out without being asked to; each reason gets its own notice. */
+type SignOutReason = 'expired' | 'revoked' | 'disabled'
+
+function signOutReason(response: Response): SignOutReason {
+  return response.headers.get('Cherry-Error-Code') === 'SESSION_EXPIRED' ? 'expired' : 'revoked'
 }
 
 function isAccountDisabled(response: Response): boolean {
@@ -491,6 +506,7 @@ export class CherryCloudService extends BaseService {
     } catch (error) {
       this.clearPendingAuthorization(pending)
       if (pending.operation.cancelled) return
+      if (error instanceof CherryCloudAuthorizationRejectedError) this.reportSignOut('login_rejected')
       throw error
     }
   }
@@ -542,7 +558,7 @@ export class CherryCloudService extends BaseService {
           this.scheduleSessionExpiry(session)
           return
         }
-        void this.clearSession(session).catch((error) => {
+        void this.clearSession(session, 'expired').catch((error) => {
           logger.warn('Cherry Cloud Session expiry cleanup failed', {
             reason: error instanceof Error ? error.message : String(error)
           })
@@ -780,21 +796,38 @@ export class CherryCloudService extends BaseService {
     this.quotaRefusals.models.add(modelId)
   }
 
-  /** Tells the user why they were signed out or could not sign in; the server disabled the account. */
-  private reportAccountDisabled(): void {
+  /** Tells the user why they were signed out, or why a browser sign-in did not finish. */
+  private reportSignOut(reason: SignOutReason | 'login_rejected'): void {
+    const notices = {
+      expired: [
+        t('notification.cherry_cloud.session_expired_title'),
+        t('notification.cherry_cloud.session_expired_message')
+      ],
+      revoked: [t('notification.cherry_cloud.signed_out_title'), t('notification.cherry_cloud.signed_out_message')],
+      disabled: [
+        t('notification.cherry_cloud.account_disabled_title'),
+        t('notification.cherry_cloud.account_disabled_message')
+      ],
+      login_rejected: [
+        t('notification.cherry_cloud.login_rejected_title'),
+        t('notification.cherry_cloud.login_rejected_message')
+      ]
+    }
+    const [title, message] = notices[reason]
     const now = Date.now()
     void application
       .get('NotificationService')
       .publish({
-        eventKey: `cherry-cloud:account-disabled:${now}`,
-        category: 'system',
+        eventKey: `cherry-cloud:sign-out:${reason}:${now}`,
+        // Usage notices pop up in the app and as system notifications; system ones only fill the list.
+        category: 'usage',
         createdAt: now,
         kind: 'cherry-cloud-account',
-        title: t('notification.cherry_cloud.account_disabled_title'),
-        message: t('notification.cherry_cloud.account_disabled_message'),
+        title,
+        message,
         target: { kind: 'settings', tab: 'profile' }
       })
-      .catch((error) => logger.warn('Failed to report a disabled Cherry Cloud account', error as Error))
+      .catch((error) => logger.warn('Failed to report a Cherry Cloud sign-out', error as Error))
   }
 
   private reconcileEntitledModels(
@@ -931,12 +964,11 @@ export class CherryCloudService extends BaseService {
     const generation = this.sessionGeneration
     let response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (isAccountDisabled(response)) {
-      await this.clearSession(session)
-      this.reportAccountDisabled()
+      await this.clearSession(session, 'disabled')
       return response
     }
     if (requiresLogin(response)) {
-      await this.clearSession(session)
+      await this.clearSession(session, signOutReason(response))
       return response
     }
     const currentSession = this.cloudState.session
@@ -976,7 +1008,7 @@ export class CherryCloudService extends BaseService {
 
     discardResponse(response)
     response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
-    if (requiresLogin(response)) await this.clearSession(session)
+    if (requiresLogin(response)) await this.clearSession(session, signOutReason(response))
     return response
   }
 
@@ -1061,15 +1093,14 @@ export class CherryCloudService extends BaseService {
     )
     if (!response.ok) {
       if (isAccountDisabled(response)) {
-        await this.clearSession(session)
-        this.reportAccountDisabled()
+        await this.clearSession(session, 'disabled')
         throw new CherryCloudRefreshError(response)
       }
       if (
         requiresLogin(response) ||
         (response.status === 401 && response.headers.get('Cherry-Error-Code') === 'AUTH_REQUIRED')
       ) {
-        await this.clearSession(session)
+        await this.clearSession(session, signOutReason(response))
       }
       throw new CherryCloudRefreshError(response)
     }
@@ -1111,9 +1142,10 @@ export class CherryCloudService extends BaseService {
     return next
   }
 
-  private async clearSession(expectedSession?: ProductSession): Promise<void> {
+  private async clearSession(expectedSession?: ProductSession, reason?: SignOutReason): Promise<void> {
     const currentSession = this.cloudState.session
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
+    if (reason) this.reportSignOut(reason)
 
     cherryAccountCredentialStore.clearSession()
     this.invalidateModelSync()
@@ -1198,7 +1230,7 @@ export class CherryCloudService extends BaseService {
     const pending = this.cloudState.pending
     const session = this.cloudState.session
     if (pending && Date.parse(pending.expiresAt) <= now) this.clearPendingAuthorization(pending)
-    if (session && session.sessionExpiresAt <= now) await this.clearSession(session)
+    if (session && session.sessionExpiresAt <= now) await this.clearSession(session, 'expired')
   }
 
   private async restoreSession(): Promise<void> {
@@ -1282,8 +1314,11 @@ export class CherryCloudService extends BaseService {
       throw new CherryCloudLoginUnavailableError()
     }
     if (isAccountDisabled(response)) {
-      this.reportAccountDisabled()
+      this.reportSignOut('disabled')
       throw new Error('Cherry Cloud account is disabled')
+    }
+    if (response.status === 400 && response.headers.get('Cherry-Error-Code') === 'AUTHORIZATION_INVALID') {
+      throw new CherryCloudAuthorizationRejectedError()
     }
     if (!response.ok) {
       throw new Error(`Cherry Cloud login request failed (${response.status})`)

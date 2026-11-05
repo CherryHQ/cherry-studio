@@ -2001,6 +2001,33 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).not.toBeNull()
   })
 
+  it.each([
+    ['REAUTH_REQUIRED', 'notification.cherry_cloud.signed_out_title'],
+    ['SESSION_EXPIRED', 'notification.cherry_cloud.session_expired_title']
+  ])('tells the user why the server ended the session (%s)', async (code, title) => {
+    const service = await createSignedInService()
+    const publish = vi.mocked(application.get('NotificationService').publish)
+    publish.mockClear()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, code))
+
+    await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
+
+    expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ category: 'usage', title }))
+  })
+
+  it('does not tell the user about a sign-out they asked for', async () => {
+    const service = await createSignedInService()
+    const publish = vi.mocked(application.get('NotificationService').publish)
+    publish.mockClear()
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+
+    await service.revokeCurrentSession()
+
+    expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(publish).not.toHaveBeenCalled()
+  })
+
   it('signs out and tells the user when the server reports the account disabled', async () => {
     const service = await createSignedInService()
     const publish = vi.mocked(application.get('NotificationService').publish)
