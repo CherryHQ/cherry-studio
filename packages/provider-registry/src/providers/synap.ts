@@ -19,6 +19,9 @@ export default openaiCompatible({
   overrides: [
     {
       apiModelId: 'gpt-oss-20b',
+      inputModalities: ['text'],
+      capabilities: { remove: ['image-recognition', 'audio-recognition', 'video-recognition'] },
+      limits: { contextWindow: 131072 },
       modelId: 'gpt-oss-20b',
       pricing: {
         input: { currency: 'USD', perMillionTokens: 0.017 },
@@ -27,6 +30,8 @@ export default openaiCompatible({
     },
     {
       apiModelId: 'gemma-4-26b-a4b-it',
+      inputModalities: ['text'],
+      capabilities: { remove: ['image-recognition', 'audio-recognition', 'video-recognition'] },
       limits: { contextWindow: 131072 },
       modelId: 'gemma-4-26b-a4b-it',
       pricing: {
@@ -37,6 +42,7 @@ export default openaiCompatible({
     {
       apiModelId: 'meta/muse-glimmer-30b',
       inputModalities: ['text'],
+      capabilities: { remove: ['image-recognition', 'audio-recognition', 'video-recognition'] },
       limits: { contextWindow: 131072 },
       modelId: 'muse-glimmer-30b',
       pricing: {

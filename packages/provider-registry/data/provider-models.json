@@ -48023,6 +48023,16 @@
     },
     {
       "apiModelId": "gemma-4-26b-a4b-it",
+      "capabilities": {
+        "remove": [
+          "image-recognition",
+          "audio-recognition",
+          "video-recognition"
+        ]
+      },
+      "inputModalities": [
+        "text"
+      ],
       "limits": {
         "contextWindow": 131072
       },
@@ -48041,6 +48051,19 @@
     },
     {
       "apiModelId": "gpt-oss-20b",
+      "capabilities": {
+        "remove": [
+          "image-recognition",
+          "audio-recognition",
+          "video-recognition"
+        ]
+      },
+      "inputModalities": [
+        "text"
+      ],
+      "limits": {
+        "contextWindow": 131072
+      },
       "modelId": "gpt-oss-20b",
       "pricing": {
         "input": {
@@ -48056,6 +48079,13 @@
     },
     {
       "apiModelId": "meta/muse-glimmer-30b",
+      "capabilities": {
+        "remove": [
+          "image-recognition",
+          "audio-recognition",
+          "video-recognition"
+        ]
+      },
       "inputModalities": [
         "text"
       ],
@@ -50103,5 +50133,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d4cf0917686d1eea"
+  "version": "a9028f0eb6096910"
 }
