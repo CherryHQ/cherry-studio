@@ -24,6 +24,7 @@ function wireQueries() {
       return {
         data: enabled ? [WORK_TAG] : undefined,
         isLoading: false,
+        isRefreshing: false,
         error: undefined,
         refetch: refetchTags,
         mutate: vi.fn()
@@ -33,12 +34,20 @@ function wireQueries() {
       return {
         data: enabled ? [{ entityId: 'assistant-1', tagId: WORK_TAG.id }] : undefined,
         isLoading: false,
+        isRefreshing: false,
         error: undefined,
         refetch: refetchBindings,
         mutate: vi.fn()
       }
     }
-    return { data: undefined, isLoading: false, error: undefined, refetch: vi.fn(), mutate: vi.fn() }
+    return {
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }
   })
   mockUseMutation.mockImplementation(() => ({ trigger: vi.fn(), isLoading: false, error: undefined }))
   return { refetchTags, refetchBindings }
