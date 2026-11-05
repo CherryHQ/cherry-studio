@@ -2060,6 +2060,8 @@ export function maskCodeFences(
   placeholderBase: string
 } {
   const placeholderBase = pickPlaceholderBase(text, 'CODE_FENCE')
+  // No delimiter run can open a fenced block; avoid unrelated ownership/inline scans.
+  if (!/[`~]{3}/.test(text)) return { text, fences: [], placeholderBase }
   const fences: string[] = []
   const inlineRanges = maskInlineCodeSpans(text).ranges
   const scratchpadScan = { pos: 0, stack: [] as string[] }
