@@ -118,7 +118,7 @@ const HomePage: FC = () => {
   })
   // Shared full-topics list source plus exact latest/reusable lookups.
   const assistantTopicsSource = useAssistantTopicsSource()
-  const { topics: allTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
+  const { topics: allTopics, rendererTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -444,16 +444,18 @@ const HomePage: FC = () => {
   const isActiveTab = useIsActiveTab()
   const cycleTopic = useCallback(
     (step: 1 | -1) => {
+      // Cycle the renderer topics the list actually shows: the visible assistant's topics, or
+      // only unlinked topics when no assistant is visible (matches `matchesAssistantFilter`).
       const scopedTopics = visibleAssistantId
-        ? allTopics.filter((topic) => topic.assistantId === visibleAssistantId)
-        : allTopics
+        ? rendererTopics.filter((topic) => topic.assistantId === visibleAssistantId)
+        : rendererTopics.filter((topic) => !topic.assistantId)
       if (scopedTopics.length === 0) return
       const currentIndex = scopedTopics.findIndex((topic) => topic.id === activeTopicId)
       const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + scopedTopics.length) % scopedTopics.length
       const nextTopic = scopedTopics[nextIndex]
       if (nextTopic.id !== activeTopicId) setActiveTopicAndCloseResourceView(nextTopic)
     },
-    [activeTopicId, allTopics, setActiveTopicAndCloseResourceView, visibleAssistantId]
+    [activeTopicId, rendererTopics, setActiveTopicAndCloseResourceView, visibleAssistantId]
   )
   const cycleAssistant = useCallback(
     (step: 1 | -1) => {
