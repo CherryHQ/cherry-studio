@@ -1,12 +1,12 @@
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
 import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
+import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import {
   clampHeartbeatIntervalMinutes,
   isHeartbeatEnabled,
   normalizeHeartbeatTimeoutMinutes
 } from '@shared/ai/agentHeartbeat'
-import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'

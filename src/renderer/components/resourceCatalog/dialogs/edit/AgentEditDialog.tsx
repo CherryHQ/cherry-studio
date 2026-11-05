@@ -46,15 +46,15 @@ import {
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
 import {
-  MAX_HEARTBEAT_INTERVAL_MINUTES,
-  MAX_HEARTBEAT_TIMEOUT_MINUTES,
-  MIN_HEARTBEAT_INTERVAL_MINUTES
-} from '@shared/ai/agentHeartbeat'
-import {
   DEFAULT_AUTO_COMPACT_TRIGGER_PCT,
   MIN_AUTO_COMPACT_TRIGGER_PCT,
   normalizeAutoCompactTriggerPct
 } from '@shared/ai/agentAutoCompact'
+import {
+  MAX_HEARTBEAT_INTERVAL_MINUTES,
+  MAX_HEARTBEAT_TIMEOUT_MINUTES,
+  MIN_HEARTBEAT_INTERVAL_MINUTES
+} from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
