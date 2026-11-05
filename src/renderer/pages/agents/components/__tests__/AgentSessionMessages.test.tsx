@@ -70,10 +70,12 @@ describe('AgentSessionMessages', () => {
   })
 
   it('uses the active session workspace path for message actions', () => {
+    const onBindRuntime = vi.fn()
     render(
       <AgentSessionMessages
         agentId="agent-1"
         sessionId="session-1"
+        onBindRuntime={onBindRuntime}
         workspacePath="/Users/alice/Data/Agents/agent-1/session-1"
         messages={[]}
         partsByMessageId={{}}
@@ -82,7 +84,7 @@ describe('AgentSessionMessages', () => {
     )
 
     expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
-      expect.objectContaining({ workspacePath: '/Users/alice/Data/Agents/agent-1/session-1' })
+      expect.objectContaining({ workspacePath: '/Users/alice/Data/Agents/agent-1/session-1', onBindRuntime })
     )
   })
 

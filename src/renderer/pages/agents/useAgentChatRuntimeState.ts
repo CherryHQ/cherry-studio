@@ -11,6 +11,7 @@ import {
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type {
+  MessageListRuntime,
   MessageListSelectAllPagination,
   MessageStreamingLayers,
   MessageToolApprovalInput
@@ -137,6 +138,7 @@ export interface AgentChatRuntimeState {
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
   stop: () => Promise<void>
+  bindMessageListRuntime: (runtime: MessageListRuntime) => () => void
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
@@ -177,6 +179,14 @@ export function useAgentChatRuntimeState({
   const [resendingHistory, setResendingHistory] = useState<{ sessionId: string; messages: CherryUIMessage[] }>()
   const optimisticMessages = resendingHistory?.sessionId === sessionId ? resendingHistory.messages : undefined
   const editRequestRef = useRef(false)
+  const messageListRuntimeRef = useRef<{ runtime: MessageListRuntime } | null>(null)
+  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
+    const binding = { runtime }
+    messageListRuntimeRef.current = binding
+    return () => {
+      if (messageListRuntimeRef.current === binding) messageListRuntimeRef.current = null
+    }
+  }, [])
   const currentSessionRef = useRef(sessionId)
   currentSessionRef.current = sessionId
   const reportEditError = useCallback(
@@ -276,9 +286,18 @@ export function useAgentChatRuntimeState({
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      return send({ text: message?.text ?? '', options })
+      const sent = await send({ text: message?.text ?? '', options })
+      const runtime = messageListRuntimeRef.current
+      if (sent && currentSessionRef.current === sessionId && runtime) {
+        requestAnimationFrame(() => {
+          if (currentSessionRef.current === sessionId && messageListRuntimeRef.current === runtime) {
+            runtime.runtime.scrollToBottom()
+          }
+        })
+      }
+      return sent
     },
-    [send]
+    [send, sessionId]
   )
   const deleteMessage = useCallback(
     async (messageId: string) => {
@@ -513,6 +532,7 @@ export function useAgentChatRuntimeState({
     selectAllPagination,
     isPending,
     stop,
+    bindMessageListRuntime,
     sendMessage,
     deleteMessage,
     respondToolApproval,

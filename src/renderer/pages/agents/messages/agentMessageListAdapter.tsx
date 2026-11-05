@@ -110,6 +110,7 @@ interface AgentMessageListParams {
   hasOlder?: boolean
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
+  onBindRuntime?: MessageListActions['bindRuntime']
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
@@ -178,6 +179,7 @@ export function useAgentMessageListProviderValue({
   hasOlder = false,
   loadOlder,
   selectAllPagination,
+  onBindRuntime,
   openCitationsPanel,
   isAgentToolFlowActive,
   openAgentToolFlow,
@@ -347,14 +349,16 @@ export function useAgentMessageListProviderValue({
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+      const unbindRuntime = onBindRuntime?.(runtime)
 
       return () => {
+        unbindRuntime?.()
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, onBindRuntime, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
