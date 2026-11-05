@@ -20,13 +20,15 @@ const NotificationSettings: FC = () => {
 
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
     assistant: 'app.notification.assistant.enabled',
+    approval: 'app.notification.approval.enabled',
+    'scheduled-task': 'app.notification.scheduled_task.enabled',
     backup: 'app.notification.backup.enabled',
     knowledge: 'app.notification.knowledge.enabled',
     update: 'app.notification.update.enabled',
     'mini-app': 'app.notification.mini_app.enabled'
   })
 
-  const handleNotificationChange = (type: NotificationSource, value: boolean) => {
+  const handleNotificationChange = (type: NotificationSource | 'approval' | 'scheduled-task', value: boolean) => {
     void setNotificationSettings({ [type]: value })
   }
 
@@ -47,6 +49,24 @@ const NotificationSettings: FC = () => {
           <Switch
             checked={notificationSettings.assistant}
             onCheckedChange={(v) => handleNotificationChange('assistant', v)}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-notifications-approval-notification" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.notification.approval')}</SettingRowTitle>
+          <Switch
+            aria-label={t('settings.notification.approval')}
+            checked={notificationSettings.approval}
+            onCheckedChange={(v) => handleNotificationChange('approval', v)}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-notifications-scheduled-task-notification" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.notification.scheduled_task')}</SettingRowTitle>
+          <Switch
+            aria-label={t('settings.notification.scheduled_task')}
+            checked={notificationSettings['scheduled-task']}
+            onCheckedChange={(v) => handleNotificationChange('scheduled-task', v)}
           />
         </SettingRow>
         <SettingDivider />

@@ -266,6 +266,8 @@ export interface ComposerSurfaceProps {
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
   suggestionSources?: readonly ComposerSuggestionSource[]
   resourceProvider?: ComposerUnifiedPanelResourceProvider
+  /** Rendered above `queueContent`, e.g. a dismissible prompt. */
+  bannerContent?: React.ReactNode
   queueContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
@@ -603,6 +605,7 @@ export default function ComposerSurfaceRuntime({
   resolveKnowledgeBaseMarker,
   suggestionSources = EMPTY_SUGGESTION_SOURCES,
   resourceProvider,
+  bannerContent,
   queueContent,
   rootPanelLeadingItems,
   rootPanelAdditionalItems,
@@ -2509,12 +2512,14 @@ export default function ComposerSurfaceRuntime({
           onDrop={handleDrop}>
           {belowControls ? (
             <div className="mb-6 rounded-[20px] bg-muted/45 pb-1.5 dark:bg-muted/25">
+              {bannerContent}
               {queueContent}
               {inputbarStack}
               <div className="min-w-0 overflow-hidden px-2 pt-0.5">{belowControls}</div>
             </div>
           ) : (
             <>
+              {bannerContent}
               {queueContent}
               {inputbarStack}
             </>

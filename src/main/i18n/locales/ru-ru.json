@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "Ассистент ожидает вашего ответа",
   "notification.completion.agent": "Задача агента выполнена",
   "notification.completion.assistant": "Ответ ассистента готов",
+  "notification.scheduled_task.started": "Запланированная задача запущена",
   "openclaw.errors.binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "и ещё проблем: {{count}}",

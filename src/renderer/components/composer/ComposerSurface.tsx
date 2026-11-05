@@ -476,12 +476,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         <div className="inputbar relative z-2 flex flex-col pt-0" onDragOver={handleDragOver} onDrop={handleDrop}>
           {belowControls ? (
             <div className="mb-6 rounded-[20px] bg-muted/45 pb-1.5 dark:bg-muted/25">
+              {props.bannerContent}
               {props.queueContent}
               <div className="relative">{inputbarElement}</div>
               <div className="min-w-0 overflow-hidden px-2 pt-0.5">{belowControls}</div>
             </div>
           ) : (
             <>
+              {props.bannerContent}
               {props.queueContent}
               <div className="relative">{inputbarElement}</div>
             </>

@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "Asistan için girdi gerekiyor",
   "notification.completion.agent": "Ajan görevi tamamlandı",
   "notification.completion.assistant": "Asistan yanıtı tamamlandı",
+  "notification.scheduled_task.started": "Zamanlanmış görev başladı",
   "openclaw.errors.binary_incompatible": "Cherry Studio tarafından kullanılan OpenClaw ikili dosyası, oluşturulan yapılandırmayla uyumlu değil. OpenClaw'u yükseltin.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw, Cherry Studio'nun yönettiği sağlayıcı bölümü dışındaki yapılandırmayı reddetti. Bu yapılandırmayı düzeltin veya OpenClaw'u yükseltin.{{details}}",
   "openclaw.errors.more_issues": "ve {{count}} sorun daha",

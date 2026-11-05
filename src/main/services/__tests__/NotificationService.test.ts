@@ -7,6 +7,8 @@ import { type WindowInfo, WindowType } from '@main/core/window/types'
 
 const NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
+  'app.notification.approval.enabled',
+  'app.notification.scheduled_task.enabled',
   'app.notification.backup.enabled',
   'app.notification.knowledge.enabled',
   'app.notification.update.enabled',
@@ -54,7 +56,8 @@ vi.mock('@main/i18n', () => ({
       'notification.action_required.agent': 'Agent needs your input',
       'notification.action_required.assistant': 'Assistant needs your input',
       'notification.completion.agent': 'Agent task complete',
-      'notification.completion.assistant': 'Assistant response complete'
+      'notification.completion.assistant': 'Assistant response complete',
+      'notification.scheduled_task.started': 'Scheduled task started'
     })[key] ?? key
 }))
 vi.mock('electron', () => ({
@@ -331,6 +334,54 @@ describe('NotificationService', () => {
     )
     emitApproval({ approvalId: 'approval-disabled' })
     expect(mocks.electronNotifications).toHaveLength(0)
+  })
+
+  it('gates approval notifications on their own preference, not the completion one', () => {
+    mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+      type === WindowType.Main ? [mainWindowInfo()] : []
+    )
+    mocks.preferenceValues['app.notification.approval.enabled'] = false
+    emitApproval({ approvalId: 'approval-off' })
+    expect(mocks.electronNotifications).toHaveLength(0)
+
+    mocks.preferenceValues['app.notification.approval.enabled'] = true
+    mocks.preferenceValues['app.notification.assistant.enabled'] = false
+    emitApproval({ approvalId: 'approval-on' })
+    emitCompletion()
+    expect(mocks.electronNotifications.map((n) => n.options.title)).toEqual(['Assistant needs your input'])
+  })
+
+  describe('scheduled task start notification', () => {
+    const input = { jobId: 'job-1', sessionId: 'session-1', taskName: 'Nightly report' }
+
+    it('shows an OS notification while backgrounded and opens the task session on click', () => {
+      service.notifyScheduledTaskStarted(input)
+
+      expect(mocks.electronNotifications).toHaveLength(1)
+      expect(mocks.electronNotifications[0].options).toEqual({
+        title: 'Scheduled task started',
+        body: 'Nightly report'
+      })
+      mocks.electronNotifications[0].click?.()
+      expect(mocks.focusOrOpen).toHaveBeenCalledWith(
+        { conversationType: 'agent', conversationId: 'session-1' },
+        'Refactor project'
+      )
+    })
+
+    it('stays silent when a Cherry window is focused', () => {
+      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+        type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
+      )
+      service.notifyScheduledTaskStarted(input)
+      expect(mocks.electronNotifications).toHaveLength(0)
+    })
+
+    it('stays silent when its preference is disabled', () => {
+      mocks.preferenceValues['app.notification.scheduled_task.enabled'] = false
+      service.notifyScheduledTaskStarted(input)
+      expect(mocks.electronNotifications).toHaveLength(0)
+    })
   })
 
   it('notifies without a full-chrome window and delegates its click to cold-start navigation', () => {

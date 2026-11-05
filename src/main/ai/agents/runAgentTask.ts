@@ -362,6 +362,16 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
     }
 
+    if (!isHeartbeat) {
+      try {
+        application
+          .get('NotificationService')
+          .notifyScheduledTaskStarted({ jobId: ctx.jobId, sessionId: session.id, taskName: taskName ?? '' })
+      } catch (error) {
+        logger.warn('Failed to send scheduled task start notification', { jobId: ctx.jobId, err: error })
+      }
+    }
+
     // Do not arm topic-level cancellation before admission. While this call waits for the
     // dispatch lock, the topic may legitimately belong to a user's live turn; aborting there
     // would kill exactly the stream that `requireIdle` is meant to stand down from.
