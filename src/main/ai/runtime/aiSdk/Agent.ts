@@ -7,6 +7,7 @@ import {
   InvalidResponseDataError,
   type LanguageModelUsage,
   type ModelMessage,
+  type StreamTextResult,
   type ToolSet,
   type UIMessage,
   type UIMessageChunk
@@ -49,6 +50,23 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
+}
+
+/**
+ * Aggregate a streaming agent run into the same shape `generate()` resolves with.
+ * Backends that reject non-streaming requests (OpenAI Codex on the ChatGPT
+ * Responses endpoint answers HTTP 400 "Stream must be set to true") are driven
+ * through `stream()` instead; their callers keep the non-streaming contract.
+ */
+async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>) {
+  const [text, usage, finishReason, steps, rawFinishReason] = await Promise.all([
+    streamed.text,
+    streamed.usage,
+    streamed.finishReason,
+    streamed.steps,
+    streamed.rawFinishReason
+  ])
+  return { text, usage, finishReason, steps, rawFinishReason }
 }
 
 type ObserverMap = {
@@ -158,7 +176,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { streamingTransport?: boolean }
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
@@ -178,7 +197,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ),
               ...(signal && { abortSignal: signal })
             }
-      const result = await aiAgent.generate(generateInput)
+      const result = options?.streamingTransport
+        ? await aggregateStreamResult(await aiAgent.stream(generateInput))
+        : await aiAgent.generate(generateInput)
       signal?.throwIfAborted()
       const terminalError = resolveToolLoopTerminalError({
         steps: result.steps,

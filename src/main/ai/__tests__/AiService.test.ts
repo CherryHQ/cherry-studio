@@ -2169,6 +2169,41 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('probes OpenAI Codex chat models over the streaming transport', async () => {
+    // The ChatGPT Codex backend rejects non-streaming Responses requests
+    // (HTTP 400 "Stream must be set to true"), so a non-streaming generateText
+    // probe would report working Codex models as failed. Regression coverage
+    // for the transport switch inside generateText.
+    const service = createService()
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: Promise.resolve('ok'),
+      usage: Promise.resolve({ inputTokens: 1, outputTokens: 1, totalTokens: 2 }),
+      finishReason: Promise.resolve('stop'),
+      rawFinishReason: Promise.resolve('stop'),
+      steps: Promise.resolve([])
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    const result = await service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+
+    expect(mockAgentStream).toHaveBeenCalledOnce()
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+    expect(result.text).toBe('ok')
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
