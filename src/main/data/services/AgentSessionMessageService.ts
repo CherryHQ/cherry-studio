@@ -72,6 +72,7 @@ import {
   agentSessionPathIds,
   ensureAgentSessionRootTx,
   getAgentSessionHead,
+  orderAgentSessionPath,
   readAgentSessionAncestry,
   readAgentSessionPath,
   validateAgentSessionParent
@@ -606,10 +607,10 @@ export class AgentSessionMessageService {
     const db = application.get('DbService').getDb()
     const head = messageId ?? getAgentSessionHead(db, sessionId)
     if (!head) return []
-    const ids = readAgentSessionAncestry(db, sessionId, head)
     const rows = db
       .select({
         id: sessionMessagesTable.id,
+        parentId: sessionMessagesTable.parentId,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken,
         nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
         staleReset: sql<number | null>`json_extract(${sessionMessagesTable.data}, '$.staleResumeReset')`
@@ -617,8 +618,7 @@ export class AgentSessionMessageService {
       .from(sessionMessagesTable)
       .where(inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)))
       .all()
-    const byId = new Map(rows.map((row) => [row.id, row]))
-    const ordered = ids.map((row) => byId.get(row.id)!).filter(Boolean)
+    const ordered = orderAgentSessionPath(rows, head)
     // A stale-resume reset on this branch blocks ancestor fallback: only the
     // suffix from the last reset boundary participates in identity reads, so
     // the failed branch goes fresh while healthy siblings (whose paths never
@@ -1405,7 +1405,13 @@ export class AgentSessionMessageService {
       .from(sessionMessagesTable)
       .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
-    const bindings = application.get('DbService').getDb().select().from(agentSessionContextTable).all()
+    const bindings = application
+      .get('DbService')
+      .getDb()
+      .select({ nativeThreadId: agentSessionContextTable.nativeThreadId })
+      .from(agentSessionContextTable)
+      .where(isNotNull(agentSessionContextTable.nativeThreadId))
+      .all()
     return new Set([
       ...rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])),
       ...bindings.flatMap((row) => (row.nativeThreadId ? [row.nativeThreadId] : []))
@@ -1445,7 +1451,10 @@ export class AgentSessionMessageService {
       .all()
     for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
     const bindings = db
-      .select()
+      .select({
+        sessionId: agentSessionContextTable.sessionId,
+        nativeThreadId: agentSessionContextTable.nativeThreadId
+      })
       .from(agentSessionContextTable)
       .where(inArray(agentSessionContextTable.sessionId, ownedIds))
       .all()

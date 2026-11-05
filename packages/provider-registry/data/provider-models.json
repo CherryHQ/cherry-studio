@@ -22104,6 +22104,38 @@
       "providerId": "ollama"
     },
     {
+      "apiModelId": "gpt-image-2.6-flare",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-flare",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openai"
+    },
+    {
+      "apiModelId": "gpt-image-2.6-sunburst",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-sunburst",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openai"
+    },
+    {
       "apiModelId": "gpt-5.3-codex-spark",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-3-codex-spark",
@@ -44611,5 +44643,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "1cbd619eb90b0ee9"
+  "version": "ae42a0ee7c463c59"
 }
