@@ -134,7 +134,8 @@ export function AgentResourceList({
     isLoading: isAgentTagsLoading,
     error: agentTagsError,
     createTag,
-    syncEntityTags: syncAgentTags
+    syncEntityTags: syncAgentTags,
+    refetchBindings: refetchAgentTagBindings
   } = useEntityTags('agent', { enabled: dataEnabled })
   const canEditAgentTags = !isAgentTagsLoading && !agentTagsError
   const agentTagsStateRef = useRef({ canEditAgentTags, agentTagsById })
@@ -296,26 +297,67 @@ export function AgentResourceList({
     [agentTagsById, agents]
   )
 
-  const handleSyncAgentTags = useCallback(
-    async (agentId: string, tagIds: string[]) => {
-      try {
-        await syncAgentTags(agentId, tagIds)
-      } catch (err) {
-        logger.error('Failed to update agent tags from classic-layout rail', { agentId, err })
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
-      }
+  // Tag bindings sync by full replacement, so edits built from a stale cached set can silently
+  // drop a just-added tag (add Research, then remove Coding before bindings refresh -> the second
+  // sync replaces with `[]` and deletes Research too). Serialize each agent's edits through
+  // freshly-fetched bindings and keep that agent's tag actions disabled until refreshed bindings
+  // arrive, so a follow-up toggle always applies its delta to the authoritative set.
+  const agentTagSyncChainsRef = useRef(new Map<string, Promise<void>>())
+  const [pendingAgentTagSyncIds, setPendingAgentTagSyncIds] = useState<ReadonlySet<string>>(() => new Set<string>())
+  const runAgentTagSync = useCallback(
+    (agentId: string, applyDelta: (currentIds: string[]) => string[]) => {
+      if (!agentTagsStateRef.current.canEditAgentTags) return Promise.resolve()
+
+      setPendingAgentTagSyncIds((prev) => {
+        if (prev.has(agentId)) return prev
+        const next = new Set(prev)
+        next.add(agentId)
+        return next
+      })
+
+      const previous = agentTagSyncChainsRef.current.get(agentId) ?? Promise.resolve()
+      const step: Promise<void> = previous.then(async () => {
+        try {
+          if (!agentTagsStateRef.current.canEditAgentTags) return
+          const freshBindings = await refetchAgentTagBindings()
+          const currentIds = Array.isArray(freshBindings)
+            ? freshBindings.filter((binding) => binding.entityId === agentId).map((binding) => binding.tagId)
+            : (agentTagsStateRef.current.agentTagsById.get(agentId) ?? []).map((tag) => tag.id)
+          const nextIds = applyDelta(currentIds)
+          const unchanged = nextIds.length === currentIds.length && nextIds.every((id) => currentIds.includes(id))
+          if (unchanged) return
+          await syncAgentTags(agentId, nextIds)
+        } catch (err) {
+          logger.error('Failed to update agent tags from classic-layout rail', { agentId, err })
+          toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        } finally {
+          // Keep the agent's tag actions disabled until the whole queued chain settles; only the
+          // chain's tail step clears the pending marker.
+          if (agentTagSyncChainsRef.current.get(agentId) === step) {
+            agentTagSyncChainsRef.current.delete(agentId)
+            setPendingAgentTagSyncIds((prev) => {
+              if (!prev.has(agentId)) return prev
+              const next = new Set(prev)
+              next.delete(agentId)
+              return next
+            })
+          }
+        }
+      })
+      agentTagSyncChainsRef.current.set(agentId, step)
+      return step
     },
-    [syncAgentTags, t]
+    [refetchAgentTagBindings, syncAgentTags, t]
   )
 
   const handleToggleAgentTag = useCallback(
     (agentId: string, tagId: string) => {
       if (!canEditAgentTags) return
-      const currentIds = (agentTagsById.get(agentId) ?? []).map((tag) => tag.id)
-      const nextIds = currentIds.includes(tagId) ? currentIds.filter((id) => id !== tagId) : [...currentIds, tagId]
-      return handleSyncAgentTags(agentId, nextIds)
+      return runAgentTagSync(agentId, (currentIds) =>
+        currentIds.includes(tagId) ? currentIds.filter((id) => id !== tagId) : [...currentIds, tagId]
+      )
     },
-    [agentTagsById, canEditAgentTags, handleSyncAgentTags]
+    [canEditAgentTags, runAgentTagSync]
   )
 
   const handleCreateAgentTag = useCallback(
@@ -332,15 +374,15 @@ export function AgentResourceList({
 
       try {
         const tag = await createTag(name)
-        const latest = agentTagsStateRef.current
-        if (!latest.canEditAgentTags) return
-        await syncAgentTags(agentId, [...(latest.agentTagsById.get(agentId) ?? []).map((entry) => entry.id), tag.id])
+        await runAgentTagSync(agentId, (currentIds) =>
+          currentIds.includes(tag.id) ? currentIds : [...currentIds, tag.id]
+        )
       } catch (err) {
         logger.error('Failed to create agent tag from classic-layout rail', { agentId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [canEditAgentTags, createTag, syncAgentTags, t]
+    [canEditAgentTags, createTag, runAgentTagSync, t]
   )
 
   const handleToggleAgentPin = useCallback(
@@ -535,20 +577,20 @@ export function AgentResourceList({
           label: t('agent.tags.title'),
           icon: <TagIcon size={14} />,
           order: 21,
-          availability: { visible: true, enabled: canEditAgentTags },
+          availability: { visible: true, enabled: canEditAgentTags && !pendingAgentTagSyncIds.has(item.id) },
           children: [
             ...allTags.map((tag) =>
               buildResolvedResourceEntityMenuAction({
                 id: `${AGENT_ENTITY_TAG_TOGGLE_ACTION_PREFIX}${tag.id}`,
                 label: tag.name,
-                availability: { visible: true, enabled: canEditAgentTags },
+                availability: { visible: true, enabled: canEditAgentTags && !pendingAgentTagSyncIds.has(item.id) },
                 icon: itemTagIds.has(tag.id) ? <Check size={14} /> : <span className="block size-4" />
               })
             ),
             buildResolvedResourceEntityMenuAction({
               id: AGENT_ENTITY_TAG_NEW_ACTION_ID,
               label: t('agent.tags.new'),
-              availability: { visible: true, enabled: canEditAgentTags },
+              availability: { visible: true, enabled: canEditAgentTags && !pendingAgentTagSyncIds.has(item.id) },
               icon: <Plus size={14} />
             })
           ]
@@ -596,6 +638,7 @@ export function AgentResourceList({
       agents,
       allTags,
       canEditAgentTags,
+      pendingAgentTagSyncIds,
       assistantIconType,
       deletingAgentId,
       isAgentPinActionDisabled,

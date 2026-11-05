@@ -56,6 +56,7 @@ const agentDataMocks = vi.hoisted(() => ({
   restoreSession: vi.fn(),
   toggleAgentPin: vi.fn(),
   syncAgentTags: vi.fn(),
+  refetchBindings: vi.fn(),
   prompt: vi.fn(),
   createTag: vi.fn(),
   tagsLoading: false,
@@ -350,7 +351,8 @@ vi.mock('@renderer/hooks/useTags', () => ({
     tags: agentDataMocks.tags,
     tagsByEntityId: agentDataMocks.tagsByEntityId,
     createTag: agentDataMocks.createTag,
-    syncEntityTags: agentDataMocks.syncAgentTags
+    syncEntityTags: agentDataMocks.syncAgentTags,
+    refetchBindings: agentDataMocks.refetchBindings
   })
 }))
 
@@ -577,6 +579,12 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.toggleAgentPin.mockClear()
     agentDataMocks.syncAgentTags.mockResolvedValue(undefined)
     agentDataMocks.syncAgentTags.mockClear()
+    agentDataMocks.refetchBindings.mockReset()
+    agentDataMocks.refetchBindings.mockImplementation(async () =>
+      [...agentDataMocks.tagsByEntityId.entries()].flatMap(([entityId, tags]) =>
+        tags.map((tag) => ({ entityId, tagId: tag.id }))
+      )
+    )
     agentDataMocks.prompt.mockReset()
     agentDataMocks.createTag.mockReset()
     agentDataMocks.tagsLoading = false
@@ -1367,9 +1375,53 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() =>
       expect(agentDataMocks.syncAgentTags).toHaveBeenCalledWith('agent-1', ['tag-coding', 'tag-research'])
     )
+    await waitFor(() => expect(menu.getByRole('button', { name: 'Coding' })).toBeEnabled())
 
     await user.click(menu.getByRole('button', { name: 'Coding' }))
     await waitFor(() => expect(agentDataMocks.syncAgentTags).toHaveBeenLastCalledWith('agent-1', []))
+  })
+
+  it('keeps agent tag actions disabled until the sync settles and applies the next toggle to refreshed bindings', async () => {
+    const user = userEvent.setup()
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0]]]])
+
+    let resolveSync!: () => void
+    agentDataMocks.syncAgentTags.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSync = resolve
+        })
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = () => within(screen.getByTestId('agent-1-context-menu'))
+    await user.click(menu().getByRole('button', { name: 'Research' }))
+    await waitFor(() =>
+      expect(agentDataMocks.syncAgentTags).toHaveBeenCalledWith('agent-1', ['tag-coding', 'tag-research'])
+    )
+
+    // While the sync and its bindings refresh are in flight, this agent's tag actions are disabled.
+    await waitFor(() => expect(menu().getByRole('button', { name: 'Coding' })).toBeDisabled())
+    expect(menu().getByRole('button', { name: 'Research' })).toBeDisabled()
+    expect(menu().getByRole('button', { name: 'agent.tags.new' })).toBeDisabled()
+
+    // The sync lands and the refreshed bindings now include Research.
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0], agentDataMocks.tags[1]]]])
+    resolveSync()
+    await waitFor(() => expect(menu().getByRole('button', { name: 'Coding' })).toBeEnabled())
+
+    // Removing Coding applies to the refreshed bindings, so Research survives.
+    await user.click(menu().getByRole('button', { name: 'Coding' }))
+    await waitFor(() => expect(agentDataMocks.syncAgentTags).toHaveBeenLastCalledWith('agent-1', ['tag-research']))
   })
   it('does not report a pin failure when the post-success agent refresh fails', async () => {
     const user = userEvent.setup()

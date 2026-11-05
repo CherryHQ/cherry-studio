@@ -63,6 +63,7 @@ export function useEntityTags(entityType: EntityType, options: UseEntityTagsOpti
     error: tagsError ?? bindingsError,
     createTag,
     syncEntityTags,
-    refetch
+    refetch,
+    refetchBindings
   }
 }
