@@ -32,8 +32,8 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
   providerListClasses: new Proxy({}, { get: () => '' })
 }))
 
-import ProviderListGroup from '../ProviderListGroup'
 import { reorderVisibleSubset } from '../../../../../../../packages/ui/src/components/composites/reorderable-list/reorder-visible-subset'
+import ProviderListGroup from '../ProviderListGroup'
 
 function provider(id: string, presetProviderId: string, isEnabled = true): Provider {
   return {
@@ -62,13 +62,57 @@ describe('ProviderListGroup', () => {
 
   it('keeps enabled siblings ordered when dropping onto an earlier stored disabled member', () => {
     const all = [provider('d', 'g', false), provider('a', 'g'), provider('b', 'g')]
-    render(<ProviderListGroup presetProviderId="g" members={[all[1], all[2], all[0]]} items={all}
-      expanded containsSelected={false} onToggle={() => {}} onDragStateChange={() => {}}
-      onReorder={() => {}} renderItem={() => null} />)
+    render(
+      <ProviderListGroup
+        presetProviderId="g"
+        members={[all[1], all[2], all[0]]}
+        items={all}
+        expanded
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
     const props = reorderProps.at(-1)
-    const next = reorderVisibleSubset({ items: props.items, visibleItems: props.visibleItems,
-      fromIndex: 1, toIndex: 2, getId: props.getId }) as Provider[]
+    const next = reorderVisibleSubset({
+      items: props.items,
+      visibleItems: props.visibleItems,
+      fromIndex: 1,
+      toIndex: 2,
+      getId: props.getId
+    }) as Provider[]
     expect(next.filter((p) => p.isEnabled).map((p) => p.id)).toEqual(['a', 'b'])
+  })
+
+  it('persists an enabled member move without displacing disabled storage slots', () => {
+    const all = [provider('d', 'g', false), provider('a', 'g'), provider('b', 'g')]
+    const onReorder = vi.fn()
+    render(
+      <ProviderListGroup
+        presetProviderId="g"
+        members={[all[1], all[2]]}
+        items={all}
+        expanded
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
+    const props = reorderProps.at(-1)
+    props.onReorder(
+      reorderVisibleSubset({
+        items: props.items,
+        visibleItems: props.visibleItems,
+        fromIndex: 0,
+        toIndex: 1,
+        getId: props.getId
+      })
+    )
+    expect(onReorder.mock.calls[0][0].map((p: Provider) => p.id)).toEqual(['d', 'b', 'a'])
   })
 
   it('renders the in-flow body with the full cache when expanded', () => {

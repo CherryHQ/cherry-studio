@@ -71,8 +71,8 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
   providerListClasses: new Proxy({}, { get: () => '' })
 }))
 
-import ProviderListContent from '../ProviderListContent'
 import { reorderVisibleSubset } from '../../../../../../../packages/ui/src/components/composites/reorderable-list/reorder-visible-subset'
+import ProviderListContent from '../ProviderListContent'
 
 function provider(id: string, presetProviderId: string, isEnabled = true): Provider {
   return {
@@ -121,17 +121,36 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     return all
   }
 
-  it.each([[1, 2], [2, 0]])('keeps displayed enabled order for cross-status flat drop %s to %s', (oldIndex, newIndex) => {
+  it.each([
+    [1, 2],
+    [2, 0]
+  ])('keeps displayed enabled order for cross-status flat drop %s to %s', (oldIndex, newIndex) => {
     const all = [provider('d', 'd', false), provider('a', 'a'), provider('b', 'b')]
     const visible = [all[1], all[2], all[0]]
     const onReorder = vi.fn()
-    render(<ProviderListContent providers={all} visibleProviders={visible} searchActive={false}
-      expandedGroups={{}} onToggleGroup={() => {}} onDragStateChange={() => {}}
-      onReorder={onReorder} renderItem={() => null} />)
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={visible}
+        searchActive={false}
+        expandedGroups={{}}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
     const props = flatReorderCalls.at(-1)
     if (props) {
-      props.onReorder(reorderVisibleSubset({ items: props.items, visibleItems: props.visibleItems,
-        fromIndex: oldIndex, toIndex: newIndex, getId: props.getId }))
+      props.onReorder(
+        reorderVisibleSubset({
+          items: props.items,
+          visibleItems: props.visibleItems,
+          fromIndex: oldIndex,
+          toIndex: newIndex,
+          getId: props.getId
+        })
+      )
     } else {
       sortableCalls.at(-1)!.onSortEnd({ oldIndex, newIndex })
     }
@@ -140,12 +159,54 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect((next ?? all).map((p) => p.id).sort()).toEqual(['a', 'b', 'd'])
   })
 
-  it('rejects a cross-status grouped drop without reordering enabled singles', () => {
-    const all = [provider('d1', 'disabled', false), provider('d2', 'disabled', false), provider('a', 'a'), provider('b', 'b')]
+  it('persists an enabled-only move without displacing untouched disabled storage slots', () => {
+    const all = [provider('d', 'd', false), provider('a', 'a'), provider('b', 'b')]
     const onReorder = vi.fn()
-    render(<ProviderListContent providers={all} visibleProviders={[all[2], all[3], all[0], all[1]]}
-      searchActive={false} expandedGroups={{}} onToggleGroup={() => {}} onDragStateChange={() => {}}
-      onReorder={onReorder} renderItem={() => null} />)
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={[all[1], all[2]]}
+        searchActive={false}
+        expandedGroups={{}}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
+    const props = flatReorderCalls.at(-1)
+    props.onReorder(
+      reorderVisibleSubset({
+        items: props.items,
+        visibleItems: props.visibleItems,
+        fromIndex: 0,
+        toIndex: 1,
+        getId: props.getId
+      })
+    )
+    expect(onReorder.mock.calls[0][0].map((p: Provider) => p.id)).toEqual(['d', 'b', 'a'])
+  })
+
+  it('rejects a cross-status grouped drop without reordering enabled singles', () => {
+    const all = [
+      provider('d1', 'disabled', false),
+      provider('d2', 'disabled', false),
+      provider('a', 'a'),
+      provider('b', 'b')
+    ]
+    const onReorder = vi.fn()
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={[all[2], all[3], all[0], all[1]]}
+        searchActive={false}
+        expandedGroups={{}}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
     sortableCalls[0].onSortEnd({ oldIndex: 1, newIndex: 2 })
     expect(onReorder).not.toHaveBeenCalled()
   })

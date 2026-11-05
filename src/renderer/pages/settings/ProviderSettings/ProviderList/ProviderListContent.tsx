@@ -5,7 +5,7 @@ import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
-import { groupProvidersByPreset } from './providerGrouping'
+import { groupProvidersByPreset, restoreProviderStatusSlots } from './providerGrouping'
 import ProviderListGroup from './ProviderListGroup'
 
 export type ProviderListContentItemState = {
@@ -137,7 +137,10 @@ export default function ProviderListContent({
       visibleItems={visibleProviders}
       getId={(provider) => provider.id}
       onDragStateChange={onDragStateChange}
-      onReorder={onReorder}
+      onReorder={(reordered) => {
+        const next = restoreProviderStatusSlots(providers, reordered)
+        if (next !== providers) return onReorder(next)
+      }}
       onReorderError={onReorderError}
       className="w-full"
       gap="0.5rem"

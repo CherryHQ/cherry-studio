@@ -65,3 +65,13 @@ export function groupProvidersByPreset(providers: Provider[]): ProviderListEntry
 
   return entries
 }
+
+/** Apply display-partition ordering without moving the stored status slots. */
+export function restoreProviderStatusSlots(providers: Provider[], reordered: Provider[]): Provider[] {
+  const enabled = reordered.filter((provider) => provider.isEnabled)
+  const disabled = reordered.filter((provider) => !provider.isEnabled)
+  let enabledIndex = 0
+  let disabledIndex = 0
+  const next = providers.map((provider) => (provider.isEnabled ? enabled[enabledIndex++] : disabled[disabledIndex++]))
+  return next.every((provider, index) => provider.id === providers[index].id) ? providers : next
+}
