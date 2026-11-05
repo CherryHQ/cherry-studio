@@ -96,6 +96,9 @@ const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: '
 // killing it mid-download surfaces as a bogus "install failed".
 const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
+// npm shell-out recipes resolve very large peer graphs (DSH: ~12 min of
+// resolution alone on a fast machine), so they get a wider budget.
+const MISE_NPM_SHELL_OUT_INSTALL_TIMEOUT_MS = 45 * 60_000
 
 // Tried in order for China users who have not chosen an index themselves. A
 // mirror that has not synced a freshly published release fails the install
@@ -1595,15 +1598,31 @@ export class BinaryManager extends BaseService {
         await this.enforcePipDependencies(definition, definition.pipDependencies)
       }
     } else {
-      await this.runMise(useArgs, {
-        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-        includePrerelease,
-        shellOutNpm,
-        prependPath: runtimeBin
-      })
+      try {
+        await this.runMise(useArgs, {
+          timeoutMs: shellOutNpm ? MISE_NPM_SHELL_OUT_INSTALL_TIMEOUT_MS : MISE_INSTALL_TIMEOUT_MS,
+          includePrerelease,
+          shellOutNpm,
+          prependPath: runtimeBin
+        })
+      } catch (error) {
+        await this.discardPartialInstall(definition.tool, requested)
+        throw error
+      }
     }
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
+  }
+
+  // A killed install leaves a registered version and bin that the readiness
+  // check would later report as applied, so drop it best-effort.
+  private async discardPartialInstall(tool: string, requested: string): Promise<void> {
+    try {
+      await this.runMise(['uninstall', `${tool}@${requested}`])
+      await this.runMise(['reshim'])
+    } catch (error) {
+      logger.warn('Failed to discard partial install', { tool, error: this.errorMessage(error) })
+    }
   }
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
