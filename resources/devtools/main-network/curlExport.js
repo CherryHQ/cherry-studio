@@ -73,7 +73,8 @@ function buildCurlCommand(event) {
     parts.push(curlComment(`request body not captured: ${body.note}`))
   }
 
-  return parts.join(' \\\n  ')
+  const command = parts.join(' \\\n  ')
+  return event.requestReplayWarning ? `${curlComment(event.requestReplayWarning)}\n${command}` : command
 }
 
 globalThis.buildCurlCommand = buildCurlCommand

@@ -172,3 +172,19 @@ it('preserves repeated raw Node header entries without losing the first value', 
   expect(command).toContain("'X-Route: one'")
   expect(command).toContain("'X-Route: two'")
 })
+
+it('keeps path-normalization warnings separate from connection export refusals', () => {
+  const build = loadCurlExport()
+  const warning = 'URL path may be normalized; replay can differ from the original Node request target.'
+  const event = {
+    url: 'https://example.com/b',
+    method: 'POST',
+    requestReplayWarning: warning,
+    requestBody: { text: 'public=1' }
+  }
+  expect(build(event)).toContain('# ' + warning + '\ncurl ')
+  expect(build(event)).toContain('--data-raw')
+  expect(
+    build({ ...event, requestReplayError: 'Unix socket request cannot faithfully replay through a URL.' })
+  ).not.toContain('curl ')
+})

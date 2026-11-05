@@ -53,8 +53,10 @@ export interface MainNetworkDevtoolsEvent {
   requestHeaders?: Record<string, string>
   /** Redacted wire-order entries preserve repeated Node request headers for export. */
   requestHeaderEntries?: [string, string][]
-  /** A normalized display URL must never silently change a Node request target. */
+  /** Connection or target shapes that cannot be exported safely. */
   requestReplayError?: string
+  /** Export remains available, but the display URL may normalize the original path. */
+  requestReplayWarning?: string
   requestBody?: MainNetworkDevtoolsBody
   responseHeaders?: Record<string, string>
   responseBody?: MainNetworkDevtoolsBody
@@ -393,15 +395,20 @@ export class MainNetworkDevtoolsService extends BaseService {
     }
 
     // Node accepts literal targets that URL/cURL normalize (including dot segments).
-    // Keep display redaction unchanged, but refuse an executable route-changing export.
+    // Keep display redaction unchanged. Ordinary path normalization is a warning;
+    // non-origin targets and fragments still cannot be represented by this export.
     if (typeof request.path === 'string') {
       const target = request.path
       const displayUrl = this.events.find((event) => event.id === id)?.url
       try {
         const parsed = new URL(displayUrl ?? '')
-        if (!target.startsWith('/') || target.split('?')[0] !== parsed.pathname || target.includes('#')) {
+        if (!target.startsWith('/') || target.includes('#')) {
           this.updateEvent(id, {
-            requestReplayError: 'Normalized URL cannot faithfully replay the literal Node request target.'
+            requestReplayError: 'Literal Node request target cannot faithfully replay through a URL.'
+          })
+        } else if (target.split('?')[0] !== parsed.pathname) {
+          this.updateEvent(id, {
+            requestReplayWarning: 'URL path may be normalized; replay can differ from the original Node request target.'
           })
         }
       } catch {

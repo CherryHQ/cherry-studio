@@ -1466,7 +1466,55 @@ it.skipIf(process.platform === 'win32').each([undefined, 'text/plain', 'applicat
 )
 
 it.skipIf(process.platform === 'win32').each(['/a/../b', '/a/./b', '/%2e%2e/b'])(
-  'refuses normalized replay of literal Node target %s',
+  'exports a complete warned command for normalized Node path %s',
+  async (path) => {
+    const received: string[] = []
+    const server = createServer((req, res) => {
+      received.push(req.url ?? '')
+      res.end('ok')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    BaseService.resetInstances()
+    const service = new MainNetworkDevtoolsService()
+    const state = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        original: (...args: unknown[]) => unknown,
+        source: 'http'
+      ) => (...args: unknown[]) => ReturnType<typeof httpRequest>
+    }
+    try {
+      const request = state.wrapHttpMethod(
+        httpRequest as (...args: unknown[]) => unknown,
+        'http'
+      )({ hostname: '127.0.0.1', port: (server.address() as { port: number }).port, path })
+      await new Promise<void>((resolve, reject) => {
+        request.on('response', (res) => {
+          res.resume()
+          res.on('end', resolve)
+        })
+        request.on('error', reject)
+        request.end()
+      })
+      expect(received).toEqual([path])
+      const sandbox: { buildCurlCommand?: (event: MainNetworkDevtoolsEvent) => string } = {}
+      vm.createContext(sandbox)
+      vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
+      const command = sandbox.buildCurlCommand?.(state.events[0]) as string
+      await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+      expect(received).toEqual([path, new URL(state.events[0].url).pathname])
+      expect(command).toContain('# URL path may be normalized;')
+      expect(command).toContain('\ncurl ')
+      expect(state.events[0].requestReplayError).toBeUndefined()
+    } finally {
+      await service._doStop()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
+
+it.skipIf(process.platform === 'win32').each(['/a#fragment', 'http://example.invalid/target'])(
+  'keeps a non-representable Node target refused: %s',
   async (path) => {
     const received: string[] = []
     const server = createServer((req, res) => {
@@ -1503,7 +1551,9 @@ it.skipIf(process.platform === 'win32').each(['/a/../b', '/a/./b', '/%2e%2e/b'])
       const command = sandbox.buildCurlCommand?.(state.events[0]) as string
       await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
       expect(received).toEqual([path])
-      expect(command).toContain('cannot faithfully replay')
+      expect(state.events[0].requestReplayError).toBeDefined()
+      expect(command.startsWith('#')).toBe(true)
+      expect(command).not.toContain('curl ')
     } finally {
       await service._doStop()
       await new Promise<void>((resolve) => server.close(() => resolve()))
