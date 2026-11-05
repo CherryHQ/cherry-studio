@@ -368,7 +368,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             </div>
           ) : (
             <div className="mt-2 space-y-1.5">
-              {linkedItems.length > 1 ? (
+              {linkedItems.length > 1 || search.trim() !== '' ? (
                 <div className="flex items-center gap-2">
                   <Input
                     value={search}
