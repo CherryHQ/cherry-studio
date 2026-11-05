@@ -50,13 +50,7 @@ Following the approach in #22550, the controls Ollama reports through `/api/show
 
 ## Verification
 
-- Regression — `listModels.test.ts`: `/api/show` thinking values become exact controls;
-  boolean-only, levels-only, disabled, and unknown-value declarations are covered.
-- Regression — `ModelService.test.ts`: native controls persist on creation, survive rereads for
-  custom, recognized, and preset rows, refresh existing rows without touching user settings, and
-  explicit empty controls retire inferred tiers.
-- Regression — `modelSync.test.ts` and `useProviderModelPullReconcile.test.ts`: enrichment keeps
-  native controls over the catalog, the creation DTO carries them, and saved rows are refreshed
-  only when the reported controls differ.
-- Regression — `providerOptionsMapper.test.ts`: boolean-only, levels-only, clamped, default-level,
-  disabled, and unknown-capability Ollama requests.
+- Regression — `listModels.test.ts`: `/api/show` thinking values become exact controls; boolean-only, levels-only, disabled, and unknown-value declarations are covered.
+- Regression — `ModelService.test.ts`: native controls persist on creation, survive rereads for custom, recognized, and preset rows, refresh existing rows without touching user settings, and explicit empty controls retire inferred tiers.
+- Regression — `modelSync.test.ts` and `useProviderModelPullReconcile.test.ts`: enrichment keeps native controls over the catalog, the creation DTO carries them, and saved rows are refreshed only when the reported controls differ.
+- Regression — `providerOptionsMapper.test.ts`: boolean-only, levels-only, clamped, default-level, disabled, and unknown-capability Ollama requests.

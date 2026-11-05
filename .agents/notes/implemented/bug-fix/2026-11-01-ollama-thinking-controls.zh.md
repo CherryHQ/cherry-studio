@@ -43,11 +43,7 @@ Ollama 会拒绝模型不支持的命名 `think` 等级。模型具有通用思�
 
 ## 验证
 
-- 回归 —— `listModels.test.ts`：`/api/show` 的思考取值变为精确控制项；覆盖仅布尔、仅等级、
-  禁用与未知取值的声明。
-- 回归 —— `ModelService.test.ts`：原生控制项在创建时持久化，在自定义、已识别与预设行的重读
-  中保留，刷新既有行且不触碰用户设置，显式空控制项使推断等级失效。
-- 回归 —— `modelSync.test.ts` 与 `useProviderModelPullReconcile.test.ts`：目录富化保留原生控制
-  项，创建 DTO 携带控制项，且仅当上报控制项有差异时才刷新已保存行。
-- 回归 —— `providerOptionsMapper.test.ts`：仅布尔、仅等级、钳制、默认等级、禁用与未知能力的
-  Ollama 请求。
+- 回归 —— `listModels.test.ts`：`/api/show` 的思考取值变为精确控制项；覆盖仅布尔、仅等级、 禁用与未知取值的声明。
+- 回归 —— `ModelService.test.ts`：原生控制项在创建时持久化，在自定义、已识别与预设行的重读 中保留，刷新既有行且不触碰用户设置，显式空控制项使推断等级失效。
+- 回归 —— `modelSync.test.ts` 与 `useProviderModelPullReconcile.test.ts`：目录富化保留原生控制 项，创建 DTO 携带控制项，且仅当上报控制项有差异时才刷新已保存行。
+- 回归 —— `providerOptionsMapper.test.ts`：仅布尔、仅等级、钳制、默认等级、禁用与未知能力的 Ollama 请求。
