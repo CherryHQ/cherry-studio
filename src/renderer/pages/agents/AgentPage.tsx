@@ -33,6 +33,7 @@ import { useCloseConversationTabs, useCurrentTab, useCurrentTabId, useTabs } fro
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationCycleShortcuts } from '@renderer/hooks/useConversationCycleShortcuts'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -911,6 +912,11 @@ const AgentPage = () => {
     },
     [clearLocate, closeSurface, reenterAgentRoute, selectSession]
   )
+  useConversationCycleShortcuts({
+    conversations: agentSessions,
+    activeId: visibleSession?.id ?? activeSessionId,
+    onSelect: (session) => setActiveSessionAndClearTransient(session.id, session)
+  })
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
       closeSurface()

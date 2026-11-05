@@ -246,7 +246,7 @@ export const parseContextExpr = (source: string): ContextExpr => {
   return new Parser(trimmed, tokenize(trimmed)).parse()
 }
 
-const readContextValue = (context: ContextReader, key: string): ContextValue => {
+export const readContextValue = (context: ContextReader, key: string): ContextValue => {
   if (typeof context === 'function') {
     return context(key)
   }

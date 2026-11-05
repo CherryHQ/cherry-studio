@@ -3,7 +3,8 @@ export {
   collectContextKeys,
   ContextKeyService,
   evaluateContextExpr,
-  parseContextExpr
+  parseContextExpr,
+  readContextValue
 } from './contextExpr'
 export {
   COMMAND_DEFINITIONS,

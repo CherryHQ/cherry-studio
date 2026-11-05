@@ -104,6 +104,7 @@ export const AppShell = () => {
   }, [activeTabId, handleCloseTab])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('app.quick_switcher.open', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })

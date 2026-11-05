@@ -33,6 +33,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.quick_switcher.open',
+    titleKey: 'settings.shortcuts.quick_switcher',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      // Ctrl/Cmd+P is already the (Notes-only) print shortcut.
+      defaultBinding: ['CommandOrControl', 'Shift', 'P']
+    }
+  }),
+  defineCommand({
     id: 'app.print',
     titleKey: 'settings.shortcuts.print',
     categoryKey: 'settings.shortcuts.general',
@@ -135,7 +145,48 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', 'K']
+      defaultBinding: ['CommandOrControl', 'K'],
+      // Ctrl/Cmd+K steps to the previous turn while the message list has focus.
+      when: '!chat.messages.focused'
+    }
+  }),
+  defineCommand({
+    id: 'chat.conversation.next',
+    titleKey: 'settings.shortcuts.next_conversation',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      // Ctrl/Cmd+Tab is already the tab switcher.
+      defaultBinding: ['CommandOrControl', 'Alt', 'Down']
+    }
+  }),
+  defineCommand({
+    id: 'chat.conversation.prev',
+    titleKey: 'settings.shortcuts.prev_conversation',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Up']
+    }
+  }),
+  defineCommand({
+    id: 'chat.message.focus_next',
+    titleKey: 'settings.shortcuts.focus_next_message',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'J'],
+      when: 'chat.messages.focused'
+    }
+  }),
+  defineCommand({
+    id: 'chat.message.focus_prev',
+    titleKey: 'settings.shortcuts.focus_prev_message',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'K'],
+      when: 'chat.messages.focused'
     }
   }),
   defineCommand({
