@@ -675,6 +675,34 @@ describe('MessageAnchorLine', () => {
       expect(strip.scrollTop).toBe(10)
     })
 
+    it('keeps the bottom pin when an inset commit lands before the pin scroll event is delivered', () => {
+      // The pin's programmatic scroll event is delivered asynchronously; if the
+      // composer inset grows first, that stale event fires against the shrunken
+      // viewport and must not read as a user scroll away from the bottom.
+      const turns40 = makeTurnMessages(40)
+      const metrics: StripMetrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
+      const { container, rerender } = renderRail({ messages: turns40, hasOlder: true, bottomInset: 0 })
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(strip.scrollTop).toBe(400 - RAIL_VIEWPORT_PX)
+
+      // The composer grows while the entry pin's scroll event is still queued:
+      // the geometry already reflects the smaller viewport when it fires.
+      metrics.wrapperHeight = 300
+      metrics.clientHeight = 252
+      rerender(rail({ messages: turns40, hasOlder: true, bottomInset: 120 }))
+
+      // The inset commit itself re-pins the strip synchronously...
+      expect(strip.scrollTop).toBe(400 - 252)
+
+      // ...so the stale scroll event delivered afterwards still finds the strip
+      // at the bottom and keeps the pin through the ResizeObserver catch-up.
+      fireEvent.scroll(strip)
+      act(() => notifyResize())
+      expect(strip.scrollTop).toBe(400 - 252)
+    })
+
     it('re-arms the bottom pin when the user scrolls back to the newest ticks', () => {
       const metrics: StripMetrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
       const { restore, notifyResize } = installRailGeometry(metrics)

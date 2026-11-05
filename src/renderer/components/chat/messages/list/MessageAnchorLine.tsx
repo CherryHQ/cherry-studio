@@ -264,6 +264,11 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   //   same pin keeps a bottom-pinned strip on the newest ticks — otherwise the
   //   shrinking viewport clips them until a manual scroll — while a deliberate
   //   user scroll position (pin cleared by handleScroll) is left alone.
+  // bottomInset is a dependency in its own right (not just via railHeight):
+  // the inset commit must re-pin synchronously, because the pin's own
+  // programmatic scroll event is delivered asynchronously — once the viewport
+  // has already shrunk, that stale event would otherwise read as a user scroll
+  // away from the bottom and clear the pin.
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
@@ -288,7 +293,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     }
     anchor.firstId = firstId
     anchor.count = turns.length
-  }, [turns, railHeight])
+  }, [turns, railHeight, bottomInset])
 
   // Track the rail height so tick geometry stays exact across window/composer
   // resizes, and hide the rail once it is too short to be usable. Layout effect
