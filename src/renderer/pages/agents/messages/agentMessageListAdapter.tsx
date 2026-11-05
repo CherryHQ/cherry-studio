@@ -77,6 +77,7 @@ function withTerminalErrorFallback(
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.provenance && hasVisiblePart) continue
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)

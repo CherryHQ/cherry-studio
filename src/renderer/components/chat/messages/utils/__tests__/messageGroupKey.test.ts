@@ -51,6 +51,42 @@ describe('messageGroupKey', () => {
     expect(messages.every((message) => !message.historicalProcessGroupId)).toBe(true)
     expect(projected[2]).toBe(messages[2])
   })
+  it('groups imported reasoning and terminal tool records but stops at assistant text', () => {
+    const messages = [
+      { ...historical('reasoning'), isImportedHistory: true },
+      { ...historical('call'), isImportedHistory: true },
+      { ...historical('error'), isImportedHistory: true, status: 'error' as const },
+      { ...historical('paused'), isImportedHistory: true, status: 'paused' as const },
+      { ...historical('text'), isImportedHistory: true },
+      { ...historical('later-reasoning'), isImportedHistory: true },
+      { ...historical('later-tool'), isImportedHistory: true }
+    ]
+    const failed: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolName: 'historical_tool',
+      toolCallId: 'failed',
+      state: 'output-error',
+      input: {},
+      errorText: 'Interrupted'
+    }
+    const parts = {
+      reasoning: [{ type: 'reasoning' as const, text: 'source thought' }],
+      call: [tool('call')],
+      error: [failed],
+      paused: [failed],
+      text: [{ type: 'text' as const, text: 'Assistant explanation' }],
+      'later-reasoning': [{ type: 'reasoning' as const, text: 'next thought' }],
+      'later-tool': [tool('later')]
+    }
+    const projected = withHistoricalProcessGroups(messages, parts, new WeakMap())
+    expect(Object.values(groupMessageListItems(projected)).map((group) => group.map((message) => message.id))).toEqual([
+      ['reasoning', 'call', 'error', 'paused'],
+      ['text'],
+      ['later-reasoning', 'later-tool']
+    ])
+    expect(projected[2].status).toBe('error')
+    expect(projected[3].status).toBe('paused')
+  })
   it('keeps the group anchor and existing members stable when older history is prepended', () => {
     const messages = [historical('call'), historical('result')]
     const parts = { older: [tool('older')], call: [tool('call')], result: [tool('result')] }

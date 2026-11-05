@@ -19,12 +19,15 @@ export function withHistoricalProcessGroups(
     const message = messages[index]
     const parts = partsByMessageId?.[message.id] ?? []
     const isHistoricalTool = (part: CherryMessagePart) =>
-      part.type === 'dynamic-tool' && part.toolName === 'historical_tool' && part.state === 'output-available'
+      part.type === 'dynamic-tool' &&
+      part.toolName === 'historical_tool' &&
+      (part.state === 'output-available' || part.state === 'output-error')
     if (
       message.role !== 'assistant' ||
       message.parentId ||
-      message.status !== 'success' ||
-      !parts.some(isHistoricalTool)
+      (message.status !== 'success' &&
+        !(message.isImportedHistory && (message.status === 'paused' || message.status === 'error'))) ||
+      !parts.some((part) => isHistoricalTool(part) || (message.isImportedHistory && part.type === 'reasoning'))
     ) {
       groupId = undefined
       continue
