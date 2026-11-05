@@ -6346,6 +6346,18 @@ describe('cherry-pr-review round-11', () => {
       .join('')
   }
 
+  it.each([
+    ['-\n  \n  ```\n<analysis>MARK</analysis>\n  ```\n', true],
+    ['-\n  \n    ~~~\n  <analysis>MARK</analysis>\n', false]
+  ])('classifies empty-item blank boundaries consistently: %s', (answer, literal) => {
+    const whole = runWithSnapshot([answer], answer)
+    expect(whole.includes('MARK')).toBe(literal)
+    expect(runWithSnapshot(Array.from(answer), answer)).toBe(whole)
+    expect(runWithSnapshot([], answer)).toBe(whole)
+    for (let cut = 0; cut <= answer.length; cut++)
+      expect(runWithSnapshot([answer.slice(0, cut), answer.slice(cut)], answer), `split ${cut}`).toBe(whole)
+  })
+
   it('preserves a top-level literal fence after an outer list exits through a quote', () => {
     const answer = '- item\n>\n  ```\n<analysis>MARK</analysis>\n  ```\n'
     expect(runWithSnapshot([answer], answer)).toBe(answer)

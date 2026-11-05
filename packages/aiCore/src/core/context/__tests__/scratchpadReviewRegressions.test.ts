@@ -328,3 +328,12 @@ it('keeps the outer list when its quote child ends before a continuation fence',
   expect(result).not.toContain('MARK')
   expect(result).toContain('Public')
 })
+
+it('expires an empty list at its blank boundary before a top-level literal fence', () => {
+  expect(ContextPrompts.formatCompactSummary('-\n  \n  ```\n<analysis>MARK</analysis>\n  ```\n')).toContain(
+    '<analysis>MARK</analysis>'
+  )
+})
+it('does not protect private analysis with an indented non-fence after an empty item', () => {
+  expect(ContextPrompts.formatCompactSummary('-\n  \n    ~~~\n  <analysis>MARK</analysis>\n')).not.toContain('MARK')
+})

@@ -779,11 +779,18 @@ function inheritedFencePrefixLookup(
   // virtual composition of the whole stack. Quoted lines keep the per-line
   // prefix model: quote markers must repeat on every line, so their nesting
   // never hides in bare indentation.
-  const stack: Array<{ contentCol: number; start: number; index: number }> = []
+  const stack: Array<{ contentCol: number; start: number; index: number; empty: boolean }> = []
   for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
     const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
-    // Blank lines may remain inside a list; they do not pop the stack.
-    if (line.trim() === '') continue
+    // A blank line closes an empty item, but not an item that already owns
+    // content. Match the raw container consumer before inheriting a fence.
+    if (line.trim() === '') {
+      const empty = stack.findIndex((entry) => entry.empty)
+      if (empty !== -1) {
+        for (const entry of stack.splice(empty)) lists[entry.index].end = start
+      }
+      continue
+    }
     const leading = line.match(/^ */)?.[0].length ?? 0
     // Sibling or dedented content ends the items it no longer reaches.
     while (stack.length && stack[stack.length - 1].contentCol > leading) {
@@ -798,6 +805,7 @@ function inheritedFencePrefixLookup(
       if (prefix && parseFenceContainerSegments(prefix).some((segment) => segment.type === 'list'))
         lists.push({ start, end: fenceContainerEnd(text, lineEndAfter(text, start), prefix), prefix })
     }
+    for (const entry of stack) entry.empty = false
     const parentCol = stack.length ? stack[stack.length - 1].contentCol : 0
     if (leading - parentCol > 3) continue
     const marker = /^([-*+]|\d{1,9}[.)])( +|$)/.exec(line.slice(leading))
@@ -806,7 +814,7 @@ function inheritedFencePrefixLookup(
     const contentCol = leading + marker[1].length + padding
     const relWidth = contentCol - parentCol
     const virtual = (stack.length ? lists[stack[stack.length - 1].index].prefix : '') + `-${' '.repeat(relWidth - 1)}`
-    stack.push({ contentCol, start, index: lists.length })
+    stack.push({ contentCol, start, index: lists.length, empty: line.slice(leading + marker[0].length).trim() === '' })
     lists.push({ start, end: text.length, prefix: virtual })
   }
   return (openerStart, openerPrefix) => {
@@ -1788,7 +1796,16 @@ export function cloneIndentedMaskState(state: IndentedMaskState): IndentedMaskSt
  * maskCodeFences so a chunk whose container opener was consumed earlier
  * still classifies indented fence openers as fences (round-17).
  */
-export function fenceContainerPrefixFromState(state: IndentedMaskState): string {
+export function fenceContainerPrefixFromState(state: IndentedMaskState, pendingText?: string): string {
+  if (pendingText !== undefined && state.containers.stack.some((entry) => entry.kind === 'item' && entry.empty)) {
+    const blank = /^[ \t]*(?:\r\n|\r|\n)/.exec(pendingText)
+    if (blank) {
+      const containers = cloneContainerState(state.containers)
+      containerLine(containers, blank[0].replace(/[\r\n]+$/, ''))
+      const view = legacyContainerView(containers)
+      return fenceContainerPrefixFromState({ ...state, containers, ...view })
+    }
+  }
   let prefix = ''
   let prevCol = 0
   let prevQuote = 0
@@ -2715,7 +2732,7 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
   options?: { initialMaskState?: IndentedMaskState }
 ): string {
   const initialContainerPrefix = options?.initialMaskState
-    ? fenceContainerPrefixFromState(options.initialMaskState)
+    ? fenceContainerPrefixFromState(options.initialMaskState, raw)
     : undefined
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw, { initialContainerPrefix })
   const {

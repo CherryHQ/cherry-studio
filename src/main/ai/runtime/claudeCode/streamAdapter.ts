@@ -1554,7 +1554,7 @@ export class ClaudeCodeStreamAdapter {
     // O(fence^2 / chunk) characters here; incremental advance stays linear.
     this.scratchpadMaskAdvanceWorkChars += span.length
     const maskedAdvance = maskCodeFences(span, {
-      initialContainerPrefix: fenceContainerPrefixFromState(ctx.scratchpadMaskState) || undefined
+      initialContainerPrefix: fenceContainerPrefixFromState(ctx.scratchpadMaskState, span) || undefined
     })
     const lastFenceToken = `${maskedAdvance.placeholderBase}CODE_FENCE_${maskedAdvance.fences.length - 1}\uE001`
     if (maskedAdvance.fences.length > 0 && maskedAdvance.text.endsWith(lastFenceToken)) {
@@ -2010,7 +2010,7 @@ export class ClaudeCodeStreamAdapter {
     // emitted in an earlier delta still reads as a fence, and a 4-space
     // wrapper opener continuing a list item is paragraph content to defer,
     // not code (round-17 spanning-fence / multi-chunk partition findings).
-    const containerPrefix = fenceContainerPrefixFromState(ctx.scratchpadMaskState)
+    const containerPrefix = fenceContainerPrefixFromState(ctx.scratchpadMaskState, combined)
     const streamSeed = {
       initialContainerPrefix: containerPrefix === '' ? undefined : containerPrefix,
       initialMaskState: ctx.scratchpadMaskState
