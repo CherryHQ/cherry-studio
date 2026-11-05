@@ -727,8 +727,9 @@ The package interprets Claude SDK frames once and delivers typed control facts b
   A task notification finalizes only its correlated, completed response. Unscoped task
   updates do not finalize usage, and a root result leaves active child responses pending.
 - `session` updates the native binding and opaque resume token, including before failure.
-- `context-usage` describes occupancy at the current provider call; the post-turn
-  `getContextUsage()` pull remains authoritative.
+- Top-level input usage is published by the package as a common `context.changed` reading
+  marked `last-request`, excluding output and cumulative billing. The host's post-turn
+  `getContextUsage()` pull replaces it with the native current-context estimate.
 - `result` carries cumulative display usage, native identity and a typed failure when present.
   Main publishes the corresponding body before ending the product turn. A replayed
   task-notification result cannot settle a user turn; a result belonging to an active
@@ -742,11 +743,6 @@ The package interprets Claude SDK frames once and delivers typed control facts b
   metadata decorator handles display-only MCP metadata, reminders and thinking timing.
   Each reasoning block stops its timer at the block's end, independently of later answer
   generation; native message replacement preserves the completed block timings.
-
-- Top-level input usage is published by the package as a common `context.changed` reading
-  marked `last-request`, excluding output and cumulative billing. The host's post-turn
-  `getContextUsage()` pull replaces it with the native current-context estimate.
-
 
 The settings builder also installs `PostToolUse` and
 `PostToolUseFailure` hooks. Their SDK-reported `duration_ms` is forwarded to

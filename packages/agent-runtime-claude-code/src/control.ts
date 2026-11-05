@@ -4,7 +4,6 @@ import type {
   SDKAPIRetryMessage,
   SDKBackgroundTasksChangedMessage,
   SDKCompactBoundaryMessage,
-  SDKPartialAssistantMessage,
   SDKSessionStateChangedMessage,
   SDKStatusMessage,
   SDKTaskNotificationMessage,
@@ -42,10 +41,6 @@ export type ClaudeControl =
       usage: SDKResultMessage['usage']
       reasoningTokens?: number
       failure?: ClaudeResultFailure
-    }
-  | {
-      type: 'context-usage'
-      usage: Extract<SDKPartialAssistantMessage['event'], { type: 'message_delta' }>['usage']
     }
   | { type: 'autonomous-turn-state'; state: 'started' | 'finished'; sourceToolCallIds?: readonly string[] }
   | { type: 'background-work-state'; active: boolean }
@@ -203,13 +198,8 @@ export class ClaudeControlState {
       this.notificationRuns.add(message.origin.runId)
     if (message.type === 'system' && message.subtype === 'init')
       this.emit({ type: 'session', sessionId: message.session_id })
-    if (message.type === 'stream_event') {
-      if (message.event.type === 'message_start') {
-        this.emit({ type: 'response-start', responseId: message.event.message.id })
-        this.emit({ type: 'context-usage', usage: message.event.message.usage })
-      } else if (message.event.type === 'message_delta' && message.event.usage?.input_tokens != null)
-        this.emit({ type: 'context-usage', usage: message.event.usage })
-    }
+    if (message.type === 'stream_event' && message.event.type === 'message_start')
+      this.emit({ type: 'response-start', responseId: message.event.message.id })
     if (message.type === 'assistant') {
       this.messageUuid = message.uuid
       this.emit({ type: 'response-start', responseId: message.message.id, messageUuid: message.uuid })
