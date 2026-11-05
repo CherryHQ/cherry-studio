@@ -29,9 +29,9 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.general.sections.startup'
   },
   {
-    anchorId: 'prevent-sleep-when-busy',
-    titleKey: 'settings.power.prevent_sleep_when_busy',
-    groupKey: 'settings.general.sections.runtime'
+    anchorId: 'prevent-sleep',
+    titleKey: 'settings.power.prevent_sleep.title',
+    groupKey: 'settings.general.sections.power'
   },
   {
     anchorId: 'proxy-mode',

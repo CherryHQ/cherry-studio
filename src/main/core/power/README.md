@@ -10,7 +10,7 @@ touches those APIs directly.
 |------|------------------|
 | **Notification events** | Typed `Emitter`→`Event` for `onSuspend` / `onResume` / `onLockScreen` / `onUnlockScreen` / `onPowerSourceChange`. suspend/resume + power-source are de-duplicated against internal state (macOS double-fires — electron/electron#24803); lock/unlock are pass-through. |
 | **Shutdown barrier** | `registerShutdownHandler(fn)` → `Disposable`. On OS shutdown, handlers run serially and are bounded by a hard timeout, then the app quits. Cross-platform: `powerMonitor` `shutdown` + `preventDefault` on macOS/Linux, `@paymoapp/electron-shutdown-handler` on Windows. |
-| **Sleep prevention** | `preventSleep(reason?)` → `Disposable`. Ref-counted holds; the OS blocker (`prevent-app-suspension`) is active only while **a hold is held AND** the user opted in via `app.power.prevent_sleep_when_busy`. `isPreventingSleep()` reports the effective state. |
+| **Sleep prevention** | `preventSleep(reason?)` → `Disposable`. Ref-counted holds; the OS blocker (`prevent-app-suspension`) is active while **a hold is held AND** `app.power.prevent_sleep_mode` is `tasks`, or for the app's lifetime when it is `always` (`off` never blocks). `isPreventingSleep()` reports the effective state. |
 | **Queries** | `getPowerPhase()` / `getPowerSource()` / `isOnBatteryPower()` / `getSystemIdleTime()` / `getSystemIdleState(thresholdSec)` — level-triggered, so a late caller reconciles current state without having seen the edge. |
 
 ## Quick Start
@@ -21,7 +21,7 @@ import { application } from '@application'
 const power = application.get('PowerService')
 
 // Keep the machine awake for the duration of some work (effective only if the user
-// enabled `app.power.prevent_sleep_when_busy`):
+// set `app.power.prevent_sleep_mode` to `tasks` or `always`):
 const hold = power.preventSleep('job:export')
 try {
   await doWork()

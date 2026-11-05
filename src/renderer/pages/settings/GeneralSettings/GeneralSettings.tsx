@@ -25,6 +25,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import type { PreventSleepMode } from '@shared/data/preference/preferenceTypes'
 import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -50,7 +51,7 @@ const GeneralSettings: FC = () => {
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
   const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
-  const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
+  const [preventSleepMode, setPreventSleepMode] = usePreference('app.power.prevent_sleep_mode')
   const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
   const [commitAttribution, setCommitAttribution] = usePreference('agent.commit_attribution.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
@@ -86,6 +87,12 @@ const GeneralSettings: FC = () => {
     { value: 'system', label: t('settings.proxy.mode.system') },
     { value: 'custom', label: t('settings.proxy.mode.custom') },
     { value: 'none', label: t('settings.proxy.mode.none') }
+  ]
+
+  const preventSleepOptions: { value: PreventSleepMode; label: string }[] = [
+    { value: 'off', label: t('settings.power.prevent_sleep.off') },
+    { value: 'tasks', label: t('settings.power.prevent_sleep.tasks') },
+    { value: 'always', label: t('settings.power.prevent_sleep.always') }
   ]
 
   const updateTray = (isShowTray: boolean) => {
@@ -401,10 +408,18 @@ const GeneralSettings: FC = () => {
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.sections.power')}</SettingTitle>
         <SettingDivider />
-        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
-          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
+        <SettingRow id="setting-general-prevent-sleep" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.power.prevent_sleep.title')}</SettingRowTitle>
+          <Selector
+            value={preventSleepMode}
+            onChange={(mode) => void setPreventSleepMode(mode)}
+            options={preventSleepOptions}
+          />
         </SettingRow>
       </SettingGroup>
 

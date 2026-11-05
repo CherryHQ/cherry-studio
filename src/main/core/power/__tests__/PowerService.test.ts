@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 
-const PREF_KEY = 'app.power.prevent_sleep_when_busy'
+const PREF_KEY = 'app.power.prevent_sleep_mode'
 
 // Hoisted so the vi.mock factories below can close over them. The PowerService test
 // uses the REAL lifecycle (real Emitter/Event/BaseService) and the unified global
@@ -277,7 +277,7 @@ describe('PowerService', () => {
         throw new Error('An Application Control policy has blocked this file.')
       })
       try {
-        MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+        MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
         const service = await createInitedService()
 
         expect(BrowserWindow).not.toHaveBeenCalled()
@@ -316,7 +316,7 @@ describe('PowerService', () => {
 
   describe('sleep prevention', () => {
     it('does not start a blocker while the preference is disabled', async () => {
-      const service = await createInitedService() // pref defaults to false
+      const service = await createInitedService() // pref defaults to 'off'
       const hold = service.preventSleep('job:test')
 
       expect(psbStart).not.toHaveBeenCalled()
@@ -325,7 +325,7 @@ describe('PowerService', () => {
     })
 
     it('starts the blocker once a hold is held and the preference is enabled', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       const service = await createInitedService()
 
       expect(psbStart).not.toHaveBeenCalled() // enabled, but no hold yet
@@ -340,8 +340,23 @@ describe('PowerService', () => {
       expect(service.isPreventingSleep()).toBe(false)
     })
 
+    it('blocks for the whole app lifetime in always mode, with or without holds', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'always')
+      const service = await createInitedService()
+
+      expect(psbStart).toHaveBeenCalledTimes(1)
+      expect(service.isPreventingSleep()).toBe(true)
+
+      service.preventSleep('job').dispose()
+      expect(psbStart).toHaveBeenCalledTimes(1)
+      expect(psbStop).not.toHaveBeenCalled()
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'off')
+      expect(psbStop).toHaveBeenCalledTimes(1)
+    })
+
     it('keeps a single blocker across multiple holds and stops only after the last release', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       const service = await createInitedService()
 
       const a = service.preventSleep('a')
@@ -355,7 +370,7 @@ describe('PowerService', () => {
     })
 
     it('dispose is idempotent', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       const service = await createInitedService()
 
       const hold = service.preventSleep('once')
@@ -366,7 +381,7 @@ describe('PowerService', () => {
     })
 
     it('never throws and still returns a usable Disposable when powerSaveBlocker fails', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       psbStart.mockImplementationOnce(() => {
         throw new Error('powerSaveBlocker boom')
       })
@@ -383,13 +398,13 @@ describe('PowerService', () => {
     })
 
     it('releases the blocker immediately when the preference is turned off mid-hold', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       const service = await createInitedService()
       service.preventSleep('job')
       expect(psbStart).toHaveBeenCalledTimes(1)
 
       // Simulate the user toggling the preference off — drives the subscribeChange callback.
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, false)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'off')
       expect(psbStop).toHaveBeenCalledTimes(1)
       expect(service.isPreventingSleep()).toBe(false)
     })
@@ -399,7 +414,7 @@ describe('PowerService', () => {
       service.preventSleep('job')
       expect(psbStart).not.toHaveBeenCalled()
 
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       expect(psbStart).toHaveBeenCalledTimes(1)
     })
   })
@@ -424,7 +439,7 @@ describe('PowerService', () => {
 
   describe('onStop', () => {
     it('stops an active blocker and clears holds', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+      MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, 'tasks')
       const service = await createInitedService()
       service.preventSleep('job')
       expect(psbStart).toHaveBeenCalledTimes(1)
