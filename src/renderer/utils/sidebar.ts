@@ -352,6 +352,17 @@ export function reorderSidebarShortcuts(
   return items.map((item) => (isSidebarShortcutItem(item) ? reordered[index++] : item))
 }
 
+export function getSidebarShortcutResourceIds(
+  shortcuts: readonly SidebarShortcutItem[],
+  providerId: string
+): Set<string> {
+  return new Set(
+    shortcuts.flatMap((shortcut) =>
+      shortcut.target.locator.providerId === providerId ? [shortcut.target.locator.resourceId] : []
+    )
+  )
+}
+
 export function isSidebarShortcutPinned(
   values: readonly unknown[] | undefined,
   target: SidebarShortcutTarget

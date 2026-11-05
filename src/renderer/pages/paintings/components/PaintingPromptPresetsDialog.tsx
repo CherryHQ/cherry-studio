@@ -11,7 +11,7 @@ import {
   DialogTitle,
   EmptyState,
   ReorderableList,
-  Scrollbar,
+  ScrollArea,
   Skeleton
 } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
@@ -106,7 +106,9 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
           <Plus className="size-4" />
           {t('settings.prompts.add')}
         </Button>
-        <Scrollbar className="max-h-[60vh] overflow-y-auto" data-ui="part:prompt-preset-list">
+        <ScrollArea
+          viewportProps={{ className: 'overflow-y-auto', 'data-ui': 'part:prompt-preset-list' }}
+          className="max-h-[60vh]">
           {error ? (
             <div role="alert" className="flex flex-col items-center gap-3 py-8">
               <span>{t('settings.prompts.errors.loadFailed')}</span>
@@ -140,8 +142,6 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                   className="flex items-center gap-2 rounded-lg border border-border p-2">
                   <Button
                     ref={state.dragHandleProps?.ref}
-                    {...state.dragHandleProps?.attributes}
-                    {...state.dragHandleProps?.listeners}
                     data-ui="part:prompt-preset-drag"
                     variant="ghost"
                     size="icon"
@@ -184,7 +184,7 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
               )}
             />
           )}
-        </Scrollbar>
+        </ScrollArea>
         <PromptEditDialog
           open={editor !== null}
           prompt={editor?.prompt}

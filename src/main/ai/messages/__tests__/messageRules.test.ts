@@ -13,6 +13,32 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('replays signed edited reasoning as a plain <think> text block', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'reasoning',
+            text: 'corrected thought',
+            providerMetadata: { cherry: { editedReasoningReplay: 'think' } }
+          },
+          { type: 'text', text: 'answer' }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '<think>\ncorrected thought\n</think>' },
+        { type: 'text', text: 'answer' }
+      ]
+    })
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [
@@ -442,6 +468,20 @@ describe('toModelMessages', () => {
     expect(search).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
     expect(fetch).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
     expect(search).not.toBe(fetch)
+  })
+
+  it('drops a dynamic tool part with an empty name even when it is declared', async () => {
+    const model = await toModelMessages(
+      [ui('assistant', [legacyTool('', 'call_00_empty'), { type: 'text', text: 'continue' }])],
+      undefined,
+      { '': tool({ inputSchema: z.object({}) }) }
+    )
+    const parts = model.flatMap(
+      (message) => (Array.isArray(message.content) ? [...message.content] : []) as Array<{ type: string }>
+    )
+
+    expect(parts.filter((part) => part.type === 'tool-call' || part.type === 'tool-result')).toEqual([])
+    expect(parts).toContainEqual({ type: 'text', text: 'continue' })
   })
 
   // The API Gateway shares this path and keys its ToolSet by the client's own function name.

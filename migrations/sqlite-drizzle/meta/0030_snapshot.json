@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "78f6198f-8ab1-4f5b-b754-187d84301286",
+  "id": "ca035856-20b9-4247-82bb-24a464a1ee80",
   "prevId": "fbdcebe7-a527-4ca9-94cd-c825f652f31b",
   "tables": {
     "agent": {
@@ -576,6 +576,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "mirror_enabled": {
+          "name": "mirror_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -4977,111 +4985,6 @@
           "value": "\"note\".\"is_starred\" = 1 OR \"note\".\"is_expanded\" = 1"
         }
       }
-    },
-    "notification_record": {
-      "name": "notification_record",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "event_key": {
-          "name": "event_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "read_at": {
-          "name": "read_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "dismissed_at": {
-          "name": "dismissed_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "target": {
-          "name": "target",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "notification_record_event_key_idx": {
-          "name": "notification_record_event_key_idx",
-          "columns": [
-            "event_key"
-          ],
-          "isUnique": true
-        },
-        "notification_record_time_idx": {
-          "name": "notification_record_time_idx",
-          "columns": [
-            "created_at",
-            "id"
-          ],
-          "isUnique": false
-        },
-        "notification_record_category_time_idx": {
-          "name": "notification_record_category_time_idx",
-          "columns": [
-            "category",
-            "created_at",
-            "id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "painting": {
       "name": "painting",

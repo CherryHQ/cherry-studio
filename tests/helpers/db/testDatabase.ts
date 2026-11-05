@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -12,14 +12,14 @@ import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType, ISeeder } from '@data/db/types'
 
-import { resolveMigrationsPath } from './internal/migrationsPath'
+import { copyMigrationPrefix, resolveMigrationsPath } from './internal/migrationsPath'
 import { truncateAll } from './internal/truncate'
 
 export interface TestDatabaseOptions {
   /** Seeders to run after schema init. Default: none. */
   seeders?: ISeeder[]
-  /** Initialize an older production schema, up to and including this migration tag. */
-  migrationsThrough?: string
+  /** Initialize from the real migration prefix strictly before this tag. */
+  beforeMigration?: string
 }
 
 export interface TestDatabaseHandle {
@@ -92,23 +92,10 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     sqlite.pragma('synchronous = NORMAL')
 
     // Same migration path as DbService.onInit(): migrations first, then custom SQL.
-    let migrationsFolder = resolveMigrationsPath()
-    if (options.migrationsThrough) {
-      const source = migrationsFolder
-      const journal = JSON.parse(readFileSync(join(source, 'meta/_journal.json'), 'utf8')) as {
-        entries: Array<{ tag: string }>
-      }
-      const lastIndex = journal.entries.findIndex((entry) => entry.tag === options.migrationsThrough)
-      if (lastIndex < 0) throw new Error(`Unknown migration tag: ${options.migrationsThrough}`)
-      journal.entries = journal.entries.slice(0, lastIndex + 1)
-      migrationsFolder = join(tempDir, 'migrations')
-      mkdirSync(join(migrationsFolder, 'meta'), { recursive: true })
-      writeFileSync(join(migrationsFolder, 'meta/_journal.json'), JSON.stringify(journal))
-      for (const { tag } of journal.entries) {
-        copyFileSync(join(source, `${tag}.sql`), join(migrationsFolder, `${tag}.sql`))
-      }
-    }
-    applyMigrations(db, migrationsFolder)
+    const migrations = options.beforeMigration
+      ? copyMigrationPrefix(join(tempDir, 'migrations'), options.beforeMigration)
+      : resolveMigrationsPath()
+    applyMigrations(db, migrations)
 
     if (options.seeders?.length) {
       new SeedRunner(db).runAll(options.seeders)

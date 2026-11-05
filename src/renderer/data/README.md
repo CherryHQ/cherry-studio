@@ -4,10 +4,10 @@ This directory contains the renderer process data services.
 
 ## Documentation
 
-- **Overview**: [docs/references/data/README.md](../../../docs/references/data/README.md)
-- **Cache**: [cache-overview.md](../../../docs/references/data/cache-overview.md) | [cache-usage.md](../../../docs/references/data/cache-usage.md) | [cache-schema-guide.md](../../../docs/references/data/cache-schema-guide.md)
-- **Preference**: [preference-overview.md](../../../docs/references/data/preference-overview.md) | [preference-usage.md](../../../docs/references/data/preference-usage.md)
-- **DataApi**: [data-api-in-renderer.md](../../../docs/references/data/data-api-in-renderer.md)
+- **Overview**: [docs/dev/references/data/README.md](../../../docs/dev/references/data/README.md)
+- **Cache**: [cache-overview.md](../../../docs/dev/references/data/cache-overview.md) | [cache-usage.md](../../../docs/dev/references/data/cache-usage.md) | [cache-schema-guide.md](../../../docs/dev/references/data/cache-schema-guide.md)
+- **Preference**: [preference-overview.md](../../../docs/dev/references/data/preference-overview.md) | [preference-usage.md](../../../docs/dev/references/data/preference-usage.md)
+- **DataApi**: [data-api-in-renderer.md](../../../docs/dev/references/data/data-api-in-renderer.md)
 
 ## Directory Structure
 
@@ -54,11 +54,11 @@ of `useMutation`.
 ```tsx
 const { data } = useQuery('/mcp-servers')
 const { applyReorderedList } = useReorder('/mcp-servers')
-return <DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
+return <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 ```
 
 The full end-to-end design — database schema helpers, API endpoint composition,
 service-layer helpers (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyMoves` /
 `resetOrder`), migrator helpers, renderer integration, migration checklist, FAQ
-— lives in the **[Reorder Guide](../../../docs/references/data/data-ordering-guide.md)**.
+— lives in the **[Reorder Guide](../../../docs/dev/references/data/data-ordering-guide.md)**.
 The guide is the canonical reference for both main- and renderer-side work.
