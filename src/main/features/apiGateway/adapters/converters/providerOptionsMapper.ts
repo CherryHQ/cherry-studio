@@ -248,7 +248,13 @@ export function mapReasoningEffortToProviderOptions(
   reasoningEffort?: ReasoningEffort,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  return reasoningEffort == null
-    ? undefined
-    : buildProviderOptions(resolveProviderReasoningContext(provider, model), reasoningEffort, maxTokens)
+  if (reasoningEffort == null) return undefined
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  // A native Ollama target needs the same guard as the Anthropic dialect: a named effort a
+  // toggle-only model cannot express still means "think", not silence.
+  if (resolvedEndpoint.endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    return buildOllamaThinkingOptions(context, reasoningEffort, maxTokens)
+  }
+  return buildProviderOptions(context, reasoningEffort, maxTokens)
 }

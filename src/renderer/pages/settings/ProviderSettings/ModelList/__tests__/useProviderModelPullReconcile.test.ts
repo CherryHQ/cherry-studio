@@ -150,6 +150,35 @@ describe('useProviderModelPullReconcile', () => {
     expect(deleteModelsMock).not.toHaveBeenCalled()
   })
 
+  it('does not revive a locally disabled capability when refreshing native reasoning', async () => {
+    const reasoning = {
+      controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+      selectableEfforts: ['none', 'low', 'medium', 'xhigh'],
+      defaultEffort: 'medium'
+    }
+    const saved = {
+      ...localModel,
+      id: 'ollama::qwen3.8:27b',
+      providerId: 'ollama',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { ...reasoning, summaryOptions: undefined, thinkingTokenLimits: undefined }
+    }
+    useModelsMock.mockReturnValue({ models: [saved] })
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({
+      models: [{ ...saved, reasoning }],
+      // The model natively advertises tool use, but the user disabled function calling on the
+      // saved row: the reported controls own REASONING only, so the refresh adds nothing back.
+      discoveredReasoning: [
+        { id: saved.id, reasoning, capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL] }
+      ]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('ollama'))
+    await act(async () => {
+      await result.current.reloadModels()
+    })
+    expect(updateModelsMock).not.toHaveBeenCalled()
+  })
+
   it('leaves saved reasoning untouched when only a registry fallback is available', async () => {
     fetchResolvedProviderModelsMock.mockResolvedValueOnce({
       models: [{ ...localModel, reasoning: { selectableEfforts: ['none', 'auto'] } }]

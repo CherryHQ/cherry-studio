@@ -72,6 +72,30 @@ describe('fetchResolvedProviderModels', () => {
     ])
   })
 
+  it('keeps preset capabilities alongside natively reported reasoning in the creation DTO', async () => {
+    listModelsMock.mockResolvedValueOnce({ models: [nativeModel] })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        ...nativeModel,
+        presetModelId: 'qwen3-8-27b',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'toggle' }],
+          selectableEfforts: ['none', 'auto']
+        }
+      }
+    ])
+
+    const listing = await fetchResolvedProviderModels('ollama')
+    const nativeReasoning = listing.discoveredReasoning?.find((entry) => entry.id === listing.models[0].id)?.reasoning
+    const dto = toCreateModelDto('ollama', listing.models[0], undefined, nativeReasoning)
+
+    // The reasoning override ships as an explicit capability list; it must carry the preset's
+    // unrelated abilities too, or the replacement write would drop function calling.
+    expect(dto.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING])
+    expect(dto.reasoning).toEqual(nativeModel.reasoning)
+  })
+
   it('does not mark registry fallback as native metadata when show has no thinking declaration', async () => {
     listModelsMock.mockResolvedValueOnce({ models: [{ ...nativeModel, reasoning: undefined }] })
     dataApiGetMock.mockResolvedValueOnce([nativeModel])

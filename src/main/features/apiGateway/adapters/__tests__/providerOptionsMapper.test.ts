@@ -550,4 +550,23 @@ describe('ollama think guard (#18695)', () => {
       mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeNoThinkingModel, { type: 'disabled' })
     ).toBeUndefined()
   })
+
+  it('maps a named OpenAI reasoning_effort to think:true on a toggle-only native model', () => {
+    expect(mapReasoningEffortToProviderOptions(ollamaTarget, ollamaBooleanModel, 'high')).toEqual({
+      ollama: { think: true }
+    })
+  })
+
+  it('clamps a named OpenAI reasoning_effort onto natively reported levels', () => {
+    expect(mapReasoningEffortToProviderOptions(ollamaTarget, ollamaNativeLevelsModel, 'high')).toEqual({
+      ollama: { think: 'xhigh' }
+    })
+    expect(mapReasoningEffortToProviderOptions(ollamaTarget, ollamaNativeLevelsModel, 'xhigh')).toEqual({
+      ollama: { think: 'xhigh' }
+    })
+  })
+
+  it('omits think for a named OpenAI reasoning_effort when the model declares no controls', () => {
+    expect(mapReasoningEffortToProviderOptions(ollamaTarget, ollamaUnknownModel, 'high')).toBeUndefined()
+  })
 })

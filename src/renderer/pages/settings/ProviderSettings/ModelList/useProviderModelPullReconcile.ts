@@ -148,11 +148,12 @@ export function useProviderModelPullReconcile(providerId: string) {
       const reasoningPatches = discoveredReasoning.flatMap(({ id, reasoning, capabilities }) => {
         const local = localById.get(id)
         if (!local) return []
-        // The reported controls own the REASONING capability; every other local capability stays.
+        // The reported controls own the REASONING capability; every other local capability stays,
+        // including ones the user disabled — the discovered list must not revive them.
         const patchCapabilities = Array.from(
           new Set([
             ...(local.capabilities ?? []).filter((capability) => capability !== MODEL_CAPABILITY.REASONING),
-            ...capabilities
+            ...(capabilities.includes(MODEL_CAPABILITY.REASONING) ? [MODEL_CAPABILITY.REASONING] : [])
           ])
         )
         const sameReasoning =

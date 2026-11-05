@@ -63,7 +63,12 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const baseCapabilities = !model.presetModelId && model.capabilities?.length ? [...model.capabilities] : []
+  // With native controls the capability list ships as an explicit delta, so it must start from
+  // the enriched model's full list — preset-backed rows included — or a replacement write would
+  // drop unrelated abilities like function calling. Without native controls a preset-backed row
+  // keeps its baseline by omitting the field entirely.
+  const baseCapabilities =
+    (nativeReasoning || !model.presetModelId) && model.capabilities?.length ? [...model.capabilities] : []
   const capabilities = nativeReasoning
     ? // Natively reported reasoning controls ship with the row, so its capability list must match them.
       (nativeReasoning.selectableEfforts?.length ?? 0) > 0
