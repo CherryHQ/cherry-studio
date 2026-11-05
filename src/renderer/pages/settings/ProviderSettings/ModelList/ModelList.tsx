@@ -5,6 +5,7 @@ import { ButtonGroup } from '@cherrystudio/ui'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
+import ProviderModelCheck from './ProviderModelCheck'
 import ProviderModelDownload from './ProviderModelDownload'
 import ProviderModelList from './ProviderModelList'
 import ProviderModelPullReconcile from './ProviderModelPullReconcile'
@@ -27,7 +28,7 @@ function ModelListContent({
   modelPullGuideVersion?: number
   onContinueApiSetup?: () => void
 }) {
-  const { isModelChecking } = useModelListHealthRun()
+  const { isModelChecking, canSelectApiKey } = useModelListHealthRun()
   const disabled = isModelChecking
 
   return (
@@ -38,18 +39,21 @@ function ModelListContent({
         disabled={disabled}
         onContinueApiSetup={onContinueApiSetup}
         actions={({ disabled: toolbarDisabled }) => (
-          <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
-            <ProviderModelPullReconcile
-              providerId={providerId}
-              disabled={toolbarDisabled}
-              guideVersion={modelPullGuideVersion}
-            />
-            {providerId === 'ovms' ? (
-              <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
-            ) : (
-              <ProviderModelAdd providerId={providerId} disabled={toolbarDisabled} />
-            )}
-          </ButtonGroup>
+          <>
+            {!canSelectApiKey ? <ProviderModelCheck /> : null}
+            <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
+              <ProviderModelPullReconcile
+                providerId={providerId}
+                disabled={toolbarDisabled}
+                guideVersion={modelPullGuideVersion}
+              />
+              {providerId === 'ovms' ? (
+                <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
+              ) : (
+                <ProviderModelAdd providerId={providerId} disabled={toolbarDisabled} />
+              )}
+            </ButtonGroup>
+          </>
         )}
       />
     </>
