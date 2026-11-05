@@ -1,8 +1,8 @@
-import { AppWindowIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, RowFlex } from '@cherrystudio/ui'
+import workbuddyIcon from '@renderer/assets/images/apps/workbuddy.png'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
 import {
   SettingDivider,
@@ -82,7 +82,7 @@ const ImportMenuOptions: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-data-import-local-workbuddy" className="scroll-mt-6 py-4">
           <SettingRowTitle className="gap-4">
-            <AppWindowIcon size={24} />
+            <img src={workbuddyIcon} alt="" className="size-7 shrink-0 scale-125" />
             {t('history_import.source.workbuddy')}
           </SettingRowTitle>
           <Button
