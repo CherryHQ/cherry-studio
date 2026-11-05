@@ -6,6 +6,7 @@ import {
   isHeartbeatEnabled,
   normalizeHeartbeatTimeoutMinutes
 } from '@shared/ai/agentHeartbeat'
+import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
@@ -43,6 +44,7 @@ export interface AgentFormState {
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
+  autoCompactPct: number
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -114,6 +116,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
+    autoCompactPct: normalizeAutoCompactTriggerPct(cfg.auto_compact_pct),
     heartbeatEnabled: isHeartbeatEnabled(cfg),
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
     heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
@@ -213,6 +216,10 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
+    cfgDirty = true
+  }
+  if (baseline.autoCompactPct !== next.autoCompactPct) {
+    cfgPatch.auto_compact_pct = normalizeAutoCompactTriggerPct(next.autoCompactPct)
     cfgDirty = true
   }
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {

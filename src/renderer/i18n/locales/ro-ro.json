@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Prezentare generală",
   "library.assistant_catalog.preview_prompt": "Prompt",
   "library.assistant_catalog.title": "Bibliotecă asistent",
+  "library.config.agent.field.auto_compact_pct.help": "Compactează conversația când utilizarea contextului atinge acest procent din fereastră. Valorile mai mici compactează mai devreme; maximul este 80.",
+  "library.config.agent.field.auto_compact_pct.label": "Prag de compactare automată (%)",
   "library.config.agent.field.description.hint": "Ajută la identificarea scopului acestui agent",
   "library.config.agent.field.description.label": "Descriere",
   "library.config.agent.field.description.placeholder": "Pentru ce este acest agent…",

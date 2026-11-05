@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Genel Bakış",
   "library.assistant_catalog.preview_prompt": "İstem",
   "library.assistant_catalog.title": "Asistan Kitaplığı",
+  "library.config.agent.field.auto_compact_pct.help": "Bağlam kullanımı pencerenin bu yüzdesine ulaştığında konuşmayı sıkıştırır. Düşük değerler daha erken sıkıştırır; en yüksek değer 80'dir.",
+  "library.config.agent.field.auto_compact_pct.label": "Otomatik sıkıştırma eşiği (%)",
   "library.config.agent.field.description.hint": "Bu ajanın amacını belirlemeye yardımcı olur",
   "library.config.agent.field.description.label": "Açıklama",
   "library.config.agent.field.description.placeholder": "Bu ajanın amacı…",

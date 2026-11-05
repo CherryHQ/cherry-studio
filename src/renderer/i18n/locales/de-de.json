@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Übersicht",
   "library.assistant_catalog.preview_prompt": "Aufforderung",
   "library.assistant_catalog.title": "Assistenten-Bibliothek",
+  "library.config.agent.field.auto_compact_pct.help": "Konversation komprimieren, wenn die Kontextauslastung diesen Prozentsatz des Fensters erreicht. Niedrigere Werte komprimieren früher; das Maximum ist 80.",
+  "library.config.agent.field.auto_compact_pct.label": "Auto-Kompaktierung (%)",
   "library.config.agent.field.description.hint": "Hilft dabei zu erkennen, wofür dieser Agent bestimmt ist",
   "library.config.agent.field.description.label": "Beschreibung",
   "library.config.agent.field.description.placeholder": "Wofür dieser Agent gedacht ist…",

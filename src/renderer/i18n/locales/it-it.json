@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Panoramica",
   "library.assistant_catalog.preview_prompt": "Prompt",
   "library.assistant_catalog.title": "Libreria degli assistenti",
+  "library.config.agent.field.auto_compact_pct.help": "Compatta la conversazione quando l'uso del contesto raggiunge questa percentuale della finestra. Valori più bassi compattano prima; il massimo è 80.",
+  "library.config.agent.field.auto_compact_pct.label": "Soglia di compattazione automatica (%)",
   "library.config.agent.field.description.hint": "Aiuta a identificare lo scopo dell'agente",
   "library.config.agent.field.description.label": "Descrizione",
   "library.config.agent.field.description.placeholder": "A cosa serve questo agente…",

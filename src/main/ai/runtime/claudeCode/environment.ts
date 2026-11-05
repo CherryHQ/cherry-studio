@@ -41,24 +41,6 @@ const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
 // so re-measure them on SDK upgrades.
 const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
 const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
-/**
- * Percentage of the auto-compact window at which compaction triggers, passed
- * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
- *
- * The knob only ever lowers the threshold — the CLI ignores values above its own
- * default (https://code.claude.com/docs/en/env-vars). So this is a ceiling, not a
- * setting: compaction starts at 80% of the window *or earlier*, never later. That
- * one-way behavior is what makes a flat default safe to ship for every model.
- *
- * Left at the CLI's default, compaction starts late enough that a turn whose tool
- * results land in one burst can jump the remaining headroom and fail outright —
- * and a failed turn cannot compact its way out, because compaction replays the
- * same oversized history. 80 keeps roughly a fifth of the window as landing room.
- *
- * Deliberate ceiling: one flat percentage for every model. Make it per-model if
- * agents on small windows start compacting too eagerly to make progress.
- */
-export const AUTO_COMPACT_TRIGGER_PCT = 80
 
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.

@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Tổng quan",
   "library.assistant_catalog.preview_prompt": "Lời nhắc",
   "library.assistant_catalog.title": "Thư viện Trợ lý",
+  "library.config.agent.field.auto_compact_pct.help": "Nén cuộc trò chuyện khi mức sử dụng ngữ cảnh đạt tỷ lệ phần trăm này của cửa sổ. Giá trị thấp hơn sẽ nén sớm hơn; tối đa là 80.",
+  "library.config.agent.field.auto_compact_pct.label": "Ngưỡng tự động nén (%)",
   "library.config.agent.field.description.hint": "Giúp xác định mục đích của Agent này",
   "library.config.agent.field.description.label": "Mô tả",
   "library.config.agent.field.description.placeholder": "Agent này dùng để làm gì…",

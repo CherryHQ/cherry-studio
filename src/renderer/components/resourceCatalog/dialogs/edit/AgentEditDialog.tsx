@@ -50,6 +50,11 @@ import {
   MAX_HEARTBEAT_TIMEOUT_MINUTES,
   MIN_HEARTBEAT_INTERVAL_MINUTES
 } from '@shared/ai/agentHeartbeat'
+import {
+  DEFAULT_AUTO_COMPACT_TRIGGER_PCT,
+  MIN_AUTO_COMPACT_TRIGGER_PCT,
+  normalizeAutoCompactTriggerPct
+} from '@shared/ai/agentAutoCompact'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -108,6 +113,7 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
+  autoCompactPct: number
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -166,6 +172,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    autoCompactPct: form.autoCompactPct,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
@@ -199,6 +206,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    autoCompactPct: values.autoCompactPct,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
@@ -235,6 +243,7 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (hasOwn(configuration, 'auto_compact_pct')) next.autoCompactPct = submitted.autoCompactPct
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
     if (hasOwn(configuration, 'heartbeat_timeout_minutes'))
@@ -1311,7 +1320,32 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
   const { t } = useTranslation()
 
   return (
-    <div>
+    <div className="flex flex-col gap-4">
+      <FormField
+        control={form.control}
+        name="autoCompactPct"
+        render={({ field }) => (
+          <FormItem>
+            <FieldLabelWithHelp
+              label={t('library.config.agent.field.auto_compact_pct.label')}
+              help={t('library.config.agent.field.auto_compact_pct.help')}
+            />
+            <FormControl>
+              <InputNumber
+                min={MIN_AUTO_COMPACT_TRIGGER_PCT}
+                max={DEFAULT_AUTO_COMPACT_TRIGGER_PCT}
+                step={5}
+                className="h-9 w-full"
+                value={field.value}
+                onBlur={(value) => {
+                  if (value !== null) field.onChange(normalizeAutoCompactTriggerPct(value))
+                }}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
       <FormField
         control={form.control}
         name="envVarsText"

@@ -55,6 +55,7 @@ import {
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import {
   KB_READ_TOOL_NAME,
@@ -71,7 +72,6 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
-  AUTO_COMPACT_TRIGGER_PCT,
   buildEnvironment,
   resolveAutoCompactWindow,
   resolveClaudeExecutablePath,
@@ -319,7 +319,7 @@ export async function buildClaudeCodeSessionSettings(
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
   // declare no usable context window. An explicit agent `env_vars` entry still wins.
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
-    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(normalizeAutoCompactTriggerPct(agentConfig?.auto_compact_pct))
   }
   // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
   // every other value (including an unreadable preference), so nothing changes unless asked.

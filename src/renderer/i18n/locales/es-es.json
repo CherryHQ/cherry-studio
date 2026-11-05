@@ -2046,6 +2046,8 @@
   "library.assistant_catalog.preview_description": "Descripción general",
   "library.assistant_catalog.preview_prompt": "Indicación",
   "library.assistant_catalog.title": "Biblioteca de Asistentes",
+  "library.config.agent.field.auto_compact_pct.help": "Compacta la conversación cuando el uso del contexto alcanza este porcentaje de la ventana. Los valores más bajos compactan antes; el máximo es 80.",
+  "library.config.agent.field.auto_compact_pct.label": "Activación de compactación automática (%)",
   "library.config.agent.field.description.hint": "Ayuda a identificar para qué sirve este agente",
   "library.config.agent.field.description.label": "Descripción",
   "library.config.agent.field.description.placeholder": "Para qué sirve este agente…",
