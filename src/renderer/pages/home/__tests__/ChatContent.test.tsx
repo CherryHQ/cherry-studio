@@ -344,7 +344,7 @@ describe('ChatContent', () => {
     mockUseExecutionOverlay.mockReset()
   })
 
-  it.each(['pending', 'running'] as const)('does not seed from an empty %s assistant reservation', (status) => {
+  it.each(['pending', 'paused'] as const)('does not seed from an empty %s assistant reservation', (status) => {
     const reply = createUiMessage('actual-reply', 'assistant')
     reply.metadata = {
       ...reply.metadata,
