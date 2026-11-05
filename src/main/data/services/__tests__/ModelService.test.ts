@@ -24,7 +24,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY, type RuntimeReasoning } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -608,6 +608,82 @@ describe('ModelService.create', () => {
       expect(model.reasoning?.controls).toEqual(controls)
       expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
     }
+  })
+
+  it('persists provider-declared reasoning for an unregistered model', () => {
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    dbh.db.insert(userProviderTable).values(providerRow('openrouter', 'OpenRouter')).run()
+
+    const reasoning: RuntimeReasoning = {
+      controls: [{ kind: 'effort', values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'], default: 'max' }],
+      selectableEfforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
+      defaultEffort: 'max'
+    }
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openrouter',
+          modelId: 'stealth/crouton-alpha',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning
+        },
+        registryData
+      }
+    ])
+
+    const stored = dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    expect(stored.presetModelId).toBeNull()
+    expect(stored.reasoning).toMatchObject({ controls: reasoning.controls, defaultEffort: 'max' })
+    expect(created.reasoning?.controls).toEqual(reasoning.controls)
+    expect(created.reasoning?.selectableEfforts).toEqual(['max', 'xhigh', 'high', 'medium', 'low', 'minimal'])
+    expect(created.reasoning?.defaultEffort).toBe('max')
+  })
+
+  it('keeps registry reasoning when the provider also declares one', () => {
+    const registryReasoning: RuntimeReasoning = {
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+      selectableEfforts: ['low', 'medium', 'high']
+    }
+    const registryData = {
+      providerModel: {
+        id: createUniqueModelId('openrouter', 'acme/thinker'),
+        providerId: 'openrouter',
+        apiModelId: 'acme/thinker',
+        name: 'Acme Thinker',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        reasoning: registryReasoning
+      },
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    dbh.db.insert(userProviderTable).values(providerRow('openrouter', 'OpenRouter')).run()
+
+    const providerReasoning: RuntimeReasoning = {
+      controls: [{ kind: 'effort', values: ['high', 'max'] }],
+      selectableEfforts: ['high', 'max']
+    }
+
+    const [created] = modelService.create([
+      {
+        dto: { providerId: 'openrouter', modelId: 'acme/thinker', reasoning: providerReasoning },
+        registryData
+      }
+    ])
+
+    const stored = dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    expect(stored.reasoning).toMatchObject({ controls: registryReasoning.controls })
+    expect(created.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
   })
 
   it('null DTO fields do not clobber preset during merge', async () => {

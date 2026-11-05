@@ -14,7 +14,18 @@ const OpenAIModelSchema = z.looseObject({
   name: z.string().optional(),
   object: z.string().optional().default('model'),
   created: z.number().optional(),
-  owned_by: z.string().optional()
+  owned_by: z.string().optional(),
+  /** OpenAI-compatible request features (OpenRouter & friends). */
+  supported_parameters: z.array(z.string()).nullish(),
+  /** OpenRouter's per-model reasoning declaration. */
+  reasoning: z
+    .looseObject({
+      mandatory: z.boolean().nullish(),
+      supported_efforts: z.array(z.string()).nullish(),
+      default_effort: z.string().nullish(),
+      default_enabled: z.boolean().nullish()
+    })
+    .nullish()
 })
 
 const OpenAIModelItemSchema = z.unknown().transform((model) => {

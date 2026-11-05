@@ -49,6 +49,42 @@ describe('fetchResolvedProviderModels', () => {
     }
   })
 
+  it('prefers provider reasoning over an id-heuristic guess for an unregistered model', async () => {
+    const providerReasoning = {
+      controls: [{ kind: 'effort' as const, values: ['max', 'high'] }],
+      selectableEfforts: ['max', 'high'] as const
+    }
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'openrouter::stealth/crouton-alpha',
+          providerId: 'openrouter',
+          apiModelId: 'stealth/crouton-alpha',
+          name: 'stealth/crouton-alpha',
+          reasoning: providerReasoning
+        }
+      ]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'openrouter::stealth/crouton-alpha',
+        providerId: 'openrouter',
+        apiModelId: 'stealth/crouton-alpha',
+        name: 'stealth/crouton-alpha',
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+          selectableEfforts: ['low', 'medium', 'high']
+        }
+      }
+    ])
+
+    const {
+      models: [model]
+    } = await fetchResolvedProviderModels('openrouter')
+
+    expect(model.reasoning).toEqual(providerReasoning)
+  })
+
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
     listModelsMock.mockResolvedValueOnce({
       models: [
@@ -334,6 +370,49 @@ describe('toCreateModelDto', () => {
     })
 
     expect(dto.capabilities).toBeUndefined()
+  })
+
+  it('carries the provider-declared reasoning descriptor into the create payload', () => {
+    const reasoning = {
+      controls: [
+        {
+          kind: 'effort' as const,
+          values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'] as const,
+          default: 'max' as const
+        }
+      ],
+      selectableEfforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'] as const,
+      defaultEffort: 'max' as const
+    }
+    const dto = toCreateModelDto('openrouter', {
+      id: 'openrouter::stealth/crouton-alpha',
+      providerId: 'openrouter',
+      apiModelId: 'stealth/crouton-alpha',
+      name: 'stealth/crouton-alpha',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as any)
+
+    expect(dto.reasoning).toEqual(reasoning)
+  })
+
+  it('omits a reasoning descriptor with no controls or efforts', () => {
+    const dto = toCreateModelDto('openrouter', {
+      id: 'openrouter::acme/plain',
+      providerId: 'openrouter',
+      apiModelId: 'acme/plain',
+      name: 'acme/plain',
+      capabilities: [],
+      reasoning: { selectableEfforts: [] },
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as any)
+
+    expect(dto).not.toHaveProperty('reasoning')
   })
 })
 

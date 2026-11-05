@@ -59,6 +59,14 @@ export function toCreateModelDto(
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
   const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
+  // Provider-declared reasoning (OpenRouter's per-model effort vocabulary) is the
+  // only descriptor an unregistered model has. It has to travel with the DTO:
+  // the main-process create path otherwise stores `reasoning = NULL`, and every
+  // effort the user picks is then dropped by the request pipeline.
+  const reasoning =
+    model.reasoning && (model.reasoning.controls?.length || model.reasoning.selectableEfforts?.length)
+      ? { ...model.reasoning }
+      : undefined
 
   return {
     providerId,
@@ -69,7 +77,8 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    ...(reasoning ? { reasoning } : {})
   }
 }
 
@@ -140,6 +149,11 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
         continue
       }
       if (field === 'name' && keepFetchedName) {
+        continue
+      }
+      // A synthesized custom model (no preset identity) only carries an
+      // id-heuristic reasoning guess; the provider's own declaration wins there.
+      if (field === 'reasoning' && !registry.presetModelId && base.reasoning) {
         continue
       }
       const value = registry[field]
