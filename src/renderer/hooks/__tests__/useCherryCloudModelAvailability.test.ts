@@ -69,6 +69,29 @@ describe('useCherryCloudModelAvailability', () => {
     expect(result.current.isModelHidden(regular, false)).toBe(false)
   })
 
+  it('reports first-snapshot hydration and settles without changing main visibility rules', async () => {
+    let resolve!: (value: CherryCloudModelSyncResult) => void
+    mocks.ipcRequest.mockReturnValue(
+      new Promise<CherryCloudModelSyncResult>((done) => {
+        resolve = done
+      })
+    )
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    expect(result.current.isModelHidden(cloud('work-only'), true)).toBe(true)
+    await act(async () => resolve(snapshot({ availableModelIds: { agent: [cloud('work-only').id], general: [] } })))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.isModelHidden(cloud('work-only'), true)).toBe(false)
+    expect(result.current.isModelHidden(cloud('work-only'), false)).toBe(true)
+  })
+
+  it('settles hydration on failure while keeping unknown Cloud models hidden', async () => {
+    mocks.ipcRequest.mockRejectedValue(new Error('offline'))
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.isModelHidden(cloud('unknown'), true)).toBe(true)
+  })
+
   it('shows a Work-only model only in Agent pickers and a shared model everywhere', async () => {
     const workOnly = cloud('work-only')
     const shared = cloud('shared')
