@@ -28,6 +28,7 @@ import { claudeCodeAdapter } from './claudeCode'
 import { codexAdapter } from './codex'
 import { opencodeAdapter } from './opencode'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
+import { workbuddyAdapter } from './workbuddy'
 
 interface Prepared {
   item: ImportPreviewItem
@@ -65,22 +66,32 @@ export class ConversationImportService extends BaseService {
     this.scans.delete(owner)
   }
   async discover(owner: string, source: HistorySource, requestedRoot?: string) {
-    if (source !== 'claude-code' && source !== 'codex' && source !== 'opencode') throw new Error('unsupported_source')
+    if (source !== 'claude-code' && source !== 'codex' && source !== 'opencode' && source !== 'workbuddy')
+      throw new Error('unsupported_source')
     this.cancel(owner)
     const root = await realpath(
       requestedRoot ??
         application.getPath(
-          source === 'opencode'
-            ? 'external.opencode.data'
-            : source === 'codex'
-              ? 'external.codex.home'
-              : 'external.claude.projects'
+          source === 'workbuddy'
+            ? 'external.workbuddy.home'
+            : source === 'opencode'
+              ? 'external.opencode.data'
+              : source === 'codex'
+                ? 'external.codex.home'
+                : 'external.claude.projects'
         )
     )
     const scan: Scan = {
       id: randomUUID(),
       root,
-      adapter: source === 'opencode' ? opencodeAdapter : source === 'codex' ? codexAdapter : claudeCodeAdapter,
+      adapter:
+        source === 'workbuddy'
+          ? workbuddyAdapter
+          : source === 'opencode'
+            ? opencodeAdapter
+            : source === 'codex'
+              ? codexAdapter
+              : claudeCodeAdapter,
       refs: new Map(),
       abort: new AbortController(),
       expiresAt: Date.now() + IMPORT_LIMITS.previewMs,

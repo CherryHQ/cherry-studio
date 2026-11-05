@@ -334,6 +334,7 @@ export function buildPathRegistry() {
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.opencode.data': path.join(process.env.XDG_DATA_HOME || path.join(sysHome, '.local', 'share'), 'opencode'),
+    'external.workbuddy.home': process.env.WORKBUDDY_CONFIG_DIR || path.join(sysHome, '.workbuddy'),
     'external.codex.home': process.env.CODEX_HOME || path.join(sysHome, '.codex'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.claude.projects': path.join(process.env.CLAUDE_CONFIG_DIR || path.join(sysHome, '.claude'), 'projects'),
