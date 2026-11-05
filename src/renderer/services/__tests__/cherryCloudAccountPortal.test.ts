@@ -39,13 +39,13 @@ describe('openCherryCloudAccountPortal', () => {
 
   it('opens the global-edition FAQ on the same origin as the portal', async () => {
     vi.stubGlobal('__APP_EDITION__', 'global')
-    useAccountOrigin('https://accounts.cherryai.com.cn')
+    useAccountOrigin('https://cloud.cherryai.com.cn')
 
     await openCherryCloudFaq()
 
     expect(request).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://accounts.cherryai.com.cn/account/faq'
+      'https://cloud.cherryai.com.cn/account/faq'
     )
   })
 })

@@ -95,7 +95,7 @@ describe('SubscriptionSettings', () => {
     async (_state, status) => {
       session.status = status
       requestMock.mockImplementation((route: string) => {
-        if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://accounts.cherryai.com.cn')
+        if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
         if (route === 'cherry_cloud.account_plans.get') {
           return Promise.resolve({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] })
         }
@@ -107,7 +107,7 @@ describe('SubscriptionSettings', () => {
 
       expect(requestMock).toHaveBeenCalledWith(
         'system.shell.open_external_website',
-        'https://accounts.cherryai.com.cn/account/faq'
+        'https://cloud.cherryai.com.cn/account/faq'
       )
     }
   )
