@@ -1,10 +1,14 @@
 import { createHash } from 'node:crypto'
+import fs from 'node:fs'
 import { open } from 'node:fs/promises'
+import path from 'node:path'
 
 import { getToolName, isToolUIPart } from 'ai'
+import mime from 'mime'
 
 import { application } from '@application'
-import { modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
+import { remoteLimits } from '@cherrystudio/remote-protocol'
+import { agentModelOptionSchema, modelSummarySchema, reasoningEffortSchema } from '@cherrystudio/remote-protocol/agent'
 import type {
   AgentInteraction,
   AgentParams,
@@ -12,7 +16,9 @@ import type {
   AgentMessageListItem,
   AgentPart,
   AgentSession,
-  ContentRef
+  ContentRef,
+  WorkspaceFileChunk,
+  WorkspaceFileMetadata
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
 import type { DbOrTx } from '@data/db/types'
@@ -20,7 +26,11 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -29,6 +39,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
@@ -329,6 +340,9 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
 
 export function listAgents(cursor?: string, limit?: number) {
   const { agents } = agentService.listAgents()
+  const enabledModels = modelService.list({ enabled: true })
+  const enabledProviders = new Map(providerService.list({ enabled: true }).map((p) => [p.id, p]))
+
   return pageOf(
     agents.map((agent) => {
       const emoji = agent.configuration?.avatar?.trim() || '🤖'
@@ -336,7 +350,39 @@ export function listAgents(cursor?: string, limit?: number) {
       const named =
         identity && modelSummarySchema.safeParse({ ...identity, name: agent.modelName?.trim() || identity.name })
       const model = named?.success ? named.data : (identity ?? null)
-      return { agentId: agent.id, name: agent.name, emoji: emoji.length <= 64 ? emoji : '🤖', model }
+
+      const rawEffort = agent.configuration?.reasoning_effort ?? 'default'
+      const parsedEffort = reasoningEffortSchema.safeParse(rawEffort)
+      const reasoningEffort = parsedEffort.success ? parsedEffort.data : undefined
+
+      const caps = agent.type ? AGENT_RUNTIME_CAPABILITIES[agent.type] : undefined
+      const availableModels = enabledModels
+        .filter(
+          (m) =>
+            !isNonChatModel(m) &&
+            (!caps?.isModelCompatible || caps.isModelCompatible(enabledProviders.get(m.providerId), m))
+        )
+        .map((m) => {
+          const raw = {
+            modelId: m.apiModelId ?? parseUniqueModelId(m.id).modelId,
+            providerId: m.providerId,
+            name: m.name,
+            ...(deriveThinkingOptions(m) ? { reasoningEfforts: deriveThinkingOptions(m) } : {})
+          }
+          const parsed = agentModelOptionSchema.safeParse(raw)
+          return parsed.success ? parsed.data : undefined
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== undefined)
+        .slice(0, 512)
+
+      return {
+        agentId: agent.id,
+        name: agent.name,
+        emoji: emoji.length <= 64 ? emoji : '🤖',
+        model,
+        reasoningEffort,
+        availableModels
+      }
     }),
     cursor,
     limit
@@ -425,6 +471,131 @@ export async function readPersistedFileContent(params: AgentParams<'agent.conten
       nextOffset: String(offset + bytesRead),
       eof: offset + bytesRead === byteLength,
       sha256
+    }
+  } finally {
+    await handle.close()
+  }
+}
+
+// Enforces path containment inside the session's authorized workspace root.
+async function resolveWorkspaceFilePath(
+  sessionId: string,
+  relativePath: string
+): Promise<{
+  realTarget: string
+  stat: fs.Stats
+  relativePath: string
+  fileName: string
+}> {
+  if (!relativePath || typeof relativePath !== 'string') {
+    throw new RemoteRpcError('INVALID_ARGUMENT', 'Path is required')
+  }
+  const session = getSession(sessionId)
+  const workspaceRoot = session.workspace?.path
+  if (!workspaceRoot) {
+    throw new RemoteRpcError('FORBIDDEN', 'Session has no authorized workspace')
+  }
+
+  const root = path.resolve(workspaceRoot)
+  const target = path.resolve(root, relativePath)
+  const rel = path.relative(root, target)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new RemoteRpcError('FORBIDDEN', 'Access outside session workspace is prohibited')
+  }
+
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.stat(target)
+  } catch (error: unknown) {
+    if ((error as { code?: string })?.code === 'ENOENT') {
+      throw new RemoteRpcError('NOT_FOUND', 'Workspace file not found')
+    }
+    throw error
+  }
+
+  if (!stat.isFile()) {
+    throw new RemoteRpcError('INVALID_ARGUMENT', 'Workspace target is not a regular file')
+  }
+
+  const realRoot = await fs.promises.realpath(root).catch(() => root)
+  const realTarget = await fs.promises.realpath(target)
+  const realRel = path.relative(realRoot, realTarget)
+  if (realRel.startsWith('..') || path.isAbsolute(realRel)) {
+    throw new RemoteRpcError('FORBIDDEN', 'Access outside session workspace is prohibited')
+  }
+
+  const normalizedRel = realRel.replace(/\\/g, '/')
+  const fileName = path.basename(realTarget)
+  return { realTarget, stat, relativePath: normalizedRel, fileName }
+}
+
+export async function getWorkspaceFile(sessionId: string, relativePath: string): Promise<WorkspaceFileMetadata> {
+  const {
+    realTarget,
+    stat,
+    relativePath: normalizedPath,
+    fileName
+  } = await resolveWorkspaceFilePath(sessionId, relativePath)
+  const revision = String(Math.trunc(stat.mtimeMs))
+  const hash = createHash('sha256')
+  const stream = fs.createReadStream(realTarget)
+  for await (const chunk of stream) {
+    hash.update(chunk)
+  }
+  const sha256 = hash.digest('hex')
+  const mediaType = mime.getType(realTarget) ?? undefined
+
+  return {
+    path: normalizedPath,
+    name: fileName,
+    revision,
+    byteLength: stat.size,
+    sha256,
+    updatedAt: new Date(stat.mtimeMs).toISOString(),
+    ...(mediaType ? { mediaType } : {})
+  }
+}
+
+export async function readWorkspaceFileChunk(params: AgentParams<'agent.files.read'>): Promise<WorkspaceFileChunk> {
+  const { realTarget, stat } = await resolveWorkspaceFilePath(params.sessionId, params.path)
+  const revision = String(Math.trunc(stat.mtimeMs))
+  if (params.expectedRevision && params.expectedRevision !== revision) {
+    throw new RemoteRpcError('REVISION_EXPIRED', 'Workspace file changed since it was read')
+  }
+
+  const offset = params.offset ?? 0
+  const totalBytes = stat.size
+  if (offset > totalBytes) {
+    throw new RemoteRpcError('NOT_FOUND', 'Offset exceeds file length')
+  }
+
+  const maxSlice = Math.min(params.length ?? remoteLimits.contentBytes, remoteLimits.contentBytes)
+  const sliceLength = Math.min(maxSlice, totalBytes - offset)
+
+  if (sliceLength === 0) {
+    return {
+      revision,
+      offset,
+      totalBytes,
+      eof: true,
+      encoding: 'base64',
+      data: ''
+    }
+  }
+
+  const handle = await open(realTarget, 'r')
+  try {
+    const buffer = Buffer.alloc(sliceLength)
+    const { bytesRead } = await handle.read(buffer, 0, sliceLength, offset)
+    const data = buffer.subarray(0, bytesRead)
+    const eof = offset + bytesRead >= totalBytes
+    return {
+      revision,
+      offset,
+      totalBytes,
+      eof,
+      encoding: 'base64',
+      data: data.toString('base64')
     }
   } finally {
     await handle.close()
