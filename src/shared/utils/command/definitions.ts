@@ -51,6 +51,87 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.sidebar.open_1',
+    titleKey: 'settings.shortcuts.open_sidebar_item_1',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '1']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_2',
+    titleKey: 'settings.shortcuts.open_sidebar_item_2',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '2']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_3',
+    titleKey: 'settings.shortcuts.open_sidebar_item_3',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '3']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_4',
+    titleKey: 'settings.shortcuts.open_sidebar_item_4',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '4']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_5',
+    titleKey: 'settings.shortcuts.open_sidebar_item_5',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '5']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_6',
+    titleKey: 'settings.shortcuts.open_sidebar_item_6',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '6']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_7',
+    titleKey: 'settings.shortcuts.open_sidebar_item_7',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '7']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_8',
+    titleKey: 'settings.shortcuts.open_sidebar_item_8',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '8']
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_9',
+    titleKey: 'settings.shortcuts.open_sidebar_item_9',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '9']
+    }
+  }),
+  defineCommand({
     id: 'app.settings.open',
     titleKey: 'settings.shortcuts.show_settings',
     categoryKey: 'settings.shortcuts.general',
