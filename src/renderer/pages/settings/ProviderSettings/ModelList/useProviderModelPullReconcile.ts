@@ -79,7 +79,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
   // Natively reported reasoning controls (Ollama `/api/show`) from the latest fetch, keyed by
   // unique model id, so both adding and refreshing rows can persist them.
-  const [nativeReasoningById, setNativeReasoningById] = useState<Map<string, ReasoningConfig>>(new Map())
+  const [nativeReasoningById, setNativeReasoningById] = useState<Map<UniqueModelId, ReasoningConfig>>(new Map())
   const loadModelsSequenceRef = useRef(0)
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')

@@ -9,9 +9,11 @@ import {
   type EndpointType as RuntimeEndpointType,
   type ListedModels,
   type Model,
+  type ModelCapability,
   MODEL_CAPABILITY,
   parseUniqueModelId,
-  type ReasoningConfig
+  type ReasoningConfig,
+  type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
@@ -189,7 +191,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  */
 export async function fetchResolvedProviderModels(providerId: string): Promise<
   ListedModels<Model> & {
-    discoveredReasoning?: Array<{ id: string; reasoning: ReasoningConfig; capabilities: string[] }>
+    discoveredReasoning?: Array<{ id: UniqueModelId; reasoning: ReasoningConfig; capabilities: ModelCapability[] }>
   }
 > {
   try {
@@ -207,7 +209,7 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<
     const discoveredReasoning = fetched
       .filter((model) => model.reasoning !== undefined)
       .map((model) => ({
-        id: model.id as string,
+        id: model.id as UniqueModelId,
         reasoning: model.reasoning as ReasoningConfig,
         capabilities: model.capabilities ?? []
       }))
