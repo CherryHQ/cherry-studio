@@ -2515,6 +2515,82 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['uninstall', 'fd@10.0.0'])
     })
 
+    it('restores the previous selection when a failed update is discarded after mise saved it', async () => {
+      const service = makeService()
+      // Bundled mise saves the new global selection before rebuilding shims, so
+      // a shim-rebuild failure leaves the config selecting the failed version.
+      const installed = new Set(['10.0.0'])
+      let selection: string | null = '10.0.0'
+      const lsJson = () => {
+        const entries = [...installed].map((version) => ({
+          version,
+          ...(selection === version ? { requested_version: selection } : {}),
+          installed: true,
+          active: selection === version
+        }))
+        if (selection && !installed.has(selection)) {
+          entries.push({ version: selection, requested_version: selection, installed: false, active: false } as any)
+        }
+        return JSON.stringify({ fd: entries })
+      }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: lsJson(), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'uninstall') {
+          installed.delete(args[1].split('@')[1])
+          return { stdout: '', stderr: '' }
+        }
+        if (args[0] === 'use' && args.includes('fd@11.0.0')) {
+          // Late failure: install + config save succeeded, shim rebuild failed.
+          installed.add('11.0.0')
+          selection = '11.0.0'
+          throw new Error('failed to rebuild shims')
+        }
+        if (args[0] === 'use') {
+          selection = args[args.length - 1].split('@')[1]
+          return { stdout: '', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'fd', targetVersion: '11.0.0' })).rejects.toThrow(
+        'failed to rebuild shims'
+      )
+
+      const calls = miseArgs()
+      expect(calls).toContainEqual(['uninstall', 'fd@11.0.0'])
+      // The previously working install must become the selection again;
+      // otherwise the config keeps selecting the discarded version and the old
+      // CLI stays on disk but unresolvable through `mise which`.
+      expect(calls).toContainEqual(['use', '-g', 'fd@10.0.0'])
+      expect(calls.findIndex((args: string[]) => args[0] === 'uninstall')).toBeLessThan(
+        calls.findIndex((args: string[]) => args[0] === 'use' && args.includes('fd@10.0.0'))
+      )
+      expect(selection).toBe('10.0.0')
+      expect(installed.has('10.0.0')).toBe(true)
+    })
+
+    it('leaves the selection untouched when a failed update never moved it', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return {
+            stdout: JSON.stringify({
+              fd: [{ version: '10.0.0', requested_version: '10.0.0', installed: true, active: true }]
+            }),
+            stderr: ''
+          }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        // Early failure: the download died before mise saved any selection.
+        if (args[0] === 'use') throw new Error('network is down')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'fd', targetVersion: '11.0.0' })).rejects.toThrow('network is down')
+
+      expect(miseArgs().filter((args: string[]) => args[0] === 'use')).toEqual([['use', '-g', 'fd@11.0.0']])
+    })
+
     it('skips the managed install when an absent fixed tool is already on the system PATH', async () => {
       const service = makeService()
       vi.mocked(findCommandInShellEnv).mockResolvedValueOnce('/usr/local/bin/fd')

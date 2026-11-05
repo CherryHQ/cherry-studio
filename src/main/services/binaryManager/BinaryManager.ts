@@ -301,6 +301,14 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
 // Re-exported for main-process callers and tests.
 export { validateBinaryToolDefinition }
 
+// Snapshot of a tool's mise state before an install attempt: the installed
+// versions, and the config selections (requested spec -> resolved version) so
+// a failed update can be rolled back onto the previously selected install.
+interface InstallState {
+  versions: Set<string>
+  selections: Map<string, string>
+}
+
 @Injectable('BinaryManager')
 @ServicePhase(Phase.Background)
 export class BinaryManager extends BaseService {
@@ -1598,7 +1606,7 @@ export class BinaryManager extends BaseService {
         await this.enforcePipDependencies(definition, definition.pipDependencies)
       }
     } else {
-      const versionsBefore = await this.listInstalledVersions(definition.tool)
+      const stateBefore = await this.snapshotInstallState(definition.tool)
       try {
         await this.runMise(useArgs, {
           timeoutMs: shellOutNpm ? MISE_NPM_SHELL_OUT_INSTALL_TIMEOUT_MS : MISE_INSTALL_TIMEOUT_MS,
@@ -1607,7 +1615,7 @@ export class BinaryManager extends BaseService {
           prependPath: runtimeBin
         })
       } catch (error) {
-        await this.discardPartialInstall(definition.tool, versionsBefore)
+        await this.discardPartialInstall(definition.tool, stateBefore)
         throw error
       }
     }
@@ -1615,11 +1623,30 @@ export class BinaryManager extends BaseService {
     return this.getInstalledVersion(definition.tool, requested)
   }
 
-  private async listInstalledVersions(tool: string): Promise<Set<string> | undefined> {
+  private async snapshotInstallState(tool: string): Promise<InstallState | undefined> {
     try {
       const { stdout } = await this.runMise(['ls', '--json', tool])
-      const entries = Object.values(JSON.parse(stdout) as Record<string, Array<{ version?: string }>>).flat()
-      return new Set(entries.flatMap((entry) => (entry.version ? [entry.version] : [])))
+      const entries = Object.values(
+        JSON.parse(stdout) as Record<
+          string,
+          Array<{ version?: string; requested_version?: string; installed?: boolean }>
+        >
+      ).flat()
+      const versions = new Set(
+        entries.flatMap((entry) => (entry.version && entry.installed !== false ? [entry.version] : []))
+      )
+      // Selections keyed by requested spec, valued by the resolved installed
+      // version: restoring the resolved version re-pins the previous selection
+      // without re-resolving a fuzzy request (e.g. `latest`) onto the version
+      // being discarded.
+      const selections = new Map(
+        entries.flatMap((entry) =>
+          entry.requested_version && entry.version && entry.installed !== false
+            ? [[entry.requested_version, entry.version] as const]
+            : []
+        )
+      )
+      return { versions, selections }
     } catch {
       return undefined
     }
@@ -1630,13 +1657,21 @@ export class BinaryManager extends BaseService {
   // absent before the attempt are removed: `requested` may be `latest`, which
   // `mise uninstall` resolves against installed versions and would hit the
   // previously working one. Without a pre-install snapshot, remove nothing.
-  private async discardPartialInstall(tool: string, versionsBefore: Set<string> | undefined): Promise<void> {
-    if (!versionsBefore) return
+  private async discardPartialInstall(tool: string, stateBefore: InstallState | undefined): Promise<void> {
+    if (!stateBefore) return
     try {
-      const versionsAfter = await this.listInstalledVersions(tool)
-      for (const version of versionsAfter ?? []) {
-        if (!versionsBefore.has(version)) await this.runMise(['uninstall', `${tool}@${version}`])
+      const stateAfter = await this.snapshotInstallState(tool)
+      for (const version of stateAfter?.versions ?? []) {
+        if (!stateBefore.versions.has(version)) await this.runMise(['uninstall', `${tool}@${version}`])
       }
+      // Bundled mise saves the new global selection before rebuilding shims, so
+      // a late failure can leave the config selecting a version this cleanup
+      // just removed; re-select the previous install or it stays on disk but
+      // becomes unresolvable through `mise which`.
+      const selectionsToRestore = [...stateBefore.selections.entries()]
+        .filter(([spec, version]) => !stateAfter?.selections.has(spec) && stateBefore.versions.has(version))
+        .map(([, version]) => `${tool}@${version}`)
+      if (selectionsToRestore.length) await this.runMise(['use', '-g', ...selectionsToRestore])
       await this.runMise(['reshim'])
     } catch (error) {
       logger.warn('Failed to discard partial install', { tool, error: this.errorMessage(error) })
