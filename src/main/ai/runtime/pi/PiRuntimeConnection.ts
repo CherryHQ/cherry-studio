@@ -372,11 +372,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         createPiIdentityExtension(agentDataPath),
         pi.createCodemodeExtension({ models: false }),
         pi.createToolSearchExtension(),
-        createPiMcpExtension(
-          pi,
-          mcpServers,
-          application.getPath('feature.agents.pi.root', 'mcp.log'),
-          (sessionId) => (sessionId === nativeId ? undefined : sessionId)
+        createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'), (sessionId) =>
+          sessionId === nativeId ? undefined : sessionId
         )
       ],
       onEvent: (event: PiEvent) => this.handleNativeEvent(event)
@@ -432,7 +429,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(content, input.backgroundTasksNote) : content, 'reject')
+      await this.submit(
+        input,
+        input.systemReminder ? wrapSteerReminder(content, input.backgroundTasksNote) : content,
+        'reject'
+      )
     } catch (error) {
       this.sending = false
       this.failure = error

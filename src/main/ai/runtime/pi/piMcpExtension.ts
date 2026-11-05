@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import type { ExtensionFactory, McpTransportFactory } from '@earendil-works/pi-coding-agent'
+import type { ExtensionFactory, McpServerEntry, McpTransportFactory } from '@earendil-works/pi-coding-agent'
 import { InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { BRIDGE_ORIGIN_META_KEY } from '@main/ai/agentSession/bridgeOrigin'
@@ -26,15 +26,14 @@ export function createPiMcpExtension(
 ): ExtensionFactory {
   // UUID namespaces prevent display-name collisions and keep stored tool policies stable on rename.
   const runtimeServers = new Map(Object.values(servers).map((server) => [server.id ?? server.name, server]))
-  let sessionId: string | undefined
+  // Pi shares these options across sessions, so identity belongs to each session's own entries:
+  // a factory-wide cell let a surviving child stamp a later interactive session's origin.
+  const origins = new WeakMap<McpServerEntry, string>()
   return pi.createMcpExtension({
     logPath,
     loadConfig: (ctx) => {
-      // The MCP client is instantiated per Pi session (root and every child share this factory).
-      // Remember which one this instance serves so its tools/call requests can name their origin.
-      sessionId = ctx.sessionManager.getSessionId()
-      return {
-      servers: [...runtimeServers.keys()].map((name) => ({
+      const sessionId = ctx.sessionManager.getSessionId()
+      const entries = [...runtimeServers.keys()].map((name) => ({
         name,
         scope: 'extension' as const,
         source: 'Cherry Studio',
@@ -43,11 +42,12 @@ export function createPiMcpExtension(
           exposure: name === 'automation' ? ('direct' as const) : ('codemode' as const),
           timeout: MCP_FORWARDING_TIMEOUT_MS / 1000
         }
-      })),
-        errors: []
-      }
+      }))
+      for (const entry of entries) origins.set(entry, sessionId)
+      return { servers: entries, errors: [] }
     },
     createTransport: (entry) => {
+      const sessionId = origins.get(entry)
       const server = runtimeServers.get(entry.name)!
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
       return {
@@ -82,7 +82,6 @@ export function createPiMcpExtension(
     }
   })
 }
-
 
 /**
  * Stamp the calling Pi session on a `tools/call` request. Root turns carry no origin; child

@@ -4070,7 +4070,13 @@ describe('AiStreamManager', () => {
       expect(conversationCompletedEvents).toEqual([
         { topicId, turnId: previousTurnId, completedAt: expect.any(Number) }
       ])
-      expect(mgr.inspect(topicId)).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+      // Chat initialization also installs the message-projection listener, so the next turn's own
+      // listener replaces the previous turn's instead of being the only one left.
+      const inspected = mgr.inspect(topicId)
+      expect(inspected?.status).toBe('pending')
+      expect(inspected?.listenerIds).toContain(next.id)
+      expect(inspected?.listenerIds).not.toContain(`l:${topicId}`)
+      expect(inspected?.listenerIds).not.toContain(trace.id)
     })
   })
 
