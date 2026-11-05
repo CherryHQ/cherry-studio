@@ -175,6 +175,30 @@ describe('reconcile web search + reasoning effort pair (#23582)', () => {
       reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: undefined }, openAiProvider)
     ).toBeNull()
   })
+
+  it('keeps enabled web search at minimal effort when a client search route serves it', () => {
+    // `resolveWebToolRoutes` withdraws only the builtin route for the
+    // minimal-effort conflict; a ready client search provider still answers.
+    expect(
+      reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: 'minimal' }, openAiProvider, {
+        clientSearchAvailable: true
+      })
+    ).toBeNull()
+  })
+
+  it('drops the pair at minimal effort when the model cannot use client tools', () => {
+    const noClientTools: Model = { ...gpt5(), capabilities: [MODEL_CAPABILITY.REASONING] }
+    expect(
+      reconcileWebSearchForModel(
+        noClientTools,
+        { enableWebSearch: true, reasoning_effort: 'minimal' },
+        openAiProvider,
+        {
+          clientSearchAvailable: true
+        }
+      )
+    ).toEqual({ enableWebSearch: false })
+  })
 })
 
 describe('resolveModelSwitchSettings (#23582)', () => {
@@ -244,6 +268,52 @@ describe('resolveModelSwitchSettings (#23582)', () => {
     })
 
     expect(patch?.reasoning_effort).not.toBe('minimal')
+    expect(patch?.enableWebSearch).toBe(true)
+  })
+
+  it('preserves remembered search at minimal effort when a client route serves it', () => {
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: false },
+      remembered: { enableWebSearch: true, reasoning_effort: 'minimal' },
+      clientSearchAvailable: true
+    })
+
+    expect(patch?.enableWebSearch).toBe(true)
+    expect(patch?.reasoning_effort).toBe('minimal')
+  })
+
+  it('reconciles the search pair against the extraSettings effort that wins the final spread', () => {
+    // The composer bridges a pending effort mutation (set on the previous
+    // model, not yet settled) through extraSettings; it overrides the restored
+    // remembered effort in the final spread. The pair must be reconciled
+    // against that winning effort, not the remembered one.
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: false },
+      remembered: { enableWebSearch: true, reasoning_effort: 'low' },
+      extraSettings: { reasoning_effort: 'minimal' }
+    })
+
+    expect(patch?.reasoning_effort).toBe('minimal')
+    expect(patch?.enableWebSearch).toBe(false)
+  })
+
+  it('keeps restored search when extraSettings wins with a compatible effort', () => {
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: false },
+      remembered: { enableWebSearch: true, reasoning_effort: 'minimal' },
+      extraSettings: { reasoning_effort: 'low' }
+    })
+
+    expect(patch?.reasoning_effort).toBe('low')
     expect(patch?.enableWebSearch).toBe(true)
   })
 

@@ -44,6 +44,11 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'chat.context_settings.compress.enabled': true,
   'chat.context_settings.compress.model_id': null,
 
+  // Web search provider settings (generated schema defaults)
+  'chat.web_search.provider_overrides': {},
+  'chat.web_search.default_search_keywords_provider': null,
+  'chat.web_search.default_fetch_urls_provider': null,
+
   // Agent file pane settings (generated schema defaults)
   'feature.agent.file_pane.tree_position': 'left',
   'feature.agent.file_pane.auto_save': true,

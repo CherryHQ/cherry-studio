@@ -52,7 +52,11 @@ export function reconcileWebSearchForModel(
     enableWebSearch?: boolean | undefined
     reasoning_effort?: ReasoningEffortOption | undefined
   },
-  provider: Provider | undefined
+  provider: Provider | undefined,
+  options?: {
+    /** A ready client (function-tool) search provider is configured. */
+    clientSearchAvailable?: boolean
+  }
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
   if (!canModelUseAssistantWebSearch(nextModel, provider)) return { enableWebSearch: false }
@@ -60,8 +64,13 @@ export function reconcileWebSearchForModel(
   // provider's search rejects (reason 'openai-minimal-reasoning'), and the
   // composer refuses to create that pair in either direction. Reconciliation
   // must not restore it either: keep the effort, drop the search flag so the
-  // control never stays active without a route.
-  if (isBuiltinWebSearchEffortUnsupported(nextModel, provider, current.reasoning_effort)) {
+  // control never stays active without a route. The withdrawal only covers
+  // the builtin route, though — when a ready client search provider can serve
+  // the request, the pair stays usable and the flag must survive.
+  if (
+    isBuiltinWebSearchEffortUnsupported(nextModel, provider, current.reasoning_effort) &&
+    !(options?.clientSearchAvailable && isFunctionCallingModel(nextModel))
+  ) {
     return { enableWebSearch: false }
   }
   return null
@@ -89,8 +98,10 @@ export function resolveModelSwitchSettings(args: {
   currentSettings: Partial<AssistantSettings> | undefined
   remembered: ChatModelSetting | undefined
   extraSettings?: Partial<AssistantSettings>
+  /** A ready client (function-tool) search provider is configured. */
+  clientSearchAvailable?: boolean
 }): Partial<AssistantSettings> | undefined {
-  const { next, nextProvider, currentModelId, currentSettings, remembered, extraSettings } = args
+  const { next, nextProvider, currentModelId, currentSettings, remembered, extraSettings, clientSearchAvailable } = args
   // Restore the target model's remembered choices; fall back to web search
   // off and the model default effort.
   const restored: Partial<AssistantSettings> =
@@ -100,11 +111,20 @@ export function resolveModelSwitchSettings(args: {
   const baseSettings = { ...currentSettings, ...restored }
   const reasoning = reconcileReasoningEffortForModel(next, baseSettings.reasoning_effort)
   // Evaluate the search pair against the effort that will actually apply.
-  const effectiveEffort = reasoning ? reasoning.reasoning_effort : baseSettings.reasoning_effort
+  // `extraSettings` wins in the final spread below (the composer bridges a
+  // pending effort mutation through it), so its value — an explicit
+  // `undefined` included — is the one the pair must be reconciled against.
+  const effectiveEffort =
+    extraSettings && 'reasoning_effort' in extraSettings
+      ? extraSettings.reasoning_effort
+      : reasoning
+        ? reasoning.reasoning_effort
+        : baseSettings.reasoning_effort
   const webSearch = reconcileWebSearchForModel(
     next,
     { enableWebSearch: baseSettings.enableWebSearch, reasoning_effort: effectiveEffort },
-    nextProvider
+    nextProvider,
+    { clientSearchAvailable }
   )
   return extraSettings || reasoning || webSearch || next.id !== currentModelId
     ? { ...baseSettings, ...reasoning, ...webSearch, ...extraSettings }

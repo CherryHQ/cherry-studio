@@ -24,6 +24,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { resolveModelSwitchSettings } from '@renderer/utils/model'
@@ -32,6 +33,7 @@ import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
+import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -205,6 +207,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
   const [modelSettings] = usePreference('chat.model_settings')
   const { providers } = useProviders()
+  const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
   const patchAssistantRef = useRef(patchAssistant)
@@ -215,6 +218,13 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   providersRef.current = providers
   const modelSettingsRef = useRef(modelSettings)
   modelSettingsRef.current = modelSettings
+  // A ready client search provider keeps the (search on, builtin-incompatible
+  // effort) pair servable — model-switch reconciliation must not drop the
+  // flag while that route exists (mirrors `resolveWebToolRoutes`).
+  const clientSearchAvailableRef = useRef(false)
+  clientSearchAvailableRef.current = Boolean(
+    resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
+  )
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -263,7 +273,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       currentModelId: currentAssistant.modelId,
       currentSettings: currentAssistant.settings,
       remembered: modelSettingsRef.current?.[next.id],
-      extraSettings
+      extraSettings,
+      clientSearchAvailable: clientSearchAvailableRef.current
     })
     return patchAssistantRef.current(
       currentId,

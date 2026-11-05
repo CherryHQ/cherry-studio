@@ -34,9 +34,10 @@ import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
-import { useModelById } from '@renderer/hooks/useModel'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { useProviderById } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { resolveModelSwitchSettings } from '@renderer/utils/model'
@@ -56,6 +57,7 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
+import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import {
   AvatarField,
@@ -240,8 +242,24 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
-  const { model: switchTargetModel } = useModelById(values.modelId ?? undefined)
-  const { provider: switchTargetProvider } = useProviderById(switchTargetModel?.providerId)
+  // Resolve the switch target from the same cached catalog the model selector
+  // lists. A per-model query (`useModelById`) leaves a loading window after
+  // each pick where an autosave/close would commit the new modelId with the
+  // previous model's settings — and the advanced baseline never retries the
+  // restoration once the record arrives.
+  const { models: selectableModels } = useModels({ enabled: true }, { fetchEnabled: open })
+  const { providers: enabledProviders } = useProviders({ enabled: true })
+  const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const switchTargetModel = useMemo(
+    () => selectableModels.find((model) => model.id === values.modelId),
+    [selectableModels, values.modelId]
+  )
+  const switchTargetProvider = switchTargetModel
+    ? enabledProviders.find((provider) => provider.id === switchTargetModel.providerId)
+    : undefined
+  const clientSearchAvailable = Boolean(
+    resolveReadyWebSearchProvider(webSearchProviders, defaultSearchKeywordsProvider, 'searchKeywords')
+  )
   const [chatModelSettings] = usePreference('chat.model_settings')
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
@@ -317,16 +335,17 @@ function AssistantEditDialogContent({
     if (!pending) return
     // A model change also restores the target model's remembered web search /
     // reasoning effort via the same shared operation as the composer's
-    // `useAssistant.setModel`, merged into this one atomic PATCH. Skipped when
-    // the target model record is unavailable (still loading): the raw modelId
-    // change saves as before.
+    // `useAssistant.setModel`, merged into this one atomic PATCH. Skipped only
+    // when the target model is outside the selectable catalog: the raw
+    // modelId change saves as before.
     if (pending.payload.modelId != null && switchTargetModel?.id === pending.payload.modelId) {
       const switched = resolveModelSwitchSettings({
         next: switchTargetModel,
         nextProvider: switchTargetProvider,
         currentModelId: resource.modelId,
         currentSettings: { ...resource.settings, ...pending.payload.settings },
-        remembered: chatModelSettings?.[pending.payload.modelId]
+        remembered: chatModelSettings?.[pending.payload.modelId],
+        clientSearchAvailable
       })
       if (switched) {
         pending.payload.settings = {
