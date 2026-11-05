@@ -197,4 +197,81 @@ describe('provider import names', () => {
       updatedProvider: { name: 'Internal preset name' }
     })
   })
+
+  it('lets the user rename the provider ID so a colliding import becomes a separate provider', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://other.example.com' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const { result } = await showImport()
+    expect(screen.getByText(i18n.t('settings.models.provider_import_id_exists'))).toBeVisible()
+    const idInput = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_id') })
+    await user.clear(idInput)
+    await user.type(idInput, 'my-relay-2')
+    expect(screen.queryByText(i18n.t('settings.models.provider_import_id_exists'))).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: true,
+      updatedProvider: { id: 'my-relay-2', apiKey: params.apiKey, apiHost: params.baseUrl }
+    })
+  })
+
+  it('rejects invalid provider IDs', async () => {
+    const user = userEvent.setup()
+    await showImport()
+    const idInput = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_id') })
+    await user.clear(idInput)
+    await user.type(idInput, 'bad/id')
+    expect(screen.getByText(i18n.t('settings.models.provider_import_id_invalid'))).toBeVisible()
+    expect(screen.getByRole('button', { name: i18n.t('common.add') })).toBeDisabled()
+  })
+
+  it('merges into an existing provider without overwriting its endpoint unless replace is chosen', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://other.example.com' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const { result } = await showImport()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: true,
+      updatedProvider: { name: 'Saved Relay', apiHost: 'https://other.example.com' }
+    })
+
+    const second = await showImport()
+    await user.click(
+      screen.getAllByRole('radio', { name: i18n.t('settings.models.provider_import_resolution_replace') })[0]
+    )
+    await user.click(screen.getAllByRole('button', { name: i18n.t('common.add') })[0])
+    await expect(second.result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: false,
+      updatedProvider: { name: 'Relay', apiHost: params.baseUrl }
+    })
+  })
 })

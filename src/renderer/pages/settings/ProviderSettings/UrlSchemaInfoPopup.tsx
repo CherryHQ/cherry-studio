@@ -48,44 +48,64 @@ interface PopupResult {
 
 type Props = ShowParams & PopupInjectedProps<PopupResult>
 
+const PROVIDER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+type Resolution = 'merge' | 'replace'
+
+function getHost(url: string) {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
 const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, resolve }: Props) => {
   const { t } = useTranslation()
   const { providers: rawProviders } = useProviders()
   const [showFullKey, setShowFullKey] = useState(false)
   const [editedName, setEditedName] = useState<string>()
+  const [editedId, setEditedId] = useState<string>()
+  const [resolution, setResolution] = useState<Resolution>('merge')
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
 
-  const foundProvider = providers.find((p) => p.id === id)
+  const finalId = (editedId ?? id).trim()
+  const idInvalid = !finalId || (finalId !== id && !PROVIDER_ID_PATTERN.test(finalId))
+  const foundProvider = providers.find((p) => p.id === finalId)
+  const replace = foundProvider !== undefined && resolution === 'replace'
   const existingApiHost = getProviderHostTopology(foundProvider).primaryBaseUrl
   const { data: apiKeysData, isLoading: apiKeysLoading } = useQuery('/providers/:providerId/api-keys', {
-    params: { providerId: id },
+    params: { providerId: finalId },
     enabled: foundProvider !== undefined
   })
-  const baseProvider: ImportedProviderData = foundProvider
-    ? {
-        id: foundProvider.id,
-        name: foundProvider.name,
-        type: type || 'openai',
-        apiKey: '',
-        apiHost: existingApiHost
-      }
-    : {
-        id,
-        name: name || id,
-        type: type || 'openai',
-        apiKey: '',
-        apiHost: baseUrl || ''
-      }
+  const baseProvider: ImportedProviderData =
+    foundProvider && !replace
+      ? {
+          id: foundProvider.id,
+          name: foundProvider.name,
+          type: type || 'openai',
+          apiKey: '',
+          apiHost: existingApiHost
+        }
+      : {
+          id: finalId,
+          name: name || id,
+          type: type || 'openai',
+          apiKey: '',
+          apiHost: foundProvider ? existingApiHost : baseUrl || ''
+        }
 
   const canEditName = !foundProvider || !isCanonicalPresetProvider(foundProvider)
   const finalName = (editedName ?? baseProvider.name).trim()
-  const nameChanged = canEditName && finalName !== baseProvider.name
+  const nameChanged = canEditName && finalName !== (foundProvider?.name ?? baseProvider.name)
   const displayName = nameChanged ? finalName : foundProvider ? getFancyProviderName(foundProvider) : baseProvider.name
   const existingKeys = apiKeysData?.keys?.map((k) => k.key.trim()).filter(Boolean) ?? []
   const trimmedNewKey = newApiKey.trim()
   const keyAlreadyExists = existingKeys.includes(trimmedNewKey)
-  const baseUrlChanged = Boolean(baseUrl) && baseUrl !== baseProvider.apiHost
+  const baseUrlChanged = replace && Boolean(baseUrl) && baseUrl !== existingApiHost
+  const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
   const okDisabled =
+    idInvalid ||
     !finalName ||
     (foundProvider !== undefined && apiKeysLoading) ||
     (keyAlreadyExists && !baseUrlChanged && !nameChanged)
@@ -98,7 +118,6 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 
   const handleOk = () => {
     const finalApiKey = keyAlreadyExists ? '' : trimmedNewKey
-    const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
     if (!nameChanged && finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
       resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
@@ -107,14 +126,14 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 
     const updatedProvider: ImportedProviderData = {
       ...baseProvider,
-      name: canEditName ? finalName : baseProvider.name,
+      name: canEditName ? finalName : (foundProvider?.name ?? baseProvider.name),
       apiKey: finalApiKey,
       apiHost: finalApiHost
     }
     resolve({
       updatedProvider,
       isNew: !foundProvider,
-      nameOnly: Boolean(foundProvider) && keyAlreadyExists && !baseUrlChanged,
+      nameOnly: Boolean(foundProvider) && !replace,
       displayName
     })
   }
@@ -123,10 +142,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
     resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
   }
 
-  const rows = [
-    { label: t('settings.models.provider_id'), value: baseProvider.id },
-    ...(baseUrl ? [{ label: t('settings.models.base_url'), value: baseUrl }] : [])
-  ]
+  const rows = [...(baseUrl ? [{ label: t('settings.models.base_url'), value: baseUrl }] : [])]
 
   return (
     <Dialog
@@ -156,6 +172,17 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
                 readOnly={!canEditName}
               />
             </div>
+            <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-3 border-b border-border-subtle px-3 py-2.5">
+              <label htmlFor="provider-import-id" className="text-xs text-muted-foreground">
+                {t('settings.models.provider_id')}
+              </label>
+              <Input
+                id="provider-import-id"
+                value={editedId ?? id}
+                onChange={(event) => setEditedId(event.target.value)}
+                aria-invalid={idInvalid}
+              />
+            </div>
             {rows.map((row) => (
               <div
                 key={row.label}
@@ -177,6 +204,26 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
             </div>
           </div>
         </div>
+        {idInvalid && <p className="text-xs text-destructive">{t('settings.models.provider_import_id_invalid')}</p>}
+        {foundProvider && !idInvalid && (
+          <fieldset className="space-y-1.5 text-xs text-foreground">
+            <legend className="mb-1.5 text-muted-foreground">{t('settings.models.provider_import_id_exists')}</legend>
+            {(['merge', 'replace'] as const).map((value) => (
+              <label key={value} className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="provider-import-resolution"
+                  checked={resolution === value}
+                  onChange={() => setResolution(value)}
+                />
+                {t(`settings.models.provider_import_resolution_${value}`)}
+              </label>
+            ))}
+          </fieldset>
+        )}
+        <p className="text-xs text-muted-foreground">
+          {t('settings.models.provider_import_key_destination', { host: getHost(finalApiHost || baseUrl) })}
+        </p>
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
             {t('common.cancel')}
