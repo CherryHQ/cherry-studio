@@ -1482,6 +1482,80 @@ describe('deriveConnectionConfig', () => {
     expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
   })
 
+  it('flags a rebuild when the auto-compact trigger percentage changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { auto_compact_pct: 50 }
+    })
+    const lowered = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { auto_compact_pct: 80 }
+    })
+    const raised = await deriveSignature()
+
+    expect(lowered.rebuildSignature).not.toBe(raised.rebuildSignature)
+    expect(lowered.rebuildFactFingerprints.autoCompactPct).not.toBe(raised.rebuildFactFingerprints.autoCompactPct)
+  })
+
+  it('treats an unset percentage as the default and ignores the knob under an explicit env_vars override', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const unset = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { auto_compact_pct: 80 }
+    })
+    const explicitDefault = await deriveSignature()
+    // Saving the default must not rebuild a connection that was already on it.
+    expect(unset.rebuildSignature).toBe(explicitDefault.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' }, auto_compact_pct: 30 }
+    })
+    const overrideLow = await deriveSignature()
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' }, auto_compact_pct: 70 }
+    })
+    const overrideHigh = await deriveSignature()
+    // The env_vars entry wins over the knob, so a knob edit changes nothing and must not rebuild.
+    expect(overrideLow.rebuildSignature).toBe(overrideHigh.rebuildSignature)
+    // But changing the winning env entry itself still rebuilds via the envVars fact.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '65' }, auto_compact_pct: 70 }
+    })
+    const overrideEdited = await deriveSignature()
+    expect(overrideHigh.rebuildSignature).not.toBe(overrideEdited.rebuildSignature)
+  })
+
   it('does not start the gateway even when the route resolves to it', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
