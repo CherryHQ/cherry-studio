@@ -1292,7 +1292,13 @@ export class AgentSessionMessageService {
       .from(sessionMessagesTable)
       .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
-    const bindings = application.get('DbService').getDb().select().from(agentSessionContextTable).all()
+    const bindings = application
+      .get('DbService')
+      .getDb()
+      .select({ nativeThreadId: agentSessionContextTable.nativeThreadId })
+      .from(agentSessionContextTable)
+      .where(isNotNull(agentSessionContextTable.nativeThreadId))
+      .all()
     return new Set([
       ...rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])),
       ...bindings.flatMap((row) => (row.nativeThreadId ? [row.nativeThreadId] : []))
@@ -1332,7 +1338,10 @@ export class AgentSessionMessageService {
       .all()
     for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
     const bindings = db
-      .select()
+      .select({
+        sessionId: agentSessionContextTable.sessionId,
+        nativeThreadId: agentSessionContextTable.nativeThreadId
+      })
       .from(agentSessionContextTable)
       .where(inArray(agentSessionContextTable.sessionId, ownedIds))
       .all()
