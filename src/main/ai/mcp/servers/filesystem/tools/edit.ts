@@ -1,12 +1,10 @@
+import fs from 'fs/promises'
 import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { ensureDir, read, stat, writeInPlace } from '@main/utils/file'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-
-import { filesystemMutationService } from '../FilesystemMutationService'
+import { runFileMutation } from '../mutationQueue'
 import { logger, replaceWithFuzzyMatch } from '../types'
 
 // Schema definition
@@ -23,23 +21,15 @@ export const editToolDefinition = {
   inputSchema: EditToolSchema
 }
 
-async function writeEdit(validPath: AbsoluteFilePath, content: string, filePath: string): Promise<void> {
-  try {
-    await writeInPlace(validPath, content)
-  } catch (error: any) {
-    throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
-  }
-}
-
 // Handler implementation
-export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll = false } = args
+export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
 
-  return filesystemMutationService.runExclusive(filePath, baseDir, async (validPath) => {
+  return runFileMutation(filePath, baseDir, async (validPath) => {
     // Check if file exists
     try {
-      const stats = await stat(validPath)
-      if (!stats.isFile) {
+      const stats = await fs.stat(validPath)
+      if (!stats.isFile()) {
         throw new Error(`Path is not a file: ${filePath}`)
       }
     } catch (error: any) {
@@ -48,9 +38,10 @@ export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseD
         if (oldString === '') {
           // Create parent directory if needed
           const parentDir = path.dirname(validPath)
-          await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
+          await fs.mkdir(parentDir, { recursive: true })
 
-          await writeEdit(validPath, newString, filePath)
+          // Write the new content
+          await fs.writeFile(validPath, newString, 'utf-8')
 
           logger.info('File created', { path: validPath })
 
@@ -70,11 +61,11 @@ export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseD
     }
 
     // Read current content
-    const content = await read(validPath)
+    const content = await fs.readFile(validPath, 'utf-8')
 
     // Handle special case: old_string is empty (create file with content)
     if (oldString === '') {
-      await writeEdit(validPath, newString, filePath)
+      await fs.writeFile(validPath, newString, 'utf-8')
 
       logger.info('File overwritten', { path: validPath })
 
@@ -92,7 +83,8 @@ export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseD
     // Perform the replacement with fuzzy matching
     const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
 
-    await writeEdit(validPath, newContent, filePath)
+    // Write the modified content
+    await fs.writeFile(validPath, newContent, 'utf-8')
 
     logger.info('File edited', {
       path: validPath,

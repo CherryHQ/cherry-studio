@@ -62,7 +62,6 @@ export {
   download,
   ensureDir,
   exists,
-  getFileIdentity,
   hash,
   hashWithSize,
   isSameFile,
@@ -87,8 +86,7 @@ export {
   removeDir,
   shouldSilenceFsyncDirError,
   stat,
-  write,
-  writeInPlace
+  write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
 export {
@@ -99,10 +97,7 @@ export {
   isOutsidePath,
   isPathInside,
   isSameOrInside,
-  normalizePathForComparison,
-  normalizeRealpathResult,
-  resolvePath,
-  stripExtendedPathPrefix
+  resolvePath
 } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

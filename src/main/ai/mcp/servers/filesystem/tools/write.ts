@@ -1,12 +1,10 @@
+import fs from 'fs/promises'
 import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { ensureDir, stat, writeInPlace } from '@main/utils/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-
-import { filesystemMutationService } from '../FilesystemMutationService'
+import { runFileMutation } from '../mutationQueue'
 import { logger } from '../types'
 
 // Schema definition
@@ -24,33 +22,31 @@ export const writeToolDefinition = {
 // Handler implementation
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
-  return filesystemMutationService.runExclusive(filePath, baseDir, async (validPath) => {
+  return runFileMutation(filePath, baseDir, async (validPath) => {
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
     try {
-      await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
+      await fs.mkdir(parentDir, { recursive: true })
     } catch (error: any) {
       if (error.code !== 'EEXIST') {
         throw new Error(`Failed to create parent directory: ${error.message}`)
       }
     }
 
+    // Check if file exists (for logging)
     let isOverwrite = false
     try {
-      const stats = await stat(validPath)
-      if (!stats.isFile) {
-        throw new Error(`Path is not a file: ${filePath}`)
-      }
+      await fs.stat(validPath)
       isOverwrite = true
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') throw error
+    } catch {
+      // File doesn't exist, that's fine
     }
 
     // Write the file
     try {
-      await writeInPlace(validPath, args.content)
+      await fs.writeFile(validPath, args.content, 'utf-8')
     } catch (error: any) {
-      throw new Error(`Failed to write file ${filePath}: ${error.message}`)
+      throw new Error(`Failed to write file: ${error.message}`)
     }
 
     // Log the operation

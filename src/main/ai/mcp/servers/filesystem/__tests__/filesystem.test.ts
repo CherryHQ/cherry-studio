@@ -1,13 +1,7 @@
-import { execFile } from 'node:child_process'
-import * as fs from 'node:fs/promises'
-import { promisify } from 'node:util'
+import fs from 'fs/promises'
 import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('node:fs/promises', async (importOriginal) => ({
-  ...(await importOriginal<typeof fs>())
-}))
 
 import { application } from '@application'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
@@ -16,7 +10,6 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
 import { resolveFilesystemBaseDir } from '../config'
 import { createFileSystemServer } from '../server'
-import { handleDeleteTool } from '../tools/delete'
 import { handleEditTool } from '../tools/edit'
 import { handleWriteTool } from '../tools/write'
 import * as types from '../types'
@@ -434,43 +427,18 @@ describe('filesystem MCP security', () => {
     })
   })
 
-  describe('same-file mutation safety', () => {
-    it.skipIf(process.platform === 'win32')('edits a regular file through a symlink inside the workspace', async () => {
-      const workspaceRoot = await createTempDir('edit-symlink-file-root-')
-      const targetPath = path.join(workspaceRoot, 'target.txt')
-      await fs.writeFile(targetPath, 'before')
-      await fs.symlink(targetPath, path.join(workspaceRoot, 'link.txt'))
-
-      await handleEditTool({ file_path: 'link.txt', old_string: 'before', new_string: 'after' }, workspaceRoot)
-
-      await expect(fs.readFile(targetPath, 'utf-8')).resolves.toBe('after')
-    })
-
-    it.skipIf(process.platform === 'win32')('rejects editing a FIFO before reading', async () => {
-      const workspaceRoot = await createTempDir('edit-fifo-root-')
-      const fifoPath = path.join(workspaceRoot, 'pipe.fifo')
-      await promisify(execFile)('mkfifo', [fifoPath])
-
-      await expect(
-        handleEditTool({ file_path: 'pipe.fifo', old_string: 'x', new_string: 'y' }, workspaceRoot)
-      ).rejects.toThrow('Path is not a file')
-    })
-
-    it.skipIf(process.platform === 'win32')('rejects writing a FIFO before writeInPlace verification', async () => {
-      const workspaceRoot = await createTempDir('write-fifo-root-')
-      const fifoPath = path.join(workspaceRoot, 'pipe.fifo')
-      await promisify(execFile)('mkfifo', [fifoPath])
-
-      await expect(handleWriteTool({ file_path: 'pipe.fifo', content: 'payload' }, workspaceRoot)).rejects.toThrow(
-        'Path is not a file'
-      )
-    })
-
-    it('serializes concurrent edits for the same file so both changes land', async () => {
+  describe('same-file mutation serialization', () => {
+    // Regression for #20695: two `edit` calls for the same file issued in one
+    // parallel block must both land. The critical section covers the whole
+    // read-modify-write cycle; serializing only the write (or verifying with
+    // a post-write read) cannot stop a stale overwrite.
+    it('applies both parallel edits to the same file, preserving the exact final content', async () => {
       const workspaceRoot = await createTempDir('edit-serialization-root-')
       const filePath = path.join(workspaceRoot, 'recipe.py')
-      await fs.writeFile(filePath, 'value = 1\ncount = 3\n')
+      await fs.writeFile(filePath, 'value = 1\ncount = 3\n', 'utf-8')
 
+      // Delay the first edit's write: without serialization the second edit
+      // reads the pre-edit content and overwrites the first edit's change.
       const originalWriteFile = fs.writeFile.bind(fs)
       let delayedFirstWrite = false
       vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
@@ -489,251 +457,17 @@ describe('filesystem MCP security', () => {
         handleEditTool({ file_path: 'recipe.py', old_string: 'count = 3', new_string: 'count = 4' }, workspaceRoot)
       ])
 
-      const content = await fs.readFile(filePath, 'utf-8')
-      expect(content).toContain('value = 2')
-      expect(content).toContain('count = 4')
+      // Full-content comparison: `toContain` checks would still pass if both
+      // values landed but the tail gained a duplicated or garbled fragment.
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('value = 2\ncount = 4\n')
     })
 
-    it('fails write when post-write verification detects mismatched content', async () => {
-      const workspaceRoot = await createTempDir('write-verify-root-')
-      const filePath = path.join(workspaceRoot, 'verify.txt')
-      await fs.writeFile(filePath, 'before')
-
-      const originalWriteFile = fs.writeFile.bind(fs)
-      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
-        const [targetPath, content] = args
-        if (typeof targetPath === 'string' && targetPath === filePath && content === 'after') {
-          return
-        }
-        return (
-          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
-        )(...args)
-      })
-
-      await expect(handleWriteTool({ file_path: 'verify.txt', content: 'after' }, workspaceRoot)).rejects.toThrow(
-        'Post-write verification failed'
-      )
-      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('before')
-    })
-
-    it('preserves call order for dependent edits when the first validation is slower', async () => {
-      const workspaceRoot = await createTempDir('edit-ordering-root-')
-      const filePath = path.join(workspaceRoot, 'chain.txt')
-      await fs.writeFile(filePath, 'a')
-
-      const originalRealpath = fs.realpath.bind(fs)
-      let delayedFirstValidation = false
-      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
-        if (!delayedFirstValidation) {
-          delayedFirstValidation = true
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
-        return (
-          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
-        )(...args)
-      })
-
-      await Promise.all([
-        handleEditTool({ file_path: 'chain.txt', old_string: 'a', new_string: 'b' }, workspaceRoot),
-        handleEditTool({ file_path: 'chain.txt', old_string: 'b', new_string: 'c' }, workspaceRoot)
-      ])
-
-      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
-    })
-
-    it('preserves call order for dependent edits via aliased directory', async () => {
-      const workspaceRoot = await createTempDir('edit-alias-ordering-root-')
-      const realDir = path.join(workspaceRoot, 'real')
-      await fs.mkdir(realDir, { recursive: true })
-      const filePath = path.join(realDir, 'actual.txt')
-      await fs.writeFile(filePath, 'a')
-      await fs.symlink(realDir, path.join(workspaceRoot, 'link'), 'junction')
-
-      const originalRealpath = fs.realpath.bind(fs)
-      let delayedFirstValidation = false
-      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
-        if (!delayedFirstValidation) {
-          delayedFirstValidation = true
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
-        return (
-          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
-        )(...args)
-      })
-
-      await Promise.all([
-        handleEditTool({ file_path: 'link/actual.txt', old_string: 'a', new_string: 'b' }, workspaceRoot),
-        handleEditTool({ file_path: 'real/actual.txt', old_string: 'b', new_string: 'c' }, workspaceRoot)
-      ])
-
-      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
-    })
-
-    it('preserves call order for concurrent creates via aliased directory', async () => {
-      const workspaceRoot = await createTempDir('write-alias-ordering-root-')
-      const realDir = path.join(workspaceRoot, 'real')
-      await fs.mkdir(realDir, { recursive: true })
-      await fs.symlink(realDir, path.join(workspaceRoot, 'link'), 'junction')
-
-      const originalRealpath = fs.realpath.bind(fs)
-      let delayedFirstValidation = false
-      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
-        if (!delayedFirstValidation) {
-          delayedFirstValidation = true
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
-        return (
-          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
-        )(...args)
-      })
-
-      await Promise.all([
-        handleWriteTool({ file_path: 'link/created.txt', content: 'first' }, workspaceRoot),
-        handleWriteTool({ file_path: 'real/created.txt', content: 'second' }, workspaceRoot)
-      ])
-
-      await expect(fs.readFile(path.join(realDir, 'created.txt'), 'utf-8')).resolves.toBe('second')
-    })
-
-    it('serializes a create that arrives while another create is still verifying', async () => {
-      const workspaceRoot = await createTempDir('create-race-root-')
-      const filePath = path.join(workspaceRoot, 'race.txt')
-
-      let signalWriteLanded!: () => void
-      const writeLandedGate = new Promise<void>((resolve) => {
-        signalWriteLanded = resolve
-      })
-      const originalWriteFile = fs.writeFile.bind(fs)
-      let firstWrite = true
-      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
-        const result = await (
-          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
-        )(...args)
-        if (firstWrite) {
-          firstWrite = false
-          signalWriteLanded()
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
-        return result
-      })
-
-      const firstCreate = handleWriteTool({ file_path: 'race.txt', content: 'first' }, workspaceRoot)
-      await writeLandedGate
-      await handleWriteTool({ file_path: 'race.txt', content: 'second' }, workspaceRoot)
-      await firstCreate
-
-      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('second')
-    })
-
-    it('preserves call order for dependent edits via hard-link aliases', async () => {
-      const workspaceRoot = await createTempDir('edit-hardlink-ordering-root-')
-      const filePath = path.join(workspaceRoot, 'original.txt')
-      await fs.writeFile(filePath, 'a')
-      await fs.link(filePath, path.join(workspaceRoot, 'alias.txt'))
-
-      const originalRealpath = fs.realpath.bind(fs)
-      let delayedFirstValidation = false
-      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
-        if (!delayedFirstValidation) {
-          delayedFirstValidation = true
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
-        return (
-          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
-        )(...args)
-      })
-
-      await Promise.all([
-        handleEditTool({ file_path: 'original.txt', old_string: 'a', new_string: 'b' }, workspaceRoot),
-        handleEditTool({ file_path: 'alias.txt', old_string: 'b', new_string: 'c' }, workspaceRoot)
-      ])
-
-      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
-    })
-
-    it('preserves call order for three dependent edits across hard-link aliases', async () => {
-      const workspaceRoot = await createTempDir('edit-hardlink-three-op-root-')
-      const filePath = path.join(workspaceRoot, 'original.txt')
-      await fs.writeFile(filePath, 'a')
-      await fs.link(filePath, path.join(workspaceRoot, 'alias.txt'))
-
-      const originalRealpath = fs.realpath.bind(fs)
-      let delayedFirstValidation = false
-      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
-        if (!delayedFirstValidation) {
-          delayedFirstValidation = true
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
-        return (
-          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
-        )(...args)
-      })
-
-      await Promise.all([
-        handleEditTool({ file_path: 'original.txt', old_string: 'a', new_string: 'b' }, workspaceRoot),
-        handleEditTool({ file_path: 'original.txt', old_string: 'b', new_string: 'c' }, workspaceRoot),
-        handleEditTool({ file_path: 'alias.txt', old_string: 'c', new_string: 'd' }, workspaceRoot)
-      ])
-
-      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('d')
-    })
-
-    it('serializes delete with an in-flight edit on the same path', async () => {
-      const workspaceRoot = await createTempDir('delete-serialization-root-')
+    it('serializes a write against an in-flight edit on the same path', async () => {
+      const workspaceRoot = await createTempDir('write-edit-serialization-root-')
       const filePath = path.join(workspaceRoot, 'target.txt')
-      await fs.writeFile(filePath, 'original')
+      await fs.writeFile(filePath, 'original', 'utf-8')
 
-      let releaseEditWrite!: () => void
-      const editWriteGate = new Promise<void>((resolve) => {
-        releaseEditWrite = resolve
-      })
-      let editWriteStarted!: () => void
-      const editWriteStartedGate = new Promise<void>((resolve) => {
-        editWriteStarted = resolve
-      })
-      const originalWriteFile = fs.writeFile.bind(fs)
-      let editWritesSeen = 0
-      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
-        const [targetPath] = args
-        if (typeof targetPath === 'string' && targetPath === filePath) {
-          editWritesSeen += 1
-          if (editWritesSeen === 1) {
-            editWriteStarted()
-            await editWriteGate
-          }
-        }
-        return (
-          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
-        )(...args)
-      })
-
-      const editPromise = handleEditTool(
-        { file_path: 'target.txt', old_string: 'original', new_string: 'edited' },
-        workspaceRoot
-      )
-      await editWriteStartedGate
-
-      let deleteFinished = false
-      const deletePromise = handleDeleteTool({ path: 'target.txt' }, workspaceRoot).then((result) => {
-        deleteFinished = true
-        return result
-      })
-
-      await new Promise((resolve) => setTimeout(resolve, 30))
-      expect(deleteFinished).toBe(false)
-
-      releaseEditWrite()
-      await Promise.all([editPromise, deletePromise])
-      await expect(fs.stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' })
-    })
-
-    it('serializes recursive directory delete with a descendant edit', async () => {
-      const workspaceRoot = await createTempDir('delete-recursive-serialization-root-')
-      const dirPath = path.join(workspaceRoot, 'dir')
-      await fs.mkdir(dirPath, { recursive: true })
-      const filePath = path.join(dirPath, 'child.txt')
-      await fs.writeFile(filePath, 'original')
-
+      // Hold the edit's write open; the queued write must wait for it.
       let releaseEditWrite!: () => void
       const editWriteGate = new Promise<void>((resolve) => {
         releaseEditWrite = resolve
@@ -755,75 +489,73 @@ describe('filesystem MCP security', () => {
       })
 
       const editPromise = handleEditTool(
-        { file_path: 'dir/child.txt', old_string: 'original', new_string: 'edited' },
+        { file_path: 'target.txt', old_string: 'original', new_string: 'edited' },
         workspaceRoot
       )
       await editWriteStartedGate
 
-      let deleteFinished = false
-      const deletePromise = handleDeleteTool({ path: 'dir', recursive: true }, workspaceRoot).then((result) => {
-        deleteFinished = true
-        return result
-      })
-
-      await new Promise((resolve) => setTimeout(resolve, 30))
-      expect(deleteFinished).toBe(false)
-
-      releaseEditWrite()
-      await Promise.all([editPromise, deletePromise])
-      await expect(fs.stat(dirPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    })
-
-    it('serializes a descendant edit that arrives during a recursive delete', async () => {
-      const workspaceRoot = await createTempDir('delete-recursive-descendant-root-')
-      const dirPath = path.join(workspaceRoot, 'dir')
-      await fs.mkdir(dirPath, { recursive: true })
-      const filePath = path.join(dirPath, 'child.txt')
-      await fs.writeFile(filePath, 'original')
-
-      let releaseDelete!: () => void
-      const deleteGate = new Promise<void>((resolve) => {
-        releaseDelete = resolve
-      })
-      let deleteStarted!: () => void
-      const deleteStartedGate = new Promise<void>((resolve) => {
-        deleteStarted = resolve
-      })
-      const originalRm = fs.rm.bind(fs)
-      vi.spyOn(fs, 'rm').mockImplementation(async (...args: Parameters<typeof fs.rm>) => {
-        const [targetPath] = args
-        if (typeof targetPath === 'string' && targetPath === dirPath) {
-          deleteStarted()
-          await deleteGate
-        }
-        return originalRm(...args)
-      })
-
-      const deletePromise = handleDeleteTool({ path: 'dir', recursive: true }, workspaceRoot)
-      await deleteStartedGate
-
-      let editSettled = false
-      const editPromise = handleEditTool(
-        { file_path: 'dir/child.txt', old_string: 'original', new_string: 'edited' },
-        workspaceRoot
-      ).then(
+      let writeSettled = false
+      const writePromise = handleWriteTool({ file_path: 'target.txt', content: 'replaced' }, workspaceRoot).then(
         (result) => {
-          editSettled = true
+          writeSettled = true
           return result
-        },
-        (error) => {
-          editSettled = true
-          throw error
         }
       )
 
       await new Promise((resolve) => setTimeout(resolve, 30))
-      expect(editSettled).toBe(false)
+      expect(writeSettled).toBe(false)
 
-      releaseDelete()
-      await deletePromise
-      await expect(editPromise).rejects.toThrow('File not found')
-      await expect(fs.stat(dirPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      releaseEditWrite()
+      await Promise.all([editPromise, writePromise])
+      // The write was called second, so its content is the complete final file.
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('replaced')
+    })
+
+    it('lets edits to different files run concurrently', async () => {
+      const workspaceRoot = await createTempDir('edit-concurrency-root-')
+      const fileA = path.join(workspaceRoot, 'a.txt')
+      const fileB = path.join(workspaceRoot, 'b.txt')
+      await fs.writeFile(fileA, 'a0', 'utf-8')
+      await fs.writeFile(fileB, 'b0', 'utf-8')
+
+      let releaseWriteA!: () => void
+      const writeAGate = new Promise<void>((resolve) => {
+        releaseWriteA = resolve
+      })
+      let writeAStarted!: () => void
+      const writeAStartedGate = new Promise<void>((resolve) => {
+        writeAStarted = resolve
+      })
+      const originalWriteFile = fs.writeFile.bind(fs)
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (typeof targetPath === 'string' && targetPath === fileA) {
+          writeAStarted()
+          await writeAGate
+        }
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+      })
+
+      const editA = handleEditTool({ file_path: 'a.txt', old_string: 'a0', new_string: 'a1' }, workspaceRoot)
+      await writeAStartedGate
+
+      let editBSettled = false
+      const editB = handleEditTool({ file_path: 'b.txt', old_string: 'b0', new_string: 'b1' }, workspaceRoot).then(
+        (result) => {
+          editBSettled = true
+          return result
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(editBSettled).toBe(true)
+
+      releaseWriteA()
+      await Promise.all([editA, editB])
+      await expect(fs.readFile(fileA, 'utf-8')).resolves.toBe('a1')
+      await expect(fs.readFile(fileB, 'utf-8')).resolves.toBe('b1')
     })
   })
 })

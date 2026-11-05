@@ -5,8 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { canonicalizePathForContainment, isOutsidePath, normalizeRealpathResult } from '@main/utils/file'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizePathForContainment, isOutsidePath } from '@main/utils/file'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 
@@ -43,7 +42,7 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<AbsoluteFilePath> {
+export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
@@ -52,15 +51,11 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
   // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  if (
-    !resolvedRoot ||
-    !resolvedPath ||
-    isOutsidePath(path.relative(normalizeRealpathResult(resolvedRoot), normalizeRealpathResult(resolvedPath)))
-  ) {
+  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
-  return AbsoluteFilePathSchema.parse(resolvedPath)
+  return resolvedPath
 }
 
 // ============================================================================
