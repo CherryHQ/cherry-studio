@@ -9,6 +9,7 @@ import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 const mocks = vi.hoisted(() => ({
+  pinTrigger: vi.fn(async () => undefined),
   turnControllerConfig: null as any,
   onBranchLiveStateChange: vi.fn(),
   refresh: vi.fn(async () => [] as CherryUIMessage[]),
@@ -38,7 +39,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => vi.fn()
+  useInvalidateCache: () => vi.fn(),
+  useMutation: () => ({ trigger: mocks.pinTrigger })
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -267,6 +269,26 @@ describe('useChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+
+  it('pins a topic when a turn continues an existing conversation', async () => {
+    render(<RuntimeHost topicId="topic-1" messages={[{ id: 'm1', role: 'user', parts: [] } as unknown as CherryUIMessage]} />)
+
+    await act(async () => {
+      await latestRuntime?.sendMessage('continue')
+    })
+
+    expect(mocks.pinTrigger).toHaveBeenCalledWith({ body: { entityType: 'topic', entityId: 'topic-1' } })
+  })
+
+  it('does not pin a brand-new empty topic on first send', async () => {
+    render(<RuntimeHost topicId="topic-1" />)
+
+    await act(async () => {
+      await latestRuntime?.sendMessage('hello')
+    })
+
+    expect(mocks.pinTrigger).not.toHaveBeenCalled()
   })
 
   it('returns the viewport to bottom-follow after opening a conversation turn', async () => {

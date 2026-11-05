@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 // eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
 import {
@@ -125,6 +125,9 @@ export function useChatRuntimeState({
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
+  const { trigger: pinTopic } = useMutation('POST', '/pins', { refresh: ['/pins'] })
+  const hasMessagesRef = useRef(false)
+  hasMessagesRef.current = messages.length > 0
   const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
   const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
@@ -512,15 +515,24 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
+        const continuesExistingTopic = hasMessagesRef.current
         const sent = await send({ text, options })
-        if (sent) scrollToBottom()
+        if (sent) {
+          scrollToBottom()
+          if (continuesExistingTopic) {
+            // POST /pins is idempotent, so an already-pinned topic is left untouched.
+            void pinTopic({ body: { entityType: 'topic', entityId: topic.id } }).catch((err) =>
+              logger.warn('failed to auto-pin continued topic', err as Error)
+            )
+          }
+        }
         return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [scrollToBottom, send]
+    [pinTopic, scrollToBottom, send, topic.id]
   )
 
   return {
