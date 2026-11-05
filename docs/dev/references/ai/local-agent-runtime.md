@@ -201,12 +201,16 @@ without case sensitivity, including native configuration-directory overrides.
 
 New Agent Services installations, upgrades and lazy terminal installations use the
 system installer shared with Agent Services: global npm packages, `uv tool install`
-for Python tools, and the official system installer for the Antigravity CLI.
+for Python tools, and official system installers for Antigravity and Hermes.
 ACP-only distributions still use registry recipes and user-directory binary
 installation. Package managers redirected into Cherry-managed directories are
 rejected. Existing mise installations remain discoverable and removable; no
-new Agent Services CLI is installed through mise. Hermes reuses its native Python
-installation recipe, including WebUI dependencies, without requiring a registry entry.
+new Agent Services CLI is installed through mise. Hermes uses the official POSIX or
+PowerShell source installer in noninteractive mode, without requiring a registry entry
+or a preinstalled Python, uv, Node.js or npm. The installer prepares its dependencies;
+existing Hermes installations are reused. Source-install upgrades use `hermes update`,
+not PyPI package versions. Only verified legacy uv/mise installations support automatic
+removal; source installations require manual removal to preserve their shared user data.
 Kiro and Trae use their official installers on supported platforms; Vibe uses
 `uv tool install mistral-vibe`, avoiding unsupported registry archive entries.
 Install and reuse both check separate native CLI dependencies: Pi requires `pi`,

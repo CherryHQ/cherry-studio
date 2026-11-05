@@ -302,7 +302,9 @@ export class LocalAgentInstallService extends BaseService {
       return async () => {
         if (!(await uninstallBinaryAgent(target.executable, expectedPath))) throw new Error('Installation changed')
       }
-    const recipe = await this.recipe(target)
+    // Only receipt-verified legacy uv installs are removable; source installs also contain user data.
+    const recipe =
+      target.executable === 'hermes' ? { manager: 'uv' as const, package: 'hermes-agent' } : await this.recipe(target)
     if (!recipe || recipe.manager === 'binary') return undefined
     if (recipe.manager === 'script') {
       const standalone =
@@ -439,6 +441,7 @@ export class LocalAgentInstallService extends BaseService {
 
   private async performInstall(preset: InstallTarget, targetVersion?: string): Promise<LocalAgentInstallResult> {
     const presetId = preset.id
+    if (preset.executable === 'hermes' && targetVersion) return { ok: false, reason: 'unsupported' }
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()

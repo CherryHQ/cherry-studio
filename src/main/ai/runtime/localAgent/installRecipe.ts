@@ -119,6 +119,30 @@ export function resolveCliInstallRecipe(
   platform = process.platform
 ): LocalAgentInstallRecipe | CliScriptRecipe {
   if (targetVersion && !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$/.test(targetVersion)) throw new Error('Invalid CLI version')
+  if (preset.executable === 'hermes') {
+    if (targetVersion) throw new Error('Hermes manages its own updates')
+    return platform === 'win32'
+      ? {
+          manager: 'script',
+          command: 'powershell.exe',
+          args: [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            "$ErrorActionPreference = 'Stop'; & ([scriptblock]::Create((irm https://hermes-agent.nousresearch.com/install.ps1))) -NonInteractive; if ($LASTEXITCODE) { exit $LASTEXITCODE }"
+          ]
+        }
+      : {
+          manager: 'script',
+          command: 'bash',
+          args: [
+            '-o',
+            'pipefail',
+            '-c',
+            'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive'
+          ]
+        }
+  }
   if (preset.install === 'aqua') {
     if (targetVersion) throw new Error('Antigravity manages its own updates')
     return platform === 'win32'

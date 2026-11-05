@@ -130,6 +130,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'hermes',
     skillFolderName: 'code-mate-hermes',
     packageName: 'hermes-agent',
+    // Legacy managed-install identity; new system installs use the official source installer.
     install: 'pipx',
     pipxExtras: ['web']
   }),

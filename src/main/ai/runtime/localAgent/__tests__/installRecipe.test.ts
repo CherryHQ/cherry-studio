@@ -84,16 +84,30 @@ describe('system agent install recipes', () => {
     expect(resolveInstallRecipe('codex', undefined)).toMatchObject({ package: '@openai/codex' })
   })
 
-  it('keeps native Python extras and uses platform-specific official Antigravity installers', () => {
-    expect(resolveInstallRecipe('hermes', undefined)).toEqual({
-      manager: 'uv',
-      package: 'hermes-agent[web]',
-      args: ['tool', 'install', '--upgrade', 'hermes-agent[web]']
-    })
-    expect(resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.hermes!, '0.19.0')).toMatchObject({
-      manager: 'uv',
-      args: ['tool', 'install', '--upgrade', 'hermes-agent[web]==0.19.0']
-    })
+  it.each(['darwin', 'linux', 'win32'] as const)(
+    'installs Hermes with its official noninteractive bootstrap on %s',
+    (platform) => {
+      const recipe = resolveInstallRecipe('hermes', undefined, platform)
+      const command =
+        platform === 'win32'
+          ? "$ErrorActionPreference = 'Stop'; & ([scriptblock]::Create((irm https://hermes-agent.nousresearch.com/install.ps1))) -NonInteractive; if ($LASTEXITCODE) { exit $LASTEXITCODE }"
+          : 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive'
+      expect(recipe).toEqual({
+        manager: 'script',
+        command: platform === 'win32' ? 'powershell.exe' : 'bash',
+        args:
+          platform === 'win32'
+            ? ['-NoProfile', '-NonInteractive', '-Command', command]
+            : ['-o', 'pipefail', '-c', command]
+      })
+      expect(resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.hermes!, undefined, platform)).toEqual(recipe)
+      expect(() => resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.hermes!, '0.19.0', platform)).toThrow(
+        'Hermes manages its own updates'
+      )
+    }
+  )
+
+  it('uses platform-specific official Antigravity installers', () => {
     const unix = resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.agy!, undefined, 'darwin')
     const windows = resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.agy!, undefined, 'win32')
     expect(unix).toMatchObject({ manager: 'script', command: 'bash' })

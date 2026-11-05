@@ -143,6 +143,7 @@ fs.appendFileSync(root + '/sources', (process.env.NPM_CONFIG_REGISTRY || process
 if (process.env.FAIL_MIRROR && (process.env.NPM_CONFIG_REGISTRY || process.env.UV_DEFAULT_INDEX)) process.exit(1);
 fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
 if (process.argv[2] === 'uninstall') { const pkg = process.argv[4]; if (process.env.KEEP_PACKAGE !== pkg) { const meta = JSON.parse(fs.readFileSync(process.env.INSTALL_TARGET + '/' + pkg + '/package.json')); for (const name of Object.keys(meta.bin)) fs.unlinkSync(root + '/' + name); if (process.env.KEEP_PACKAGE_FILES !== pkg) fs.rmSync(process.env.INSTALL_TARGET + '/' + pkg, {recursive:true}); } }
+else if (process.argv[2] === 'tool' && process.argv[3] === 'uninstall') { fs.unlinkSync(root + '/' + process.env.INSTALL_NAME); fs.rmSync(process.env.INSTALL_TARGET + '/' + process.argv[4], {recursive:true}); }
 else if (process.env.INSTALL_EXIT === '0') {
 const dependencies = {'bun':'bun','@ampcode/cli':'amp','@earendil-works/pi-coding-agent':'pi'};
 const dependency = process.argv.find(arg => dependencies[arg]);
@@ -342,9 +343,9 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
 
   it('falls back through Python mirrors to the original index', async () => {
     state.china = true
-    state.name = 'hermes'
+    state.name = 'vibe-acp'
     state.env = { FAIL_MIRROR: '1' }
-    expect(await new LocalAgentInstallService().installCli({ name: 'hermes' })).toMatchObject({ ok: true })
+    expect(await new LocalAgentInstallService().install('mistral-vibe')).toMatchObject({ ok: true })
     expect((await readFile(path.join(state.root, 'sources'), 'utf8')).trim().split('\n')).toEqual([
       'https://pypi.tuna.tsinghua.edu.cn/simple',
       'https://mirrors.cloud.tencent.com/pypi/simple',
@@ -352,16 +353,55 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     ])
   })
 
+  it.each(['agent', 'cli'])('installs Hermes through the official script from the %s entry', async (entry) => {
+    state.name = 'hermes'
+    const service = new LocalAgentInstallService()
+    const result = entry === 'agent' ? await service.install('hermes') : await service.installCli({ name: 'hermes' })
+    expect(result).toEqual({ ok: true, reused: false, path: path.join(state.root, 'hermes') })
+    const calls = await readFile(path.join(state.root, 'calls'), 'utf8')
+    expect(calls).toContain('https://hermes-agent.nousresearch.com/install.')
+    expect(calls).toContain(process.platform === 'win32' ? '-NonInteractive' : '--non-interactive')
+    expect(calls.trim().split('\n')).toHaveLength(1)
+    expect(calls).not.toContain('hermes-agent[web]')
+  })
+
+  it('reuses an installed Hermes CLI without running the bootstrap or changing its configuration', async () => {
+    state.name = 'hermes'
+    state.manager = ''
+    const executable = path.join(state.root, 'hermes')
+    await writeFile(executable, 'existing source launcher')
+    expect(await new LocalAgentInstallService().install('hermes')).toEqual({ ok: true, reused: true, path: executable })
+    expect(await readFile(executable, 'utf8')).toBe('existing source launcher')
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
+  it('reports Hermes bootstrap failures without claiming installation succeeded', async () => {
+    state.name = 'hermes'
+    state.exit = '1'
+    expect(await new LocalAgentInstallService().install('hermes')).toMatchObject({ ok: false, reason: 'failed' })
+    expect(fs.existsSync(path.join(state.root, 'hermes'))).toBe(false)
+  })
+
+  it.each(['agent', 'cli'])('rejects package-version upgrades for Hermes from the %s entry', async (entry) => {
+    const service = new LocalAgentInstallService()
+    const result =
+      entry === 'agent'
+        ? await service.install('hermes', '0.19.0')
+        : await service.installCli({ name: 'hermes', targetVersion: '0.19.0' })
+    expect(result).toEqual({ ok: false, reason: 'unsupported' })
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
   it.each(['env', 'file'])('preserves uv %s configuration', async (source) => {
     state.china = true
-    state.name = 'hermes'
+    state.name = 'vibe-acp'
     if (source === 'env') state.env = { UV_DEFAULT_INDEX: 'https://packages.example.com/simple' }
     else
       await writeFile(
         application.getPath('external.uv.user_config_file'),
         'index-url = "https://packages.example.com/simple"'
       )
-    expect(await new LocalAgentInstallService().installCli({ name: 'hermes' })).toMatchObject({ ok: true })
+    expect(await new LocalAgentInstallService().install('mistral-vibe')).toMatchObject({ ok: true })
     expect(await readFile(path.join(state.root, 'sources'), 'utf8')).toBe(
       source === 'env' ? 'https://packages.example.com/simple\n' : 'original\n'
     )
@@ -522,6 +562,41 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       reason: 'unsupported'
     })
     expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('manual installation')
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'still removes a receipt-verified legacy Hermes uv installation',
+    async () => {
+      state.name = 'hermes'
+      const directory = path.join(state.root, 'hermes-agent')
+      await mkdir(path.join(directory, 'bin'), { recursive: true })
+      await writeFile(path.join(directory, 'bin/hermes'), 'legacy CLI')
+      const executable = path.join(state.root, 'hermes')
+      await symlink(path.join(directory, 'bin/hermes'), executable)
+      await writeFile(
+        path.join(directory, 'uv-receipt.toml'),
+        `[tool]\nentrypoints = [{ name = "hermes", install-path = ${JSON.stringify(executable)} }]\n`
+      )
+      expect(await new LocalAgentInstallService().uninstall('hermes', executable)).toEqual({ ok: true })
+      expect(fs.existsSync(executable)).toBe(false)
+      expect(fs.existsSync(directory)).toBe(false)
+      expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe('["tool","uninstall","hermes-agent"]\n')
+    }
+  )
+
+  it('does not remove Hermes source installs or user data through the legacy package uninstaller', async () => {
+    state.name = 'hermes'
+    const executable = path.join(state.root, 'hermes')
+    const config = path.join(state.root, 'config.yaml')
+    await writeFile(executable, 'source launcher')
+    await writeFile(config, 'model: existing-model')
+    expect(await new LocalAgentInstallService().uninstall('hermes', executable)).toEqual({
+      ok: false,
+      reason: 'unsupported'
+    })
+    expect(await readFile(executable, 'utf8')).toBe('source launcher')
+    expect(await readFile(config, 'utf8')).toBe('model: existing-model')
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 
