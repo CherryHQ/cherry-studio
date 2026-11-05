@@ -11,6 +11,7 @@ import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
@@ -27,7 +28,7 @@ import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
-  quotaExhaustion: null as { isFreeModel: boolean; isSubscribed: boolean; recoversAt?: string } | null,
+  quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
   createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
@@ -869,7 +870,7 @@ describe('ChatComposer', () => {
   })
 
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
-    mocks.quotaExhaustion = { isFreeModel: true, isSubscribed: false }
+    mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -3105,7 +3106,7 @@ describe('ChatComposer', () => {
   })
 
   it('keeps save-only edits available out of quota while holding the resend', async () => {
-    mocks.quotaExhaustion = { isFreeModel: true, isSubscribed: false }
+    mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn()
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend: vi.fn() }

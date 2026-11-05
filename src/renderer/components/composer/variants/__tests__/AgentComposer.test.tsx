@@ -12,6 +12,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -39,7 +40,7 @@ import AgentComposerImpl, {
 } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
-  quotaExhaustion: null as { isFreeModel: boolean; isSubscribed: boolean; recoversAt?: string } | null,
+  quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
   screenshotEnabled: false,
   screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
@@ -958,7 +959,7 @@ describe('AgentComposer', () => {
   })
 
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
-    mocks.quotaExhaustion = { isFreeModel: true, isSubscribed: false }
+    mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
 
     render(
       <AgentComposer

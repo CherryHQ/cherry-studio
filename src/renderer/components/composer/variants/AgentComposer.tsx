@@ -538,7 +538,7 @@ const AgentComposerInner = ({
   resolvedWorkspaceWarning
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
-  const quotaExhaustion = useCherryCloudQuotaExhaustion(model)
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)

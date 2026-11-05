@@ -7,6 +7,8 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
 export interface CherryCloudQuotaExhaustion {
+  /** Out of quota, or locked: signed out, not subscribed, or not part of the subscribed plan. */
+  reason: 'quota_exhausted' | 'sign_in_required' | 'subscription_required' | 'not_in_plan'
   isFreeModel: boolean
   isSubscribed: boolean
   /** ISO time the model becomes usable again, when every blocking window reports one. */
@@ -27,19 +29,30 @@ function getRecoveryTime(plans: CherryCloudAccountPlans | undefined, cloudModelI
   return poolRecoveries.length > 0 ? new Date(Math.min(...poolRecoveries)).toISOString() : undefined
 }
 
-/** Whether the composer's Cherry Cloud model is out of quota, and what the user can do about it. */
-export function useCherryCloudQuotaExhaustion(model: Model | undefined): CherryCloudQuotaExhaustion | null {
+/** Whether the composer's Cherry Cloud model cannot be used right now, and what the user can do about it. */
+export function useCherryCloudQuotaExhaustion(
+  model: Model | undefined,
+  includeAgentOnlyModels = false
+): CherryCloudQuotaExhaustion | null {
   const isCloudModel = Boolean(model && isManagedCherryCloudModel(model.providerId))
-  const { isModelFree, isModelUnavailable } = useCherryCloudModelAvailability(isCloudModel)
-  const exhausted = Boolean(model && isCloudModel && isModelUnavailable(model))
-  const { plansQuery, activePaid } = useCherryCloudPlans(exhausted)
+  const { isModelFree, isModelLocked, isModelUnavailable } = useCherryCloudModelAvailability(isCloudModel)
+  const locked = Boolean(model && isCloudModel && isModelLocked(model, includeAgentOnlyModels))
+  const exhausted = Boolean(model && isCloudModel && !locked && isModelUnavailable(model))
+  const { session, plansQuery, activePaid } = useCherryCloudPlans(locked || exhausted)
+  const phase = session.status?.phase
 
-  return useMemo(() => {
-    if (!model || !exhausted) return null
-    return {
-      isFreeModel: isModelFree(model),
-      isSubscribed: Boolean(activePaid),
-      recoversAt: getRecoveryTime(plansQuery.data, parseUniqueModelId(model.id).modelId)
+  return useMemo<CherryCloudQuotaExhaustion | null>(() => {
+    if (!model || !(locked || exhausted)) return null
+    const base = { isFreeModel: isModelFree(model), isSubscribed: Boolean(activePaid) }
+    if (exhausted) {
+      return {
+        ...base,
+        reason: 'quota_exhausted',
+        recoversAt: getRecoveryTime(plansQuery.data, parseUniqueModelId(model.id).modelId)
+      }
     }
-  }, [activePaid, exhausted, isModelFree, model, plansQuery.data])
+    if (phase !== 'signed-in') return { ...base, reason: 'sign_in_required' }
+    // Until the plans load, offer no subscription that a paying account would not need.
+    return { ...base, reason: plansQuery.data && !activePaid ? 'subscription_required' : 'not_in_plan' }
+  }, [activePaid, exhausted, isModelFree, locked, model, phase, plansQuery.data])
 }

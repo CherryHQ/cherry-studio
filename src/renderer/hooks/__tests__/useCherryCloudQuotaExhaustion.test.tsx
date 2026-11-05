@@ -64,6 +64,18 @@ const plans: CherryCloudAccountPlans = {
   ]
 }
 
+const paidPlan = (): CherryCloudAccountPlans['entitlements'][number] => ({
+  ...plans.entitlements[0],
+  id: '33333333-3333-4333-8333-333333333333',
+  plan: {
+    ...plans.entitlements[0].plan,
+    id: '44444444-4444-4444-8444-444444444444',
+    display_name: 'Plus',
+    is_free: false
+  },
+  quota_pools: []
+})
+
 const wrapper = ({ children }: { children: ReactNode }) => (
   <SWRConfig value={{ provider: () => new Map() }}>{children}</SWRConfig>
 )
@@ -95,8 +107,44 @@ describe('useCherryCloudQuotaExhaustion', () => {
     const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel), { wrapper })
 
     await waitFor(() =>
-      expect(result.current).toEqual({ isFreeModel: true, isSubscribed: false, recoversAt: '2026-10-27T11:00:00.000Z' })
+      expect(result.current).toEqual({
+        reason: 'quota_exhausted',
+        isFreeModel: true,
+        isSubscribed: false,
+        recoversAt: '2026-10-27T11:00:00.000Z'
+      })
     )
+  })
+
+  it.each([
+    ['a signed-out account', 'signed-out', [], 'sign_in_required'],
+    ['an account without a subscription', 'signed-in', [], 'subscription_required'],
+    ['a subscription whose plan lacks the model', 'signed-in', [paidPlan()], 'not_in_plan']
+  ] as const)('blocks a model the server does not offer to %s', async (_case, phase, entitlements, reason) => {
+    const defaultRequest = request.getMockImplementation()
+    request.mockImplementation(async (route, ...args) => {
+      if (route === 'cherry_cloud.status.get') {
+        return { ok: true, data: { phase, accountId: phase === 'signed-in' ? 'account-1' : null, displayName: null } }
+      }
+      if (route === 'cherry_cloud.models.sync') {
+        return {
+          ok: true,
+          data: {
+            entitledModelIds: [],
+            freeModelIds: [],
+            availableModelIds: { agent: [], general: [] },
+            quotaExhaustedModelIds: []
+          }
+        }
+      }
+      if (route === 'cherry_cloud.account_plans.get')
+        return { ok: true, data: { ...plans, entitlements: [...entitlements] } }
+      return defaultRequest!(route, ...args)
+    })
+
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel, true), { wrapper })
+
+    await waitFor(() => expect(result.current?.reason).toBe(reason))
   })
 
   it('reports nothing for a model with quota left', async () => {
