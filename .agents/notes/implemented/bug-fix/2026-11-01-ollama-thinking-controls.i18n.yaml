@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-01-ollama-thinking-controls.md
-2026-11-01-ollama-thinking-controls.md: ccb4d762e1d49a07e420564e6a6224ed974b0df1
-2026-11-01-ollama-thinking-controls.zh.md: f3706e3837a2d7e4fafd8e43565e0d50f1a4c3e7
+2026-11-01-ollama-thinking-controls.md: 510af8e5c0ba5aa59bbc097d5c7d720d04a5cad1
+2026-11-01-ollama-thinking-controls.zh.md: 667dd4c3acf6a17b1398a4ec5b564bd8835a8d28

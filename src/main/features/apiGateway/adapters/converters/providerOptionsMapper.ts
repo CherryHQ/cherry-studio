@@ -90,21 +90,42 @@ function resolveNativeAnthropicEffort(
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
 }
 
+/**
+ * Build the Ollama `think` value strictly from the model's reported controls (#18695, #23375):
+ * a named level only when the model advertises that level (projected onto its declared
+ * vocabulary by the serializer), a boolean when the model advertises the boolean switch, and
+ * no `think` field when the accepted values are unknown so Ollama applies its own default.
+ */
 function buildOllamaThinkingOptions(
   context: ProviderReasoningContext,
   effort: GatewayReasoningEffort,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  const controls = context.invocationModel.reasoning?.controls
-  const hasEffortControl = controls?.some((control) => control.kind === 'effort') ?? false
-  const hasToggleControl = controls?.some((control) => control.kind === 'toggle') ?? false
+  const reasoning = context.invocationModel.reasoning
+  const controls = reasoning?.controls
+  // No declared controls (never discovered) means the accepted values are unknown: omit `think`.
+  if (effort === 'default' || controls === undefined) return undefined
 
-  if (effort === 'default') return undefined
+  const values = reasoning?.selectableEfforts ?? []
+  const tiers = values.filter((value) => value !== 'none' && value !== 'auto')
+  const allowsBoolean = controls.some((control) => control.kind === 'toggle') || values.includes('auto')
+  const allowsLevels = controls.some((control) => control.kind === 'effort') && tiers.length > 0
+
   if (effort === 'none') {
-    return hasEffortControl || hasToggleControl ? buildProviderOptions(context, effort, maxTokens) : undefined
+    return controls.length > 0 || values.includes('none') ? buildProviderOptions(context, 'none', maxTokens) : undefined
   }
-  if (hasEffortControl) return buildProviderOptions(context, effort, maxTokens)
-  return hasToggleControl ? buildProviderOptions(context, 'auto', maxTokens) : undefined
+  if (effort === 'auto') {
+    if (allowsBoolean) return buildProviderOptions(context, 'auto', maxTokens)
+    // Levels-only model: `think: true` may not be accepted, so fall back to the reported default
+    // level; without one, omit `think` and let Ollama apply its default.
+    const defaultTier = reasoning?.defaultEffort
+    return allowsLevels && defaultTier && tiers.includes(defaultTier)
+      ? buildProviderOptions(context, defaultTier, maxTokens)
+      : undefined
+  }
+  // A requested named level is clamped onto the advertised tiers by the reasoning serializer.
+  if (allowsLevels) return buildProviderOptions(context, effort, maxTokens)
+  return allowsBoolean ? buildProviderOptions(context, 'auto', maxTokens) : undefined
 }
 
 /** Keep Anthropic-native thinking envelopes byte-for-byte equivalent; effort arrives pre-projected. */
@@ -165,8 +186,8 @@ export function mapAnthropicThinkingToProviderOptions(
     if (config?.type === 'disabled') return buildOllamaThinkingOptions(context, 'none', maxTokens)
     if (effort != null) return buildOllamaThinkingOptions(context, effort, maxTokens)
     if (config?.type === 'enabled') {
-      const controls = context.invocationModel.reasoning?.controls
-      if (controls?.some((control) => control.kind === 'effort')) {
+      const values = context.invocationModel.reasoning?.selectableEfforts ?? []
+      if (values.some((value) => value !== 'none' && value !== 'auto')) {
         const budgetEffort =
           nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
         return buildOllamaThinkingOptions(context, budgetEffort, maxTokens)

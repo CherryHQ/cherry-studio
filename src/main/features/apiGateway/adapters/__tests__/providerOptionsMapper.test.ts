@@ -125,6 +125,25 @@ const ollamaLimitedEffortModel = model('ollama', 'limited-levels', ENDPOINT_TYPE
 
 const ollamaUnknownModel = { ...ollamaModel, reasoning: undefined } as Model
 
+/** Native `/api/show` shapes: boolean-only models report values [false, true] (#22550 approach). */
+const ollamaNativeBooleanModel = model('ollama', 'native-boolean', ENDPOINT_TYPE.OLLAMA_CHAT, {
+  selectableEfforts: ['none', 'auto'],
+  controls: [{ kind: 'effort', values: ['none', 'auto'] }]
+})
+
+/** Native levels-only model: accepts named levels but not `think: true`. */
+const ollamaNativeLevelsModel = model('ollama', 'qwen3.8:27b', ENDPOINT_TYPE.OLLAMA_CHAT, {
+  selectableEfforts: ['none', 'low', 'medium', 'xhigh'],
+  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+  defaultEffort: 'medium'
+})
+
+/** Native model that declares thinking unsupported: values [false] only. */
+const ollamaNativeNoThinkingModel = model('ollama', 'no-thinking', ENDPOINT_TYPE.OLLAMA_CHAT, {
+  selectableEfforts: [],
+  controls: []
+})
+
 describe('same-dialect lossless pass-through', () => {
   it('keeps Anthropic thinking envelopes unchanged', () => {
     const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
@@ -487,5 +506,46 @@ describe('ollama think guard (#18695)', () => {
     ).toEqual({
       ollama: { think: 'high' }
     })
+  })
+
+  it('sends boolean think to a natively boolean-only model, never a named level', () => {
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, undefined, 'high')).toEqual({
+      ollama: { think: true }
+    })
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, { type: 'disabled' })).toEqual({
+      ollama: { think: false }
+    })
+    expect(
+      mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, {
+        type: 'enabled',
+        budget_tokens: 4096
+      })
+    ).toEqual({ ollama: { think: true } })
+  })
+
+  it('clamps a requested level onto natively reported levels and never sends an unadvertised one', () => {
+    // 'high' is not advertised by this model; the serializer projects it onto the nearest
+    // advertised level (ties resolve upward).
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeLevelsModel, undefined, 'high')).toEqual({
+      ollama: { think: 'xhigh' }
+    })
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeLevelsModel, undefined, 'xhigh')).toEqual({
+      ollama: { think: 'xhigh' }
+    })
+  })
+
+  it('uses the reported default level for auto on a levels-only model instead of think:true', () => {
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeLevelsModel, undefined, 'auto')).toEqual({
+      ollama: { think: 'medium' }
+    })
+  })
+
+  it('omits think for a model that natively declares thinking unsupported', () => {
+    expect(
+      mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeNoThinkingModel, undefined, 'high')
+    ).toBeUndefined()
+    expect(
+      mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeNoThinkingModel, { type: 'disabled' })
+    ).toBeUndefined()
   })
 })

@@ -929,13 +929,16 @@ class ProviderRegistryService {
     context: ReasoningProviderContext,
     presetModel: ProtoModelConfig | null,
     registryOverride: ProtoProviderModelOverride | null,
-    fallbackModelId: string
+    fallbackModelId: string,
+    preferredEndpoint?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(context)
-    const endpointType = resolveChatEndpointType(
-      registryOverride?.endpointTypes,
-      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
-    )
+    const endpointType =
+      preferredEndpoint ??
+      resolveChatEndpointType(
+        registryOverride?.endpointTypes,
+        context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+      )
     const contract = endpointType ? registryOverride?.reasoningContracts?.[endpointType] : undefined
     const inferredControls =
       presetModel?.reasoning || contract?.support || !inferReasoningMembership(fallbackModelId)
@@ -956,13 +959,16 @@ class ProviderRegistryService {
 
   private resolveServiceTierControlForModelData(
     context: ReasoningProviderContext,
-    registryOverride: ProtoProviderModelOverride | null
+    registryOverride: ProtoProviderModelOverride | null,
+    preferredEndpoint?: EndpointType
   ): ResolvedServiceTierControl | undefined {
     const profileProvider = this.findProfileProvider(context)
-    const endpointType = resolveChatEndpointType(
-      registryOverride?.endpointTypes,
-      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
-    )
+    const endpointType =
+      preferredEndpoint ??
+      resolveChatEndpointType(
+        registryOverride?.endpointTypes,
+        context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+      )
     const endpointControl = endpointType
       ? profileProvider?.endpointConfigs?.[endpointType]?.requestControls?.serviceTier
       : undefined
@@ -1024,7 +1030,12 @@ class ProviderRegistryService {
         ? provider.endpointConfigs?.[effectiveEndpoint]?.dialect?.reasoningSummary
         : undefined
     })
-    return { ...resolved, support }
+    return {
+      ...resolved,
+      // Natively reported Ollama controls stored on the model win over registry or inferred
+      // support, so a stale locally inferred tier cannot override the model's reported controls.
+      support: resolved.format === 'ollama' && model.reasoning?.controls !== undefined ? model.reasoning : support
+    }
   }
 
   /** Resolve the main-only native service-tier mapping for one request model. */
@@ -1092,7 +1103,8 @@ class ProviderRegistryService {
   /** Resolve registry metadata from explicit provider context without querying SQLite. */
   resolveModel(
     providerContext: ReasoningProviderContext,
-    modelId: string
+    modelId: string,
+    endpointType?: EndpointType
   ): {
     providerModel?: Model
     presetModel: ProtoModelConfig | null
@@ -1128,8 +1140,8 @@ class ProviderRegistryService {
     return {
       presetModel,
       registryOverride,
-      reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId),
-      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride)
+      reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId, endpointType),
+      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride, endpointType)
     }
   }
 
