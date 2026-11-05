@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { detectDestructiveCommand } from '../destructiveCommand'
-import { splitShellSegments } from '../shellSegments'
+import { hasAmbiguousShellSyntax, splitShellSegments } from '../shellSegments'
 
 describe('detectDestructiveCommand', () => {
   it.each([
@@ -44,6 +44,8 @@ describe('detectDestructiveCommand', () => {
     'grep -rn TODO src',
     'cat package.json',
     'mkdir -p build',
+    'for service in api worker; do echo "$service"; done',
+    'case x in y) echo hi;; esac',
     'node scripts/build.mjs',
     'echo "rm is only a word here"',
     'npm run build',
@@ -186,9 +188,8 @@ it.each(['bash', 'powershell'] as const)('restores quote context through nested 
   expect(detectDestructiveCommand('echo "$( (echo "don\'t") )"; rm -rf dist', shell)).not.toBeNull()
 })
 
-it.each(['bash', 'powershell'] as const)('tolerates unbalanced parentheses in %s', (shell) => {
+it.each(['bash', 'powershell'] as const)('tolerates a top-level closing parenthesis in %s', (shell) => {
   expect(detectDestructiveCommand('echo )', shell)).toBeNull()
-  expect(detectDestructiveCommand('echo $(foo', shell)).toBeNull()
 })
 
 it('detects a destructive git command across a bash line continuation', () => {
@@ -261,4 +262,94 @@ it('still splits ordinary bash commands at operators', () => {
 
 it.each(['bash', 'powershell'] as const)('keeps quoted ampersands inside %s strings', (shell) => {
   expect(detectDestructiveCommand('echo "safe&rm -rf x"', shell)).toBeNull()
+})
+
+it.each([
+  'echo "${x:-"don\'t"}"; rm -rf dist',
+  'echo "`printf "don\'t"`"; rm -rf dist',
+  'echo "${x:-$(printf "don\'t")}"; rm -rf dist',
+  'echo "$(printf "${x:-"don\'t"}")"; rm -rf dist'
+])('detects deletion after independent expansion quoting: %s', (command) => {
+  expect(detectDestructiveCommand(command, 'bash')).toBe('file deletion (rm)')
+})
+
+it.each([
+  "cat <<EOF\nit's fine\nEOF\nrm -rf dist",
+  'echo "oops',
+  "echo 'oops",
+  'echo $(foo',
+  'echo ${foo',
+  'echo `foo',
+  'echo $(foo}',
+  'echo ${foo)',
+  'echo $("foo)',
+  'echo ${"foo}'
+])('requires approval when shell syntax is ambiguous: %s', (command) => {
+  expect(detectDestructiveCommand(command, 'bash')).toBe('unparseable shell command requires approval')
+  expect(hasAmbiguousShellSyntax(command, 'bash')).toBe(true)
+})
+
+it.each([
+  'echo )',
+  'echo }',
+  'sed -n /}/p src/app.ts',
+  'echo $(foo)',
+  'echo "safe; rm -rf x"',
+  'echo "${x:-safe}"',
+  'echo `pwd`'
+])('keeps balanced or tolerated shell input allowed: %s', (command) => {
+  expect(detectDestructiveCommand(command, 'bash')).toBeNull()
+  expect(hasAmbiguousShellSyntax(command, 'bash')).toBe(false)
+})
+
+describe.each(['bash', 'powershell'] as const)('literal braces in %s', (shell) => {
+  it.each(['echo {', 'echo }', 'echo {1..5}', 'cp file{,.bak}', 'mkdir -p dir/{a,b}', 'sed -n /}/p src/app.ts'])(
+    'allows literal braces: %s',
+    (command) => {
+      expect(detectDestructiveCommand(command, shell)).toBeNull()
+    }
+  )
+
+  it.each(['echo ${x'])('requires approval for an unclosed expansion: %s', (command) => {
+    expect(detectDestructiveCommand(command, shell)).toBe('unparseable shell command requires approval')
+  })
+})
+
+it.each(['"Remove-Item"', "'Remove-Item'", '"Remove-Item" -Recurse -Force dist', '"git" reset --hard HEAD'])(
+  'allows a PowerShell string expression without a call operator: %s',
+  (command) => {
+    expect(detectDestructiveCommand(command, 'powershell')).toBeNull()
+  }
+)
+
+it.each([
+  'Remove-Item -Recurse -Force dist',
+  "& 'Remove-Item' -Recurse -Force dist",
+  '& "Remove-Item" -Recurse -Force dist',
+  "&'Remove-Item' -Recurse -Force dist",
+  ". 'Remove-Item' -Recurse -Force dist",
+  '. "Remove-Item" -Recurse -Force dist',
+  "Write-Output ok; & 'Remove-Item' -Recurse -Force dist",
+  'Write-Output ok & "Remove-Item" -Recurse -Force dist',
+  String.raw`& 'C:\tools\Remove-Item.exe' -Recurse -Force dist`
+])('detects a quoted PowerShell command word: %s', (command) => {
+  expect(detectDestructiveCommand(command, 'powershell')).toBe('PowerShell file deletion')
+})
+
+it.each([
+  ['bash', 'if true; then rm -rf dist; fi', 'file deletion (rm)'],
+  ['powershell', '& { Remove-Item -Recurse -Force dist }', 'PowerShell file deletion'],
+  ['powershell', String.raw`& 'C:\Program Files\Git\cmd\git.exe' reset --hard HEAD`, 'destructive git operation'],
+  ['powershell', String.raw`& "C:\Program Files\Git\cmd\git.exe" reset --hard HEAD`, 'destructive git operation'],
+  ['powershell', String.raw`& 'C:\O''Brien\Program Files\Git\git.exe' reset --hard HEAD`, 'destructive git operation'],
+  ['powershell', '& C:\\Program` Files\\Git\\git.exe reset --hard HEAD', 'destructive git operation'],
+  ['bash', "'/path with spaces/rm' -rf dist", 'file deletion (rm)'],
+  ['bash', String.raw`"/path with \"quotes\"/rm" -rf dist`, 'file deletion (rm)']
+] as const)('detects %s command words behind syntax or quoting: %s', (shell, command, reason) => {
+  expect(detectDestructiveCommand(command, shell)).toBe(reason)
+})
+
+it('keeps ordinary installs out of destructive-command approval', () => {
+  expect(detectDestructiveCommand('& pip.exe install --user x', 'powershell')).toBeNull()
+  expect(detectDestructiveCommand('npm i -g x', 'bash')).toBeNull()
 })

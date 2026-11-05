@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { readdirSync, lstatSync } from 'node:fs'
+import { delimiter } from 'node:path'
 
 import type { Usage } from '@earendil-works/pi-ai'
 import type { ContextUsage, CreateAgentSessionOptions, ToolDefinition } from '@earendil-works/pi-coding-agent'
@@ -33,6 +34,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -192,7 +194,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
     const shellSelection = resolvePiShellSelection()
-    const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
+    const shellEnv = await getShellEnv()
+    const preparedPath = getPathFromEnvironment(shellEnv)
+    const loginPathPrefix = buildPiLoginPathPrefix(preparedPath)
     const additionalSkillPaths = [...initialSnapshot.additionalSkillPaths]
     const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
     const linkedChannel = initialSnapshot.linkedChannel
@@ -315,7 +319,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
           }) as ToolDefinition)
         : (pi.createPowerShellToolDefinition(workspacePath, {
-            spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+            spawnHook: (context) => ({
+              ...context,
+              env: mergePiShellExecutionEnv(
+                mergePathSuffixes(
+                  Object.fromEntries(
+                    Object.entries(context.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+                  ),
+                  (preparedPath ?? '').split(delimiter)
+                )
+              )
+            })
           }) as ToolDefinition)
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })

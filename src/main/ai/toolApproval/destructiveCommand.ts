@@ -1,4 +1,4 @@
-import { splitShellSegments } from './shellSegments'
+import { hasAmbiguousShellSyntax, splitShellSegments } from './shellSegments'
 
 /**
  * Detects shell commands whose damage is not undoable, so the `auto` permission mode can hand the
@@ -18,6 +18,10 @@ import { splitShellSegments } from './shellSegments'
 
 /** Prefixes that delegate to the real command behind them. */
 const WRAPPERS = new Set(['time', 'nohup', 'env', 'command', 'exec', 'builtin', 'xargs'])
+const RESERVED_WORDS = {
+  bash: new Set('if then else elif while until do ! { } ( )'.split(' ')),
+  powershell: new Set('{ } ( ) if else while do until'.split(' '))
+}
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish'])
 /** Service-manager subcommands that only report state (`list-units`, `is-system-running`, …). */
 const READ_ONLY_SERVICE_ARG = /(?:^|\s)(?:status|list[\w-]*|show|is-[\w-]+|cat|print|-l|--status-all)(?:\s|$)/
@@ -113,11 +117,42 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
 
 /** Resolve one pipeline stage's command word, looking through `VAR=x`, `sudo`, and wrappers. */
 function parseStage(text: string, shell: 'bash' | 'powershell'): Stage {
-  const tokens = text.trim().split(/\s+/).filter(Boolean)
+  const input = shell === 'powershell' ? text.trim().replace(/^&/, '& ') : text.trim()
+  const tokens = splitShellSegments(input, /^\s+/, shell)
+    .map((token) => {
+      let word = ''
+      let quote: "'" | '"' | undefined
+      for (let index = 0; index < token.length; index++) {
+        const char = token[index]
+        if (quote !== "'" && char === (shell === 'bash' ? '\\' : '`') && token[index + 1] !== undefined) {
+          const next = token[++index]
+          if (next !== '\n') word += next
+        } else if (shell === 'powershell' && quote === "'" && char === "'" && token[index + 1] === "'") {
+          word += "'"
+          index++
+        } else if (quote) {
+          if (char === quote) quote = undefined
+          else word += char
+        } else if (char === "'" || char === '"') {
+          quote = char
+        } else {
+          word += char
+        }
+      }
+      return { word, quoted: token.startsWith("'") || token.startsWith('"') }
+    })
+    .filter((token) => token.word)
   let elevated = false
   let index = 0
   while (index < tokens.length) {
-    const token = tokens[index]
+    if (shell === 'powershell' && tokens[index].quoted && !['&', '.'].includes(tokens[index - 1]?.word)) {
+      return { command: '', text, elevated }
+    }
+    const token = tokens[index].word
+    if (shell === 'powershell' && ['&', '.'].includes(token)) {
+      index++
+      continue
+    }
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) {
       index++
       continue
@@ -129,7 +164,7 @@ function parseStage(text: string, shell: 'bash' | 'powershell'): Stage {
       index++
       continue
     }
-    if (WRAPPERS.has(name)) {
+    if (WRAPPERS.has(name) || RESERVED_WORDS[shell].has(name)) {
       index++
       continue
     }
@@ -144,8 +179,10 @@ function parseStage(text: string, shell: 'bash' | 'powershell'): Stage {
  * attributed to a keyword in another.
  */
 export function detectDestructiveCommand(command: string, shell: 'bash' | 'powershell' = 'bash'): string | null {
+  if (hasAmbiguousShellSyntax(command, shell)) return 'unparseable shell command requires approval'
+  const separator = shell === 'powershell' ? /^(?:&&|\|\||[;\n]|(?=&))/ : /^(?:&&|\|\||[&;\n])/
   if (shell === 'powershell') {
-    for (const segment of splitShellSegments(command, /^(?:&&|\|\||[&;\n])/, shell)) {
+    for (const segment of splitShellSegments(command, separator, shell)) {
       const stages = splitShellSegments(segment, /^\|/, shell).map((stage) => parseStage(stage, shell))
       if (
         stages.some((s) =>
@@ -174,7 +211,7 @@ export function detectDestructiveCommand(command: string, shell: 'bash' | 'power
       }
     }
   }
-  for (const segment of splitShellSegments(command, /^(?:&&|\|\||[&;\n])/, shell)) {
+  for (const segment of splitShellSegments(command, separator, shell)) {
     if (!segment.trim()) continue
     const stages = splitShellSegments(segment, /^\|/, shell).map((stage) => parseStage(stage, shell))
 

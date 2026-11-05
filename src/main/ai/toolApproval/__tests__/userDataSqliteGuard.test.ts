@@ -240,6 +240,56 @@ describe('evaluateUserDataSqliteGuard', () => {
       ).resolves.toEqual(DENIAL)
     })
 
+    it('protects a parenthesised PowerShell SQLite path literal', async () => {
+      await expect(
+        evaluate({
+          runtime: 'pi',
+          toolName: 'powershell',
+          args: { command: `sqlite3 ('${databaseFile}') 'DROP TABLE message;'` }
+        })
+      ).resolves.toEqual(DENIAL)
+    })
+
+    it('protects a PowerShell SQLite path containing parentheses after --%', async () => {
+      await expect(
+        evaluate({
+          runtime: 'pi',
+          toolName: 'powershell',
+          cwd: userDataPath,
+          args: { command: 'sqlite3.exe --% Data(Dev)/cherrystudio.sqlite "DROP TABLE message;"' }
+        })
+      ).resolves.toEqual(DENIAL)
+    })
+
+    it('keeps native PowerShell arguments literal after --%', () => {
+      expect(
+        tokenizeShellCommand(
+          String.raw`sqlite3.exe --% C:\CherryData(Dev)\Data\cherrystudio.sqlite "DROP TABLE message;"`,
+          'powershell'
+        )
+      ).toEqual(['sqlite3.exe', '--%', String.raw`C:\CherryData(Dev)\Data\cherrystudio.sqlite`, 'DROP TABLE message;'])
+    })
+
+    it.each(['unquoted', 'double-quoted', 'escaped double-quoted'])(
+      'protects PowerShell SQLite paths containing spaces: %s',
+      async (spelling) => {
+        const spacedUserData = path.join(root, 'Jane Doe', 'AppData', 'Roaming', 'CherryStudio')
+        const spacedDatabase = path.join(spacedUserData, 'cherrystudio.sqlite')
+        await mkdir(spacedUserData, { recursive: true })
+        await writeFile(spacedDatabase, '')
+        vi.mocked(application.getPath).mockImplementation((key) =>
+          key === 'app.userdata' ? spacedUserData : key === 'app.database.file' ? spacedDatabase : homePath
+        )
+        const escapedPath = spacedDatabase.replaceAll(' ', '` ')
+        const argument =
+          spelling === 'unquoted' ? escapedPath : `"${spelling === 'double-quoted' ? spacedDatabase : escapedPath}"`
+
+        await expect(
+          evaluate({ runtime: 'pi', toolName: 'powershell', args: { command: `sqlite3 ${argument}` } })
+        ).resolves.toEqual(DENIAL)
+      }
+    )
+
     it('recognizes quoted paths, separators, initial-cwd relative paths, and sidecars', async () => {
       const relativeDatabase = path.relative(workspacePath, databaseFile)
       for (const command of [
@@ -331,6 +381,20 @@ describe('evaluateUserDataSqliteGuard', () => {
       expect(tokenizeShellCommand(command, 'powershell')).toEqual(['sqlite3', powershellPath])
       expect(tokenizeShellCommand(command, 'bash')).toEqual(['sqlite3', bashPath])
       expect(tokenizeShellCommand(command)).toEqual(['sqlite3', bashPath])
+    })
+
+    it.each(['unquoted', 'double-quoted'])('unescapes PowerShell backticks in %s paths', (spelling) => {
+      const target = String.raw`C:\Users\Jane Doe\AppData\Roaming\CherryStudio\cherrystudio.sqlite`
+      const escapedPath = target.replace('Jane Doe', 'Jane` Doe')
+      const argument = spelling === 'unquoted' ? escapedPath : `"${escapedPath}"`
+      expect(tokenizeShellCommand(`sqlite3 ${argument}`, 'powershell')).toEqual(['sqlite3', target])
+    })
+
+    it('keeps backticks literal in PowerShell single quotes and Bash double quotes', () => {
+      const target = String.raw`C:\Users\Jane Doe\AppData\Roaming\CherryStudio\cherrystudio.sqlite`
+      const escapedPath = target.replace('Jane Doe', 'Jane` Doe')
+      expect(tokenizeShellCommand(`sqlite3 '${escapedPath}'`, 'powershell')).toEqual(['sqlite3', escapedPath])
+      expect(tokenizeShellCommand(`sqlite3 "${escapedPath}"`, 'bash')).toEqual(['sqlite3', escapedPath])
     })
 
     it('does not strip query or fragment characters from ordinary paths', async () => {

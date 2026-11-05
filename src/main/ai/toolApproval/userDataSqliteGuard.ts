@@ -305,6 +305,7 @@ function parseShellTokens(command: string, shell: 'bash' | 'powershell' = 'bash'
   const tokens: ShellToken[] = []
   let current = ''
   let quote: '"' | "'" | undefined
+  let stopParsing = false
   let commandStart = true
   let segment = 0
   const pushCurrent = () => {
@@ -317,7 +318,17 @@ function parseShellTokens(command: string, shell: 'bash' | 'powershell' = 'bash'
 
   for (let index = 0; index < command.length; index++) {
     const character = command[index]
-    if (character === '\\' && quote !== "'") {
+    if (stopParsing) {
+      if (character === '"') quote = quote ? undefined : '"'
+      else if (/\s/.test(character) && !quote) pushCurrent()
+      else current += character
+    } else if (shell === 'powershell' && !quote && !current && /^--%(?=\s|$)/.test(command.slice(index))) {
+      stopParsing = true
+      current = '--%'
+      index += 2
+    } else if (shell === 'powershell' && character === '`' && quote !== "'" && command[index + 1]) {
+      current += command[++index]
+    } else if (character === '\\' && quote !== "'") {
       const next = command[index + 1]
       if (next === '\\' && (!current || current.endsWith('='))) {
         current += '\\\\'
@@ -336,7 +347,7 @@ function parseShellTokens(command: string, shell: 'bash' | 'powershell' = 'bash'
       else current += character
     } else if (character === '"' || character === "'") {
       quote = character
-    } else if (/\s|[;&|<>]/.test(character)) {
+    } else if (/\s|[;&|<>]/.test(character) || (shell === 'powershell' && /[()]/.test(character))) {
       pushCurrent()
       if (character === '\n' || /[;&|]/.test(character)) {
         commandStart = true
