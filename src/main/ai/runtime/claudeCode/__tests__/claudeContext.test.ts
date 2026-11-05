@@ -7,6 +7,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { application } from '@application'
 import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -16,6 +17,8 @@ import { prepareClaudeBranch, reserveClaudeBranchTx } from '../claudeContext'
 
 const dbh = setupTestDatabase()
 let sessionId: string
+const sessionContexts = () =>
+  dbh.db.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.sessionId, sessionId)).all()
 beforeEach(() => {
   const workspaceId = randomUUID()
   sessionId = randomUUID()
@@ -32,7 +35,7 @@ it('reuses a reserved Claude identity only within its captured backend', () => {
   expect(context.nativeThreadId).toBeTruthy()
   expect(prepareClaudeBranch(sessionId, '/test/claude').id).toBe(context.id)
   expect(() => prepareClaudeBranch(sessionId, '/test/another-config')).toThrow('another runtime backend')
-  expect(contexts.forSession(sessionId).map((row) => row.id)).toEqual([context.id])
+  expect(sessionContexts().map((row) => row.id)).toEqual([context.id])
   expect(
     dbh.db
       .select()
@@ -56,7 +59,7 @@ it('rolls back an edit binding with its message metadata and then captures the s
       throw new Error('Edit was cancelled')
     })
   ).toThrow('cancelled')
-  expect(contexts.forSession(sessionId).map((row) => row.id)).toEqual([original.id])
+  expect(sessionContexts().map((row) => row.id)).toEqual([original.id])
   expect(
     dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, edited.id)).get()?.data
       .nativeSessionId

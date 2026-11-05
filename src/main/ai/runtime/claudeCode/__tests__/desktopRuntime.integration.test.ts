@@ -13,6 +13,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { ClaudeThreadHandle } from '@cherrystudio/agent-runtime-claude-code'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -46,6 +47,8 @@ vi.mock('../settingsBuilder', async (original) => ({
 }))
 
 const dbh = setupTestDatabase()
+const sessionContexts = (sessionId: string) =>
+  dbh.db.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.sessionId, sessionId)).all()
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close()
@@ -723,7 +726,7 @@ it.each(['current-answer', 'history-only', 'user-only'])(
     const wire = wireProcess()
     const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
     const connection = await test.connect()
-    const context = contexts.forSession(test.sessionId).find((context) => context.nativeThreadId)!
+    const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
     if (historyOnly) {
       await connection.send(test.input('Previous input'))
       await expect.poll(() => wire.inputs.length).toBe(1)
@@ -826,7 +829,7 @@ it('publishes the native resume identity before a failed first result', async ()
   const wire = wireProcess()
   const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
   const connection = await test.connect()
-  const context = contexts.forSession(test.sessionId).find((context) => context.nativeThreadId)!
+  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
   await connection.send(test.input('First input fails'))
   await expect.poll(() => wire.inputs.length).toBe(1)
   wire.send({
