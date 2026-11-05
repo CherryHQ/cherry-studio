@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { runFileMutation } from '../mutationQueue'
+import { fileMutationService } from '../FileMutationService'
 import { logger } from '../types'
 
 // Schema definition
@@ -22,7 +22,7 @@ export const writeToolDefinition = {
 // Handler implementation
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
-  return runFileMutation(filePath, baseDir, async (validPath) => {
+  return fileMutationService.run(filePath, baseDir, async (validPath) => {
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
     try {

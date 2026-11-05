@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { runFileMutation } from '../mutationQueue'
+import { fileMutationService } from '../FileMutationService'
 import { logger, replaceWithFuzzyMatch } from '../types'
 
 // Schema definition
@@ -25,7 +25,7 @@ export const editToolDefinition = {
 export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll = false } = args
 
-  return runFileMutation(filePath, baseDir, async (validPath) => {
+  return fileMutationService.run(filePath, baseDir, async (validPath) => {
     // Check if file exists
     try {
       const stats = await fs.stat(validPath)
