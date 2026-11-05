@@ -291,6 +291,9 @@ const AgentChat = ({
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
+  // Emptiness is unknown until history settles: only a settled, non-empty conversation is
+  // established enough to warn before re-pointing it.
+  const isEstablishedConversation = isConversationHistorySettled && !isEmptyConversation
   const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
@@ -310,7 +313,7 @@ const AgentChat = ({
       // While history is still loading, emptiness is unknown: a hardcoded `hasMessages: true`
       // would reject every cross-runtime switch on a genuinely empty session. Defer to the
       // backend's authoritative check instead of guessing from the not-yet-loaded message list.
-      if (!isEmptyConversation && activeAgent?.type && isConversationHistorySettled) {
+      if (isEstablishedConversation && activeAgent?.type) {
         const cachedAgents = readAgentsCache<{ items: Pick<AgentEntity, 'id' | 'type'>[] }>('/agents', {
           limit: AGENTS_MAX_LIMIT
         })?.items
@@ -332,7 +335,7 @@ const AgentChat = ({
       }
       // Re-pointing an established conversation swaps the prompt/tools/model for
       // subsequent messages — confirm first, like mid-conversation model switches.
-      if (!isEmptyConversation && activeAgent && !skipAgentSwitchConfirmationsForAppRun) {
+      if (isEstablishedConversation && activeAgent && !skipAgentSwitchConfirmationsForAppRun) {
         setAgentSwitchTarget(nextAgentId)
         setAgentSwitchSessionId(sessionSnapshot.id)
         setSkipAgentSwitchConfirmation(false)
@@ -350,8 +353,7 @@ const AgentChat = ({
       sessionAgentChanging,
       sessionSnapshot,
       updateSession,
-      isEmptyConversation,
-      isConversationHistorySettled,
+      isEstablishedConversation,
       activeAgent,
       readAgentsCache,
       skipAgentSwitchConfirmationsForAppRun,
