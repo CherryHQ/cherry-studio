@@ -6358,7 +6358,7 @@ describe('cherry-pr-review round-11', () => {
     expect(whole.includes('MARK')).toBe(literal)
     expect(runWithSnapshot([], answer)).toBe(whole)
     expect(runWithSnapshot(Array.from(answer), answer)).toBe(whole)
-    const twos = []
+    const twos: string[] = []
     for (let j = 0; j < answer.length; j += 2) twos.push(answer.slice(j, j + 2))
     expect(runWithSnapshot(twos, answer)).toBe(whole)
     for (let cut = 0; cut <= answer.length; cut++)
