@@ -212,7 +212,8 @@ describe('classifyErrorCategory provider response protocol', () => {
     'Type validation failed:',
     "Expected 'function.name' to be a string.",
     "Expected 'id' to be a string.",
-    'Response stream ended without a finish reason.'
+    'Response stream ended without a finish reason.',
+    'Received message_start for message "msg_B" while message "msg_A" is still open.'
   ]
 
   it.each(phrases)('classifies %s as parse case-insensitively', (text) => {
@@ -241,7 +242,8 @@ describe('classifyErrorCategory provider response protocol', () => {
     'Invalid input: temperature must be positive',
     'Validation failed for request parameter',
     'Expected a function result',
-    'Streaming is not supported for this model'
+    'Streaming is not supported for this model',
+    'Received message_start for message "msg_B".'
   ])('does not broaden matching to unrelated text: %s', (text) => {
     expect(classifyErrorCategory({ text })).toBe('unknown')
   })

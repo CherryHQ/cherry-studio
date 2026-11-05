@@ -1,5 +1,6 @@
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { defaultServiceInstances } from '@test-mocks/main/application'
-import { InvalidResponseDataError, type UIMessageChunk } from 'ai'
+import { InvalidResponseDataError, ToolLoopAgent, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -117,6 +118,38 @@ function sdkErrorStream(chunks: UIMessageChunk[], error: Error) {
     steps: Promise.resolve([]),
     finishReason: Promise.resolve('error')
   }
+}
+
+function anthropicStreamAgent(secondMessageId: string) {
+  const messageStart = (id: string) => ({
+    type: 'message_start',
+    message: {
+      id,
+      model: 'claude-opus-4-6',
+      role: 'assistant',
+      usage: { input_tokens: 1, output_tokens: 0 },
+      content: [],
+      stop_reason: null
+    }
+  })
+  const events = [
+    messageStart('msg_A'),
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } },
+    messageStart(secondMessageId),
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: ' after' } },
+    { type: 'content_block_stop', index: 0 },
+    { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 2 } },
+    { type: 'message_stop' }
+  ]
+  const anthropic = createAnthropic({
+    apiKey: 'test',
+    fetch: async () =>
+      new Response(events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''), {
+        headers: { 'content-type': 'text/event-stream' }
+      })
+  })
+  return new ToolLoopAgent({ model: anthropic('claude-opus-4-6') })
 }
 
 function createManager() {
@@ -391,6 +424,131 @@ describe('chat turn integration trajectory', () => {
       expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Partial response' })])
     )
   })
+  it('localizes an overlapping Anthropic message_start and keeps only the partial response', async () => {
+    mockCreateAgent.mockResolvedValue(anthropicStreamAgent('msg_B'))
+    const manager = createManager()
+    const topicId = 'chat-integration-overlapping-start'
+    const listener = new FakeListener()
+
+    manager.send({
+      topicId,
+      models: [
+        {
+          modelId: fakeModel.id,
+          request: {
+            conversation: { id: topicId, topicId },
+            trigger: 'submit-message',
+            messageId: 'assistant-overlapping-start',
+            uniqueModelId: fakeModel.id,
+            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Reply partially' }] }]
+          }
+        }
+      ],
+      listeners: [listener]
+    })
+
+    await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+    expect(listener.doneResults).toEqual([])
+    const diagnostic = 'Received message_start for message "msg_B" while message "msg_A" is still open.'
+    expect(listener.errorResults[0].error).toMatchObject({
+      name: 'MissingFinishReasonError',
+      i18nKey: 'missing_finish_reason',
+      providerId: 'test-provider',
+      modelId: 'test-model',
+      message: diagnostic,
+      cause: `AI_InvalidResponseDataError: ${diagnostic}`
+    })
+    expect(listener.errorResults[0].finalMessage.parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'before' })])
+    )
+    expect(listener.chunks.map((chunk) => chunk.type)).not.toContain('finish')
+    expect(
+      listener.chunks
+        .filter((chunk) => chunk.type === 'text-delta')
+        .map((chunk) => chunk.delta)
+        .join('')
+    ).toBe('before')
+  })
+
+  it('completes an Anthropic stream with an equal-ID message_start', async () => {
+    mockCreateAgent.mockResolvedValue(anthropicStreamAgent('msg_A'))
+    const manager = createManager()
+    const topicId = 'chat-integration-equal-start'
+    const listener = new FakeListener()
+
+    manager.send({
+      topicId,
+      models: [
+        {
+          modelId: fakeModel.id,
+          request: {
+            conversation: { id: topicId, topicId },
+            trigger: 'submit-message',
+            messageId: 'assistant-equal-start',
+            uniqueModelId: fakeModel.id,
+            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Reply fully' }] }]
+          }
+        }
+      ],
+      listeners: [listener]
+    })
+
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+    expect(listener.errorResults).toEqual([])
+    expect(listener.doneResults[0].finalMessage.parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'before after' })])
+    )
+    expect(listener.chunks.map((chunk) => chunk.type)).toContain('finish')
+  })
+
+  it.each([
+    {
+      label: 'message_start with an unrelated diagnostic',
+      error: new InvalidResponseDataError({ data: { type: 'message_start' }, message: 'Unexpected message start.' })
+    },
+    {
+      label: 'overlapping diagnostic with different event data',
+      error: new InvalidResponseDataError({
+        data: { type: 'content_block_delta' },
+        message: 'Received message_start for message "msg_B" while message "msg_A" is still open.'
+      })
+    },
+    {
+      label: 'a plain Error with the overlapping diagnostic',
+      error: new Error('Received message_start for message "msg_B" while message "msg_A" is still open.')
+    }
+  ])('does not classify $label as a missing finish reason', async ({ error }) => {
+    mockCreateAgent.mockResolvedValue({ stream: vi.fn().mockResolvedValue(sdkErrorStream([], error)) })
+    const manager = createManager()
+    const topicId = 'chat-integration-unrelated-stream-error'
+    const listener = new FakeListener()
+
+    manager.send({
+      topicId,
+      models: [
+        {
+          modelId: fakeModel.id,
+          request: {
+            conversation: { id: topicId, topicId },
+            trigger: 'submit-message',
+            uniqueModelId: fakeModel.id,
+            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Reply' }] }]
+          }
+        }
+      ],
+      listeners: [listener]
+    })
+
+    await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+    expect(listener.doneResults).toEqual([])
+    expect(listener.errorResults[0].error).toMatchObject({ name: error.name, message: error.message })
+    expect(listener.errorResults[0].error.name).not.toBe('MissingFinishReasonError')
+    expect(listener.errorResults[0].error.i18nKey).toBeUndefined()
+  })
+
   it('keeps background streams awake until completion or cancellation without releasing sibling holds', async () => {
     const streams: ReadableStreamDefaultController<UIMessageChunk>[] = []
     mockCreateAgent.mockResolvedValue({
