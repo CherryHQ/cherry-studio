@@ -442,7 +442,9 @@ export const messagesToMarkdown = async (
 ): Promise<string> => {
   const converter = exportReasoning ? messageToMarkdownWithReasoning : messageToMarkdown
   const markdowns = await Promise.all(
-    messages.map((message) => converter(message, excludeCitations, rawContentOverrides?.get(message.id), attributeModel))
+    messages.map((message) =>
+      converter(message, excludeCitations, rawContentOverrides?.get(message.id), attributeModel)
+    )
   )
   return markdowns.join('\n---\n')
 }
