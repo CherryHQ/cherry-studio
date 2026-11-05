@@ -127,10 +127,32 @@ export function getProtectedTrashTargetReason(
     return 'a credential, configuration, or application-data directory'
   }
 
+  // A blanket `~/Library` also covers user-chosen workspaces stored below
+  // `Application Support`, so only the sensitive Library children are containers.
   const applicationDataDirectories = home
     ? [
-        ...(platform === 'win32' ? ['AppData'] : ['.config', '.local/share']),
-        ...(platform === 'darwin' ? ['Library'] : [])
+        ...(platform === 'win32'
+          ? ['AppData']
+          : [
+              '.config',
+              '.local/share',
+              ...(platform === 'darwin'
+                ? [
+                    'Library/Accounts',
+                    'Library/Application Support/CherryStudio',
+                    'Library/CloudStorage',
+                    'Library/Cookies',
+                    'Library/Keychains',
+                    'Library/LaunchAgents',
+                    'Library/LaunchDaemons',
+                    'Library/Mail',
+                    'Library/Messages',
+                    'Library/Mobile Documents',
+                    'Library/Preferences',
+                    'Library/Safari'
+                  ]
+                : [])
+            ])
       ].map((directory) => pathApi.join(home, directory))
     : []
   if (context.applicationDataDirectory) applicationDataDirectories.push(context.applicationDataDirectory)
