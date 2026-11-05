@@ -2978,5 +2978,89 @@ describe('AgentSessionMessageService', () => {
       expect(nativeRows.find((row) => row.id === NATIVE_B)?.data.nativeSessionId).toBeUndefined()
       expect(nativeRows.find((row) => row.id === NATIVE_OK)?.data.nativeSessionId).toBe('native-ok')
     })
+
+    it('blocks ancestor fallback with a branch-specific reset boundary while preserving siblings', () => {
+      const PARENT_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d060'
+      const STALE_CHILD_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d061'
+      const SIBLING_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d062'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'healthy-parent',
+        message: { id: PARENT_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: PARENT_ID,
+        runtimeResumeToken: 'stale-id',
+        message: { id: STALE_CHILD_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: PARENT_ID,
+        runtimeResumeToken: 'healthy-sibling',
+        message: { id: SIBLING_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      // Sanity: the stale child resolves to its own token before reset.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, STALE_CHILD_ID)).toBe('stale-id')
+
+      agentSessionMessageService.clearRuntimeResumeTokens(SESSION_ID, 'stale-id')
+      // Without a boundary the cleared child would fall back to the healthy
+      // ancestor — the regression this boundary fixes.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, STALE_CHILD_ID)).toBe('healthy-parent')
+
+      agentSessionMessageService.markStaleResumeResetBoundary(SESSION_ID, STALE_CHILD_ID)
+
+      // The failed branch goes fresh instead of resuming the discarded parent.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, STALE_CHILD_ID)).toBeNull()
+      expect(agentSessionMessageService.getNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBeUndefined()
+      expect(agentSessionMessageService.getPersistedNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBeUndefined()
+      // Healthy parent and sibling branches keep their identities.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, SIBLING_ID)).toBe('healthy-sibling')
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, PARENT_ID)).toBe('healthy-parent')
+    })
+
+    it('blocks native ancestor fallback with a branch-specific reset boundary', () => {
+      const PARENT_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d070'
+      const STALE_CHILD_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d071'
+      const SIBLING_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d072'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: PARENT_ID, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: PARENT_ID,
+        message: { id: STALE_CHILD_ID, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: PARENT_ID,
+        message: { id: SIBLING_ID, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      application.get('DbService').withWriteTx((tx) => {
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, PARENT_ID, 'native-healthy-parent')
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, STALE_CHILD_ID, 'native-stale')
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, SIBLING_ID, 'native-healthy-sibling')
+      })
+
+      expect(agentSessionMessageService.getPersistedNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBe('native-stale')
+
+      agentSessionMessageService.clearNativeSessionIds(SESSION_ID, 'native-stale')
+      expect(agentSessionMessageService.getPersistedNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBe(
+        'native-healthy-parent'
+      )
+
+      agentSessionMessageService.markStaleResumeResetBoundary(SESSION_ID, STALE_CHILD_ID)
+
+      expect(agentSessionMessageService.getPersistedNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBeUndefined()
+      expect(agentSessionMessageService.getNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBeUndefined()
+      expect(agentSessionMessageService.getPersistedNativeSessionId(SESSION_ID, SIBLING_ID)).toBe(
+        'native-healthy-sibling'
+      )
+      expect(agentSessionMessageService.getPersistedNativeSessionId(SESSION_ID, PARENT_ID)).toBe(
+        'native-healthy-parent'
+      )
+    })
   })
 })

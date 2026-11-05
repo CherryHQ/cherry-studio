@@ -14,7 +14,7 @@ Status: implemented
 - `TopicStreamSubscription` 的实时修复在重放窗口内镜像上述合成；必须先于实时 delta 的 start 立即以 `unknown-tool` 合成（已记录的降级视图——重载后经重放补丁恢复）。
 - 覆盖层节流 `readUIMessageStream error` 告警并标记降级 turn，但不将其判为失败；Main 侧 tee 累积的持久化仍是权威。
 - 关闭时 `closeAll` 限时 4s（`onStop` 与 `onDestroy` 均适用），关闭预算超时不再污染 `failedClosures`，在途连接以 1.5s 为限等待而非直接丢弃。
-- 过期 resume 清除内存 token、持久化 `runtimeResumeToken`、`nativeSessionId` 绑定、在途 `closingSessions.resumeToken` 与该会话的 `failedClosures`。匹配逻辑收敛于共享 `staleResume.ts`，驱动在报错前先投递 `data-conversation-reset`。
+- 过期 resume 清除内存 token、按失败会话作用域清理的持久化 `runtimeResumeToken` / `nativeSessionId` 绑定、匹配的在途 `closingSessions.resumeToken`，以及 `failedClosureResumeTokens` 中的过期 token 映射，同时保留 `failedClosures` 的所有权以维持编辑门禁与归档重试；在失败分支头写入分支级重置边界，阻断向健康祖先的回退，使该分支重建新连接，而健康兄弟分支保持不变。匹配逻辑收敛于共享 `staleResume.ts`，驱动在报错前先投递 `data-conversation-reset`。
 - 连续引导累积（`[...prev, ...inputs]`）而非覆盖已 armed 的边界。
 
 ## Alternatives considered

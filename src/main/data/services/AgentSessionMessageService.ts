@@ -331,6 +331,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   delete result.runtimeAnchor
   delete result.nativeSessionId
   delete result.deliveryReplyAnchor
+  delete (result as { staleResumeReset?: boolean }).staleResumeReset
   return result
 }
 
@@ -610,13 +611,20 @@ export class AgentSessionMessageService {
       .select({
         id: sessionMessagesTable.id,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken,
-        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        staleReset: sql<number | null>`json_extract(${sessionMessagesTable.data}, '$.staleResumeReset')`
       })
       .from(sessionMessagesTable)
       .where(inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)))
       .all()
     const byId = new Map(rows.map((row) => [row.id, row]))
-    return ids.map((row) => byId.get(row.id)!)
+    const ordered = ids.map((row) => byId.get(row.id)!).filter(Boolean)
+    // A stale-resume reset on this branch blocks ancestor fallback: only the
+    // suffix from the last reset boundary participates in identity reads, so
+    // the failed branch goes fresh while healthy siblings (whose paths never
+    // include the boundary row) keep their identities (#23519 review).
+    const lastReset = ordered.map((row) => (row.staleReset ? 1 : 0)).lastIndexOf(1)
+    return lastReset >= 0 ? ordered.slice(lastReset) : ordered
   }
 
   getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
@@ -637,6 +645,34 @@ export class AgentSessionMessageService {
   getPersistedNativeSessionId(sessionId: string, messageId?: string): string | undefined {
     const rows = this.nativePath(sessionId, messageId).toReversed()
     return rows.find((row) => row.nativeSessionId)?.nativeSessionId ?? undefined
+  }
+
+  /**
+   * Persist a branch-specific stale-resume reset boundary on the failed branch
+   * head (`No conversation found with session ID`, #23421). Identity readers
+   * (`getLastRuntimeResumeToken`, `getNativeSessionId`,
+   * `getPersistedNativeSessionId`, plus `branchTx`) stop at the last boundary,
+   * so the failed branch reconnects fresh instead of falling back to a healthy
+   * ancestor, while sibling branches (whose paths exclude this row) are
+   * untouched (#23519 review).
+   *
+   * Also clears this row's own token/native binding so a value-scoping miss
+   * (unknown id, unreadable persisted token) still goes fresh on retry.
+   */
+  markStaleResumeResetBoundary(sessionId: string, messageId: string): void {
+    if (!messageId) {
+      logger.warn('markStaleResumeResetBoundary called with no message id — no-op', { sessionId })
+      return
+    }
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(sessionMessagesTable)
+        .set({
+          runtimeResumeToken: null,
+          data: sql`json_remove(json_set(${sessionMessagesTable.data}, '$.staleResumeReset', 1), '$.nativeSessionId')`
+        })
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+        .run()
+    })
   }
 
   /** Main-only native fork read. API callers must never receive these raw rows. */
@@ -1473,6 +1509,7 @@ export class AgentSessionMessageService {
       }
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.staleResumeReset) data.staleResumeReset = existingRow.data.staleResumeReset
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId

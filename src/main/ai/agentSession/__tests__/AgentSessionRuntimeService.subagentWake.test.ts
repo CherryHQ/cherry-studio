@@ -56,6 +56,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getPersistedNativeSessionId: vi.fn(),
     clearRuntimeResumeTokens: vi.fn(),
     clearNativeSessionIds: vi.fn(),
+    markStaleResumeResetBoundary: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }

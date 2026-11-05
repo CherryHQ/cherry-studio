@@ -2914,9 +2914,22 @@ export class AgentSessionRuntimeService extends BaseService {
         // session-wide DB wipe. Context-table bindings (`nativeThreadId`) are
         // never cleared here, so the orphan sweep keep-set still sees healthy
         // siblings; only per-connection failed-close claims are dropped.
+        // A branch-specific reset boundary still blocks ancestor fallback for
+        // this branch so it reconnects fresh (#23519 review).
         if (closing?.resumeToken) closing.resumeToken = undefined
         if (failed) {
           for (const connection of failed) this.failedClosureResumeTokens.delete(connection)
+        }
+        if (failedBranchHead) {
+          try {
+            agentSessionMessageService.markStaleResumeResetBoundary(entry.sessionId, failedBranchHead)
+          } catch (boundaryError) {
+            logger.warn('Failed to mark stale reset boundary', {
+              sessionId: entry.sessionId,
+              branchHead: failedBranchHead,
+              error: boundaryError
+            })
+          }
         }
         logger.warn('Cleared stale resume state with unknown id — cleared closing barrier, kept DB', {
           sessionId: entry.sessionId,
@@ -2951,6 +2964,22 @@ export class AgentSessionRuntimeService extends BaseService {
             agentSessionMessageService.clearNativeSessionIds(entry.sessionId, staleNativeIds)
         } catch (clearError) {
           logger.warn('Failed to clear stale resume tokens', { sessionId: entry.sessionId, error: clearError })
+        }
+        // Branch-specific reset boundary: the cleared branch must not fall
+        // back to a healthy ancestor's resume identity on the next turn.
+        // Identity readers stop at this boundary, so this branch goes fresh
+        // while sibling branches (whose paths exclude this row) keep theirs
+        // (#23519 review).
+        if (failedBranchHead) {
+          try {
+            agentSessionMessageService.markStaleResumeResetBoundary(entry.sessionId, failedBranchHead)
+          } catch (boundaryError) {
+            logger.warn('Failed to mark stale reset boundary', {
+              sessionId: entry.sessionId,
+              branchHead: failedBranchHead,
+              error: boundaryError
+            })
+          }
         }
         logger.warn('Cleared stale resume token after native session not found', {
           sessionId: entry.sessionId,

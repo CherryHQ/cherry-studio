@@ -118,6 +118,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getPersistedNativeSessionId: vi.fn(),
     clearRuntimeResumeTokens: vi.fn(),
     clearNativeSessionIds: vi.fn(),
+    markStaleResumeResetBoundary: vi.fn(),
     captureHead: () => 'branch-head',
     branchTip: (_sessionId: string, messageId: string) => messageId,
     sharesBranch: mocks.sharesBranch,

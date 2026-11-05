@@ -14,7 +14,7 @@ Long agent sessions (Claude Code runtime) froze when the replay ring overflowed:
 - Live repair in `TopicStreamSubscription` mirrors the synthesis for deltas arriving during a replay window; a start that must precede live deltas is synthesized immediately as `unknown-tool` (documented degraded view — reload heals via the replay patch).
 - The overlay throttles `readUIMessageStream error` warnings and marks degraded turns without failing them; Main's tee-accumulated persistence stays authoritative.
 - Shutdown bounds `closeAll` at 4s (both `onStop` and `onDestroy`), skips poisoning `failedClosures` on shutdown-budget timeouts, and bounds in-flight connects at 1.5s instead of dropping them.
-- Stale resume clears the in-memory token, persisted `runtimeResumeToken`, `nativeSessionId` bindings, in-flight `closingSessions.resumeToken`, and `failedClosures` for the session. Matching lives in shared `staleResume.ts` and the driver projects `data-conversation-reset` before surfacing the error.
+- Stale resume clears the in-memory token, persisted `runtimeResumeToken` / `nativeSessionId` bindings scoped to the failed conversation, the matching in-flight `closingSessions.resumeToken`, and stale-token mappings in `failedClosureResumeTokens` while retaining `failedClosures` ownership for edit gating and archive retry. A branch-specific reset boundary on the failed branch head blocks ancestor fallback so that branch reconnects fresh while healthy siblings keep their identities. Matching lives in shared `staleResume.ts` and the driver projects `data-conversation-reset` before surfacing the error.
 - Rapid steers accumulate (`[...prev, ...inputs]`) instead of overwriting the armed boundary.
 
 ## Alternatives considered

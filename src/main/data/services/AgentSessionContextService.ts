@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -9,6 +9,7 @@ import {
 } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable as contexts, type AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 
 import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
@@ -128,7 +129,40 @@ class AgentSessionContextService {
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const path = readAgentSessionAncestry(tx, sessionId, messageId)
     const bindings = tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()
-    return path
+    // Respect a stale-resume reset boundary: a failed branch reconnects fresh
+    // instead of falling back to a healthy ancestor's native binding, while
+    // sibling branches (whose paths exclude the boundary row) are untouched
+    // (#23519 review).
+    let effectivePath = path
+    if (path.length > 0) {
+      try {
+        const flags = tx
+          .select({
+            id: messages.id,
+            reset: sql<number | null>`json_extract(${messages.data}, '$.staleResumeReset')`
+          })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.sessionId, sessionId),
+              inArray(
+                messages.id,
+                path.map((row) => row.id)
+              )
+            )
+          )
+          .all()
+        const resetIds = new Set(flags.filter((flag) => flag.reset).map((flag) => flag.id))
+        if (resetIds.size > 0) {
+          const lastReset = path.map((row) => (resetIds.has(row.id) ? 1 : 0)).lastIndexOf(1)
+          if (lastReset >= 0) effectivePath = path.slice(lastReset)
+        }
+      } catch {
+        // Best-effort: on read failure fall back to the full path so a stale
+        // reset degrades to the previous ancestor-fallback behavior.
+      }
+    }
+    return effectivePath
       .toReversed()
       .map((row) => bindings.find((binding) => binding.anchorMessageId === row.id))
       .find((binding) => binding !== undefined)
