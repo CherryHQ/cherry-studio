@@ -78,10 +78,16 @@ const WindowFooter: FC<FooterProps> = ({ children, content = '', loading = false
     handleRegenerate()
   })
 
-  useHotkeys('esc', () => {
-    showMePeriod()
-    handleEsc()
-  })
+  // Enable form tags so Escape still closes/pauses while the ask-input field
+  // is focused; 'c' and 'r' stay input-safe so typing them is unaffected.
+  useHotkeys(
+    'esc',
+    () => {
+      showMePeriod()
+      handleEsc()
+    },
+    { enableOnFormTags: ['INPUT'] }
+  )
 
   const handleEsc = () => {
     setIsEscHovered(true)

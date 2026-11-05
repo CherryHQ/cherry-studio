@@ -326,6 +326,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <ModalSection className="flex-row items-center justify-between">
               <ModalSectionTitleLabel>{t('selection.settings.user_modal.ask_input.label')}</ModalSectionTitleLabel>
               <Switch
+                aria-label={t('selection.settings.user_modal.ask_input.label')}
                 checked={!!formData.askInput}
                 onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, askInput: checked }))}
               />
