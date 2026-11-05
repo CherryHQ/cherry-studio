@@ -11,6 +11,7 @@ import type {
   CoreProviderSettingsMap,
   ExtensionConfigToIdResolutionMap,
   ExtractExtensionIds,
+  ExtractToolConfig,
   ExtractProviderIds,
   StringKeys,
   UnionToIntersection
@@ -266,4 +267,15 @@ describe('ProviderExtensionConfig Type Constraints', () => {
 
     expectTypeOf(config.variants[0].suffix).toEqualTypeOf<'chat'>()
   })
+})
+
+it('extracts tool config with an optional schema argument', () => {
+  type Extension = {
+    config: {
+      toolFactories: {
+        webSearch: (provider: unknown) => (config: { maxUses?: number }, schema?: 'basic' | 'dynamic') => object
+      }
+    }
+  }
+  expectTypeOf<ExtractToolConfig<Extension, 'webSearch'>>().toEqualTypeOf<{ maxUses?: number }>()
 })

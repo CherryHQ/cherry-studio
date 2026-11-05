@@ -58,12 +58,26 @@ const AnthropicExtension = ProviderExtension.create({
   create: async (settings) => (await import('@ai-sdk/anthropic')).createAnthropic(settings),
   toolFactories: {
     webSearch:
-      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>) => ({
-        tools: { webSearch: provider.tools.webSearch_20260209(config) }
+      (provider) =>
+      (
+        config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>,
+        schema?: 'basic' | 'dynamic'
+      ) => ({
+        tools: {
+          webSearch:
+            schema === 'basic' ? provider.tools.webSearch_20250305(config) : provider.tools.webSearch_20260209(config)
+        }
       }),
     urlContext:
-      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webFetch_20260209']>[0]>) => ({
-        tools: { urlContext: provider.tools.webFetch_20260209(config) }
+      (provider) =>
+      (
+        config: NonNullable<Parameters<AnthropicProvider['tools']['webFetch_20260209']>[0]>,
+        schema?: 'basic' | 'dynamic'
+      ) => ({
+        tools: {
+          urlContext:
+            schema === 'basic' ? provider.tools.webFetch_20250910(config) : provider.tools.webFetch_20260209(config)
+        }
       })
   }
 } as const satisfies ProviderExtensionConfig<AnthropicProviderSettings, AnthropicProvider, 'anthropic'>)
@@ -127,11 +141,11 @@ const AzureExtension = ProviderExtension.create({
       toolFactories: {
         webSearch:
           (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>) => ({
-            tools: { webSearch: provider.tools.webSearch_20260209(config) }
+            tools: { webSearch: provider.tools.webSearch_20250305(config) }
           }),
         urlContext:
           (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webFetch_20260209']>[0]>) => ({
-            tools: { urlContext: provider.tools.webFetch_20260209(config) }
+            tools: { urlContext: provider.tools.webFetch_20250910(config) }
           })
       }
     } satisfies ProviderVariant<AzureOpenAIProviderSettings, AzureOpenAIProvider, AnthropicProvider>

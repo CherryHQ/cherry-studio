@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest'
 
 import { canonOf, deriveOverrideModelId, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
+import { ANTHROPIC_BASIC_WEB_TOOL_MODEL_IDS } from '../patterns/anthropic-web-tool-constraints.gen'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import {
   SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS,
@@ -274,4 +275,18 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     }
     expect(problems).toEqual([])
   })
+})
+
+it('keeps the basic Anthropic tool list in sync with its creator', () => {
+  const expected = [
+    'claude-haiku-4-5',
+    'claude-opus-4',
+    'claude-opus-4-1',
+    'claude-opus-4-5',
+    'claude-sonnet-4',
+    'claude-sonnet-4-5'
+  ]
+  expect(CREATORS.find((c) => c.id === 'anthropic')?.anthropicBasicWebToolModelIds).toEqual(expected)
+  expect(ANTHROPIC_BASIC_WEB_TOOL_MODEL_IDS).toEqual(expected)
+  expect(ANTHROPIC_BASIC_WEB_TOOL_MODEL_IDS).not.toContain('claude-opus-4-6')
 })

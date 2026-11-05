@@ -21,6 +21,13 @@ describe('BedrockExtension toolFactories', () => {
     }
   }
 
+  it('keeps dynamic descriptors when a schema option is passed', () => {
+    const search = BedrockExtension.config.toolFactories.webSearch(fakeProvider as any)
+    const fetch = BedrockExtension.config.toolFactories.urlContext(fakeProvider as any)
+    expect(Reflect.apply(search, undefined, [{}, 'basic']).tools.webSearch.tool).toBe('webSearch_20260209')
+    expect(Reflect.apply(fetch, undefined, [{}, 'basic']).tools.urlContext.tool).toBe('webFetch_20260209')
+  })
+
   it('wires webSearch to the provider web-search tool', () => {
     const factory = BedrockExtension.config.toolFactories?.webSearch
     expect(factory).toBeDefined()
