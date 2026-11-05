@@ -977,7 +977,10 @@ export class AgentService {
       .limit(1)
       .all()
     const builtinRole = getBuiltinRole(target?.configuration)
-    if (typeof builtinRole === 'string') {
+    if (
+      typeof builtinRole === 'string' &&
+      (builtinRole !== BUILTIN_AGENT_ROLE.SUPPORT || id === CHERRY_SUPPORT_AGENT_ID)
+    ) {
       tx.insert(appStateTable)
         .values({ key: `${PURGED_BUILTIN_AGENT_KEY_PREFIX}${builtinRole}`, value: { purgedAt: Date.now() } })
         .onConflictDoNothing()
