@@ -10,6 +10,7 @@ import {
   type ComboboxOption,
   Flex,
   InfoTooltip,
+  Input,
   InputNumber,
   SegmentedControl,
   Select,
@@ -17,6 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Slider,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -47,7 +49,9 @@ import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
+import { toFileUrl } from '@shared/utils/file'
 import { defaultLanguage } from '@shared/utils/languages'
 
 import ThemeColorPicker from './components/ThemeColorPicker'
@@ -125,6 +129,12 @@ const AppearanceSettings: FC = () => {
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
+  const [background, setBackground] = useMultiplePreferences({
+    image: 'ui.background.image',
+    opacity: 'ui.background.opacity',
+    blur: 'ui.background.blur',
+    size: 'ui.background.size'
+  })
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [topicListPosition, setTopicListPosition] = usePreference('topic.tab.position')
@@ -329,6 +339,20 @@ const AppearanceSettings: FC = () => {
     },
     [handleFontComboboxChange, handleUserCodeFontChange]
   )
+
+  const handleSelectBackgroundFile = async () => {
+    try {
+      const selected = await window.api.file.select({
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }],
+        properties: ['openFile']
+      })
+      const parsed = AbsoluteFilePathSchema.safeParse(selected?.[0]?.path)
+      if (parsed.success) void setBackground({ image: toFileUrl(parsed.data) })
+    } catch (error) {
+      logger.error('Failed to select background image', error as Error)
+      toast.error(formatErrorMessage(error))
+    }
+  }
 
   return (
     <SettingsContentColumn theme={theme} innerClassName="[&>*+*]:mt-8">
@@ -567,6 +591,75 @@ const AppearanceSettings: FC = () => {
           </Flex>
           <Switch checked={codeImageTools} onCheckedChange={setCodeImageTools} />
         </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.background.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-appearance-background-image" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.display.background.image')}</SettingRowTitle>
+          <Flex className="items-center gap-2">
+            <Input
+              className="w-64 text-sm"
+              value={background.image}
+              placeholder={t('settings.display.background.placeholder')}
+              aria-label={t('settings.display.background.image')}
+              onChange={(e) => void setBackground({ image: e.target.value.trim() })}
+            />
+            <Button size="sm" variant="outline" onClick={handleSelectBackgroundFile}>
+              {t('settings.display.background.select')}
+            </Button>
+            {background.image && (
+              <Button size="sm" variant="ghost" onClick={() => void setBackground({ image: '' })}>
+                {t('settings.display.background.clear')}
+              </Button>
+            )}
+          </Flex>
+        </SettingRow>
+        {background.image && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.display.background.size')}</SettingRowTitle>
+              <SegmentedControl<'cover' | 'contain' | 'auto'>
+                size="sm"
+                value={background.size}
+                onValueChange={(size) => void setBackground({ size })}
+                options={[
+                  { value: 'cover', label: t('settings.display.background.size_cover') },
+                  { value: 'contain', label: t('settings.display.background.size_contain') },
+                  { value: 'auto', label: t('settings.display.background.size_auto') }
+                ]}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.display.background.opacity')}</SettingRowTitle>
+              <Slider
+                className="w-64"
+                min={0}
+                max={100}
+                step={1}
+                getThumbAriaLabel={() => t('settings.display.background.opacity')}
+                value={[background.opacity]}
+                onValueChange={([opacity]) => void setBackground({ opacity })}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.display.background.blur')}</SettingRowTitle>
+              <Slider
+                className="w-64"
+                min={0}
+                max={40}
+                step={1}
+                getThumbAriaLabel={() => t('settings.display.background.blur')}
+                value={[background.blur]}
+                onValueChange={([blur]) => void setBackground({ blur })}
+              />
+            </SettingRow>
+          </>
+        )}
       </SettingGroup>
 
       <SettingGroup theme={theme}>
