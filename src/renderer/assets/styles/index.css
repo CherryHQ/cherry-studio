@@ -244,9 +244,15 @@
    Lives in @layer app so unlayered user custom CSS keeps winning over it
    (docs/dev/references/components/ui-semantic-contract.md); the token contract sits in
    @layer theme via packages/ui theme.css, so these rules still override the defaults.
-   `--chat-message-well-solid` stays untouched: image exports have no window behind them. */
+   `--chat-message-well-solid` stays untouched: image exports have no window behind them.
+   ThemeProvider puts `.dark` on <body>, where the token contract redeclares
+   `--composer-surface` / `--chat-message-well` and the dark `--cs-*` providers, so the
+   treatment must also land at body scope: a :root-only rule would lose to those
+   body-scoped declarations (opaque composer) and would resolve `var(--cs-*)` against
+   the light providers the root element carries in dark mode. */
 @layer app {
-  :root[data-custom-background] {
+  :root[data-custom-background],
+  :root[data-custom-background] body.dark {
     --background: color-mix(in srgb, var(--cs-background) 60%, transparent);
     --sidebar: color-mix(in srgb, var(--cs-sidebar) 60%, transparent);
     --card: color-mix(in srgb, var(--cs-card) 60%, transparent);
