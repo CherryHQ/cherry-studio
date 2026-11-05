@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +10,8 @@ import { splitMarkdownChunks, type MarkdownChunk } from '../markdownChunks'
 // virtualizer reports an explicit range and the tests assert which chunks are mounted.
 const mocks = vi.hoisted(() => ({
   range: [] as number[],
-  useVirtualizer: vi.fn()
+  useVirtualizer: vi.fn(),
+  scrollToIndex: vi.fn()
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: mocks.useVirtualizer }))
@@ -28,7 +29,8 @@ vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
 const virtualizerImpl = (options: { count: number }) => ({
   getVirtualItems: () => mocks.range.map((index) => ({ key: String(index), index, start: index * 30, size: 30 })),
   getTotalSize: () => options.count * 30,
-  measureElement: () => {}
+  measureElement: () => {},
+  scrollToIndex: mocks.scrollToIndex
 })
 
 // Two chunks of three blocks each, so mounting only the reported range is observable. The split
@@ -218,6 +220,32 @@ describe('MarkdownChunkPreview', () => {
     const ids = Array.from(container.querySelectorAll('h1, h2')).map((heading) => heading.getAttribute('id'))
 
     expect(ids.map((id) => id?.split('--')[1])).toEqual(['title', 'title-1'])
+  })
+
+  it('mounts the chunk a fragment targets before scrolling to its heading', async () => {
+    // A heading in a chunk the virtualizer has not mounted has no element to find, so the handler
+    // used to return and the jump did nothing. Scrolling the destination chunk in mounts it, and
+    // the heading is resolved on the render that follows.
+    const content = ['[jump](#heading-doc:2--second)', '', '# First', '', '# Second'].join('\n')
+    const chunks = splitMarkdownChunks(content, 1).chunks
+    expect(chunks[2].headingSlugs?.has('second')).toBe(true)
+    mocks.range = [0]
+    const scrolled: Element[] = []
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: Element) {
+        scrolled.push(this)
+      }
+    })
+    render(<MarkdownChunkPreview chunks={chunks} id="doc" />)
+
+    const link = await screen.findByRole('link', { name: 'jump' })
+    mocks.range = [2]
+    fireEvent.click(link)
+
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
+    await waitFor(() => expect(scrolled).toHaveLength(1))
+    expect(scrolled[0].getAttribute('id')).toBe('heading-doc:2--second')
   })
 
   it('resolves a footnote backlink inside the chunk that was clicked', async () => {

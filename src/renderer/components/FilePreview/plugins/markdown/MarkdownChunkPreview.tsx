@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type MouseEvent as ReactMouseEvent, useRef } from 'react'
+import { type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react'
 
 import { findMarkdownAnchorTarget, StaticMarkdown } from '@renderer/components/markdown'
 
@@ -25,6 +25,9 @@ interface MarkdownChunkPreviewProps {
  */
 export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: MarkdownChunkPreviewProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
+  // A fragment whose heading lives in a chunk the virtualizer has not mounted yet: scrolling the
+  // chunk in comes first, and the element is resolved once it exists.
+  const [pendingFragment, setPendingFragment] = useState<string | null>(null)
   const virtualizer = useVirtualizer({
     count: chunks.length,
     getScrollElement: () => scrollerRef.current,
@@ -41,6 +44,25 @@ export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: Markdown
   // The clicked chunk's own container is searched first: every mounted chunk numbering its
   // footnotes from the same reference hands the same id to its own backlink, so a preview-wide
   // search picks the first chunk's reference — and jumps to another chunk's definition.
+  /** The chunk a heading fragment is assigned in, so an unmounted destination can be scrolled to. */
+  const chunkIndexForFragment = (fragment: string): number | undefined => {
+    for (let index = 0; index < chunks.length; index += 1) {
+      const prefix = `heading-${id}:${index}--`
+      if (!fragment.startsWith(prefix)) continue
+      const suffix = fragment.slice(prefix.length)
+      for (const assigned of chunks[index].headingSlugs?.values() ?? []) if (assigned.includes(suffix)) return index
+    }
+    return undefined
+  }
+
+  useEffect(() => {
+    if (!pendingFragment) return
+    const target = findMarkdownAnchorTarget(scrollerRef.current, pendingFragment)
+    if (!target) return
+    setPendingFragment(null)
+    target.scrollIntoView({ block: 'start' })
+  }, [pendingFragment, virtualItems])
+
   const scrollToPreviewAnchor = (event: ReactMouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as Element | null)?.closest?.('a[href]')
     const href = anchor?.getAttribute('href')
@@ -57,7 +79,17 @@ export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: Markdown
     const target =
       findMarkdownAnchorTarget(anchor?.closest('.markdown'), fragment) ??
       findMarkdownAnchorTarget(scrollerRef.current, fragment)
-    if (!target) return
+    if (!target) {
+      // The destination heading may live in a chunk the virtualizer has not mounted. Scroll that
+      // chunk in; the effect above resolves the element once it exists.
+      const index = chunkIndexForFragment(fragment)
+      if (index === undefined) return
+      event.preventDefault()
+      event.stopPropagation()
+      setPendingFragment(fragment)
+      virtualizer.scrollToIndex(index, { align: 'start' })
+      return
+    }
 
     event.preventDefault()
     event.stopPropagation()
