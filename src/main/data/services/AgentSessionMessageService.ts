@@ -1584,17 +1584,23 @@ export class AgentSessionMessageService {
   orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[], removed: readonly string[] = []): void {
     const session = tx.select().from(sessionTable).where(eq(sessionTable.id, sessionId)).get()
     if (!session?.ownerSessionId) throw new Error('Only owned child archives can reconcile message order')
-    const rows = tx.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).all()
+    const rows = tx
+      .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId, role: sessionMessagesTable.role })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .all()
     const byId = new Map(rows.filter((row) => row.role !== 'root').map((row) => [row.id, row]))
     const priorPath = new Set(
       readAgentSessionAncestry(tx, sessionId, session.activeNodeId ?? ensureAgentSessionRootTx(tx, sessionId)).map(
         (row) => row.id
       )
     )
+    const ordered = new Set(order)
+    const removedIds = new Set(removed)
     if (
-      new Set(order).size !== order.length ||
+      ordered.size !== order.length ||
       order.some((id) => !byId.has(id)) ||
-      [...priorPath].some((id) => byId.has(id) && !order.includes(id) && !removed.includes(id))
+      [...priorPath].some((id) => byId.has(id) && !ordered.has(id) && !removedIds.has(id))
     )
       throw new Error('Child archive order must retain messages without explicit removal')
     let parentId = ensureAgentSessionRootTx(tx, sessionId)

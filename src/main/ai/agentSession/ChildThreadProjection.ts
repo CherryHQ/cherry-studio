@@ -305,9 +305,10 @@ export class ChildThreadProjection {
       next.size !== this.saved.size ||
       !isDeepStrictEqual(beforeComposition, this.composition)
     ) {
+      const positions = new Map(order.map((id, index) => [id, index]))
       application.get('DbService').withWriteTx((tx) => {
         for (const message of changed) {
-          const at = order.indexOf(message.id)
+          const at = positions.get(message.id)!
           messages.saveMessagesTx(tx, {
             sessionId: this.context.sessionId,
             parentId: at === 0 ? this.context.anchorMessageId! : order[at - 1],
