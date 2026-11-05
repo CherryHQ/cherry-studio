@@ -631,5 +631,66 @@ describe('MessageAnchorLine', () => {
       expect(strip.style.maskImage).toContain('transparent 0%')
       expect(strip.style.maskImage).toContain('transparent 100%')
     })
+
+    it('re-pins a bottom-pinned strip when the composer inset shrinks the rail', () => {
+      // 40 turns × 10px = 400px of ticks; entry pins the strip to the bottom.
+      const metrics: StripMetrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
+      const { container } = renderRail({ messages: makeTurnMessages(40), hasOlder: true })
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(strip.scrollTop).toBe(400 - RAIL_VIEWPORT_PX)
+
+      // The composer overlay grows: the wrapper and strip viewport shrink while
+      // the tick content keeps its height, so the old offset now clips the
+      // newest ticks.
+      act(() => {
+        metrics.wrapperHeight = 300
+        metrics.clientHeight = 252
+        notifyResize()
+      })
+
+      expect(strip.scrollTop).toBe(400 - 252)
+    })
+
+    it('retains a deliberate scroll position when the rail shrinks', () => {
+      const metrics: StripMetrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
+      const { container } = renderRail({ messages: makeTurnMessages(40), hasOlder: true })
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+
+      strip.scrollTop = 10
+      fireEvent.scroll(strip)
+
+      act(() => {
+        metrics.wrapperHeight = 300
+        metrics.clientHeight = 252
+        notifyResize()
+      })
+
+      expect(strip.scrollTop).toBe(10)
+    })
+
+    it('re-arms the bottom pin when the user scrolls back to the newest ticks', () => {
+      const metrics: StripMetrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
+      const { container } = renderRail({ messages: makeTurnMessages(40), hasOlder: true })
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+
+      strip.scrollTop = 10
+      fireEvent.scroll(strip)
+      strip.scrollTop = 400 - RAIL_VIEWPORT_PX
+      fireEvent.scroll(strip)
+
+      act(() => {
+        metrics.wrapperHeight = 300
+        metrics.clientHeight = 252
+        notifyResize()
+      })
+
+      expect(strip.scrollTop).toBe(400 - 252)
+    })
   })
 })

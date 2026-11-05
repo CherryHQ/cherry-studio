@@ -92,6 +92,15 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const railScrollRef = useRef<HTMLDivElement>(null)
+  /** Scroll anchoring state: first-turn identity and count spot prepends and
+   * appends; `pinned` says the user left the strip on the newest ticks, so
+   * inset/viewport changes re-pin it (a manual scroll clears the pin). */
+  const scrollAnchorRef = useRef<{ firstId: string | null; count: number; entered: boolean; pinned: boolean }>({
+    firstId: null,
+    count: 0,
+    entered: false,
+    pinned: true
+  })
   const latestClientYRef = useRef<number | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
@@ -222,7 +231,14 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // The rail scrolls independently of the conversation and never auto-follows
   // reading, so a tick's on-screen position is stable until the user scrolls
   // the rail itself. Mirror that offset into state so the card and wave track it.
-  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
+  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget
+    // Recompute the pin on every scroll: a resize re-pin below only fires while
+    // the strip is on the newest ticks, so deliberate positions survive.
+    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
+    scrollAnchorRef.current.pinned = maxScroll - el.scrollTop <= 1
+    setScrollTop(el.scrollTop)
+  }
 
   // Height-based hiding must clear the wave and preview before the rail returns.
   useEffect(() => {
@@ -238,16 +254,16 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const hasRail = turns.length > 0
 
-  // Keep the strip's reading anchor stable across async page loads:
+  // Keep the strip's reading anchor stable across async page loads and
+  // viewport changes:
   // • on entry, start at the bottom — the user enters at the newest turn;
   // • when older turns prepend, offset the scroll so visible ticks stay put
   //   (the browser clamp lands exactly right when the strip just overflowed);
-  // • when new turns append while pinned to the bottom, stay pinned.
-  const scrollAnchorRef = useRef<{ firstId: string | null; count: number; entered: boolean }>({
-    firstId: null,
-    count: 0,
-    entered: false
-  })
+  // • when new turns append while pinned to the bottom, stay pinned;
+  // • when the rail itself resizes (composer inset growth, window resize), the
+  //   same pin keeps a bottom-pinned strip on the newest ticks — otherwise the
+  //   shrinking viewport clips them until a manual scroll — while a deliberate
+  //   user scroll position (pin cleared by handleScroll) is left alone.
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
@@ -258,9 +274,14 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       if (!anchor.entered) {
         el.scrollTop = maxScroll
         anchor.entered = true
+        anchor.pinned = true
       } else if (added > 0 && firstId !== anchor.firstId) {
         el.scrollTop += added * RAIL_TICK_PITCH_PX
       } else if (added > 0 && maxScroll - el.scrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
+        el.scrollTop = maxScroll
+        anchor.pinned = true
+      }
+      if (anchor.pinned) {
         el.scrollTop = maxScroll
       }
       setScrollTop(el.scrollTop)
