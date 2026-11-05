@@ -650,8 +650,8 @@ describe('CherryCloudService', () => {
   )
 
   it.each([
-    ['CN production', 'cn', '', 'https://accounts.cherryai.com.cn'],
-    ['global production', 'global', '', 'https://accounts.cherryai.com'],
+    ['CN production', 'cn', '', 'https://cloud.cherryai.com.cn'],
+    ['global production', 'global', '', 'https://cloud.cherryai.com'],
     ['configured backend', 'cn', 'https://cloud-dev.cherry-ai.com/', 'https://cloud-dev.cherry-ai.com']
   ] as const)(
     'opens the account center on the %s origin',

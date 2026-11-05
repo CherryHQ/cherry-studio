@@ -40,10 +40,6 @@ const PRODUCTION_API_ORIGINS = {
   cn: 'https://cloud.cherryai.com.cn',
   global: 'https://cloud.cherryai.com'
 } as const
-const PRODUCTION_ACCOUNT_ORIGINS = {
-  cn: 'https://accounts.cherryai.com.cn',
-  global: 'https://accounts.cherryai.com'
-} as const
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
@@ -84,13 +80,6 @@ export function resolveCherryCloudApiOrigin(): string {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
   if (configuredOrigin) return new URL(configuredOrigin).origin
   return PRODUCTION_API_ORIGINS[getAppEdition()]
-}
-
-/** Production serves the account center on its own domain; a configured backend serves it on the API origin. */
-export function resolveCherryCloudAccountOrigin(): string {
-  const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
-  if (configuredOrigin) return new URL(configuredOrigin).origin
-  return PRODUCTION_ACCOUNT_ORIGINS[getAppEdition()]
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -222,8 +211,9 @@ export class CherryCloudService extends BaseService {
     return resolveCherryCloudApiOrigin()
   }
 
+  // The account center must stay on the API origin, where browser sign-in sets its session cookie.
   public getAccountOrigin(): string {
-    return resolveCherryCloudAccountOrigin()
+    return resolveCherryCloudApiOrigin()
   }
 
   public async startLogin(): Promise<CherryCloudStatus> {

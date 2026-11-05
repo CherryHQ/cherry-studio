@@ -14,8 +14,8 @@ describe('openCherryCloudAccountPortal', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it.each([
-    ['https://accounts.cherryai.com.cn', 'https://accounts.cherryai.com.cn/account/plans'],
-    ['https://accounts.cherryai.com', 'https://accounts.cherryai.com/account/plans'],
+    ['https://cloud.cherryai.com.cn', 'https://cloud.cherryai.com.cn/account/plans'],
+    ['https://cloud.cherryai.com', 'https://cloud.cherryai.com/account/plans'],
     ['http://192.168.1.176:8284', 'http://192.168.1.176:8284/account/plans']
   ])('opens the portal on the %s account center', async (accountOrigin, portalUrl) => {
     useAccountOrigin(accountOrigin)
