@@ -196,6 +196,9 @@ export interface PreferenceSchemas {
     'chat.message.confirm_delete': boolean
     // redux/settings/confirmRegenerateMessage
     'chat.message.confirm_regenerate': boolean
+    // redux/settings/thoughtAutoCollapse (via complex mapping thought_density_migrate;
+    // the retired chat.message.thought.auto_collapse row is folded by MessageToolDensityUpgradeSeeder)
+    'chat.message.density': PreferenceTypes.ToolCallDensity
     // redux/settings/messageFont
     'chat.message.font': string
     // redux/settings/fontSize
@@ -222,8 +225,6 @@ export interface PreferenceSchemas {
     'chat.message.show_outline': boolean
     // redux/settings/messageStyle
     'chat.message.style': PreferenceTypes.ChatMessageStyle
-    // redux/settings/thoughtAutoCollapse
-    'chat.message.thought.auto_collapse': boolean
     // target-key-definitions/complex/complex
     'chat.message.user_content.default_expanded': boolean
     // redux/settings/narrowMode
@@ -730,6 +731,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.input.translate.target_language': 'en-us',
     'chat.message.confirm_delete': true,
     'chat.message.confirm_regenerate': true,
+    'chat.message.density': 'compact',
     'chat.message.font': 'system',
     'chat.message.font_size': 14,
     'chat.message.keep_intermediate_text': false,
@@ -743,7 +745,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.show_divider': true,
     'chat.message.show_outline': false,
     'chat.message.style': 'bubble',
-    'chat.message.thought.auto_collapse': true,
     'chat.message.user_content.default_expanded': false,
     'chat.narrow_mode': true,
     'chat.retry.backoff_enabled': true,

@@ -43,6 +43,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'chat.context_settings.truncate_threshold': 50000,
   'chat.context_settings.compress.enabled': true,
   'chat.context_settings.compress.model_id': null,
+  'chat.message.density': 'compact',
 
   // Agent file pane settings (generated schema defaults)
   'feature.agent.file_pane.tree_position': 'left',

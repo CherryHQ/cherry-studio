@@ -1306,6 +1306,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         selection: undefined,
         renderConfig: {
           ...providerValue.state.renderConfig,
+          toolDensity: 'compact' as const,
           collapseCompletedToolHistory: true,
           subagentListTitle: t('agent.right_pane.flow.child_subtasks'),
           fontSize: 14,

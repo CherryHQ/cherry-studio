@@ -20,6 +20,13 @@
       "description": "Expand long user messages by default unless the user has manually toggled that message"
     },
     {
+      "targetKey": "chat.message.density",
+      "type": "PreferenceTypes.ToolCallDensity",
+      "defaultValue": "compact",
+      "status": "classified",
+      "description": "How much of the assistant process (thinking and tool calls) a completed message shows: compact summary, balanced group, or detailed inline"
+    },
+    {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
       "defaultValue": false,

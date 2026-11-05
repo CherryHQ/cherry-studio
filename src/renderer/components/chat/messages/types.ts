@@ -14,6 +14,7 @@ import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
+  ToolCallDensity,
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
@@ -271,7 +272,10 @@ export interface MessageRenderConfig {
   userMessageDefaultExpanded: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
+  /** Whether completed tool history is wrapped in the collapsible process group (compact density; forced on in the agent right pane). */
   collapseCompletedToolHistory: boolean
+  /** Derived from the `chat.message.density` preference; drives the two booleans above. */
+  toolDensity: ToolCallDensity
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
@@ -292,6 +296,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  toolDensity: 'compact',
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,

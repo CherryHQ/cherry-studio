@@ -10,6 +10,9 @@ const mockApproval = vi.hoisted(() => vi.fn())
 const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockIsToolAutoApproved = vi.hoisted(() => vi.fn(() => false))
 const mockHighlightCode = vi.hoisted(() => vi.fn(async (code: string) => `<pre>${code}</pre>`))
+const mockRenderConfig = vi.hoisted(() =>
+  vi.fn(() => ({ messageFont: 'sans-serif', fontSize: 14, toolDensity: 'compact' }))
+)
 
 // Control approval state directly so the test doesn't need the MCP-server data hooks.
 vi.mock('../hooks/useToolApproval', () => ({
@@ -19,7 +22,7 @@ vi.mock('../hooks/useToolApproval', () => ({
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockActions(),
   useOptionalMessageListUi: () => ({ isToolAutoApproved: mockIsToolAutoApproved }),
-  useMessageRenderConfig: () => ({ messageFont: 'sans-serif', fontSize: 14 })
+  useMessageRenderConfig: mockRenderConfig
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -86,6 +89,7 @@ describe('MessageMcpTool', () => {
       cancel: vi.fn()
     })
     mockIsToolAutoApproved.mockReturnValue(false)
+    mockRenderConfig.mockReturnValue({ messageFont: 'sans-serif', fontSize: 14, toolDensity: 'compact' })
   })
 
   afterEach(() => {
@@ -144,6 +148,37 @@ describe('MessageMcpTool', () => {
         successMessage: 'message.copied'
       })
     })
+  })
+
+  it('keeps completed args and response open without a click in detailed density', async () => {
+    mockRenderConfig.mockReturnValue({ messageFont: 'sans-serif', fontSize: 14, toolDensity: 'detailed' })
+    const { container } = render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: { content: [{ type: 'text', text: 'ok' }] }
+        })}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Arguments')).toBeInTheDocument()
+    })
+    expect(container.textContent).toContain('https://example.com')
+  })
+
+  it('keeps completed results collapsed outside detailed density', () => {
+    const { container } = render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: { content: [{ type: 'text', text: 'ok' }] }
+        })}
+      />
+    )
+
+    expect(screen.queryByText('Arguments')).toBeNull()
+    expect(container.textContent).not.toContain('https://example.com')
   })
 
   it('shows the auto-approve badge when the MCP tool is auto-approved', () => {

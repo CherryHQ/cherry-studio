@@ -12,7 +12,7 @@ export function useMessageListRenderConfig() {
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [userMessageDefaultExpanded] = usePreference('chat.message.user_content.default_expanded')
   const [codeFancyBlock] = usePreference('chat.code.fancy_block')
-  const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [toolDensity] = usePreference('chat.message.density')
   const [keepIntermediateAssistantText] = usePreference('chat.message.keep_intermediate_text')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
@@ -33,8 +33,12 @@ export function useMessageListRenderConfig() {
       renderInputMessageAsMarkdown,
       userMessageDefaultExpanded,
       codeFancyBlock,
-      thoughtAutoCollapse,
-      collapseCompletedToolHistory: true,
+      // One density control drives both process render paths: `compact` wraps the
+      // history in a single collapsible summary group, `balanced` stacks one
+      // collapsed line per step without a wrapper, `detailed` inlines everything.
+      toolDensity,
+      thoughtAutoCollapse: toolDensity !== 'detailed',
+      collapseCompletedToolHistory: toolDensity === 'compact',
       keepIntermediateAssistantText,
       mathEnableSingleDollar,
       showMessageOutline,
@@ -58,7 +62,7 @@ export function useMessageListRenderConfig() {
       userMessageDefaultExpanded,
       showEstimatedTokens,
       showMessageOutline,
-      thoughtAutoCollapse,
+      toolDensity,
       userName
     ]
   )

@@ -353,11 +353,20 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
 
 let activityStore: KeyedMessageActivityStore
 
+// The historical suite targets the collapsible process-group layout, which the
+// density feature renamed to `compact` — keep it as the helper default so those
+// tests keep testing the group; balanced/detailed tests pass explicit configs.
+const compactRenderConfig: MessageListProviderValue['state']['renderConfig'] = {
+  ...defaultMessageRenderConfig,
+  toolDensity: 'compact',
+  collapseCompletedToolHistory: true
+}
+
 const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = compactRenderConfig,
   history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
   hoistAttachments = false
 ) => {
@@ -395,7 +404,7 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = compactRenderConfig,
   history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
   hoistAttachments = false
 ) => render(renderPartsTree(parts, message, actions, renderConfig, history, hoistAttachments))
@@ -514,7 +523,7 @@ describe('MessagePartsRenderer', () => {
           overscan: 0,
           loadOlderDelayMs: 0,
           loadingResetDelayMs: 0,
-          renderConfig: defaultMessageRenderConfig,
+          renderConfig: compactRenderConfig,
           messageActivityStore: store,
           getMessageActivityState: store.getSnapshot
         },
@@ -585,7 +594,7 @@ describe('MessagePartsRenderer', () => {
               overscan: 0,
               loadOlderDelayMs: 0,
               loadingResetDelayMs: 0,
-              renderConfig: defaultMessageRenderConfig,
+              renderConfig: compactRenderConfig,
               activeTurnStatus,
               messageActivityStore: activityStore,
               getMessageActivityState: activityStore.getSnapshot
@@ -1036,7 +1045,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         {},
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         true
       )
@@ -1109,7 +1118,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewInputFile },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         false
       )
@@ -1185,7 +1194,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewInputFile },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         false
       )
@@ -1236,7 +1245,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewInputFile },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         false
       )
@@ -1294,7 +1303,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewInputFile },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         false
       )
@@ -1355,7 +1364,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewInputFile },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         false
       )
@@ -1380,7 +1389,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         {},
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         true
       )
@@ -1416,7 +1425,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         {},
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         true
       )
@@ -1631,7 +1640,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewFile: vi.fn(), openFile: vi.fn() },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         true
       )
@@ -1702,7 +1711,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
         { previewFile: vi.fn(), openFile: vi.fn(), previewInputFile },
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [],
         true
       )
@@ -1880,7 +1889,7 @@ describe('MessagePartsRenderer', () => {
         [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
         msg({ id: 'msg-1' }),
         {},
-        defaultMessageRenderConfig,
+        compactRenderConfig,
         [earlierTurn]
       )
 
@@ -2358,7 +2367,7 @@ describe('MessagePartsRenderer', () => {
         [toolPart('read', 'input-available')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' }),
         {},
-        { ...defaultMessageRenderConfig, collapseCompletedToolHistory: false }
+        { ...defaultMessageRenderConfig, toolDensity: 'detailed', collapseCompletedToolHistory: false }
       )
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -2586,7 +2595,7 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(parts, msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
-      expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed 1 second')
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('1 tool calls 1 second')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
       expect(screen.queryByTestId('tool-history-content')).toBeNull()
@@ -2743,7 +2752,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg(),
         {},
-        { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+        { ...compactRenderConfig, keepIntermediateAssistantText: true }
       )
 
       for (const text of ['First update', 'Second update', 'Final answer']) {
@@ -2949,7 +2958,8 @@ describe('MessagePartsRenderer', () => {
 
     it('shows completed summaries for tools and pure reasoning groups', () => {
       const tools = renderParts([toolPart('read')] as unknown as CherryMessagePart[])
-      expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed')
+      // Compact summarizes tool history by call count; pure reasoning keeps the generic label.
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('1 tool calls')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       tools.unmount()
@@ -2971,9 +2981,8 @@ describe('MessagePartsRenderer', () => {
         ],
         msg(),
         {},
-        { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }
+        { ...defaultMessageRenderConfig, toolDensity: 'detailed', thoughtAutoCollapse: false }
       )
-      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Deep thought')
       expect(screen.getByText('final answer')).toBeVisible()
     })
@@ -2985,10 +2994,49 @@ describe('MessagePartsRenderer', () => {
         {},
         {
           ...defaultMessageRenderConfig,
+          toolDensity: 'compact',
+          collapseCompletedToolHistory: true,
           thoughtAutoCollapse: false
         }
       )
-      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getByRole('button', { name: /1 tool calls/ })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('renders the balanced density as flat disclosures without the process group', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Deep thought', state: 'done' },
+          toolPart('read'),
+          { type: 'text', text: 'final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, toolDensity: 'balanced', collapseCompletedToolHistory: false }
+      )
+
+      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
+      const runTriggers = screen.getAllByTestId('child-tool-group-trigger')
+      expect(runTriggers.length).toBeGreaterThan(0)
+      expect(runTriggers[0]).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getByText('final answer')).toBeVisible()
+    })
+
+    it('keeps adjacent balanced steps independently expandable without run clustering', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'first thought', state: 'done' },
+          toolPart('read'),
+          { type: 'reasoning', text: 'second thought', state: 'done' },
+          toolPart('edit')
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, toolDensity: 'balanced', collapseCompletedToolHistory: false }
+      )
+
+      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
+      expect(screen.getAllByTestId('child-tool-group-trigger')).toHaveLength(2)
+      expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(2)
     })
 
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {
@@ -3009,7 +3057,7 @@ describe('MessagePartsRenderer', () => {
     it('shows processed status and elapsed time in a completed tool summary', () => {
       renderParts([toolPart('read')] as unknown as CherryMessagePart[], msg({ updatedAt: '2026-01-01T00:00:01Z' }))
 
-      expect(screen.getByRole('button', { name: 'Processed 1 second' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '1 tool calls 1 second' })).toBeInTheDocument()
     })
 
     it('shows a recovered result as processed while preserving the failed tool detail', () => {
@@ -3022,7 +3070,7 @@ describe('MessagePartsRenderer', () => {
         msg({ updatedAt: '2026-01-01T00:00:01Z' })
       )
 
-      const historyTrigger = screen.getByRole('button', { name: 'Processed 1 second' })
+      const historyTrigger = screen.getByRole('button', { name: '2 tool calls 1 second' })
       fireEvent.click(historyTrigger)
       expandCollapsedChildToolGroups()
 
@@ -3120,7 +3168,7 @@ describe('MessagePartsRenderer', () => {
         ] as unknown as CherryMessagePart[],
         msg(),
         {},
-        { ...defaultMessageRenderConfig, collapseCompletedToolHistory: false }
+        { ...defaultMessageRenderConfig, toolDensity: 'detailed', collapseCompletedToolHistory: false }
       )
 
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()

@@ -118,6 +118,13 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
   })
 
+  it('defaults tool-call density to compact and keeps the retired boolean key out', () => {
+    const densityDefault: PreferenceSchemas['default']['chat.message.density'] = 'compact'
+
+    expect(DefaultPreferences.default['chat.message.density']).toBe(densityDefault)
+    expect('chat.message.thought.auto_collapse' in DefaultPreferences.default).toBe(false)
+  })
+
   it('shows estimated input tokens by default for new users', () => {
     expect(DefaultPreferences.default['chat.input.show_estimated_tokens']).toBe(true)
   })

@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.confirm_delete': true,
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
-    'chat.message.thought.auto_collapse': true,
+    'chat.message.density': 'compact',
     'chat.message.keep_intermediate_text': false,
     'chat.message.user_content.default_expanded': false,
     'chat.message.multi_model.style': 'horizontal',
@@ -192,7 +192,7 @@ describe('ChatPreferenceSections', () => {
 
     await user.click(screen.getByRole('button', { name }))
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', true)
-    expect(mocks.preferenceValues['chat.message.thought.auto_collapse']).toBe(true)
+    expect(mocks.preferenceValues['chat.message.density']).toBe('compact')
     rerender(<ChatPreferenceSections />)
     expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
 

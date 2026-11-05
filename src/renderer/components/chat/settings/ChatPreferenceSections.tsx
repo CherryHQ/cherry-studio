@@ -28,7 +28,7 @@ import {
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
-import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut, ToolCallDensity } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 import {
@@ -79,7 +79,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
-  const [thoughtAutoCollapse, setThoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [toolDensity, setToolDensity] = usePreference('chat.message.density')
   const [keepIntermediateAssistantText, setKeepIntermediateAssistantText] = usePreference(
     'chat.message.keep_intermediate_text'
   )
@@ -142,6 +142,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
       { value: 'none', label: t('settings.messages.navigation.none') },
       { value: 'buttons', label: t('settings.messages.navigation.buttons') },
       { value: 'anchor', label: t('settings.messages.navigation.anchor') }
+    ],
+    [t]
+  )
+
+  const toolDensityItems = useMemo<SelectOption<ToolCallDensity>[]>(
+    () => [
+      { value: 'compact', label: t('chat.settings.tool_density.compact') },
+      { value: 'balanced', label: t('chat.settings.tool_density.balanced') },
+      { value: 'detailed', label: t('chat.settings.tool_density.detailed') }
     ],
     [t]
   )
@@ -342,13 +351,20 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow id="setting-appearance-thought-auto-collapse" className="scroll-mt-6">
-            <SettingSwitch
-              checked={thoughtAutoCollapse}
-              onCheckedChange={setThoughtAutoCollapse}
-              label={t('chat.settings.thought_auto_collapse.label')}
-              hint={t('chat.settings.thought_auto_collapse.tip')}
-            />
+          <SettingRow id="setting-appearance-tool-density" className="scroll-mt-6">
+            <SettingRowTitleSmall>{t('chat.settings.tool_density.label')}</SettingRowTitleSmall>
+            <Select value={toolDensity} onValueChange={setToolDensity}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {toolDensityItems.map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow id="setting-appearance-keep-intermediate-text" className="scroll-mt-6">
