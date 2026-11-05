@@ -3642,6 +3642,8 @@
   "selection.settings.toolbar.compact_mode.description": "Trong chế độ thu gọn, chỉ biểu tượng được hiển thị mà không có văn bản",
   "selection.settings.toolbar.compact_mode.title": "Chế độ thu gọn",
   "selection.settings.toolbar.title": "Thanh công cụ",
+  "selection.settings.toolbar.translate_only.description": "Bỏ qua thanh công cụ và hiển thị bản dịch ngay sau khi chọn văn bản",
+  "selection.settings.toolbar.translate_only.title": "Chỉ dịch",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Phím Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Sau khi chọn, giữ phím Ctrl để hiển thị thanh công cụ",
   "selection.settings.toolbar.trigger_mode.description": "Cách kích hoạt trợ lý lựa chọn và hiển thị thanh công cụ",

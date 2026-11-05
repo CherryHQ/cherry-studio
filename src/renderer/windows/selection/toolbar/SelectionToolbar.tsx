@@ -58,6 +58,7 @@ const updateWindowSize = (contentElement?: HTMLElement | null) => {
 const SelectionToolbar: FC = () => {
   const [isCompact] = usePreference('feature.selection.compact')
   const [actionItems] = usePreference('feature.selection.action_items')
+  const [isTranslateOnly] = usePreference('feature.selection.translate_only')
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -98,6 +99,19 @@ const SelectionToolbar: FC = () => {
     selectedText.current = selectionData.text
     programName.current = selectionData.programName
     isFullScreen.current = selectionData.isFullscreen ?? false
+
+    if (isTranslateOnly) {
+      const translateAction = parseSelectionActions(actionItems ?? []).find(
+        (item) => item.id === SELECTION_BUILTIN_ACTION_ID.TRANSLATE
+      )
+      if (translateAction) {
+        void ipcApi.request('selection.process_action', {
+          actionItem: { ...translateAction, selectedText: selectionData.text, programName: selectionData.programName },
+          isFullScreen: isFullScreen.current
+        })
+        void ipcApi.request('selection.hide_toolbar')
+      }
+    }
   })
 
   useIpcOn('selection.toolbar_visibility_change', (isVisible) => {

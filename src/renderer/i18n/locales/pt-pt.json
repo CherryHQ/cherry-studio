@@ -3642,6 +3642,8 @@
   "selection.settings.toolbar.compact_mode.description": "No modo compacto, somente ícones são exibidos, sem texto",
   "selection.settings.toolbar.compact_mode.title": "Modo Compacto",
   "selection.settings.toolbar.title": "Barra de Ferramentas",
+  "selection.settings.toolbar.translate_only.description": "Ignorar a barra de ferramentas e mostrar diretamente a tradução após selecionar o texto",
+  "selection.settings.toolbar.translate_only.title": "Apenas tradução",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Tecla Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Após selecionar uma palavra, mantenha pressionada a tecla Ctrl para exibir a barra de ferramentas",
   "selection.settings.toolbar.trigger_mode.description": "Método de ativação da captura de palavras e exibição da barra de ferramentas após selecionar o texto",

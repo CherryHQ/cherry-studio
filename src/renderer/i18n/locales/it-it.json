@@ -3642,6 +3642,8 @@
   "selection.settings.toolbar.compact_mode.description": "In modalità compatta vengono mostrate solo le icone, senza testo",
   "selection.settings.toolbar.compact_mode.title": "Modalità compatta",
   "selection.settings.toolbar.title": "Barra degli strumenti",
+  "selection.settings.toolbar.translate_only.description": "Salta la barra degli strumenti e mostra direttamente la traduzione dopo la selezione del testo",
+  "selection.settings.toolbar.translate_only.title": "Solo traduzione",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Tasto Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Dopo la selezione, tieni premuto Ctrl per mostrare la barra degli strumenti",
   "selection.settings.toolbar.trigger_mode.description": "Metodo per attivare l'assistente di selezione e mostrare la barra degli strumenti",

@@ -3642,6 +3642,8 @@
   "selection.settings.toolbar.compact_mode.description": "緊湊模式下，只顯示圖示，不顯示文字",
   "selection.settings.toolbar.compact_mode.title": "緊湊模式",
   "selection.settings.toolbar.title": "工具列",
+  "selection.settings.toolbar.translate_only.description": "選取文字後略過工具列，直接顯示翻譯結果",
+  "selection.settings.toolbar.translate_only.title": "僅翻譯",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrl 鍵",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "選取文字後，再 按住 Ctrl 鍵，才顯示工具列",
   "selection.settings.toolbar.trigger_mode.description": "選取文字後，觸發取詞並顯示工具列的方式",

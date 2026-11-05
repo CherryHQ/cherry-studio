@@ -3642,6 +3642,8 @@
   "selection.settings.toolbar.compact_mode.description": "Im Kompaktmodus nur Symbole anzeigen, keinen Text",
   "selection.settings.toolbar.compact_mode.title": "Kompaktmodus",
   "selection.settings.toolbar.title": "Werkzeugleiste",
+  "selection.settings.toolbar.translate_only.description": "Symbolleiste überspringen und die Übersetzung nach der Textauswahl direkt anzeigen",
+  "selection.settings.toolbar.translate_only.title": "Nur Übersetzung",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrl-Taste",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Nach der Texterfassung die Ctrl-Taste länger drücken, um die Toolbar anzuzeigen",
   "selection.settings.toolbar.trigger_mode.description": "Methode zum Auslösen und Anzeigen der Werkzeugleiste nach einer Textauswahl",

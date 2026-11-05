@@ -3642,6 +3642,8 @@
   "selection.settings.toolbar.compact_mode.description": "紧凑模式下，只显示图标，不显示文字",
   "selection.settings.toolbar.compact_mode.title": "紧凑模式",
   "selection.settings.toolbar.title": "工具栏",
+  "selection.settings.toolbar.translate_only.description": "选中文本后跳过工具栏，直接显示翻译结果",
+  "selection.settings.toolbar.translate_only.title": "仅翻译",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrl 键",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "划词后，再 长按 Ctrl 键，才显示工具栏",
   "selection.settings.toolbar.trigger_mode.description": "划词后，触发取词并显示工具栏的方式",
