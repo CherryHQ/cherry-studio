@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { UpdateEntityTagsDeltaDto } from '@shared/data/api/schemas/tags'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Tag } from '@shared/data/types/tag'
@@ -33,6 +33,10 @@ export function useEntityTags(entityType: EntityType, options: UseEntityTagsOpti
   const { trigger: deltaTrigger } = useMutation('PATCH', '/tags/entities/:entityType/:entityId', {
     refresh: ['/entity-tags']
   })
+
+  // Mutations refresh only this window's SWR cache; another window's tag edits
+  // arrive as a data-change notification and refetch the bindings here.
+  useDataChange(enabled ? '/entity-tags' : [], () => void refetchBindings())
 
   const tags = tagsData ?? EMPTY_TAGS
   const tagsByEntityId = useMemo(() => {

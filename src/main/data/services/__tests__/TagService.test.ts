@@ -1,6 +1,9 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { TagService, tagService } from '@data/services/TagService'
@@ -402,6 +405,30 @@ describe('TagService', () => {
         (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
       )
       expect(rows).toEqual([expect.objectContaining({ tagId: TAG_1, createdAt: 1000 })])
+    })
+
+    it('should publish an /entity-tags membership change after the delta commits', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_1], remove: [] })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/entity-tags', kind: 'membership' }
+      ])
+    })
+
+    it('should publish nothing when the delta rolls back', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      expect(() =>
+        tagService.applyEntityTagDelta('assistant', ASSISTANT_1, {
+          add: ['44444444-4444-4444-8444-444444444444'],
+          remove: []
+        })
+      ).toThrow()
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
 
     it('should fail with NOT_FOUND for a missing added tag and roll the whole delta back', async () => {

@@ -30,6 +30,7 @@
 import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { entityTagTable, type TagRow, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -379,6 +380,10 @@ export class TagService {
       }
     })
 
+    // Cross-window convergence: the committed delta changes the `/entity-tags`
+    // read model, and the initiating window's SWR refresh does not reach other
+    // windows — they only refetch on this signal.
+    notifyDataApiDataChange([{ endpoint: '/entity-tags', kind: 'membership' }])
     logger.info('Applied entity tag delta', { entityType, entityId, added: toAdd.length, removed: toRemove.length })
   }
 
