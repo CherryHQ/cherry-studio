@@ -143,6 +143,8 @@ type StreamContext = {
   currentBlockThinkingText: string | undefined
   /** Text of the most recently stream-completed thinking block, awaiting its complete-frame echo. */
   lastStreamedThinkingText: string | undefined
+  /** Set when a complete thinking frame was consumed as the echo of the block still streaming. */
+  inFlightThinkingEchoConsumed: boolean
   textPartId: string | undefined
   accumulatedText: string
   streamedTextLength: number
@@ -548,6 +550,7 @@ export class ClaudeCodeStreamAdapter {
       currentReasoningPartId: undefined,
       currentBlockThinkingText: undefined,
       lastStreamedThinkingText: undefined,
+      inFlightThinkingEchoConsumed: false,
       textPartId: undefined,
       accumulatedText: '',
       streamedTextLength: 0,
@@ -911,6 +914,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.reasoningBlocksByIndex.set(event.index, reasoningPartId)
     ctx.currentReasoningPartId = reasoningPartId
     ctx.currentBlockThinkingText = ''
+    ctx.inFlightThinkingEchoConsumed = false
     ctx.sink.enqueue({
       type: 'reasoning-start',
       id: reasoningPartId,
@@ -1009,9 +1013,16 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
       ctx.reasoningBlocksByIndex.delete(blockIndex)
       if (ctx.currentReasoningPartId === reasoningPartId) ctx.currentReasoningPartId = undefined
-      // The block's complete assistant frame follows; remember what was already streamed so the
-      // echo can be deduplicated instead of emitted twice.
-      ctx.lastStreamedThinkingText = ctx.currentBlockThinkingText
+      // The block's complete assistant frame may still follow; remember what was already streamed
+      // so the echo can be deduplicated instead of emitted twice. When that echo already arrived
+      // before the stop and was consumed, arming the marker would wrongly drop a later distinct
+      // block carrying identical text.
+      if (ctx.inFlightThinkingEchoConsumed) {
+        ctx.inFlightThinkingEchoConsumed = false
+        ctx.lastStreamedThinkingText = undefined
+      } else {
+        ctx.lastStreamedThinkingText = ctx.currentBlockThinkingText
+      }
       ctx.currentBlockThinkingText = undefined
     }
   }
@@ -1087,6 +1098,13 @@ export class ClaudeCodeStreamAdapter {
     // block is emitted whole — preserving unstreamed reasoning beats deduplicating on suspicion.
     if (ctx.lastStreamedThinkingText !== undefined && ctx.lastStreamedThinkingText === thinking) {
       ctx.lastStreamedThinkingText = undefined
+      return
+    }
+    // SDK 0.3.311 delivers the completed thinking frame BEFORE its content_block_stop, so the echo
+    // can arrive while the block is still streaming. Dedup against the in-flight accumulation too,
+    // and record the consumption so the stop does not re-arm the post-stop echo marker.
+    if (ctx.currentBlockThinkingText !== undefined && ctx.currentBlockThinkingText === thinking) {
+      ctx.inFlightThinkingEchoConsumed = true
       return
     }
 
