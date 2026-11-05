@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { ChatConversationControls } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import {
   type ChatConversationControlsSnapshot,
@@ -14,7 +13,9 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
@@ -36,6 +37,13 @@ const NOOP_MODELS_SELECT: ChatConversationControlsSnapshot['onMentionedModelsSel
 const NOOP_MULTI_SELECT_MODE_CHANGE: ChatConversationControlsSnapshot['onMentionedModelMultiSelectModeChange'] = () =>
   undefined
 const NOOP_MODEL_SELECTOR_RESTORE: ChatConversationControlsSnapshot['onMentionedModelSelectorRestore'] = () => undefined
+
+const openAssistantEditorInMain = (target: ResourceEditDialogTarget) => {
+  openRoute('/app/chat', {
+    editAssistantId: target.id,
+    ...(target.initialTab ? { editTab: target.initialTab } : {})
+  })
+}
 
 type QuickView = 'bar' | 'panel'
 type QuickWindowView = QuickView | 'quick-panel'
@@ -74,7 +82,6 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   const quickPanel = useQuickPanel()
 
   const [view, setView] = useState<QuickView>('bar')
-  const [composerEngaged, setComposerEngaged] = useState(false)
   const [isPinned, setIsPinnedState] = useState(false)
   const [conversationControlsSnapshot, setConversationControlsSnapshot] =
     useState<ChatConversationControlsSnapshot | null>(null)
@@ -157,7 +164,6 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   }, [applyViewHeight, windowView])
 
   const collapse = useCallback(() => {
-    setComposerEngaged(false)
     setView('bar')
     reset()
   }, [reset])
@@ -215,7 +221,6 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
   useEffect(() => {
     const resetComposerWhileHidden = () => {
       if (!document.hidden) return
-      setComposerEngaged(false)
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     }
 
@@ -268,6 +273,8 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
       // first with nothing but a main-process warning to show for it.
       shouldAutoSelectCreatedAssistant={false}
       side={side}
+      showProviderName={false}
+      allowAssistantManagement={false}
       onAssistantChange={handleAssistantChange}
       onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
       onMentionedModelsSelect={activeConversationControlsSnapshot?.onMentionedModelsSelect ?? NOOP_MODELS_SELECT}
@@ -285,6 +292,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
       <div
         ref={rootRef}
         data-ui="quick-assistant.view"
+        data-composer-stage={view === 'bar' ? '' : undefined}
         className={cn(
           'flex h-full w-full flex-col overflow-hidden',
           view === 'bar' && 'justify-end',
@@ -334,11 +342,14 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
         <div
           ref={barRef}
           data-ui="quick-assistant.composer"
-          className={cn('[-webkit-app-region:no-drag]', view === 'panel' && 'pb-2')}
-          onFocusCapture={(event) => {
-            const input = event.currentTarget.querySelector('[data-ui~="part:composer-input"]')
-            if (input?.contains(event.target)) setComposerEngaged(true)
-          }}>
+          data-composer-dock-surface=""
+          className={cn(
+            '[-webkit-app-region:no-drag] [&_button]:cursor-auto [&_[role=button]]:cursor-auto [&_a]:cursor-pointer [&_input]:cursor-text [&_textarea]:cursor-text [&_button]:[-webkit-app-region:no-drag] [&_[role=button]]:[-webkit-app-region:no-drag] [&_a]:[-webkit-app-region:no-drag] [&_input]:[-webkit-app-region:no-drag] [&_textarea]:[-webkit-app-region:no-drag]',
+            draggable &&
+              '[&_[data-composer-inputbar]]:cursor-grab [&_[data-composer-inputbar]]:[-webkit-app-region:drag] [&_[data-composer-toolbar]]:cursor-grab [&_[data-composer-toolbar]]:[-webkit-app-region:drag]',
+            '[&_[data-composer-editor-frame]]:cursor-text [&_[data-composer-editor-frame]]:[-webkit-app-region:no-drag] [&_[data-composer-editor-frame]_*]:[-webkit-app-region:no-drag]',
+            view === 'panel' && 'pb-2'
+          )}>
           {view === 'panel' ? (
             <ChatPlacementComposer
               placement="docked"
@@ -347,6 +358,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               topicId={topicId ?? undefined}
               assistantId={activeAssistantId ?? undefined}
               resolvedContext={composerContext}
+              onResourceEdit={openAssistantEditorInMain}
               resolvedProviders={providers}
               externalContextControls
               sendDisabled={!topicId || isSaving}
@@ -363,33 +375,24 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               topicId={topicId ?? undefined}
               assistantId={activeAssistantId ?? undefined}
               resolvedContext={composerContext}
+              onResourceEdit={openAssistantEditorInMain}
               resolvedProviders={providers}
-              // Always external: the built-in context row brings a `bg-muted` backdrop
-              // plate sized for a page behind it, which in a transparent frameless window
-              // reads as a second window edge around the composer card.
               externalContextControls
+              toolbarContextControls={
+                <div
+                  data-ui="quick-assistant.contextbar"
+                  className="flex min-w-0 flex-1 cursor-grab items-center gap-1.5 [-webkit-app-region:drag] [&_button]:min-w-0 [&_button]:shrink [&_button]:[-webkit-app-region:no-drag]">
+                  {renderConversationControls('top')}
+                </div>
+              }
               sendDisabled={!topicId || isSaving}
               steerWhileBusy={false}
               onPause={handlePause}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
               onDraftAssistantChange={handleAssistantChange}
-              compactWhenSingleLine={!composerEngaged}
             />
           )}
-          {view === 'bar' &&
-            composerEngaged && (
-              // The card's own layout box, so the row lines up with it at any window width; px-2
-              // matches the card toolbar's inset.
-              <NarrowLayout narrowMode withSidePadding>
-                <div
-                  data-ui="quick-assistant.contextbar"
-                  // The bar's only grip: the composer card is no-drag and the rest is headroom.
-                  className="flex h-10 items-center gap-1.5 overflow-hidden px-2 [-webkit-app-region:drag] [&_button]:h-7 [&_button]:px-1.5 [&_button]:[-webkit-app-region:no-drag]">
-                  {renderConversationControls('top')}
-                </div>
-              </NarrowLayout>
-            )}
         </div>
       </div>
     </MessageEditingProvider>

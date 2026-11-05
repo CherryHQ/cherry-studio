@@ -34,7 +34,7 @@ vi.mock('@renderer/components/composer/variants/SelectedModelsTrigger', () => ({
 }))
 
 describe('ChatConversationControls', () => {
-  it('shows the model and provider in the model selector trigger', () => {
+  it.each([true, false])('keeps provider identity available when showProviderName is %s', (showProviderName) => {
     const provider = {
       id: 'minimax',
       name: 'MiniMax',
@@ -56,6 +56,7 @@ describe('ChatConversationControls', () => {
 
     render(
       <ChatConversationControls
+        showProviderName={showProviderName}
         assistantId="assistant"
         assistantName="Assistant"
         model={model}
@@ -75,7 +76,13 @@ describe('ChatConversationControls', () => {
       />
     )
 
-    expect(screen.getByText('MiniMax-M3 | MiniMax')).toHaveAttribute('title', 'MiniMax-M3 | MiniMax')
+    expect(
+      screen.getByRole('button', { name: showProviderName ? 'MiniMax-M3 | MiniMax' : 'MiniMax-M3' })
+    ).toBeInTheDocument()
+    expect(screen.getByText(showProviderName ? 'MiniMax-M3 | MiniMax' : 'MiniMax-M3')).toHaveAttribute(
+      'title',
+      'MiniMax-M3 | MiniMax'
+    )
   })
 
   it('keeps the canonical provider name while provider metadata is loading', () => {

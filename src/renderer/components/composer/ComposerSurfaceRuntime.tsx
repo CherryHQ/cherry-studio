@@ -275,6 +275,7 @@ export interface ComposerSurfaceProps {
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
+  toolbarContextControls?: React.ReactNode
   renderBelowControls?: (
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
@@ -609,6 +610,7 @@ export default function ComposerSurfaceRuntime({
   onRootPanelOpen,
   onToolLauncherSelect,
   renderLeftControls,
+  toolbarContextControls,
   renderBelowControls,
   topContent,
   leadingContent,
@@ -2362,6 +2364,7 @@ export default function ComposerSurfaceRuntime({
       onFocusCapture={onVoiceTargetInteraction}
       className={cn(
         'inputbar-container relative transition-all duration-200 ease-in-out',
+        toolbarContextControls && '@container/composer',
         !embedded && 'rounded-[20px] border-[0.5px] border-border bg-composer-surface shadow-sm',
         isCompact || editingState || embedded ? 'pt-0' : 'pt-2',
         !embedded && (visibleBelowControls ? 'mb-0.5' : 'mb-3'),
@@ -2457,8 +2460,18 @@ export default function ComposerSurfaceRuntime({
         <div
           data-ui="part:composer-actions"
           data-composer-toolbar=""
-          className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
-          <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
+          className={cn(
+            'relative z-2 flex shrink-0 flex-row justify-between gap-x-4 px-2 py-1.25',
+            toolbarContextControls ? 'min-h-10 flex-wrap items-center gap-y-1' : 'h-10'
+          )}>
+          <div className={cn('flex min-w-0 items-center overflow-hidden', !toolbarContextControls && 'flex-1')}>
+            {leftControls}
+          </div>
+          {toolbarContextControls ? (
+            <div className="flex min-w-0 flex-1 items-center @max-[480px]/composer:order-last @max-[480px]/composer:basis-full">
+              {toolbarContextControls}
+            </div>
+          ) : null}
           <div className="flex flex-row items-center gap-1.5">
             {sendAccessoryElement}
             {sendAction}

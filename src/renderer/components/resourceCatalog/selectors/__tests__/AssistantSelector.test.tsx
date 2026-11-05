@@ -401,6 +401,24 @@ async function openCreateDialog() {
 }
 
 describe('AssistantSelector', () => {
+  it('allows selecting an existing assistant without exposing management actions', () => {
+    const onChange = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={onChange}
+        allowManagement={false}
+      />
+    )
+    openPopover()
+    expect(screen.queryByRole('button', { name: 'Create assistant' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit assistant' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: /Alpha Assistant/ }))
+    expect(onChange).toHaveBeenCalledWith(ALPHA_ASSISTANT_ID)
+  })
+
   it('defers selector reads until the popover opens', () => {
     renderSelector()
 

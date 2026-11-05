@@ -53,11 +53,11 @@ const ControlBar: FC<Props> = ({ loading, isPinned, topicId, topicTitle, onEsc, 
   return (
     <header
       data-ui="quick-assistant.titlebar"
-      className="flex h-10 shrink-0 items-center border-border-subtle border-b px-2 [-webkit-app-region:drag]">
+      className="flex h-10 shrink-0 cursor-grab items-center border-border-subtle border-b px-2 [-webkit-app-region:drag]">
       <div className="flex min-w-0 flex-1 items-center gap-2 px-1.5">
         <span className="truncate font-medium text-foreground text-sm">{topicTitle}</span>
       </div>
-      <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
+      <div className="flex shrink-0 cursor-auto items-center gap-0.5 [-webkit-app-region:no-drag]">
         <Action label={escLabel} onClick={onEsc}>
           {loading ? (
             <Loader2 size={12} className="animate-spin text-error" />

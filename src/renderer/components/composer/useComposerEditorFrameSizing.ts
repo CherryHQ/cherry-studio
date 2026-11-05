@@ -120,7 +120,8 @@ export function useComposerEditorFrameSizing({
     const measure = () => {
       const stageHeight = stage?.clientHeight ?? window.innerHeight - (tabBar?.getBoundingClientRect().bottom ?? 0)
       if (stageHeight <= 0) return
-      const chromeHeight = (surface?.offsetHeight ?? frame.offsetHeight) - frame.offsetHeight
+      const frameHeight = frame.getBoundingClientRect().height
+      const chromeHeight = (surface?.getBoundingClientRect().height ?? frameHeight) - frameHeight
       setMaxHeight(Math.max(minHeight, Math.floor(stageHeight - chromeHeight)))
     }
     measure()

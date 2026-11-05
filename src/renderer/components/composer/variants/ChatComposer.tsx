@@ -50,6 +50,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { resolveSendShortcut } from '@renderer/utils/input'
@@ -167,6 +168,8 @@ export interface ChatComposerProps {
   resolvedContext?: ChatComposerResolvedContext
   resolvedProviders?: Provider[]
   externalContextControls?: boolean
+  onResourceEdit?: (target: ResourceEditDialogTarget) => void
+  toolbarContextControls?: React.ReactNode
   onConversationControlsChange?: ChatConversationControlsChangeHandler
   onSend: (
     text: string,
@@ -273,6 +276,8 @@ const ChatComposerRoot = ({
   resolvedContext,
   resolvedProviders,
   externalContextControls,
+  toolbarContextControls,
+  onResourceEdit,
   onConversationControlsChange,
   onSend,
   chatTarget,
@@ -335,6 +340,8 @@ const ChatComposerRoot = ({
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
             externalContextControls={externalContextControls}
+            toolbarContextControls={toolbarContextControls}
+            onResourceEdit={onResourceEdit}
             onConversationControlsChange={onConversationControlsChange}
             initialDraft={initialDraft}
             draftCacheScopeKey={draftCacheScopeKey}
@@ -379,6 +386,8 @@ const ChatComposerInner = ({
   resolvedContext,
   resolvedProviders,
   externalContextControls = false,
+  toolbarContextControls,
+  onResourceEdit,
   onConversationControlsChange,
   initialDraft,
   draftCacheScopeKey,
@@ -1828,7 +1837,7 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      <ResourceEditDialogEventHost />
+      <ResourceEditDialogEventHost onOpen={onResourceEdit} />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           showAiDisclaimer
@@ -1939,6 +1948,7 @@ const ChatComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}
+          toolbarContextControls={toolbarContextControls}
           compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />

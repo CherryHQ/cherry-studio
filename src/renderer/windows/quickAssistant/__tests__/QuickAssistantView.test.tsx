@@ -72,6 +72,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   ChatPlacementComposer: ({
     compactWhenSingleLine,
     externalContextControls,
+    toolbarContextControls,
     onNewTopic,
     onPause,
     onSend,
@@ -79,6 +80,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   }: {
     compactWhenSingleLine?: boolean
     externalContextControls?: boolean
+    toolbarContextControls?: React.ReactNode
     onNewTopic?: () => void
     onPause?: () => void
     onSend: (text: string) => unknown
@@ -98,6 +100,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
         <div data-ui="part:composer-input">
           <div aria-label="message" contentEditable role="textbox" suppressContentEditableWarning tabIndex={0} />
         </div>
+        {toolbarContextControls}
         <button type="button" onClick={() => onSend('hello')}>
           mock send
         </button>
@@ -368,17 +371,15 @@ describe('QuickAssistantView', () => {
     expect(passthroughCalls()).toEqual([])
   })
 
-  it('summons as one row and expands the composer only after its editor is focused', async () => {
+  it('keeps assistant and model selectors visible before focus and after hiding', async () => {
     const { container } = render(<QuickAssistantView draggable={false} />)
 
     const composer = screen.getByTestId('quick-composer')
     const input = screen.getByRole('textbox', { name: 'message' })
-    expect(composer).toHaveAttribute('data-compact', 'true')
-    // Always external in the bar: the built-in context row brings a backdrop plate that
-    // reads as a second window edge in a transparent frameless window.
+    expect(composer).toHaveAttribute('data-compact', 'false')
     expect(composer).toHaveAttribute('data-external-context', 'true')
     expect(composer).toHaveAttribute('data-new-topic', 'false')
-    expect(container.querySelector('[data-ui="quick-assistant.contextbar"]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-ui="quick-assistant.contextbar"]')).toBeInTheDocument()
 
     fireEvent.focus(input)
     await waitFor(() => expect(composer).toHaveAttribute('data-compact', 'false'))
@@ -388,11 +389,9 @@ describe('QuickAssistantView', () => {
 
     const documentHidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
     fireEvent(document, new Event('visibilitychange'))
-    await waitFor(() => expect(composer).toHaveAttribute('data-compact', 'true'))
-    // Always external in the bar: the built-in context row brings a backdrop plate that
-    // reads as a second window edge in a transparent frameless window.
+    await waitFor(() => expect(composer).toHaveAttribute('data-compact', 'false'))
     expect(composer).toHaveAttribute('data-external-context', 'true')
-    expect(container.querySelector('[data-ui="quick-assistant.contextbar"]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-ui="quick-assistant.contextbar"]')).toBeInTheDocument()
     expect(input).not.toHaveFocus()
     documentHidden.mockRestore()
   })

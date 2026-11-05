@@ -42,6 +42,7 @@ type SharedProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDialogCloseAutoFocus?: () => void
+  allowManagement?: boolean
   autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
@@ -91,6 +92,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     onOpenChange,
     onDialogCloseAutoFocus,
     autoSelectOnCreate,
+    allowManagement = true,
     side,
     align,
     sideOffset,
@@ -267,8 +269,8 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    onEditItem: handleEditItem,
-    onCreateNew: () => setCreateDialogOpen(true),
+    onEditItem: allowManagement ? handleEditItem : undefined,
+    onCreateNew: allowManagement ? () => setCreateDialogOpen(true) : undefined,
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),
       pin: t('selector.common.pin'),

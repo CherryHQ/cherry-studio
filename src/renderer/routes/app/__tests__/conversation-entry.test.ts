@@ -77,6 +77,13 @@ describe('conversation entry route guards', () => {
     await expect(agentBeforeLoad({ search: { intent: 'feedback' } })).resolves.toBeUndefined()
   })
 
+  it('preserves assistant editor requests instead of redirecting to the last conversation', async () => {
+    mocks.resolveChatEntryTopicId.mockResolvedValue('last-topic')
+    await expect(
+      chatBeforeLoad({ search: { editAssistantId: 'assistant-1', editTab: 'tools.mcp' } })
+    ).resolves.toBeUndefined()
+  })
+
   it('resolves an assistant-scoped topic for a sidebar assistant entry', async () => {
     mocks.resolveChatEntryTopicIdForAssistant.mockResolvedValue('topic-assistant')
 

@@ -9,7 +9,7 @@ export const Route = createFileRoute('/app/chat')({
   // Resolving before mount renders the final conversation in one pass. A sidebar
   // `?assistantId=` entry must resume that assistant, not the globally last-focused topic.
   beforeLoad: async ({ search }) => {
-    if (search.topicId) return
+    if (search.topicId || search.editAssistantId) return
     if (search.assistantId) {
       const topicId = await resolveChatEntryTopicIdForAssistant(search.assistantId)
       if (topicId) throw redirect({ to: '/app/chat', search: { topicId }, replace: true })

@@ -38,6 +38,8 @@ export interface ChatConversationControlsProps {
   assistantTriggerAction?: 'select' | 'edit'
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  showProviderName?: boolean
+  allowAssistantManagement?: boolean
   onDialogCloseAutoFocus?: () => void
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
@@ -63,6 +65,8 @@ export function ChatConversationControls({
   assistantTriggerAction = 'select',
   side,
   iconOnly = false,
+  showProviderName = true,
+  allowAssistantManagement = true,
   onDialogCloseAutoFocus,
   onAssistantChange,
   onModelSelect,
@@ -138,6 +142,7 @@ export function ChatConversationControls({
           multi={false}
           value={assistantId}
           onChange={onAssistantChange}
+          allowManagement={allowAssistantManagement}
           autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
           side={side}
           align="start"
@@ -202,7 +207,7 @@ export function ChatConversationControls({
             <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
               {model ? <ModelAvatar model={model} size={20} /> : null}
               <span className={cn('max-w-52', modelLabelClassName)} title={modelLabel}>
-                {modelLabel}
+                {model && !showProviderName ? model.name : modelLabel}
               </span>
               <ChevronDown
                 size={14}
