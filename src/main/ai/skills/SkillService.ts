@@ -19,6 +19,7 @@ import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillImportSystemOptions,
+  SkillImportMode,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
@@ -37,6 +38,7 @@ import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, va
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
+import { inspectSkillStorage } from './skillStorage'
 import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
@@ -97,6 +99,27 @@ export class SkillService {
 
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
     return agentGlobalSkillService.list(query)
+  }
+
+  async getStorageInfo(skill: InstalledSkill) {
+    return inspectSkillStorage(this.getInstalledSkillDirectory(skill), skill)
+  }
+
+  /** Keep unavailable system imports in the catalog, but out of runtime discovery. */
+  async listAvailable(query: ListSkillsQuery): Promise<InstalledSkill[]> {
+    const skills = await this.list(query)
+    const available = await Promise.all(
+      skills.map(async (skill) => skill.source !== 'system' || (await this.getStorageInfo(skill)).status === 'ready')
+    )
+    return skills.filter((_, index) => available[index])
+  }
+
+  async resolveSkillDirectory(skill: InstalledSkill): Promise<string> {
+    const directory = this.getInstalledSkillDirectory(skill)
+    if (skill.source !== 'system') return directory
+    const storage = await this.getStorageInfo(skill)
+    if (storage.status !== 'ready') throw new Error(`System Skill source is ${storage.status}: ${skill.folderName}`)
+    return storage.mode === 'symlink' ? fs.promises.realpath(directory) : directory
   }
 
   /** Enable or disable a skill for a specific agent. */
@@ -170,6 +193,7 @@ export class SkillService {
     return Promise.all(
       skills.map(async (skill): Promise<SkillCatalogEntry> => {
         if (skill.source === 'builtin') return { ...skill, scope: 'builtin' }
+        if (skill.source === 'system') return { ...skill, scope: 'system', storage: await this.getStorageInfo(skill) }
         const directory = await realPath(this.getInstalledSkillDirectory(skill))
         const scope = directory && roots.some((root) => root && isPathInside(directory, root)) ? 'system' : 'local'
         return { ...skill, scope }
@@ -386,6 +410,7 @@ export class SkillService {
             directoryPath: canonicalPath,
             placements: [placement],
             status,
+            importMode: registered ? ((await this.getStorageInfo(registered)).mode ?? undefined) : undefined,
             registeredSkillId: registered?.id
           })
         } catch (error) {
@@ -403,29 +428,32 @@ export class SkillService {
 
   /** Import a discovered system skill into the managed library. Agent enablement is a separate data mutation. */
   async importSystem(options: SkillImportSystemOptions): Promise<InstalledSkill> {
-    const canonicalPath = await fs.promises.realpath(options.directoryPath)
-    const candidates = await this.discoverSystem()
-    const candidate = candidates.find((item) => item.directoryPath === canonicalPath)
-    if (!candidate) {
-      throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
-    }
-    if (candidate.registeredSkillId) {
-      throw new Error(`System skill is already imported: ${candidate.filename}`)
-    }
-    if (candidate.status === 'conflict') {
-      throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
-    }
+    return this.mutationLock.runExclusive(async () => {
+      const canonicalPath = await fs.promises.realpath(options.directoryPath)
+      const candidates = await this.discoverSystem()
+      const candidate = candidates.find((item) => item.directoryPath === canonicalPath)
+      if (!candidate) {
+        throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
+      }
+      if (candidate.registeredSkillId) {
+        throw new Error(`System skill is already imported: ${candidate.filename}`)
+      }
+      if (candidate.status === 'conflict') {
+        throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
+      }
 
-    const installed = await this.installSkillDir(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
-      namespace: candidate.placements[0]?.sourceId ?? null
-    })
+      const installed = await this.installSkillDirLocked(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
+        namespace: candidate.placements[0]?.sourceId ?? null,
+        mode: options.mode ?? 'copy'
+      })
 
-    logger.info('System skill installed from local CLI', {
-      skillId: installed.id,
-      folderName: installed.folderName,
-      directoryPath: canonicalPath
+      logger.info('System skill installed from local CLI', {
+        skillId: installed.id,
+        folderName: installed.folderName,
+        directoryPath: canonicalPath
+      })
+      return installed
     })
-    return installed
   }
 
   /**
@@ -461,6 +489,8 @@ export class SkillService {
   /** Existing workspace entries pointing into app-owned global storage are managed DB-backed skills. */
   private async isManagedSkillSymlinkTarget(entryPath: string): Promise<boolean> {
     try {
+      const directTarget = path.resolve(path.dirname(entryPath), await fs.promises.readlink(entryPath))
+      if (isPathInside(directTarget, application.getPath('feature.agents.skills'))) return true
       const [entryRealPath, skillsRootRealPath] = await Promise.all([
         fs.promises.realpath(entryPath),
         fs.promises.realpath(application.getPath('feature.agents.skills'))
@@ -494,7 +524,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; mode?: SkillImportMode } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -537,8 +567,14 @@ export class SkillService {
     const destPath = this.getSkillStoragePath(destFolderName)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
-    await this.installer.install(skillDir, destPath)
-    await this.linkMirror(destFolderName)
+    if (provenance.mode === 'symlink') {
+      if (existing) throw new Error(`System skill is already imported: ${folderName}`)
+      await this.installer.installLink(skillDir, destPath)
+    } else {
+      await this.installer.install(skillDir, destPath)
+      if (source === 'system') await this.normalizeSkillMdCasing(destPath)
+    }
+    if (source !== 'system') await this.linkMirror(destFolderName)
 
     const tags = metadata.tags ?? []
 
@@ -583,6 +619,7 @@ export class SkillService {
     } catch (error) {
       try {
         await this.installer.uninstall(destPath)
+        await this.unlinkMirror(destFolderName)
       } catch (cleanupError) {
         logger.error('Failed to clean up skill files after DB insert failure', {
           folderName,
@@ -595,6 +632,15 @@ export class SkillService {
     if (!inserted) {
       await this.installer.uninstall(destPath)
       throw new Error(`Failed to insert skill: ${metadata.name}`)
+    }
+
+    if (source === 'system') {
+      try {
+        await this.linkMirror(destFolderName, { throwOnError: true })
+      } catch (error) {
+        await this.uninstallLocked(inserted)
+        throw error
+      }
     }
 
     if (isBuiltin) {
@@ -658,6 +704,14 @@ export class SkillService {
         folderName,
         error: error instanceof Error ? error.message : String(error)
       })
+      if (options.throwOnError) throw error
+      return
+    }
+
+    const storage = catalogSkill?.source === 'system' ? await this.getStorageInfo(catalogSkill) : null
+    if (storage && storage.status !== 'ready') {
+      await this.unlinkMirror(folderName)
+      if (options.throwOnError) throw new Error(`System Skill source is ${storage.status}: ${folderName}`)
       return
     }
 
@@ -672,6 +726,7 @@ export class SkillService {
         sourceDir,
         status: descriptor.status
       })
+      if (options.throwOnError) throw new Error(`Skill descriptor is ${descriptor.status}: ${folderName}`)
       return
     }
 
@@ -700,7 +755,8 @@ export class SkillService {
 
       // Builtins are copied even on POSIX. A symlink would expose direct writes to the canonical
       // authoring root immediately to every other agent before reconcile can reject the change.
-      if (!isWin && !isBuiltin) {
+      const useLink = !isBuiltin && (!isWin || storage?.mode === 'symlink')
+      if (useLink) {
         const stat = await fs.promises.lstat(targetDir).catch(() => null)
         if (stat?.isSymbolicLink()) {
           const [targetRealPath, sourceRealPath] = await Promise.all([
@@ -712,12 +768,11 @@ export class SkillService {
       }
 
       await fs.promises.rm(targetDir, { recursive: true, force: true })
-      if (isWin || isBuiltin) {
-        // Windows avoids symlink/junction privilege quirks; builtins use a verified copy so
-        // out-of-band writes to the authoring root cannot change another agent's loaded instructions.
+      if (!useLink) {
+        // Builtins stay isolated from authoring writes; ordinary Windows installs retain copy mirrors.
         await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
       } else {
-        await fs.promises.symlink(sourceDir, targetDir, 'dir')
+        await fs.promises.symlink(sourceDir, targetDir, isWin ? 'junction' : 'dir')
       }
     } catch (error) {
       logger.warn('Failed to mirror skill to Claude config', { folderName, sourceDir, targetDir, error })
@@ -796,11 +851,16 @@ export class SkillService {
       logger.info('Pruned missing Skill during scoped reconcile', { skillId, folderName: skill.folderName })
       return
     }
-    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    if (stats.isSymbolicLink() && skill.source === 'system') {
+      if ((await this.getStorageInfo(skill)).status !== 'ready') {
+        await this.unlinkMirror(skill.folderName)
+        return
+      }
+    } else if (!stats.isDirectory()) {
       throw new Error(`Managed Skill path is not a directory: ${skill.folderName}`)
     }
 
-    await this.normalizeSkillMdCasing(skillDir)
+    if (!stats.isSymbolicLink()) await this.normalizeSkillMdCasing(skillDir)
     const descriptor = await this.readSkillMdState(skillDir)
     if (descriptor.status !== 'found') {
       await this.unlinkMirror(skill.folderName)
@@ -1063,6 +1123,14 @@ export class SkillService {
       // skills — skip them so a backup can't be adopted as a phantom skill.
       if (entry.name.startsWith('.')) continue
       if (entry.isSymbolicLink()) {
+        const registered = dbByFolder.get(normalizeFolderKey(entry.name))
+        if (registered?.source === 'system') {
+          const key = normalizeFolderKey(entry.name)
+          const group = directoryGroups.get(key)
+          if (group) group.push(entry)
+          else directoryGroups.set(key, [entry])
+          continue
+        }
         logger.warn('Rejected symlink in managed skill library', { folderName: entry.name })
         try {
           await fs.promises.unlink(path.join(storageRoot, entry.name))
@@ -1093,7 +1161,12 @@ export class SkillService {
       const dir = path.join(storageRoot, entry.name)
       // The scanner/parser accept lowercase `skill.md`, but the mirror + SDK load `SKILL.md`, so
       // normalize first — else a lowercase-only skill enters the catalog yet never loads.
-      await this.normalizeSkillMdCasing(dir)
+      if (entry.isSymbolicLink()) {
+        const registered = dbByFolder.get(folderKey)
+        if (!registered || (await this.getStorageInfo(registered)).status !== 'ready') continue
+      } else {
+        await this.normalizeSkillMdCasing(dir)
+      }
       const read = await this.readSkillMdState(dir)
       if (read.status === 'found') {
         onDisk.add(entry.name)

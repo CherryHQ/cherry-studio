@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { pathExists } from '@main/utils/legacyFile'
 import { findSkillMdPath } from '@main/utils/markdownParser'
@@ -159,12 +160,22 @@ export class SkillInstaller {
     }
   }
 
+  async installLink(sourceDir: string, destPath: string): Promise<void> {
+    if (!(await fs.promises.stat(sourceDir)).isDirectory()) throw new Error('Skill source is not a directory')
+    await fs.promises.readFile(path.join(sourceDir, 'SKILL.md'), 'utf8')
+    await fs.promises.symlink(sourceDir, destPath, isWin ? 'junction' : 'dir')
+  }
+
   /**
    * Remove a skill folder.
    */
   async uninstall(skillPath: string): Promise<void> {
     try {
-      await deleteDirectoryRecursive(skillPath)
+      if ((await fs.promises.lstat(skillPath)).isSymbolicLink()) {
+        await fs.promises.unlink(skillPath)
+      } else {
+        await deleteDirectoryRecursive(skillPath)
+      }
       logger.info('Skill folder deleted', { skillPath })
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException

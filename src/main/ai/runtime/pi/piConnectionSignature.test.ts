@@ -48,7 +48,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 }))
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
-    list: mocks.listSkills,
+    listAvailable: mocks.listSkills,
     listLocalSkillPaths: mocks.listLocalSkillPaths,
     getSkillDirectory: mocks.getSkillDirectory
   }

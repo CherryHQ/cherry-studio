@@ -149,7 +149,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mocks.findChannelBySessionId }
 }))
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { list: mocks.skillList, getSkillDirectory: mocks.getSkillDirectory }
+  skillService: { listAvailable: mocks.skillList, getSkillDirectory: mocks.getSkillDirectory }
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: mocks.ensureAgentDataDirectory

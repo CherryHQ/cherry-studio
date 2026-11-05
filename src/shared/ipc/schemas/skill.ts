@@ -6,6 +6,8 @@ import {
   type LocalSkill,
   type SkillCatalogEntry,
   SkillRemoteUpdateCheckSchema,
+  SkillImportModeSchema,
+  SkillStorageInfoSchema,
   type SkillResult,
   type SystemSkillCandidate
 } from '@shared/types/skill'
@@ -68,8 +70,12 @@ export const skillRequestSchemas = {
     output: z.custom<SystemSkillCandidate[]>()
   }),
   'skill.import_system': defineRoute({
-    input: z.object({ directoryPath: z.string().min(1) }),
+    input: z.object({ directoryPath: z.string().min(1), mode: SkillImportModeSchema.default('copy') }),
     output: z.custom<InstalledSkill>()
+  }),
+  'skill.storage.get': defineRoute({
+    input: z.strictObject({ skillId: z.string().min(1) }),
+    output: SkillStorageInfoSchema
   }),
   'skill.folder.open': defineRoute({
     input: z.object({ skillId: z.string().min(1) }),

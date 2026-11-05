@@ -60,3 +60,12 @@ describe('Skill authoring and update IPC schemas', () => {
     expect(output.safeParse({ state: 'available', localChanges: true, remoteVersion: null }).success).toBe(false)
   })
 })
+
+describe('system Skill import schema', () => {
+  it('defaults to a copy and rejects unsupported import methods', () => {
+    const input = skillRequestSchemas['skill.import_system'].input
+    expect(input.parse({ directoryPath: '/system/skill' })).toEqual({ directoryPath: '/system/skill', mode: 'copy' })
+    expect(input.parse({ directoryPath: '/system/skill', mode: 'symlink' }).mode).toBe('symlink')
+    expect(input.safeParse({ directoryPath: '/system/skill', mode: 'move' }).success).toBe(false)
+  })
+})

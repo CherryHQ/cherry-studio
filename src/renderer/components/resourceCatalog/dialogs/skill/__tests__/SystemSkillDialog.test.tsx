@@ -80,6 +80,18 @@ beforeEach(() => {
 })
 
 describe('SystemSkillDialog', () => {
+  it('imports with the selected mode and resets to copy when reopened', async () => {
+    const user = userEvent.setup()
+    const props = { mode: 'manage' as const, open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<SystemSkillDialog {...props} />)
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.symlink' }))
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
+    await waitFor(() => expect(importSkillMock).toHaveBeenCalledWith(candidate, 'symlink'))
+    rerender(<SystemSkillDialog {...props} open={false} />)
+    rerender(<SystemSkillDialog {...props} />)
+    expect(screen.getByRole('button', { name: 'library.system_skill.copy' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('imports a system skill without enabling it from skill management', async () => {
     const user = userEvent.setup()
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
@@ -87,7 +99,7 @@ describe('SystemSkillDialog', () => {
     await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
     expect(useSystemSkillsMock).toHaveBeenCalledWith(true)
-    expect(importSkillMock).toHaveBeenCalledWith(candidate)
+    expect(importSkillMock).toHaveBeenCalledWith(candidate, 'copy')
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
   })
 
@@ -123,7 +135,7 @@ describe('SystemSkillDialog', () => {
 
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'library.system_skill.imported' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'library.system_skill.copied' })).toBeDisabled()
   })
 
   it('enables an imported skill for a new agent without importing it again', async () => {

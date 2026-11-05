@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { InstalledSkill } from '@shared/data/types/agent'
+import type { SkillStorageInfo } from '@shared/types/skill'
 
 const mocks = vi.hoisted(() => ({
   folder: { data: undefined, error: undefined, isLoading: false } as {
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     error?: Error
     isLoading: boolean
   },
+  storage: { data: undefined as SkillStorageInfo | undefined, mutate: vi.fn() },
   ipcRequest: vi.fn(),
   flushBrowser: vi.fn(),
   launchSkill: vi.fn(),
@@ -29,7 +31,9 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate,
   useSearch: () => mocks.search
 }))
-vi.mock('swr', () => ({ default: () => mocks.folder }))
+vi.mock('swr', () => ({
+  default: ([key]: string[]) => (key === 'skill.storage.get' ? mocks.storage : mocks.folder)
+}))
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useDataChange: vi.fn(),
   useQuery: () => ({ ...mocks.query, refetch: mocks.refetch })
@@ -184,6 +188,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
 describe('SkillDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.storage.data = undefined
     mocks.query = { data: createSkill(), error: undefined, isLoading: false }
     mocks.search = {}
     mocks.folder = {
@@ -195,6 +200,14 @@ describe('SkillDetails', () => {
     mocks.updateGlobalEnabled.mockResolvedValue(undefined)
     mocks.flushBrowser.mockResolvedValue(undefined)
     mocks.refetch.mockResolvedValue(undefined)
+  })
+
+  it('keeps an unavailable linked skill visible but prevents launching it', () => {
+    mocks.storage.data = { mode: 'symlink', sourcePath: '/system/skill', status: 'missing' }
+    render(<SkillDetails skillId="skill-1" />)
+    expect(screen.getByText('library.system_skill.unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.skills.tryNow' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'common.refresh' })).toBeEnabled()
   })
 
   it('renders loading and not-found states without constructing a file browser', () => {

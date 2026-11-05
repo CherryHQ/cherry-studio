@@ -47,6 +47,12 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const [applyingRemote, setApplyingRemote] = useState(false)
   const [browserRevision, setBrowserRevision] = useState(0)
   const fileBrowserRef = useRef<SkillFileBrowserHandles>(null)
+  const storage = useSWR(['skill.storage.get', skillId], () => ipcApi.request('skill.storage.get', { skillId }))
+  const unavailable = storage.data && storage.data.status !== 'ready'
+  const refreshStorage = async () => {
+    await ipcApi.request('skill.reconcile', { skillId })
+    await Promise.all([storage.mutate(), folder.mutate(), refetch()])
+  }
   const folder = useSWR(['skill.folder.resolve', skillId], () => ipcApi.request('skill.folder.resolve', { skillId }))
 
   useDataChange('/skills/:skillId', () => void refetch())
@@ -209,7 +215,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         <div
           data-ui="skill-detail-actions"
           className="col-start-2 flex shrink-0 items-center gap-1.5 lg:col-start-3 lg:row-start-1">
-          <Button size="sm" onClick={() => void launchSkill(skill)} className="gap-1.5">
+          <Button size="sm" disabled={Boolean(unavailable)} onClick={() => void launchSkill(skill)} className="gap-1.5">
             <Play size={13} />
             {t('settings.skills.tryNow')}
           </Button>
@@ -239,10 +245,28 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         </div>
       </div>
 
+      {storage.data?.mode === 'symlink' ? (
+        <p className="text-sm text-muted-foreground">
+          {t('library.system_skill.symlink_description')}
+          <br />
+          {storage.data.sourcePath}
+        </p>
+      ) : null}
+      {unavailable ? (
+        <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{t('library.system_skill.unavailable')}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void refreshStorage().catch((error) => toast.error(String(error)))}>
+            {t('common.refresh')}
+          </Button>
+        </div>
+      ) : null}
       <div className="flex min-h-0 flex-1">
         {folder.isLoading ? (
           <Skeleton className="h-full min-h-80 rounded-xl" />
-        ) : folder.data ? (
+        ) : folder.data && !unavailable ? (
           <SkillFileBrowser
             key={browserRevision}
             ref={fileBrowserRef}
@@ -267,7 +291,9 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           if (!open && !deleting) setDeleteOpen(false)
         }}
         title={t('library.delete.skill.title')}
-        description={t('library.delete.skill.content')}
+        description={t(
+          storage.data?.mode === 'symlink' ? 'library.system_skill.unlink_description' : 'library.delete.skill.content'
+        )}
         confirmText={t('library.action.uninstall')}
         cancelText={t('common.cancel')}
         destructive

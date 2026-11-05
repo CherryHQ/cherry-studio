@@ -116,7 +116,7 @@ vi.mock('@data/services/ProviderService', () => ({
 
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
-    list: mocks.listSkills,
+    listAvailable: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
   }

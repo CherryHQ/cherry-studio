@@ -296,13 +296,13 @@ export function useSystemSkills(enabled = true) {
   }, [discover])
 
   const importSkill = useCallback(
-    async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
+    async (skill: SystemSkillCandidate, mode: 'copy' | 'symlink' = 'copy'): Promise<InstalledSkill | null> => {
       if (skill.status !== 'available') return null
       if (importingRef.current.has(skill.id)) return null
       importingRef.current.add(skill.id)
       setImporting((current) => new Set(current).add(skill.id))
       try {
-        const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
+        const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath, mode })
         await refreshSkillsBestEffort(invalidate)
         await discover()
         return installed

@@ -46,21 +46,26 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     }
   },
   'skill.discover_system': () => skillService.discoverSystem(),
-  'skill.import_system': ({ directoryPath }) => skillService.importSystem({ directoryPath }),
+  'skill.import_system': (options) => skillService.importSystem(options),
+  'skill.storage.get': async ({ skillId }) => {
+    const skill = await skillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    return skillService.getStorageInfo(skill)
+  },
   'skill.folder.open': async ({ skillId }, { senderId }) => {
     if (!senderId) throw new Error('Skill folders can only be opened from a managed window')
 
     const skill = await skillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
 
-    const errorMessage = await shell.openPath(skillService.getInstalledSkillDirectory(skill))
+    const errorMessage = await shell.openPath(await skillService.resolveSkillDirectory(skill))
     if (errorMessage) throw new Error(`Failed to open skill folder: ${errorMessage}`)
   },
   'skill.folder.resolve': async ({ skillId }) => {
     const skill = await skillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
 
-    const rootPath = AbsoluteFilePathSchema.parse(skillService.getInstalledSkillDirectory(skill))
+    const rootPath = AbsoluteFilePathSchema.parse(await skillService.resolveSkillDirectory(skill))
     return skill.source === 'builtin'
       ? { rootPath, access: 'read_only', readOnlyReason: 'builtin' }
       : { rootPath, access: 'read_write' }

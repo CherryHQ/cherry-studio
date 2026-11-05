@@ -80,7 +80,7 @@ export async function capturePiConnectionSnapshot(
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)
   const [skills, workspaceSkillPaths] = await Promise.all([
-    skillService.list({ agentId: agent.id }),
+    skillService.listAvailable({ agentId: agent.id }),
     skillService.listLocalSkillPaths(session.workspace.path)
   ])
   const enabledSkills = skills.filter((skill) => skill.isEnabled)

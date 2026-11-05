@@ -407,7 +407,7 @@ export async function buildSkillWhitelist(
   let names = bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
   if (resolveAgentCapabilities(agent).environment !== 'sealed') {
     const [installedSkills, workspaceNames] = await Promise.all([
-      skillService.list({ agentId: agent.id }),
+      skillService.listAvailable({ agentId: agent.id }),
       skillService.listLocalFolderNames(cwd)
     ])
     const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)

@@ -127,6 +127,17 @@ export function ResourceCard({
                 </Badge>
               )}
               {r.type === 'skill' ? <SkillSourceBadge source={r.raw.source} sourceUrl={r.raw.sourceUrl} /> : null}
+              {r.type === 'skill' && r.raw.storage ? (
+                <span className="text-xs text-muted-foreground">
+                  {t(
+                    r.raw.storage.status !== 'ready'
+                      ? 'library.system_skill.unavailable'
+                      : r.raw.storage.mode === 'symlink'
+                        ? 'library.system_skill.linked'
+                        : 'library.system_skill.copied'
+                  )}
+                </span>
+              ) : null}
             </div>
             <Tooltip title={r.description} isDisabled={!isSkillGrid} asChild>
               <p
@@ -155,6 +166,7 @@ export function ResourceCard({
                   <Button
                     variant="ghost"
                     size="sm"
+                    disabled={r.raw.storage && r.raw.storage.status !== 'ready'}
                     onClick={() => onLaunchSkill(r)}
                     className={cn('gap-1.5', isSkillGrid && 'mr-auto -ml-2.5 pl-1.5')}>
                     <Play size={12} aria-hidden />

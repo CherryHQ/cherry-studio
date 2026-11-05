@@ -198,8 +198,19 @@ export interface SkillInstallFromDirectoryOptions {
   directoryPath: string
 }
 
+export const SkillImportModeSchema = z.enum(['copy', 'symlink'])
+export type SkillImportMode = z.infer<typeof SkillImportModeSchema>
+
+export const SkillStorageInfoSchema = z.object({
+  mode: SkillImportModeSchema.nullable(),
+  sourcePath: z.string().nullable(),
+  status: z.enum(['ready', 'missing', 'unreadable', 'invalid'])
+})
+export type SkillStorageInfo = z.infer<typeof SkillStorageInfoSchema>
+
 export interface SkillImportSystemOptions {
   directoryPath: string
+  mode?: SkillImportMode
 }
 
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
@@ -231,8 +242,9 @@ export interface SystemSkillCandidate {
   directoryPath: string
   placements: SystemSkillPlacement[]
   status: SystemSkillStatus
+  importMode?: SkillImportMode
   registeredSkillId?: string
 }
 
 /** Installed catalog entry enriched by the filesystem-owned skill workflow. */
-export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local' }
+export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local'; storage?: SkillStorageInfo }

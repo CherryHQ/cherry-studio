@@ -1,12 +1,12 @@
 import { Check, FolderSearch, Import, Loader2, TriangleAlert } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Center, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Spinner } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
-import type { SystemSkillCandidate } from '@shared/types/skill'
+import type { SkillImportMode, SystemSkillCandidate } from '@shared/types/skill'
 
 type BaseProps = {
   open: boolean
@@ -22,6 +22,10 @@ type Props = BaseProps &
 export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selectedSkillIds }: Props) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
+  const [importMode, setImportMode] = useState<SkillImportMode>('copy')
+  useEffect(() => {
+    if (!open) setImportMode('copy')
+  }, [open])
   const { skills, loading, error, importSkill, importing } = useSystemSkills(open)
   const visibleSkills = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -34,10 +38,10 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
 
   const handleImport = useCallback(
     async (skill: SystemSkillCandidate) => {
-      const installed = await importSkill(skill)
+      const installed = await importSkill(skill, importMode)
       if (installed) toast.success(t('library.system_skill.import_success', { name: skill.name }))
     },
-    [importSkill, t]
+    [importSkill, importMode, t]
   )
 
   const handleEnable = useCallback(
@@ -61,6 +65,26 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
             <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
             <p className="mt-1 text-xs text-muted-foreground">{t('library.system_skill.description')}</p>
           </DialogHeader>
+          <div className="mt-3 flex items-center gap-2" role="group" aria-label={t('library.system_skill.mode')}>
+            <span className="text-xs text-muted-foreground">{t('library.system_skill.mode')}</span>
+            {(['copy', 'symlink'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                variant={importMode === value ? 'secondary' : 'ghost'}
+                aria-pressed={importMode === value}
+                onClick={() => setImportMode(value)}>
+                {t(value === 'copy' ? 'library.system_skill.copy' : 'library.system_skill.symlink')}
+              </Button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t(
+              importMode === 'copy'
+                ? 'library.system_skill.copy_description'
+                : 'library.system_skill.symlink_description'
+            )}
+          </p>
           <ResourceCatalogSearchInput
             autoFocus
             value={query}
@@ -133,7 +157,7 @@ function SystemSkillRow({
       : skill.status === 'available'
         ? t('library.system_skill.import')
         : mode === 'manage'
-          ? t('library.system_skill.imported')
+          ? t(skill.importMode === 'symlink' ? 'library.system_skill.linked' : 'library.system_skill.copied')
           : enabled
             ? t('library.system_skill.enabled')
             : t('library.action.enable')

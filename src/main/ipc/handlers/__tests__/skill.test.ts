@@ -53,7 +53,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     listLocal: listLocalMock,
     discoverSystem: discoverSystemMock,
     getById: getByIdMock,
-    getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
+    resolveSkillDirectory: getInstalledSkillDirectoryMock,
     importSystem: importSystemMock,
     reconcileSkills: reconcileMock,
     reconcileSkill: reconcileSkillMock,
@@ -124,10 +124,10 @@ describe('skillHandlers', () => {
     importSystemMock.mockResolvedValue({ id: 'system-skill' })
 
     await skillHandlers['skill.discover_system']({}, ctx)
-    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
+    await skillHandlers['skill.import_system']({ directoryPath: '/skill', mode: 'copy' }, ctx)
 
     expect(discoverSystemMock).toHaveBeenCalledWith()
-    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
+    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill', mode: 'copy' })
   })
 
   it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
@@ -232,7 +232,7 @@ describe('skillHandlers', () => {
   it('import_system lets errors propagate to IpcApi', async () => {
     importSystemMock.mockRejectedValue(new Error('import failed'))
 
-    await expect(skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)).rejects.toThrow(
+    await expect(skillHandlers['skill.import_system']({ directoryPath: '/skill', mode: 'copy' }, ctx)).rejects.toThrow(
       'import failed'
     )
   })

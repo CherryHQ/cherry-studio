@@ -439,7 +439,8 @@ describe('useSystemSkills', () => {
     })
 
     expect(skillMocks.request).toHaveBeenCalledWith('skill.import_system', {
-      directoryPath: candidate.directoryPath
+      directoryPath: candidate.directoryPath,
+      mode: 'copy'
     })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
