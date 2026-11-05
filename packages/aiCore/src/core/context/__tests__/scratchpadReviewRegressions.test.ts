@@ -350,3 +350,14 @@ it('does not treat an empty marker that cannot interrupt a paragraph as a new it
     ContextPrompts.formatCompactSummary('- x\n  *    \n      ~~~\n       <analysis>MARK</analysis>\n')
   ).not.toContain('MARK')
 })
+
+it.each([
+  ['- item\n  para\n  - \n     +  text\n        ````\n \t<analysis>MARK</analysis>\n        ````\ntail\n', false],
+  ['- item\n  para\n   -\n     2)    \n        ```\n \t<analysis>MARK</analysis>\n        ```\n', false],
+  ['- x\n  *\n      ~~~\n       <analysis>MARK</analysis>\n', false],
+  ['1. x\n    1)  \n        ~~~\n       <analysis>MARK</analysis>\n        ~~~\n', false],
+  ['- item\n  para\n  *\n      ```\n  <analysis>MARK</analysis>\n      ```\n', true],
+  ['- a\n  - b\n    para text\n    1. \n\t\t```\n      <analysis>MARK</analysis>\n\t\t```\n', true]
+])('classifies paragraph marker text without phantom list ownership: %s', (raw, literal) => {
+  expect(ContextPrompts.formatCompactSummary(raw).includes('MARK')).toBe(literal)
+})

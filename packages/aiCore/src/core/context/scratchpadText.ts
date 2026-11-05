@@ -825,6 +825,13 @@ function inheritedFencePrefixLookup(
       )
       rawScanStart = lineEndAfter(text, rawScanStart)
     } while (rawScanStart <= start)
+    if (
+      !rawVerdict.events.some(
+        (event) =>
+          event.kind === 'open' && rawContainers.stack.some((item) => item.id === event.id && item.kind === 'item')
+      )
+    )
+      continue
     const padding =
       (line.slice(leading + marker[0].length).trim() === '' &&
         rawVerdict.events.some(
@@ -836,8 +843,11 @@ function inheritedFencePrefixLookup(
         ? 1
         : marker[2].length
     const contentCol = leading + marker[1].length + padding
-    const relWidth = contentCol - parentCol
-    const virtual = (stack.length ? lists[stack[stack.length - 1].index].prefix : '') + `-${' '.repeat(relWidth - 1)}`
+    const virtual =
+      (stack.length ? lists[stack[stack.length - 1].index].prefix : '') +
+      ' '.repeat(leading - parentCol) +
+      marker[1] +
+      ' '.repeat(padding)
     stack.push({ contentCol, start, index: lists.length, empty: line.slice(leading + marker[0].length).trim() === '' })
     lists.push({ start, end: text.length, prefix: virtual })
   }

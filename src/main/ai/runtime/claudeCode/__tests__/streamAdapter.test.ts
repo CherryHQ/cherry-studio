@@ -6347,6 +6347,25 @@ describe('cherry-pr-review round-11', () => {
   }
 
   it.each([
+    ['- item\n  para\n  - \n     +  text\n        ````\n \t<analysis>MARK</analysis>\n        ````\ntail\n', false],
+    ['- item\n  para\n   -\n     2)    \n        ```\n \t<analysis>MARK</analysis>\n        ```\n', false],
+    ['- x\n  *\n      ~~~\n       <analysis>MARK</analysis>\n', false],
+    ['1. x\n    1)  \n        ~~~\n       <analysis>MARK</analysis>\n        ~~~\n', false],
+    ['- item\n  para\n  *\n      ```\n  <analysis>MARK</analysis>\n      ```\n', true],
+    ['- a\n  - b\n    para text\n    1. \n\t\t```\n      <analysis>MARK</analysis>\n\t\t```\n', true]
+  ])('classifies paragraph markers without phantom list ownership: %s', (answer, literal) => {
+    const whole = runWithSnapshot([answer], answer)
+    expect(whole.includes('MARK')).toBe(literal)
+    expect(runWithSnapshot([], answer)).toBe(whole)
+    expect(runWithSnapshot(Array.from(answer), answer)).toBe(whole)
+    const twos = []
+    for (let j = 0; j < answer.length; j += 2) twos.push(answer.slice(j, j + 2))
+    expect(runWithSnapshot(twos, answer)).toBe(whole)
+    for (let cut = 0; cut <= answer.length; cut++)
+      expect(runWithSnapshot([answer.slice(0, cut), answer.slice(cut)], answer), `split ${cut}`).toBe(whole)
+  })
+
+  it.each([
     '- x\n  *    \n      ~~~\n       <analysis>MARK</analysis>\n',
     '- x\n  *    \n      ~~~\n       <analysis>MARK</analysis>\n      ~~~\n'
   ])('does not let empty marker text interrupt a paragraph: %s', (answer) => {
