@@ -558,6 +558,42 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
   })
 })
 
+// Catches a child with a smaller model silently inheriting its parent's compaction token budgets.
+it('uses configured child compaction budgets while retaining the behavior-owned summarizer', async () => {
+  let rootId = ''
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) return assistantReply('child done')
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'task' })], 'toolUse')
+    return assistantReply('parent done')
+  })
+  const childBinding = await createTestBinding({ stream: provider.model, model: { ...MODEL, contextWindow: 8_192 } })
+  const { runtime, config, errors } = await setup(provider.model)
+  let settings: unknown
+  const root = confirmed(
+    await runtime.create({
+      ...config,
+      behavior: {
+        ...config.behavior!,
+        configureChild: () => ({
+          ...childBinding,
+          compaction: { enabled: false, reserveTokens: 4_096, keepRecentTokens: 819 },
+          onSessionCreated: (session) => {
+            settings = session.settingsManager.getCompactionSettings(session.model)
+          }
+        })
+      }
+    })
+  )
+  rootId = root.thread.id
+  const events = await observe(root)
+  await root.input.submit(draft('delegate'))
+  await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
+  expect(settings).toEqual({ enabled: false, reserveTokens: 4_096, keepRecentTokens: 819 })
+  expect(config.compaction).toEqual({ enabled: false, reserveTokens: 1, keepRecentTokens: 1 })
+  expect(errors).toEqual([])
+})
+
 // Catches silently loading a persisted child as an independent root, losing its behavior ownership.
 it('restores child relations on reopen and refuses a child without its live owner', async () => {
   let rootId = ''

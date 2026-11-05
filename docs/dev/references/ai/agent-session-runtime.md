@@ -813,11 +813,18 @@ after any applicable live tightening has landed.
 ### Pi conversation compaction
 
 The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
-The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
-one native model request through Cherry's gateway without starting another agent
-loop. Automatic compaction and `/compact` use this same path; text following
+The shared context handlers request a summary from `piBehaviorHost.ts` through
+Cherry's native gateway binding without starting another agent loop. Small-context
+models have bounded summary input and output. Complete instructions and each source's
+beginning and end survive input fitting. Large models keep their full initial input.
+Each admitted summary makes at most one model request, preserving the behavior request
+cap; overflow and unsuccessful responses fail without an internal retry.
+Automatic compaction and `/compact` use this same path; text following
 `/compact` becomes summary instructions, never another user turn. An empty or
 failed summary cancels compaction without a second native fallback.
+Gateway bindings provide model-specific compaction thresholds and retained-tail
+budgets for Pi root and child sessions. Pi Durable shares the host summary bounds
+but retains its own context thresholds.
 
 Pi retains its native JSONL history and writes the compaction boundary. Product
 messages remain a display projection. The shared `vcc_recall` tool searches the

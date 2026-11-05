@@ -30,6 +30,8 @@ listeners once per child context. The selected model must match `origin.modelKey
 Unspecified native options inherit from the root. The adapter installs the behavior extension and
 summarizer on every child, filters parent-only tools, and disables native retries and cache warming
 as required by the behavior adapter's request accounting.
+The child's optional `compaction` token settings override the root's budgets, for example when its
+model has a smaller context. The behavior adapter still installs its own summarizer.
 
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
   `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
