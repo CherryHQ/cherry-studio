@@ -568,6 +568,64 @@ describe('ResourceEntityRail', () => {
     })
   })
 
+  describe('groupByTags', () => {
+    const coding = { id: 'tag-coding', name: 'Coding', color: '#ff0000' }
+    const research = { id: 'tag-research', name: 'Research', color: null }
+    const tagItems: ResourceEntityRailItem[] = [
+      { id: 'a', name: 'Agent A', icon: <span />, tags: [coding] },
+      { id: 'b', name: 'Agent B', icon: <span />, tags: [coding, research] },
+      { id: 'c', name: 'Agent C', icon: <span />, tags: [research] },
+      { id: 'd', name: 'Agent D', icon: <span /> },
+      { id: 'p', name: 'Pinned P', icon: <span />, pinned: true, tags: [coding] }
+    ]
+
+    function renderRail(props: Partial<React.ComponentProps<typeof ResourceEntityRail>> = {}) {
+      return render(
+        <ResourceEntityRail
+          addLabel="New"
+          ariaLabel="Agents list"
+          groupByTags
+          untaggedLabel="Untagged"
+          items={tagItems}
+          variant="agent"
+          onAdd={vi.fn()}
+          onSelect={vi.fn()}
+          {...props}
+        />
+      )
+    }
+
+    it('renders one section per tag with color and count, a multi-tag agent under each, and Untagged last', () => {
+      renderRail()
+
+      const listbox = screen.getByRole('listbox', { name: 'Agents list' })
+      expect(Array.from(listbox.querySelectorAll('button[aria-expanded]')).map((header) => header.textContent)).toEqual(
+        ['selector.common.pinned_title', 'Coding(2)', 'Research(2)', 'Untagged(1)']
+      )
+      expect(screen.getAllByText('Agent B')).toHaveLength(2)
+      expect(screen.getAllByText('Pinned P')).toHaveLength(1)
+      expect(screen.getAllByTestId('resource-list-section-color')).toHaveLength(1)
+    })
+
+    it('keeps rows hidden but the header visible when a tag group is collapsed', () => {
+      renderRail({ collapsedState: ['resource-entity-rail:section:["tag","tag-coding"]'] })
+
+      expect(screen.getByRole('button', { name: /Coding/ })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getAllByText('Agent B')).toHaveLength(1)
+      expect(screen.queryByText('Agent A')).not.toBeInTheDocument()
+      expect(screen.getByText('Agent D')).toBeInTheDocument()
+    })
+
+    it('selects and acts on the underlying entity id from a tag row', () => {
+      const onSelect = vi.fn()
+      renderRail({ onSelect })
+
+      fireEvent.click(screen.getAllByText('Agent B')[1])
+
+      expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'b' }))
+    })
+  })
+
   it('collapses grouped assistants from their accessible header', () => {
     render(
       <ResourceEntityRail

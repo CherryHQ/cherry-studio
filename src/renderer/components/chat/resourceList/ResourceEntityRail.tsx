@@ -23,6 +23,12 @@ import {
   type ResourceListStatus
 } from './base'
 
+export type ResourceEntityRailTag = {
+  id: string
+  name: string
+  color?: string | null
+}
+
 export type ResourceEntityRailItem = {
   id: string
   name: string
@@ -39,6 +45,8 @@ export type ResourceEntityRailItem = {
   groupId?: string
   groupName?: string
   groupOrderKey?: string
+  /** Tags the entity belongs to. Only consulted when `groupByTags` is enabled. */
+  tags?: readonly ResourceEntityRailTag[]
   trailingAction?: ReactNode
 }
 
@@ -55,6 +63,52 @@ const ENTITY_RAIL_DEFAULT_GROUP_ID = 'resource-entity-rail:group:default'
 const ENTITY_RAIL_GROUP_SECTION_PREFIX = 'resource-entity-rail:section:'
 const ENTITY_RAIL_GROUP_GROUP_PREFIX = 'resource-entity-rail:group:'
 const ENTITY_RAIL_UNGROUPED_KEY = JSON.stringify(['ungrouped'])
+
+const ENTITY_RAIL_UNTAGGED_KEY = JSON.stringify(['untagged'])
+const ENTITY_RAIL_TAG_ROW_SEPARATOR = '\u0000'
+
+type EntityRailTagRow<T extends ResourceEntityRailItem> = T & { railTag?: ResourceEntityRailTag; railSource: T }
+
+function getEntityRailTagBucketKey(tag: ResourceEntityRailTag | undefined) {
+  return tag ? JSON.stringify(['tag', tag.id]) : ENTITY_RAIL_UNTAGGED_KEY
+}
+
+/**
+ * Expands entities into one row per tag (pinned entities keep a single row in the pinned section,
+ * untagged ones fall into a trailing bucket). Rows are ordered pinned → tags by name → untagged,
+ * keeping the incoming relative order inside each bucket.
+ */
+function expandEntityRailTagRows<T extends ResourceEntityRailItem>(items: readonly T[]): EntityRailTagRow<T>[] {
+  const pinned: EntityRailTagRow<T>[] = []
+  const untagged: EntityRailTagRow<T>[] = []
+  const rowsByTagId = new Map<string, { tag: ResourceEntityRailTag; rows: EntityRailTagRow<T>[] }>()
+
+  for (const item of items) {
+    if (item.pinned) {
+      pinned.push({ ...item, railSource: item })
+      continue
+    }
+    if (!item.tags?.length) {
+      untagged.push({ ...item, railSource: item })
+      continue
+    }
+    for (const tag of item.tags) {
+      const bucket = rowsByTagId.get(tag.id) ?? { tag, rows: [] }
+      bucket.rows.push({
+        ...item,
+        id: `${tag.id}${ENTITY_RAIL_TAG_ROW_SEPARATOR}${item.id}`,
+        railTag: tag,
+        railSource: item
+      })
+      rowsByTagId.set(tag.id, bucket)
+    }
+  }
+
+  const tagBuckets = [...rowsByTagId.values()].sort(
+    (a, b) => a.tag.name.localeCompare(b.tag.name) || a.tag.id.localeCompare(b.tag.id)
+  )
+  return [...pinned, ...tagBuckets.flatMap((bucket) => bucket.rows), ...untagged]
+}
 
 function getEntityRailGroupBucketKey(groupId: string | undefined) {
   return groupId ? JSON.stringify(['group', groupId]) : ENTITY_RAIL_UNGROUPED_KEY
@@ -100,6 +154,12 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
    * on top). Off → the flat "助手"/"智能体" section.
    */
   groupByGroup?: boolean
+  /**
+   * Group the non-pinned entities by `tags` into collapsible sections; an entity with several tags
+   * shows under each of them, untagged ones under `untaggedLabel`. Disables item reordering.
+   */
+  groupByTags?: boolean
+  untaggedLabel?: string
   collapsedState?: readonly string[]
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
@@ -136,6 +196,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   ariaLabel,
   defaultGroupLabel,
   groupByGroup = false,
+  groupByTags = false,
+  untaggedLabel,
   collapsedState,
   emptyFallback,
   getContextMenuActions,
@@ -157,12 +219,16 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  const itemReorderEnabled = !!onReorder && reorderEnabledProp
-  const groupReorderEnabled = groupByGroup && !!onGroupReorder && reorderEnabledProp
+  const itemReorderEnabled = !!onReorder && reorderEnabledProp && !groupByTags
+  const groupReorderEnabled = groupByGroup && !groupByTags && !!onGroupReorder && reorderEnabledProp
   const hasReorderHandler = !!onReorder || !!onGroupReorder
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
-  const effectiveSelectedId = selectionSuppressed ? null : selectedId
+  const tagRows = useMemo(() => (groupByTags ? expandEntityRailTagRows(items) : null), [groupByTags, items])
+  const selectedEntityId = selectionSuppressed ? null : selectedId
+  const effectiveSelectedId = tagRows
+    ? (tagRows.find((row) => row.railSource.id === selectedEntityId)?.id ?? null)
+    : selectedEntityId
   const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
   const handleItemClick = useCallback(
     (item: T) => {
@@ -179,10 +245,10 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   // including the "activate the already-selected entity to toggle its pane" behavior.
   const handleSelectItemById = useCallback(
     (id: string) => {
-      const item = items.find((entry) => entry.id === id)
+      const item = tagRows ? tagRows.find((row) => row.id === id)?.railSource : items.find((entry) => entry.id === id)
       if (item) handleItemClick(item)
     },
-    [handleItemClick, items]
+    [handleItemClick, items, tagRows]
   )
   const runContextMenuAction = useCallback(
     async (item: T, action: ResolvedAction<TActionContext>) => {
@@ -208,7 +274,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     [onContextMenuAction]
   )
   const renderItem = useCallback(
-    (item: T) => {
+    (railRow: T) => {
+      const item = groupByTags ? ((railRow as EntityRailTagRow<T>).railSource ?? railRow) : railRow
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
       const hasTrailingAction = Boolean(item.trailingAction)
@@ -219,7 +286,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
       // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" tooltip={item.tooltip}>
+        <ResourceList.Item item={railRow} data-testid="resource-entity-rail-row" tooltip={item.tooltip}>
           {item.icon && (
             <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
               {item.icon}
@@ -254,7 +321,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
 
       return (
         <ResourceListActionContextMenu
-          key={item.id}
+          key={railRow.id}
           item={item}
           actions={actions}
           onAction={(action) => onContextMenuAction(item, action)}>
@@ -262,12 +329,12 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceListActionContextMenu>
       )
     },
-    [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
+    [getContextMenuActions, groupByTags, onContextMenuAction, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
-  const providerItems = useMemo(
-    () => (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
-    [groupByGroup, items]
+  const providerItems = useMemo<readonly T[]>(
+    () => tagRows ?? (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
+    [groupByGroup, items, tagRows]
   )
   // Collapsible sections matching the modern layout's left assistant/agent layout (minus the nested
   // topics/sessions): pinned entities float into "已固定" at the top, the rest sit under the
@@ -277,6 +344,15 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const sectionBy = useMemo<(item: T) => ResourceListSection>(
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+      if (groupByTags) {
+        const tag = (item as EntityRailTagRow<T>).railTag
+        return {
+          id: `${ENTITY_RAIL_GROUP_SECTION_PREFIX}${getEntityRailTagBucketKey(tag)}`,
+          label: tag?.name ?? untaggedLabel ?? '',
+          color: tag?.color ?? null,
+          showCount: true
+        }
+      }
       if (groupByGroup) {
         const groupBucketKey = getEntityRailGroupBucketKey(item.groupId)
         return item.groupId && item.groupName
@@ -285,19 +361,25 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       }
       return { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' }
     },
-    [defaultGroupLabel, groupByGroup, t]
+    [defaultGroupLabel, groupByGroup, groupByTags, t, untaggedLabel]
   )
   // Header-less groups (one per section, distinct ids) keep entity avatars visible and stop
   // drag-reorder from crossing the pinned/non-pinned (or per-group) boundary.
   const groupBy = useMemo<(item: T) => ResourceListGroup>(
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_GROUP_ID, label: '' }
+      if (groupByTags) {
+        return {
+          id: `${ENTITY_RAIL_GROUP_GROUP_PREFIX}${getEntityRailTagBucketKey((item as EntityRailTagRow<T>).railTag)}`,
+          label: ''
+        }
+      }
       if (groupByGroup) {
         return { id: `${ENTITY_RAIL_GROUP_GROUP_PREFIX}${getEntityRailGroupBucketKey(item.groupId)}`, label: '' }
       }
       return { id: ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }
     },
-    [groupByGroup]
+    [groupByGroup, groupByTags]
   )
   const handleReorder = useCallback(
     (payload: ResourceListReorderPayload) => {

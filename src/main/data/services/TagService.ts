@@ -264,6 +264,17 @@ export class TagService {
     return result
   }
 
+  /**
+   * List every `entity_tag` binding for an entity type (used by list views that group by tag).
+   */
+  listBindingsByEntityType(entityType: EntityType): Array<{ entityId: string; tagId: string }> {
+    return this.db
+      .select({ entityId: entityTagTable.entityId, tagId: entityTagTable.tagId })
+      .from(entityTagTable)
+      .where(eq(entityTagTable.entityType, entityType))
+      .all()
+  }
+
   getEntityIdsByTagsTx(tx: Pick<DbType, 'select'>, entityType: EntityType, tagIds: string[]): string[] {
     const uniqueTagIds = [...new Set(tagIds)]
     if (uniqueTagIds.length === 0) return []

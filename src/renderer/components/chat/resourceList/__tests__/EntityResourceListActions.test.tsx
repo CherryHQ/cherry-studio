@@ -54,7 +54,13 @@ const agentDataMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn(),
   restoreAgent: vi.fn(),
   restoreSession: vi.fn(),
-  toggleAgentPin: vi.fn()
+  toggleAgentPin: vi.fn(),
+  syncAgentTags: vi.fn(),
+  tags: [
+    { id: 'tag-coding', name: 'Coding', color: '#ff0000' },
+    { id: 'tag-research', name: 'Research', color: null }
+  ],
+  tagsByEntityId: new Map<string, { id: string; name: string; color: string | null }[]>()
 }))
 
 const recycleBinFeedbackMocks = vi.hoisted(() => ({
@@ -331,6 +337,15 @@ vi.mock('@renderer/hooks/usePins', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useTags', () => ({
+  useEntityTags: () => ({
+    tags: agentDataMocks.tags,
+    tagsByEntityId: agentDataMocks.tagsByEntityId,
+    createTag: vi.fn(),
+    syncEntityTags: agentDataMocks.syncAgentTags
+  })
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs
 }))
@@ -552,6 +567,9 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.getActiveResource.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
     agentDataMocks.toggleAgentPin.mockClear()
+    agentDataMocks.syncAgentTags.mockResolvedValue(undefined)
+    agentDataMocks.syncAgentTags.mockClear()
+    agentDataMocks.tagsByEntityId = new Map()
     tabsContextMocks.closeConversationTabs.mockClear()
     loggerMocks.error.mockClear()
     loggerMocks.info.mockClear()
@@ -1246,6 +1264,29 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeInTheDocument()
   })
 
+  it('adds and removes an agent tag inline through the tags submenu', async () => {
+    const user = userEvent.setup()
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0]]]])
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = within(screen.getByTestId('agent-1-context-menu'))
+    await user.click(menu.getByRole('button', { name: 'Research' }))
+    await waitFor(() =>
+      expect(agentDataMocks.syncAgentTags).toHaveBeenCalledWith('agent-1', ['tag-coding', 'tag-research'])
+    )
+
+    await user.click(menu.getByRole('button', { name: 'Coding' }))
+    await waitFor(() => expect(agentDataMocks.syncAgentTags).toHaveBeenLastCalledWith('agent-1', []))
+  })
   it('does not report a pin failure when the post-success agent refresh fails', async () => {
     const user = userEvent.setup()
     const refreshError = new Error('transient refresh failure')

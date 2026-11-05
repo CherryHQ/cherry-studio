@@ -268,6 +268,27 @@ describe('TagService', () => {
     })
   })
 
+  describe('listBindingsByEntityType', () => {
+    it('should return only bindings of the requested entity type', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'agent', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'agent', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2, updatedAt: 2 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 3, updatedAt: 3 }
+      ])
+
+      const result = tagService.listBindingsByEntityType('agent')
+
+      expect(result).toHaveLength(2)
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { entityId: ASSISTANT_1, tagId: TAG_1 },
+          { entityId: ASSISTANT_1, tagId: TAG_2 }
+        ])
+      )
+    })
+  })
+
   describe('syncEntityTags', () => {
     it('should diff associations and preserve createdAt for unchanged tags', async () => {
       await seedTags()

@@ -12,6 +12,7 @@ import { tagService } from '@data/services/TagService'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
   CreateTagSchema,
+  ListEntityTagsQuerySchema,
   SetTagEntitiesSchema,
   SyncEntityTagsSchema,
   TagIdSchema,
@@ -29,6 +30,13 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateTagSchema.parse(body)
       return tagService.create(parsed)
+    }
+  },
+
+  '/entity-tags': {
+    GET: async ({ query }) => {
+      const parsed = ListEntityTagsQuerySchema.parse(query)
+      return tagService.listBindingsByEntityType(parsed.entityType)
     }
   },
 

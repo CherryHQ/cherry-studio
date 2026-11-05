@@ -64,6 +64,18 @@ export const SetTagEntitiesSchema = z.object({
 })
 export type SetTagEntitiesDto = z.infer<typeof SetTagEntitiesSchema>
 
+/**
+ * Query params for `GET /entity-tags`. `entityType` is required — listing
+ * bindings across entity types has no business use case.
+ */
+export const ListEntityTagsQuerySchema = z.strictObject({
+  entityType: EntityTypeSchema
+})
+export type ListEntityTagsQuery = z.infer<typeof ListEntityTagsQuerySchema>
+
+/** A single entity ↔ tag association. */
+export type EntityTagBinding = { entityId: string; tagId: string }
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -111,6 +123,17 @@ export type TagSchemas = {
     DELETE: {
       params: { id: string }
       response: void
+    }
+  }
+
+  /**
+   * Every tag binding for one entity type, so list views can group without N per-entity requests
+   * @example GET /entity-tags?entityType=agent
+   */
+  '/entity-tags': {
+    GET: {
+      query: ListEntityTagsQuery
+      response: EntityTagBinding[]
     }
   }
 

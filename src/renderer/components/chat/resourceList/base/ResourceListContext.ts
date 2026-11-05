@@ -33,6 +33,10 @@ export type ResourceListSection = {
   id: string
   label: string
   count?: number
+  /** Optional color dot rendered before the label. */
+  color?: string | null
+  /** Render the item count next to the label. */
+  showCount?: boolean
 }
 
 export type ResourceListGroupSeed = ResourceListGroup & {
