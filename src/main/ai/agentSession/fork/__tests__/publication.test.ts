@@ -209,8 +209,16 @@ describe('Agent fork publication', () => {
         const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
         expect(rows.map((row) => row.id)).toEqual(outcome === 'commit' ? [messageId, newId] : [newId])
         expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
-        if (outcome === 'commit') expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
-        else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+        if (outcome === 'commit') {
+          expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
+          expect(
+            agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, newId).prefix.map((row) => row.data)
+          ).toEqual([
+            expect.objectContaining({
+              runtimeAnchor: { checkpoint: expect.objectContaining({ runtimeSessionId: 'native-child' }) }
+            })
+          ])
+        } else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
         expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
           outcome === 'commit' ? 'native-child' : null

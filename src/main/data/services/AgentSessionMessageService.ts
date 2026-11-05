@@ -518,6 +518,14 @@ export class AgentSessionMessageService {
   }
 
   readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    const { index, ...snapshot } = this.readEditVersionTx(tx, sessionId, messageId)
+    return {
+      ...snapshot,
+      prefix: this.applyForkCheckpointsTx(tx, sessionId, messageId, snapshot.rows.slice(0, index))
+    }
+  }
+
+  private readEditVersionTx(tx: DbOrTx, sessionId: string, messageId: string) {
     this.assertActiveSession(tx, sessionId)
     const source = tx
       .select({ session: sessionTable, workspace: agentWorkspaceTable })
@@ -551,13 +559,13 @@ export class AgentSessionMessageService {
       ...source,
       rows,
       user,
-      prefix: this.readForkPrefixTx(tx, sessionId, messageId)!.slice(0, index),
+      index,
       version: createHash('sha256').update(JSON.stringify({ source, rows })).digest('hex')
     }
   }
 
   selectEditParentTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
-    const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
+    const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
     // Publication selects the shared predecessor; the following insert creates a sibling.
     tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
@@ -637,17 +645,29 @@ export class AgentSessionMessageService {
   ): SessionMessageRow[] | undefined {
     const rows = readAgentSessionPath(tx, sessionId, messageId)
     if (!rows.some((row) => row.id === messageId)) return undefined
-    const mapping = agentSessionContextService.branchTx(tx, sessionId, messageId)?.checkpointMapping?.fork
     const excluded = new Set(excludedIds)
-    return rows
-      .filter((row) => !excluded.has(row.id))
-      .map((row) => {
-        const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-        const checkpoint = mapping?.[row.id]
-        return checkpoint && anchor.success
-          ? { ...row, data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } } }
-          : row
-      })
+    return this.applyForkCheckpointsTx(
+      tx,
+      sessionId,
+      messageId,
+      rows.filter((row) => !excluded.has(row.id))
+    )
+  }
+
+  private applyForkCheckpointsTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    rows: SessionMessageRow[]
+  ): SessionMessageRow[] {
+    const mapping = agentSessionContextService.branchTx(tx, sessionId, messageId)?.checkpointMapping?.fork
+    return rows.map((row) => {
+      const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+      const checkpoint = mapping?.[row.id]
+      return checkpoint && anchor.success
+        ? { ...row, data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } } }
+        : row
+    })
   }
 
   /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
