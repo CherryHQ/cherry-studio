@@ -171,7 +171,6 @@
   "agent.memory.copy": "Inhalt kopieren",
   "agent.memory.copy_failed": "Inhalt konnte nicht kopiert werden",
   "agent.memory.create": "Datei erstellen",
-  "agent.memory.description": "Was sich {{name}} über Sitzungen hinweg merkt. Diese Dateien werden in den System-Prompt geladen und sind Klartext, den du hier jederzeit lesen und bearbeiten kannst.",
   "agent.memory.discard.confirm": "Änderungen verwerfen",
   "agent.memory.discard.description": "Die aktuelle Datei enthält nicht gespeicherte Änderungen. Wenn du fortfährst, gehen sie verloren.",
   "agent.memory.discard.title": "Nicht gespeicherte Änderungen verwerfen?",
