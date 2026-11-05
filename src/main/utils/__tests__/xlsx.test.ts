@@ -216,7 +216,7 @@ describe('extractXlsxText', () => {
     expect(await extractXlsxText(data)).toBe('Sheet: Merged\n42\t\tx\nTitle\t\ty')
   })
 
-  it('keeps a link label that is a number, date or boolean', async () => {
+  it('keeps a link label that is a number, date, boolean or error', async () => {
     // ExcelJS writes a link label as text, so the cells are rewritten to the types Excel stores
     const written = await xlsxBytes((workbook) => {
       const row = workbook.addWorksheet('Links').getRow(1)
@@ -224,16 +224,19 @@ describe('extractXlsxText', () => {
       row.getCell(2).value = { text: 'd', hyperlink: 'https://b.example/' }
       row.getCell(2).numFmt = 'yyyy-mm-dd'
       row.getCell(3).value = { text: 'b', hyperlink: 'https://c.example/' }
+      row.getCell(4).value = { text: 'e', hyperlink: 'https://d.example/' }
     })
     const data = await editSheetXml(written, 'xl/worksheets/sheet1.xml', (xml) =>
       xml
         .replace(/<c r="A1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="A1"$1><v>123</v></c>')
         .replace(/<c r="B1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="B1"$1><v>45565</v></c>')
         .replace(/<c r="C1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="C1"$1 t="b"><v>1</v></c>')
+        .replace(/<c r="D1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="D1"$1 t="e"><v>#N/A</v></c>')
     )
 
     expect(await extractXlsxText(data)).toBe(
-      'Sheet: Links\n123 (https://a.example/)\t2024-09-30 (https://b.example/)\tTRUE (https://c.example/)'
+      'Sheet: Links\n123 (https://a.example/)\t2024-09-30 (https://b.example/)\tTRUE (https://c.example/)\t' +
+        '#N/A (https://d.example/)'
     )
   })
 

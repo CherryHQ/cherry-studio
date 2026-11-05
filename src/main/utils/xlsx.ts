@@ -59,6 +59,7 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
       const texts = Array.from(cells, (text) => text ?? '')
       while (texts.length && !texts[texts.length - 1]) texts.pop()
       const line = texts.join('\t')
+      // A row whose cells hold only spaces carries no text, so it is left out like an empty one
       if (line.trim()) lines.push(line)
     })
     // Text boxes and shapes, which ExcelJS does not load, after the cells
@@ -91,7 +92,7 @@ function cellText(cell: Cell, numFmt: string, date1904: boolean, stored?: Stored
   if (typeof value === 'object' && !(value instanceof Date)) {
     if ('error' in value) return value.error
     if ('hyperlink' in value) {
-      // A link's label keeps its own type: a number, date or boolean as the cell shows it
+      // A link's label keeps its own type: a number, date, boolean or error as the cell shows it
       const text = stored ? storedText(stored, numFmt, date1904) : scalarText(value.text, numFmt, date1904)
       return text && text !== value.hyperlink ? `${text} (${value.hyperlink})` : value.hyperlink
     }
@@ -467,11 +468,14 @@ function isoDate(text: string, date1904: boolean): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-/** A string, or the runs of a rich-text value joined. */
+/** A string, the runs of a rich-text value joined, or an error code such as a link label's `#N/A`. */
 function plainText(value: unknown): string {
   if (typeof value === 'string') return value
   if (typeof value === 'object' && value !== null && 'richText' in value && Array.isArray(value.richText)) {
     return value.richText.map((run: { text?: unknown }) => String(run.text ?? '')).join('')
+  }
+  if (typeof value === 'object' && value !== null && 'error' in value && typeof value.error === 'string') {
+    return value.error
   }
   return ''
 }
