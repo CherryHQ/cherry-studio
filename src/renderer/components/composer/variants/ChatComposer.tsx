@@ -1503,37 +1503,71 @@ const ChatComposerInner = ({
     remove: removeSavedDraft
   } = useSavedDrafts(selectedKnowledgeBasesScopeKey)
 
+  // Knowledge-base ids parked with a draft: the history snapshot's selection while previewing
+  // (the live selection is cleared then), otherwise the scope's persisted ids.
+  const knowledgeBaseIdsForSnapshot = useCallback(
+    (tools: InputHistoryToolSnapshot | null) =>
+      tools ? tools.selectedKnowledgeBases.map((base) => base.id) : [...knowledgeBaseIdsRef.current],
+    [knowledgeBaseIdsRef]
+  )
+
   const handleSaveAsDraft = useCallback(() => {
     if (editingMessageForCurrentTopic) return
-    const draft = actionsRef.current.getDraft()
-    if (draft.text.trim().length === 0 && files.length === 0) return
-    saveDraft(draft, files)
+    // A history preview shows a recalled entry, not the live draft: the unfinished prompt and its
+    // attachments are parked in the history snapshots, so capture them before reading the draft.
+    const historyPreview = exitInputHistoryPreview()
+    const draft = historyPreview.draft ?? actionsRef.current.getDraft()
+    const draftFiles = historyPreview.tools?.files ?? files
+    if (draft.text.trim().length === 0 && draftFiles.length === 0) {
+      // Nothing to park; never drop a stashed knowledge-base selection with the snapshot.
+      if (historyPreview.tools) setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
+      return
+    }
+    saveDraft(draft, draftFiles, knowledgeBaseIdsForSnapshot(historyPreview.tools))
     clearCurrentDraft()
-  }, [actionsRef, clearCurrentDraft, editingMessageForCurrentTopic, files, saveDraft])
+  }, [
+    actionsRef,
+    clearCurrentDraft,
+    editingMessageForCurrentTopic,
+    exitInputHistoryPreview,
+    files,
+    knowledgeBaseIdsForSnapshot,
+    saveDraft,
+    setSelectedKnowledgeBases
+  ])
 
   // Restoring swaps with the composer: any unsent content is parked as a new draft so nothing is lost.
   const handleEditSavedDraft = useCallback(
     (id: string) => {
       const item = savedDrafts.find((candidate) => candidate.id === id)
       if (!item || editingMessageForCurrentTopic || directSendInFlightRef.current) return
-      const current = actionsRef.current.getDraft()
-      if (current.text.trim().length > 0 || files.length > 0) saveDraft(current, files)
+      // Exit any history preview first: the visible draft is the recalled entry while the
+      // composer's own unsent draft and tool state live in the history snapshots — park those,
+      // not the preview, so the swap below loses nothing. This also resets the history nav state.
+      const historyPreview = exitInputHistoryPreview()
+      const current = historyPreview.draft ?? actionsRef.current.getDraft()
+      const currentFiles = historyPreview.tools?.files ?? files
+      if (current.text.trim().length > 0 || currentFiles.length > 0) {
+        saveDraft(current, currentFiles, knowledgeBaseIdsForSnapshot(historyPreview.tools))
+      }
       removeSavedDraft(id)
       releaseFollowupEditRef.current()
-      resetHistoryIndex()
-      inputHistoryToolsRef.current = null
-      skipDraftCacheWriteForHistoryPreviewRef.current = false
       actionsRef.current.replaceDraft(item.draft)
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles(item.files)
+      // Restore the draft's knowledge scope with it, as queued-followup restoration does: the rich
+      // editor's replaceDraft suppresses the update events that would reselect matching bases.
+      if (item.knowledgeBaseIds) restoreKnowledgeBaseSelection(item.knowledgeBaseIds)
     },
     [
       actionsRef,
       editingMessageForCurrentTopic,
+      exitInputHistoryPreview,
       files,
+      knowledgeBaseIdsForSnapshot,
       removeSavedDraft,
-      resetHistoryIndex,
+      restoreKnowledgeBaseSelection,
       savedDrafts,
       saveDraft,
       setFiles,

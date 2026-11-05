@@ -9,6 +9,12 @@ export interface SavedDraftItem {
   id: string
   draft: ComposerSerializedDraft
   files: ComposerAttachment[]
+  /**
+   * Knowledge-base ids selected when the draft was parked. Restored on Edit so the draft keeps
+   * its knowledge scope; absent only on drafts saved before this field existed, which leave the
+   * current selection untouched.
+   */
+  knowledgeBaseIds?: string[]
 }
 
 const keyFor = (scopeKey: string) => `saved-drafts.${scopeKey}`
@@ -21,7 +27,7 @@ function loadDrafts(scopeKey: string): SavedDraftItem[] {
 
 export interface SavedDraftsController {
   items: SavedDraftItem[]
-  save: (draft: ComposerSerializedDraft, files: ComposerAttachment[]) => void
+  save: (draft: ComposerSerializedDraft, files: ComposerAttachment[], knowledgeBaseIds?: string[]) => void
   remove: (id: string) => void
 }
 
@@ -43,8 +49,11 @@ export function useSavedDrafts(scopeKey: string): SavedDraftsController {
   }, [scopeKey])
 
   const save = useCallback(
-    (draft: ComposerSerializedDraft, files: ComposerAttachment[]) => {
-      cacheService.setCasual(keyFor(scopeKey), [...loadDrafts(scopeKey), { id: crypto.randomUUID(), draft, files }])
+    (draft: ComposerSerializedDraft, files: ComposerAttachment[], knowledgeBaseIds?: string[]) => {
+      cacheService.setCasual(keyFor(scopeKey), [
+        ...loadDrafts(scopeKey),
+        { id: crypto.randomUUID(), draft, files, knowledgeBaseIds: knowledgeBaseIds ?? [] }
+      ])
     },
     [scopeKey]
   )

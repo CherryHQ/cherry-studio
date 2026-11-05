@@ -5576,6 +5576,141 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
+  describe('saved drafts', () => {
+    const readSavedDrafts = (): any[] => {
+      const key = [...MockCacheUtils.getCurrentState().memoryCache.keys()].find((cacheKey) =>
+        cacheKey.startsWith('saved-drafts.')
+      )
+      return key ? ((cacheService.getCasual(key) as any[]) ?? []) : []
+    }
+
+    const savedDraftsDock = (): any => {
+      const queueContent = mocks.surfaceProps?.queueContent as any
+      const children = queueContent?.props?.children
+      if (!Array.isArray(children)) return undefined
+      return children.find((child) => child && Array.isArray(child.props?.items))
+    }
+
+    const clickSaveAsDraft = () => {
+      fireEvent.click(screen.getByLabelText('chat.input.saved_drafts.save'))
+    }
+
+    it('saves the in-progress draft instead of the previewed history entry', async () => {
+      seedInputHistory(['history entry'])
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      act(() => {
+        mocks.surfaceProps?.onTextChange('original prompt')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('original prompt'))
+
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+      clickSaveAsDraft()
+
+      await waitFor(() => expect(readSavedDrafts().map((item) => item.draft.text)).toEqual(['original prompt']))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+      expect(readSavedDrafts().map((item) => item.draft.text)).not.toContain('history entry')
+    })
+
+    it('parks the in-progress draft with its attachments when editing a saved draft from a history preview', async () => {
+      seedInputHistory(['history entry'])
+      const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+      // Park a first draft so the dock has an item to edit.
+      act(() => {
+        mocks.surfaceProps?.onTextChange('first prompt')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('first prompt'))
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+      // Compose a new unfinished prompt with an attachment, then navigate into history.
+      mocks.files = [file]
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      act(() => {
+        mocks.surfaceProps?.onTextChange('original prompt')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('original prompt'))
+
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+      expect(mocks.files).toEqual([])
+
+      const draftId = readSavedDrafts()[0].id
+      await act(async () => savedDraftsDock()?.props.onEdit(draftId))
+
+      // The saved draft is restored into the composer.
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('first prompt'))
+      expect(mocks.replaceDraft).toHaveBeenLastCalledWith({ text: 'first prompt', tokens: [] })
+
+      // The interrupted prompt was parked with its attachment — not the previewed history entry.
+      const parked = readSavedDrafts()
+      expect(parked).toHaveLength(1)
+      expect(parked[0].draft.text).toBe('original prompt')
+      expect(parked[0].files).toEqual([file])
+
+      // History navigation was reset, so ArrowDown does not resurrect anything.
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+      })
+    })
+
+    it('restores the saved draft knowledge scope when editing it back', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+      }))
+
+      const onSend = vi.fn()
+      const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+      mocks.selectedKnowledgeBases = [knowledgeBase]
+      view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+      act(() => {
+        mocks.surfaceProps?.onTextChange('kb draft')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
+
+      clickSaveAsDraft()
+      await waitFor(() => expect(readSavedDrafts()).toHaveLength(1))
+      expect(readSavedDrafts()[0].knowledgeBaseIds).toEqual(['kb-1'])
+
+      // Deselect the base while composing something else, then restore the saved draft.
+      mocks.selectedKnowledgeBases = []
+      view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+      const draftId = readSavedDrafts()[0].id
+      await act(async () => savedDraftsDock()?.props.onEdit(draftId))
+
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('kb draft'))
+      expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+    })
+  })
+
   describe('queued edit switching', () => {
     async function setup(texts = ['A', 'B']) {
       mocks.topicPending = true

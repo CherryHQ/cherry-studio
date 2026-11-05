@@ -20,6 +20,16 @@ describe('useSavedDrafts', () => {
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['b'])
   })
 
+  it('stores knowledge base ids with the draft and defaults them to empty', () => {
+    const { result } = renderHook(() => useSavedDrafts('s1'))
+
+    act(() => result.current.save(draft('a'), [], ['kb-1']))
+    act(() => result.current.save(draft('b'), []))
+
+    expect(result.current.items[0].knowledgeBaseIds).toEqual(['kb-1'])
+    expect(result.current.items[1].knowledgeBaseIds).toEqual([])
+  })
+
   it('does not leak drafts between scopes', () => {
     const first = renderHook(() => useSavedDrafts('s1'))
     act(() => first.result.current.save(draft('a'), []))
