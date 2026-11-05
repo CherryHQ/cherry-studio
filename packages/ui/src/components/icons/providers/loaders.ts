@@ -86,6 +86,7 @@ export const PROVIDER_ICON_LOADERS = {
   inflection: () => import('./inflection').then(({ InflectionIcon }) => InflectionIcon),
   intel: () => import('./intel').then(({ IntelIcon }) => IntelIcon),
   internlm: () => import('./internlm').then(({ InternlmIcon }) => InternlmIcon),
+  ionet: () => import('./ionet/ionet').then(({ IonetIcon }) => IonetIcon),
   jimeng: () => import('./jimeng').then(({ JimengIcon }) => JimengIcon),
   jina: () => import('./jina').then(({ JinaIcon }) => JinaIcon),
   kling: () => import('./kling').then(({ KlingIcon }) => KlingIcon),

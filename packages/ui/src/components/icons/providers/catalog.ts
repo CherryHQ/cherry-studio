@@ -85,6 +85,7 @@ import { InfiniIcon } from './infini'
 import { InflectionIcon } from './inflection'
 import { IntelIcon } from './intel'
 import { InternlmIcon } from './internlm'
+import { IonetIcon } from './ionet/ionet'
 import { JimengIcon } from './jimeng'
 import { JinaIcon } from './jina'
 import { KlingIcon } from './kling'
@@ -261,6 +262,7 @@ export const PROVIDER_ICON_CATALOG = {
   inflection: InflectionIcon,
   intel: IntelIcon,
   internlm: InternlmIcon,
+  ionet: IonetIcon,
   jimeng: JimengIcon,
   jina: JinaIcon,
   kling: KlingIcon,

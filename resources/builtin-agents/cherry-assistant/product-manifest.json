@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "70e1e7ba16416870",
-    "count": 67,
+    "version": "df34250e6dbd9f2b",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -690,6 +690,10 @@
       {
         "id": "nvidia",
         "name": "nvidia"
+      },
+      {
+        "id": "ionet",
+        "name": "IO Intelligence"
       },
       {
         "id": "grok",

@@ -83,6 +83,7 @@ import { meta as infiniMeta } from './infini/meta'
 import { meta as inflectionMeta } from './inflection/meta'
 import { meta as intelMeta } from './intel/meta'
 import { meta as internlmMeta } from './internlm/meta'
+import { meta as ionetMeta } from './ionet/meta'
 import { meta as jimengMeta } from './jimeng/meta'
 import { meta as jinaMeta } from './jina/meta'
 import { meta as klingMeta } from './kling/meta'
@@ -258,6 +259,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   inflection: inflectionMeta,
   intel: intelMeta,
   internlm: internlmMeta,
+  ionet: ionetMeta,
   jimeng: jimengMeta,
   jina: jinaMeta,
   kling: klingMeta,
