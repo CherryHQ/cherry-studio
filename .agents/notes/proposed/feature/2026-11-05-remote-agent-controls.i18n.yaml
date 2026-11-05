@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-05-remote-agent-controls.md
+2026-11-05-remote-agent-controls.md: 6a72ec5271b32c9dc56778fa96b16c3463a10c19
+2026-11-05-remote-agent-controls.zh.md: 2e6fa792e775194c8e305c88cc95718842ec8e9b
