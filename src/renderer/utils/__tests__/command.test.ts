@@ -1,11 +1,36 @@
 import { describe, expect, it } from 'vitest'
 
-import { findCommandDefinition } from '@shared/utils/command'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { findCommandDefinition, resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
 import { getCommandShortcutLabel, resolveCommandDisplayState } from '../command'
 
 describe('getShortcutBindingFromKeyboardEvent', () => {
+  const focusOptions = {
+    preferences: { 'chat.input.focus': DefaultPreferences.default['shortcut.chat.input.focus'] },
+    scope: 'renderer',
+    platform: 'darwin',
+    context: { 'webview.focused': false },
+    canExecuteCommand: (id: string) => id === 'chat.input.focus'
+  } as const
+
+  it('leaves Dvorak Command+C available for native copy', () => {
+    const binding = getShortcutBindingFromKeyboardEvent({ key: 'c', code: 'KeyI', metaKey: true }, 'darwin')
+
+    expect(resolveCommandByKeybinding({ ...focusOptions, binding })).toBeUndefined()
+  })
+
+  it('resolves Dvorak Command+I to input focus', () => {
+    const binding = getShortcutBindingFromKeyboardEvent({ key: 'i', code: 'KeyG', metaKey: true }, 'darwin')
+
+    expect(resolveCommandByKeybinding({ ...focusOptions, binding })).toBe('chat.input.focus')
+  })
+
+  it('resolves the enabled default input-focus binding', () => {
+    expect(resolveCommandByKeybinding({ ...focusOptions, binding: ['CommandOrControl', 'I'] })).toBe('chat.input.focus')
+  })
+
   it('normalizes command/control shortcuts by platform', () => {
     expect(getShortcutBindingFromKeyboardEvent({ key: 'n', code: 'KeyN', metaKey: true }, 'darwin')).toEqual([
       'CommandOrControl',
