@@ -679,7 +679,7 @@ const ChatComposerInner = ({
     })
     if (initialDraft.mentionedModelIds.length > 0 && restoredModels.length === 0) {
       restoreMentionedModelSelector()
-    } else {
+    } else if (initialDraft.mentionedModelIds.length > 0) {
       restoreMentionedModelDraft(restoredModels, initialDraft.modelMultiSelectMode)
     }
     setIsMentionedModelDraftHydrated(true)
@@ -793,7 +793,7 @@ const ChatComposerInner = ({
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
   const submittedMentionedModels =
-    assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+    (assistant || lastUsedModelId) && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -929,7 +929,7 @@ const ChatComposerInner = ({
   const canSteer = isPending && !awaitingApproval
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
-    models: mentionedModels,
+    models: effectiveSubmittedModels,
     fallbackModel: runtimeModel
   })
 

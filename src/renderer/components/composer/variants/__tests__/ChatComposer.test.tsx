@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   model: undefined as Model | undefined,
   assistantLoading: false,
   modelPending: false,
+  lastModelAudio: false,
   modelMissing: undefined as boolean | undefined,
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
@@ -480,8 +481,9 @@ vi.mock('@renderer/utils/model', () => ({
     if (supported.length === 1) return undefined
     return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
   },
-  isAudioModel: () => false,
-  isAudioModels: () => false,
+  isAudioModel: (model: Model) => model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION),
+  isAudioModels: (models: Model[]) =>
+    models.every((model) => model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION)),
   isEmbeddingModel: () => false,
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
@@ -550,7 +552,16 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
-  useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
+  useModelById: (modelId?: string) => ({
+    model: modelId
+      ? {
+          ...(modelId === modelB.id ? modelB : model),
+          ...(mocks.lastModelAudio ? { capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION] } : {}),
+          id: modelId,
+          contextWindow: 100
+        }
+      : undefined
+  }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
     return { models: [mocks.model ?? model, modelB] }
@@ -3793,6 +3804,34 @@ describe('ChatComposer', () => {
       expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
       expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
     })
+  })
+
+  it('submits the restored last-used model for an assistant-less topic', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ChatHomeComposer topic={{ ...topic, assistantId: undefined }} onSend={onSend} lastUsedModelId={modelB.id} />
+    )
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'restored model', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith('restored model', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
+  it('uses the restored model for assistant-bound attachment capabilities', async () => {
+    mocks.lastModelAudio = true
+    try {
+      render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+      await waitFor(() => expect(mocks.derivedToolState?.extensions).toContain('.mp3'))
+    } finally {
+      mocks.lastModelAudio = false
+    }
+  })
+
+  it('preserves a user model choice while last-used history is pending', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelPending />)
+    fireEvent.click(screen.getByText('select model 2'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
   })
 
   it('keeps the selected model in the next send after the assistant model refresh completes', async () => {

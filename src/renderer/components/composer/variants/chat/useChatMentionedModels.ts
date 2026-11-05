@@ -53,6 +53,7 @@ export function useChatMentionedModels({
   const mentionedModelMultiSelectModeRef = useRef(mentionedModelMultiSelectMode)
   const mentionedModelSelectorValueRef = useRef(mentionedModelSelectorValue)
   const mentionedModelsRef = useRef(mentionedModels)
+  const explicitSelectionScopeRef = useRef<string | null>(null)
   const selectorScopeKeyRef = useRef<string | null>(null)
   mentionedModelMultiSelectModeRef.current = mentionedModelMultiSelectMode
   mentionedModelSelectorValueRef.current = mentionedModelSelectorValue
@@ -103,7 +104,10 @@ export function useChatMentionedModels({
     selectorScopeKeyRef.current = selectorScopeKey
     initializeMentionedModelSelector(
       isInitialSelection,
-      Boolean(preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope),
+      Boolean(
+        (preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope) ||
+        (isNewSelectorScope && explicitSelectionScopeRef.current === selectorScopeKey)
+      ),
       seedModel
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest mentioned models; this effect is keyed by topic/assistant/model.
@@ -120,6 +124,7 @@ export function useChatMentionedModels({
 
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
+      explicitSelectionScopeRef.current = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
       setMentionedModelSelectorValue(nextModels)
       if (mentionedModelMultiSelectModeRef.current) {
         setMentionedModels(nextModels)
@@ -130,7 +135,7 @@ export function useChatMentionedModels({
       const [nextModel] = nextModels
       if (nextModel) onModelSelect(nextModel)
     },
-    [onModelSelect, setMentionedModels]
+    [onModelSelect, setMentionedModels, topicId, selectedAssistantId]
   )
 
   const handleMentionedModelMultiSelectModeChange = useCallback(
