@@ -192,10 +192,13 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
+  // Installed skills are globally enabled by default (AgentGlobalSkillService.insertTx
+  // forces isEnabled: true); the column's schema default is false, so the fixture must
+  // opt in explicitly or agent-scoped list() projections exclude the skill.
   async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
-      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
+      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}`, isEnabled: true })
       .onConflictDoNothing()
   }
 
