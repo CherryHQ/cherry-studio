@@ -640,6 +640,7 @@ const AppearanceSettings: FC = () => {
                 min={0}
                 max={100}
                 step={1}
+                getThumbAriaLabel={() => t('settings.display.background.opacity')}
                 value={[background.opacity]}
                 onValueChange={([opacity]) => void setBackground({ opacity })}
               />
@@ -652,6 +653,7 @@ const AppearanceSettings: FC = () => {
                 min={0}
                 max={40}
                 step={1}
+                getThumbAriaLabel={() => t('settings.display.background.blur')}
                 value={[background.blur]}
                 onValueChange={([blur]) => void setBackground({ blur })}
               />
