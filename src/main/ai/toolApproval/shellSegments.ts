@@ -14,6 +14,8 @@ export function splitShellSegments(command: string, separator: RegExp, shell: 'b
       if (char === quote) quote = undefined
     } else if (char === "'" || char === '"') {
       quote = char
+    } else if (char === '#' && (index === 0 || /[\s;&|()]/.test(command[index - 1]))) {
+      while (index + 1 < command.length && command[index + 1] !== '\n') index++
     } else {
       const match = separator.exec(command.slice(index))
       if (match?.index === 0) {

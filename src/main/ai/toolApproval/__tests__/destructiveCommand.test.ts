@@ -173,6 +173,58 @@ it('detects a destructive git command across a bash line continuation', () => {
   expect(detectDestructiveCommand('git \\\n  reset --hard HEAD', 'bash')).toBe('destructive git operation')
 })
 
+it.each(["# Clean the project's generated output\nrm -rf dist", "# don't ship it\nrm -rf dist"])(
+  'detects a destructive bash command after an apostrophe in a comment: %s',
+  (command) => {
+    expect(detectDestructiveCommand(command, 'bash')).not.toBeNull()
+  }
+)
+
+it('splits a bash comment containing an apostrophe from the next command', () => {
+  expect(
+    splitShellSegments("# Clean the project's generated output\nrm -rf dist", /^(?:&&|\|\||[&;\n])/, 'bash')
+  ).toEqual(["# Clean the project's generated output", 'rm -rf dist'])
+})
+
+it('detects a destructive PowerShell command after an apostrophe in a comment', () => {
+  expect(detectDestructiveCommand("# Don't ship\nRemove-Item -Recurse -Force dist", 'powershell')).not.toBeNull()
+})
+
+it.each(['bash', 'powershell'] as const)('recognizes comments at word boundaries in %s', (shell) => {
+  for (const prefix of ['', ' ', '\t', ';', '&', '|', '(', ')']) {
+    expect(splitShellSegments(`${prefix}# don't ship\nrm -rf dist`, /^\n/, shell)).toEqual([
+      `${prefix}# don't ship`,
+      'rm -rf dist'
+    ])
+  }
+})
+
+it.each(['bash', 'powershell'] as const)('keeps literal hashes from starting comments in %s', (shell) => {
+  expect(detectDestructiveCommand('echo "a # b"', shell)).toBeNull()
+  expect(detectDestructiveCommand('echo a#b', shell)).toBeNull()
+  expect(detectDestructiveCommand('echo "a # b"; rm -rf dist', shell)).not.toBeNull()
+  expect(detectDestructiveCommand("echo 'a # b'; rm -rf dist", shell)).not.toBeNull()
+  expect(detectDestructiveCommand('echo a#b; rm -rf dist', shell)).not.toBeNull()
+})
+
+it.each(['bash', 'powershell'] as const)('ignores operators in comments through end of input in %s', (shell) => {
+  expect(detectDestructiveCommand("echo ok # don't ship; rm -rf dist", shell)).toBeNull()
+  expect(splitShellSegments("# don't ship; rm -rf dist", /^(?:&&|\|\||[&;\n])/, shell)).toEqual([
+    "# don't ship; rm -rf dist"
+  ])
+})
+
+it('preserves bash escaping before hashes and inside double quotes', () => {
+  expect(detectDestructiveCommand('echo \\#; rm -rf dist', 'bash')).not.toBeNull()
+  expect(detectDestructiveCommand('echo "a \\" # b"; rm -rf dist', 'bash')).not.toBeNull()
+})
+
+it('preserves PowerShell backtick escaping and doubled single quotes before hashes', () => {
+  expect(detectDestructiveCommand('echo `#; Remove-Item dist', 'powershell')).not.toBeNull()
+  expect(detectDestructiveCommand('echo "a `" # b"; Remove-Item dist', 'powershell')).not.toBeNull()
+  expect(detectDestructiveCommand("echo 'don''t # ship'; Remove-Item dist", 'powershell')).not.toBeNull()
+})
+
 it('keeps an escaped bash operator within its segment', () => {
   expect(splitShellSegments('rm foo\\;bar', /^(?:&&|\|\||[&;\n])/, 'bash')).toEqual(['rm foo\\;bar'])
 })
