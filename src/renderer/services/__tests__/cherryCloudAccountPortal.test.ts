@@ -27,7 +27,7 @@ describe('openCherryCloudAccountPortal', () => {
 
   it('opens the official China-edition subscription FAQ', async () => {
     vi.stubGlobal('__APP_EDITION__', 'cn')
-    useApiOrigin('https://cloud-dev.cherry-ai.com')
+    useAccountOrigin('https://cloud-dev.cherry-ai.com')
 
     await openCherryCloudFaq()
 
@@ -39,13 +39,13 @@ describe('openCherryCloudAccountPortal', () => {
 
   it('opens the global-edition FAQ on the same origin as the portal', async () => {
     vi.stubGlobal('__APP_EDITION__', 'global')
-    useApiOrigin('https://cloud.cherryai.com.cn')
+    useAccountOrigin('https://accounts.cherryai.com.cn')
 
     await openCherryCloudFaq()
 
     expect(request).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://cloud.cherryai.com.cn/account/faq'
+      'https://accounts.cherryai.com.cn/account/faq'
     )
   })
 })
