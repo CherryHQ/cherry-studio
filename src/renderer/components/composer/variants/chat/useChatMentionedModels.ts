@@ -60,7 +60,14 @@ export function useChatMentionedModels({
   mentionedModelsRef.current = mentionedModels
 
   const initializeMentionedModelSelector = useEffectEvent(
-    (isInitialSelection: boolean, preserveExplicitSelection: boolean, selectedModel?: Model) => {
+    (
+      isInitialSelection: boolean,
+      preserveExplicitSelection: boolean,
+      selectedModel?: Model,
+      ownsPendingSelection = false
+    ) => {
+      // A pending-history edit owns the whole selector, including mode and an empty value.
+      if (ownsPendingSelection) return
       const currentMentionedModels = mentionedModelsRef.current
       const keepCurrentSelection = preserveExplicitSelection && currentMentionedModels.length > 0
       setMentionedModelSelectorValue(
@@ -108,7 +115,8 @@ export function useChatMentionedModels({
         (preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope) ||
         (isNewSelectorScope && explicitSelectionScopeRef.current === selectorScopeKey)
       ),
-      seedModel
+      seedModel,
+      isNewSelectorScope && explicitSelectionScopeRef.current === selectorScopeKey
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest mentioned models; this effect is keyed by topic/assistant/model.
   }, [
@@ -140,6 +148,7 @@ export function useChatMentionedModels({
 
   const handleMentionedModelMultiSelectModeChange = useCallback(
     (nextEnabled: boolean) => {
+      explicitSelectionScopeRef.current = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
       mentionedModelMultiSelectModeRef.current = nextEnabled
       setMentionedModelMultiSelectMode(nextEnabled)
 
@@ -151,7 +160,7 @@ export function useChatMentionedModels({
       setMentionedModelSelectorValue(collapsedModels)
       setMentionedModels(collapsedModels)
     },
-    [setMentionedModels]
+    [setMentionedModels, topicId, selectedAssistantId]
   )
 
   const handleMentionedModelSelectorRestore = useCallback(() => {
@@ -175,9 +184,10 @@ export function useChatMentionedModels({
 
   const restoreMentionedModelDraft = useCallback(
     (models: Model[], multiSelectMode: boolean) => {
+      explicitSelectionScopeRef.current = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
       restoreMentionedModelSelection(models, models, multiSelectMode)
     },
-    [restoreMentionedModelSelection]
+    [restoreMentionedModelSelection, topicId, selectedAssistantId]
   )
 
   return {

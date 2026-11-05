@@ -3834,6 +3834,45 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
   })
 
+  it('preserves explicit multi-select mode through pending history', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelPending />)
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+  })
+
+  it('preserves explicit empty selection through pending history', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelPending />)
+    fireEvent.click(screen.getByText('clear model selection'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+  })
+
+  it('preserves hydrated single-model draft through pending history', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'saved',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [modelB.id],
+            modelMultiSelectMode: false
+          }
+        : undefined
+    )
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(<ChatHomeComposer topic={topic} onSend={onSend} lastUsedModelPending />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={onSend} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'saved', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith('saved', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
   it('keeps the selected model in the next send after the assistant model refresh completes', async () => {
     const user = userEvent.setup()
     const onSend = vi.fn().mockResolvedValue(undefined)

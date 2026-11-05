@@ -184,7 +184,7 @@ const ChatContentInner: FC<InnerProps> = ({
     for (let index = uiMessages.length - 1; index >= 0; index--) {
       const message = uiMessages[index]
       const modelId = message.metadata?.modelId
-      if (message.role === 'assistant' && isUniqueModelId(modelId)) return modelId
+      if (message.role === 'assistant' && message.parts.length > 0 && isUniqueModelId(modelId)) return modelId
     }
     return null
   }, [uiMessages])
