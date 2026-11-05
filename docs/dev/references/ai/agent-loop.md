@@ -44,8 +44,12 @@ const result = await agent.generate({ messages }, signal)
 // { streamingTransport: true } for backends that reject non-streaming
 // requests (OpenAI Codex on the ChatGPT Responses endpoint). The run then
 // goes over SDK streaming internally, and callers still receive one
-// aggregated result — text, usage, finishReason and steps, with terminal
-// stream errors rethrown instead of resolving as an empty success.
+// aggregated result — text, usage, finishReason and steps. Terminal stream
+// errors are rethrown instead of resolving as an empty success: both a
+// finishReason of "error" and a trailing `error` stream part (a failed
+// continuation request can resolve the aggregation with finishReason
+// "other" and only a tool-calls step) fail the generation. Ordinary tool
+// errors arrive as `tool-error` parts and keep their own handling.
 
 // internal observers can also register on the agent:
 const dispose = agent.on('onStepFinish', step => { … })

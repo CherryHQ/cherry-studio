@@ -2180,7 +2180,8 @@ describe('AiService tool approval', () => {
       usage: Promise.resolve({ inputTokens: 1, outputTokens: 1, totalTokens: 2 }),
       finishReason: Promise.resolve('stop'),
       rawFinishReason: Promise.resolve('stop'),
-      steps: Promise.resolve([])
+      steps: Promise.resolve([]),
+      fullStream: (async function* () {})()
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
@@ -2216,7 +2217,54 @@ describe('AiService tool approval', () => {
       usage: Promise.resolve({ inputTokens: 11, outputTokens: 0, totalTokens: 11 }),
       finishReason: Promise.resolve('error'),
       rawFinishReason: Promise.resolve('error'),
-      steps: Promise.resolve([])
+      steps: Promise.resolve([]),
+      fullStream: (async function* () {
+        yield { type: 'error', error: new Error('response.failed: rate limit exceeded') }
+      })()
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    // The terminal `error` stream part carries the provider's own error, which propagates.
+    await expect(
+      service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+    ).rejects.toThrow('response.failed: rate limit exceeded')
+    expect(mockAgentStream).toHaveBeenCalledOnce()
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+  })
+
+  it('fails the generation when a tool-loop continuation request fails mid-stream', async () => {
+    // After a completed tool call, a failed continuation request (e.g. HTTP 400) surfaces
+    // only as a trailing `error` stream part: the aggregation promises still resolve with
+    // empty text, finishReason "other" and a tool-calls-only step (verified against the
+    // pinned ai@6 / @ai-sdk/openai with a two-request probe). generate() must propagate the
+    // terminal error instead of resolving an empty success. Ordinary tool errors arrive as
+    // `tool-error` parts and keep their own handling.
+    const service = createService()
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: Promise.resolve(''),
+      usage: Promise.resolve({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
+      finishReason: Promise.resolve('other'),
+      rawFinishReason: Promise.resolve(undefined),
+      steps: Promise.resolve([{ finishReason: 'tool-calls', text: '' }]),
+      fullStream: (async function* () {
+        yield { type: 'start' }
+        yield { type: 'tool-call', toolCallId: 'call_1', toolName: 'probeTool', input: {} }
+        yield { type: 'tool-result', toolCallId: 'call_1', toolName: 'probeTool', output: { ok: true } }
+        yield { type: 'error', error: new Error('HTTP 400: continuation request failed') }
+      })()
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
@@ -2235,7 +2283,7 @@ describe('AiService tool approval', () => {
 
     await expect(
       service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
-    ).rejects.toThrow('terminal provider error')
+    ).rejects.toThrow('HTTP 400: continuation request failed')
     expect(mockAgentStream).toHaveBeenCalledOnce()
     expect(mockAgentGenerate).not.toHaveBeenCalled()
   })

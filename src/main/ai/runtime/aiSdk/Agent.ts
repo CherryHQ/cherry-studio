@@ -59,6 +59,17 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
  * through `stream()` instead; their callers keep the non-streaming contract.
  */
 async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>) {
+  // A provider failure between steps (e.g. the continuation request after a completed tool
+  // call answers HTTP 400) surfaces only as a trailing `error` stream part: the aggregation
+  // promises still resolve — empty text, finishReason "other", a tool-calls-only step — so
+  // watch the stream for it. Ordinary tool errors arrive as `tool-error` parts and keep
+  // their own handling; only a terminal `error` part is propagated here.
+  let terminalStreamError: unknown
+  const watchTerminalStreamError = (async () => {
+    for await (const part of streamed.fullStream) {
+      if (part.type === 'error') terminalStreamError = part.error
+    }
+  })()
   const [text, usage, finishReason, steps, rawFinishReason] = await Promise.all([
     streamed.text,
     streamed.usage,
@@ -66,6 +77,12 @@ async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>)
     streamed.steps,
     streamed.rawFinishReason
   ])
+  await watchTerminalStreamError
+  if (terminalStreamError !== undefined) {
+    throw terminalStreamError instanceof Error
+      ? terminalStreamError
+      : new Error(`Response stream ended with a terminal provider error: ${String(terminalStreamError)}`)
+  }
   // A terminal stream error (e.g. a Codex Responses `response.failed` frame) does not reject
   // these promises: the SDK closes the run with finishReason "error", empty text and partial
   // usage, so the aggregate would look like a successful empty generation. Surface it as the
