@@ -616,6 +616,35 @@ describe('ResourceEntityRail', () => {
       expect(screen.getByText('Agent D')).toBeInTheDocument()
     })
 
+    it('keeps an unlabeled all-untagged list flat', () => {
+      renderRail({ items: [{ id: 'a', name: 'Agent A', icon: <span /> }], untaggedLabel: undefined })
+      expect(screen.getByText('Agent A')).toBeInTheDocument()
+      expect(screen.getByRole('listbox', { name: 'Agents list' }).querySelector('button[aria-expanded]')).toBeNull()
+    })
+
+    it('keeps a labeled all-untagged section visible and collapsible', () => {
+      renderRail({
+        items: [{ id: 'a', name: 'Agent A', icon: <span /> }],
+        collapsedState: ['resource-entity-rail:section:["untagged"]']
+      })
+      expect(screen.getByRole('button', { name: /Untagged/ })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText('Agent A')).not.toBeInTheDocument()
+    })
+
+    it('preserves the sole tag header and its collapsed state', () => {
+      renderRail({
+        items: [{ id: 'a', name: 'Agent A', icon: <span />, tags: [coding] }],
+        collapsedState: ['resource-entity-rail:section:["tag","tag-coding"]']
+      })
+      expect(screen.getByRole('button', { name: /Coding/ })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText('Agent A')).not.toBeInTheDocument()
+    })
+
+    it('selects the visible occurrence when the first tag section is collapsed', () => {
+      renderRail({ selectedId: 'b', collapsedState: ['resource-entity-rail:section:["tag","tag-coding"]'] })
+      expect(screen.getByText('Agent B').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
+    })
+
     it('selects and acts on the underlying entity id from a tag row', () => {
       const onSelect = vi.fn()
       renderRail({ onSelect })

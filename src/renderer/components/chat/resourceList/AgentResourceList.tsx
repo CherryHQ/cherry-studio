@@ -1,5 +1,5 @@
 import { Archive, Check, Pin, PinOff, Plus, Smile, SquarePen, Tag as TagIcon } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
@@ -131,9 +131,14 @@ export function AgentResourceList({
   const {
     tags: allTags,
     tagsByEntityId: agentTagsById,
+    isLoading: isAgentTagsLoading,
+    error: agentTagsError,
     createTag,
     syncEntityTags: syncAgentTags
   } = useEntityTags('agent', { enabled: dataEnabled })
+  const canEditAgentTags = !isAgentTagsLoading && !agentTagsError
+  const agentTagsStateRef = useRef({ canEditAgentTags, agentTagsById })
+  agentTagsStateRef.current = { canEditAgentTags, agentTagsById }
   const [collapsedTagSectionIds, setCollapsedTagSectionIds] = usePersistCache('ui.agent.entity_rail.expansion')
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
@@ -305,15 +310,17 @@ export function AgentResourceList({
 
   const handleToggleAgentTag = useCallback(
     (agentId: string, tagId: string) => {
+      if (!canEditAgentTags) return
       const currentIds = (agentTagsById.get(agentId) ?? []).map((tag) => tag.id)
       const nextIds = currentIds.includes(tagId) ? currentIds.filter((id) => id !== tagId) : [...currentIds, tagId]
       return handleSyncAgentTags(agentId, nextIds)
     },
-    [agentTagsById, handleSyncAgentTags]
+    [agentTagsById, canEditAgentTags, handleSyncAgentTags]
   )
 
   const handleCreateAgentTag = useCallback(
     async (agentId: string) => {
+      if (!canEditAgentTags) return
       const name = (
         await PromptPopup.show({
           title: t('agent.tags.new'),
@@ -321,17 +328,19 @@ export function AgentResourceList({
           inputPlaceholder: t('agent.tags.new_placeholder')
         })
       )?.trim()
-      if (!name) return
+      if (!name || !agentTagsStateRef.current.canEditAgentTags) return
 
       try {
         const tag = await createTag(name)
-        await syncAgentTags(agentId, [...(agentTagsById.get(agentId) ?? []).map((entry) => entry.id), tag.id])
+        const latest = agentTagsStateRef.current
+        if (!latest.canEditAgentTags) return
+        await syncAgentTags(agentId, [...(latest.agentTagsById.get(agentId) ?? []).map((entry) => entry.id), tag.id])
       } catch (err) {
         logger.error('Failed to create agent tag from classic-layout rail', { agentId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [agentTagsById, createTag, syncAgentTags, t]
+    [canEditAgentTags, createTag, syncAgentTags, t]
   )
 
   const handleToggleAgentPin = useCallback(
@@ -526,17 +535,20 @@ export function AgentResourceList({
           label: t('agent.tags.title'),
           icon: <TagIcon size={14} />,
           order: 21,
+          availability: { visible: true, enabled: canEditAgentTags },
           children: [
             ...allTags.map((tag) =>
               buildResolvedResourceEntityMenuAction({
                 id: `${AGENT_ENTITY_TAG_TOGGLE_ACTION_PREFIX}${tag.id}`,
                 label: tag.name,
+                availability: { visible: true, enabled: canEditAgentTags },
                 icon: itemTagIds.has(tag.id) ? <Check size={14} /> : <span className="block size-4" />
               })
             ),
             buildResolvedResourceEntityMenuAction({
               id: AGENT_ENTITY_TAG_NEW_ACTION_ID,
               label: t('agent.tags.new'),
+              availability: { visible: true, enabled: canEditAgentTags },
               icon: <Plus size={14} />
             })
           ]
@@ -583,6 +595,7 @@ export function AgentResourceList({
       agentTagsById,
       agents,
       allTags,
+      canEditAgentTags,
       assistantIconType,
       deletingAgentId,
       isAgentPinActionDisabled,

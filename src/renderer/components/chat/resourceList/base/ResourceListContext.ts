@@ -37,6 +37,8 @@ export type ResourceListSection = {
   color?: string | null
   /** Render the item count next to the label. */
   showCount?: boolean
+  /** Keep a named section visible and collapsible even when it is the only section. */
+  alwaysShowHeader?: boolean
 }
 
 export type ResourceListGroupSeed = ResourceListGroup & {

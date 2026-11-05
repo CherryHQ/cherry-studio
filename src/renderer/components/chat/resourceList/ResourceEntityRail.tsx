@@ -227,7 +227,12 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const tagRows = useMemo(() => (groupByTags ? expandEntityRailTagRows(items) : null), [groupByTags, items])
   const selectedEntityId = selectionSuppressed ? null : selectedId
   const effectiveSelectedId = tagRows
-    ? (tagRows.find((row) => row.railSource.id === selectedEntityId)?.id ?? null)
+    ? (tagRows.find(
+        (row) =>
+          row.railSource.id === selectedEntityId &&
+          (!row.railTag ||
+            !collapsedState?.includes(`${ENTITY_RAIL_GROUP_SECTION_PREFIX}${getEntityRailTagBucketKey(row.railTag)}`))
+      )?.id ?? null)
     : selectedEntityId
   const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
   const handleItemClick = useCallback(
@@ -350,7 +355,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           id: `${ENTITY_RAIL_GROUP_SECTION_PREFIX}${getEntityRailTagBucketKey(tag)}`,
           label: tag?.name ?? untaggedLabel ?? '',
           color: tag?.color ?? null,
-          showCount: true
+          showCount: true,
+          alwaysShowHeader: Boolean(tag?.name ?? untaggedLabel)
         }
       }
       if (groupByGroup) {
