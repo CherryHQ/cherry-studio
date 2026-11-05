@@ -38,6 +38,8 @@ interface MessageLineProps {
   /** Messages that must read their current parts from PartsContext. */
   liveMessageIds: readonly string[]
   scrollToMessageId?: (messageId: string) => void
+  /** Space at the bottom covered by the composer overlay; the rail stops above it. */
+  bottomInset?: number
 }
 
 /** One conversation turn: a user question plus the replies that follow it. */
@@ -82,7 +84,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   hasOlder = false,
   historyPartsByMessageId,
   liveMessageIds,
-  scrollToMessageId
+  scrollToMessageId,
+  bottomInset = 0
 }: MessageLineProps) {
   const { t } = useTranslation()
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -323,7 +326,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
-      style={{ width: hitStripWidth }}
+      style={{ width: hitStripWidth, bottom: bottomInset > 0 ? `calc(2rem + ${bottomInset}px)` : undefined }}
       onMouseMove={handleMouseMove}
       onMouseLeave={clearPointerState}>
       <div

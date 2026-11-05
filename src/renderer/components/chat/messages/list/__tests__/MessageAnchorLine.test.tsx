@@ -265,6 +265,12 @@ describe('MessageAnchorLine', () => {
     expect((container.firstElementChild as HTMLElement).style.bottom).toBe('')
   })
 
+  it('stops the rail above the composer overlay when a bottom inset is provided', () => {
+    const { container } = renderRail({ messages, bottomInset: 120 })
+
+    expect((container.firstElementChild as HTMLElement).style.bottom).toBe('calc(2rem + 120px)')
+  })
+
   it('fades the top edge as a hint while older pages remain unloaded', () => {
     const { container } = renderRail({ messages, hasOlder: true })
 
