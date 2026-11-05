@@ -1,3 +1,4 @@
+import { AppWindowIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -75,6 +76,20 @@ const ImportMenuOptions: FC = () => {
             {t('history_import.source.opencode')}
           </SettingRowTitle>
           <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'opencode' })}>
+            {t('history_import.start')}
+          </Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-data-import-local-workbuddy" className="scroll-mt-6 py-4">
+          <SettingRowTitle className="gap-4">
+            <AppWindowIcon size={24} />
+            {t('history_import.source.workbuddy')}
+          </SettingRowTitle>
+          <Button
+            variant="outline"
+            disabled={!import.meta.env.DEV}
+            title={!import.meta.env.DEV ? t('history_import.workbuddy_pending') : undefined}
+            onClick={() => void LocalHistoryImportPopup.show({ source: 'workbuddy' })}>
             {t('history_import.start')}
           </Button>
         </SettingRow>

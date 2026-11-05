@@ -128,6 +128,13 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.import_settings.title'
   },
   {
+    anchorId: 'import-local-workbuddy',
+    titleKey: 'history_import.source.workbuddy',
+    panel: 'import_settings',
+    groupKey: 'history_import.title',
+    aliases: ['workbuddy']
+  },
+  {
     anchorId: 'import-local-opencode',
     titleKey: 'history_import.source.opencode',
     panel: 'import_settings',
