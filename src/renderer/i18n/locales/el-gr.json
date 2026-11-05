@@ -171,7 +171,6 @@
   "agent.memory.copy": "Αντιγραφή περιεχομένου",
   "agent.memory.copy_failed": "Αποτυχία αντιγραφής περιεχομένου",
   "agent.memory.create": "Δημιουργία αρχείου",
-  "agent.memory.description": "Τι θυμάται το {{name}} μεταξύ συνεδριών. Αυτά τα αρχεία φορτώνονται στο system prompt και είναι απλό κείμενο που μπορείς να διαβάσεις και να επεξεργαστείς εδώ ανά πάσα στιγμή.",
   "agent.memory.discard.confirm": "Απόρριψη αλλαγών",
   "agent.memory.discard.description": "Το τρέχον αρχείο έχει μη αποθηκευμένες αλλαγές. Αν συνεχίσεις, θα χαθούν.",
   "agent.memory.discard.title": "Απόρριψη μη αποθηκευμένων αλλαγών;",

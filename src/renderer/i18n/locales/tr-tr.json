@@ -171,7 +171,6 @@
   "agent.memory.copy": "İçeriği kopyala",
   "agent.memory.copy_failed": "İçerik kopyalanamadı",
   "agent.memory.create": "Dosya oluştur",
-  "agent.memory.description": "{{name}}'in oturumlar arasında hatırladıkları. Bu dosyalar sistem istemine yüklenir ve burada istediğiniz zaman okuyup düzenleyebileceğiniz düz metinlerdir.",
   "agent.memory.discard.confirm": "Değişiklikleri at",
   "agent.memory.discard.description": "Geçerli dosyada kaydedilmemiş değişiklikler var. Devam ederseniz kaybolacaklar.",
   "agent.memory.discard.title": "Kaydedilmemiş değişiklikler atılsın mı?",

@@ -171,7 +171,6 @@
   "agent.memory.copy": "คัดลอกเนื้อหา",
   "agent.memory.copy_failed": "คัดลอกเนื้อหาไม่สำเร็จ",
   "agent.memory.create": "สร้างไฟล์",
-  "agent.memory.description": "สิ่งที่ {{name}} จำไว้ข้ามเซสชัน ไฟล์เหล่านี้จะถูกโหลดเข้าสู่ system prompt และเป็นข้อความธรรมดาที่คุณสามารถอ่านและแก้ไขได้ที่นี่ทุกเมื่อ",
   "agent.memory.discard.confirm": "ทิ้งการเปลี่ยนแปลง",
   "agent.memory.discard.description": "ไฟล์ปัจจุบันมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก หากดำเนินการต่อ การเปลี่ยนแปลงจะหายไป",
   "agent.memory.discard.title": "ทิ้งการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?",
