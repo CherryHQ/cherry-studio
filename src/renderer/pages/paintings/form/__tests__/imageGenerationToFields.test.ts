@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import { ModelListSchema } from '@cherrystudio/provider-registry'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
+import modelCatalog from '../../../../../../packages/provider-registry/data/models.json'
 import { type BaseConfigItem, isOptionsConfigItem, type OptionItem } from '../baseConfigItem'
 import { imageGenerationToFields } from '../imageGenerationToFields'
 
@@ -19,6 +21,27 @@ function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
  * regression in the dispatcher fails here before reaching the painting page.
  */
 describe('imageGenerationToFields', () => {
+  it.each(['gpt-image-2-6-flare', 'gpt-image-2-6-sunburst'])(
+    'renders actionable generation and edit controls from the bundled catalog for %s',
+    (id) => {
+      const support = ModelListSchema.parse(modelCatalog).models.find((model) => model.id === id)?.imageGeneration
+      expect(support).toBeDefined()
+      for (const mode of ['generate', 'edit'] as const) {
+        const fields = imageGenerationToFields(support, { mode })
+        const byKey = Object.fromEntries(fields.map((field) => [field.key, field]))
+        expect(staticOptions(byKey.quality).map((option) => option.value)).toEqual(['auto', 'low', 'medium', 'high'])
+        expect(staticOptions(byKey.size).map((option) => option.value)).toEqual([
+          'auto',
+          '1024x1024',
+          '1536x1024',
+          '1024x1536'
+        ])
+        expect(staticOptions(byKey.background).map((option) => option.value)).toEqual(['auto', 'transparent', 'opaque'])
+        expect(byKey.numImages).toBeDefined()
+      }
+    }
+  )
+
   it('emits nothing for undefined or empty descriptors', () => {
     expect(imageGenerationToFields(undefined)).toEqual([])
     expect(imageGenerationToFields({ modes: {} })).toEqual([])
