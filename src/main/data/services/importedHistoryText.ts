@@ -67,7 +67,13 @@ export function presentClaudeHistory(data: MessageData): MessageData {
 }
 
 /** Display-only completed tools; persisted text and native continuation history stay inert. */
-export function presentImportedTools(source: HistorySource, messageId: string, role: string, data: MessageData) {
+export function presentImportedTools(
+  source: HistorySource,
+  messageId: string,
+  role: string,
+  data: MessageData,
+  status?: string
+) {
   if (role === 'user') return { role, data }
   const parts = data.parts?.map((part, index) => {
     if (part.type !== 'text') return part
@@ -91,9 +97,10 @@ export function presentImportedTools(source: HistorySource, messageId: string, r
       type: 'dynamic-tool' as const,
       toolCallId: `history:${messageId}:${index}`,
       toolName: 'historical_tool',
-      state: 'output-available' as const,
       input,
-      output: text,
+      ...(source === 'workbuddy' && (status === 'error' || status === 'paused')
+        ? { state: 'output-error' as const, errorText: text || '[Historical interrupted tool]' }
+        : { state: 'output-available' as const, output: text }),
       callProviderMetadata: {
         cherry: { tool: { type: 'mcp', name, serverId: 'history-import', serverName: source } }
       }
