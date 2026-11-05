@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "Todas as {{count}} tarefas foram concluídas",
   "notification.center.target_unavailable": "O destino desta notificação já não está disponível.",
   "notification.center.version_available": "O Cherry Studio {{version}} está disponível",
+  "notification.cherry_cloud.account_disabled_message": "A sua conta Cherry AI foi suspensa por violar a política de utilização, pelo que não pode iniciar sessão nem usar os modelos do plano. Se tiver dúvidas, contacte-nos.",
+  "notification.cherry_cloud.account_disabled_title": "Conta suspensa",
   "notification.completion.agent": "Tarefa do agente concluída",
   "notification.completion.assistant": "Resposta do assistente concluída",
   "notification.result.cancelled": "Tarefa cancelada",

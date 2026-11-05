@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "งานทั้งหมด {{count}} งานเสร็จสิ้นแล้ว",
   "notification.center.target_unavailable": "เป้าหมายของการแจ้งเตือนนี้ไม่พร้อมใช้งานอีกต่อไป",
   "notification.center.version_available": "Cherry Studio {{version}} พร้อมใช้งานแล้ว",
+  "notification.cherry_cloud.account_disabled_message": "บัญชี Cherry AI ของคุณถูกระงับเนื่องจากละเมิดนโยบายการใช้งาน จึงไม่สามารถลงชื่อเข้าใช้หรือใช้โมเดลในแพ็กเกจได้ หากมีข้อสงสัย โปรดติดต่อเรา",
+  "notification.cherry_cloud.account_disabled_title": "บัญชีถูกระงับ",
   "notification.completion.agent": "งานของเอเจนต์เสร็จสมบูรณ์",
   "notification.completion.assistant": "การตอบสนองของผู้ช่วยเสร็จสมบูรณ์",
   "notification.result.cancelled": "ยกเลิกงานแล้ว",

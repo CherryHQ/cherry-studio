@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "Alle {{count}} Aufgaben abgeschlossen",
   "notification.center.target_unavailable": "Das Ziel dieser Benachrichtigung ist nicht mehr verfügbar.",
   "notification.center.version_available": "Cherry Studio {{version}} ist verfügbar",
+  "notification.cherry_cloud.account_disabled_message": "Dein Cherry AI-Konto wurde wegen eines Verstoßes gegen die Nutzungsrichtlinien gesperrt. Du kannst dich nicht anmelden oder Planmodelle nutzen. Bei Fragen kontaktiere uns.",
+  "notification.cherry_cloud.account_disabled_title": "Konto gesperrt",
   "notification.completion.agent": "Agent-Aufgabe abgeschlossen",
   "notification.completion.assistant": "Assistentenantwort abgeschlossen",
   "notification.result.cancelled": "Aufgabe abgebrochen",

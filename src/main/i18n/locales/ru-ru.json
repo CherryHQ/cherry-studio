@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "Все задачи завершены: {{count}}",
   "notification.center.target_unavailable": "Связанный с этим уведомлением объект больше недоступен.",
   "notification.center.version_available": "Доступна версия Cherry Studio {{version}}",
+  "notification.cherry_cloud.account_disabled_message": "Ваш аккаунт Cherry AI заблокирован за нарушение правил использования: вход и модели тарифа недоступны. Если у вас есть вопросы, свяжитесь с нами.",
+  "notification.cherry_cloud.account_disabled_title": "Аккаунт заблокирован",
   "notification.completion.agent": "Задача агента выполнена",
   "notification.completion.assistant": "Ответ ассистента готов",
   "notification.result.cancelled": "Задача отменена",

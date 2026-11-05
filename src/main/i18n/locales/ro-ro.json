@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "Toate cele {{count}} sarcini au fost finalizate",
   "notification.center.target_unavailable": "Destinația acestei notificări nu mai este disponibilă.",
   "notification.center.version_available": "Cherry Studio {{version}} este disponibil",
+  "notification.cherry_cloud.account_disabled_message": "Contul tău Cherry AI a fost suspendat pentru încălcarea politicii de utilizare, așa că nu te poți conecta și nu poți folosi modelele planului. Dacă ai întrebări, contactează-ne.",
+  "notification.cherry_cloud.account_disabled_title": "Cont suspendat",
   "notification.completion.agent": "Sarcina agentului a fost finalizată",
   "notification.completion.assistant": "Răspunsul asistentului a fost finalizat",
   "notification.result.cancelled": "Sarcină anulată",

@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "{{count}} görevin tamamı tamamlandı",
   "notification.center.target_unavailable": "Bu bildirimin bağlantılı öğesi artık kullanılamıyor.",
   "notification.center.version_available": "Cherry Studio {{version}} kullanıma hazır",
+  "notification.cherry_cloud.account_disabled_message": "Cherry AI hesabınız kullanım politikasını ihlal ettiği için askıya alındı; oturum açamaz ve plan modellerini kullanamazsınız. Sorularınız için bizimle iletişime geçin.",
+  "notification.cherry_cloud.account_disabled_title": "Hesap askıya alındı",
   "notification.completion.agent": "Ajan görevi tamamlandı",
   "notification.completion.assistant": "Asistan yanıtı tamamlandı",
   "notification.result.cancelled": "Görev iptal edildi",

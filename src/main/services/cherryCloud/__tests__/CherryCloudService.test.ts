@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   showMainWindow: vi.fn()
 }))
 
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 vi.mock('systeminformation', () => ({
   uuid: vi.fn(async () => ({ os: 'abcdef12123456789abc1234567890ab', hardware: '', macs: [] }))
 }))
@@ -1998,6 +1999,24 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
+  })
+
+  it('signs out and tells the user when the server reports the account disabled', async () => {
+    const service = await createSignedInService()
+    const publish = vi.mocked(application.get('NotificationService').publish)
+    publish.mockClear()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(403, 'ACCOUNT_DISABLED'))
+
+    await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
+
+    expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'cherry-cloud-account',
+        title: 'notification.cherry_cloud.account_disabled_title',
+        message: 'notification.cherry_cloud.account_disabled_message'
+      })
+    )
   })
 
   it.each([401, 503])('clears the local login when remote revocation returns %s', async (status) => {

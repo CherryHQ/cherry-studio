@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "全部 {{count}} 个任务已完成",
   "notification.center.target_unavailable": "此通知关联的内容已不可用。",
   "notification.center.version_available": "Cherry Studio {{version}} 已发布",
+  "notification.cherry_cloud.account_disabled_message": "你的 CherryAI 账号因违反使用规范已被停用，暂时无法登录或使用订阅模型。如有疑问，请联系我们。",
+  "notification.cherry_cloud.account_disabled_title": "账号已被停用",
   "notification.completion.agent": "智能体任务已完成",
   "notification.completion.assistant": "助手回复已完成",
   "notification.result.cancelled": "任务已取消",

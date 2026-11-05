@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "Ολοκληρώθηκαν και οι {{count}} εργασίες",
   "notification.center.target_unavailable": "Ο προορισμός αυτής της ειδοποίησης δεν είναι πλέον διαθέσιμος.",
   "notification.center.version_available": "Το Cherry Studio {{version}} είναι διαθέσιμο",
+  "notification.cherry_cloud.account_disabled_message": "Ο λογαριασμός σας Cherry AI ανεστάλη λόγω παραβίασης της πολιτικής χρήσης, οπότε δεν μπορείτε να συνδεθείτε ή να χρησιμοποιήσετε τα μοντέλα του προγράμματος. Για απορίες, επικοινωνήστε μαζί μας.",
+  "notification.cherry_cloud.account_disabled_title": "Ο λογαριασμός ανεστάλη",
   "notification.completion.agent": "Η εργασία του Agent ολοκληρώθηκε",
   "notification.completion.assistant": "Η απάντηση του βοηθού ολοκληρώθηκε",
   "notification.result.cancelled": "Η εργασία ακυρώθηκε",

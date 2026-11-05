@@ -168,6 +168,8 @@
   "notification.center.queue_complete": "{{count}}件のタスクがすべて完了しました",
   "notification.center.target_unavailable": "この通知のリンク先は利用できなくなりました。",
   "notification.center.version_available": "Cherry Studio {{version}}が利用可能です",
+  "notification.cherry_cloud.account_disabled_message": "利用規約に違反したため、CherryAI アカウントが停止されました。サインインやプランモデルの利用はできません。ご不明な点はお問い合わせください。",
+  "notification.cherry_cloud.account_disabled_title": "アカウントが停止されました",
   "notification.completion.agent": "Agent タスクが完了しました",
   "notification.completion.assistant": "アシスタントの応答が完了しました",
   "notification.result.cancelled": "タスクがキャンセルされました",

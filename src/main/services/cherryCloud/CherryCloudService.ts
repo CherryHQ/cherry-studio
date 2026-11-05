@@ -8,6 +8,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { SignatureClient } from '@main/ai/provider/cherryai'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -120,6 +121,10 @@ class CherryCloudRefreshError extends Error {
     super(`Cherry Cloud session refresh failed (${response.status})`)
     this.name = 'CherryCloudRefreshError'
   }
+}
+
+function isAccountDisabled(response: Response): boolean {
+  return response.headers.get('Cherry-Error-Code') === 'ACCOUNT_DISABLED'
 }
 
 function requiresLogin(response: Response): boolean {
@@ -775,6 +780,23 @@ export class CherryCloudService extends BaseService {
     this.quotaRefusals.models.add(modelId)
   }
 
+  /** Tells the user why they were signed out or could not sign in; the server disabled the account. */
+  private reportAccountDisabled(): void {
+    const now = Date.now()
+    void application
+      .get('NotificationService')
+      .publish({
+        eventKey: `cherry-cloud:account-disabled:${now}`,
+        category: 'system',
+        createdAt: now,
+        kind: 'cherry-cloud-account',
+        title: t('notification.cherry_cloud.account_disabled_title'),
+        message: t('notification.cherry_cloud.account_disabled_message'),
+        target: { kind: 'settings', tab: 'profile' }
+      })
+      .catch((error) => logger.warn('Failed to report a disabled Cherry Cloud account', error as Error))
+  }
+
   private reconcileEntitledModels(
     models: Array<{
       id: string
@@ -908,6 +930,11 @@ export class CherryCloudService extends BaseService {
         : undefined
     const generation = this.sessionGeneration
     let response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
+    if (isAccountDisabled(response)) {
+      await this.clearSession(session)
+      this.reportAccountDisabled()
+      return response
+    }
     if (requiresLogin(response)) {
       await this.clearSession(session)
       return response
@@ -1033,6 +1060,11 @@ export class CherryCloudService extends BaseService {
       }
     )
     if (!response.ok) {
+      if (isAccountDisabled(response)) {
+        await this.clearSession(session)
+        this.reportAccountDisabled()
+        throw new CherryCloudRefreshError(response)
+      }
       if (
         requiresLogin(response) ||
         (response.status === 401 && response.headers.get('Cherry-Error-Code') === 'AUTH_REQUIRED')
@@ -1248,6 +1280,10 @@ export class CherryCloudService extends BaseService {
     if (response.status === 404 || response.status >= 500) {
       logger.warn('Cherry Cloud login service returned an unavailable response', { path, status: response.status })
       throw new CherryCloudLoginUnavailableError()
+    }
+    if (isAccountDisabled(response)) {
+      this.reportAccountDisabled()
+      throw new Error('Cherry Cloud account is disabled')
     }
     if (!response.ok) {
       throw new Error(`Cherry Cloud login request failed (${response.status})`)
