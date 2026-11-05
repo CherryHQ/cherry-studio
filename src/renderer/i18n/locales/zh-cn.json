@@ -4995,6 +4995,8 @@
   "settings.messages.navigation.label": "对话导航按钮",
   "settings.messages.navigation.none": "不显示",
   "settings.messages.show_message_outline": "显示消息大纲",
+  "settings.messages.timestamp_context.hint": "在发送给模型的每条用户消息前附加发送时间，让模型了解当前日期和已经过的时间。",
+  "settings.messages.timestamp_context.label": "为消息添加时间戳",
   "settings.messages.title": "消息设置",
   "settings.messages.use_serif_font": "使用衬线字体",
   "settings.messages.user_content.default_expanded.hint": "默认完整显示较长的用户消息。手动展开或收起的消息会在本次会话中保留你的选择。",

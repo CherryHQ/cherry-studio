@@ -4995,6 +4995,8 @@
   "settings.messages.navigation.label": "對話導覽列",
   "settings.messages.navigation.none": "不顯示",
   "settings.messages.show_message_outline": "顯示訊息大綱",
+  "settings.messages.timestamp_context.hint": "在傳送給模型的每則使用者訊息前附加傳送時間，讓模型了解目前日期與已經過的時間。",
+  "settings.messages.timestamp_context.label": "為訊息新增時間戳",
   "settings.messages.title": "訊息設定",
   "settings.messages.use_serif_font": "使用襯線字型",
   "settings.messages.user_content.default_expanded.hint": "預設完整顯示較長的使用者訊息。手動展開或收合的訊息會在本次工作階段保留你的選擇。",

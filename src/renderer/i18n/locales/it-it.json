@@ -4995,6 +4995,8 @@
   "settings.messages.navigation.label": "Barra di navigazione",
   "settings.messages.navigation.none": "Nessuna",
   "settings.messages.show_message_outline": "Mostra struttura del messaggio",
+  "settings.messages.timestamp_context.hint": "Antepone l'ora di invio a ogni messaggio utente inviato al modello, così che conosca la data attuale e il tempo trascorso.",
+  "settings.messages.timestamp_context.label": "Aggiungi timestamp ai messaggi",
   "settings.messages.title": "Impostazioni dei messaggi",
   "settings.messages.use_serif_font": "Usa caratteri con grazie",
   "settings.messages.user_content.default_expanded.hint": "Mostra per intero i messaggi utente lunghi per impostazione predefinita. I messaggi che espandi o comprimi manualmente mantengono la tua scelta per questa sessione.",

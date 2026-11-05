@@ -4995,6 +4995,8 @@
   "settings.messages.navigation.label": "Навигация сообщений",
   "settings.messages.navigation.none": "Не показывать",
   "settings.messages.show_message_outline": "Показывать структуру сообщения",
+  "settings.messages.timestamp_context.hint": "Добавлять время отправки перед каждым пользовательским сообщением, передаваемым модели, чтобы она знала текущую дату и прошедшее время.",
+  "settings.messages.timestamp_context.label": "Добавлять метки времени к сообщениям",
   "settings.messages.title": "Настройки сообщений",
   "settings.messages.use_serif_font": "Использовать serif шрифт",
   "settings.messages.user_content.default_expanded.hint": "По умолчанию показывать длинные сообщения пользователя целиком. Сообщения, развёрнутые или свёрнутые вручную, сохраняют выбранное состояние в этом сеансе.",

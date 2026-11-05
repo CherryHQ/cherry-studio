@@ -4995,6 +4995,8 @@
   "settings.messages.navigation.label": "Botón de navegación de conversación",
   "settings.messages.navigation.none": "No mostrar",
   "settings.messages.show_message_outline": "Mostrar esquema del mensaje",
+  "settings.messages.timestamp_context.hint": "Antepone la hora de envío a cada mensaje del usuario enviado al modelo, para que conozca la fecha actual y el tiempo transcurrido.",
+  "settings.messages.timestamp_context.label": "Añadir marcas de tiempo a los mensajes",
   "settings.messages.title": "Configuración de mensajes",
   "settings.messages.use_serif_font": "Usar fuente serif",
   "settings.messages.user_content.default_expanded.hint": "Mostrar completos los mensajes largos del usuario de forma predeterminada. Los mensajes que expanda o contraiga manualmente conservarán su elección durante esta sesión.",
