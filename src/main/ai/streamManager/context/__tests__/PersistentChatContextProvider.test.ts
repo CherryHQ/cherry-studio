@@ -12,6 +12,7 @@ import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
+import { prefixUserMessageTimestamps } from '../../../messages/messageRules'
 import { startAiChildTurnSpan } from '../../../observability'
 import { AiStreamAdmissionError } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
@@ -141,6 +142,39 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'assistant', text: PARTIAL },
       { role: 'user', text: 'actually, change direction' }
     ])
+  })
+
+  it('preserves stored creation timestamps through the compaction-row projection, keeping the send-time prefix effective', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    const history = prepared.models[0].request.messages!
+    // Served history is built through toRow/toServed — the projection that previously
+    // discarded createdAt. Assert against the producer's own stored values.
+    expect(history[0].metadata?.createdAt).toBe(messageService.getById('u1')?.createdAt)
+    expect(history[1].metadata?.createdAt).toBe(messageService.getById('a1')?.createdAt)
+
+    // End to end on the production shaping path: the optional send-time prefix now
+    // reaches the user turns in this served history, assistant turns untouched.
+    const prefixed = prefixUserMessageTimestamps(history)
+    expect(prefixed[0].parts[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/^<message-time>/) })
+    expect(prefixed[1].parts).toEqual(history[1].parts)
+    // Every served user turn (history and the newly reserved row) carries a parseable timestamp.
+    const userTurns = history.filter((m) => m.role === 'user')
+    expect(userTurns.length).toBeGreaterThanOrEqual(2)
+    for (const m of userTurns) {
+      const createdAt = m.metadata?.createdAt
+      expect(typeof createdAt).toBe('string')
+      expect(new Date(createdAt as string).getTime()).not.toBeNaN()
+    }
   })
 
   it('rejects duplicate mentioned models before reserving any rows', async () => {
