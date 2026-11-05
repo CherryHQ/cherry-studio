@@ -183,6 +183,7 @@ const AgentSessionMessages = ({
     editBusy,
     respondToolApproval,
     navigateToForkSource,
+    scrollToBottomOnSend: true,
     messageNavigation,
     workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,

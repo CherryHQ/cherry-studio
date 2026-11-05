@@ -217,7 +217,8 @@ export async function globalSearch(app: RegressionApp, page: Page, testInfo: Tes
     await expect(search).toBeHidden()
     const agentView = page.locator('[data-ui~="agent.view"]:visible')
     await expect(agentView).toBeVisible()
-    await expect(agentView.getByText(taskName, { exact: true }).filter({ visible: true }).first()).toBeVisible()
+    // A task opens in its own tab named after the task; the view header shows the owning agent.
+    await expect(page.getByRole('button', { name: taskName, exact: true })).toHaveCount(1)
     const gatewayDialog = page.getByRole('dialog', { name: 'Enable the API Gateway?', exact: true })
     if (await gatewayDialog.isVisible())
       await gatewayDialog.getByRole('button', { name: 'Cancel', exact: true }).click()

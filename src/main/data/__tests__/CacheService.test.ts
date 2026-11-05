@@ -50,20 +50,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
 }))
 
-// Override electron BrowserWindow with a test-controllable mock.
-// The global electron mock already makes BrowserWindow a vi.fn — we just need
-// getAllWindows/fromWebContents as static helpers.
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = vi.fn(() => null)
-  return {
-    ...actual,
-    BrowserWindow: fakeBrowserWindow
-  }
-})
-
 const SHARED_EXACT = 'web_search.provider.last_used_key.google' as const
 const SHARED_OTHER = 'web_search.provider.last_used_key.openrouter' as const
 const SHARED_TEMPLATE = 'web_search.provider.last_used_key.${providerId}' as const
@@ -86,6 +72,10 @@ describe('CacheService subscription', () => {
     vi.clearAllMocks()
     ipcListeners.clear()
     ipcHandlers.clear()
+
+    const { BrowserWindow } = (await import('electron')) as any
+    BrowserWindow.getAllWindows = vi.fn(() => [])
+    BrowserWindow.fromWebContents = vi.fn(() => null)
 
     const { CacheService } = await import('../CacheService')
     service = new CacheService()

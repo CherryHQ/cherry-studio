@@ -491,7 +491,7 @@ vi.mock('../Tabs/HomeTabs', () => ({
   }
 }))
 
-vi.mock('../Tabs/components/Topics', () => ({
+vi.mock('../Tabs/components/topics', () => ({
   Topics: ({
     assistantIdFilter,
     assistantTopicsSource,

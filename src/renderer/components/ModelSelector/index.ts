@@ -18,6 +18,7 @@ export type {
   UseModelSelectorDataOptions,
   UseModelSelectorDataResult
 } from './types'
+export { countStaleSelectedModelIds, hasStaleSelectedModelIds, resolveSelectedModelIds } from './selection'
 export { useIsModelSelectable } from './useIsModelSelectable'
 export { useModelListKeyboardNav } from './useModelListKeyboardNav'
 export { useModelSelectorData } from './useModelSelectorData'
