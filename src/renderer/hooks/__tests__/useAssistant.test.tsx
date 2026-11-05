@@ -1,6 +1,6 @@
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useAssistants } from '../useAssistant'
@@ -202,5 +202,68 @@ describe('useAssistant', () => {
     expect(result.current.setModel).toBe(firstSetModel)
     expect(result.current.updateAssistant).toBe(firstUpdateAssistant)
     expect(result.current.updateAssistantSettings).toBe(firstUpdateAssistantSettings)
+  })
+
+  describe('per-model web search and reasoning effort', () => {
+    const modelB = {
+      id: 'provider::model-b',
+      providerId: 'provider',
+      name: 'Model B',
+      capabilities: ['function-call']
+    } as never
+
+    function setup(savedSettings: Record<string, unknown>) {
+      const trigger = vi.fn().mockResolvedValue({})
+      mockUseMutation.mockImplementation(() => ({ trigger, isLoading: false, error: undefined }))
+      MockUsePreferenceUtils.setPreferenceValue('chat.model_settings', savedSettings)
+      mockUseQuery.mockImplementation((path, options) => {
+        if (options?.enabled === false) return queryResult()
+        if (path === '/assistants/:id') {
+          return queryResult({
+            id: 'assistant-1',
+            name: 'Assistant 1',
+            modelId: 'provider::model-a',
+            settings: { enableWebSearch: true },
+            mcpServerIds: [],
+            knowledgeBaseIds: []
+          })
+        }
+        return queryResult()
+      })
+      return { trigger, hook: renderHook(() => useAssistant('assistant-1')) }
+    }
+
+    it('saves web search changes under the active model', async () => {
+      const { hook } = setup({})
+
+      await act(async () => {
+        await hook.result.current.updateAssistant({ settings: { enableWebSearch: false } })
+      })
+
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.model_settings')).toEqual({
+        'provider::model-a': { enableWebSearch: false }
+      })
+    })
+
+    it('restores the saved web search choice when switching to a model', async () => {
+      const { hook, trigger } = setup({ 'provider::model-b': { enableWebSearch: true } })
+      await act(async () => {
+        await hook.result.current.setModel(modelB)
+      })
+
+      const body = trigger.mock.calls[0][0].body
+      expect(body.modelId).toBe('provider::model-b')
+      expect(body.settings.enableWebSearch).toBe(true)
+    })
+
+    it('defaults web search to off for a model without saved settings', async () => {
+      const { hook, trigger } = setup({})
+
+      await act(async () => {
+        await hook.result.current.setModel(modelB)
+      })
+
+      expect(trigger.mock.calls[0][0].body.settings.enableWebSearch).toBe(false)
+    })
   })
 })

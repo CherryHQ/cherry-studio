@@ -28,6 +28,7 @@ import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 
@@ -201,6 +202,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
+  const [modelSettings, setModelSettings] = usePreference('chat.model_settings')
   const { providers } = useProviders()
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
@@ -210,6 +212,10 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   assistantRef.current = assistant
   patchAssistantRef.current = patchAssistant
   providersRef.current = providers
+  const modelSettingsRef = useRef(modelSettings)
+  const setModelSettingsRef = useRef(setModelSettings)
+  modelSettingsRef.current = modelSettings
+  setModelSettingsRef.current = setModelSettings
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -217,24 +223,52 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)
   const isModelMissing = !isModelPending && !model
 
-  const updateAssistantSettings = useCallback((settings: Partial<AssistantSettings>) => {
-    const currentId = idRef.current
-    const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return Promise.resolve(undefined)
-    return patchAssistantRef.current(currentId, { settings })
+  // Remember the user's web search / reasoning effort choice for the active model so it is
+  // restored when they switch back to it.
+  const rememberModelSettings = useCallback((settings: Partial<AssistantSettings> | undefined) => {
+    const activeModelId = assistantRef.current?.modelId
+    if (!activeModelId || !settings) return
+    const remembered: ChatModelSetting = {}
+    if (settings.enableWebSearch !== undefined) remembered.enableWebSearch = settings.enableWebSearch
+    if (settings.reasoning_effort !== undefined) remembered.reasoning_effort = settings.reasoning_effort
+    if (Object.keys(remembered).length === 0) return
+    const all = modelSettingsRef.current ?? {}
+    const next = { ...all, [activeModelId]: { ...all[activeModelId], ...remembered } }
+    modelSettingsRef.current = next
+    void setModelSettingsRef.current(next).catch((error) => {
+      logger.warn('Failed to persist per-model settings', { error })
+    })
   }, [])
+
+  const updateAssistantSettings = useCallback(
+    (settings: Partial<AssistantSettings>) => {
+      const currentId = idRef.current
+      const currentAssistant = assistantRef.current
+      if (!currentId || !currentAssistant) return Promise.resolve(undefined)
+      rememberModelSettings(settings)
+      return patchAssistantRef.current(currentId, { settings })
+    },
+    [rememberModelSettings]
+  )
 
   const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
-    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
+    // Restore the target model's remembered choices; fall back to web search off and the model default effort.
+    const saved = modelSettingsRef.current?.[next.id]
+    const restored: Partial<AssistantSettings> =
+      next.id === currentAssistant.modelId
+        ? {}
+        : { enableWebSearch: saved?.enableWebSearch ?? false, reasoning_effort: saved?.reasoning_effort }
+    const baseSettings = { ...currentAssistant.settings, ...restored }
+    const reasoning = reconcileReasoningEffortForModel(next, baseSettings.reasoning_effort)
     const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
-    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
+    const webSearch = reconcileWebSearchForModel(next, baseSettings, nextProvider)
     const settingsPatch =
-      extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
+      extraSettings || reasoning || webSearch || next.id !== currentAssistant.modelId
+        ? { ...baseSettings, ...reasoning, ...webSearch, ...extraSettings }
         : undefined
     return patchAssistantRef.current(
       currentId,
@@ -242,11 +276,15 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     )
   }, [])
 
-  const updateAssistant = useCallback((patch: UpdateAssistantDto) => {
-    const currentId = idRef.current
-    if (!currentId) return Promise.resolve(undefined)
-    return patchAssistantRef.current(currentId, patch)
-  }, [])
+  const updateAssistant = useCallback(
+    (patch: UpdateAssistantDto) => {
+      const currentId = idRef.current
+      if (!currentId) return Promise.resolve(undefined)
+      rememberModelSettings(patch.settings)
+      return patchAssistantRef.current(currentId, patch)
+    },
+    [rememberModelSettings]
+  )
 
   return {
     assistant,
