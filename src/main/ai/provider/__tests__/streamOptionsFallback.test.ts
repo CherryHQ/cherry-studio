@@ -156,6 +156,37 @@ describe('readErrorPrefix', () => {
     expect(prefix?.length).toBe(STREAM_OPTIONS_ERROR_PREFIX_LIMIT)
     expect(await original.text()).toHaveLength(STREAM_OPTIONS_ERROR_PREFIX_LIMIT + 100)
   })
+
+  it('keeps the original promptly cancellable after inspecting a large open 400', async () => {
+    // A malformed/hostile endpoint can leave a >=prefix body open. The
+    // inspection clone is tee'd off the original, so dropping it without
+    // cancelling stalls `original.body.cancel()` (which the SDK relies on
+    // for oversized 400s). The inspection branch must be cancelled
+    // fire-and-forget: awaiting it hangs on undici.
+    const response = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(STREAM_OPTIONS_ERROR_PREFIX_LIMIT))
+          // Intentionally never close: reproduces the stalled-cancel trigger.
+        }
+      }),
+      { status: 400 }
+    )
+
+    const prefix = await readErrorPrefix(response)
+    expect(prefix?.length).toBe(STREAM_OPTIONS_ERROR_PREFIX_LIMIT)
+
+    const cancel = response.body?.cancel()
+    expect(cancel).toBeDefined()
+    await expect(
+      Promise.race([
+        cancel!,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('original cancel stalled after prefix inspection')), 1000)
+        )
+      ])
+    ).resolves.toBeUndefined()
+  })
 })
 
 describe('withStreamOptionsOmitted', () => {

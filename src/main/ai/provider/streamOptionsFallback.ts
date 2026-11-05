@@ -76,10 +76,22 @@ export async function readErrorPrefix(
         total += value.byteLength
       }
     } finally {
-      // Do not `await reader.cancel()` here: on undici it hangs for a cloned
-      // (tee'd) branch that was only partially read. Releasing the lock is
-      // enough — the clone is dropped and the original stays readable.
-      reader.releaseLock()
+      // Cancel the inspection (cloned/tee'd) branch fire-and-forget so the
+      // original stays promptly cancellable. Awaiting the cancel hangs on
+      // undici for a partially-read clone, while releasing the lock alone
+      // leaves tee backpressure in place and stalls `original.body.cancel()`
+      // for a large, still-open 400. Initiating cancellation without awaiting
+      // releases that backpressure; the original body remains readable.
+      try {
+        void reader.cancel().catch(() => {})
+      } catch {
+        // ignore synchronous cancel errors; lock release below still runs
+      }
+      try {
+        reader.releaseLock()
+      } catch {
+        // ignore: reader may already be released on some transports
+      }
     }
     if (chunks.length === 0) return ''
     const merged = new Uint8Array(total)
