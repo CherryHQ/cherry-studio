@@ -92,8 +92,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `chunk` for chunk-source content or `message-projection` for a driver
-     declaring `messageSource: 'projection'`, `turn-complete` to settle the
+     mapping: `message-projection` for authoritative Agent content, `chunk` for
+     host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn), `resume-token` whenever the runtime
      learns a recovery handle, `error` on failure.

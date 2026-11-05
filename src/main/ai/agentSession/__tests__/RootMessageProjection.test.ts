@@ -11,6 +11,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode'
 import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
+import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
@@ -51,7 +52,60 @@ const text = (id: string, value: string): CherryUIMessage => ({
   parts: [{ type: 'text', text: value, state: 'done' }]
 })
 
-it('updates only the owning reply across interleaved sources, replacements, removal and retain', () => {
+it.each(['success', 'paused'] as const)(
+  'preserves source ownership through %s normalization and reopen',
+  async (status) => {
+    const f = fixture()
+    const id = f.reply()
+    const tool = {
+      type: 'dynamic-tool' as const,
+      toolCallId: 'call',
+      toolName: 'Read',
+      state: 'input-available' as const,
+      input: {}
+    }
+    f.projection.accept(
+      f.update([
+        { id: 'a', role: 'assistant', parts: [{ type: 'reasoning', text: '', state: 'done' }, tool] },
+        text('b', 'Answer from B')
+      ]),
+      id
+    )
+    const listener = new PersistenceListener({
+      topicId: `agent-session:${f.sessionId}`,
+      prepareMessage: (message, status) => f.projection.prepare(message, status),
+      backend: new AgentSessionMessageBackend({
+        sessionId: f.sessionId,
+        assistantMessageId: id,
+        projection: () => f.projection.checkpoint()
+      }),
+      onPersistFailed: () => {}
+    })
+    f.projection.control(id, { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } })
+    const finalMessage: CherryUIMessage = {
+      id,
+      role: 'assistant',
+      parts: [...f.projection.parts(id)!, { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } }]
+    }
+    if (status === 'success') await listener.onDone({ status, finalMessage })
+    else await listener.onPaused({ status, finalMessage })
+    const restored = new RootMessageProjection(f.context.id)
+    restored.accept(f.update([text('a', 'Refreshed A')], { live: [], refresh: ['a'] }))
+    messages.replaceMessageParts(f.sessionId, id, restored.parts(id), restored.checkpoint())
+    expect(new RootMessageProjection(f.context.id).parts(id)).toEqual([
+      ...text('', 'Refreshed A').parts,
+      ...text('', 'Answer from B').parts,
+      { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } }
+    ])
+    restored.accept(f.update([], { removed: ['a'] }))
+    expect(restored.parts(id)).toEqual([
+      ...text('', 'Answer from B').parts,
+      { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } }
+    ])
+  }
+)
+
+it('updates only the owning reply across interleaved sources, replacements, removal and host display', () => {
   const f = fixture()
   const fork = { prefix: { runtime: 'claude-code', sessionId: 'original', messageId: 'boundary' } }
   application
@@ -65,15 +119,7 @@ it('updates only the owning reply across interleaved sources, replacements, remo
   expect(f.projection.accept(f.update([text('canonical', 'A2')], { replaces: { a: 'canonical' } }), second)).toEqual(
     new Map([[first, [...text('', 'A2').parts, ...text('', 'C').parts]]])
   )
-  f.projection.retain({
-    id: first,
-    role: 'assistant',
-    parts: [
-      ...text('', 'A2').parts,
-      ...text('', 'C').parts,
-      { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } }
-    ]
-  })
+  f.projection.control(first, { type: 'data-knowledge-scope', data: { baseIds: ['kb'] } })
   expect(f.projection.accept(f.update([], { removed: ['canonical'] }), second).has(second)).toBe(false)
   f.projection.accept(f.update([text('d', 'D')]), first)
   f.save(first)
@@ -160,7 +206,7 @@ it('updates a settled parent task and keeps the status after replay and reopen',
   f.projection.accept(f.update([source]), id)
   f.projection.taskEvent({ event: 'started', taskId: 'child', toolUseId: 'spawn', status: 'in_progress' })
   const stale = { id, role: 'assistant' as const, parts: f.projection.parts(id)! }
-  stale.parts.push({ type: 'data-knowledge-scope', data: { baseIds: ['knowledge'] } })
+  f.projection.control(id, { type: 'data-knowledge-scope', data: { baseIds: ['knowledge'] } })
   f.save(id)
   const terminal = {
     event: 'notification' as const,
@@ -174,12 +220,9 @@ it('updates a settled parent task and keeps the status after replay and reopen',
   new AgentSessionMessageBackend({
     sessionId: f.sessionId,
     assistantMessageId: id,
-    projection: (message) => {
-      if (message) f.projection.retain(message)
-      return f.projection.checkpoint()
-    }
+    projection: () => f.projection.checkpoint()
   }).persistAssistant({
-    finalMessage: { ...stale, parts: [...f.projection.parts(id)!, stale.parts.at(-1)!] },
+    finalMessage: f.projection.prepare(stale, 'success'),
     status: 'success'
   })
   f.projection.taskEvent({ ...terminal, usage: { totalTokens: 100 } })

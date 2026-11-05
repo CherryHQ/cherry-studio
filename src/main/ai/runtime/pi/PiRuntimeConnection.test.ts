@@ -419,9 +419,6 @@ describe('desktop Pi root connection', () => {
         .join('')
     await expect.poll(childText).toBe('child first answer')
     expect(text(events)).toBe('parent finished')
-    expect(events.some((event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta')).toBe(
-      false
-    )
     const before = access!.snapshot()
     const subscriberA: unknown[] = []
     const subscriberB: unknown[] = []

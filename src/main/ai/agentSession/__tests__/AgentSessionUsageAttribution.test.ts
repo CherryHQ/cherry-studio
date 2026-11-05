@@ -7,6 +7,8 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { aiUsageRecordService, type RecordAiInvocationInput } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { AiSdkToOpenAiResponsesSse } from '@main/features/apiGateway/adapters/stream/AiSdkToOpenAiResponsesSse'
+import { AiSdkToOpenAiSse } from '@main/features/apiGateway/adapters/stream/AiSdkToOpenAiSse'
 
 import { AgentSessionUsageAttribution } from '../AgentSessionUsageAttribution'
 
@@ -146,3 +148,39 @@ it('does not recreate a missing invocation during late association', () => {
   expect(() => attribution.bind('response', 'message', 'root-session')).not.toThrow()
   expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
 })
+
+// The native harness sees the serialized protocol ID, so capture must use that exact ID too.
+it.each(['chat', 'responses'] as const)(
+  'joins %s wire responses to root and child usage without charging twice',
+  (protocol) => {
+    for (const usageFirst of [true, false]) {
+      const adapter =
+        protocol === 'chat'
+          ? new AiSdkToOpenAiSse({ model: 'model' })
+          : new AiSdkToOpenAiResponsesSse({ model: 'model' })
+      adapter.transformChunk({ type: 'text-delta', id: 'text', delta: 'Answer' })
+      adapter.finalizeEvents()
+      const wire = adapter.buildNonStreamingResponse() as { id: string }
+      const attribution = new AgentSessionUsageAttribution()
+      const record = attribution.capture(adapter.getMessageId())
+      const requestId = `${protocol}-${usageFirst}`
+      if (usageFirst) record(invocation(requestId))
+      attribution.bind(wire.id, `message-${requestId}`, usageFirst ? 'child-session' : 'root-session')
+      if (!usageFirst) record(invocation(requestId))
+      attribution.bind(wire.id, `message-${requestId}`, usageFirst ? 'child-session' : 'root-session')
+      attribution.close()
+      const rows = dbh.db
+        .select()
+        .from(aiUsageRecordTable)
+        .all()
+        .filter((row) => row.requestId === requestId)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        messageId: `message-${requestId}`,
+        agentSessionId: usageFirst ? 'child-session' : 'root-session',
+        totalTokens: 120
+      })
+      expect(rows[0].cost).toBeCloseTo(0.00014, 10)
+    }
+  }
+)

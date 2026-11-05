@@ -225,6 +225,19 @@ it('recovers a slow observer with a paired native baseline while other observers
     resume = resolve
   })
   try {
+    const partial = (event: SDKPartialAssistantMessage['event']) =>
+      test.send({
+        type: 'stream_event',
+        uuid: randomUUID(),
+        session_id: test.sessionId,
+        parent_tool_use_id: null,
+        event
+      })
+    partial({ type: 'message_start', message: { ...test.assistant('').message, content: [] } })
+    partial({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    partial({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Uncommitted' } })
+    await expect.poll(() => textOf(test.view.snapshot)).toEqual(['Uncommitted'])
+    const provisional = test.view.snapshot.messages[0].id
     const batches: ClaudeObservation[] = []
     confirmed(
       await test.root.claude.observe(async (batch) => {
@@ -250,6 +263,9 @@ it('recovers a slow observer with a paired native baseline while other observers
     const snapshot = baseline.events.find((event) => event.type === 'snapshot')!
     expect(baseline.native.filter((entry) => entry.message.type === 'assistant')).toHaveLength(snapshot.messages.length)
     expect(new Set(snapshot.messages.map((item) => item.id)).size).toBe(snapshot.messages.length)
+    expect(baseline.live).toEqual(snapshot.messages.map((message) => message.id))
+    expect(baseline.replaces?.[provisional]).toBe(snapshot.messages[0].id)
+    expect(baseline.live).not.toContain(provisional)
     expect(
       baseline.native.flatMap(({ message }) =>
         message.type === 'system' && 'subtype' in message && message.subtype === 'permission_denied' ? [message] : []

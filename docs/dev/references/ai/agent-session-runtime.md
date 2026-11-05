@@ -633,9 +633,9 @@ Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
 Main adds Cherry display metadata before publishing `CherryUIMessage`.
-The driver selects the `messages` source for the entire execution. `pipeMessageStream`
-applies host approval, data-part and status metadata to that view; it never accumulates
-a second text/tool body. Publishing, listeners and persistence receive the same
+All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
+owns host approval and data-part display; `pipeMessageStream` forwards its body with
+execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same
 `CherryUIMessage`. `ClaudeRuntimeState` owns native lifecycle events, while
 `ClaudeMessageMetadata` decorates normalized SDK messages. No Claude chunk adapter remains.
 Child attachment reads the native archive once to recover its actual prompt, which the live SDK
@@ -1095,9 +1095,9 @@ start stays queued (`isSessionBusy` holds, so concurrent dispatches keep enqueue
 the last hold's disposal re-kicks it. New-turn admission through `prepareDispatch` /
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
-write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
-parts and runtime close barriers that may still flush external state after their entry is removed.
-Root stream writes belong to `AiStreamManager`'s drain. Child input is rejected while paused or shutting
+write and `startRuntimeTurn` handoff — plus runtime close barriers that may still flush external state
+after their entry is removed. Native projection refreshes replace saved bodies synchronously; root
+terminal writes belong to `AiStreamManager`'s drain. Child input is rejected while paused or shutting
 down and is registered before dispatch. The runtime drain waits for admitted child input, then asks
 the owning connection to settle native child work and flush its archives, including work continuing
 after an input acknowledgement. Timeouts and failed archive flushes report the root as a straggler;

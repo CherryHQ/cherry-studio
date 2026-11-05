@@ -483,7 +483,7 @@ export class ClaudeOwner {
     } else if (message.type === 'result') {
       const content = projection.result(message)
       if (content.length) {
-        projection.publish(content)
+        events.push(...content)
         if (!agentId) this.response = projection.ref(message.uuid)
       }
       events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })

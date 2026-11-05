@@ -7,6 +7,8 @@ export class ClaudeFeed {
   private readonly state: ThreadFeed
   private readonly native = new Map<string, ClaudeNativeMessage>()
   private readonly retracted = new Set<string>()
+  private readonly live = new Set<string>()
+  private readonly replaces = new Map<string, string>()
   private readonly pendingRetractions = new Set<string>()
   private readonly taskRuns = new Map<string, string>()
   private readonly observers = new Set<(batch: ClaudeObservation) => void>()
@@ -34,6 +36,8 @@ export class ClaudeFeed {
   private baseline(): ClaudeObservation {
     return {
       events: [this.snapshot],
+      live: [...this.live],
+      replaces: Object.fromEntries(this.replaces),
       legacy: structuredClone(this.legacy),
       native: structuredClone([...this.native.values()]),
       retracted: [...this.retracted]
@@ -47,8 +51,19 @@ export class ClaudeFeed {
   ): void {
     if (this.ended) return
     if (legacy) this.legacy = structuredClone(legacy)
+    const replaces: Record<string, string> = {}
     native = native.filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
-    for (const event of events) this.state.publish(event)
+    for (const event of events) {
+      this.state.publish(event)
+      if (event.type === 'message.upsert') {
+        if (native.some((entry) => entry.source === 'live')) this.live.add(event.message.id)
+        for (const ref of event.replaces ?? []) {
+          this.replaces.set(ref.id, event.message.id)
+          replaces[ref.id] = event.message.id
+          this.live.delete(ref.id)
+        }
+      } else if (event.type === 'message.remove') this.live.delete(event.ref.id)
+    }
     for (const value of native) {
       const message = value.message
       if (message.type === 'stream_event') continue
@@ -73,7 +88,16 @@ export class ClaudeFeed {
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
         this.native.set(key, structuredClone(value))
     }
-    const batch = { events, native, legacy: structuredClone(this.legacy), retracted: [...this.pendingRetractions] }
+    const batch = {
+      events,
+      native,
+      live: events.flatMap((event) =>
+        event.type === 'message.upsert' && this.live.has(event.message.id) ? [event.message.id] : []
+      ),
+      replaces,
+      legacy: structuredClone(this.legacy),
+      retracted: [...this.pendingRetractions]
+    }
     this.pendingRetractions.clear()
     for (const send of this.observers) send(batch)
   }

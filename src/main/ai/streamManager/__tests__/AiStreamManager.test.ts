@@ -2263,6 +2263,98 @@ describe('AiStreamManager', () => {
   })
 
   describe('deferred tool output lookup', () => {
+    it.each([false, true])('hands off prepared output only after a successful save (failure: %s)', async (fail) => {
+      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'messages',
+        stream: new ReadableStream({
+          start: (value) => {
+            controller = value
+          }
+        })
+      })
+      const topicId = 'prepared-tools'
+      const gate = Promise.withResolvers<void>()
+      const prepared: CherryUIMessage = {
+        id: 'answer',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call',
+            state: 'output-available',
+            input: {},
+            output: 'Latest answer'.repeat(4096)
+          }
+        ]
+      }
+      const listener = new FakeListener('prepared-observer')
+      const persistence = new PersistenceListener({
+        topicId,
+        prepareMessage: () => prepared,
+        backend: {
+          kind: 'test',
+          persistAssistant: async () => {
+            await gate.promise
+            if (fail) throw new Error('Write failed')
+            return { messageId: 'answer', messageRevision: '1', historyRevision: '1' }
+          }
+        },
+        onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
+      })
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence, listener] })
+      controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Before preparation' }] })
+      controller.close()
+      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared))
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'Latest answer'.repeat(4096) })
+      gate.resolve()
+      await vi.waitFor(() => expect(fail ? listener.errorResults : listener.doneResults).toHaveLength(1))
+      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared)
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual(
+        fail ? { found: true, output: 'Latest answer'.repeat(4096) } : { found: false }
+      )
+    })
+
+    it('reads large native outputs from the current message and respects replacement and removal', async () => {
+      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'messages',
+        stream: new ReadableStream({
+          start: (value) => {
+            controller = value
+          }
+        })
+      })
+      const topicId = 'native-tools'
+      const listener = new FakeListener('native-tools')
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
+      const output = {
+        content: [
+          { type: 'text', text: 'x'.repeat(64 * 1024) },
+          { type: 'image', data: 'base64', mimeType: 'image/png' }
+        ]
+      }
+      const tool = {
+        type: 'dynamic-tool' as const,
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'output-available' as const,
+        input: {},
+        output
+      }
+      controller.enqueue({ type: 'message', parts: [tool] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output }))
+      controller.enqueue({ type: 'message', parts: [{ ...tool, output: 'replacement' }] })
+      await vi.waitFor(() =>
+        expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'replacement' })
+      )
+      controller.enqueue({ type: 'message', parts: [] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: false }))
+      controller.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    })
+
     it('retains only outputs large enough to have been stripped on the way out', () => {
       const topicId = 'agent-session:session-1'
       startSingle(mgr, {

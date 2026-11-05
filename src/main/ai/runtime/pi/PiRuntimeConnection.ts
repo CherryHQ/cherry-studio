@@ -561,11 +561,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.childTaskStates.set(id, data)
     this.eventQueue.push({ type: 'background-task-event', data })
-    this.eventQueue.push({
-      type: 'background-flow-chunk',
-      rootToolCallId: origin.parentToolCallId,
-      chunk: { type: 'data-agent-task-event', id: `task-${id}`, data }
-    })
   }
 
   private observeChild(id: string): void {

@@ -2738,140 +2738,6 @@ describe('AgentSessionRuntimeService', () => {
     const BG_KEY = 'agent.session.background_tasks.session-1'
     const tasks = [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
 
-    it('patches detached subagent chunks onto the spawning message after a new foreground turn starts', async () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      entry.currentTurn.controller = { enqueue: vi.fn() } as never
-
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'chunk',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: 'task-root',
-          toolName: 'Agent',
-          input: { prompt: 'Audit the codebase' }
-        }
-      })
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
-      service.markTurnTerminal('session-1', 'success')
-      service.beginTurn({
-        ...baseTurnInput,
-        assistantMessageId: 'assistant-2',
-        userMessage: userMessage('user-2')
-      })
-      for (const chunk of [
-        {
-          type: 'text-start',
-          id: 'subagent-text',
-          providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
-        },
-        { type: 'text-delta', id: 'subagent-text', delta: 'Found the regression' },
-        { type: 'text-end', id: 'subagent-text' }
-      ]) {
-        ;(service as any).handleRuntimeEvent(entry, {
-          type: 'background-flow-chunk',
-          rootToolCallId: 'task-root',
-          chunk
-        })
-      }
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
-
-      await vi.waitFor(() => {
-        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
-          'session-1',
-          'assistant-1',
-          expect.arrayContaining([
-            expect.objectContaining({ toolCallId: 'task-root' }),
-            expect.objectContaining({ type: 'text', text: 'Found the regression' })
-          ])
-        )
-      })
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
-        'agent.session.flow_parts.session-1.assistant-1',
-        expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Found the regression' })]),
-        60_000
-      )
-    })
-
-    it('publishes detached flow overlays under independent message keys', () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      const firstParts = [{ type: 'text', text: 'First flow' }]
-      const secondParts = [{ type: 'text', text: 'Second flow' }]
-
-      ;(service as any).publishBackgroundFlowParts(entry, {
-        messageId: 'assistant-1',
-        latest: { parts: firstParts }
-      })
-      ;(service as any).publishBackgroundFlowParts(entry, {
-        messageId: 'assistant-2',
-        latest: { parts: secondParts }
-      })
-
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', firstParts)
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-2', secondParts)
-    })
-
-    it('retains each latest flow overlay during session close handoff', async () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      const parts = [{ type: 'text', text: 'Latest flow' }]
-      entry.backgroundFlowAccumulators = new Map([
-        [
-          'assistant-1',
-          {
-            messageId: 'assistant-1',
-            controller: { close: vi.fn() },
-            done: Promise.resolve(),
-            closed: false,
-            latest: { parts }
-          }
-        ]
-      ])
-
-      void service.closeSession('session-1')
-
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts, 60_000)
-      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
-    })
-
-    it('does not finish closing while detached flow parts can still write', async () => {
-      let releaseFlow!: () => void
-      const flowDone = new Promise<void>((resolve) => {
-        releaseFlow = resolve
-      })
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      const parts = [{ type: 'text', text: 'Late flow' }]
-      entry.backgroundFlowAccumulators = new Map([
-        [
-          'assistant-1',
-          {
-            messageId: 'assistant-1',
-            controller: { close: vi.fn() },
-            done: flowDone,
-            closed: false,
-            latest: { parts }
-          }
-        ]
-      ])
-
-      let closed = false
-      const closing = service.closeSession('session-1').then(() => {
-        closed = true
-      })
-      await Promise.resolve()
-
-      expect(closed).toBe(false)
-      releaseFlow()
-      await closing
-      expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts)
-    })
-
     it('persists an out-of-turn interaction as an independent assistant message', () => {
       const service = new AgentSessionRuntimeService()
       const approvalRequestedEvents: unknown[] = []
@@ -3758,6 +3624,10 @@ describe('AgentSessionRuntimeService', () => {
         turnId: receiveOnlyTurn.turnId,
         signal: new AbortController().signal
       }).getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'text-delta', delta: 'background finished' }
+      })
       await expect(reader.read()).rejects.toBe(runtimeError)
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', stream: 'awaiting-persistence' })
       expect(receiveOnlyTurn.controller).toBeUndefined()
@@ -6869,6 +6739,13 @@ function openChunkStream(
   input: Parameters<InstanceType<typeof AgentSessionRuntimeService>['openTurnStream']>[0]
 ) {
   const source = service.openTurnStream(input)
-  if (source.kind !== 'chunks') throw new Error('Expected chunk fixture')
-  return source.stream
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  return source.stream.pipeThrough(
+    new TransformStream({
+      transform(event, controller) {
+        if (event.type === 'control') controller.enqueue(event.chunk)
+        else if (event.type === 'error') controller.error(event.error)
+      }
+    })
+  )
 }

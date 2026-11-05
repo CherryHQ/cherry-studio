@@ -59,6 +59,7 @@ interface Entry {
   event: AgentEvent
   bytes: number
   at: number
+  contentKey?: string
 }
 interface LiveExecution {
   executionId: string
@@ -147,7 +148,7 @@ export class SessionJournal {
   }
 
   trimReplay(maxBytes: number): void {
-    while (this.entries.length && this.retainedBytes > maxBytes) this.retainedBytes -= this.entries.shift()!.bytes
+    while (this.entries.length && this.retainedBytes > maxBytes) this.evictFirst()
   }
 
   get cursor(): AgentCursor {
@@ -651,7 +652,6 @@ export class SessionJournal {
         kind: 'message.removed',
         payload: { messageId, baseRevision: message.revision, revision: this.next() }
       })
-      for (const key of this.pins.keys()) if (key.startsWith(`${messageId}:`)) this.pins.delete(key)
     }
     this.publishSession()
   }
@@ -814,10 +814,14 @@ export class SessionJournal {
 
   private append(pending: PendingEvent): void {
     const event: AgentEvent = { ...pending, seq: String(this.seq + 1) }
+    const part = pending.kind === 'part.created' || pending.kind === 'part.replaced' ? pending.payload.part : undefined
+    const ref = part && part.kind !== 'file' && 'ref' in part.content ? part.content.ref : undefined
+    const key = ref && `${ref.contentId}:${ref.revision}`
+    const bytes = key ? this.pins.get(key) : undefined
     const result = applyAgentEvents(
       this.projection,
       { subscriptionId: 'journal', sessionId: this.sessionId, streamEpoch: this.epoch, events: [event] },
-      {},
+      key && bytes ? { [key]: bytes } : {},
       integrity
     )
     if (!result.ok) {
@@ -830,10 +834,14 @@ export class SessionJournal {
       return
     }
     this.projection = result.projection
+    // The owner retains current values independently of replay pins, including completed tool output.
+    if (part && bytes) {
+      this.projection.parts[part.partId] = { ...part, content: { text: new TextDecoder().decode(bytes) } }
+    }
     this.seq += 1
-    const bytes = utf8(JSON.stringify(event)).length
-    this.entries.push({ event, bytes, at: Date.now() })
-    this.retainedBytes += bytes
+    const eventBytes = utf8(JSON.stringify(event)).length
+    this.entries.push({ event, bytes: eventBytes, at: Date.now(), contentKey: key })
+    this.retainedBytes += eventBytes + (bytes?.byteLength ?? 0)
     this.lastUsedAt = Date.now()
     this.evict()
     this.onAppend()
@@ -848,13 +856,26 @@ export class SessionJournal {
     this.pins.clear()
     this.interactionInputs.clear()
     this.projection = this.emptyProjection()
+    if (this.execution) {
+      this.execution.messageId = undefined
+      this.execution.messageIds.clear()
+    }
     for (const observer of this.observers) observer()
   }
 
   private evict(): void {
     const cutoff = Date.now() - remoteLimits.replayMs
     while (this.entries.length && (this.retainedBytes > remoteLimits.replayBytes || this.entries[0].at < cutoff)) {
-      this.retainedBytes -= this.entries.shift()!.bytes
+      this.evictFirst()
+    }
+  }
+
+  private evictFirst(): void {
+    const entry = this.entries.shift()!
+    this.retainedBytes -= entry.bytes
+    if (entry.contentKey) {
+      this.retainedBytes -= this.pins.get(entry.contentKey)?.byteLength ?? 0
+      this.pins.delete(entry.contentKey)
     }
   }
 }

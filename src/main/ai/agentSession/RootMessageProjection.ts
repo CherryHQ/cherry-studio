@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 
-import { isToolUIPart } from 'ai'
+import { isDataUIPart, isToolUIPart, type UIMessageChunk } from 'ai'
 import { omit } from 'es-toolkit'
 
 import {
@@ -9,7 +9,8 @@ import {
 } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '@main/ai/streamManager'
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 type Source = { messageId: string; parts: CherryUIMessage['parts'] }
@@ -20,6 +21,10 @@ export class RootMessageProjection {
   private readonly replySources = new Map<string, Set<string>>()
   private readonly removed = new Set<string>()
   private readonly extras = new Map<string, CherryUIMessage['parts']>()
+  private readonly pendingTools = new Map<
+    string,
+    { messageId: string; input?: Extract<UIMessageChunk, { type: 'tool-input-available' }>; approvalId?: string }
+  >()
 
   constructor(readonly contextId: string) {
     const context = contexts.context(contextId)
@@ -106,6 +111,9 @@ export class RootMessageProjection {
       if (!this.extras.has(owner)) this.extras.set(owner, [])
       if (!isDeepStrictEqual(previous?.parts, message.parts)) changed.add(owner)
       this.sources.set(message.id, { messageId: owner, parts: message.parts })
+      for (const part of message.parts) {
+        if (isToolUIPart(part) && part.state.startsWith('output-')) this.pendingTools.delete(part.toolCallId)
+      }
       const sources = this.replySources.get(owner) ?? new Set<string>()
       sources.add(message.id)
       this.replySources.set(owner, sources)
@@ -116,7 +124,66 @@ export class RootMessageProjection {
   parts(messageId: string): CherryUIMessage['parts'] | undefined {
     const sources = [...(this.replySources.get(messageId) ?? [])].map((id) => this.sources.get(id)!)
     if (!sources.length && !this.extras.has(messageId)) return undefined
-    return [...sources.flatMap((source) => source.parts), ...(this.extras.get(messageId) ?? [])]
+    const parts = sources.flatMap((source) => source.parts).map((part) => this.decorate(part))
+    return [...parts, ...this.pendingParts(messageId, parts), ...(this.extras.get(messageId) ?? [])]
+  }
+
+  private pendingParts(messageId: string, sources: CherryUIMessage['parts']): CherryUIMessage['parts'] {
+    const parts: CherryUIMessage['parts'] = []
+    for (const [toolCallId, pending] of this.pendingTools) {
+      if (pending.messageId !== messageId || !pending.input || !pending.approvalId) continue
+      if (sources.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)) continue
+      parts.push({
+        type: 'dynamic-tool',
+        toolCallId,
+        toolName: pending.input.toolName,
+        input: pending.input.input,
+        providerExecuted: pending.input.providerExecuted,
+        state: 'approval-requested',
+        approval: { id: pending.approvalId }
+      })
+    }
+    return parts
+  }
+
+  control(messageId: string, control: UIMessageChunk): void {
+    const chunk = control as CherryUIMessageChunk
+    if (!this.extras.has(messageId)) this.extras.set(messageId, [])
+    if (chunk.type === 'tool-input-available' || chunk.type === 'tool-approval-request') {
+      const pending = this.pendingTools.get(chunk.toolCallId) ?? { messageId }
+      this.pendingTools.set(chunk.toolCallId, {
+        ...pending,
+        ...(chunk.type === 'tool-input-available' ? { input: chunk } : { approvalId: chunk.approvalId })
+      })
+    } else if (chunk.type.startsWith('data-')) {
+      const part = chunk as Extract<CherryUIMessageChunk, { type: `data-${string}` }>
+      if (part.transient) return
+      const extras = this.extras.get(messageId)!
+      this.extras.set(messageId, [
+        ...extras.filter(
+          (previous) => !isDataUIPart(previous) || previous.type !== part.type || previous.id !== part.id
+        ),
+        part
+      ])
+    }
+  }
+
+  private decorate(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
+    if (
+      !isToolUIPart(part) ||
+      part.state === 'output-available' ||
+      part.state === 'output-error' ||
+      part.state === 'output-denied'
+    )
+      return part
+    const pending = this.pendingTools.get(part.toolCallId)
+    if (!pending?.approvalId) return part
+    return {
+      ...part,
+      state: 'approval-requested',
+      approval: { id: pending.approvalId },
+      input: pending.input?.input ?? part.input
+    }
   }
 
   taskEvent(data: AgentTaskEventPartData): { messageId: string; parts: CherryUIMessage['parts'] } | undefined {
@@ -140,16 +207,22 @@ export class RootMessageProjection {
     return { messageId: owner.messageId, parts: this.parts(owner.messageId)! }
   }
 
-  /** Retains host display state before late task updates reuse the settled message. */
-  retain(message: CherryUIMessage): void {
-    let offset = 0
+  /** Normalize each owned source before flattening so checkpoint ranges describe the saved body. */
+  prepare(message: CherryUIMessage, status: 'success' | 'paused' | 'error'): CherryUIMessage {
+    for (const part of message.parts) {
+      if (part.type === 'data-error') this.control(message.id, part)
+    }
+    const normalize = (parts: CherryUIMessage['parts']) =>
+      finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(parts)), status)
+    const sourceParts = [...(this.replySources.get(message.id) ?? [])].flatMap((id) => this.sources.get(id)!.parts)
+    const pending = this.pendingParts(message.id, sourceParts)
     for (const id of this.replySources.get(message.id) ?? []) {
       const source = this.sources.get(id)!
-      const count = source.parts.length
-      source.parts = message.parts.slice(offset, offset + count)
-      offset += count
+      source.parts = normalize(source.parts.map((part) => this.decorate(part)))
     }
-    this.extras.set(message.id, message.parts.slice(offset))
+    this.extras.set(message.id, normalize([...pending, ...(this.extras.get(message.id) ?? [])]))
+    for (const [id, tool] of this.pendingTools) if (tool.messageId === message.id) this.pendingTools.delete(id)
+    return { ...message, parts: this.parts(message.id) ?? [] }
   }
 
   private indexSources(): void {

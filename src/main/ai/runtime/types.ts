@@ -47,7 +47,6 @@ export type AgentSessionUsageCapture =
   | { owner: 'provider-calls' }
 
 export interface AiRuntimeDriver {
-  readonly messageSource?: 'projection'
   readonly type: string
   readonly capabilities: readonly AiRuntimeCapability[]
 }
@@ -189,7 +188,6 @@ export type AgentRuntimeEvent =
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
-  | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
    *  transfers generation ownership and asks the host to open a receive-only transcript turn,
    *  carrying why the runtime opened it so the transcript can say so; `finished` releases

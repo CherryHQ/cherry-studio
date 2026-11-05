@@ -154,6 +154,7 @@ export interface StreamExecution {
   /** Latest authoritative message view. Undefined until the first snapshot lands. */
   sourceKind?: AiStreamSource['kind']
   finalMessage?: CherryUIMessage
+  persistence?: TerminalOutcome['persistence']
   /**
    * Compaction anchors emitted during this turn, newest last.
    *

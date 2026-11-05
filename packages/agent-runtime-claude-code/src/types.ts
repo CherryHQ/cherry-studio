@@ -57,6 +57,10 @@ export type ClaudeNativeMessage =
   | { readonly source: 'archive'; readonly message: SessionMessage }
 
 export interface ClaudeObservation {
+  /** Sources produced by native execution, retained through observer recovery. */
+  readonly live?: readonly string[]
+  /** Provisional-to-committed source aliases retained after their update batch is folded. */
+  readonly replaces?: Readonly<Record<string, string>>
   readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
   readonly events: readonly ObservationPayload[]
   /** Native payload captured with this batch, never looked up at delivery time. */

@@ -72,6 +72,9 @@ retractions. Rich blocks, thinking signatures, usage, reset and local-command
 metadata remain native types. The adapter never introduces SDK types into the
 common package. `ClaudeFeed` uses `ThreadFeed` for normalized state and bounds
 delivery of paired batches; overflow emits a gap and a matching current baseline.
+Typed batches identify live source IDs and provisional-to-committed replacements;
+recovery baselines retain both facts. Hosts distinguish their initial history from a
+recovery baseline and reconcile unseen native results after the corresponding content.
 Slow or failing consumers cannot block native execution. Closing drains the final
 queued state before the closed event; releasing explicitly discards that subscriber.
 

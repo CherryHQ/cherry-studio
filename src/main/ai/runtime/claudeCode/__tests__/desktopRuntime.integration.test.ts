@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, realpath, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
@@ -17,14 +18,22 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 
+import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
+import { assistantMessage, wireProcess } from '../../../../../../packages/agent-runtime-claude-code/tests/wireFixture'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '../../types'
 import type * as AgentSessionWarmup from '../agentSessionWarmup'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
 import type * as SettingsBuilder from '../settingsBuilder'
+
+vi.mock(
+  '@cherrystudio/agent-runtime-claude-code',
+  () => import('../../../../../../packages/agent-runtime-claude-code/src')
+)
 
 const ports = vi.hoisted(() => ({ build: vi.fn(), consume: vi.fn(), spawn: vi.fn() }))
 vi.mock('../agentSessionWarmup', async (original) => ({
@@ -162,7 +171,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
   const context = contexts.findChild(test.sessionId, 'toolu_desktop')!
   expect(context).toBeDefined()
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Independent child answer')
-  expect(test.events.some((event) => event.type === 'background-flow-chunk')).toBe(false)
+
   const rootBodies = test.events
     .filter((event) => event.type === 'message-projection')
     .flatMap((event) => event.projection.messages)
@@ -239,7 +248,6 @@ it('persists background child output independently and reopens the same child me
   const projection = await reopened.childProjection!('toolu_background_desktop')
   expect(projection!.snapshot().canSubmit).toBe(false)
   expect(projection!.snapshot().messages).toEqual(saved)
-  expect(test.events.some((event) => event.type === 'background-flow-chunk')).toBe(false)
 }, 30000)
 
 // A warm subprocess must keep its actual serving credential and sole Query ownership after handoff.
@@ -558,3 +566,182 @@ it('creates a reserved empty Claude branch and reopens it after its first answer
   continuation.reply.finish()
   await test.wait('turn-complete')
 }, 30000)
+
+// A slow desktop observer must settle from a recovered baseline after the bounded feed folds its result.
+it('recovers current content and one terminal result after observer overflow, then accepts another input', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  const observed: { feed?: ClaudeFeed } = {}
+  const publish = ClaudeFeed.prototype.publish
+  const feedSpy = vi
+    .spyOn(ClaudeFeed.prototype, 'publish')
+    .mockImplementation(function (this: ClaudeFeed, events, native, legacy) {
+      if (native?.some((entry) => entry.source === 'live' && entry.message.type === 'assistant')) observed.feed = this
+      return publish.call(this, events, native, legacy)
+    })
+  const original = ThreadMessageProjection.prototype.accept
+  const paused = Promise.withResolvers<void>()
+  const resume = Promise.withResolvers<void>()
+  let held = false
+  const spy = vi
+    .spyOn(ThreadMessageProjection.prototype, 'accept')
+    .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
+      const events = 'type' in event ? [event] : event
+      if (!held && events.some((item) => item.type === 'message.upsert' && item.message.role === 'assistant')) {
+        held = true
+        paused.resolve()
+        await resume.promise
+      }
+      return original.call(this, event, refresh)
+    })
+  try {
+    const first = test.input('Produce many blocks')
+    await connection.send(first)
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: 'First block' })
+    await paused.promise
+    for (let index = 0; index < 130; index++) request.reply.block({ type: 'text', text: `Block ${index}. ` })
+    request.reply.block({ type: 'text', text: 'Final recovered answer' })
+    request.reply.finish()
+    await expect
+      .poll(
+        () => test.nativeInputs.some((input) => input.inputId === first.message.id && input.outcome === 'completed'),
+        { timeout: 15000 }
+      )
+      .toBe(true)
+    // More lifecycle updates can arrive after the result while this observer is still blocked.
+    for (let index = 0; index < 101; index++)
+      observed.feed!.publish([{ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } }])
+    resume.resolve()
+    await test.wait('turn-complete')
+    const projections = test.events.flatMap((event) => (event.type === 'message-projection' ? [event.projection] : []))
+    expect(
+      projections.some((view) =>
+        view.messages.some(
+          (message) =>
+            view.live.includes(message.id) &&
+            message.parts.some((part) => part.type === 'text' && part.text.includes('Final recovered answer'))
+        )
+      )
+    ).toBe(true)
+    expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+    test.events.length = 0
+    await connection.send(test.input('Next input'))
+    const next = await test.request()
+    next.reply.block({ type: 'text', text: 'Next answer' })
+    next.reply.finish()
+    await test.wait('turn-complete')
+    expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+  } finally {
+    resume.resolve()
+    spy.mockRestore()
+    feedSpy.mockRestore()
+  }
+}, 60000)
+
+// Committed sources use bare UUIDs; historical content cannot satisfy the current turn's salvage threshold.
+it.each(['current-answer', 'history-only', 'user-only'])(
+  'salvages only current assistant output after native JSON truncation (%s)',
+  async (source) => {
+    const historyOnly = source === 'history-only'
+    const wire = wireProcess()
+    const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+    const connection = await test.connect()
+    const context = contexts.forSession(test.sessionId).find((context) => context.nativeThreadId)!
+    if (historyOnly) {
+      await connection.send(test.input('Previous input'))
+      await expect.poll(() => wire.inputs.length).toBe(1)
+      wire.send(
+        assistantMessage(
+          context.nativeThreadId!,
+          [{ type: 'text', text: 'Historical answer'.repeat(60), citations: null }],
+          { user_message_uuid: wire.inputs[0].uuid }
+        )
+      )
+      wire.send({
+        type: 'result',
+        subtype: 'success',
+        uuid: randomUUID(),
+        session_id: context.nativeThreadId!,
+        user_message_uuid: wire.inputs[0].uuid,
+        duration_ms: 1,
+        duration_api_ms: 1,
+        is_error: false,
+        num_turns: 1,
+        result: '',
+        stop_reason: 'end_turn',
+        total_cost_usd: 0,
+        usage: {
+          input_tokens: 1,
+          output_tokens: 1,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+          cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+          iterations: [],
+          server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+          service_tier: 'standard',
+          inference_geo: 'us',
+          speed: 'standard'
+        },
+        modelUsage: {},
+        permission_denials: []
+      })
+      await test.wait('turn-complete')
+      test.events.length = 0
+    }
+    await connection.send(test.input(source === 'user-only' ? 'Current user prompt'.repeat(60) : 'Current input'))
+    await expect.poll(() => wire.inputs.length).toBe(historyOnly ? 2 : 1)
+    const current = assistantMessage(
+      context.nativeThreadId!,
+      [
+        {
+          type: 'text',
+          text: source === 'current-answer' ? 'Current answer'.repeat(60) : 'Short current answer',
+          citations: null
+        }
+      ],
+      { user_message_uuid: wire.inputs.at(-1)!.uuid }
+    )
+    if (source === 'user-only') {
+      const user = { ...wire.inputs.at(-1)!, session_id: context.nativeThreadId!, parent_tool_use_id: null }
+      wire.send(user)
+      await test.wait('message-projection', (event) => event.projection.live.includes(user.uuid!))
+    }
+    wire.send(current)
+    await test.wait('message-projection', (event) => event.projection.live.includes(current.uuid))
+    const archiveDir = path.join(
+      test.configDir,
+      'projects',
+      (await realpath(test.options.cwd)).replace(/[^a-zA-Z0-9]/g, '-')
+    )
+    await mkdir(archiveDir, { recursive: true })
+    await writeFile(
+      path.join(archiveDir, `${context.nativeThreadId}.jsonl`),
+      [...wire.inputs, current]
+        .map((entry, index, entries) =>
+          JSON.stringify({
+            ...entry,
+            isSidechain: false,
+            sessionId: context.nativeThreadId,
+            cwd: test.options.cwd,
+            parentUuid: entries[index - 1]?.uuid ?? null,
+            timestamp: new Date().toISOString()
+          })
+        )
+        .join('\n') + '\n'
+    )
+    wire.fail(new SyntaxError('Unexpected end of JSON input'))
+    await expect
+      .poll(() => test.events.some((event) => event.type === 'turn-complete' || event.type === 'error'), {
+        timeout: 15000
+      })
+      .toBe(true)
+    if (source !== 'current-answer') expect(test.events.filter((event) => event.type === 'error')).toHaveLength(1)
+    else expect(test.events.filter((event) => event.type === 'error')).toEqual([])
+    expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(
+      source === 'current-answer' ? 1 : 0
+    )
+    wire.exit()
+  },
+  30000
+)

@@ -256,18 +256,6 @@ describe('subagent settlement wake (incident replay)', () => {
     handleRuntimeEvent({ type: 'turn-complete' })
     service.markTurnTerminal('session-1', 'success')
 
-    // Between turns: detached child content patches the turn-1 row (accumulator path).
-    handleRuntimeEvent({
-      type: 'background-flow-chunk',
-      rootToolCallId: 'call-spawn',
-      chunk: { type: 'text-start', id: 'c1' }
-    })
-    handleRuntimeEvent({
-      type: 'background-flow-chunk',
-      rootToolCallId: 'call-spawn',
-      chunk: { type: 'text-delta', id: 'c1', delta: 'child says hi' }
-    })
-
     // Settlement wake: the runtime opens its own turn and starts streaming immediately.
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
     handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-start', id: 'w1' } })
@@ -369,6 +357,13 @@ function openChunkStream(
   input: Parameters<InstanceType<typeof AgentSessionRuntimeService>['openTurnStream']>[0]
 ) {
   const source = service.openTurnStream(input)
-  if (source.kind !== 'chunks') throw new Error('Expected chunk fixture')
-  return source.stream
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  return source.stream.pipeThrough(
+    new TransformStream({
+      transform(event, controller) {
+        if (event.type === 'control') controller.enqueue(event.chunk)
+        else if (event.type === 'error') controller.error(event.error)
+      }
+    })
+  )
 }

@@ -138,16 +138,38 @@ Main 必须对 root 和 child 使用相同的回复归属规则。已经放入�
 
 最后在隔离 Electron 实例中使用真实模型验收 Pi、Pi Durable 和 Claude：前台 child、父任务先结束、两个并行 child、用户续接 child、preliminary Bash 输出、部分文本、child 失败、关闭/重新打开窗口，以及工作未完成时的原生重启。确认 child 在实时和恢复视图中具有一致的产品回复组合、独立状态，且没有重复写入父消息的内容。针对一个和十个 child，测量 IPC 字节数、消息写入和发布频率，并与当前路径比较；不能预设线性成本或瓶颈。此前的 child 流式验收属于本地 bug 修复证据；需要针对本次协议迁移重新执行，才能计入验收。
 
+### 9. 完成产品投影所有权收拢
+
+#22856 中已获批准的后续重构移除仍保留 chunk 假设的正文所有者，不改变 SQLite schema、checkpoint v2、原生存储或共享投影 IPC。普通 AI SDK 执行保留 chunk reader。所有智能体驱动都提供权威消息；同时删除可选的驱动来源标志和智能体 chunk fallback。
+
+`RootMessageProjection` 先逐个规范化原生 source，再展平 parts 并计算 checkpoint offset。它拥有宿主 data/approval 展示，包括先于原生内容到达的 ExitPlanMode 输入；原生工具结束后，移除它不能重新生成宿主卡片。`pipeMessageStream` 转发完整正文和执行元数据，不再独立保留 input、approval 或 data-part 副本。
+
+终态 backend 同步保存 owning projection 的最新正文和 checkpoint。流关闭后，source 更新保留在投影中，直到这次提交。提交之后，包括异步保存后处理期间，更新会替换已存正文和 checkpoint。尚未打开的 steer continuation 将预留回复保留在投影中，等待对应行和流创建。持久化失败保留可读输出并明确交付失败，不遗留 pending recovery Promise，也不自动重新提交模型请求。
+
+Pi 和 Durable 停止重复发送 `background-flow-chunk` 正文。生产者迁移后，删除后台 SDK accumulator 及 `flow_parts` 缓存和 Renderer 订阅。任务状态继续沿已有 task events 更新；child 正文仍由独立投影拥有。已保存的历史任务 parts 和 child archive 继续可读。
+
+Claude 恢复区分初始历史基线与包含未交付原生执行事实的 overflow 基线。Typed observation 保留 live source ID 和 provisional replacement。先对账当前正文，再交付未处理的原生结果，按结果身份去重，并保留多输入共享结果及 steer 边界。Source-loss salvage 只按本轮真实原生 source ID 统计 assistant 输出；用户 prompt 和历史长答案不能满足本轮门槛。不从 idle activity 或 snapshot coverage 推断成功。
+
+消费者读取同一当前视图：大型原生工具输出携带内容版本，替换使 Renderer 缓存失效；成功持久化后，读取交给已保存的消息。准备后的终态结果同时更新 Manager 保留的执行视图。原生会话重连保留回复已提交的事实。远程 reducer 在内容跨过引用阈值时接收 pinned bytes；回放在字节与时间预算内保留这些内容，reset 清除失效的消息关联。Slack/Discord 将已有空 draft 替换为本地化的处理中提示，首次空更新不创建 draft。网关响应 ID 与序列化到 wire 的 ID 一致，用量归属可补充，费用不变且不重复计费。不引入新的 projection manager、submission ledger、事件总线或执行状态机。
+
 ### 实现证据（2026-10-29）
 
 - 已实现公共 SDK 累积器、三个适配器的内容映射、root 消息来源、Main child 回复组合和第二版来源 checkpoint。旧 Pi item-to-chunk 适配器及 Renderer 重新分组已删除。原生持久化和共享 projection IPC 保持原有契约。
 - 针对内容迁移的包、Main/SQLite、Renderer 和投影交付测试通过；21 个可移植 fixture 和 83 个本机 transcript 重放案例通过，本机内容未提交。原生 Claude 桌面集成还验证了回复归属和计费。Node/web 及四个 Runtime 包的类型检查通过。
-- 首轮 Durable 真实模型检查发现驱动漏声明 `messageSource: 'projection'`：模型已有输出，但宿主选用了旧 chunk 消费者，丢弃了消息投影。Pi 和 Durable 现在均在连接前声明内容来源，注册回归覆盖三种 Runtime。Renderer 现有的空成功消息兜底生成了误导性的“无响应”错误，这是独立的 `main` 问题。
+- 首轮 Durable 真实模型检查发现驱动漏声明内容来源：模型已有输出，但宿主选用了旧 chunk 消费者，丢弃了消息投影。最初的修复在连接前声明来源。已获批准的后续重构会彻底移除可选标志和智能体 fallback。Renderer 现有的空成功消息兜底生成了误导性的“无响应”错误，这是独立的 `main` 问题。
 - 真实模型检查还发现了起始输入边界遗漏：Pi 现从原生 custom-message 条目保留 behavior 子任务输入；Claude 的实时 SDK feed 不转发起始 prompt，因此首次接入时读取一次原生 child 存档，后续仍由观察事件驱动。
 - Pi 后台活动不再保持父回复流打开。Pi 和 Durable 的本地 `/goal` 回答使用宿主消息投影，在移除旧内容 chunk 消费者后仍保留命令回复。修复前复现了三项回归；修复后，相关桌面与 root 投影的 39 项测试通过。
 - 通过网关调用真实 DeepSeek 模型，Pi、Durable 和 Claude 均通过后台子任务场景：父任务先结束，child 输出保持独立，组合后的一条 assistant 回复在窗口刷新后保留相同 ID 和内容。Pi 与 Durable 还呈现了部分文本和 preliminary Bash 输出；当前安装的 Claude SDK 转发完整 child 内容块，本轮未观察到 child 逐 token 增量或 preliminary Bash 输出。
 - 增量投影验证补充了装饰／转发工作量上限、有序批量更新、装饰失败、仅元数据变化的 root/child 刷新和实时快照别名的契约覆盖。`projectionCost.test.ts` 在 20／1,000 条历史消息以及一个／十个独立投影下，为每个投影重放 40 次 upsert。1,000 条历史、十个投影场景中，装饰次数和转发消息数均从 400,400 降至 400，内容保持不变。这些是 Main 投影操作数，不包括原生 SDK 累积、IPC、数据库写入或 Renderer 成本。21 个可移植样本和 83 个本机 transcript 样本也通过了内容及持久化／重新打开检查。
 - 更完整的 Electron 场景矩阵仍待完成。不能从上述检查推导崩溃恢复或跨平台验收；一个与十个 child 的 Electron 对比测量仍待完成。
+
+### 后续重构实现证据（2026-11-04）
+
+- 第 9 节已在 #22856 工作树中实现。Root source 规范化、提交归属、保留的执行视图及延迟工具结果版本在流关闭、成功持久化和连接重建之间保持一致。已移除智能体 chunk fallback、后台整正文累积及 `flow_parts` 缓存路径；没有新增数据库迁移。
+- 使用生产迁移的 SQLite 回归覆盖活跃／关闭未提交／已提交／重连边界、显式撤回、预留 steer 回复及 host-first 审批结算。Claude SDK/CLI 对本地脚本化 HTTP provider 的集成验证覆盖超过 100 批积压后的恢复、终态恰好交付一次、后续输入，以及仅统计 assistant 输出的截断 salvage。包、Main、Renderer 和 Shared 消费者测试均使用明确文件过滤并通过。
+- 独立复核发现了额外的执行／延迟结果缓存过期、重连丢失提交事实、远程 pin 提前删除及用户正文误用于 salvage 的问题。修复具有定向覆盖，包括真实 Renderer SWR facade 与生产远程 reducer。回放 pin 内容计入保留预算；回放淘汰后，journal 当前视图仍然可读。
+- 使用 agent 拥有的隔离 Electron 实例验证了双窗口 root 替换、64 KiB 工具结果的可见替换／撤回、父回复完成后 child 继续更新、提交后的 root 修订，以及窗口重载后稳定的 child 回复身份。本次使用脚本化 runtime driver 和原生 child handle，经过生产 Main、SQLite、IPC 及 Renderer 代码。验收后已停止实例；本轮没有调用真实 provider、真实 IM 平台或远程设备，也未执行原生进程重启。
+- Node/web 类型检查、限定范围 lint/format、Claude Runtime 包构建和文档检查通过。第 8 节更完整的真实模型 Electron 矩阵及一个／十个 child 成本对比仍待完成；不能仅凭这些改动声称性能提升。为剩余验收保留 proposed 状态。
 
 ## 考虑过的替代方案
 
@@ -169,6 +191,16 @@ Main 必须对 root 和 child 使用相同的回复归属规则。已经放入�
 - AC8 — Claude 切换后保留富内容、工具身份、签名、原生撤回和网关回复/计费关联；错误仍保留部分内容。(verification: unit — 脱敏 transcript 重放和网关归属消费者)
 - AC9 — 每条原生线程只有一个生产内容 writer；所属消费者迁移后删除 item-to-chunk 转换和 Renderer 来源 item 分组，共享 IPC/revision 恢复继续正常工作。(verification: unit — 消费者清单和共享投影测试)
 - AC10 — 每个改写 PR 都有核实过的 base 和限定范围检查，最终报告区分包测试、重放、Electron 验收、重启证据和实测成本。(verification: docs gate — 栈范围和验收证据审阅)
+- AC11 — 空 part 过滤、中断终态处理及重开保留各 source 的所有权；正文与 checkpoint 原子提交。(verification: unit — root 投影和已有数据的 SQLite 持久化)
+- AC12 — 活跃、关闭未提交及已提交回复接收合法刷新/撤回；持久化失败保留可读输出并交付失败，不遗留 pending recovery Promise。(verification: unit — runtime 和持久化交接)
+- AC13 — Overflow 恢复补齐当前正文，每个终态结果至多交付一次，随后可接收新输入；历史、排队输入及其他 child 不能结算当前回复。(verification: unit — Claude observation 和桌面集成)
+- AC14 — 当前 bare UUID 正文满足已有截断 salvage policy；历史正文不能满足本轮门槛。(verification: unit — Claude 桌面驱动)
+- AC15 — Host-first ExitPlanMode 输入仍可见；原生工具结束后撤回不能复活审批卡。(verification: unit — 生产审批输入到消息发布)
+- AC16 — 活跃智能体的工具输出读取返回当前大型/结构化值，并反映替换或撤回。(verification: unit — stream manager 和 tool-result IPC)
+- AC17 — 远程流式内容跨越引用阈值后持续更新，直到终态 checkpoint 重放；reset 不遗留失效消息关联。(verification: unit — journal 和生产 reducer)
+- AC18 — Slack/Discord 撤回已展示文本，显示持续空状态，并在文本恢复时复用同一 draft。(verification: unit — 平台 controller；真实平台验收单独报告)
+- AC19 — Chat/Responses wire ID 将 root/child 消息绑定到原 provider invocation，费用不变且不重复计费。(verification: unit — 生产网关转换器和 SQLite attribution)
+- AC20 — 智能体没有 chunk fallback 或后台整正文 writer；普通 SDK 流、历史读取、独立 child 生命周期及 metadata-only 刷新保持原契约。(verification: unit — 生产者/消费者清单与 Main/Renderer 测试；Electron — 隔离验收)
 
 ## 风险
 

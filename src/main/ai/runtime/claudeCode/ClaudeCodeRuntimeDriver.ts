@@ -319,6 +319,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
   private lastMainAssistantUuid?: string
+  private readonly currentSources = new Set<string>()
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private assistantFileToolsEnabled = false
   private sessionTornDown = false
@@ -464,6 +465,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
     this.lastMainAssistantUuid = undefined
+    this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -704,6 +706,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         end = resolve
       })
     )
+    let initial = true
+    const historical = new Set<string>()
+    const seenNative = new Set<string>()
     const observation = await handle.claude.observe(async (batch) => {
       let publish = () => {}
       try {
@@ -713,35 +718,76 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
           for (const input of inputs) bindNativeInput(this.input.sessionId, contextId, input)
         }
-        const live =
-          !batch.events.some((event) => event.type === 'snapshot') &&
-          batch.native.some((native) => native.source === 'live')
-            ? changed.map((message) => message.id)
-            : []
-        publish = () => {
+        const snapshot = batch.events.some((event) => event.type === 'snapshot')
+        const native = batch.native.filter((entry) => {
+          if (entry.source !== 'live') return false
+          if (entry.message.type === 'stream_event') return !initial
+          const id = entry.message.uuid
+          const seen = id && seenNative.has(id)
+          if (id) seenNative.add(id)
+          return !initial && !seen
+        })
+        const liveSources = new Set(
+          batch.live ?? (!snapshot && native.length ? changed.map((message) => message.id) : [])
+        )
+        for (const message of changed) if (initial || !liveSources.has(message.id)) historical.add(message.id)
+        const live = changed
+          .filter((message) => liveSources.has(message.id) && !historical.has(message.id))
+          .map((message) => message.id)
+        const replaces = {
+          ...batch.replaces,
+          ...Object.fromEntries(
+            batch.events.flatMap((event) =>
+              event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
+            )
+          )
+        }
+        const emit = (messages: readonly CherryUIMessage[], owned: readonly string[]) => {
+          for (const id of owned) this.currentSources.add(id)
+          for (const [previous, replacement] of Object.entries(replaces)) {
+            if (this.currentSources.delete(previous)) this.currentSources.add(replacement)
+          }
           this.eventQueue.push({
             type: 'message-projection',
             projection: {
               contextId,
               legacy: metadata.legacy,
-              messages: batch.events.some((event) => event.type === 'snapshot')
-                ? projection.snapshot().messages
-                : changed,
-              live,
-              refresh,
-              replaces: Object.fromEntries(
-                batch.events.flatMap((event) =>
-                  event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
-                )
-              ),
+              messages,
+              live: owned,
+              refresh: [...new Set([...refresh, ...changed.map((message) => message.id)])],
+              replaces,
               removed: [...metadata.removed]
             }
           })
+        }
+        publish = () => {
+          emit(snapshot ? projection.snapshot().messages : changed, live)
           publish = () => {}
         }
-        const terminal = await this.acceptRoot(batch, projection)
-        publish()
-        for (const event of terminal) this.eventQueue.push(event)
+        if (snapshot && !initial) {
+          const delivered = new Set<string>()
+          for (const entry of native) {
+            const terminal = await this.acceptRoot({ ...batch, events: [], native: [entry] }, projection)
+            const id = entry.message.uuid
+            const message = changed.find((message) => message.id === id && live.includes(message.id))
+            if (message) {
+              emit([message], [message.id])
+              delivered.add(message.id)
+            }
+            for (const event of terminal) this.eventQueue.push(event)
+          }
+          emit(
+            projection.snapshot().messages,
+            this.nativeState?.isTurnActive ? live.filter((id) => !delivered.has(id)) : []
+          )
+          publish = () => {}
+          for (const event of await this.acceptRoot({ ...batch, native: [] }, projection)) this.eventQueue.push(event)
+        } else {
+          const terminal = await this.acceptRoot({ ...batch, native }, projection)
+          publish()
+          for (const event of terminal) this.eventQueue.push(event)
+        }
+        initial = false
         if (
           batch.events.some((event) => event.type === 'gap') &&
           !batch.native.some((native) => native.message.type === 'conversation_reset')
@@ -772,7 +818,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     for (const event of batch.events) {
       if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
       if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
-      if (event.type === 'input.changed' && event.input.inputId && event.input.outcome) {
+      if (
+        event.type === 'input.changed' &&
+        event.input.inputId &&
+        event.input.outcome &&
+        event.input.outcome !== 'completed'
+      ) {
         this.pendingSteers.delete(event.input.inputId)
         this.startedSteers.delete(event.input.inputId)
       }
@@ -785,9 +836,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             : error
         const bufferedChars = projection
           .snapshot()
-          .messages.filter(
-            (message) => message.id.startsWith('live:') || message.id.startsWith(`${this.lastMainAssistantUuid}:`)
-          )
+          .messages.filter((message) => message.role === 'assistant' && this.currentSources.has(message.id))
           .flatMap((message) => message.parts)
           .reduce((length, part) => length + (part.type === 'text' ? part.text.length : 0), 0)
         terminal.push(
@@ -797,22 +846,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         )
       }
     }
-    if (!batch.events.some((event) => event.type === 'snapshot'))
-      for (const native of batch.native) {
-        if (native.source !== 'live') continue
-        if (native.message.type === 'command_lifecycle') {
-          if (native.message.state === 'started' && this.pendingSteers.has(native.message.command_uuid))
-            this.startedSteers.add(native.message.command_uuid)
-        } else {
-          const result = await this.handleNativeMessage(native.message)
-          if (result) terminal.push(result)
-        }
+    for (const native of batch.native) {
+      if (native.source !== 'live') continue
+      if (native.message.type === 'command_lifecycle') {
+        if (native.message.state === 'started' && this.pendingSteers.has(native.message.command_uuid))
+          this.startedSteers.add(native.message.command_uuid)
+      } else {
+        const result = await this.handleNativeMessage(native.message)
+        if (result) terminal.push(result)
       }
+    }
     return terminal
   }
 
   private async handleNativeMessage(message: SDKMessage): Promise<AgentRuntimeEvent | undefined> {
-    if (message.type === 'assistant' || message.type === 'stream_event') {
+    if (
+      !this.nativeState?.isTurnActive &&
+      (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'user')
+    )
+      this.currentSources.clear()
+    if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result') {
       const ids = [
         ...new Set([
           ...this.startedSteers,
@@ -827,12 +880,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.startedSteers.delete(input.message.id)
         }
         this.eventQueue.push({ type: 'steer-boundary', inputs: steers })
+        this.currentSources.clear()
         this.nativeState?.beginTurn()
       }
       const responseId =
         message.type === 'assistant'
           ? message.message.id
-          : message.event.type === 'message_start'
+          : message.type === 'stream_event' && message.event.type === 'message_start'
             ? message.event.message.id
             : undefined
       if (responseId) this.eventQueue.push({ type: 'response-start', responseId })
@@ -1572,7 +1626,6 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
   readonly type = 'claude-code'
-  readonly messageSource = 'projection' as const
   readonly capabilities = ['agent-session'] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {

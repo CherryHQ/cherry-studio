@@ -335,40 +335,6 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
     hold.dispose()
   })
 
-  it('drains a detached-flow finalizer after its runtime entry closes', async () => {
-    const service = new AgentSessionRuntimeService()
-    service.beginTurn(baseTurnInput)
-    const entry = entryOf(service)
-    const gate = createDeferred<void>()
-    entry.backgroundFlowAccumulators = new Map([
-      [
-        'assistant-1',
-        {
-          messageId: 'assistant-1',
-          controller: { close: vi.fn() },
-          done: gate.promise,
-          closed: false,
-          latest: { parts: [{ type: 'text', text: 'Late flow' }] }
-        }
-      ]
-    ])
-    const hold = service.pause('restore')
-    const closing = service.closeSession('session-1')
-
-    let drained = false
-    const drain = service.drainInFlight({ timeoutMs: 5_000 }).then((result) => {
-      drained = true
-      return result
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(drained).toBe(false)
-
-    gate.resolve()
-    await closing
-    await expect(drain).resolves.toEqual({ stragglerIds: [] })
-    hold.dispose()
-  })
-
   it('reports a closing connection as active work after its runtime entry is removed', async () => {
     const service = new AgentSessionRuntimeService()
     const { close, closing, gate } = beginClosingConnection(service)

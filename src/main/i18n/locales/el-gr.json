@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία του μηνύματός σας. Δοκιμάστε ξανά αργότερα.",
   "common.channel_new_session_created": "Δημιουργήθηκε νέα συνεδρία.",
   "common.channel_no_active_session": "Δεν υπάρχει ενεργή συνεδρία.",
+  "common.channel_processing": "Επεξεργασία…",
   "common.channel_session_compacted": "Η συνεδρία συμπτύχθηκε.",
   "common.channel_session_resolution_error": "⚠️ Αποτυχία επίλυσης συνεδρίας για αυτόν τον πράκτορα. Δοκιμάστε ξανά αργότερα.",
   "common.channel_stopped": "Διακόπηκε",

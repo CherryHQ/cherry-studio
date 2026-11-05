@@ -9,7 +9,6 @@ import { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 
 export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi-durable'
-  readonly messageSource = 'projection' as const
   readonly capabilities = ['agent-session'] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {

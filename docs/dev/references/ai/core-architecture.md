@@ -20,7 +20,7 @@ Renderer: commands → ai.stream.open/abort → AiStreamManager
           views    ← ai.projection.* ← root/child message publishers
 Main: context provider → AiService → one source per execution
       chunks → pipeStreamLoop → readUIMessageStream → CherryUIMessage
-      messages → pipeMessageStream → host display state → CherryUIMessage
+      messages → pipeMessageStream → CherryUIMessage
       current CherryUIMessage → root projection + listeners + persistence
       child native observation → reconciliation/archive → independent child projection
 Terminal: persistence → projection and other subscriber notifications → cleanup
@@ -62,8 +62,8 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    `AgentSessionRuntimeService.openTurnStream()` so the registered driver
    can own the concrete agent runtime.
 8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
-   and `readUIMessageStream`; `messages` uses `pipeMessageStream` to apply host display
-   state to authoritative bodies. Listeners receive `onMessage` snapshots, and
+   and `readUIMessageStream`; `messages` uses `pipeMessageStream` to forward authoritative
+   bodies already composed with host display state. Listeners receive `onMessage` snapshots, and
    persistence uses that same final view. Pi, Pi Durable, and Claude select
    `messages`; Chat retains its chunk source.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):

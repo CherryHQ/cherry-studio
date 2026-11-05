@@ -49,7 +49,7 @@ Renderer views    → ai.projection.attach/detach
                            ↑ snapshots / message patches
 AiService → one AiStreamSource per execution
   chunks   → pipeStreamLoop → readUIMessageStream → CherryUIMessage
-  messages → pipeMessageStream + host display state → CherryUIMessage
+  messages → pipeMessageStream → CherryUIMessage
   current view → TopicMessageProjection + onMessage listeners
   chunks / host controls → onChunk listeners
 Terminal: PersistenceListener → projection and other notifications → cleanup
@@ -194,8 +194,8 @@ interface StreamListener {
 
 All three terminal shapes share the same `finalMessage?` field — the
 current `CherryUIMessage` from the execution's selected source. Chunk sources use
-`readUIMessageStream`; projection sources supply authoritative parts with host
-approval/data/metadata applied by `pipeMessageStream`. No second body is merged
+`readUIMessageStream`; Agent projection sources supply authoritative parts with host
+approval/data display already composed by `RootMessageProjection`. No second body is merged
 at publication or persistence. Content consumers use `onMessage` and the terminal
 view; `onChunk` is a content feed only for chunk sources. A late listener receives
 the current view after control/chunk replay.
@@ -552,8 +552,8 @@ const stream: ReadableStream<UIMessageChunk> = await aiService.streamText({
 `{ kind: 'messages', stream }`. The choice is fixed for an execution, not switched
 for individual events. `signal` comes from `StreamExecution.abortController`.
 
-For `messages`, `pipeMessageStream` replaces the current body, applies only
-host-owned display state and publishes `onMessage`. Native errors are queued as
+For `messages`, `pipeMessageStream` replaces the current body, carries execution
+metadata and publishes `onMessage`. Native errors are queued as
 events so the preceding partial body drains before terminal persistence. It does
 not run `readUIMessageStream` or synthesize text/tool deltas. Idle timeout, approval
 tracking and terminal dispatch remain owned by the manager. The following chunk
@@ -596,6 +596,13 @@ cancellation take precedence over this diagnostic.
 
 No synthetic `finish` chunk is needed. On paused/error persistence,
 `finalizeInterruptedParts` terminalizes open text, reasoning, tool and task parts.
+
+Agent terminal preparation stays with `RootMessageProjection`: it normalizes each
+native source before flattening parts and computing checkpoint offsets. The backend
+synchronously saves that body and checkpoint together. Updates after stream closure
+but before this commit remain in the owning projection; updates after commit replace
+the saved view, even while asynchronous post-save work is pending. Persistence failure
+retains readable output and delivers the existing explicit failure outcome.
 
 **Step 4 — terminal dispatch.**
 

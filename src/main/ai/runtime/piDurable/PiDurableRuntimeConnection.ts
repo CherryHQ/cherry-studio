@@ -369,11 +369,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
     this.childStates.set(id, data)
     this.events.push({ type: 'background-task-event', data })
-    this.events.push({
-      type: 'background-flow-chunk',
-      rootToolCallId: origin.toolCallId,
-      chunk: { type: 'data-agent-task-event', id: `task-${id}`, data }
-    })
   }
 
   private observeChild(id: string): Promise<PiDurableThreadHandle> {
