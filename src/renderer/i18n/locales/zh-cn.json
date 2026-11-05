@@ -171,7 +171,6 @@
   "agent.memory.copy": "复制内容",
   "agent.memory.copy_failed": "复制内容失败",
   "agent.memory.create": "创建文件",
-  "agent.memory.description": "{{name}} 跨会话保存的人设、用户档案和长期知识。这些文件会加载到系统提示词中，全部是明文，你可以随时在这里查看和修改。",
   "agent.memory.discard.confirm": "放弃修改",
   "agent.memory.discard.description": "当前文件的修改还没有保存，继续操作会丢失这些修改。",
   "agent.memory.discard.title": "放弃未保存的修改？",

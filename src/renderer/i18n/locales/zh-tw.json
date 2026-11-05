@@ -171,7 +171,6 @@
   "agent.memory.copy": "複製內容",
   "agent.memory.copy_failed": "複製內容失敗",
   "agent.memory.create": "建立檔案",
-  "agent.memory.description": "{{name}} 跨工作階段保存的人設、使用者檔案和長期知識。這些檔案會載入系統提示詞中，全部是純文字，你可以隨時在這裡檢視與編輯。",
   "agent.memory.discard.confirm": "放棄修改",
   "agent.memory.discard.description": "目前檔案有尚未儲存的修改，繼續操作將會遺失這些修改。",
   "agent.memory.discard.title": "放棄未儲存的修改？",

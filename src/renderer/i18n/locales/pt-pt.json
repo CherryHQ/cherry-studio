@@ -171,7 +171,6 @@
   "agent.memory.copy": "Copiar conteúdo",
   "agent.memory.copy_failed": "Falha ao copiar o conteúdo",
   "agent.memory.create": "Criar ficheiro",
-  "agent.memory.description": "O que {{name}} memoriza entre sessões. Estes ficheiros são carregados no prompt de sistema e são texto simples que pode ler e editar aqui a qualquer momento.",
   "agent.memory.discard.confirm": "Descartar alterações",
   "agent.memory.discard.description": "O ficheiro atual tem alterações não guardadas. Se continuar, serão perdidas.",
   "agent.memory.discard.title": "Descartar alterações não guardadas?",
