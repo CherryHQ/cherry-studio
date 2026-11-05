@@ -21,18 +21,35 @@ class FileMutationService {
    * write (or verifying with a post-write read) cannot stop a stale overwrite.
    */
   async run<T>(requestedPath: string, baseDir: string | undefined, fn: (validPath: string) => Promise<T>): Promise<T> {
-    // Validate once to derive the queue key: canonicalizing here maps different
-    // spellings of the same target onto one queue. This comparison never leaves
-    // the filesystem MCP server and does not alter shared workspace
-    // authorization rules.
-    const queueKey = await validatePath(requestedPath, baseDir)
-    return this.mutationMutex.runExclusive(queueKey, async () => {
-      // Re-validate inside the critical section: the target may have been
-      // re-pointed while this call was queued, so the pre-wait authorization
-      // must not be reused for the actual operation.
-      const validPath = await validatePath(requestedPath, baseDir)
-      return fn(validPath)
-    })
+    // Loop instead of recursing: the old key's mutex must be fully released
+    // before queuing under the new key, or two links flipped in opposite
+    // directions could deadlock.
+    for (;;) {
+      // Validate once to derive the queue key: canonicalizing here maps different
+      // spellings of the same target onto one queue. This comparison never leaves
+      // the filesystem MCP server and does not alter shared workspace
+      // authorization rules.
+      const queueKey = await validatePath(requestedPath, baseDir)
+      const outcome = await this.mutationMutex.runExclusive(
+        queueKey,
+        async (): Promise<{ retargeted: true } | { retargeted: false; value: T }> => {
+          // Re-validate inside the critical section: the target may have been
+          // re-pointed while this call was queued, so the pre-wait authorization
+          // must not be reused for the actual operation.
+          const validPath = await validatePath(requestedPath, baseDir)
+          if (validPath !== queueKey) {
+            // Retargeted while queued: running fn now would mutate the new target
+            // under the old target's lock, bypassing the new target's queue.
+            // Release and re-queue under the new canonical key.
+            return { retargeted: true }
+          }
+          return { retargeted: false, value: await fn(validPath) }
+        }
+      )
+      if (!outcome.retargeted) {
+        return outcome.value
+      }
+    }
   }
 }
 
