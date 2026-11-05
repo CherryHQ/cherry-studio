@@ -73,7 +73,7 @@ describe('withStreamOptionsFallback', () => {
   })
 
   it('does not retry unrelated 400s', async () => {
-    const inner = vi.fn(async () => jsonResponse(400, { error: { message: 'Unknown parameter: foo' } }))
+    const inner = vi.fn<typeof fetch>(async () => jsonResponse(400, { error: { message: 'Unknown parameter: foo' } }))
     const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
       method: 'POST',
       body: JSON.stringify({ model: 'm', stream_options: { include_usage: true } })
@@ -83,7 +83,7 @@ describe('withStreamOptionsFallback', () => {
   })
 
   it('does not retry when the request has no stream_options', async () => {
-    const inner = vi.fn(async () =>
+    const inner = vi.fn<typeof fetch>(async () =>
       jsonResponse(400, { error: { message: "Unknown parameter: 'stream_options.include_usage'." } })
     )
     const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
@@ -95,7 +95,7 @@ describe('withStreamOptionsFallback', () => {
   })
 
   it('passes through non-400 responses untouched', async () => {
-    const inner = vi.fn(async () => jsonResponse(200, { ok: true }))
+    const inner = vi.fn<typeof fetch>(async () => jsonResponse(200, { ok: true }))
     const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
       method: 'POST',
       body: JSON.stringify({ model: 'm', stream_options: { include_usage: true } })
@@ -107,7 +107,7 @@ describe('withStreamOptionsFallback', () => {
 
 describe('withStreamOptionsOmitted', () => {
   it('strips stream_options before the first request', async () => {
-    const inner = vi.fn(async () => jsonResponse(200, { ok: true }))
+    const inner = vi.fn<typeof fetch>(async () => jsonResponse(200, { ok: true }))
     const response = await withStreamOptionsOmitted(inner)('https://example.invalid/v1/chat/completions', {
       method: 'POST',
       body: JSON.stringify({ model: 'm', stream: true, stream_options: { include_usage: true } })
@@ -118,7 +118,7 @@ describe('withStreamOptionsOmitted', () => {
   })
 
   it('passes through bodies without stream_options untouched', async () => {
-    const inner = vi.fn(async () => jsonResponse(200, { ok: true }))
+    const inner = vi.fn<typeof fetch>(async () => jsonResponse(200, { ok: true }))
     const body = JSON.stringify({ model: 'm' })
     await withStreamOptionsOmitted(inner)('https://example.invalid/v1/chat/completions', {
       method: 'POST',
