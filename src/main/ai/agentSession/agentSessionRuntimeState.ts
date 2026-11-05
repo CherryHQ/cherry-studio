@@ -587,6 +587,28 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
           effects: []
         }
       }
+      if (execution.kind === 'steer-transition' && execution.continuationTurn === event.turn) {
+        return {
+          state: { ...state, execution: { kind: 'idle', lastTurn: event.turn }, lastTerminal: event.status },
+          effects: []
+        }
+      }
+      if (execution.kind === 'autonomous-turn' && execution.deferredTurn === event.turn) {
+        return {
+          state: {
+            ...state,
+            execution: {
+              ...execution,
+              deferredTurn: undefined,
+              deferredAdmission: undefined,
+              deferredBuffer: undefined,
+              deferredTerminal: undefined
+            },
+            lastTerminal: event.status
+          },
+          effects: []
+        }
+      }
       if (execution.kind === 'autonomous-turn' && execution.turn === event.turn) {
         return resumeAfterAutonomous(state, {
           ...execution,

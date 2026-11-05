@@ -286,6 +286,7 @@ type AgentSessionRuntimeEntry = {
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
   sessionTraceId?: string
+  streamTurnId?: string
   agentId: string
   agentType: string
   modelId: UniqueModelId
@@ -496,6 +497,118 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly warmLeaseHolders = new Map<string, Set<Electron.WebContents>>()
   /** One destroyed-listener per holder window, so a window that dies without releasing (crash,
    *  forced close — renderer cleanup never runs) is reaped from every session it held. */
+  private readonly pendingHeldSettlements = new Map<
+    AgentSessionRuntimeEntry,
+    {
+      streamTurnId: string
+      outcome: { status: 'aborted' } | { status: 'error'; error: ReturnType<typeof serializeError> }
+    }
+  >()
+
+  private flushHeldSettlement(entry: AgentSessionRuntimeEntry): void {
+    const pending = this.pendingHeldSettlements.get(entry)
+    if (!pending || this.willContinueTopic(entry.topicId)) return
+    if (
+      application.get('AiStreamManager').settleHeldTopicStream({
+        topicId: entry.topicId,
+        expectedStreamTurnId: pending.streamTurnId,
+        outcome: pending.outcome
+      })
+    )
+      this.pendingHeldSettlements.delete(entry)
+  }
+
+  private readonly unhandedTurns = new Map<
+    AgentSessionTurn,
+    {
+      entry: AgentSessionRuntimeEntry
+      heldStreamTurnId?: string
+      outcome?: { status: 'paused' } | { status: 'error'; error: ReturnType<typeof serializeError> }
+    }
+  >()
+
+  acceptTurnReservation(sessionId: string, turnId: string, streamTurnId?: string): void {
+    for (const [turn, reservation] of this.unhandedTurns) {
+      if (reservation.entry.sessionId !== sessionId || turn.turnId !== turnId) continue
+      this.unhandedTurns.delete(turn)
+      reservation.entry.streamTurnId = streamTurnId
+      const execution = reservation.entry.runtimeState.execution
+      if (execution.kind === 'autonomous-turn' && execution.turn === turn && execution.deferredTurn) {
+        const deferred = this.unhandedTurns.get(execution.deferredTurn)
+        if (deferred?.entry === reservation.entry) deferred.heldStreamTurnId = streamTurnId
+      }
+    }
+  }
+
+  hasUnhandedTurnReservation(sessionId: string): boolean {
+    return [...this.unhandedTurns.values()].some((reservation) => reservation.entry.sessionId === sessionId)
+  }
+
+  private dropReplacedReservation(sessionId: string, assistantMessageId: string): void {
+    for (const [prior, reservation] of this.unhandedTurns) {
+      if (reservation.entry.sessionId === sessionId && prior.assistantMessageId === assistantMessageId)
+        this.unhandedTurns.delete(prior)
+    }
+  }
+
+  private reserveUnhandedTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+    if (this.unhandedTurns.has(turn)) return
+    this.dropReplacedReservation(entry.sessionId, turn.assistantMessageId)
+    this.unhandedTurns.set(turn, {
+      entry,
+      heldStreamTurnId:
+        application.get('AiStreamManager').getHeldPublicationTurnId?.(entry.topicId) ??
+        application.get('CacheService').getShared(`topic.stream.statuses.${entry.topicId}`)?.turnId
+    })
+  }
+
+  private async settleUnhandedTurn(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    outcome: { status: 'paused' } | { status: 'error'; error: unknown }
+  ): Promise<boolean> {
+    const reservation = this.unhandedTurns.get(turn)
+    if (reservation?.entry !== entry) return false
+    reservation.outcome ??=
+      outcome.status === 'paused' ? { status: 'paused' } : { status: 'error', error: serializeError(outcome.error) }
+    const chosenOutcome = reservation.outcome
+    let settled: boolean
+    try {
+      settled = agentSessionMessageService.settlePendingAssistant(
+        entry.sessionId,
+        turn.assistantMessageId,
+        chosenOutcome.status,
+        (storedParts) => {
+          const parts = finalizeInterruptedParts(storedParts, chosenOutcome.status)
+          if (chosenOutcome.status === 'error') parts.push({ type: 'data-error', data: chosenOutcome.error })
+          return parts
+        }
+      )
+    } catch (error) {
+      logger.error('Failed to settle unhanded agent turn', { sessionId: entry.sessionId, turnId: turn.turnId, error })
+      throw error
+    }
+    this.unhandedTurns.delete(turn)
+    if (this.isCurrentEntry(entry)) {
+      const execution = entry.runtimeState.execution
+      if (this.currentTurn(entry) === turn) this.markTurnTerminal(entry.sessionId, chosenOutcome.status, turn.turnId)
+      else if (
+        (execution.kind === 'steer-transition' && execution.continuationTurn === turn) ||
+        (execution.kind === 'autonomous-turn' && execution.deferredTurn === turn)
+      )
+        this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn, status: chosenOutcome.status })
+    }
+    if (reservation.heldStreamTurnId) {
+      this.pendingHeldSettlements.set(entry, {
+        streamTurnId: reservation.heldStreamTurnId,
+        outcome:
+          chosenOutcome.status === 'paused' ? { status: 'aborted' } : { status: 'error', error: chosenOutcome.error }
+      })
+      this.flushHeldSettlement(entry)
+    }
+    return settled
+  }
+
   private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
   /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
   private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
@@ -573,6 +686,13 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private applyRuntimeStateEvent(entry: AgentSessionRuntimeEntry, event: RuntimeStateEvent): void {
     if (!this.isCurrentEntry(entry)) return
+    if (
+      event.type === 'begin-turn' ||
+      event.type === 'autonomous-turn-created' ||
+      event.type === 'continuation-turn-created'
+    ) {
+      this.reserveUnhandedTurn(entry, event.turn)
+    }
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
     this.syncRuntimeActivity()
@@ -696,6 +816,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
+    this.dropReplacedReservation(input.sessionId, input.assistantMessageId)
     if (existing) void this.closeSession(input.sessionId)
 
     const entry: AgentSessionRuntimeEntry = {
@@ -710,6 +831,7 @@ export class AgentSessionRuntimeService extends BaseService {
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
+    this.reserveUnhandedTurn(entry, turn)
     this.syncRuntimeActivity()
 
     return {
@@ -947,6 +1069,21 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeSession(entry.sessionId)
   }
 
+  createTurnAdmissionGuard(sessionId: string, turnId: string): () => boolean {
+    const entry = this.entries.get(sessionId)
+    const turn = entry ? this.currentTurn(entry) : undefined
+    return () =>
+      Boolean(
+        entry &&
+        turn &&
+        turn.turnId === turnId &&
+        this.isCurrentEntry(entry) &&
+        this.currentTurn(entry) === turn &&
+        this.isTurnLive(entry, turn) &&
+        !turn.abortController.signal.aborted
+      )
+  }
+
   openTurnStream(input: OpenAgentSessionTurnStreamInput): ReadableStream<UIMessageChunk> {
     const entry = this.entries.get(input.sessionId)
     const turn = entry ? this.currentTurn(entry) : undefined
@@ -1128,7 +1265,25 @@ export class AgentSessionRuntimeService extends BaseService {
     if (interrupt && attempt) attempt.interrupt = true
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
-    if (!entry) return priorClosing?.promise ?? Promise.resolve()
+    if (!entry) {
+      const reservations = [...this.unhandedTurns].filter(
+        ([, reservation]) => reservation.entry.sessionId === sessionId
+      )
+      const pendingEntries = [...this.pendingHeldSettlements.keys()].filter(
+        (pending) => pending.sessionId === sessionId
+      )
+      if (!reservations.length && !pendingEntries.length) return priorClosing?.promise ?? Promise.resolve()
+      const closing = (async () => {
+        await priorClosing?.promise
+        await Promise.allSettled(
+          reservations.map(([turn, reservation]) =>
+            this.settleUnhandedTurn(reservation.entry, turn, { status: 'paused' })
+          )
+        )
+        for (const pending of pendingEntries) this.flushHeldSettlement(pending)
+      })()
+      return this.trackSessionClosing(sessionId, closing)
+    }
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
@@ -1718,9 +1873,20 @@ export class AgentSessionRuntimeService extends BaseService {
 
   abortPendingTurn(sessionId: string, reason: string): boolean {
     const entry = this.entries.get(sessionId)
-    const turn = entry ? this.liveTurn(entry) : undefined
-    if (!turn || turn.abortController.signal.aborted) return false
-    turn.abortController.abort(reason)
+    if (!entry) return false
+    const execution = entry.runtimeState.execution
+    const turns = [
+      this.currentTurn(entry),
+      execution.kind === 'autonomous-turn' ? execution.deferredTurn : undefined
+    ].filter((turn): turn is AgentSessionTurn => !!turn)
+    const owned = turns.filter((turn) => this.isTurnLive(entry, turn) || this.unhandedTurns.get(turn)?.entry === entry)
+    if (!owned.length) return false
+    const unopened = owned.some((turn) => this.unhandedTurns.get(turn)?.entry === entry)
+    for (const turn of owned) {
+      turn.abortController.abort(reason)
+      void this.settleUnhandedTurn(entry, turn, { status: 'paused' }).catch(() => undefined)
+    }
+    if (unopened && this.isCurrentEntry(entry)) void this.closeSession(sessionId)
     return true
   }
 
@@ -2995,6 +3161,7 @@ export class AgentSessionRuntimeService extends BaseService {
                 this.requestRuntimeLaunch(entry, 'queued-turn')
               }
             }
+            this.flushHeldSettlement(entry)
             resolve()
           })
       })
@@ -3104,27 +3271,32 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
-      topicId: entry.topicId,
-      modelId: entry.modelId,
-      rootSpan,
-      request: {
-        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
-        trigger: 'submit-message',
-        messageId: assistantMessageId,
-        messages,
-        reasoningEffort,
-        serviceTier,
-        ...(fastMode ? { fastMode: true } : {}),
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
-      },
-      abortController: nextTurn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, nextMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
-    })
+    try {
+      await application.get('AiStreamManager').startRuntimeTurn({
+        topicId: entry.topicId,
+        modelId: entry.modelId,
+        rootSpan,
+        request: {
+          conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
+          trigger: 'submit-message',
+          messageId: assistantMessageId,
+          messages,
+          reasoningEffort,
+          serviceTier,
+          ...(fastMode ? { fastMode: true } : {}),
+          runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+        },
+        abortController: nextTurn.abortController,
+        listeners: [
+          this.createPersistenceListener(entry, nextMessage),
+          new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+          new TraceFlushListener(entry.topicId)
+        ]
+      })
+    } catch (error) {
+      rootSpan?.end()
+      await this.settleUnhandedTurn(entry, nextTurn, { status: 'error', error })
+    }
   }
 
   /**
@@ -3135,6 +3307,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution
     if (execution.kind !== 'autonomous-turn' || execution.deferredTurn !== turn) return
+    this.reserveUnhandedTurn(entry, turn)
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     try {
       turn.controller?.close()
@@ -3152,6 +3325,7 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
       .finally(() => {
+        this.flushHeldSettlement(entry)
         if (
           !this.isCurrentEntry(entry) ||
           entry.runtimeState.execution.kind !== 'autonomous-turn' ||
@@ -3163,7 +3337,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
   }
 
-  private startDeferredTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private async startDeferredTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
 
     const rootSpan = this.startRuntimeRootSpan(entry, turn.modelId)
@@ -3176,26 +3350,31 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
-      topicId: entry.topicId,
-      modelId: turn.modelId,
-      rootSpan,
-      request: {
-        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
-        trigger: 'submit-message',
-        messageId: turn.assistantMessageId,
-        messages,
-        reasoningEffort: turn.reasoningEffort,
-        serviceTier: turn.serviceTier,
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
-      },
-      abortController: turn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, turn.userMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
-    })
+    try {
+      await application.get('AiStreamManager').startRuntimeTurn({
+        topicId: entry.topicId,
+        modelId: turn.modelId,
+        rootSpan,
+        request: {
+          conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
+          trigger: 'submit-message',
+          messageId: turn.assistantMessageId,
+          messages,
+          reasoningEffort: turn.reasoningEffort,
+          serviceTier: turn.serviceTier,
+          runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
+        },
+        abortController: turn.abortController,
+        listeners: [
+          this.createPersistenceListener(entry, turn.userMessage),
+          new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
+          new TraceFlushListener(entry.topicId)
+        ]
+      })
+    } catch (error) {
+      rootSpan?.end()
+      await this.settleUnhandedTurn(entry, turn, { status: 'error', error })
+    }
   }
 
   /**
@@ -3270,45 +3449,55 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-created', turn: receiveOnlyTurn })
-    await this.refreshTurnTraceContext(entry, receiveOnlyTurn)
-    if (
-      !this.isCurrentEntry(entry) ||
-      this.currentTurn(entry) !== receiveOnlyTurn ||
-      !this.isTurnLive(entry, receiveOnlyTurn)
-    ) {
-      rootSpan?.end()
-      return
-    }
+    let cancelling = false
+    try {
+      await this.refreshTurnTraceContext(entry, receiveOnlyTurn)
+      if (
+        !this.isCurrentEntry(entry) ||
+        receiveOnlyTurn.abortController.signal.aborted ||
+        this.currentTurn(entry) !== receiveOnlyTurn ||
+        !this.isTurnLive(entry, receiveOnlyTurn)
+      ) {
+        rootSpan?.end()
+        cancelling = true
+        await this.settleUnhandedTurn(entry, receiveOnlyTurn, { status: 'paused' })
+        return
+      }
 
-    const messages = createRuntimeSeedMessages(syntheticMessage, assistantMessageId)
-    if (rootSpan) {
-      applyTurnInputAttributes(rootSpan, {
-        modelId,
+      const messages = createRuntimeSeedMessages(syntheticMessage, assistantMessageId)
+      if (rootSpan) {
+        applyTurnInputAttributes(rootSpan, {
+          modelId,
+          topicId: entry.topicId,
+          operation: 'invoke_agent',
+          messages
+        })
+      }
+      await application.get('AiStreamManager').startRuntimeTurn({
         topicId: entry.topicId,
-        operation: 'invoke_agent',
-        messages
+        modelId,
+        rootSpan,
+        request: {
+          conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
+          trigger: 'submit-message',
+          messageId: assistantMessageId,
+          messages,
+          reasoningEffort,
+          serviceTier,
+          runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+        },
+        abortController: receiveOnlyTurn.abortController,
+        listeners: [
+          this.createPersistenceListener(entry, syntheticMessage),
+          new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+          new TraceFlushListener(entry.topicId)
+        ]
       })
+    } catch (error) {
+      rootSpan?.end()
+      if (cancelling) throw error
+      await this.settleUnhandedTurn(entry, receiveOnlyTurn, { status: 'error', error })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
-      topicId: entry.topicId,
-      modelId,
-      rootSpan,
-      request: {
-        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
-        trigger: 'submit-message',
-        messageId: assistantMessageId,
-        messages,
-        reasoningEffort,
-        serviceTier,
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
-      },
-      abortController: receiveOnlyTurn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, syntheticMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
-    })
   }
 
   /**
@@ -3390,47 +3579,57 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
-    await this.refreshTurnTraceContext(entry, continuationTurn)
-    if (
-      !this.isCurrentEntry(entry) ||
-      this.currentTurn(entry) !== continuationTurn ||
-      !this.isTurnLive(entry, continuationTurn)
-    ) {
-      rootSpan?.end()
-      return
-    }
+    let cancelling = false
+    try {
+      await this.refreshTurnTraceContext(entry, continuationTurn)
+      if (
+        !this.isCurrentEntry(entry) ||
+        continuationTurn.abortController.signal.aborted ||
+        this.currentTurn(entry) !== continuationTurn ||
+        !this.isTurnLive(entry, continuationTurn)
+      ) {
+        rootSpan?.end()
+        cancelling = true
+        await this.settleUnhandedTurn(entry, continuationTurn, { status: 'paused' })
+        return
+      }
 
-    const messages = createRuntimeSeedMessages(steerMessage, assistantMessageId)
-    // Author the turn span's input/identity here (the runtime owns its roll continuation turns).
-    if (rootSpan) {
-      applyTurnInputAttributes(rootSpan, {
-        modelId,
+      const messages = createRuntimeSeedMessages(steerMessage, assistantMessageId)
+      // Author the turn span's input/identity here (the runtime owns its roll continuation turns).
+      if (rootSpan) {
+        applyTurnInputAttributes(rootSpan, {
+          modelId,
+          topicId: entry.topicId,
+          operation: 'invoke_agent',
+          messages
+        })
+      }
+      await application.get('AiStreamManager').startRuntimeTurn({
         topicId: entry.topicId,
-        operation: 'invoke_agent',
-        messages
+        modelId,
+        rootSpan,
+        request: {
+          conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
+          trigger: 'submit-message',
+          messageId: assistantMessageId,
+          messages,
+          reasoningEffort,
+          serviceTier,
+          ...(fastMode ? { fastMode: true } : {}),
+          runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+        },
+        abortController: continuationTurn.abortController,
+        listeners: [
+          this.createPersistenceListener(entry, steerMessage),
+          new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+          new TraceFlushListener(entry.topicId)
+        ]
       })
+    } catch (error) {
+      rootSpan?.end()
+      if (cancelling) throw error
+      await this.settleUnhandedTurn(entry, continuationTurn, { status: 'error', error })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
-      topicId: entry.topicId,
-      modelId,
-      rootSpan,
-      request: {
-        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
-        trigger: 'submit-message',
-        messageId: assistantMessageId,
-        messages,
-        reasoningEffort,
-        serviceTier,
-        ...(fastMode ? { fastMode: true } : {}),
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
-      },
-      abortController: continuationTurn.abortController,
-      listeners: [
-        this.createPersistenceListener(entry, steerMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
-        new TraceFlushListener(entry.topicId)
-      ]
-    })
   }
 
   getMcpInteractionHost(sessionId: string): { windowId: string; topicId: string; model: string } | undefined {
@@ -3587,13 +3786,26 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private closeAll(): Promise<void> {
-    const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
+    const sessionIds = new Set([
+      ...this.entries.keys(),
+      ...this.closingSessions.keys(),
+      ...[...this.unhandedTurns.values()].map((reservation) => reservation.entry.sessionId)
+    ])
     const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
     return Promise.allSettled(closings).then(() => undefined)
   }
 
   private closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
     this.clearIdleTimer(entry)
+    const heldStreamTurnId = application.get('AiStreamManager').getHeldPublicationTurnId?.(entry.topicId)
+    if (heldStreamTurnId && heldStreamTurnId === entry.streamTurnId && !this.pendingHeldSettlements.has(entry)) {
+      this.pendingHeldSettlements.set(entry, { streamTurnId: heldStreamTurnId, outcome: { status: 'aborted' } })
+    }
+    const reservationSettlements = Promise.allSettled(
+      [...this.unhandedTurns]
+        .filter(([, reservation]) => reservation.entry === entry)
+        .map(([turn]) => this.settleUnhandedTurn(entry, turn, { status: 'paused' }))
+    ).then(() => this.flushHeldSettlement(entry))
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts
       if (!parts) continue
@@ -3624,9 +3836,11 @@ export class AgentSessionRuntimeService extends BaseService {
     const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.closeConnection(entry, false)
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
+    this.flushHeldSettlement(entry)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
     const closings: Promise<unknown>[] = [
+      reservationSettlements,
       backgroundFlowFlush,
       this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
     ]
