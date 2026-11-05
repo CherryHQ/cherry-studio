@@ -239,3 +239,10 @@
     display: none;
   }
 }
+
+/* Let the user-defined background image (useBackgroundImage) show through the main surfaces */
+:root[data-custom-background] {
+  --background: color-mix(in srgb, var(--cs-background) 60%, transparent);
+  --sidebar: color-mix(in srgb, var(--cs-sidebar) 60%, transparent);
+  --card: color-mix(in srgb, var(--cs-card) 60%, transparent);
+}
