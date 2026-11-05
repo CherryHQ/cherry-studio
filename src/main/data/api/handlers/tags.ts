@@ -16,6 +16,7 @@ import {
   SetTagEntitiesSchema,
   SyncEntityTagsSchema,
   TagIdSchema,
+  UpdateEntityTagsDeltaSchema,
   UpdateTagSchema
 } from '@shared/data/api/schemas/tags'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -80,6 +81,14 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
       const entityId = EntityIdSchema.parse(params.entityId)
       const parsed = SyncEntityTagsSchema.parse(body)
       tagService.syncEntityTags(entityType, entityId, parsed)
+      return undefined
+    },
+
+    PATCH: async ({ params, body }) => {
+      const entityType = EntityTypeSchema.parse(params.entityType)
+      const entityId = EntityIdSchema.parse(params.entityId)
+      const parsed = UpdateEntityTagsDeltaSchema.parse(body)
+      tagService.applyEntityTagDelta(entityType, entityId, parsed)
       return undefined
     }
   }

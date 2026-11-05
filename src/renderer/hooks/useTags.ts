@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import type { UpdateEntityTagsDeltaDto } from '@shared/data/api/schemas/tags'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Tag } from '@shared/data/types/tag'
 
@@ -29,6 +30,9 @@ export function useEntityTags(entityType: EntityType, options: UseEntityTagsOpti
   const { trigger: syncTrigger } = useMutation('PUT', '/tags/entities/:entityType/:entityId', {
     refresh: ['/entity-tags']
   })
+  const { trigger: deltaTrigger } = useMutation('PATCH', '/tags/entities/:entityType/:entityId', {
+    refresh: ['/entity-tags']
+  })
 
   const tags = tagsData ?? EMPTY_TAGS
   const tagsByEntityId = useMemo(() => {
@@ -54,6 +58,11 @@ export function useEntityTags(entityType: EntityType, options: UseEntityTagsOpti
       syncTrigger({ params: { entityType, entityId }, body: { tagIds } }).then(() => undefined),
     [entityType, syncTrigger]
   )
+  const updateEntityTagsDelta = useCallback(
+    (entityId: string, delta: UpdateEntityTagsDeltaDto): Promise<void> =>
+      deltaTrigger({ params: { entityType, entityId }, body: delta }).then(() => undefined),
+    [entityType, deltaTrigger]
+  )
   const refetch = useCallback(() => Promise.all([refetchTags(), refetchBindings()]), [refetchBindings, refetchTags])
 
   return {
@@ -63,6 +72,7 @@ export function useEntityTags(entityType: EntityType, options: UseEntityTagsOpti
     error: tagsError ?? bindingsError,
     createTag,
     syncEntityTags,
+    updateEntityTagsDelta,
     refetch,
     refetchBindings
   }

@@ -134,8 +134,7 @@ export function AgentResourceList({
     isLoading: isAgentTagsLoading,
     error: agentTagsError,
     createTag,
-    syncEntityTags: syncAgentTags,
-    refetchBindings: refetchAgentTagBindings
+    updateEntityTagsDelta: updateAgentTagsDelta
   } = useEntityTags('agent', { enabled: dataEnabled })
   const canEditAgentTags = !isAgentTagsLoading && !agentTagsError
   const agentTagsStateRef = useRef({ canEditAgentTags, agentTagsById })
@@ -297,15 +296,17 @@ export function AgentResourceList({
     [agentTagsById, agents]
   )
 
-  // Tag bindings sync by full replacement, so edits built from a stale cached set can silently
-  // drop a just-added tag (add Research, then remove Coding before bindings refresh -> the second
-  // sync replaces with `[]` and deletes Research too). Serialize each agent's edits through
-  // freshly-fetched bindings and keep that agent's tag actions disabled until refreshed bindings
-  // arrive, so a follow-up toggle always applies its delta to the authoritative set.
+  // Tag bindings sync through an atomic main-process delta instead of replace-all: each edit
+  // submits only its own add/remove, applied in one transaction. A replacement set built from
+  // stale bindings (a failed SWR refresh resolves with the cached set, so a refetch cannot
+  // prove freshness) could silently drop tags another writer just added, and the per-instance
+  // queue cannot serialize writers in other windows; deltas make overlapping edits commute.
+  // The per-agent chain only orders this instance's own edits, and each step decides its
+  // direction from the latest bindings when it runs.
   const agentTagSyncChainsRef = useRef(new Map<string, Promise<void>>())
   const [pendingAgentTagSyncIds, setPendingAgentTagSyncIds] = useState<ReadonlySet<string>>(() => new Set<string>())
   const runAgentTagSync = useCallback(
-    (agentId: string, applyDelta: (currentIds: string[]) => string[]) => {
+    (agentId: string, applyDelta: (currentIds: string[]) => { add?: string[]; remove?: string[] }) => {
       if (!agentTagsStateRef.current.canEditAgentTags) return Promise.resolve()
 
       setPendingAgentTagSyncIds((prev) => {
@@ -319,17 +320,10 @@ export function AgentResourceList({
       const step: Promise<void> = previous.then(async () => {
         try {
           if (!agentTagsStateRef.current.canEditAgentTags) return
-          const freshBindings = await refetchAgentTagBindings()
-          if (!Array.isArray(freshBindings)) {
-            throw new Error('Failed to refresh agent tag bindings before syncing')
-          }
-          const currentIds = freshBindings
-            .filter((binding) => binding.entityId === agentId)
-            .map((binding) => binding.tagId)
-          const nextIds = applyDelta(currentIds)
-          const unchanged = nextIds.length === currentIds.length && nextIds.every((id) => currentIds.includes(id))
-          if (unchanged) return
-          await syncAgentTags(agentId, nextIds)
+          const currentIds = (agentTagsStateRef.current.agentTagsById.get(agentId) ?? []).map((tag) => tag.id)
+          const { add = [], remove = [] } = applyDelta(currentIds)
+          if (add.length === 0 && remove.length === 0) return
+          await updateAgentTagsDelta(agentId, { add, remove })
         } catch (err) {
           logger.error('Failed to update agent tags from classic-layout rail', { agentId, err })
           toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
@@ -350,14 +344,14 @@ export function AgentResourceList({
       agentTagSyncChainsRef.current.set(agentId, step)
       return step
     },
-    [refetchAgentTagBindings, syncAgentTags, t]
+    [updateAgentTagsDelta, t]
   )
 
   const handleToggleAgentTag = useCallback(
     (agentId: string, tagId: string) => {
       if (!canEditAgentTags) return
       return runAgentTagSync(agentId, (currentIds) =>
-        currentIds.includes(tagId) ? currentIds.filter((id) => id !== tagId) : [...currentIds, tagId]
+        currentIds.includes(tagId) ? { remove: [tagId] } : { add: [tagId] }
       )
     },
     [canEditAgentTags, runAgentTagSync]
@@ -377,9 +371,7 @@ export function AgentResourceList({
 
       try {
         const tag = await createTag(name)
-        await runAgentTagSync(agentId, (currentIds) =>
-          currentIds.includes(tag.id) ? currentIds : [...currentIds, tag.id]
-        )
+        await runAgentTagSync(agentId, (currentIds) => (currentIds.includes(tag.id) ? {} : { add: [tag.id] }))
       } catch (err) {
         logger.error('Failed to create agent tag from classic-layout rail', { agentId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))

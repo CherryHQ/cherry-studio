@@ -35,7 +35,13 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
+import type {
+  CreateTagDto,
+  SetTagEntitiesDto,
+  SyncEntityTagsDto,
+  UpdateEntityTagsDeltaDto,
+  UpdateTagDto
+} from '@shared/data/api/schemas/tags'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Tag } from '@shared/data/types/tag'
 
@@ -329,6 +335,51 @@ export class TagService {
     })
 
     logger.info('Synced entity tags', { entityType, entityId, tagCount: desiredTagIds.length })
+  }
+
+  /**
+   * Apply a tag delta for an entity atomically: delete the `remove` bindings and insert
+   * the `add` bindings in one transaction. Unlike `syncEntityTags` (replace-all), each
+   * writer submits only its own change, so overlapping edits from separate windows or
+   * list instances commute instead of the last replacement silently dropping the other
+   * writer's additions. Adding an existing binding or removing an absent one is a no-op.
+   * A missing tag in `add` throws NOT_FOUND and rolls the whole delta back.
+   */
+  applyEntityTagDelta(entityType: EntityType, entityId: string, dto: UpdateEntityTagsDeltaDto): void {
+    const toRemove = [...new Set(dto.remove)]
+    const toAdd = [...new Set(dto.add)]
+
+    this.db.transaction((tx) => {
+      if (toRemove.length > 0) {
+        tx.delete(entityTagTable)
+          .where(
+            and(
+              eq(entityTagTable.entityType, entityType),
+              eq(entityTagTable.entityId, entityId),
+              inArray(entityTagTable.tagId, toRemove)
+            )
+          )
+          .run()
+      }
+
+      if (toAdd.length > 0) {
+        const existing = tx
+          .select({ tagId: entityTagTable.tagId })
+          .from(entityTagTable)
+          .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
+          .all()
+        const existingIds = new Set(existing.map((row) => row.tagId))
+        const newIds = toAdd.filter((tagId) => !existingIds.has(tagId))
+        if (newIds.length > 0) {
+          this.assertTagsExistTx(tx, newIds)
+          tx.insert(entityTagTable)
+            .values(newIds.map((tagId) => ({ entityType, entityId, tagId })))
+            .run()
+        }
+      }
+    })
+
+    logger.info('Applied entity tag delta', { entityType, entityId, added: toAdd.length, removed: toRemove.length })
   }
 
   /**

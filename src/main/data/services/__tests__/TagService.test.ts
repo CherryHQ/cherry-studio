@@ -345,6 +345,97 @@ describe('TagService', () => {
     })
   })
 
+  describe('applyEntityTagDelta', () => {
+    it('should remove and add bindings atomically while preserving untouched rows', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 2000, updatedAt: 2000 }
+      ])
+
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_2], remove: [TAG_1] })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter((row) => row.entityType === 'assistant')
+      expect(rows.filter((row) => row.entityId === ASSISTANT_1)).toEqual([expect.objectContaining({ tagId: TAG_2 })])
+      // Another entity's bindings are untouched.
+      expect(rows.filter((row) => row.entityId === ASSISTANT_2)).toEqual([
+        expect.objectContaining({ tagId: TAG_2, createdAt: 2000 })
+      ])
+    })
+
+    it("should let overlapping writers keep each other's additions", async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      // Two writers read the same base ([TAG_1]) and each submit only their own change;
+      // a replace-all sequence ([TAG_1, TAG_2] then [TAG_1, TAG_3]) would drop TAG_2.
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_2], remove: [] })
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_3], remove: [] })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows.map((row) => row.tagId).sort()).toEqual([TAG_1, TAG_2, TAG_3].sort())
+      // The original binding survives with its createdAt intact.
+      expect(rows.find((row) => row.tagId === TAG_1)).toMatchObject({ createdAt: 1000 })
+    })
+
+    it('should treat adding an existing binding and removing an absent one as no-ops', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_1], remove: [TAG_2] })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows).toEqual([expect.objectContaining({ tagId: TAG_1, createdAt: 1000 })])
+    })
+
+    it('should fail with NOT_FOUND for a missing added tag and roll the whole delta back', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      let err: unknown
+      try {
+        tagService.applyEntityTagDelta('assistant', ASSISTANT_1, {
+          add: ['44444444-4444-4444-8444-444444444444'],
+          remove: [TAG_1]
+        })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: "Tag with id '44444444-4444-4444-8444-444444444444' not found"
+      })
+
+      // The removal in the same delta is rolled back too.
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows).toEqual([expect.objectContaining({ tagId: TAG_1, createdAt: 1000 })])
+    })
+  })
+
   describe('setEntities', () => {
     it('should diff entity bindings and preserve createdAt for unchanged rows', async () => {
       await seedTags()
