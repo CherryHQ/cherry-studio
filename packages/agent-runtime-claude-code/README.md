@@ -95,6 +95,8 @@ once, so a later folded input may appear only in the result's complete UUID list
 The adapter joins command and response membership to emit `input-boundary`; Main never infers
 placement from `started`. Input outcomes precede the corresponding terminal result batch.
 `ClaudeControlState` owns native lifecycle, task receipts, autonomous work and compaction semantics.
+Control payloads reuse SDK message types; only interpreted state, task/tool correlation and observation
+timestamps are adapter-owned fields. Main maps native payloads to product labels and display fields.
 `ClaudeInvocations` aggregates SDK usage by native response identity before fanout. Main owns frozen
 pricing, product attribution and idempotent persistence; Gateway remains the sole capture path for
 Gateway requests. The display decorator owns only MCP presentation, reminders and thinking timing.

@@ -61,7 +61,10 @@ it('attaches current background occupancy without replaying an earlier completio
     )
     await observation.drain()
     expect(batches[0].controls).toEqual([
-      { type: 'background-tasks', tasks: [{ id: 'child', type: 'local_agent', description: 'Still working' }] },
+      {
+        type: 'background-tasks',
+        tasks: [{ task_id: 'child', task_type: 'local_agent', description: 'Still working' }]
+      },
       { type: 'background-work-state', active: true }
     ])
     expect(batches[0].invocations ?? []).toEqual([])

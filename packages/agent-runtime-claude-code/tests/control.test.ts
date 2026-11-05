@@ -141,7 +141,7 @@ describe('Claude native lifecycle', () => {
     })
     expect(f.events.at(-1)).toEqual({
       type: 'background-tasks',
-      tasks: [{ id: 'child', type: 'subagent', description: 'work', toolCallId: 'spawn' }]
+      tasks: [{ task_id: 'child', task_type: 'subagent', description: 'work', toolCallId: 'spawn' }]
     })
   })
 
@@ -159,8 +159,27 @@ describe('Claude native lifecycle', () => {
     })
     expect(f.events).toContainEqual({
       type: 'background-task-event',
-      data: expect.objectContaining({ taskId: 'child', toolUseId: 'spawn', status: 'stopped' })
+      data: {
+        message: expect.objectContaining({ task_id: 'child', tool_use_id: 'spawn', status: 'stopped' }),
+        status: 'stopped'
+      }
     })
+  })
+
+  it.each([
+    ['pending', 'pending'],
+    ['running', 'in_progress'],
+    ['paused', 'in_progress'],
+    ['completed', 'completed'],
+    ['failed', 'error'],
+    ['killed', 'error'],
+    [undefined, undefined]
+  ])('interprets task patch status %s without settling the parent turn', (status, expected) => {
+    const f = fixture()
+    f.state.beginTurn()
+    f.accept({ type: 'system', subtype: 'task_updated', task_id: 'child', patch: { status } })
+    expect(f.events.at(-1)).toMatchObject({ type: 'background-task-event', data: { status: expected } })
+    expect(f.state.isTurnActive).toBe(true)
   })
 
   it('settles successful and failed compaction without requiring a boundary message', () => {
