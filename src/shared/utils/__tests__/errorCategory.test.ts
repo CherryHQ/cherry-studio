@@ -2,6 +2,71 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
 
+describe('classifyErrorCategory Chinese quota failures (#23588)', () => {
+  it.each([
+    'Failed to authenticate. API Error: 403 用户额度不足, 剩余额度: ＄0.000000',
+    '403 {"error":{"type":"new_api_error","message":"用户额度不足, 剩余额度: ＄0.000000"}}',
+    'API Error: 403 预扣费额度失败'
+  ])('diagnoses reported HTTP 403 exhaustion as quota: %s', (text) => {
+    expect(classifyErrorCategory({ status: 403, text })).toBe('quota')
+  })
+
+  it.each(['额度不足', '预扣费额度失败'])('recognizes %s independently of status', (text) => {
+    for (const status of [200, 400, 403, 429, undefined]) {
+      expect(classifyErrorCategory({ status, text })).toBe('quota')
+    }
+  })
+
+  it('recognizes insufficient quota even when the remaining balance is positive', () => {
+    expect(classifyErrorCategory({ status: 403, text: '用户额度不足, 剩余额度: ＄12.340000' })).toBe('quota')
+  })
+
+  it.each([
+    [403, 'permission'],
+    [400, 'bad_request'],
+    [undefined, 'unknown']
+  ] as const)('does not treat sufficient balance at %s as exhaustion', (status, category) => {
+    expect(classifyErrorCategory({ status, text: '余额充足' })).toBe(category)
+  })
+
+  it.each(['剩余额度: ＄0.000000', '剩余额度: ＄12.340000'])(
+    'does not infer exhaustion from a remaining-balance label: %s',
+    (text) => {
+      expect(classifyErrorCategory({ status: 403, text })).toBe('permission')
+      expect(classifyErrorCategory({ text })).toBe('unknown')
+    }
+  )
+
+  it.each(['无权访问此资源，请联系管理员开通访问权限', '无权查询余额', '额度查询接口无访问权限'])(
+    'keeps Chinese access refusals in permission: %s',
+    (text) => {
+      expect(classifyErrorCategory({ status: 403, text })).toBe('permission')
+    }
+  )
+
+  it.each([
+    [401, 'auth'],
+    [404, 'model'],
+    [503, 'server']
+  ] as const)('keeps HTTP %i ahead of Chinese exhaustion', (status, category) => {
+    expect(classifyErrorCategory({ status, text: '用户额度不足' })).toBe(category)
+  })
+
+  it.each([
+    ['unsupported_country unauthorized 用户额度不足', 403, 'region'],
+    ['authentication failed 用户额度不足', 403, 'auth'],
+    ['model_not_found 用户额度不足', 403, 'model'],
+    ['unauthorized client 用户额度不足', 401, 'permission'],
+    ['unauthorized client 用户额度不足 invalid_api_key', 401, 'auth']
+  ] as const)('keeps higher-priority signals in %s ahead of exhaustion', (text, status, category) => {
+    expect(classifyErrorCategory({ status, text })).toBe(category)
+  })
+
+  it('keeps a safety finish reason ahead of HTTP 503 and Chinese exhaustion', () => {
+    expect(classifyErrorCategory({ status: 503, finishReason: 'safety', text: '用户额度不足' })).toBe('content')
+  })
+})
+
 describe('classifyErrorCategory HTTP 400', () => {
   it('identifies a provider request failure without guessing its cause', () => {
     expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')
