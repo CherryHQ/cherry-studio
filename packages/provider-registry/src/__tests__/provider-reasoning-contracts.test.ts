@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { providerModelEntries as entries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
+import { isQwen128kChatModel } from '../providers/qwenFamily'
 
 const provider = (providerId: string) => {
   const result = PROVIDERS.find(({ id }) => id === providerId)
@@ -287,6 +288,47 @@ describe('provider reasoning contracts', () => {
     expect(entries(provider('dashscope')).some((entry) => entry.modelId === modelId && entry.reasoningContracts)).toBe(
       false
     )
+  })
+
+  // Bailian per-SKU `thinking_budget` ceilings (#21906): qwen3.5 lines cap at
+  // 81920, qwen3.6 plus/flash lines at 131072. The wire `max` backstops
+  // descriptors that are missing or wider than the provider accepts.
+  it.each([
+    ['qwen3-5-plus', 81920],
+    ['qwen3-5-flash', 81920],
+    ['qwen3-5-397b-a17b', 81920],
+    ['qwen3-6-plus', 131072],
+    ['qwen3-6-flash', 131072],
+    ['qwen3-6-max-preview', 131072]
+  ] as const)('caps the DashScope %s chat wire at %i', (modelId, ceiling) => {
+    const wire = override('dashscope', modelId).reasoningContracts?.['openai-chat-completions']?.wire
+    expect(wire?.effort).toMatchObject({ budget: { max: ceiling, missing: { type: 'omit-value' } } })
+    expect(wire?.auto).toMatchObject({ budget: { max: ceiling, missing: { type: 'omit-value' } } })
+  })
+
+  it.each([
+    ['qwen3-5-plus', 81920],
+    ['qwen3-6-plus', 131072],
+    ['qwen3-6-flash', 131072]
+  ] as const)('caps the QwenCloud %s chat wire at %i', (modelId, ceiling) => {
+    const wire = override('qwencloud', modelId).reasoningContracts?.['openai-chat-completions']?.wire
+    expect(wire?.effort).toMatchObject({ budget: { max: ceiling, missing: { type: 'omit-value' } } })
+  })
+
+  // The 128K split is prefix-anchored so dated snapshots ride the same wire
+  // as their base SKU, matching the creator budget rule (#21906).
+  it.each([
+    ['qwen3.6-plus', true],
+    ['qwen3.6-flash', true],
+    ['qwen3.6-max-preview', true],
+    ['qwen3.6-plus-2026-04-02', true],
+    ['qwen3.6-flash-2026-04-16', true],
+    ['qwen3.6-plusfoo', false],
+    ['qwen3.5-plus', false],
+    ['qwen3.5-plus-2026-02-15', false],
+    ['qwen3.7-max', false]
+  ] as const)('isQwen128kChatModel(%s) is %s', (apiModelId, expected) => {
+    expect(isQwen128kChatModel(apiModelId)).toBe(expected)
   })
 })
 

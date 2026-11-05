@@ -5,12 +5,14 @@ import { fixedSamplingParameterSupport } from './parameterSupports'
 import {
   effortChatWire,
   highMaxSupport,
+  isQwen128kChatModel,
   kimiK3Support,
   qwen38ChatWire,
   qwen38PreviewChatWire,
   qwen38PreviewSupport,
   qwen38Support,
-  qwenChatWire
+  qwenChatWire,
+  qwenChatWire128k
 } from './qwenFamily'
 import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
@@ -213,11 +215,17 @@ const endpointPin = (modelId: string): Pick<ProviderModelOverride, 'endpointType
       ? { endpointTypes: ['openai-responses', 'openai-chat-completions'] }
       : {}
 
+/**
+ * Qwen3.6 plus/flash/max-preview SKUs (including dated snapshots) accept a
+ * 128K thinking budget (#21906); every other hybrid-thinking Qwen SKU caps at
+ * 81920. The wire `max` is the provider-side backstop when the descriptor is
+ * missing or wider.
+ */
 const qwenReasoningOverrides: ProviderModelOffer[] = qwenChatModels.map((apiModelId) => ({
   apiModelId,
   ...endpointPin(apiModelId),
   reasoningContracts: {
-    'openai-chat-completions': { wire: qwenChatWire },
+    'openai-chat-completions': { wire: isQwen128kChatModel(apiModelId) ? qwenChatWire128k : qwenChatWire },
     'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
   }
 }))

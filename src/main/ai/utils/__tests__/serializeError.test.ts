@@ -33,6 +33,45 @@ describe('serializeError', () => {
     })
   })
 
+  // A Bailian/QwenCloud `thinking_budget` rejection must name the reasoning
+  // setting and suggest an action instead of relaying only the raw provider
+  // parameter text (#21906).
+  it('names the reasoning setting behind a thinking_budget rejection', () => {
+    const error = new APICallError({
+      message:
+        'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const serialized = serializeError(error)
+
+    expect(serialized.message).toContain('thinking_budget')
+    expect(serialized.message).toContain('reasoning')
+  })
+
+  // RetryError's surfaced message is the generic "Failed after retries" — the
+  // hint must still be appended via the nested provider text (#21906).
+  it('names the reasoning setting behind a RetryError-wrapped thinking_budget rejection', () => {
+    const error = new RetryError({
+      message: 'Failed after retries',
+      reason: 'maxRetriesExceeded',
+      errors: [
+        new APICallError({
+          message:
+            'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+          url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+          requestBodyValues: {},
+          statusCode: 400
+        })
+      ]
+    })
+    const serialized = serializeError(error)
+
+    expect(serialized.message).toContain('Failed after retries')
+    expect(serialized.message).toContain('reasoning')
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',

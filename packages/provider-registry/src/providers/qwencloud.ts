@@ -3,12 +3,14 @@ import { fixedSamplingParameterSupport } from './parameterSupports'
 import {
   effortChatWire,
   highMaxSupport,
+  isQwen128kChatModel,
   kimiK3Support,
   qwen38ChatWire,
   qwen38PreviewChatWire,
   qwen38PreviewSupport,
   qwen38Support,
-  qwenChatWire
+  qwenChatWire,
+  qwenChatWire128k
 } from './qwenFamily'
 import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
@@ -308,7 +310,10 @@ export default defineProvider({
       (apiModelId): ProviderModelOffer => ({
         apiModelId,
         reasoningContracts: {
-          'openai-chat-completions': { wire: qwenChatWire }
+          // Same 128K split as dashscope (#21906).
+          'openai-chat-completions': {
+            wire: isQwen128kChatModel(apiModelId) ? qwenChatWire128k : qwenChatWire
+          }
         }
       })
     ),

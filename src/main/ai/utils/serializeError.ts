@@ -1,6 +1,7 @@
 import { APICallError, RetryError } from 'ai'
 
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
+import { appendThinkingBudgetHint, isThinkingBudgetRejection } from '@shared/ai/thinkingBudget'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
@@ -35,6 +36,20 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
+  const serialized = serializeErrorInner(error)
+  // Name the reasoning setting behind a Bailian/QwenCloud `thinking_budget`
+  // rejection instead of relaying only the provider's raw parameter text
+  // (#21906). Matched on the error (which follows RetryError nesting to the
+  // provider's text), not on the surfaced message — a RetryError's message is
+  // the generic "Failed after retries". Appended after truncation so the
+  // provider text stays intact.
+  if (typeof serialized.message === 'string' && isThinkingBudgetRejection(error)) {
+    return { ...serialized, message: appendThinkingBudgetHint(serialized.message) }
+  }
+  return serialized
+}
+
+function serializeErrorInner(error: unknown): SerializedError {
   if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>

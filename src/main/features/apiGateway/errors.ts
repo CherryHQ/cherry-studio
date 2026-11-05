@@ -3,6 +3,11 @@ import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import {
+  appendThinkingBudgetHint,
+  isThinkingBudgetRejection,
+  thinkingBudgetRejectionText
+} from '@shared/ai/thinkingBudget'
 import { DataApiError } from '@shared/data/api/errors'
 
 import type { OutputFormat } from './adapters'
@@ -127,8 +132,19 @@ function safeMessage(status: number | undefined, message: string | undefined): s
 
 function normalizeProviderError(error: unknown): { statusCode: number; message: string; type?: string } {
   const { status, message, type, name, code } = extractError(error)
-  if (status !== undefined)
-    return { statusCode: status >= 200 && status < 300 ? 502 : status, message: safeMessage(status, message), type }
+  if (status !== undefined) {
+    const text = safeMessage(status, message)
+    // Name the reasoning setting behind a Bailian/QwenCloud `thinking_budget`
+    // rejection (#21906). Matched on the error rather than the surfaced text
+    // so RetryError-wrapped rejections (generic top-level message, parameter
+    // text nested in `lastError`) are still named; other provider errors pass
+    // through unchanged.
+    return {
+      statusCode: status >= 200 && status < 300 ? 502 : status,
+      message: isThinkingBudgetRejection(error) ? appendThinkingBudgetHint(text) : text,
+      type
+    }
+  }
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||
@@ -139,6 +155,15 @@ function normalizeProviderError(error: unknown): { statusCode: number; message: 
   }
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { statusCode: 504, message: 'Upstream stream aborted', type }
+  }
+  // RetryError-wrapped provider rejection (e.g. a `thinking_budget` 400 that
+  // survived the in-place degrade, #21906): the top level carries no status
+  // and a generic message, with the provider text nested in `lastError`.
+  // Surface the provider's 400 wording for this narrow class instead of
+  // flattening it to a 500.
+  if (isThinkingBudgetRejection(error)) {
+    const nested = thinkingBudgetRejectionText(error)
+    if (nested) return { statusCode: 400, message: appendThinkingBudgetHint(nested), type }
   }
   return { statusCode: 500, message: safeMessage(undefined, message), type }
 }
