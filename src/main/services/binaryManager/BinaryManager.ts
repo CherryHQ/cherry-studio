@@ -1555,6 +1555,9 @@ export class BinaryManager extends BaseService {
     if (definition.tool === 'claude' && isWin && process.arch === 'arm64') {
       const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
       for (const [index, source] of registries.entries()) {
+        // Each registry is a fresh attempt: a fallback retry starts at
+        // downloading, not at whatever stage the previous attempt died in.
+        this.setInstallStage(definition.name, 'downloading')
         try {
           const pkg = await resolveClaudeNpmPackage(source, requested)
           await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
@@ -1747,12 +1750,16 @@ export class BinaryManager extends BaseService {
   private failInstall(name: string, error: string, targetVersion?: string) {
     const operation = this.getOperations()[name]
     const progress = operation?.status === 'installing' ? operation : undefined
+    // An explicit one-shot target wins; otherwise inherit the in-flight
+    // operation's target (e.g. a pinned Custom Add) so the failure keeps the
+    // known target version for diagnostics and Retry.
+    const target = targetVersion ?? progress?.targetVersion
     const elapsedMs = progress?.startedAt === undefined ? undefined : Date.now() - progress.startedAt
     const failed: BinaryOperation = {
       status: 'failed',
       action: 'install',
       error,
-      ...(targetVersion ? { targetVersion } : {}),
+      ...(target ? { targetVersion: target } : {}),
       ...(progress?.stage ? { stage: progress.stage } : {}),
       ...(progress?.startedAt === undefined ? {} : { startedAt: progress.startedAt }),
       ...(elapsedMs === undefined ? {} : { elapsedMs }),
@@ -1762,7 +1769,7 @@ export class BinaryManager extends BaseService {
       name,
       stage: failed.stage,
       currentVersion: progress?.currentVersion,
-      targetVersion,
+      targetVersion: target,
       elapsedMs,
       reason: this.errorMessage(error)
     })

@@ -9,40 +9,42 @@ import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
-const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
-  manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
-  platformMock: { isWin: false, isMac: false },
-  mockExecFileAsync: vi.fn(),
-  mockFs: {
-    existsSync: vi.fn(() => false),
-    readFileSync: vi.fn(),
-    writeFileSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    mkdtempSync: vi.fn(() => '/tmp/cherry-mise-test'),
-    copyFileSync: vi.fn(),
-    chmodSync: vi.fn(),
-    unlinkSync: vi.fn(),
-    rmSync: vi.fn(),
-    renameSync: vi.fn(),
-    constants: { F_OK: 0, X_OK: 1 }
-  },
-  mockFsp: {
-    mkdir: vi.fn(async () => {}),
-    copyFile: vi.fn(async () => {}),
-    chmod: vi.fn(async () => {}),
-    writeFile: vi.fn(async () => {}),
-    rename: vi.fn(async () => {}),
-    readdir: vi.fn(async () => []),
-    access: vi.fn(async () => {}),
-    realpath: vi.fn(async (candidate: string) => candidate)
-  },
-  mockPreferenceService: {
-    get: vi.fn(),
-    getMultiple: vi.fn(),
-    set: vi.fn(),
-    subscribeMultipleChanges: vi.fn(() => () => {})
-  }
-}))
+const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockNetFetch, mockPreferenceService, platformMock } =
+  vi.hoisted(() => ({
+    manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
+    platformMock: { isWin: false, isMac: false },
+    mockExecFileAsync: vi.fn(),
+    mockNetFetch: vi.fn(),
+    mockFs: {
+      existsSync: vi.fn(() => false),
+      readFileSync: vi.fn(),
+      writeFileSync: vi.fn(),
+      mkdirSync: vi.fn(),
+      mkdtempSync: vi.fn(() => '/tmp/cherry-mise-test'),
+      copyFileSync: vi.fn(),
+      chmodSync: vi.fn(),
+      unlinkSync: vi.fn(),
+      rmSync: vi.fn(),
+      renameSync: vi.fn(),
+      constants: { F_OK: 0, X_OK: 1 }
+    },
+    mockFsp: {
+      mkdir: vi.fn(async () => {}),
+      copyFile: vi.fn(async () => {}),
+      chmod: vi.fn(async () => {}),
+      writeFile: vi.fn(async () => {}),
+      rename: vi.fn(async () => {}),
+      readdir: vi.fn(async () => []),
+      access: vi.fn(async () => {}),
+      realpath: vi.fn(async (candidate: string) => candidate)
+    },
+    mockPreferenceService: {
+      get: vi.fn(),
+      getMultiple: vi.fn(),
+      set: vi.fn(),
+      subscribeMultipleChanges: vi.fn(() => () => {})
+    }
+  }))
 
 vi.mock('node:module', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeModule>()
@@ -95,7 +97,8 @@ vi.mock('node:child_process', () => ({
 }))
 
 vi.mock('electron', () => ({
-  BrowserWindow: { getAllWindows: vi.fn(() => []) }
+  BrowserWindow: { getAllWindows: vi.fn(() => []) },
+  net: { fetch: (...args: unknown[]) => mockNetFetch(...args) }
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -170,6 +173,7 @@ describe('BinaryManager', () => {
     vi.clearAllMocks()
     MockMainCacheServiceUtils.resetMocks()
     mockExecFileAsync.mockReset()
+    mockNetFetch.mockReset()
     mockCreateRequire.mockReset().mockReturnValue({ resolve: vi.fn(() => '/mock/resolved-package') })
     platformMock.isWin = false
     platformMock.isMac = false
@@ -2895,6 +2899,79 @@ describe('BinaryManager', () => {
           status: 'failed',
           action: 'install',
           error: expect.stringContaining('network down')
+        }
+      })
+    })
+
+    it('keeps the pinned target on a failed custom add so Retry repeats it', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') throw new Error('network down')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        service.addCustomTool({ name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.2.3' })
+      ).resolves.toBeUndefined()
+
+      // The in-flight operation already knew the pinned target; the failure must
+      // keep it for diagnostics and for a targeted Retry instead of dropping it.
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.2.3' }])
+      expect(operations()).toMatchObject({
+        mytool: {
+          status: 'failed',
+          action: 'install',
+          error: expect.stringContaining('network down'),
+          targetVersion: '1.2.3'
+        }
+      })
+    })
+
+    describe('Claude Windows ARM64 registry fallback', () => {
+      it('resets the stage to downloading when a fallback registry attempt begins', async () => {
+        platformMock.isWin = true
+        const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+        Object.defineProperties(process, { arch: { value: 'arm64' } })
+        const integrity = `sha512-${Buffer.from('a'.repeat(64)).toString('base64')}`
+        try {
+          const service = makeService()
+          // First registry resolves and installs, then dies at reshim (stage
+          // installing); the fallback registry's metadata request fails — a
+          // download-stage failure that must not inherit the earlier stage.
+          mockNetFetch
+            .mockResolvedValueOnce({
+              ok: true,
+              json: async () => ({
+                name: '@anthropic-ai/claude-code-win32-arm64',
+                version: '2.0.0',
+                dist: { integrity }
+              })
+            })
+            .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+          let reshimAttempts = 0
+          mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+            if (args[0] === 'ls') return { stdout: JSON.stringify({}), stderr: '' }
+            if (args[0] === 'reshim') {
+              reshimAttempts += 1
+              if (reshimAttempts === 1) throw new Error('reshim failed')
+            }
+            return { stdout: '', stderr: '' }
+          })
+
+          await expect(service.installByName({ name: 'claude' })).rejects.toThrow('HTTP 500')
+
+          expect(mockNetFetch).toHaveBeenCalledTimes(2)
+          expect(operations()).toMatchObject({
+            claude: {
+              status: 'failed',
+              action: 'install',
+              error: expect.stringContaining('HTTP 500'),
+              stage: 'downloading'
+            }
+          })
+        } finally {
+          Object.defineProperties(process, { arch: originalArch })
         }
       })
     })

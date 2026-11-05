@@ -573,6 +573,35 @@ describe('EnvironmentDependencies', () => {
     expect(await screen.findByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
 
+  it('shows the stage and version transition while an applied preset upgrades', async () => {
+    // An upgrade of an applied tool offers no Install/Retry button; its progress
+    // hint must render independently of that eligibility.
+    setSnapshots({
+      uv: miseSnapshot('uv', 'uv', '1.0.0', false, {
+        status: 'installing',
+        stage: 'downloading',
+        currentVersion: '1.0.0',
+        targetVersion: '2.0.0'
+      })
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(await within(card).findByText(/settings\.dependencies\.stage\.downloading/)).toBeInTheDocument()
+    expect(within(card).getByText(/settings\.dependencies\.versionTransition/)).toBeInTheDocument()
+  })
+
+  it('shows the install stage while an applied custom tool upgrades', async () => {
+    setSnapshots({
+      mytool: miseSnapshot('mytool', 'npm:mytool', '1.0.0', true, {
+        status: 'installing',
+        stage: 'installing'
+      })
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+    expect(await within(card).findByText(/settings\.dependencies\.stage\.installing/)).toBeInTheDocument()
+  })
+
   it('does not fetch latest versions in mini mode', async () => {
     render(<EnvironmentDependencies mini />)
     await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalled())

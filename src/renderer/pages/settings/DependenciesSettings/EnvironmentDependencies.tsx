@@ -729,6 +729,8 @@ const BinaryToolPresetCard: FC<{
         />
       )}
 
+      {installing && <BinaryInstallingHint operation={operation} />}
+
       {canInstall && !failedRemove && (
         <div className="mt-3 border-t border-border pt-3">
           <Button
@@ -745,7 +747,6 @@ const BinaryToolPresetCard: FC<{
                 ? t('common.retry')
                 : t('settings.mcp.install')}
           </Button>
-          {installing && <BinaryInstallingHint operation={operation} />}
         </div>
       )}
     </div>
@@ -901,6 +902,8 @@ const CustomToolCard: FC<{
         />
       )}
 
+      {installing && <BinaryInstallingHint operation={operation} />}
+
       {canInstall && !failedRemove && (
         <div className="mt-3 border-t border-border pt-3">
           <Button
@@ -917,7 +920,6 @@ const CustomToolCard: FC<{
                 ? t('common.retry')
                 : t('settings.mcp.install')}
           </Button>
-          {installing && <BinaryInstallingHint operation={operation} />}
         </div>
       )}
     </div>

@@ -20,9 +20,10 @@ export type BinaryInstallDetails = {
 export type BinaryOperation =
   | ({ status: 'installing'; stage?: BinaryInstallStage; targetVersion?: string } & BinaryInstallDetails)
   | { status: 'removing' }
-  // `targetVersion` is retained only for a failed one-shot update so Retry can
-  // repeat the same targeted install instead of a name-only no-op. `stage` is the
-  // stage that was running when the install failed.
+  // `targetVersion` is retained for a failed one-shot update (or inherited from
+  // the in-flight operation, e.g. a pinned Custom Add) so Retry can repeat the
+  // same targeted install instead of a name-only no-op. `stage` is the stage
+  // that was running when the install failed.
   | ({
       status: 'failed'
       action: 'install' | 'remove'
