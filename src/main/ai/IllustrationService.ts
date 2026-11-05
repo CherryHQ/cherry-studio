@@ -2,15 +2,19 @@ import PQueue from 'p-queue'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
+import { fileEntryService } from '@main/data/services/FileEntryService'
 import { messageService } from '@main/data/services/MessageService'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { IllustrationData, IllustrationTarget } from '@shared/data/types/illustration'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 
+import type { IllustrationInput } from './messages/illustrationInputs'
 import { extractParamValues, resolveConfiguredPaintingModel } from './tools/painting'
+import { parseIllustrationIntent } from './utils/illustrationIntent'
 
 const logger = loggerService.withContext('IllustrationService')
 interface IllustrationJob {
@@ -19,11 +23,12 @@ interface IllustrationJob {
   persisted: boolean
   controller?: AbortController
   detach?: () => void
+  inputHolds?: Disposable[]
 }
 
 @Injectable('IllustrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiService', 'IpcApiService', 'RuntimeActivityService'])
+@DependsOn(['AiService', 'FileManager', 'IpcApiService', 'RuntimeActivityService'])
 export class IllustrationService extends BaseService {
   private readonly jobs = new Map<string, IllustrationJob>()
   private readonly queue = new PQueue({ concurrency: 2 })
@@ -39,13 +44,33 @@ export class IllustrationService extends BaseService {
     return job.data
   }
 
-  complete(target: IllustrationTarget, prompt: string, valid: boolean): IllustrationData {
+  complete(
+    target: IllustrationTarget,
+    prompt: string,
+    valid: boolean,
+    inputs: readonly IllustrationInput[] = []
+  ): IllustrationData {
     const job = this.findJob(target)
     if (!job) return { id: target.id, revision: 1, status: 'error', prompt: '', error: 'incomplete' }
     if (job.data.status !== 'prompting') return job.data
-    job.data = { ...job.data, prompt }
+    const intent = valid ? parseIllustrationIntent(prompt) : null
+    job.data = { ...job.data, prompt: intent?.prompt ?? prompt }
     if (!valid) this.update(job, { status: 'error', error: 'incomplete' })
-    else this.generate(job)
+    else if (!intent || intent.references.some((reference) => !inputs.some((input) => input.reference === reference))) {
+      this.update(job, { status: 'error', error: 'invalid_references' })
+    } else {
+      job.data.inputFiles = intent.references.map((reference) => {
+        const { id, name } = inputs.find((input) => input.reference === reference)!
+        return { id, name }
+      })
+      job.inputHolds = job.data.inputFiles.flatMap(({ id }) => {
+        const entry = fileEntryService.findById(id)
+        return entry?.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced'
+          ? [application.get('FileManager').retainTemporaryEntry(id)]
+          : []
+      })
+      this.generate(job)
+    }
     return job.data
   }
 
@@ -69,7 +94,13 @@ export class IllustrationService extends BaseService {
 
   retry(target: IllustrationTarget): IllustrationData | null {
     const data = this.get(target)
-    if (!data || !data.prompt || data.error === 'incomplete' || !['error', 'cancelled'].includes(data.status))
+    if (
+      !data ||
+      !data.prompt ||
+      data.error === 'incomplete' ||
+      data.error === 'invalid_references' ||
+      !['error', 'cancelled'].includes(data.status)
+    )
       return data
     if (application.get('PreferenceService').get('chat.illustration.mode') === 'off') return data
     const job = this.findJob(target) ?? { target, data, persisted: true }
@@ -101,12 +132,17 @@ export class IllustrationService extends BaseService {
     for (const job of this.jobs.values()) {
       if (job.target.messageId !== messageId) continue
       job.persisted = true
+      job.inputHolds?.forEach((hold) => hold.dispose())
+      job.inputHolds = undefined
       if (!['prompting', 'generating'].includes(job.data.status)) this.jobs.delete(job.target.id)
     }
   }
 
   protected onStop(): void {
-    for (const job of this.jobs.values()) this.cancel(job.target)
+    for (const job of this.jobs.values()) {
+      this.cancel(job.target)
+      job.inputHolds?.forEach((hold) => hold.dispose())
+    }
     this.jobs.clear()
   }
 
@@ -138,15 +174,50 @@ export class IllustrationService extends BaseService {
           )
           try {
             const configured = resolveConfiguredPaintingModel()
-            if (!configured || (configured.support && !configured.support.modes.generate)) {
+            if (!configured) {
               this.update(job, { status: 'error', error: 'configuration' })
               return
             }
+            const inputs = job.data.inputFiles ?? []
+            const modes = configured.support?.modes
+            const mode: ImageGenerationMode | undefined = inputs.length
+              ? ((['edit', 'generate', 'remix', 'upscale', 'merge'] as const).find((mode) => modes?.[mode]) ??
+                (!modes ? 'generate' : undefined))
+              : !modes || modes.generate
+                ? 'generate'
+                : undefined
+            if (!mode || (inputs.length && !configured.acceptsImageInput)) {
+              this.update(job, { status: 'error', error: inputs.length ? 'input_unsupported' : 'configuration' })
+              return
+            }
+            const limit = modes?.[mode]?.maxInputImages
+            if (limit !== undefined && inputs.length > limit) {
+              this.update(job, { status: 'error', error: 'input_limit' })
+              return
+            }
+            let inputImages: string[] | undefined
+            try {
+              if (inputs.length)
+                inputImages = await Promise.all(
+                  inputs.map(async ({ id }) => {
+                    const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
+                    if (!mime.startsWith('image/') || !content) throw new Error('Input file is not a readable image')
+                    return `data:${mime};base64,${content}`
+                  })
+                )
+            } catch (error) {
+              logger.warn('Illustration input unavailable', { error, messageId: job.target.messageId })
+              if (job.controller === controller && job.data.status === 'generating')
+                this.update(job, { status: 'error', error: 'input_unavailable' })
+              return
+            }
+            if (job.controller !== controller || job.data.status !== 'generating' || controller.signal.aborted) return
             const { files } = await application.get('AiService').generateImage({
               uniqueModelId: configured.uniqueModelId,
               prompt: job.data.prompt,
-              mode: 'generate',
-              paramValues: extractParamValues({ prompt: job.data.prompt }, configured.support, 'generate'),
+              mode,
+              ...(inputImages && { inputImages }),
+              paramValues: extractParamValues({ prompt: job.data.prompt }, configured.support, mode),
               cleanupPolicy: temporaryChatService.hasTopic(job.target.topicId) ? 'manual' : 'delete_when_unreferenced',
               requestOptions: { signal: controller.signal }
             })

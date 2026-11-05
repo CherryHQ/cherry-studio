@@ -38,6 +38,16 @@ Status: proposed
 
 主进程负责图片任务身份、取消、文件引用及带版本号的更新。最多并行两项图片请求，每项活动请求五分钟超时；在接纳回答时固定模式和数量设置。重启后放弃未完成请求，只有用户显式重试才会再次提交，并可能产生新的服务商费用。
 
+### 用户原图引用
+
+每个配图块可在首行使用保留字段，例如 `references: ["image_2", "image_1"]`，下一行开始写生图提示词。省略首行或使用空数组时仍按纯文字生图。回答模型逐块判断：修改原图、保留主体特征或参考风格布局时是否需要原图。只能使用应用提供的编号；正文提及图片不会触发上传。
+
+候选图仅包含当前话题、当前分支中实际进入本次模型请求的用户图片，可来自历史轮次。应用在图片前标注编号。保留的附件索引、仅在摘要中提及的旧图、助手生成图和其他话题的图片均不纳入候选。最终模型中间件在上下文处理后再次收窄白名单，回退模型请求也遵守此规则。
+
+重复编号保留首次出现的顺序并去重。无效引用或格式错误的列表使对应配图失败。模型不支持图片输入、原图超量、文件缺失或无法读取也明确失败，绝不静默丢掉已选原图。按模型声明的模式和图片上限提交；例如 Seedream 可在 generate 模式接收图片，无需声明 edit 模式。
+
+配图保存有序的原图文件 id 和名称，并登记为回答消息持有的文件引用。提示词详情显示名称和图片预览。删除原上传消息后，回答的引用仍保留；所有持有者移除后按现有规则清理。显式重试始终使用已保存的提示词和原图选择，重启后也相同；同时使用当前默认绘画模型，重新校验图片输入能力和数量限制。无效引用需要重新生成回答，不能通过重试擅自换图。
+
 ### 验证计划
 
 使用延迟返回的图片服务验证实际流式和消息结果。覆盖分片之间拆开的标记、不完整标记、包含示例标记的普通代码、图片请求失败、重复更新，以及重新打开已完成回答。实现后在 Electron 中操作实际设置和正文占位。检查范围限定为改动模块及其消费者。
@@ -62,6 +72,12 @@ Status: proposed
 - AC8 — 自动模式只显示上限，强制开启只显示目标（均默认 1，范围 1–10）；两种数量分别记忆，提示词与解析器使用当前模式的数量，绝不生成超过该数量的插图 (verification: Leezehuan / implementation author; settings, prompt, stream integration tests and Electron)
 - AC9 — 每张插图的提示词不会显示在回答正文中，并提供按钮，可在图片或占位旁展开查看完整纯文本提示词 (verification: Leezehuan / implementation author; renderer test)
 - AC10 — 已有强制张数配置一次性转为对应模式及有效目标，未启用强制张数的强制开启模式默认一张，强制关闭保持关闭，后续用户选择在重启后保留 (verification: Leezehuan / implementation author; populated database seeder tests)
+
+- AC11 — 模型逐块独立选择零张或多张应用编号的用户原图，候选仅限当前话题、分支和本次实际请求；排除被压缩的旧图和助手图片 (verification: Leezehuan / implementation author; prepared-message and final-middleware tests, Electron)
+- AC12 — 所选原图按保序去重的顺序与干净提示词一起提交，使用支持的模式，包括 Seedream 的 generate；省略或空引用保持纯文字生图 (verification: Leezehuan / implementation author; intent and service tests, Electron)
+- AC13 — 无效引用、不支持图片输入、原图超量和文件无法读取仅让对应配图失败，不丢图、不丢失回答文字 (verification: Leezehuan / implementation author; service and renderer tests)
+- AC14 — 提示词详情显示所选原图名称和预览；删除上传消息后，保存的回答继续持有文件引用，直到所有引用均被移除 (verification: Leezehuan / implementation author; renderer and real-database persistence tests, Electron)
+- AC15 — 失败或重启后的显式重试保留提示词和选图，使用当前默认绘画模型，并重新校验能力、数量上限和文件可读性 (verification: Leezehuan / implementation author; service persistence tests)
 
 ## Risks
 

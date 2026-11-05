@@ -63,6 +63,11 @@ import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
+import {
+  createIllustrationInputsPlugin,
+  type IllustrationInput,
+  prepareIllustrationInputs
+} from './messages/illustrationInputs'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
@@ -279,6 +284,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
 export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
   usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
+  illustrationInputsSink?: (inputs: IllustrationInput[]) => void
   /**
    * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
    * In-process only (a closure), same as `runtimeTimingSink` — the stream
@@ -612,6 +618,14 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
+    let illustrationInputs: IllustrationInput[] = []
+    if (request.illustrationPolicy && request.illustrationPolicy.mode !== 'off') {
+      const plugin = createIllustrationInputsPlugin(
+        () => illustrationInputs,
+        (inputs) => request.illustrationInputsSink?.(inputs)
+      )
+      extraFeatures = [...extraFeatures, { name: 'illustration-inputs', contributeModelAdapters: () => [plugin] }]
+    }
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
@@ -651,7 +665,7 @@ export class AiService extends BaseService {
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
     // one shared pool, priced against what the rest of the request already spends.
-    const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+    let preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
@@ -671,6 +685,11 @@ export class AiService extends BaseService {
           : undefined,
       signal
     })
+    if (request.illustrationPolicy && request.illustrationPolicy.mode !== 'off') {
+      const prepared = prepareIllustrationInputs(preparedMessages)
+      preparedMessages = prepared.messages
+      illustrationInputs = prepared.inputs
+    }
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.

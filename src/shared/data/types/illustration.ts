@@ -22,8 +22,20 @@ export const IllustrationDataSchema = z.object({
   revision: z.number().int().nonnegative(),
   status: z.enum(['prompting', 'generating', 'ready', 'error', 'cancelled']),
   prompt: z.string(),
+  inputFiles: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
   files: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
-  error: z.enum(['configuration', 'generation', 'incomplete', 'interrupted']).optional()
+  error: z
+    .enum([
+      'configuration',
+      'generation',
+      'incomplete',
+      'interrupted',
+      'invalid_references',
+      'input_unsupported',
+      'input_limit',
+      'input_unavailable'
+    ])
+    .optional()
 })
 export type IllustrationData = z.infer<typeof IllustrationDataSchema>
 export interface IllustrationTarget {

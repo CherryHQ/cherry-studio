@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
+import type { IllustrationInput } from '@main/ai/messages/illustrationInputs'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -2141,6 +2142,7 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
 
+    let illustrationInputs: IllustrationInput[] = []
     let rawStream: ReadableStream<UIMessageChunk>
     try {
       // Pre-stream rejection (model resolution, param build) routes through
@@ -2149,6 +2151,9 @@ export class AiStreamManager extends BaseService {
       rawStream = await aiService.streamText({
         ...request,
         illustrationPolicy,
+        illustrationInputsSink: (inputs) => {
+          illustrationInputs = inputs
+        },
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
         // Compaction runs deep inside param-build / the tool loop, where the
@@ -2190,7 +2195,8 @@ export class AiStreamManager extends BaseService {
         stream,
         {
           start: (id) => illustrations.start({ topicId, messageId, id }, signal),
-          complete: (id, prompt, valid) => illustrations.complete({ topicId, messageId, id }, prompt, valid)
+          complete: (id, prompt, valid) =>
+            illustrations.complete({ topicId, messageId, id }, prompt, valid, illustrationInputs)
         },
         illustrationPolicy.count
       )

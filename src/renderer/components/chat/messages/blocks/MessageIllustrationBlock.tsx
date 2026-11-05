@@ -13,7 +13,11 @@ const errorKeys = {
   configuration: 'chat.illustration.configuration',
   generation: 'chat.illustration.generation',
   incomplete: 'chat.illustration.incomplete',
-  interrupted: 'chat.illustration.interrupted'
+  interrupted: 'chat.illustration.interrupted',
+  invalid_references: 'chat.illustration.invalid_references',
+  input_unsupported: 'chat.illustration.input_unsupported',
+  input_limit: 'chat.illustration.input_limit',
+  input_unavailable: 'chat.illustration.input_unavailable'
 } as const
 
 export default function MessageIllustrationBlock({
@@ -48,11 +52,21 @@ export default function MessageIllustrationBlock({
         {promptExpanded ? t('chat.illustration.hide_prompt') : t('chat.illustration.show_prompt')}
       </Button>
       {promptExpanded && (
-        <pre
+        <div
           id={`illustration-prompt-${data.id}`}
-          className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted p-3 text-sm text-foreground">
-          {data.prompt}
-        </pre>
+          className="mt-1 max-h-96 overflow-auto rounded-md border bg-muted p-3 text-sm text-foreground">
+          <pre className="whitespace-pre-wrap break-words">{data.prompt}</pre>
+          {!!data.inputFiles?.length && (
+            <div role="group" aria-label={t('chat.illustration.input_images')} className="mt-3 flex flex-wrap gap-3">
+              {data.inputFiles.map((file) => (
+                <figure key={file.id} className="w-32">
+                  <MessageImageBlock sources={[{ handle: { kind: 'entry', entryId: file.id }, url: '' }]} isSingle />
+                  <figcaption className="mt-1 break-words text-muted-foreground">{file.name}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -93,11 +107,15 @@ export default function MessageIllustrationBlock({
           {t('common.cancel')}
         </Button>
       )}
-      {!pending && data.prompt && data.error !== 'incomplete' && retryIllustration && (
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => retryIllustration(target))}>
-          {t('common.retry')}
-        </Button>
-      )}
+      {!pending &&
+        data.prompt &&
+        data.error !== 'incomplete' &&
+        data.error !== 'invalid_references' &&
+        retryIllustration && (
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => retryIllustration(target))}>
+            {t('common.retry')}
+          </Button>
+        )}
     </div>
   )
 }

@@ -123,7 +123,7 @@
     },
     {
       "path": "docs/dev/references/ai/stream-manager.md",
-      "sources": ["src/main/ai/IllustrationService.ts","src/main/ai/streamManager/AiStreamManager.ts","src/main/ai/streamManager/context","src/main/ai/streamManager/persistence/backends","src/main/ai/streamManager/pipeStreamLoop.ts","src/main/ai/streamManager/withIllustrations.ts"]
+      "sources": ["src/main/ai/IllustrationService.ts","src/main/ai/messages/illustrationInputs.ts","src/main/ai/streamManager/AiStreamManager.ts","src/main/ai/streamManager/context","src/main/ai/streamManager/persistence/backends","src/main/ai/streamManager/pipeStreamLoop.ts","src/main/ai/streamManager/withIllustrations.ts"]
     },
     {
       "path": "docs/dev/references/ai/tool-approval.md",

@@ -10,6 +10,7 @@ import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { topicTable } from '@main/data/db/schemas/topic'
 import { userModelTable } from '@main/data/db/schemas/userModel'
 import { userProviderTable } from '@main/data/db/schemas/userProvider'
+import { fileRefService } from '@main/data/services/FileRefService'
 import { messageService } from '@main/data/services/MessageService'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -20,10 +21,11 @@ import { AiStreamManager } from '../streamManager/AiStreamManager'
 import { MessageServiceBackend } from '../streamManager/persistence/backends/MessageServiceBackend'
 import { TemporaryChatBackend } from '../streamManager/persistence/backends/TemporaryChatBackend'
 import type { StreamDoneResult, StreamListener } from '../streamManager/types'
+import { resolveConfiguredPaintingModel } from '../tools/painting'
 import type { AiStreamRequest } from '../types/requests'
 
 vi.mock('../tools/painting', () => ({
-  resolveConfiguredPaintingModel: () => ({ uniqueModelId: 'provider::image', support: null }),
+  resolveConfiguredPaintingModel: vi.fn(),
   extractParamValues: () => ({})
 }))
 
@@ -38,6 +40,7 @@ describe('illustration persistence and task ownership', () => {
   beforeEach(async () => {
     BaseService.resetInstances()
     service = new IllustrationService()
+    vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({ uniqueModelId: 'provider::image', support: null })
     generate = vi.fn(
       () =>
         new Promise<{ files: { id: string; name: string }[] }>((resolve, reject) => {
@@ -81,6 +84,138 @@ describe('illustration persistence and task ownership', () => {
     ]
     return { target, parts, backend: new MessageServiceBackend({ assistantMessageId: message.id }) }
   }
+
+  // Catches dropping selected originals, reordering them, or requiring Seedream to expose an edit mode.
+  it('uploads only the selected user images in their requested order with a clean prompt', async () => {
+    const message = createReply()
+    const target = { topicId: 'topic', messageId: message.id, id: 'selected-images' }
+    vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({
+      uniqueModelId: 'provider::seedream',
+      acceptsImageInput: true,
+      support: { modes: { generate: { supports: {}, maxInputImages: 2 } } }
+    })
+    MockApplicationUtils.setService('FileManager', {
+      read: vi.fn(async (id: string) => ({ content: id === fileId ? 'AQID' : 'BAUG', mime: 'image/png' }))
+    })
+    service.start(target, new AbortController().signal)
+    service.complete(target, 'references: ["image_2", "image_1", "image_2"]\nCombine the person and scene.', true, [
+      { reference: 'image_1', id: fileId, name: 'person.png' },
+      { reference: 'image_2', id: 'scene', name: 'scene.png' },
+      { reference: 'image_3', id: 'unused', name: 'unused.png' }
+    ])
+
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    expect(generate.mock.calls[0][0]).toMatchObject({
+      uniqueModelId: 'provider::seedream',
+      mode: 'generate',
+      prompt: 'Combine the person and scene.',
+      inputImages: ['data:image/png;base64,BAUG', 'data:image/png;base64,AQID']
+    })
+    expect(service.get(target)?.inputFiles).toEqual([
+      { id: 'scene', name: 'scene.png' },
+      { id: fileId, name: 'person.png' }
+    ])
+    finish({ files: [{ id: fileId, name: 'combined' }] })
+    await vi.waitFor(() => expect(service.get(target)?.status).toBe('ready'))
+  })
+
+  // Catches sending a paid text-only request after rejecting or losing an explicitly selected original.
+  it.each([
+    { label: 'unknown reference', header: '["image_99"]', error: 'invalid_references' },
+    { label: 'malformed reference list', header: 'image_1', error: 'invalid_references' },
+    { label: 'non-string reference', header: '[1]', error: 'invalid_references' },
+    { label: 'too many images', header: '["image_1", "image_2"]', error: 'input_limit' },
+    { label: 'unsupported model', header: '["image_1"]', error: 'input_unsupported' },
+    { label: 'missing image', header: '["image_1"]', error: 'input_unavailable' },
+    { label: 'non-image file', header: '["image_1"]', error: 'input_unavailable' }
+  ] as const)('fails the illustration for $label without submitting generation', async ({ label, header, error }) => {
+    const message = createReply()
+    const target = { topicId: 'topic', messageId: message.id, id: 'invalid-selection' }
+    vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({
+      uniqueModelId: 'provider::image',
+      acceptsImageInput: label !== 'unsupported model',
+      support: { modes: { edit: { supports: {}, maxInputImages: 1 } } }
+    })
+    MockApplicationUtils.setService('FileManager', {
+      read: vi.fn(async () => {
+        if (label === 'missing image') throw new Error('Missing file')
+        return { content: 'AQID', mime: label === 'non-image file' ? 'text/plain' : 'image/png' }
+      })
+    })
+    service.start(target, new AbortController().signal)
+    service.complete(target, `references: ${header}\nEdit the photo.`, true, [
+      { reference: 'image_1', id: fileId, name: 'person.png' },
+      { reference: 'image_2', id: 'scene', name: 'scene.png' }
+    ])
+    await vi.waitFor(() => expect(service.get(target)).toMatchObject({ status: 'error', error }))
+    expect(generate).not.toHaveBeenCalled()
+    if (error === 'invalid_references') {
+      service.retry(target)
+      expect(service.get(target)?.error).toBe('invalid_references')
+      expect(generate).not.toHaveBeenCalled()
+    }
+  })
+
+  // Catches reparsing a saved prompt or losing the original when its upload message is deleted.
+  it('retains selected files with the answer and retries the same selection after restart using the current model', async () => {
+    const message = createReply()
+    const original = messageService.create('topic', {
+      parentId: message.parentId,
+      role: 'user',
+      status: 'success',
+      data: {
+        parts: [
+          { type: 'file', mediaType: 'image/png', url: '', providerMetadata: { cherry: { fileEntryId: fileId } } }
+        ]
+      }
+    })
+    const target = { topicId: 'topic', messageId: message.id, id: 'durable-selection' }
+    vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({
+      uniqueModelId: 'provider::old',
+      acceptsImageInput: true,
+      support: { modes: { edit: { supports: {} } } }
+    })
+    const read = vi.fn(async () => ({ content: 'AQID', mime: 'image/png' }))
+    MockApplicationUtils.setService('FileManager', { read })
+    service.start(target, new AbortController().signal)
+    const data = service.complete(target, 'references: ["image_1"]\nMake the sky blue.', true, [
+      { reference: 'image_1', id: fileId, name: 'original.png' }
+    ])
+    await new MessageServiceBackend({ assistantMessageId: message.id }).persistAssistant({
+      finalMessage: { id: message.id, role: 'assistant', parts: [{ type: 'data-illustration', id: target.id, data }] },
+      status: 'success'
+    })
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    fail(new Error('provider unavailable'))
+    await vi.waitFor(() => expect(service.get(target)?.status).toBe('error'))
+    messageService.delete(original.id)
+    expect(fileRefService.findByEntryId(fileId).map((ref) => ref.sourceId)).toEqual([message.id])
+
+    BaseService.resetInstances()
+    service = new IllustrationService()
+    MockApplicationUtils.setService('IllustrationService', service)
+    vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({
+      uniqueModelId: 'provider::new',
+      acceptsImageInput: true,
+      support: { modes: { generate: { supports: {}, maxInputImages: 1 } } }
+    })
+    service.retry(target)
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2))
+    expect(generate.mock.calls[1][0]).toMatchObject({
+      uniqueModelId: 'provider::new',
+      mode: 'generate',
+      prompt: 'Make the sky blue.',
+      inputImages: ['data:image/png;base64,AQID']
+    })
+    fail(new Error('provider unavailable'))
+    await vi.waitFor(() => expect(service.get(target)?.status).toBe('error'))
+    read.mockRejectedValueOnce(new Error('Original deleted from disk'))
+    service.retry(target)
+    await vi.waitFor(() => expect(service.get(target)?.error).toBe('input_unavailable'))
+    expect(generate).toHaveBeenCalledTimes(2)
+    messageService.delete(message.id)
+    expect(fileRefService.findByEntryId(fileId)).toEqual([])
+  })
 
   // Catches mode lookup before stream registration silently disabling every fresh reply.
   it('streams later text and persists the reserved position before a delayed illustration finishes', async () => {

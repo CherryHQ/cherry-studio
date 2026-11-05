@@ -36,19 +36,31 @@ test('preserves illustration settings, asynchronous images and prompt details ac
   test.setTimeout(180_000)
   const chat = await startMockChatServer()
   const imageBase64 = (await readFile('build/icons/128x128.png')).toString('base64')
-  const imageRequests: Array<{ prompt: string }> = []
+  const imageRequests: Array<{ prompt: string; originals: Buffer[] }> = []
   let finishImage: () => void = () => {
     throw new Error('No image request received')
   }
   const images = createServer((request, response) => {
     void (async () => {
-      if (request.method !== 'POST' || request.url !== '/v1/images/generations') {
+      if (request.method !== 'POST' || !['/v1/images/generations', '/v1/images/edits'].includes(request.url ?? '')) {
         response.writeHead(404).end()
         return
       }
       const chunks: Buffer[] = []
       for await (const chunk of request) chunks.push(Buffer.from(chunk))
-      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      const bytes = Buffer.concat(chunks)
+      const multipart =
+        request.url === '/v1/images/edits'
+          ? await new Response(bytes, { headers: { 'Content-Type': request.headers['content-type'] ?? '' } }).formData()
+          : null
+      const body = multipart ? { prompt: String(multipart.get('prompt')) } : JSON.parse(bytes.toString('utf8'))
+      const originals = multipart
+        ? await Promise.all(
+            [...multipart.values()]
+              .filter((value) => typeof value !== 'string')
+              .map(async (file) => Buffer.from(await file.arrayBuffer()))
+          )
+        : []
       finishImage = () => {
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(
@@ -62,7 +74,7 @@ test('preserves illustration settings, asynchronous images and prompt details ac
           })
         )
       }
-      imageRequests.push(body)
+      imageRequests.push({ ...body, originals })
     })().catch(() => response.writeHead(500).end())
   })
   images.listen(0, '127.0.0.1')
@@ -152,12 +164,18 @@ test('preserves illustration settings, asynchronous images and prompt details ac
         })
         const enabled = await request('PATCH', `/providers/${providerId}`, { isEnabled: true })
         const models = await request('POST', '/models', [
-          { providerId, modelId: 'mock-chat', endpointTypes: ['openai-chat-completions'] },
+          {
+            providerId,
+            modelId: 'mock-chat',
+            endpointTypes: ['openai-chat-completions'],
+            inputModalities: ['text', 'image']
+          },
           {
             providerId,
             modelId: 'mock-image',
             endpointTypes: ['openai-image-generation'],
             capabilities: ['image-generation'],
+            inputModalities: ['text', 'image'],
             outputModalities: ['image']
           }
         ])
@@ -232,6 +250,69 @@ test('preserves illustration settings, asynchronous images and prompt details ac
     await expect(promptText).toBeVisible()
     expect(await promptText.textContent()).toBe(imagePrompt)
     await page.screenshot({ path: testInfo.outputPath('illustration-saved.png') })
+
+    const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
+    await composer.fill('Modify only the second uploaded image.')
+    const unused = (await readFile('build/icons/64x64.png')).toString('base64')
+    let uploadedCount = 0
+    for (const [name, png] of [
+      ['unused.png', unused],
+      ['original.png', imageBase64]
+    ]) {
+      await composer.evaluate(
+        (element, { name, png }) => {
+          const clipboardData = new DataTransfer()
+          clipboardData.items.add(
+            new File([Uint8Array.from(atob(png), (char) => char.charCodeAt(0))], name, { type: 'image/png' })
+          )
+          element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }))
+        },
+        { name, png }
+      )
+      await expect(page.locator('[data-ui~="chat.composer"]:visible [data-composer-token-kind="file"]')).toHaveCount(
+        ++uploadedCount
+      )
+    }
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    const edit = await chat.nextRequest()
+    expect(JSON.stringify(edit.body.messages)).toContain('Illustration reference image_2')
+    edit.complete(
+      'Edited illustration\n[[IMAGE]]\nreferences: ["image_2", "image_2"]\nMake the background blue.\n[[/IMAGE]]\nEdit complete'
+    )
+    await expect(page.getByText('Edit complete', { exact: true })).toBeVisible()
+    await expect.poll(() => imageRequests.length).toBe(2)
+    expect(imageRequests[1].prompt).toBe('Make the background blue.')
+    expect(imageRequests[1].originals).toEqual([Buffer.from(imageBase64, 'base64')])
+    finishImage()
+    const editedAnswer = page
+      .locator('[data-ui~="part:message-content"]')
+      .filter({ has: page.getByText('Edited illustration', { exact: true }) })
+    await expect(editedAnswer.locator('img')).toBeVisible()
+    await editedAnswer.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    const references = editedAnswer.getByRole('group', { name: 'Reference images', exact: true })
+    await expect(references).toContainText('original.png')
+    await expect(references).not.toContainText('unused.png')
+    await expect(references.locator('img')).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('illustration-original.png') })
+    await page.reload()
+    await editedAnswer.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    await expect(references.locator('img')).toBeVisible()
+    expect(imageRequests).toHaveLength(2)
+
+    await composer.fill('Modify that same original again, using the previous upload.')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    const historical = await chat.nextRequest()
+    expect(JSON.stringify(historical.body.messages)).toContain('Illustration reference image_2')
+    historical.complete('Historical edit\n[[IMAGE]]\nreferences: ["image_2"]\nMake the background green.\n[[/IMAGE]]')
+    await expect.poll(() => imageRequests.length).toBe(3)
+    expect(imageRequests[2].originals).toEqual([Buffer.from(imageBase64, 'base64')])
+    finishImage()
+    await expect(
+      page
+        .locator('[data-ui~="part:message-content"]')
+        .filter({ has: page.getByText('Historical edit', { exact: true }) })
+        .locator('img')
+    ).toBeVisible()
   } finally {
     await chat.close()
     images.closeAllConnections()

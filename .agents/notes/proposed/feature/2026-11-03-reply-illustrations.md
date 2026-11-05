@@ -38,6 +38,16 @@ Upgrade existing settings once before loading preferences. A previously enabled 
 
 The main process owns job identity, cancellation, file ownership and revisioned updates. Allow two concurrent image requests with a five-minute timeout per active request. Capture mode and quantity settings when admitting a reply. Restart abandons unfinished requests; only explicit retry submits another request and may incur another provider charge.
 
+### User-image references
+
+Each block may start with a reserved line such as `references: ["image_2", "image_1"]`, followed by the image prompt on the next line. An omitted line or empty array preserves text-only generation. The answering model decides separately for each illustration whether editing, subject identity, style, or layout needs reference images. Only application-issued references may be used; ordinary prose naming an image never triggers an upload.
+
+Candidates are materialized user images from the current topic and branch that reach the current model request, including earlier turns. Application labels precede their images. Retained attachment indexes, summary-only images, assistant-generated images and other topics are excluded. The final model middleware narrows the candidate list again after context shaping, including fallback requests.
+
+References are deduplicated in first-occurrence order. Invalid references or malformed lists fail that illustration. Unsupported image input, excessive image counts, missing files and unreadable originals also fail explicitly; no selected input is silently dropped. Use the model's declared mode and input limit: a model such as Seedream can accept images in generate mode without an edit mode.
+
+Store the ordered input file ids and names with the illustration, and register them as message-owned file references. Prompt details show their names and image previews. Deleting the original upload message does not remove the answer's references; removing all holders allows normal cleanup. Explicit retries retain the saved prompt and original selection, including after restart, but resolve the current default painting model and recheck its capabilities and count limit. An invalid selection requires a new answering-model reply rather than a retry with different images.
+
 ### Verification plan
 
 Test the observable stream and message outcomes with a delayed image provider. Cover marker splits between chunks, incomplete markers, ordinary code that contains an example marker, failed image requests, repeated updates, and reopening a completed answer. Exercise the actual settings and inline placeholder in Electron after the feature is implemented. Keep checks scoped to changed modules and their consumers.
@@ -62,6 +72,12 @@ Test the observable stream and message outcomes with a delayed image provider. C
 - AC8 — Automatic shows only its maximum and forced-on only its target (both default 1, range 1–10); quantities are remembered independently, and the prompt and parser use the active quantity, never generating more than that quantity (verification: Leezehuan / implementation author; settings, prompt, stream integration tests and Electron)
 - AC9 — Each illustration keeps its prompt hidden from answer text and offers a button to expand the complete prompt beside the image or placeholder as plain text (verification: Leezehuan / implementation author; renderer test)
 - AC10 — Existing exact-count settings convert once to the corresponding mode and effective target, forced-on without exact count defaults to one, forced-off remains off, and later user choices survive restarts (verification: Leezehuan / implementation author; populated database seeder tests)
+
+- AC11 — The model independently selects zero or more application-numbered user images per illustration from the current topic, branch and actual request; compressed-away and assistant images are excluded (verification: Leezehuan / implementation author; prepared-message and final-middleware tests, Electron)
+- AC12 — Selected originals reach the image provider in deduplicated order with a clean prompt, using a supported mode including Seedream generate; absent or empty references preserve text-only generation (verification: Leezehuan / implementation author; intent and service tests, Electron)
+- AC13 — Invalid references, unsupported inputs, excessive counts and unreadable files fail only that illustration without dropping inputs or losing the answer (verification: Leezehuan / implementation author; service and renderer tests)
+- AC14 — Prompt details show selected original names and previews, and saved answers retain their file ownership after the upload message is deleted until all references are removed (verification: Leezehuan / implementation author; renderer and real-database persistence tests, Electron)
+- AC15 — Explicit retries after failure or restart keep the saved prompt and image selection, use the current default painting model, and recheck capabilities, limits and file readability (verification: Leezehuan / implementation author; service persistence tests)
 
 ## Risks
 

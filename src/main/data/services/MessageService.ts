@@ -262,6 +262,7 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
     } else if (part.type === 'data-illustration') {
       for (const file of part.data.files ?? []) add(file.id, 'attachment')
+      for (const file of part.data.inputFiles ?? []) add(file.id, 'attachment')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }

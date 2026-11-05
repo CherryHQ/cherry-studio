@@ -5,6 +5,7 @@ sources:
   - src/main/ai/streamManager/pipeStreamLoop.ts
   - src/main/ai/streamManager/withIllustrations.ts
   - src/main/ai/IllustrationService.ts
+  - src/main/ai/messages/illustrationInputs.ts
   - src/main/ai/streamManager/persistence/backends
   - src/main/ai/streamManager/context
 ---
@@ -570,6 +571,19 @@ Managed image files are referenced by the message, including when a temporary
 topic is saved. Cancellation and explicit retry use `ai.illustration.cancel`
 and `ai.illustration.retry`. Interrupted jobs after restart become failures;
 they do not automatically submit another image request.
+
+An illustration may begin with `references: ["image_2", "image_1"]` on its own
+line before the prompt. Omitted or empty references keep text-only generation.
+Labels identify materialized user images from the current topic and branch;
+the final model middleware excludes images removed by context shaping. Assistant
+images and attachment indexes alone cannot authorize an input. References are
+deduplicated in order. Invalid references, unsupported inputs, excessive counts
+and unreadable originals fail the illustration without silently dropping inputs.
+Selected originals are saved as message-owned file references and appear in
+prompt details. Explicit retry preserves the prompt and ordered selection while
+rechecking the current default painting model, including generate modes that
+accept images. Deleting the original upload message preserves the answer's
+references; normal cleanup applies after all holders are removed.
 
 **Step 3 — `pipeStreamLoop` isolates source errors before teeing the stream.**
 

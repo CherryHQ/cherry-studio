@@ -83,3 +83,30 @@ it('offers explicit cancellation and retry without generating on mount', async (
   await user.click(screen.getByRole('button', { name: 'Retry' }))
   expect(actions.retryIllustration).toHaveBeenCalledWith(target)
 })
+
+// Catches reference thumbnails leaking into the answer or disappearing from failed illustration details.
+it('reveals the selected original names and previews in prompt details after failure', async () => {
+  const user = userEvent.setup()
+  render(
+    <MessageIllustrationBlock
+      target={target}
+      data={{
+        ...pending,
+        status: 'error',
+        error: 'input_unsupported',
+        inputFiles: [
+          { id: 'person', name: 'person.png' },
+          { id: 'scene', name: 'scene.png' }
+        ]
+      }}
+    />
+  )
+  expect(screen.getByRole('status')).toHaveTextContent('does not support reference images')
+  expect(screen.queryByText('person.png')).not.toBeInTheDocument()
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Show prompt' }))
+  expect(screen.getByText('person.png')).toBeVisible()
+  expect(screen.getByText('scene.png')).toBeVisible()
+  expect(screen.getAllByRole('img')).toHaveLength(2)
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+})
