@@ -10,7 +10,7 @@ The conversation selection toolbar and context menu offered Copy and Quote. Keep
 
 ## Decision
 
-Both selection surfaces offer Save to Notes. The action captures the selected text before asynchronous work, derives a title from its first nonblank line (up to 50 characters), and delegates to the existing `exportContentToNotes` service with the configured Notes path. The exporter retains directory validation, filename collision handling, error feedback and the explicit Open note success action described in [Opening an exported note](2026-10-27-open-exported-note.md).
+Both selection surfaces offer Save to Notes. The action captures the selected text before asynchronous work, derives a title from its first nonblank line that is not a Markdown code fence (up to 50 characters), or uses Untitled Note when no such line exists, and delegates to the existing `exportContentToNotes` service with the configured Notes path. The exporter retains directory validation, filename collision handling, error feedback and the explicit Open note success action described in [Opening an exported note](2026-10-27-open-exported-note.md).
 
 Selection extraction reuses the quote path: rendered formulas retain Markdown math delimiters and code-viewer line numbers are excluded. This is a text excerpt, not reconstruction of the original Markdown or a persistent link to the source message. The context action requires both selection endpoints inside its message surface and outside editable controls. The floating toolbar retains its existing selection and editable-surface boundaries.
 
@@ -28,8 +28,8 @@ No new preference, IPC route, persistent format, dependency or model request is 
 
 ## Verification
 
-- Regression — `src/renderer/components/__tests__/SelectionNotes.test.tsx`: real toolbar and Cherry/native context-menu gestures save only the captured passage, retain math delimiters, suppress duplicate pending writes, allow retry after failure and exclude editable or out-of-surface selections; the real exporter provides its shared success action.
+- Regression — `src/renderer/components/__tests__/SelectionNotes.test.tsx`: real toolbar and Cherry/native context-menu gestures save only the captured passage, retain math delimiters, exclude displayed code line numbers, skip code fences when naming a note, suppress duplicate pending writes, allow retry after failure and exclude editable or out-of-surface selections; the real exporter provides its shared success action.
 - Regression — `src/renderer/components/__tests__/SelectionContextMenu.links.test.tsx`: selected links retain their copy, quote and URL actions alongside Save to Notes.
 - Regression — existing selection, math, toolbar and `ExportService.test.ts` suites protect extraction, dismissal, collision-path navigation and failure feedback.
 
-Renderer coverage uses jsdom and synthetic Notes writes. It does not establish packaged Electron or native filesystem acceptance for this entry.
+A macOS development build with a fresh profile and synthetic conversation verified the Cherry right-click menu and floating toolbar against actual Notes files. The numbered code selection retained its fences and indentation, excluded displayed line numbers, and used the first code line as its title. Renderer coverage additionally simulates pending writes and the native menu bridge. Packaged Electron and the OS-native menu UI were not exercised.

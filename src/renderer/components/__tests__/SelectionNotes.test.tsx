@@ -147,6 +147,47 @@ describe('saving selected conversation text to Notes', () => {
     await waitFor(() => expect(addNote).toHaveBeenCalledWith('\\(x^2\\)', '\\(x^2\\)', '/synthetic-notes'))
   })
 
+  it.each([
+    ['```js\nconst total = 3\n```', 'const total = 3'],
+    ['~~~~ js\n\n~~~~', 'notes.untitled_note']
+  ])('derives a note title without using fence markers in %s', async (excerpt, title) => {
+    const user = userEvent.setup()
+    renderContent(excerpt)
+    await selectText(screen.getByText(/^(?:```|~~~~)/))
+    await user.click(await screen.findByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() => expect(addNote).toHaveBeenCalledWith(title, excerpt, '/synthetic-notes'))
+  })
+
+  it('saves code without displayed line numbers from the context menu', async () => {
+    const user = userEvent.setup()
+    render(
+      <CommandSharedPreferencesContext value={{ menuPresentationMode: 'cherry', shortcutPreferences: {} }}>
+        <SelectionContextMenu>
+          <pre aria-label="Numbered code">
+            <span className="line">
+              <span className="line-number">1</span>const total = 3
+            </span>
+            <span className="line">
+              <span className="line-number">2</span>
+              {'  return total'}
+            </span>
+          </pre>
+        </SelectionContextMenu>
+      </CommandSharedPreferencesContext>
+    )
+    const code = screen.getByLabelText('Numbered code')
+    const range = document.createRange()
+    range.selectNodeContents(code)
+    window.getSelection()!.addRange(range)
+    fireEvent.contextMenu(code)
+    await user.click(await screen.findByRole('menuitem', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(addNote).toHaveBeenCalledWith('const total = 3', 'const total = 3\n  return total', '/synthetic-notes')
+    )
+  })
+
   it('blocks another save while a write is pending and permits a fresh save after completion', async () => {
     const user = userEvent.setup()
     let complete!: (value: Awaited<ReturnType<typeof addNote>>) => void

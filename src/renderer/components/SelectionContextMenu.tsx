@@ -13,6 +13,8 @@ import { TextSelectionToolbar } from './TextSelectionToolbar'
 
 const logger = loggerService.withContext('SelectionContextMenu')
 
+const MARKDOWN_FENCE_LINE = /^(?:`{3,}[^`]*|~{3,}.*)$/
+
 const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'TR'])
 
 interface SelectionContextMenuProps {
@@ -136,8 +138,11 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
       setIsSavingNote(true)
       try {
         const { exportContentToNotes } = await import('@renderer/services/ExportService')
-        const title = text.trim().split(/\r?\n/, 1)[0].slice(0, 50)
-        await exportContentToNotes(title, text, notesPath)
+        const title = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .find((line) => line && !MARKDOWN_FENCE_LINE.test(line))
+        await exportContentToNotes(title?.slice(0, 50) || t('notes.untitled_note'), text, notesPath)
       } catch (error) {
         // The Notes exporter owns the write-failure toast.
         logger.error('Failed to save selection to Notes', error as Error)
@@ -146,7 +151,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
         setIsSavingNote(false)
       }
     },
-    [notesPath]
+    [notesPath, t]
   )
 
   const getMenuItems = useCallback(
