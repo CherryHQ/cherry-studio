@@ -106,9 +106,7 @@ type ManagedAiStreamRequest = AiStreamRequest & {
 
 const OFF_ILLUSTRATION_POLICY: IllustrationPolicy = {
   mode: 'off',
-  maxCount: 1,
-  forceCount: false,
-  targetCount: 1
+  count: 1
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
@@ -2055,12 +2053,11 @@ export class AiStreamManager extends BaseService {
       return OFF_ILLUSTRATION_POLICY
     const preferences = application.get('PreferenceService')
     const mode = IllustrationModeSchema.catch('off').parse(preferences.get('chat.illustration.mode'))
-    const maxCount = normalizeIllustrationCount(preferences.get('chat.illustration.max_count'))
     const policy = {
       mode,
-      maxCount,
-      forceCount: preferences.get('chat.illustration.force_count') === true,
-      targetCount: normalizeIllustrationCount(preferences.get('chat.illustration.target_count'), maxCount)
+      count: normalizeIllustrationCount(
+        preferences.get(mode === 'on' ? 'chat.illustration.target_count' : 'chat.illustration.max_count')
+      )
     }
     if (mode === 'off' || !isPersistentConversation) return policy
     const anchor = messageService.getById(request.messageId)
@@ -2151,10 +2148,7 @@ export class AiStreamManager extends BaseService {
       // `signal` is injected here because it's not IPC-serialisable.
       rawStream = await aiService.streamText({
         ...request,
-        illustrationMode: illustrationPolicy.mode,
-        illustrationMaxCount: illustrationPolicy.maxCount,
-        illustrationForceCount: illustrationPolicy.forceCount,
-        illustrationTargetCount: illustrationPolicy.targetCount,
+        illustrationPolicy,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
         // Compaction runs deep inside param-build / the tool loop, where the
@@ -2198,7 +2192,7 @@ export class AiStreamManager extends BaseService {
           start: (id) => illustrations.start({ topicId, messageId, id }, signal),
           complete: (id, prompt, valid) => illustrations.complete({ topicId, messageId, id }, prompt, valid)
         },
-        illustrationPolicy.maxCount
+        illustrationPolicy.count
       )
     }
 

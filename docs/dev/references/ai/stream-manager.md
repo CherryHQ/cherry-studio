@@ -553,8 +553,10 @@ Before the tee, enabled ordinary chat also passes through `withIllustrations`.
 It preserves text order, recognizes `[[IMAGE]]...[[/IMAGE]]` across chunks
 outside code, and emits a stable `data-illustration` placeholder at the opening
 marker. A complete prompt starts `IllustrationService` work without blocking
-subsequent text. The per-reply maximum defaults to one (range 1–10); excess
-intents are hidden without reserving a placeholder or submitting image work.
+subsequent text. Automatic mode uses its configured maximum; forced-on uses its
+target as the hard maximum. Both settings default to one (range 1–10) and are
+remembered independently. Excess intents are hidden without reserving a
+placeholder or submitting image work.
 Incomplete prompts become failed placeholders. The mode and count policy are
 captured at admission; Agent sessions, prompt lifecycles and multi-model reply
 groups are excluded, including single-message retries from a multi-model group.

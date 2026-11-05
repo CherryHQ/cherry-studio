@@ -14,9 +14,7 @@ export function normalizeIllustrationCount(value: unknown, maximum = MAX_ILLUSTR
 
 export interface IllustrationPolicy {
   mode: IllustrationMode
-  maxCount: number
-  forceCount: boolean
-  targetCount: number
+  count: number
 }
 
 export const IllustrationDataSchema = z.object({

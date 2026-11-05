@@ -38,32 +38,32 @@ const model = { id: 'openai::gpt-4' as UniqueModelId, providerId: 'openai', name
 describe('assembleSystemPrompt', () => {
   it('uses system instructions for the three illustration modes without changing the base prompt', async () => {
     const assistant = makeAssistant({ prompt: 'Base instruction' })
-    expect(await assembleSystemPrompt({ model, assistant, illustrationMode: 'off' })).toBe('Base instruction')
-    expect(await assembleSystemPrompt({ model, assistant, illustrationMode: 'auto' })).toContain(
+    expect(await assembleSystemPrompt({ model, assistant, illustrationPolicy: { mode: 'off', count: 1 } })).toBe(
+      'Base instruction'
+    )
+    expect(await assembleSystemPrompt({ model, assistant, illustrationPolicy: { mode: 'auto', count: 1 } })).toContain(
       'You may include illustrations'
     )
-    const forced = await assembleSystemPrompt({ model, assistant, illustrationMode: 'on' })
-    expect(forced).toContain('You must include at least one illustration')
+    const forced = await assembleSystemPrompt({ model, assistant, illustrationPolicy: { mode: 'on', count: 1 } })
+    expect(forced).toContain('You must include exactly 1 illustration')
     expect(forced).toContain('[[IMAGE]]')
     expect(forced).toContain('same reply')
   })
 
-  it('asks for an exact count only when enabled and includes the configured maximum otherwise', async () => {
+  it('allows optional illustrations in automatic mode and requires the target in forced mode', async () => {
     const automatic = await assembleSystemPrompt({
       model,
       assistant: makeAssistant({ prompt: '' }),
-      illustrationMode: 'auto',
-      illustrationMaxCount: 4
+      illustrationPolicy: { mode: 'auto', count: 4 }
     })
     expect(automatic).toContain('no more than 4 illustrations')
+    expect(automatic).toContain('omit them when unnecessary')
+    expect(automatic).not.toContain('must include')
 
     const forcedCount = await assembleSystemPrompt({
       model,
       assistant: makeAssistant({ prompt: '' }),
-      illustrationMode: 'auto',
-      illustrationMaxCount: 4,
-      illustrationForceCount: true,
-      illustrationTargetCount: 3
+      illustrationPolicy: { mode: 'on', count: 3 }
     })
     expect(forcedCount).toContain('You must include exactly 3 illustrations in each reply')
   })

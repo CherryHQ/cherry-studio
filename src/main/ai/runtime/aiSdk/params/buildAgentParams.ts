@@ -343,15 +343,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
   const system =
     request.system !== undefined
-      ? [
-          request.system,
-          mcpInstructions,
-          getIllustrationSystemPrompt(request.illustrationMode, {
-            maxCount: request.illustrationMaxCount,
-            forceCount: request.illustrationForceCount,
-            targetCount: request.illustrationTargetCount
-          })
-        ]
+      ? [request.system, mcpInstructions, getIllustrationSystemPrompt(request.illustrationPolicy)]
           .filter(Boolean)
           .join('\n\n')
       : await assembleSystemPrompt({
@@ -362,10 +354,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           hasCitableTools,
           webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
           mcpInstructions,
-          illustrationMode: request.illustrationMode,
-          illustrationMaxCount: request.illustrationMaxCount,
-          illustrationForceCount: request.illustrationForceCount,
-          illustrationTargetCount: request.illustrationTargetCount
+          illustrationPolicy: request.illustrationPolicy
         })
   const options = buildAgentOptions(
     scope,

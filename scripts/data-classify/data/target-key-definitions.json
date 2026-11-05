@@ -17,21 +17,14 @@
       "type": "number",
       "defaultValue": 1,
       "status": "classified",
-      "description": "Maximum number of inline illustrations to generate in one reply"
-    },
-    {
-      "targetKey": "chat.illustration.force_count",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Require the answering model to include exactly the configured number of inline illustrations"
+      "description": "Maximum number of inline illustrations in one reply in automatic mode"
     },
     {
       "targetKey": "chat.illustration.target_count",
       "type": "number",
       "defaultValue": 1,
       "status": "classified",
-      "description": "Exact number of inline illustrations requested when force_count is enabled"
+      "description": "Target and hard maximum number of inline illustrations in one reply in forced mode"
     },
     {
       "targetKey": "assistant.archive.related_topics",

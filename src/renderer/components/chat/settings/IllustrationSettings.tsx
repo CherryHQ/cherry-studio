@@ -12,18 +12,20 @@ import {
 } from '@shared/data/types/illustration'
 import { isGenerateImageModel } from '@shared/utils/model'
 
-import { SettingDivider, SettingRow, SettingRowTitleSmall, SettingSwitch } from './settingsPanelPrimitives'
+import { SettingDivider, SettingRow, SettingRowTitleSmall } from './settingsPanelPrimitives'
 
 export function IllustrationSettings() {
   const { t } = useTranslation()
   const [mode, setMode] = usePreference('chat.illustration.mode')
   const [maxCount, setMaxCount] = usePreference('chat.illustration.max_count')
-  const [forceCount, setForceCount] = usePreference('chat.illustration.force_count')
   const [targetCount, setTargetCount] = usePreference('chat.illustration.target_count')
   const { paintingModel, setPaintingModel } = useDefaultModel()
   const { providers } = useProviders({ enabled: true })
   const normalizedMaxCount = normalizeIllustrationCount(maxCount)
-  const normalizedTargetCount = normalizeIllustrationCount(targetCount, normalizedMaxCount)
+  const normalizedTargetCount = normalizeIllustrationCount(targetCount)
+  const countLabel = t(
+    mode === 'auto' ? 'settings.messages.illustration.max_count' : 'settings.messages.illustration.target_count'
+  )
   return (
     <>
       <SettingRow id="setting-appearance-illustrations" className="scroll-mt-6">
@@ -50,51 +52,30 @@ export function IllustrationSettings() {
         <>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall hint={t('settings.messages.illustration.max_count_hint')}>
-              {t('settings.messages.illustration.max_count')}
+            <SettingRowTitleSmall
+              hint={t(
+                mode === 'auto'
+                  ? 'settings.messages.illustration.max_count_hint'
+                  : 'settings.messages.illustration.target_count_hint'
+              )}>
+              {countLabel}
             </SettingRowTitleSmall>
             <InputNumber
+              key={mode}
               size="small"
               className="w-20 text-sm"
-              aria-label={t('settings.messages.illustration.max_count')}
+              aria-label={countLabel}
               min={1}
               max={MAX_ILLUSTRATION_COUNT}
               step={1}
-              value={normalizedMaxCount}
-              onBlur={async (value) => {
-                const nextMaxCount = normalizeIllustrationCount(value)
-                await setMaxCount(nextMaxCount)
-                if (normalizedTargetCount > nextMaxCount) await setTargetCount(nextMaxCount)
-              }}
+              value={mode === 'auto' ? normalizedMaxCount : normalizedTargetCount}
+              onBlur={(value) =>
+                mode === 'auto'
+                  ? setMaxCount(normalizeIllustrationCount(value))
+                  : setTargetCount(normalizeIllustrationCount(value))
+              }
             />
           </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={forceCount}
-              onCheckedChange={(checked) => void setForceCount(checked)}
-              label={t('settings.messages.illustration.force_count')}
-              hint={t('settings.messages.illustration.force_count_hint')}
-            />
-          </SettingRow>
-          {forceCount && (
-            <>
-              <SettingDivider />
-              <SettingRow>
-                <SettingRowTitleSmall>{t('settings.messages.illustration.target_count')}</SettingRowTitleSmall>
-                <InputNumber
-                  size="small"
-                  className="w-20 text-sm"
-                  aria-label={t('settings.messages.illustration.target_count')}
-                  min={1}
-                  max={normalizedMaxCount}
-                  step={1}
-                  value={normalizedTargetCount}
-                  onBlur={(value) => setTargetCount(normalizeIllustrationCount(value, normalizedMaxCount))}
-                />
-              </SettingRow>
-            </>
-          )}
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.models.painting_model')}</SettingRowTitleSmall>

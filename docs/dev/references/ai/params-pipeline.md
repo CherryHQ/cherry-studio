@@ -146,12 +146,13 @@ buildAgentParams(input)
                                 + headers + stopWhen + repair + telemetry
 ```
 
-Ordinary chat executions supply a Main-only snapshot of the illustration mode,
-per-reply maximum, exact-count switch, and target count. Automatic mode permits
-`[[IMAGE]]...[[/IMAGE]]` intents as needed; forced-on requires at least one,
-and forced-off adds no illustration instruction. When exact-count mode is on,
-the prompt instead requires the target count, bounded by the maximum. The
-maximum defaults to one and is configurable from 1 to 10. The section is also
+Ordinary chat executions supply a Main-only `illustrationPolicy` snapshot with
+the mode and its active count. Automatic mode permits
+`[[IMAGE]]...[[/IMAGE]]` intents as needed, up to its configured maximum;
+forced-on requires exactly its target count, and forced-off adds no illustration
+instruction. The automatic maximum and forced-on target default to one, range
+from 1 to 10, and are remembered independently. The same active count limits
+stream admission, so forced-on never accepts more than its target. The section is also
 appended when `request.system` overrides normal prompt assembly. Agent sessions
 and multi-model reply groups receive forced-off. A missing intent does not
 trigger a second text-model request.

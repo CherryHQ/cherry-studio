@@ -48,7 +48,11 @@ describe('illustration persistence and task ownership', () => {
     MockApplicationUtils.setService('IllustrationService', service)
     MockApplicationUtils.setService('AiService', { generateImage: generate })
     MockApplicationUtils.setService('RuntimeActivityService', { begin: () => ({ dispose: () => {} }) })
-    await application.get('PreferenceService').set('chat.illustration.mode', 'auto')
+    await application.get('PreferenceService').setMultiple({
+      'chat.illustration.mode': 'auto',
+      'chat.illustration.max_count': 1,
+      'chat.illustration.target_count': 1
+    })
     dbh.db.insert(fileEntryTable).values({ id: fileId, origin: 'internal', name: 'bird', ext: 'png', size: 1 }).run()
   })
 
@@ -147,17 +151,27 @@ describe('illustration persistence and task ownership', () => {
   })
 
   // Catches settings being shown but omitted from either the model request or stream admission.
-  it('uses the saved count policy for the model request and refuses excess illustration intents', async () => {
-    await application.get('PreferenceService').setMultiple({
-      'chat.illustration.max_count': 2,
-      'chat.illustration.force_count': true,
-      'chat.illustration.target_count': 2
-    })
-    const message = createReply()
-    generate.mockResolvedValue({ files: [{ id: fileId, name: 'bird' }] })
-    const streamText = vi.fn(
-      async (request: AiStreamRequest) =>
-        new ReadableStream<UIMessageChunk>({
+  it.each([
+    { mode: 'auto', maxCount: 2, targetCount: 1 },
+    { mode: 'on', maxCount: 8, targetCount: 2 },
+    { mode: 'on', maxCount: 1, targetCount: 2 }
+  ] as const)(
+    'uses $mode quantity with maximum $maxCount and target $targetCount',
+    async ({ mode, maxCount, targetCount }) => {
+      await application.get('PreferenceService').setMultiple({
+        'chat.illustration.mode': mode,
+        'chat.illustration.max_count': maxCount,
+        'chat.illustration.target_count': targetCount
+      })
+      const message = createReply()
+      generate.mockResolvedValue({ files: [{ id: fileId, name: 'bird' }] })
+      const streamText = vi.fn(async (request: AiStreamRequest) => {
+        await application.get('PreferenceService').setMultiple({
+          'chat.illustration.mode': 'off',
+          'chat.illustration.max_count': 9,
+          'chat.illustration.target_count': 9
+        })
+        return new ReadableStream<UIMessageChunk>({
           start(controller) {
             const chunks: UIMessageChunk[] = [
               { type: 'start', messageId: request.messageId },
@@ -174,47 +188,46 @@ describe('illustration persistence and task ownership', () => {
             controller.close()
           }
         })
-    )
-    MockApplicationUtils.setService('AiService', { streamText, generateImage: generate })
-    let result: StreamDoneResult | undefined
-    new AiStreamManager().send({
-      topicId: 'topic',
-      isPersistentConversation: true,
-      models: [
-        {
-          modelId: 'provider::text',
-          request: {
-            conversation: { id: 'topic', topicId: 'topic' },
-            trigger: 'submit-message',
-            messageId: message.id,
-            messages: []
+      })
+      MockApplicationUtils.setService('AiService', { streamText, generateImage: generate })
+      let result: StreamDoneResult | undefined
+      new AiStreamManager().send({
+        topicId: 'topic',
+        isPersistentConversation: true,
+        models: [
+          {
+            modelId: 'provider::text',
+            request: {
+              conversation: { id: 'topic', topicId: 'topic' },
+              trigger: 'submit-message',
+              messageId: message.id,
+              messages: []
+            }
           }
-        }
-      ],
-      listeners: [
-        {
-          id: 'count-policy-test',
-          isAlive: () => true,
-          onChunk() {},
-          onPaused() {},
-          onError() {},
-          onDone(value) {
-            result = value
+        ],
+        listeners: [
+          {
+            id: 'count-policy-test',
+            isAlive: () => true,
+            onChunk() {},
+            onPaused() {},
+            onError() {},
+            onDone(value) {
+              result = value
+            }
           }
-        }
-      ]
-    })
-    await vi.waitFor(() => expect(result?.finalMessage).toBeDefined())
-    expect(streamText.mock.calls[0][0]).toMatchObject({
-      illustrationMaxCount: 2,
-      illustrationForceCount: true,
-      illustrationTargetCount: 2
-    })
-    const illustrations = result?.finalMessage?.parts.filter((part) => part.type === 'data-illustration')
-    expect(illustrations?.map((part) => part.data.prompt)).toEqual(['first', 'second'])
-    expect(result?.finalMessage?.parts.at(-1)).toMatchObject({ type: 'text', text: '\nAfter' })
-    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2))
-  })
+        ]
+      })
+      await vi.waitFor(() => expect(result?.finalMessage).toBeDefined())
+      expect(streamText.mock.calls[0][0]).toMatchObject({
+        illustrationPolicy: { mode, count: 2 }
+      })
+      const illustrations = result?.finalMessage?.parts.filter((part) => part.type === 'data-illustration')
+      expect(illustrations?.map((part) => part.data.prompt)).toEqual(['first', 'second'])
+      expect(result?.finalMessage?.parts.at(-1)).toMatchObject({ type: 'text', text: '\nAfter' })
+      await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2))
+    }
+  )
 
   // Catches a single-model retry escaping its original multi-model group, or ordinary regeneration being excluded.
   it.each([
