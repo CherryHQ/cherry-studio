@@ -68,6 +68,7 @@ export class ChildThreadProjection {
   private reloadSaved = false
   private readonly archiveGap?: string
   private history?: CommittedHistory
+  private canonicalIds = new Map<string, string>()
   private readonly composition: Composition
   private readonly sourceRows = new Map<string, Composition[string]>()
 
@@ -210,7 +211,12 @@ export class ChildThreadProjection {
     const history = this.needsHistory
     this.needsHistory = false
     const archive = history ? await this.readCommitted() : undefined
-    if (archive) this.history = archive
+    if (archive) {
+      this.history = archive
+      this.canonicalIds = new Map()
+      for (const [id, live] of Object.entries(archive.aliases))
+        if (!this.canonicalIds.has(live)) this.canonicalIds.set(live, id)
+    }
     const beforeComposition = structuredClone(this.composition)
     for (const id of archive?.removed ?? []) this.removed.add(id)
     for (const [old, source] of Object.entries(this.history?.legacy ?? {}))
@@ -356,7 +362,7 @@ export class ChildThreadProjection {
   }
 
   private canonical(id: string): string {
-    return Object.entries(this.history?.aliases ?? {}).find(([, live]) => live === id)?.[0] ?? id
+    return this.canonicalIds.get(id) ?? id
   }
 
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
