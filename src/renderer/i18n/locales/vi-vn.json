@@ -171,7 +171,6 @@
   "agent.memory.copy": "Sao chép nội dung",
   "agent.memory.copy_failed": "Không thể sao chép nội dung",
   "agent.memory.create": "Tạo tệp",
-  "agent.memory.description": "Những gì {{name}} ghi nhớ giữa các phiên. Các tệp này được tải vào system prompt và là văn bản thuần mà bạn có thể đọc và chỉnh sửa tại đây bất cứ lúc nào.",
   "agent.memory.discard.confirm": "Hủy thay đổi",
   "agent.memory.discard.description": "Tệp hiện tại có thay đổi chưa lưu. Nếu tiếp tục, các thay đổi sẽ bị mất.",
   "agent.memory.discard.title": "Hủy các thay đổi chưa lưu?",

@@ -171,7 +171,6 @@
   "agent.memory.copy": "Copier le contenu",
   "agent.memory.copy_failed": "Échec de la copie du contenu",
   "agent.memory.create": "Créer le fichier",
-  "agent.memory.description": "Ce que {{name}} retient d'une session à l'autre. Ces fichiers sont chargés dans le prompt système et sont du texte brut que vous pouvez lire et modifier ici à tout moment.",
   "agent.memory.discard.confirm": "Abandonner les modifications",
   "agent.memory.discard.description": "Le fichier actuel contient des modifications non enregistrées. Si vous continuez, elles seront perdues.",
   "agent.memory.discard.title": "Abandonner les modifications non enregistrées ?",

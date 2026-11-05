@@ -171,7 +171,6 @@
   "agent.memory.copy": "Copiază conținutul",
   "agent.memory.copy_failed": "Copierea conținutului a eșuat",
   "agent.memory.create": "Creează fișier",
-  "agent.memory.description": "Ce își amintește {{name}} între sesiuni. Aceste fișiere sunt încărcate în promptul de sistem și sunt text simplu pe care îl poți citi și edita aici oricând.",
   "agent.memory.discard.confirm": "Renunță la modificări",
   "agent.memory.discard.description": "Fișierul curent are modificări nesalvate. Dacă continui, acestea vor fi pierdute.",
   "agent.memory.discard.title": "Renunți la modificările nesalvate?",

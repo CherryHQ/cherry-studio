@@ -171,7 +171,6 @@
   "agent.memory.copy": "内容をコピー",
   "agent.memory.copy_failed": "内容をコピーできませんでした",
   "agent.memory.create": "ファイルを作成",
-  "agent.memory.description": "{{name}} がセッションをまたいで記憶する内容です。これらのファイルはシステムプロンプトに読み込まれ、いつでもここで表示・編集できるプレーンテキストです。",
   "agent.memory.discard.confirm": "変更を破棄",
   "agent.memory.discard.description": "現在のファイルには保存されていない変更があります。続行すると破棄されます。",
   "agent.memory.discard.title": "保存されていない変更を破棄しますか？",

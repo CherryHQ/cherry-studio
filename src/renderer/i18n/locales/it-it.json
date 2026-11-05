@@ -171,7 +171,6 @@
   "agent.memory.copy": "Copia contenuto",
   "agent.memory.copy_failed": "Impossibile copiare il contenuto",
   "agent.memory.create": "Crea file",
-  "agent.memory.description": "Ciò che {{name}} ricorda tra le sessioni. Questi file vengono caricati nel system prompt e sono testo semplice che puoi leggere e modificare qui in qualsiasi momento.",
   "agent.memory.discard.confirm": "Scarta modifiche",
   "agent.memory.discard.description": "Il file corrente contiene modifiche non salvate. Se continui, andranno perse.",
   "agent.memory.discard.title": "Scartare le modifiche non salvate?",
