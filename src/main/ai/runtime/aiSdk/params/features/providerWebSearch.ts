@@ -1,5 +1,6 @@
 import { providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { usesBasicAnthropicWebTools } from '@cherrystudio/provider-registry'
+import { getRawModelId } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
 
@@ -13,7 +14,8 @@ export const providerWebSearchFeature: RequestFeature = {
   applies: (scope) => scope.webToolRoutes?.webSearch === 'server' && Boolean(scope.capabilities?.webSearchPluginConfig),
   contributeModelAdapters: (scope) => [
     providerToolPlugin('webSearch', scope.capabilities!.webSearchPluginConfig, {
-      anthropicWebToolSchema: usesBasicAnthropicWebTools(scope.model?.id ?? '') ? 'basic' : 'dynamic'
+      anthropicWebToolSchema:
+        scope.model && usesBasicAnthropicWebTools(getRawModelId(scope.model)) ? 'basic' : 'dynamic'
     })
   ]
 }
