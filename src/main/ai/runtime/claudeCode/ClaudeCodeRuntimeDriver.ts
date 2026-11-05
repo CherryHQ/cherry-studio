@@ -946,16 +946,34 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private publishInvocations(batch: ClaudeObservation, messageAssociation: 'current-turn' | 'stateless'): void {
     if (this._usageCapture?.owner !== 'agent-sdk') return
-    for (const invocation of batch.invocations ?? [])
+    for (const { usage, ...invocation } of batch.invocations ?? []) {
+      const noCacheTokens = usage?.input_tokens ?? 0
+      const cacheReadTokens = usage?.cache_read_input_tokens ?? 0
+      const cacheWriteTokens = usage?.cache_creation_input_tokens ?? 0
+      const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+      const outputTokens = usage?.output_tokens ?? 0
       this.eventQueue.push({
         type: 'usage',
         invocation: {
           ...invocation,
           requestId: `claude-agent:${invocation.responseId}`,
           model: invocation.model ?? this.sdkModelId ?? this.input.modelId,
+          ...(usage
+            ? {
+                usage: {
+                  inputTokens,
+                  outputTokens,
+                  totalTokens: inputTokens + outputTokens,
+                  noCacheTokens,
+                  cacheReadTokens,
+                  cacheWriteTokens
+                }
+              }
+            : {}),
           messageAssociation
         }
       })
+    }
   }
 }
 

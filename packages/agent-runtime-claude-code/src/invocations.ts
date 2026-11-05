@@ -2,46 +2,26 @@ import type { SDKAssistantMessage, SDKMessage, SDKPartialAssistantMessage } from
 
 import type { ClaudeInvocation } from './types'
 
-type InvocationUsageBuckets = {
-  outputTokens?: number
-  noCacheTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-}
-
-type InvocationMetricSnapshot = {
-  timeFirstTokenMs?: number
-  timeCompletionMs?: number
-  timeThinkingMs?: number
-}
+type InvocationUsage = NonNullable<ClaudeInvocation['usage']>
 
 type InvocationTiming = {
   streamStartedAt: number
-  ttftMs?: number
+  ttftMs?: SDKPartialAssistantMessage['ttft_ms']
   thinkingStartedAt?: number
   thinkingDurationMs?: number
 }
 
-type PendingInvocationUsage = {
-  requestId: string
-  model: string
-  startUsage?: InvocationUsageBuckets
-  assistantUsage?: InvocationUsageBuckets
-  terminalUsage?: InvocationUsageBuckets
+type PendingInvocationUsage = Pick<SDKAssistantMessage['message'], 'id' | 'model'> & {
+  startUsage?: InvocationUsage
+  assistantUsage?: InvocationUsage
+  terminalUsage?: InvocationUsage
   timing?: InvocationTiming
-  metrics?: InvocationMetricSnapshot
+  metrics?: ClaudeInvocation['metrics']
   completionObserved: boolean
   isStreamStopped: boolean
 }
 
-type InvocationUsageInput = {
-  input_tokens?: number | null
-  output_tokens?: number | null
-  cache_read_input_tokens?: number | null
-  cache_creation_input_tokens?: number | null
-}
-
-function invocationUsageBuckets(usage: InvocationUsageInput): InvocationUsageBuckets | undefined {
+function invocationUsage(usage: InvocationUsage): InvocationUsage | undefined {
   const reportedValues = [
     usage.input_tokens,
     usage.output_tokens,
@@ -51,50 +31,30 @@ function invocationUsageBuckets(usage: InvocationUsageInput): InvocationUsageBuc
   if (reportedValues.length === 0 || reportedValues.some((value) => !Number.isFinite(value) || value < 0))
     return undefined
 
-  return {
-    ...(usage.input_tokens != null ? { noCacheTokens: usage.input_tokens } : {}),
-    ...(usage.output_tokens != null ? { outputTokens: usage.output_tokens } : {}),
-    ...(usage.cache_read_input_tokens != null ? { cacheReadTokens: usage.cache_read_input_tokens } : {}),
-    ...(usage.cache_creation_input_tokens != null ? { cacheWriteTokens: usage.cache_creation_input_tokens } : {})
-  }
+  return { ...usage }
 }
 
-function mergeInvocationUsageBuckets(
-  current: InvocationUsageBuckets | undefined,
-  next: InvocationUsageBuckets | undefined
-): InvocationUsageBuckets | undefined {
+function mergeInvocationUsage(
+  current: InvocationUsage | undefined,
+  next: InvocationUsage | undefined
+): InvocationUsage | undefined {
   if (!current) return next
   if (!next) return current
   return {
-    outputTokens: next.outputTokens ?? current.outputTokens,
-    noCacheTokens: next.noCacheTokens ?? current.noCacheTokens,
-    cacheReadTokens: next.cacheReadTokens ?? current.cacheReadTokens,
-    cacheWriteTokens: next.cacheWriteTokens ?? current.cacheWriteTokens
-  }
-}
-
-function materializeInvocationUsage(buckets: InvocationUsageBuckets | undefined) {
-  if (!buckets) return undefined
-  const noCacheTokens = buckets.noCacheTokens ?? 0
-  const cacheReadTokens = buckets.cacheReadTokens ?? 0
-  const cacheWriteTokens = buckets.cacheWriteTokens ?? 0
-  const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
-  const outputTokens = buckets.outputTokens ?? 0
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    noCacheTokens,
-    cacheReadTokens,
-    cacheWriteTokens
+    ...current,
+    ...next,
+    output_tokens: next.output_tokens ?? current.output_tokens,
+    input_tokens: next.input_tokens ?? current.input_tokens,
+    cache_read_input_tokens: next.cache_read_input_tokens ?? current.cache_read_input_tokens,
+    cache_creation_input_tokens: next.cache_creation_input_tokens ?? current.cache_creation_input_tokens
   }
 }
 
 function pendingInvocationFromAssistant(message: SDKAssistantMessage, fallbackModel: string): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
-  const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
+  const assistantUsage = isComplete ? invocationUsage(message.message.usage) : undefined
   return {
-    requestId: message.message.id,
+    id: message.message.id,
     model: resolveSdkInvocationModel(message.message.model, fallbackModel),
     ...(assistantUsage ? { assistantUsage } : {}),
     completionObserved: isComplete,
@@ -107,11 +67,11 @@ function resolveSdkInvocationModel(model: unknown, fallbackModel: string): strin
 }
 
 function selectAssistantUsage(
-  current: InvocationUsageBuckets | undefined,
-  next: InvocationUsageBuckets | undefined
-): InvocationUsageBuckets | undefined {
+  current: InvocationUsage | undefined,
+  next: InvocationUsage | undefined
+): InvocationUsage | undefined {
   if (!next) return current
-  if (!current || (next.outputTokens ?? 0) >= (current.outputTokens ?? 0)) return next
+  if (!current || (next.output_tokens ?? 0) >= (current.output_tokens ?? 0)) return next
   return current
 }
 
@@ -142,13 +102,13 @@ function hasNonReasoningOutput(event: SDKPartialAssistantMessage['event']): bool
 }
 
 function mergePendingInvocation(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
-  const startUsage = mergeInvocationUsageBuckets(current.startUsage, next.startUsage)
+  const startUsage = mergeInvocationUsage(current.startUsage, next.startUsage)
   const assistantUsage = selectAssistantUsage(current.assistantUsage, next.assistantUsage)
-  const terminalUsage = mergeInvocationUsageBuckets(current.terminalUsage, next.terminalUsage)
+  const terminalUsage = mergeInvocationUsage(current.terminalUsage, next.terminalUsage)
   const timing = next.timing ?? current.timing
   const metrics = next.metrics ?? current.metrics
   return {
-    requestId: current.requestId,
+    id: current.id,
     model: next.model || current.model,
     ...(startUsage ? { startUsage } : {}),
     ...(assistantUsage ? { assistantUsage } : {}),
@@ -191,8 +151,8 @@ export class ClaudeInvocations {
 
     const next = pendingInvocationFromAssistant(message, '')
     this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
-    if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
-      this.commitInvocationUsage(next.requestId)
+    if (this.pendingInvocations.get(next.id)?.isStreamStopped) {
+      this.commitInvocationUsage(next.id)
     }
   }
 
@@ -200,10 +160,10 @@ export class ClaudeInvocations {
     const lane = this.invocationLane(message.parent_tool_use_id)
     if (message.event.type === 'message_start') {
       const sdkMessage = message.event.message
-      const startUsage = invocationUsageBuckets(sdkMessage.usage)
+      const startUsage = invocationUsage(sdkMessage.usage)
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
       this.captureInvocationForLane(lane, {
-        requestId: sdkMessage.id,
+        id: sdkMessage.id,
         model: resolveSdkInvocationModel(sdkMessage.model, ''),
         ...(startUsage ? { startUsage } : {}),
         timing: {
@@ -229,7 +189,7 @@ export class ClaudeInvocations {
     if (message.event.type === 'message_delta') {
       const current = this.pendingInvocations.get(requestId)
       if (!current) return
-      const terminalUsage = invocationUsageBuckets(message.event.usage)
+      const terminalUsage = invocationUsage(message.event.usage)
       const isStreamStopped = message.event.delta.stop_reason !== null
       const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
       this.pendingInvocations.set(requestId, {
@@ -308,18 +268,18 @@ export class ClaudeInvocations {
   }
 
   private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
-    if (this.committedInvocationIds.has(next.requestId)) {
+    if (this.committedInvocationIds.has(next.id)) {
       return
     }
 
     const previousRequestId = this.streamInvocationIdsByLane.get(lane)
-    if (previousRequestId && previousRequestId !== next.requestId) {
+    if (previousRequestId && previousRequestId !== next.id) {
       this.commitInvocationUsage(previousRequestId)
     }
-    this.streamInvocationIdsByLane.set(lane, next.requestId)
+    this.streamInvocationIdsByLane.set(lane, next.id)
 
-    const current = this.pendingInvocations.get(next.requestId)
-    this.pendingInvocations.set(next.requestId, current ? mergePendingInvocation(current, next) : next)
+    const current = this.pendingInvocations.get(next.id)
+    this.pendingInvocations.set(next.id, current ? mergePendingInvocation(current, next) : next)
   }
 
   private commitPendingInvocations(): void {
@@ -352,15 +312,13 @@ export class ClaudeInvocations {
     for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
       if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
     }
-    this.committedInvocationIds.add(pending.requestId)
-    const usage = materializeInvocationUsage(
-      mergeInvocationUsageBuckets(
-        mergeInvocationUsageBuckets(pending.startUsage, pending.assistantUsage),
-        pending.terminalUsage
-      )
+    this.committedInvocationIds.add(pending.id)
+    const usage = mergeInvocationUsage(
+      mergeInvocationUsage(pending.startUsage, pending.assistantUsage),
+      pending.terminalUsage
     )
     this.emitted.push({
-      responseId: pending.requestId,
+      responseId: pending.id,
       ...(pending.model ? { model: pending.model } : {}),
       ...(usage ? { usage } : {}),
       ...(pending.metrics ? { metrics: pending.metrics } : {})

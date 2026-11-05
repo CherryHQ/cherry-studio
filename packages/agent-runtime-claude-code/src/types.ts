@@ -1,7 +1,9 @@
 import type {
   Options,
   Query,
+  SDKAssistantMessage,
   SDKMessage,
+  SDKPartialAssistantMessage,
   SDKUserMessage,
   SessionMessage,
   WarmQuery
@@ -60,16 +62,11 @@ export type ClaudeNativeMessage =
   | { readonly source: 'archive'; readonly message: SessionMessage }
 
 export interface ClaudeInvocation {
-  readonly responseId: string
-  readonly model?: string
-  readonly usage?: {
-    readonly inputTokens: number
-    readonly outputTokens: number
-    readonly totalTokens: number
-    readonly noCacheTokens: number
-    readonly cacheReadTokens: number
-    readonly cacheWriteTokens: number
-  }
+  readonly responseId: SDKAssistantMessage['message']['id']
+  readonly model?: SDKAssistantMessage['message']['model']
+  readonly usage?:
+    | SDKAssistantMessage['message']['usage']
+    | Extract<SDKPartialAssistantMessage['event'], { type: 'message_delta' }>['usage']
   readonly metrics?: {
     readonly timeFirstTokenMs?: number
     readonly timeCompletionMs?: number

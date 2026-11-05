@@ -825,6 +825,52 @@ it.each(['current-answer', 'history-only', 'user-only'])(
   30000
 )
 
+it('maps native SDK usage to product token totals once per response', async () => {
+  const wire = wireProcess()
+  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+  const connection = await test.connect()
+  await connection.send(test.input('Report usage'))
+  await expect.poll(() => wire.inputs.length).toBe(1)
+  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+  const assistant = assistantMessage(context.nativeThreadId!, [{ type: 'text', text: 'Done', citations: null }])
+  assistant.message.usage = {
+    ...assistant.message.usage,
+    input_tokens: 13,
+    cache_read_input_tokens: 19,
+    cache_creation_input_tokens: 17,
+    output_tokens: 23
+  }
+  wire.send(assistant)
+  wire.send({
+    type: 'stream_event',
+    uuid: randomUUID(),
+    session_id: context.nativeThreadId!,
+    parent_tool_use_id: null,
+    event: { type: 'message_stop' }
+  })
+  await test.wait('usage')
+  wire.send(assistant)
+  wire.exit()
+  await connection.close()
+  expect(test.events.filter((event) => event.type === 'usage')).toMatchObject([
+    {
+      invocation: {
+        requestId: `claude-agent:${assistant.message.id}`,
+        responseId: assistant.message.id,
+        model: assistant.message.model,
+        usage: {
+          inputTokens: 49,
+          outputTokens: 23,
+          totalTokens: 72,
+          noCacheTokens: 13,
+          cacheReadTokens: 19,
+          cacheWriteTokens: 17
+        }
+      }
+    }
+  ])
+})
+
 it('publishes the native resume identity before a failed first result', async () => {
   const wire = wireProcess()
   const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
