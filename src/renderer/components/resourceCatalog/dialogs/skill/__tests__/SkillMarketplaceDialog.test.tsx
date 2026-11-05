@@ -571,4 +571,26 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.getByRole('button', { name: /library.skill_marketplace.retry/ })).toBeEnabled()
     expect(toastError).not.toHaveBeenCalled()
   })
+
+  it('reports a real failure that lands after a cancel request instead of calling it cancelled', async () => {
+    const user = userEvent.setup()
+    const source = 'skills.sh:vercel/skills/react-skill'
+    let resolveInstall!: (value: { skill: null; error: string }) => void
+    installMock.mockReturnValueOnce(new Promise((resolve) => (resolveInstall = resolve)))
+    const { rerender } = renderDialog()
+
+    typeSearchQuery('code')
+    await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
+    isInstallingMock.mockImplementation((key?: string) => key === source)
+    rerender(<SkillMarketplaceDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /library.skill_marketplace.cancel$/ }))
+    isInstallingMock.mockReturnValue(false)
+    await act(async () => resolveInstall({ skill: null, error: 'Skill folder already exists' }))
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('settings.skills.installFailed:React Skill: Skill folder already exists')
+    })
+    expect(screen.queryByText('library.skill_marketplace.cancelled')).not.toBeInTheDocument()
+  })
 })

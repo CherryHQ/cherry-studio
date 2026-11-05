@@ -22,7 +22,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
-import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
+import { SKILL_INSTALL_CANCELLED_MESSAGE, type SkillSearchResult, type SkillSearchSource } from '@shared/types/skill'
 import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
@@ -185,7 +185,9 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
       try {
         const { skill, error: installError } = await install(source)
         if (!skill) {
-          if (cancelRequestedRef.current.has(source)) {
+          // A cancel request is not proof of cancellation: a late cancel leaves the install running and it can
+          // still fail for real. Suppress only the explicit cancelled outcome.
+          if (cancelRequestedRef.current.has(source) && installError === SKILL_INSTALL_CANCELLED_MESSAGE) {
             setCancelledSources((current) => new Set(current).add(source))
             return
           }

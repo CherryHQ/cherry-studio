@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: vi.fn() }))
@@ -33,6 +37,30 @@ describe('executeCommand', () => {
     })
     controller.abort(new Error('cancelled'))
     await expect(running).rejects.toThrow('cancelled')
+  })
+
+  it.skipIf(process.platform === 'win32')('terminates descendants of an aborted command before rejecting', async () => {
+    const pidFile = path.join(os.tmpdir(), `process-runner-grandchild-${process.pid}-${Date.now()}.pid`)
+    const script = [
+      "const { spawn } = require('child_process')",
+      "const grandchild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+      `require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(grandchild.pid))`,
+      'setInterval(() => {}, 1000)'
+    ].join(';')
+    const controller = new AbortController()
+    const running = executeCommand(process.execPath, ['-e', script], { env: process.env, signal: controller.signal })
+    const rejection = expect(running).rejects.toThrow('cancelled')
+    await vi.waitFor(() => expect(fs.existsSync(pidFile)).toBe(true))
+    await vi.waitFor(() => expect(fs.readFileSync(pidFile, 'utf8')).not.toBe(''))
+    const grandchildPid = Number(fs.readFileSync(pidFile, 'utf8'))
+    expect(() => process.kill(grandchildPid, 0)).not.toThrow()
+
+    controller.abort(new Error('cancelled'))
+    await rejection
+
+    // Rejection means the tree is gone: the grandchild must already be dead, not merely signalled.
+    expect(() => process.kill(grandchildPid, 0)).toThrow()
+    fs.rmSync(pidFile, { force: true })
   })
 
   it('does not spawn when the signal is already aborted', async () => {

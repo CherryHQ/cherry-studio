@@ -914,6 +914,32 @@ describe('SkillService', () => {
       expect(new SkillService().cancelInstall('github:https://github.com/o/r/blob/main/SKILL.md')).toBe(false)
     })
 
+    it('joins an overlapping same-source install so Cancel always targets the running attempt', async () => {
+      const skillService = new SkillService()
+      const source = 'github:https://github.com/o/r/blob/main/SKILL.md'
+      let resolveRun!: (skill: unknown) => void
+      let observedSignal!: AbortSignal
+      const run = vi.spyOn(skillService as any, 'runMarketplaceInstall').mockImplementation(((
+        _source: string,
+        signal: AbortSignal
+      ) => {
+        observedSignal = signal
+        return new Promise((resolve) => (resolveRun = resolve))
+      }) as never)
+
+      const first = skillService.install({ installSource: source })
+      const second = skillService.install({ installSource: source })
+      expect(run).toHaveBeenCalledTimes(1)
+
+      expect(skillService.cancelInstall(source)).toBe(true)
+      expect(observedSignal.aborted).toBe(true)
+
+      resolveRun({ id: 'skill-1' })
+      await expect(first).resolves.toEqual({ id: 'skill-1' })
+      await expect(second).resolves.toEqual({ id: 'skill-1' })
+      expect(skillService.cancelInstall(source)).toBe(false)
+    })
+
     it('throws on unknown install source', async () => {
       const skillService = new SkillService()
       await expect(skillService.install({ installSource: 'unknown:foo/bar' })).rejects.toThrow(

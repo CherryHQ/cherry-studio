@@ -20,6 +20,9 @@ const execFileAsync = promisify(execFile)
 
 const logger = loggerService.withContext('Utils:ProcessRunner')
 
+/** How long a cancelled command may take to report exit after its process tree is killed. */
+const ABORT_EXIT_WAIT_MS = 5000
+
 const PROXY_ENV_KEYS = new Set([
   'CHERRY_STUDIO_NODE_PROXY_RULES',
   'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
@@ -220,7 +223,10 @@ export async function executeCommand(
   options?.signal?.throwIfAborted()
 
   return new Promise<string>((resolve, reject) => {
-    const child = crossPlatformSpawn(command, args, { env })
+    // A cancellable command runs as its own process group leader on POSIX so cancelling can reach
+    // descendants (e.g. git's remote-http helpers), not just the immediate child.
+    const child = crossPlatformSpawn(command, args, { env, ...(options?.signal && !isWin ? { detached: true } : {}) })
+    let aborted = false
     let stdout = ''
     let stderr = ''
     let outputBytes = 0
@@ -257,20 +263,34 @@ export async function executeCommand(
       }, options.timeout)
     }
 
+    // Reject only after the whole process tree has exited, so callers can safely clean up
+    // files the command was using and start a retry.
     const onAbort = () => {
-      child.kill('SIGKILL')
-      reject(options?.signal?.reason)
+      aborted = true
+      if (timeoutId) clearTimeout(timeoutId)
+      void terminateProcessTree(child, true, 'command')
+        .catch((error) => logger.warn('Failed to terminate the cancelled command process tree', error as Error))
+        .then(() => {
+          if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+          return waitForProcessExit(child, ABORT_EXIT_WAIT_MS)
+        })
+        .then(() => {
+          options?.signal?.removeEventListener('abort', onAbort)
+          reject(options?.signal?.reason)
+        })
     }
     options?.signal?.addEventListener('abort', onAbort, { once: true })
 
     child.on('error', (err) => {
       if (timeoutId) clearTimeout(timeoutId)
+      if (aborted) return
       options?.signal?.removeEventListener('abort', onAbort)
       reject(outputLimitError ?? err)
     })
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
+      if (aborted) return
       options?.signal?.removeEventListener('abort', onAbort)
       if (outputLimitError) {
         reject(outputLimitError)
