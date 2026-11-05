@@ -24,4 +24,22 @@ describe('executeCommand', () => {
       })
     ).rejects.toThrow('output exceeded 16 bytes')
   })
+
+  it('kills a running command and rejects when the signal aborts', async () => {
+    const controller = new AbortController()
+    const running = executeCommand(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      env: process.env,
+      signal: controller.signal
+    })
+    controller.abort(new Error('cancelled'))
+    await expect(running).rejects.toThrow('cancelled')
+  })
+
+  it('does not spawn when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('cancelled'))
+    await expect(
+      executeCommand(process.execPath, printStdout, { env: process.env, signal: controller.signal })
+    ).rejects.toThrow('cancelled')
+  })
 })

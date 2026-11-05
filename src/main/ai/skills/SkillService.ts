@@ -76,6 +76,8 @@ export class SkillService {
   private readonly mutationLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  // Marketplace installs in flight, keyed by installSource, so the UI can cancel the download.
+  private readonly installControllers = new Map<string, AbortController>()
 
   constructor() {
     this.installer = new SkillInstaller()
@@ -216,15 +218,32 @@ export class SkillService {
    */
   async install(options: SkillInstallOptions): Promise<InstalledSkill> {
     const [source, ...rest] = options.installSource.split(':')
-    const fetched = await fetchRemoteSkill(source, rest.join(':'))
+    const controller = new AbortController()
+    this.installControllers.set(options.installSource, controller)
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
-      fetched.onInstalled?.()
-      return installed
+      const fetched = await fetchRemoteSkill(source, rest.join(':'), controller.signal)
+      try {
+        controller.signal.throwIfAborted()
+        const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+        fetched.onInstalled?.()
+        return installed
+      } finally {
+        await safeRemoveDirectory(fetched.tempDir)
+      }
     } finally {
-      await safeRemoveDirectory(fetched.tempDir)
+      if (this.installControllers.get(options.installSource) === controller) {
+        this.installControllers.delete(options.installSource)
+      }
     }
+  }
+
+  /** Abort an in-flight marketplace install; its temp workspace is removed as the fetch unwinds. */
+  cancelInstall(installSource: string): boolean {
+    const controller = this.installControllers.get(installSource)
+    if (!controller) return false
+    controller.abort(new Error('Install cancelled'))
+    return true
   }
 
   async installFromZip(options: SkillInstallFromZipOptions): Promise<InstalledSkill> {

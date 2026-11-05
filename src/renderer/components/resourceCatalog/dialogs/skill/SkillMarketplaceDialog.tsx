@@ -1,4 +1,4 @@
-import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
+import { Check, Download, ExternalLink, Loader2, RotateCw, Star, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +18,7 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
@@ -39,18 +40,45 @@ const SOURCE_LABELS: Record<SkillSearchSource, string> = {
 }
 const SEARCH_SOURCES = Object.keys(SOURCE_LABELS) as SkillSearchSource[]
 const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
+type InstallFailureKind = 'network' | 'timeout' | 'unknown'
+
+// Only the category is kept: raw git/network errors can carry temp paths and URLs.
+function classifyInstallFailure(message: string | undefined): InstallFailureKind {
+  if (!message) return 'unknown'
+  if (/timed out|timeout|ETIMEDOUT/i.test(message)) return 'timeout'
+  if (
+    /RPC failed|curl|connection|ECONN|ENOTFOUND|EAI_AGAIN|fetch failed|network|unable to access|could not resolve|early EOF|unexpected disconnect|HTTP 5/i.test(
+      message
+    )
+  ) {
+    return 'network'
+  }
+  return 'unknown'
+}
+
 const SEARCH_DEBOUNCE_MS = 300
 const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
+
+function withoutSource(current: Set<string>, source: string): Set<string> {
+  if (!current.has(source)) return current
+  const next = new Set(current)
+  next.delete(source)
+  return next
+}
 
 export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
   const { results, searching, error, search, clear } = useSkillSearch()
-  const { install, isInstalling } = useSkillInstall()
+  const { install, cancel, isInstalling } = useSkillInstall()
+  const [failures, setFailures] = usePersistCache('settings.skills.marketplace_install_failures')
   const [query, setQuery] = useState('')
   const [submittedUrl, setSubmittedUrl] = useState('')
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const [searchDebouncing, setSearchDebouncing] = useState(false)
+  const [cancellingSources, setCancellingSources] = useState<Set<string>>(() => new Set())
+  const [cancelledSources, setCancelledSources] = useState<Set<string>>(() => new Set())
+  const cancelRequestedRef = useRef<Set<string>>(new Set())
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const urlErrorId = useId()
@@ -70,6 +98,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
     setSearchDebouncing(false)
+    setCancelledSources(new Set())
     pendingInstallSourcesRef.current.clear()
     clear()
   }, [clear, clearPendingSearch, open])
@@ -143,10 +172,24 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         return
       }
 
-      pendingInstallSourcesRef.current.add(result.installSource)
+      const source = result.installSource
+      pendingInstallSourcesRef.current.add(source)
+      cancelRequestedRef.current.delete(source)
+      setCancelledSources((current) => withoutSource(current, source))
+      setFailures((current) => {
+        if (!(source in current)) return current
+        const next = { ...current }
+        delete next[source]
+        return next
+      })
       try {
-        const { skill, error: installError } = await install(result.installSource)
+        const { skill, error: installError } = await install(source)
         if (!skill) {
+          if (cancelRequestedRef.current.has(source)) {
+            setCancelledSources((current) => new Set(current).add(source))
+            return
+          }
+          setFailures((current) => ({ ...current, [source]: classifyInstallFailure(installError) }))
           const message = t('settings.skills.installFailed', { name: result.name })
           toast.error(installError ? `${message}: ${installError}` : message)
           return
@@ -155,22 +198,25 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         setInstalledSources((current) => new Set(current).add(result.installSource))
         toast.success(t('settings.skills.installSuccess', { name: skill.name }))
       } finally {
-        pendingInstallSourcesRef.current.delete(result.installSource)
+        pendingInstallSourcesRef.current.delete(source)
+        cancelRequestedRef.current.delete(source)
+        setCancellingSources((current) => withoutSource(current, source))
       }
     },
-    [install, installedSources, isInstalling, t]
+    [install, installedSources, isInstalling, setFailures, t]
   )
 
-  const close = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen && isInstalling()) return
-      onOpenChange(nextOpen)
+  const handleCancel = useCallback(
+    (result: SkillSearchResult) => {
+      cancelRequestedRef.current.add(result.installSource)
+      setCancellingSources((current) => new Set(current).add(result.installSource))
+      void cancel(result.installSource)
     },
-    [isInstalling, onOpenChange]
+    [cancel]
   )
 
   return (
-    <Dialog open={open} onOpenChange={close}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         closeOnOverlayClick
         size="xl"
@@ -245,7 +291,11 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
             results={visibleResults}
             installedSources={installedSources}
             isInstalling={isInstalling}
+            cancellingSources={cancellingSources}
+            cancelledSources={cancelledSources}
+            failures={failures}
             onInstall={handleInstall}
+            onCancel={handleCancel}
           />
         </div>
       </DialogContent>
@@ -262,7 +312,11 @@ function SkillSearchBody({
   results,
   installedSources,
   isInstalling,
-  onInstall
+  cancellingSources,
+  cancelledSources,
+  failures,
+  onInstall,
+  onCancel
 }: {
   query: string
   emptyTitle: string
@@ -272,7 +326,11 @@ function SkillSearchBody({
   results: SkillSearchResult[]
   installedSources: Set<string>
   isInstalling: (key?: string) => boolean
+  cancellingSources: Set<string>
+  cancelledSources: Set<string>
+  failures: Record<string, InstallFailureKind>
   onInstall: (result: SkillSearchResult) => void
+  onCancel: (result: SkillSearchResult) => void
 }) {
   const { t } = useTranslation()
   const getResultKey = useCallback(
@@ -334,7 +392,11 @@ function SkillSearchBody({
           last={index === results.length - 1}
           installed={installedSources.has(result.installSource)}
           installing={isInstalling(result.installSource)}
+          cancelling={cancellingSources.has(result.installSource)}
+          cancelled={cancelledSources.has(result.installSource)}
+          failure={failures[result.installSource]}
           onInstall={() => onInstall(result)}
+          onCancel={() => onCancel(result)}
         />
       )}
     </DynamicVirtualList>
@@ -346,16 +408,30 @@ function SkillSearchResultRow({
   last,
   installed,
   installing,
-  onInstall
+  cancelling,
+  cancelled,
+  failure,
+  onInstall,
+  onCancel
 }: {
   result: SkillSearchResult
   last: boolean
   installed: boolean
   installing: boolean
+  cancelling: boolean
+  cancelled: boolean
+  failure: InstallFailureKind | undefined
   onInstall: () => void
+  onCancel: () => void
 }) {
   const { t } = useTranslation()
   const hasMeta = result.stars > 0 || result.downloads > 0
+  const retryable = !installed && !installing && (failure !== undefined || cancelled)
+  const statusMessage = cancelled
+    ? t('library.skill_marketplace.cancelled')
+    : failure
+      ? t(`library.skill_marketplace.failed_${failure}`)
+      : null
 
   return (
     <div
@@ -393,8 +469,28 @@ function SkillSearchResultRow({
             ) : null}
           </div>
         ) : null}
+        {statusMessage && !installing ? (
+          <p
+            role={failure ? 'alert' : 'status'}
+            className={`mt-0.5 text-[11px] leading-[14px] ${failure ? 'text-error' : 'text-foreground-tertiary'}`}>
+            {statusMessage}
+          </p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1 pt-0.5">
+        {installing ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            disabled={cancelling}
+            className="h-7 min-h-0 justify-center gap-1 rounded-lg px-2 text-xs shadow-none">
+            <X className="size-3.5" />
+            <span>
+              {cancelling ? t('library.skill_marketplace.cancelling') : t('library.skill_marketplace.cancel')}
+            </span>
+          </Button>
+        ) : null}
         <Button
           variant={installed ? 'ghost' : 'outline'}
           size="sm"
@@ -406,10 +502,18 @@ function SkillSearchResultRow({
             <Loader2 className="size-3.5 animate-spin" />
           ) : installed ? (
             <Check className="size-3.5" />
+          ) : retryable ? (
+            <RotateCw className="size-3.5" />
           ) : (
             <Download className="size-3.5" />
           )}
-          <span>{installed ? t('settings.skills.installed') : t('settings.skills.install')}</span>
+          <span>
+            {installed
+              ? t('settings.skills.installed')
+              : retryable
+                ? t('library.skill_marketplace.retry')
+                : t('settings.skills.install')}
+          </span>
         </Button>
       </div>
     </div>

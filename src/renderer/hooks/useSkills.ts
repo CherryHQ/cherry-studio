@@ -419,6 +419,14 @@ export function useSkillInstall() {
     [beginInstalling, finishInstalling, invalidate]
   )
 
+  const cancel = useCallback(async (installSource: string): Promise<void> => {
+    try {
+      await ipcApi.request('skill.install_cancel', { installSource })
+    } catch (error) {
+      logger.warn('Failed to cancel skill install', { error: skillErrorMessage(error) })
+    }
+  }, [])
+
   const installFromZip = useCallback(
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
       beginInstalling('zip')
@@ -459,5 +467,5 @@ export function useSkillInstall() {
     [installingCounts]
   )
 
-  return { installingKey, isInstalling, install, installFromZip, installFromDirectory }
+  return { installingKey, isInstalling, install, cancel, installFromZip, installFromDirectory }
 }

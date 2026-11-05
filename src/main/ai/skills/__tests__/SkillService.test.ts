@@ -910,6 +910,10 @@ describe('SkillService', () => {
   })
 
   describe('install', () => {
+    it('reports whether a cancel reached an in-flight install', () => {
+      expect(new SkillService().cancelInstall('github:https://github.com/o/r/blob/main/SKILL.md')).toBe(false)
+    })
+
     it('throws on unknown install source', async () => {
       const skillService = new SkillService()
       await expect(skillService.install({ installSource: 'unknown:foo/bar' })).rejects.toThrow(
@@ -1712,13 +1716,15 @@ describe('SkillService', () => {
 
         expect(result).toBe(installedSkill)
         expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code?ownerHandle=ivangdavila', {
-          headers: { 'User-Agent': 'CherryStudio' }
+          headers: { 'User-Agent': 'CherryStudio' },
+          signal: expect.any(AbortSignal)
         })
         expect(net.fetch).toHaveBeenNthCalledWith(
           2,
           'https://clawhub.ai/api/v1/download?slug=code&ownerHandle=ivangdavila',
           {
-            headers: { 'User-Agent': 'CherryStudio' }
+            headers: { 'User-Agent': 'CherryStudio' },
+            signal: expect.any(AbortSignal)
           }
         )
         expect(createTempDirSpy).toHaveBeenCalledWith('clawhub')

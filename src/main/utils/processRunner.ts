@@ -212,9 +212,12 @@ export async function executeCommand(
     maxOutputBytes?: number
     /** Timeout in milliseconds */
     timeout?: number
+    /** Aborting kills the command and rejects with the signal's reason */
+    signal?: AbortSignal
   }
 ): Promise<string> {
   const env = options?.env ?? (await getShellEnv())
+  options?.signal?.throwIfAborted()
 
   return new Promise<string>((resolve, reject) => {
     const child = crossPlatformSpawn(command, args, { env })
@@ -254,13 +257,21 @@ export async function executeCommand(
       }, options.timeout)
     }
 
+    const onAbort = () => {
+      child.kill('SIGKILL')
+      reject(options?.signal?.reason)
+    }
+    options?.signal?.addEventListener('abort', onAbort, { once: true })
+
     child.on('error', (err) => {
       if (timeoutId) clearTimeout(timeoutId)
+      options?.signal?.removeEventListener('abort', onAbort)
       reject(outputLimitError ?? err)
     })
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
+      options?.signal?.removeEventListener('abort', onAbort)
       if (outputLimitError) {
         reject(outputLimitError)
       } else if (code === 0) {

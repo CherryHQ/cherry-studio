@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -12,6 +13,7 @@ import { SkillMarketplaceDialog } from '../SkillMarketplaceDialog'
 const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
+const cancelMock = vi.fn()
 const isInstallingMock = vi.fn()
 const { toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
@@ -73,6 +75,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   }),
   useSkillInstall: () => ({
     install: installMock,
+    cancel: cancelMock,
     isInstalling: isInstallingMock
   })
 }))
@@ -183,6 +186,7 @@ vi.mock('@renderer/components/VirtualList', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockUseCacheUtils.resetMocks()
   skillSearchState = {
     results: resultsFixture,
     searching: false,
@@ -523,5 +527,48 @@ describe('SkillMarketplaceDialog', () => {
       expect(toastError).toHaveBeenCalledWith('settings.skills.installFailed:React Skill: clone failed')
     })
     expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps a categorized failure and a Retry action on the item', async () => {
+    const user = userEvent.setup()
+    installMock.mockResolvedValueOnce({ skill: null, error: 'RPC failed; curl 56 Recv failure' })
+    const { rerender } = renderDialog()
+
+    typeSearchQuery('code')
+    await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    // The mocked persist cache does not subscribe, so remount to read what was persisted.
+    rerender(<SkillMarketplaceDialog open={false} onOpenChange={vi.fn()} />)
+    rerender(<SkillMarketplaceDialog open onOpenChange={vi.fn()} />)
+    typeSearchQuery('code')
+
+    expect(await screen.findByText('library.skill_marketplace.failed_network')).toBeInTheDocument()
+    expect(screen.queryByText(/curl/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /library.skill_marketplace.retry/ }))
+    expect(installMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels an active install and leaves the item retryable', async () => {
+    const user = userEvent.setup()
+    const source = 'skills.sh:vercel/skills/react-skill'
+    let resolveInstall!: (value: { skill: null; error: string }) => void
+    installMock.mockReturnValueOnce(new Promise((resolve) => (resolveInstall = resolve)))
+    const { rerender } = renderDialog()
+
+    typeSearchQuery('code')
+    await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
+    isInstallingMock.mockImplementation((key?: string) => key === source)
+    rerender(<SkillMarketplaceDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /library.skill_marketplace.cancel$/ }))
+    expect(cancelMock).toHaveBeenCalledWith(source)
+
+    isInstallingMock.mockReturnValue(false)
+    await act(async () => resolveInstall({ skill: null, error: 'Install cancelled' }))
+
+    expect(await screen.findByText('library.skill_marketplace.cancelled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /library.skill_marketplace.retry/ })).toBeEnabled()
+    expect(toastError).not.toHaveBeenCalled()
   })
 })
