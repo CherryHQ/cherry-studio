@@ -157,10 +157,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
 
     const history = prepared.models[0].request.messages!
+    const metadataCreatedAt = (m: (typeof history)[number]) =>
+      (m.metadata as { createdAt?: string } | undefined)?.createdAt
     // Served history is built through toRow/toServed — the projection that previously
     // discarded createdAt. Assert against the producer's own stored values.
-    expect(history[0].metadata?.createdAt).toBe(messageService.getById('u1')?.createdAt)
-    expect(history[1].metadata?.createdAt).toBe(messageService.getById('a1')?.createdAt)
+    expect(metadataCreatedAt(history[0])).toBe(messageService.getById('u1')?.createdAt)
+    expect(metadataCreatedAt(history[1])).toBe(messageService.getById('a1')?.createdAt)
 
     // End to end on the production shaping path: the optional send-time prefix now
     // reaches the user turns in this served history, assistant turns untouched.
@@ -171,7 +173,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const userTurns = history.filter((m) => m.role === 'user')
     expect(userTurns.length).toBeGreaterThanOrEqual(2)
     for (const m of userTurns) {
-      const createdAt = m.metadata?.createdAt
+      const createdAt = metadataCreatedAt(m)
       expect(typeof createdAt).toBe('string')
       expect(new Date(createdAt as string).getTime()).not.toBeNaN()
     }
