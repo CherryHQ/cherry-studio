@@ -21,6 +21,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Textarea,
   Tooltip
 } from '@cherrystudio/ui'
@@ -106,6 +107,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       isBuiltIn: false,
       icon: formData.icon,
       prompt: formData.prompt,
+      askInput: runner === SELECTION_ACTION_RUNNER.AGENT ? undefined : formData.askInput,
       runner,
       assistantId: formData.assistantId,
       agentId: formData.agentId,
@@ -320,6 +322,15 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               className="max-h-40 resize-none overflow-y-auto"
             />
           </ModalSection>
+          {runner !== SELECTION_ACTION_RUNNER.AGENT && (
+            <ModalSection className="flex-row items-center justify-between">
+              <ModalSectionTitleLabel>{t('selection.settings.user_modal.ask_input.label')}</ModalSectionTitleLabel>
+              <Switch
+                checked={!!formData.askInput}
+                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, askInput: checked }))}
+              />
+            </ModalSection>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>

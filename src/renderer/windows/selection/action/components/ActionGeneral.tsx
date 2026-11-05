@@ -1,3 +1,4 @@
+import { Button, Input } from '@cherrystudio/ui'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
@@ -42,6 +43,10 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
+  const needsInput = !action.isBuiltIn && !!action.askInput
+  const [inputDraft, setInputDraft] = useState('')
+  const [submittedInput, setSubmittedInput] = useState<string | null>(null)
+  const awaitingInput = needsInput && submittedInput === null
 
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const assistantId =
@@ -74,8 +79,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
       return action.selectedText || ''
     }
 
-    return expandSelectionPrompt(action.prompt, action.selectedText ?? '')
-  }, [action, language, t])
+    const expanded = expandSelectionPrompt(action.prompt, action.selectedText ?? '')
+    return submittedInput ? submittedInput + '\n\n' + expanded : expanded
+  }, [action, language, submittedInput, t])
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
@@ -128,14 +134,22 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   const error = completionError
 
   const fetchResult = useCallback(() => {
-    if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
+    if (!ready || !temporaryTopicId || waitingForConfiguredAssistant || awaitingInput) return
     logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
     setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
     // topicId is captured by the command hook; Main resolves assistant/model from topic.assistantId.
     void sendMessage({ text: promptContent })
-  }, [chosenAssistantId, promptContent, ready, sendMessage, temporaryTopicId, waitingForConfiguredAssistant])
+  }, [
+    awaitingInput,
+    chosenAssistantId,
+    promptContent,
+    ready,
+    sendMessage,
+    temporaryTopicId,
+    waitingForConfiguredAssistant
+  ])
 
   useEffect(() => {
     // Kick the result-renderer chunk off immediately — rendering waits for the
@@ -183,6 +197,27 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
               />
             </div>
           </div>
+        )}
+        {needsInput && (
+          <form
+            className="mt-2 flex w-full flex-row items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (awaitingInput && inputDraft.trim()) setSubmittedInput(inputDraft.trim())
+            }}>
+            <Input
+              autoFocus
+              value={inputDraft}
+              disabled={!awaitingInput}
+              onChange={(e) => setInputDraft(e.target.value)}
+              placeholder={t('selection.action.window.input_placeholder')}
+            />
+            {awaitingInput && (
+              <Button type="submit" size="sm" disabled={!inputDraft.trim()}>
+                {t('common.confirm')}
+              </Button>
+            )}
+          </form>
         )}
         <div className="mt-1 w-full">
           {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
