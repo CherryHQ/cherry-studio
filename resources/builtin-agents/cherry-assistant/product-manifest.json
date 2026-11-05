@@ -449,6 +449,58 @@
       }
     },
     {
+      "id": "assistant.next",
+      "titleKey": "settings.shortcuts.next_assistant",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Right"
+        ]
+      }
+    },
+    {
+      "id": "assistant.prev",
+      "titleKey": "settings.shortcuts.prev_assistant",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Left"
+        ]
+      }
+    },
+    {
+      "id": "topic.next",
+      "titleKey": "settings.shortcuts.next_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
+        ]
+      }
+    },
+    {
+      "id": "topic.prev",
+      "titleKey": "settings.shortcuts.prev_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ]
+      }
+    },
+    {
       "id": "tab.close",
       "titleKey": "settings.shortcuts.close_tab",
       "categoryKey": "settings.shortcuts.general",
