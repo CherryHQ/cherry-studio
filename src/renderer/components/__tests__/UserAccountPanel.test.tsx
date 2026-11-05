@@ -88,7 +88,7 @@ beforeEach(async () => {
   plans = { measured_at: '2026-09-23T00:00:00Z', entitlements: [], available_plans: [] }
   request.mockImplementation(async (route) => {
     if (route === 'cherry_cloud.status.get') return { ok: true, data: session }
-    if (route === 'cherry_cloud.api_origin.get') return { ok: true, data: 'https://cloud-dev.cherryai.com' }
+    if (route === 'cherry_cloud.account_origin.get') return { ok: true, data: 'https://cloud-dev.cherryai.com' }
     if (route === 'cherry_cloud.account_plans.get') return { ok: true, data: plans }
     if (route === 'cherry_cloud.login.start') {
       return { ok: true, data: { phase: 'authorizing', accountId: null, displayName: null } }

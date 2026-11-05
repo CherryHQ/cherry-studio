@@ -649,6 +649,21 @@ describe('CherryCloudService', () => {
     }
   )
 
+  it.each([
+    ['CN production', 'cn', '', 'https://accounts.cherryai.com.cn'],
+    ['global production', 'global', '', 'https://accounts.cherryai.com'],
+    ['configured backend', 'cn', 'https://cloud-dev.cherry-ai.com/', 'https://cloud-dev.cherry-ai.com']
+  ] as const)(
+    'opens the account center on the %s origin',
+    async (_label, edition, configuredOrigin, expectedOrigin) => {
+      mocks.appEdition = edition
+      vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', configuredOrigin)
+      const service = await createService()
+
+      expect(service.getAccountOrigin()).toBe(expectedOrigin)
+    }
+  )
+
   it('returns to signed out when browser authorization expires without a callback', async () => {
     vi.useFakeTimers()
     try {
