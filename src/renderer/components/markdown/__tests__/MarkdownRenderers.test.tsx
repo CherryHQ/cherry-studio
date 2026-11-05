@@ -4,7 +4,7 @@ import type { ComponentType, ImgHTMLAttributes, MouseEvent, PropsWithChildren } 
 import { describe, expect, it, vi } from 'vitest'
 
 import { MarkdownHostProvider } from '../MarkdownHostProvider'
-import { useMarkdownComponents } from '../MarkdownRenderers'
+import { MarkdownLinkRenderer, useMarkdownComponents } from '../MarkdownRenderers'
 
 vi.mock('@cherrystudio/ui', () => ({
   HoverCard: ({ children }: PropsWithChildren) => children,
@@ -256,4 +256,26 @@ it('keeps file capability routing ahead of external URL routing', () => {
   expect(event.defaultPrevented).toBe(true)
   expect(openFilePath).toHaveBeenCalledExactlyOnceWith('./notes.md')
   expect(openExternalUrl).not.toHaveBeenCalled()
+})
+
+describe('bare image URLs', () => {
+  it('renders an autolinked network image URL as an image', () => {
+    const url = 'https://example.com/pic.png?x=1'
+    const A = MarkdownLinkRenderer
+    render(<A href={url}>{url}</A>)
+    expect(screen.getByRole('img')).toHaveAttribute('src', url)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps labelled links and non-image URLs as links', () => {
+    const A = MarkdownLinkRenderer
+    render(
+      <>
+        <A href="https://example.com/pic.png">label</A>
+        <A href="https://example.com/page">https://example.com/page</A>
+      </>
+    )
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+  })
 })

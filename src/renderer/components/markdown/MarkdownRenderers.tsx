@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type JSX,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useMemo,
   useState
 } from 'react'
@@ -30,6 +31,12 @@ type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intrin
 
 const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
+
+const IMAGE_URL_PATTERN = /^https?:\/\/[^\s?#]+\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]\S*)?$/i
+
+function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
+  return Boolean(href && IMAGE_URL_PATTERN.test(href) && typeof children === 'string' && children === href)
+}
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
   if (!node) return true
@@ -102,6 +109,10 @@ export function MarkdownLinkRenderer({
         {props.children}
       </a>
     )
+  }
+
+  if (isBareImageUrlLink(props.href, props.children)) {
+    return <MarkdownImageRenderer src={props.href} alt={props.href} />
   }
 
   const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
