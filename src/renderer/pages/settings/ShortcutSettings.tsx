@@ -370,9 +370,13 @@ const ShortcutSettings: FC = () => {
     const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
-        // Non-editable commands are fixed reservations (e.g. the native close
-        // role); toggling them off would silently revert their accelerator.
-        if (!record.preference.binding.length || record.keybinding.editable === false) return acc
+        // Fixed reservations (e.g. the native close role) must opt into toggling
+        // to avoid silently reverting their accelerator when disabled.
+        if (
+          !record.preference.binding.length ||
+          (record.keybinding.editable === false && record.keybinding.enableToggle !== true)
+        )
+          return acc
         nextPreferencesByCommand[record.command] = {
           binding: record.preference.binding,
           enabled
@@ -521,7 +525,10 @@ const ShortcutSettings: FC = () => {
       <Switch
         size="sm"
         checked={record.preference.enabled}
-        disabled={!record.preference.binding.length || record.keybinding.editable === false}
+        disabled={
+          !record.preference.binding.length ||
+          (record.keybinding.editable === false && record.keybinding.enableToggle !== true)
+        }
         onCheckedChange={() => {
           const nextPreference = {
             binding: record.preference.binding,
