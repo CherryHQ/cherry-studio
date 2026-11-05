@@ -23,6 +23,12 @@ Status: proposed
 
 账号菜单行为仍由[账号菜单缓存与交互](../../implemented/bug-fix/2026-10-29-account-menu-cache.md)说明。本方案在该体验旁增加通知入口，不重新设计账号操作。
 
+已批准的实现将业务生产者与投递职责分开。`ConversationNotificationService` 拥有 AI 完成、非成功结果和审批订阅；`UsageBudgetNotificationService` 拥有用量订阅、每日阈值和预算周期。两者均依赖 `NotificationService`。后者负责通知偏好、前台策略、持久化调用和投递，在 WhenReady 服务中只依赖 `ConversationNavigationService`。`notificationActivation.ts` 负责目标校验与导航。`NotificationRecordService` 继续拥有持久化记录和结果消费职责。
+
+定时任务结果通过既有、受等待的 `agentTaskJobHandler.onSettled` 钩子交给 `agentTaskNotification.ts`。适配器读取已提交终态的 job 和 schedule，再向 `NotificationService.publishTaskResult` 提供完整结果。明确的 `AgentTaskOutput.kind` 区分 `executed` 与 `skipped`；已完成但跳过执行的运行不产生成功通知。Stream 的完成与非成功事件都遵守注册时捕获的结果 owner，即使其 listener 已被移除。普通会话成功保留 turn/batch 身份，非成功结果保留 attempt 身份。
+
+`AgentJobsService`、`AutoBackupService` 和 `AppUpdaterService` 声明通知依赖。JobManager 保持通用，并沿用退出时等待结算的既有机制；不增加通知专用依赖或新事件总线。通知订阅停止后仍可调用结果持久化，而 BeforeReady 数据服务在 stop 期间仍可用。退出时限和原生投递失败的限制仍然存在；本次不引入崩溃重放、outbox 或 OS 投递恰好一次保证。
+
 ### 入口与未读提示
 
 - 侧栏完整显示或仅显示图标时，铃铛放在用户头像正上方。复用侧栏底部的操作插槽。移除原先常驻标签栏的铃铛。

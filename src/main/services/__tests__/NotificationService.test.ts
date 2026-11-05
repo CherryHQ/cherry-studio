@@ -113,6 +113,9 @@ vi.mock('electron', () => ({
 }))
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: mocks.edition }))
 
+const { activateNotification } = await import('../notificationActivation')
+const { ConversationNotificationService } = await import('../ConversationNotificationService')
+const { UsageBudgetNotificationService } = await import('../UsageBudgetNotificationService')
 const { NotificationService } = await import('../NotificationService')
 const { OfficialAnnouncementService } = await import('../OfficialAnnouncementService')
 
@@ -175,13 +178,21 @@ function changeBudgetPreference(key: string, value: number | boolean): void {
 describe('NotificationService', () => {
   const dbh = setupTestDatabase()
   let service: InstanceType<typeof NotificationService>
+  let conversationService: InstanceType<typeof ConversationNotificationService> | undefined
+  let budgetService: InstanceType<typeof UsageBudgetNotificationService> | undefined
   let notificationPrefListener: ((key: string, newValue: boolean, oldValue: boolean) => void) | undefined
 
   async function initService(): Promise<void> {
+    await conversationService?._doStop()
+    await budgetService?._doStop()
     if (service) await service._doStop()
     BaseService.resetInstances()
     service = new NotificationService()
     await service._doInit()
+    conversationService = new ConversationNotificationService()
+    budgetService = new UsageBudgetNotificationService()
+    await conversationService._doInit()
+    await budgetService._doInit()
   }
 
   beforeEach(async () => {
@@ -208,6 +219,7 @@ describe('NotificationService', () => {
     mocks.agentSessionGetById.mockReturnValue({ name: 'Refactor project' })
     const originalGet = application.getContainer().get.bind(application.getContainer())
     vi.spyOn(application, 'get').mockImplementation(((name: string) => {
+      if (name === 'NotificationService') return service
       if (name === 'AiStreamManager') {
         return {
           onApprovalRequested: (listener: (event: ApprovalRequestedEvent) => void) => {
@@ -247,6 +259,8 @@ describe('NotificationService', () => {
   })
 
   afterEach(async () => {
+    await conversationService?._doStop()
+    await budgetService?._doStop()
     await service._doStop()
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -715,7 +729,7 @@ describe('NotificationService', () => {
   it('opens a stored message anchor, and leaves a deleted target readable and dismissible', async () => {
     await service.publishTaskResult(taskResult())
     const record = notificationRecordService.list().items[0]
-    await service.activateNotification(record.id)
+    await activateNotification(record.id)
     expect(mocks.focusOrOpen).toHaveBeenLastCalledWith(
       { conversationType: 'agent', conversationId: 'session-1' },
       'Refactor project',
@@ -726,7 +740,7 @@ describe('NotificationService', () => {
     mocks.agentSessionGetById.mockImplementation(() => {
       throw new Error('deleted')
     })
-    await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+    await expect(activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
     expect(notificationRecordService.getById(record.id)?.readAt).not.toBeNull()
     notificationRecordService.dismiss(record.id)
     expect(notificationRecordService.getById(record.id)).toBeNull()
@@ -744,7 +758,7 @@ describe('NotificationService', () => {
     const record = notificationRecordService.list().items[0]
     expect(record.target?.result?.errorSummary).toBe('Failed before creating a session')
     const lookup = vi.spyOn(agentTaskService, 'getTaskById').mockReturnValue(null)
-    await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+    await expect(activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
     expect(lookup).toHaveBeenCalledWith('deleted')
     expect(mocks.focusOrOpen).not.toHaveBeenCalled()
   })
@@ -867,7 +881,7 @@ describe('NotificationService', () => {
     mocks.topicGetById.mockImplementation(() => {
       throw new Error('Missing topic')
     })
-    await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+    await expect(activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
     expect(notificationRecordService.unreadCount()).toBe(0)
     expect(mocks.focusOrOpen).not.toHaveBeenCalled()
   })
@@ -880,7 +894,7 @@ describe('NotificationService', () => {
       if (state === 'dismissed') notificationRecordService.dismiss(record.id)
       else vi.spyOn(Date, 'now').mockReturnValue(record.createdAt + 31 * 24 * 60 * 60 * 1000)
 
-      await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+      await expect(activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
       expect(mocks.focusOrOpen).not.toHaveBeenCalled()
     }
   )
@@ -1028,7 +1042,53 @@ describe('NotificationService', () => {
     }
   })
 
+  it.each(['skipped', 'running', 'missing-finish', 'stopped-sink'] as const)(
+    'publishes only committed executed outcomes: %s',
+    async (scenario) => {
+      const now = Date.now()
+      dbh.db
+        .insert(jobScheduleTable)
+        .values({
+          id: 'schedule-result',
+          type: 'agent.task',
+          name: 'Daily check',
+          trigger: { kind: 'interval', ms: 60000 },
+          jobInputTemplate: {},
+          catchUpPolicy: { kind: 'skip-missed' }
+        })
+        .run()
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: 'job-result',
+          type: 'agent.task',
+          status: scenario === 'running' ? 'running' : 'completed',
+          queue: 'agent:a',
+          scheduleId: 'schedule-result',
+          scheduledAt: now - 1000,
+          finishedAt: scenario === 'missing-finish' ? null : now,
+          input: {},
+          output: { kind: scenario === 'skipped' ? 'skipped' : 'executed', result: 'Completed' }
+        })
+        .run()
+      if (scenario === 'stopped-sink') await service._doStop()
+      await agentTaskJobHandler.onSettled?.({
+        jobId: 'job-result',
+        scheduleId: 'schedule-result',
+        type: 'agent.task',
+        status: 'completed',
+        parentId: null,
+        attempt: 0,
+        input: { agentId: 'a', prompt: 'test', timeoutMinutes: 1, reuseRevision: 0 },
+        error: null,
+        metadata: {}
+      })
+      expect(notificationRecordService.list().items).toHaveLength(scenario === 'stopped-sink' ? 1 : 0)
+    }
+  )
+
   it.each([
+    ['completed', false, {}, 'succeeded'],
     ['failed', false, {}, 'failed'],
     ['cancelled', true, {}, 'cancelled'],
     ['cancelled', false, {}, 'interrupted'],
@@ -1053,6 +1113,7 @@ describe('NotificationService', () => {
         .insert(jobTable)
         .values({
           id: 'job-result',
+          output: { kind: 'executed', result: 'Completed' },
           type: 'agent.task',
           status,
           queue: 'agent:a',

@@ -276,7 +276,7 @@ describe('runAgentTask', () => {
 
       const out = await runAgentTask(makeCtx())
 
-      expect(out).toEqual({ result: 'Skipped (disabled)' })
+      expect(out).toEqual({ kind: 'skipped', result: 'Skipped (disabled)' })
       expect(agentSessionService.create).not.toHaveBeenCalled()
       expect(readHeartbeat).not.toHaveBeenCalled()
     }
@@ -291,7 +291,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (disabled)' })
+    expect(out).toEqual({ kind: 'skipped', result: 'Skipped (disabled)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(mockStartRun).not.toHaveBeenCalled()
   })
@@ -329,7 +329,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (untrusted agent data path)' })
+    expect(out).toEqual({ kind: 'skipped', result: 'Skipped (untrusted agent data path)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
     // Reconcile immediately so repairing the directory can re-arm the schedule.
@@ -354,7 +354,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     mockAssertAgentStorageDirectory.mockRejectedValueOnce(new Error('untrusted path'))
 
-    expect(await runAgentTask(makeCtx())).toEqual({ result: 'Skipped (untrusted agent data path)' })
+    expect(await runAgentTask(makeCtx())).toEqual({ kind: 'skipped', result: 'Skipped (untrusted agent data path)' })
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
   })
@@ -367,7 +367,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (no file)' })
+    expect(out).toEqual({ kind: 'skipped', result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
   })
 
@@ -441,7 +441,7 @@ describe('runAgentTask', () => {
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
       captured.listeners[0].onDone({ status: 'completed' })
 
-      await expect(promise).resolves.toEqual({ result: 'Completed' })
+      await expect(promise).resolves.toEqual({ kind: 'executed', result: 'Completed' })
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-new' }))
       expect(agentSessionService.getByTaskScheduleId).not.toHaveBeenCalled()
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
@@ -493,7 +493,7 @@ describe('runAgentTask', () => {
         makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
       )
 
-      expect(out).toEqual({ result: 'Skipped (session busy)' })
+      expect(out).toEqual({ kind: 'skipped', result: 'Skipped (session busy)' })
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-sticky' }))
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
       expect(mockAbort).not.toHaveBeenCalled()
@@ -516,7 +516,7 @@ describe('runAgentTask', () => {
         runAgentTask(
           makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
         )
-      ).resolves.toMatchObject({ result: 'Skipped (session busy)' })
+      ).resolves.toMatchObject({ kind: 'skipped', result: 'Skipped (session busy)' })
     })
 
     it('starts a freshly created session through the locked require-idle path', async () => {
@@ -563,7 +563,7 @@ describe('runAgentTask', () => {
     sentinel.onDone({ status: 'completed' })
 
     const out = await promise
-    expect(out).toEqual({ result: 'Hello world' })
+    expect(out).toEqual({ kind: 'executed', result: 'Hello world' })
   })
 
   it('builds listeners only for subscribed channels owned by the task agent', async () => {
@@ -628,7 +628,7 @@ describe('runAgentTask', () => {
     const doneResult = { status: 'success' }
     await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.(doneResult as never))))
 
-    await expect(promise).resolves.toEqual({ result: 'daily summary' })
+    await expect(promise).resolves.toEqual({ kind: 'executed', result: 'daily summary' })
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'daily summary', undefined)
     expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
@@ -801,7 +801,7 @@ describe('runAgentTask', () => {
 
     await expect(
       runAgentTask(makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
-    ).resolves.toEqual({ result: 'Completed' })
+    ).resolves.toEqual({ kind: 'executed', result: 'Completed' })
 
     expect(mockAbort).not.toHaveBeenCalled()
     expect(mockRemoveListener).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'agent-task:s1')
@@ -851,7 +851,7 @@ describe('runAgentTask', () => {
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(2))
     captured.listeners[0].onDone({ status: 'completed' })
 
-    await expect(promise).resolves.toEqual({ result: 'Completed' })
+    await expect(promise).resolves.toEqual({ kind: 'executed', result: 'Completed' })
     expect(agentSessionService.create).toHaveBeenCalledTimes(2)
     expect(mockStartRun.mock.calls[1][0]).toMatchObject({ sessionId: 'sess-rebound' })
     expect(vi.mocked(ctx.patchMetadata).mock.lastCall).toEqual([{ sessionId: 'sess-rebound' }])

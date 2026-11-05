@@ -17,6 +17,7 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
+import { publishScheduledTaskResult } from './agentTaskNotification'
 import { type AgentTaskInput, runAgentTask } from './runAgentTask'
 
 declare module '@main/core/job/jobRegistry' {
@@ -79,8 +80,12 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     if (event.scheduleId) {
       agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
     }
-    if (event.scheduleId && event.status !== 'completed') {
-      await application.get('NotificationService').publishScheduledTaskResult(event.jobId)
+    if (event.scheduleId) {
+      try {
+        await publishScheduledTaskResult(event.jobId)
+      } catch (error) {
+        logger.warn('Failed to publish settled task result', { jobId: event.jobId, error })
+      }
     }
     if (event.status !== 'failed' || !event.scheduleId) return
     // Captured once — closure capture would lose the narrowing above.

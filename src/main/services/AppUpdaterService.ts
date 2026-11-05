@@ -96,7 +96,7 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'SchedulerService'])
+@DependsOn(['WindowManager', 'SchedulerService', 'NotificationService'])
 export class AppUpdaterService extends BaseService {
   private readonly pendingReleaseNotifications = new Set<string>()
   private cancellationToken: CancellationToken = new CancellationToken()

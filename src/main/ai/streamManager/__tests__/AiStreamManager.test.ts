@@ -2035,6 +2035,20 @@ describe('AiStreamManager', () => {
       expect(outcomes).toEqual([])
     })
 
+    it('leaves successful scheduled outcomes to their owner after listener removal', async () => {
+      const owner = Object.assign(new FakeListener('job-owner'), { ownsTaskResult: true })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [owner],
+        isPersistentConversation: true
+      })
+      mgr.removeListener('a', owner.id)
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
     it('does not publish failures for temporary model checks', async () => {
       const outcomes: ConversationUnsuccessfulEvent[] = []
       mgr.onConversationUnsuccessful((event) => outcomes.push(event))
