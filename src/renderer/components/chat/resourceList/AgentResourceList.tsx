@@ -320,9 +320,12 @@ export function AgentResourceList({
         try {
           if (!agentTagsStateRef.current.canEditAgentTags) return
           const freshBindings = await refetchAgentTagBindings()
-          const currentIds = Array.isArray(freshBindings)
-            ? freshBindings.filter((binding) => binding.entityId === agentId).map((binding) => binding.tagId)
-            : (agentTagsStateRef.current.agentTagsById.get(agentId) ?? []).map((tag) => tag.id)
+          if (!Array.isArray(freshBindings)) {
+            throw new Error('Failed to refresh agent tag bindings before syncing')
+          }
+          const currentIds = freshBindings
+            .filter((binding) => binding.entityId === agentId)
+            .map((binding) => binding.tagId)
           const nextIds = applyDelta(currentIds)
           const unchanged = nextIds.length === currentIds.length && nextIds.every((id) => currentIds.includes(id))
           if (unchanged) return
