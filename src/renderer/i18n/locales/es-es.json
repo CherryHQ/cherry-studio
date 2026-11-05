@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "El procesador OCR configurado falló: {{reason}} Revise o cambie el procesador OCR en Ajustes → Procesamiento de archivos.",
   "error.originalError": "Error original",
   "error.originalMessage": "mensaje original",
+  "error.output_token_limit": "Se alcanzó el límite de salida, por lo que esta respuesta está incompleta. Para continuar, envía otro mensaje en esta conversación y pide al asistente que retome la respuesta donde se quedó.",
   "error.parameter": "parámetro",
   "error.prompt": "prompt",
   "error.provider": "proveedor",

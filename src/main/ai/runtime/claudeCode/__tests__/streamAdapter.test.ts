@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+
 const loggerMocks = vi.hoisted(() => ({
   silly: vi.fn(),
   debug: vi.fn(),
@@ -2209,5 +2211,363 @@ describe('ClaudeCodeStreamAdapter', () => {
         expect.objectContaining({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet' } })
       ])
     })
+  })
+})
+
+describe('Claude Code output-cap protocol', () => {
+  // Minimal envelopes from .tasks/issue-23662/round-1/probe/cli-pin-stream.json;
+  // native recovery is captured in the sibling cli-pin-recover.json.
+  const diagnostic = "API Error: Claude's response exceeded the 128000 output token maximum."
+  const assistant = (text: string, overrides: Record<string, unknown> = {}) =>
+    ({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1',
+      message: { id: crypto.randomUUID(), role: 'assistant', content: [{ type: 'text', text }] },
+      ...overrides
+    }) as any
+  const marker = () => assistant(diagnostic, { error: 'max_output_tokens' })
+  const cappedResult = (overrides: Record<string, unknown> = {}) =>
+    successResult({
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: null,
+      result: diagnostic,
+      ...overrides
+    })
+  const textOf = (parts: CherryUIMessageChunk[]) =>
+    parts
+      .filter((p) => p.type === 'text-delta')
+      .map((p) => p.delta)
+      .join('')
+  const emitText = (adapter: InstanceType<typeof ClaudeCodeStreamAdapter>, text: string, close = true) => {
+    adapter.handleMessage(streamEvent({ type: 'message_start' }))
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    adapter.handleMessage(assistant(text))
+    if (close) adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({ type: 'message_delta', delta: { stop_reason: 'max_tokens' }, usage: { output_tokens: 64 } })
+    )
+  }
+
+  it('preserves four capped replies exactly once and emits a durable notice with final usage', async () => {
+    const { adapter, parts, sessionIds } = createAdapter()
+    const segments = ['First partial. ', 'Second partial. ', 'Third partial. ', 'Fourth partial. ']
+    for (const [index, text] of segments.entries()) {
+      emitText(adapter, text)
+      if (index < 3)
+        adapter.handleMessage({
+          type: 'user',
+          isSynthetic: true,
+          message: { content: [{ type: 'text', text: 'Resume directly.' }] }
+        } as any)
+    }
+    expect(parts.some((p) => p.type === 'finish')).toBe(false)
+    expect(adapter.handleMessage(marker())).toEqual({ type: 'continue' })
+    const result = adapter.handleMessage(cappedResult())
+
+    expect(result).toMatchObject({ type: 'result', sessionId: 'sdk-result', outputCapExhausted: true })
+    expect(adapter.isTurnActive).toBe(false)
+    expect(sessionIds).toEqual(['sdk-result'])
+    expect(textOf(parts)).toBe(segments.join(''))
+    expect(JSON.stringify(parts)).not.toContain(diagnostic)
+    expect(parts.filter((p) => p.type === 'text-end')).toHaveLength(4)
+    expect(parts.filter((p) => p.type === 'data-error')).toEqual([
+      { type: 'data-error', data: { code: 'output_token_limit', i18nKey: 'output_token_limit' } }
+    ])
+    expect(parts.filter((p) => p.type === 'finish')).toEqual([
+      expect.objectContaining({
+        type: 'finish',
+        finishReason: 'length',
+        messageMetadata: {
+          modelId: 'sonnet',
+          stats: {
+            inputTokens: 21,
+            outputTokens: 5,
+            totalTokens: 26,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 11, cacheWriteTokens: 7 }
+          }
+        }
+      })
+    ])
+    expect(parts.filter((p) => p.type === 'message-metadata')).toEqual([
+      {
+        type: 'message-metadata',
+        messageMetadata: {
+          modelId: 'sonnet',
+          stats: {
+            inputTokens: 21,
+            outputTokens: 5,
+            totalTokens: 26,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 11, cacheWriteTokens: 7 }
+          }
+        }
+      }
+    ])
+    let finalMessage: CherryUIMessage | undefined
+    for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+      stream: new ReadableStream({
+        start(controller) {
+          parts.forEach((part) => controller.enqueue(part))
+          controller.close()
+        }
+      }),
+      message: { id: 'capped', role: 'assistant', parts: [] }
+    }))
+      finalMessage = snapshot
+    expect(
+      finalMessage?.parts
+        .filter((p) => p.type === 'text')
+        .map((p) => p.text)
+        .join('')
+    ).toBe(segments.join(''))
+    expect(finalMessage?.parts.filter((p) => p.type === 'data-error')).toEqual([
+      { type: 'data-error', data: { code: 'output_token_limit', i18nKey: 'output_token_limit' } }
+    ])
+  })
+
+  it.each(['', 'short partial', 'x'.repeat(600)])('handles a cap without a minimum text threshold (%j)', (text) => {
+    const { adapter, parts } = createAdapter()
+    if (text) emitText(adapter, text, false)
+    adapter.handleMessage(marker())
+    adapter.handleMessage(cappedResult())
+    expect(textOf(parts)).toBe(text)
+    expect(parts.filter((p) => p.type === 'text-start')).toHaveLength(text ? 1 : 0)
+    expect(parts.filter((p) => p.type === 'text-end')).toHaveLength(text ? 1 : 0)
+    expect(parts.filter((p) => p.type === 'data-error')).toHaveLength(1)
+    expect(parts.filter((p) => p.type === 'finish')).toEqual([expect.objectContaining({ finishReason: 'length' })])
+  })
+
+  it('closes open reasoning once without changing already closed reasoning', () => {
+    const { adapter, parts } = createAdapter()
+    for (const index of [0, 1]) {
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index, delta: { type: 'thinking_delta', thinking: 'reasoning' } })
+      )
+      if (index === 0) adapter.handleMessage(streamEvent({ type: 'content_block_stop', index }))
+    }
+    adapter.handleMessage(marker())
+    adapter.handleMessage(cappedResult())
+    expect(parts.filter((p) => p.type === 'reasoning-end').map((p) => p.id)).toEqual(
+      parts.filter((p) => p.type === 'reasoning-start').map((p) => p.id)
+    )
+  })
+
+  it('preserves a completed tool result and never announces its input again', () => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(
+      assistant('', {
+        message: { content: [{ type: 'tool_use', id: 'read', name: 'Read', input: { file_path: '/tmp/a' } }] }
+      })
+    )
+    adapter.handleMessage({
+      type: 'user',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'read', content: 'file content' }] }
+    } as any)
+    emitText(adapter, 'Partial after tool.')
+    adapter.handleMessage(marker())
+    adapter.handleMessage(cappedResult())
+    expect(parts.filter((p) => p.type === 'tool-input-available')).toHaveLength(1)
+    expect(parts.filter((p) => p.type === 'tool-output-available')).toEqual([
+      expect.objectContaining({ toolCallId: 'read', output: 'file content' })
+    ])
+    expect(parts.filter((p) => p.type === 'tool-output-error')).toEqual([])
+    expect(textOf(parts)).toBe('Partial after tool.')
+  })
+
+  it.each([false, true])(
+    'fails an unfinished foreground tool without inventing input (input closed: %s)',
+    async (inputClosed) => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'read', name: 'Read', input: {} }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: inputClosed ? '{"file_path":"/tmp/a"}' : '{"file_path":' }
+        })
+      )
+      if (inputClosed) adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      const beforeCap = parts.filter((p) => p.type === 'tool-input-available')
+      adapter.handleMessage(marker())
+      adapter.handleMessage(cappedResult())
+      expect(parts.filter((p) => p.type === 'tool-input-available')).toEqual(beforeCap)
+      expect(parts.filter((p) => p.type === 'tool-output-available')).toEqual([])
+      expect(parts.filter((p) => p.type === 'tool-output-error')).toEqual([
+        expect.objectContaining({
+          toolCallId: 'read',
+          errorText: 'agent.session.claude.output_token_limit_tool',
+          providerExecuted: true
+        })
+      ])
+      let finalMessage: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream: new ReadableStream({
+          start(controller) {
+            parts.forEach((part) => controller.enqueue(part))
+            controller.close()
+          }
+        }),
+        message: { id: 'capped-tool', role: 'assistant', parts: [] }
+      }))
+        finalMessage = snapshot
+      expect(finalMessage?.parts.find((p) => p.type === 'dynamic-tool')).toMatchObject({
+        toolCallId: 'read',
+        state: 'output-error'
+      })
+    }
+  )
+
+  it('leaves independent child work open and routes its later output through its existing flow', () => {
+    const { adapter, parts, statusEvents } = createAdapter()
+    adapter.handleMessage(
+      assistant('', {
+        message: { content: [{ type: 'tool_use', id: 'agent', name: 'Agent', input: { prompt: 'work' } }] }
+      })
+    )
+    adapter.handleMessage({
+      ...streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'child-read', name: 'Read', input: {} }
+      }),
+      parent_tool_use_id: 'agent'
+    })
+    adapter.handleMessage(marker())
+    adapter.handleMessage(cappedResult())
+    expect(parts.filter((p) => p.type === 'tool-output-error')).toEqual([])
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: 'agent',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'child-read', content: 'later output' }] }
+    } as any)
+    expect(statusEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'background-flow-chunk',
+        rootToolCallId: 'agent',
+        chunk: expect.objectContaining({ type: 'tool-output-available', output: 'later output' })
+      })
+    )
+  })
+
+  it('keeps subagent-only caps on the child route without setting root cap state', () => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage({ ...marker(), parent_tool_use_id: 'agent' })
+    expect(() => adapter.handleMessage(cappedResult())).toThrow(ClaudeCodeResultError)
+    expect(parts.filter((p) => p.type === 'data-error' || p.type === 'finish')).toEqual([])
+    expect(textOf(parts)).toBe(diagnostic)
+  })
+
+  it('does not clear a root marker on child message_start or a child assistant', () => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(marker())
+    adapter.handleMessage({ ...streamEvent({ type: 'message_start' }), parent_tool_use_id: 'agent' })
+    adapter.handleMessage(assistant('child', { parent_tool_use_id: 'agent' }))
+    expect(adapter.handleMessage(cappedResult())).toMatchObject({ outputCapExhausted: true })
+    expect(parts.filter((p) => p.type === 'data-error')).toHaveLength(1)
+  })
+
+  it.each(['message_start', 'assistant'])('clears a marker on a later root %s and allows native recovery', (event) => {
+    const { adapter, parts } = createAdapter()
+    emitText(adapter, 'Partial. ')
+    adapter.handleMessage(marker())
+    if (event === 'message_start') adapter.handleMessage(streamEvent({ type: 'message_start' }))
+    else adapter.handleMessage(assistant(''))
+    expect(() => adapter.handleMessage(cappedResult())).toThrow(ClaudeCodeResultError)
+    expect(parts.filter((p) => p.type === 'data-error' || p.type === 'finish')).toEqual([])
+
+    adapter.beginTurn()
+    emitText(adapter, 'Partial. ')
+    adapter.handleMessage(marker())
+    emitText(adapter, 'Recovered.')
+    expect(adapter.handleMessage(successResult())).not.toHaveProperty('outputCapExhausted')
+    expect(parts.filter((p) => p.type === 'data-error')).toEqual([])
+    expect(parts.filter((p) => p.type === 'finish')).toEqual([expect.objectContaining({ finishReason: 'stop' })])
+    adapter.beginTurn()
+    expect(() => adapter.handleMessage(cappedResult())).toThrow(ClaudeCodeResultError)
+  })
+
+  it.each([
+    { api_error_status: 401 },
+    { result: 'Authentication failed' },
+    { terminal_reason: 'completed' },
+    { is_error: false },
+    { subtype: 'error_max_turns', errors: [diagnostic] }
+  ])('keeps real errors when the terminal envelope does not match (%j)', (overrides) => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(marker())
+    expect(() => adapter.handleMessage(cappedResult(overrides))).toThrow(ClaudeCodeResultError)
+    expect(parts.filter((p) => p.type === 'data-error' || p.type === 'finish')).toEqual([])
+  })
+
+  it('does not admit cap prose without the typed marker (result-only coverage gap)', () => {
+    const { adapter, parts } = createAdapter()
+    expect(() => adapter.handleMessage(cappedResult())).toThrow(ClaudeCodeResultError)
+    expect(parts.filter((p) => p.type === 'data-error' || p.type === 'finish')).toEqual([])
+  })
+
+  it('preserves a non-cap API error that mentions tokens', () => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(assistant('Invalid authentication token', { error: 'authentication_failed' }))
+    expect(() =>
+      adapter.handleMessage(cappedResult({ result: 'Invalid authentication token', api_error_status: 401 }))
+    ).toThrow('Invalid authentication token')
+    expect(parts.filter((p) => p.type === 'data-error' || p.type === 'finish')).toEqual([])
+  })
+
+  it.each(['text_delta', 'input_json_delta'])(
+    'retains incomplete JSON once and ignores failed structured_output (%s)',
+    (deltaType) => {
+      const { adapter, parts } = createAdapter({ streamOptions: { prompt: [], responseFormat: { type: 'json' } } })
+      const text = '{"answer":"partial'
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: deltaType === 'text_delta' ? { type: deltaType, text } : { type: deltaType, partial_json: text }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(marker())
+      adapter.handleMessage(cappedResult({ structured_output: { answer: 'fabricated success' } }))
+      expect(textOf(parts)).toBe(text)
+      expect(JSON.stringify(parts)).not.toContain('fabricated success')
+      expect(parts.filter((p) => p.type === 'finish')).toEqual([expect.objectContaining({ finishReason: 'length' })])
+      expect(() => JSON.parse(textOf(parts))).toThrow(SyntaxError)
+    }
+  )
+
+  it('discards a pending marker when a new turn begins', () => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(marker())
+    adapter.beginTurn()
+    expect(() => adapter.handleMessage(cappedResult())).toThrow(ClaudeCodeResultError)
+    expect(parts.filter((p) => p.type === 'data-error')).toEqual([])
+  })
+
+  it('keeps the JSON-EOF salvage threshold and error class checks', () => {
+    const { adapter } = createAdapter()
+    emitText(adapter, 'short')
+    expect(adapter.handleTruncationError(new SyntaxError('Unexpected end of JSON input'))).toBe(false)
+    adapter.beginTurn()
+    emitText(adapter, 'x'.repeat(600))
+    expect(adapter.handleTruncationError(new Error('Unexpected end of JSON input'))).toBe(false)
+    expect(adapter.handleTruncationError(new SyntaxError('Unexpected token'))).toBe(false)
   })
 })

@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "Le processeur OCR configuré a échoué : {{reason}} Vérifiez ou changez le processeur OCR dans Paramètres → Traitement des fichiers.",
   "error.originalError": "Erreur d'origine",
   "error.originalMessage": "message original",
+  "error.output_token_limit": "La limite de sortie a été atteinte, cette réponse est donc incomplète. Pour continuer, envoyez un nouveau message dans cette conversation en demandant à l’assistant de reprendre là où il s’est arrêté.",
   "error.parameter": "paramètre",
   "error.prompt": "mot-clé",
   "error.provider": "fournisseur",

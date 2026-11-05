@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "Yapılandırılmış OCR işlemcisi başarısız oldu: {{reason}} OCR işlemcisini Ayarlar → Dosya İşleme altından kontrol edin veya değiştirin.",
   "error.originalError": "Özgün Hata",
   "error.originalMessage": "Özgün Mesaj",
+  "error.output_token_limit": "Çıktı sınırına ulaşıldığı için bu yanıt tamamlanamadı. Devam etmek için bu konuşmada yeni bir mesaj göndererek asistandan kaldığı yerden devam etmesini isteyin.",
   "error.parameter": "Parametre",
   "error.prompt": "İstem",
   "error.provider": "Sağlayıcı",

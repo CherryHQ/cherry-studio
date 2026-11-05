@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "設定された OCR プロセッサーが失敗しました：{{reason}} 「設定 → ファイル処理」で OCR プロセッサーを確認または変更してください。",
   "error.originalError": "元のエラー",
   "error.originalMessage": "元のメッセージ",
+  "error.output_token_limit": "出力上限に達したため、この回答は未完了です。続きを生成するには、この会話で追加のメッセージを送り、中断したところから続けるようアシスタントに依頼してください。",
   "error.parameter": "パラメータ",
   "error.prompt": "プロンプトを表示する",
   "error.provider": "プロバイダー",

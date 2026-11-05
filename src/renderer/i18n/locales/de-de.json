@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "Der konfigurierte OCR-Prozessor ist fehlgeschlagen: {{reason}} Prüfen oder wechseln Sie den OCR-Prozessor unter Einstellungen → Dateiverarbeitung.",
   "error.originalError": "Ursprünglicher Fehler",
   "error.originalMessage": "Ursprüngliche Nachricht",
+  "error.output_token_limit": "Die Ausgabelänge hat ihr Limit erreicht, daher ist diese Antwort unvollständig. Sende eine weitere Nachricht in dieser Unterhaltung und bitte den Assistenten, dort fortzufahren, wo er aufgehört hat.",
   "error.parameter": "Parameter",
   "error.prompt": "Prompt",
   "error.provider": "Anbieter",

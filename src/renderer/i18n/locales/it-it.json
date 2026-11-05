@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "Il processore OCR configurato ha riscontrato un errore: {{reason}} Controlla o cambia il processore OCR in Impostazioni → Elaborazione file.",
   "error.originalError": "Errore originale",
   "error.originalMessage": "Messaggio originale",
+  "error.output_token_limit": "È stato raggiunto il limite di output, quindi questa risposta è incompleta. Per continuare, invia un altro messaggio in questa conversazione chiedendo all’assistente di riprendere da dove si è interrotto.",
   "error.parameter": "Parametro",
   "error.prompt": "Prompt",
   "error.provider": "Fornitore",

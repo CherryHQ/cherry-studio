@@ -1548,6 +1548,7 @@
   "error.ocr_detail_failed": "The configured OCR processor failed: {{reason}} Check or switch the OCR processor under Settings → File Processing.",
   "error.originalError": "Original Error",
   "error.originalMessage": "Original Message",
+  "error.output_token_limit": "The output limit was reached, so this response is incomplete. To continue, send a follow-up in this conversation asking the assistant to pick up where it stopped.",
   "error.parameter": "Parameter",
   "error.prompt": "Prompt",
   "error.provider": "Provider",

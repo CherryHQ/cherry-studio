@@ -39,6 +39,10 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
+  if (error?.code === 'output_token_limit' || error?.i18nKey === 'output_token_limit') {
+    return t('error.output_token_limit')
+  }
+
   const claudeCodeExit = getClaudeCodeExitInfo(error)
   if (claudeCodeExit) {
     const { reference, exitCode, exitSignal } = claudeCodeExit
@@ -130,6 +134,7 @@ const MessageErrorInfo: React.FC<{
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
 
+  const isOutputTokenLimit = error?.code === 'output_token_limit' || error?.i18nKey === 'output_token_limit'
   const errorMessage = error?.message ?? undefined
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
@@ -159,6 +164,7 @@ const MessageErrorInfo: React.FC<{
 
   useEffect(() => {
     if (
+      isOutputTokenLimit ||
       claudeCodeExitCategory !== undefined ||
       hasAppOwnedI18nKey ||
       classification.category !== 'unknown' ||
@@ -192,6 +198,7 @@ const MessageErrorInfo: React.FC<{
     errorMessage,
     hasAppOwnedI18nKey,
     i18n.language,
+    isOutputTokenLimit,
     message,
     partId
   ])
@@ -234,6 +241,17 @@ const MessageErrorInfo: React.FC<{
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
   const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+
+  if (isOutputTokenLimit) {
+    return (
+      <div className="my-2 flex items-start gap-2 rounded-lg border border-border px-3.5 py-3 text-[13px]">
+        <AlertTriangle size={15} className="lucide-custom shrink-0 text-muted-foreground" />
+        <div className="leading-normal [overflow-wrap:anywhere]" style={{ color: ERROR_DESCRIPTION_COLOR }}>
+          <ErrorMessage error={error} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -178,6 +179,62 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it.each<Record<string, string>>([{ code: 'output_token_limit' }, { i18nKey: 'output_token_limit' }])(
+    'keeps the incomplete-answer notice ahead of provider, HTTP and exit errors: %j',
+    async (identity) => {
+      const diagnoseMessageError = vi.fn().mockResolvedValue('Unexpected diagnosis')
+      mocks.actions = { diagnoseMessageError, navigateErrorTarget: vi.fn() }
+      mocks.translations = new Map(Object.entries(enUS))
+      mocks.i18nKeys.add('error.output_token_limit')
+
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'ClaudeCodeProcessExitError',
+            message: 'Invalid API key',
+            stack: null,
+            providerId: 'openai',
+            statusCode: 401,
+            claudeCodeExitCategory: 'auth',
+            diagnosticReference: 'diagnostic-ref',
+            processExitCode: 1,
+            ...identity
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(enUS['error.output_token_limit'])).toBeInTheDocument()
+      expect(screen.queryByText(enUS['error.diagnosis.auth'])).not.toBeInTheDocument()
+      expect(screen.queryByText('error.claude_code_exit.code')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: GO_TO_SETTINGS_LABEL })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Invalid API key/)).not.toBeInTheDocument()
+      await act(() => Promise.resolve())
+      expect(screen.queryByText('Unexpected diagnosis')).not.toBeInTheDocument()
+      expect(diagnoseMessageError).not.toHaveBeenCalled()
+    }
+  )
+
+  it('translates a restored code-only notice when the language changes without requesting diagnosis', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('Unexpected diagnosis')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    const error = { name: null, message: 'Unmapped failure', stack: null, code: 'output_token_limit' }
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+
+    expect(screen.getByText(enUS['error.output_token_limit'])).toBeInTheDocument()
+    mocks.language = 'zh-CN'
+    mocks.translations = new Map(Object.entries(zhCN))
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error }} message={{ ...message }} />)
+
+    expect(screen.getByText(zhCN['error.output_token_limit'])).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.output_token_limit'])).not.toBeInTheDocument()
+    await act(() => Promise.resolve())
+    expect(screen.queryByText('Unexpected diagnosis')).not.toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
     render(
       <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: 'boom', stack: null }} message={message} />
@@ -329,7 +386,7 @@ required service tier.`
     )
 
     expect(screen.queryByText('error.claude_code_exit.start')).toBeNull()
-    await waitFor(() => expect(diagnoseMessageError).toHaveBeenCalledOnce())
+    expect(await screen.findByText('diagnosed')).toBeInTheDocument()
   })
 
   it('does not promise a diagnostic reference the payload never carried', () => {

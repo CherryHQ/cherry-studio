@@ -674,7 +674,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
         if (message.type === 'assistant') {
           this.captureAssistantInvocation(message, messageAssociation)
-          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+          if (message.parent_tool_use_id == null && message.error !== 'max_output_tokens') {
+            this.lastMainAssistantUuid = message.uuid
+          }
         }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
@@ -712,6 +714,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           const forkAnchor = checkpoint.success ? { checkpoint: checkpoint.data } : undefined
           this.lastMainAssistantUuid = undefined
           this.eventQueue.push({ type: 'turn-complete', forkAnchor })
+          if (result.outputCapExhausted) {
+            await this.close()
+            return
+          }
         }
       }
     } catch (error) {
