@@ -150,7 +150,7 @@ describe('SubscriptionSettings', () => {
     expect(requestMock).toHaveBeenCalledWith(
       'system.shell.open_external_website',
       expect.stringMatching(
-        /^https:\/\/accounts\.cherryai\.com\/account\/plans\?entry=desktop&entry_source=settings&flow_id=/
+        /^https:\/\/cloud\.cherryai\.com\/account\/plans\?entry=desktop&entry_source=settings&flow_id=/
       )
     )
   })
