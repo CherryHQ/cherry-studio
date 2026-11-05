@@ -1,4 +1,4 @@
-import { Bell, Check, X } from 'lucide-react'
+import { Bell, Check } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -382,8 +382,8 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
         data-notification-viewport
         className="pointer-events-none fixed z-50 overflow-hidden rounded-[12px]"
         style={{
-          left: 'calc(var(--notification-left, 0px) + 1px)',
-          top: 'calc(max(44px, env(titlebar-area-height, 0px)) + 1px)',
+          left: 'var(--notification-left, 0px)',
+          top: 'max(44px, env(titlebar-area-height, 0px))',
           bottom: '6px',
           right: '6px'
         }}
@@ -400,7 +400,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
             width: 'min(384px, 100%)',
             maxWidth: 'none'
           }}
-          className="pointer-events-auto absolute overflow-hidden rounded-[12px] border border-border bg-popover text-popover-foreground shadow-lg motion-reduce:transition-none motion-reduce:animate-none"
+          className="pointer-events-auto absolute overflow-hidden rounded-[12px] border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg motion-reduce:transition-none motion-reduce:animate-none"
           onEscapeKeyDown={() => {
             returnFocus.current = true
           }}
@@ -429,16 +429,6 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
                 })
               }>
               {t('notification.center.mark_all_read')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('common.close')}
-              onClick={(event) => {
-                returnFocus.current = event.detail === 0
-                changeOpen(false)
-              }}>
-              <X className="size-4" />
             </Button>
           </div>
           <Scrollbar className="min-h-0 flex-1 px-5">
