@@ -16,7 +16,9 @@ function findCustomBackgroundRule(selector: string): Rule | undefined {
 }
 
 function declarationsOf(rule: Rule | undefined): string[] {
-  return rule?.nodes.filter((node): node is Declaration => node.type === 'decl').map((declaration) => declaration.prop) ?? []
+  return (
+    rule?.nodes.filter((node): node is Declaration => node.type === 'decl').map((declaration) => declaration.prop) ?? []
+  )
 }
 
 const ROOT_RULE = ':root[data-custom-background]'
