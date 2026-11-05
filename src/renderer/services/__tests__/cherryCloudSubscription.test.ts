@@ -12,7 +12,7 @@ const request = vi.mocked(window.api.ipcApi.request)
 const signedOut: CherryCloudStatus = { phase: 'signed-out', accountId: null, displayName: null }
 const authorizing: CherryCloudStatus = { phase: 'authorizing', accountId: null, displayName: null }
 const signedIn: CherryCloudStatus = { phase: 'signed-in', accountId: 'account-1', displayName: 'Siin' }
-const PORTAL = 'https://accounts.cherryai.com.cn/account/plans'
+const PORTAL = 'https://cloud.cherryai.com.cn/account/plans'
 
 let status: CherryCloudStatus
 let publishStatus: (next: CherryCloudStatus) => void
@@ -23,7 +23,7 @@ beforeEach(() => {
   request.mockImplementation(async (route) => {
     if (route === 'cherry_cloud.status.get') return { ok: true, data: status }
     if (route === 'cherry_cloud.login.start') return { ok: true, data: authorizing }
-    if (route === 'cherry_cloud.account_origin.get') return { ok: true, data: 'https://accounts.cherryai.com.cn' }
+    if (route === 'cherry_cloud.account_origin.get') return { ok: true, data: 'https://cloud.cherryai.com.cn' }
     return { ok: true, data: undefined }
   })
   vi.mocked(window.api.ipcApi.on).mockImplementation((_event, handler) => {
