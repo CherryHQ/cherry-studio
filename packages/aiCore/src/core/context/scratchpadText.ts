@@ -671,6 +671,18 @@ function ownMarkerLineListColumns(prefix: string): number {
   return /^ {0,3}$/.test(expandFencePrefixTabs(prefix).slice(consumed)) ? columns : 0
 }
 
+/** Raw container events distinguish marker-shaped paragraph text from real list openers. */
+function ownMarkerFenceLookup(text: string): (lineStart: number, prefix: string) => number {
+  const state = initialContainerState()
+  const valid = new Set<number>()
+  for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
+    const previousFence = state.fence
+    const verdict = containerLine(state, text.slice(start, lineContentEnd(text, start)))
+    if (verdict.code && state.fence !== null && state.fence !== previousFence) valid.add(start)
+  }
+  return (start, prefix) => (valid.has(start) ? ownMarkerLineListColumns(prefix) : 0)
+}
+
 /**
  * Whether a candidate closing-fence line sits in the same container context
  * as the opener: the opener's blockquote markers must repeat on the closing
@@ -788,7 +800,7 @@ function inheritedFencePrefixLookup(
     if (leading - parentCol > 3) continue
     const marker = /^([-*+]|\d{1,9}[.)])( +|$)/.exec(line.slice(leading))
     if (!marker) continue
-    const padding = marker[2] === '' ? 1 : Math.min(marker[2].length, 4)
+    const padding = marker[2] === '' || marker[2].length > 4 ? 1 : marker[2].length
     const contentCol = leading + marker[1].length + padding
     const relWidth = contentCol - parentCol
     const virtual = (stack.length ? lists[stack[stack.length - 1].index].prefix : '') + `-${' '.repeat(relWidth - 1)}`
@@ -1989,6 +2001,7 @@ export function maskCodeFences(
   const scratchpadScan = { pos: 0, stack: [] as string[] }
   let out = ''
   const inheritedPrefix = inheritedFencePrefixLookup(text, options?.initialContainerPrefix)
+  const ownMarkerColumns = ownMarkerFenceLookup(text)
   let pos = 0
   // HTML comments, CDATA, attributes and text-element bodies are opaque:
   // a fence marker inside one is literal text, never a Markdown fence
@@ -2073,20 +2086,20 @@ export function maskCodeFences(
     // the scanned text itself ("1. ~~~") needs no inheritance: its own prefix
     // carries the list context (round-19 marker-line-fence divergence).
     const listContinuationFence =
-      (inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix) || ownMarkerLineListColumns(markerPrefix) > 0
-    if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
+      (inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix) ||
+      ownMarkerColumns(markerLineStart, markerPrefix) > 0
+    if (
+      (ownMarkerLineListColumns(markerPrefix) > 0 && ownMarkerColumns(markerLineStart, markerPrefix) === 0) ||
+      (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence)
+    ) {
       out += text.slice(pos, markerStart + 1)
       pos = markerStart + 1
       continue
     }
-    // The marker is a structural event in its own right, outside the literal
-    // fence span. Keep it available to the shared container-event consumer.
-    const fenceStart =
-      listContinuationFence && ownMarkerLineListColumns(markerPrefix) > 0
-        ? markerStart
-        : listContinuationFence
-          ? markerLineStart
-          : fenceLinePrefixStart(text, markerStart)
+    // Container markers are structural events outside the literal span.
+    // Mask only the fence marker/body, retaining quote and list ownership
+    // for the shared container-event consumer after the fence ends.
+    const fenceStart = markerStart
     out += text.slice(pos, fenceStart)
     const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
@@ -2115,7 +2128,10 @@ export function maskCodeFences(
       afterOpen,
       fenceChar,
       fenceLen,
-      text.slice(listContinuationFence ? markerLineStart : fenceStart, markerStart),
+      text.slice(
+        listContinuationFence || isValidFenceLinePrefix(markerPrefix) ? markerLineStart : markerStart,
+        markerStart
+      ),
       inheritedPrefix
     )
     // A fence opened inside a scratchpad block ends at that block's closing
@@ -2530,6 +2546,7 @@ export function deferralIsInlineCodeOnly(
 /** Position of the first code fence still open at the end of `text`, if any. */
 function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): { markerStart: number } | null {
   const inheritedPrefix = inheritedFencePrefixLookup(text, initialContainerPrefix)
+  const ownMarkerColumns = ownMarkerFenceLookup(text)
   let pos = 0
   while (pos < text.length) {
     const rel = text.slice(pos).search(/[`~]{3,}/)
@@ -2547,8 +2564,12 @@ function findUnclosedCodeFence(text: string, initialContainerPrefix?: string): {
       0
     )
     const listContinuationFence =
-      (inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix) || ownMarkerLineListColumns(markerPrefix) > 0
-    if (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence) {
+      (inheritedColumns > 0 && inheritedMarkerPrefix !== markerPrefix) ||
+      ownMarkerColumns(markerLineStart, markerPrefix) > 0
+    if (
+      (ownMarkerLineListColumns(markerPrefix) > 0 && ownMarkerColumns(markerLineStart, markerPrefix) === 0) ||
+      (!isCodeFenceMarkerAtLineStart(text, markerStart) && !listContinuationFence)
+    ) {
       pos = markerStart + 1
       continue
     }

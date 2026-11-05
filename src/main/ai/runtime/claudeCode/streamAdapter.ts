@@ -1571,6 +1571,13 @@ export class ClaudeCodeStreamAdapter {
       if (maskedHoldFrom > 0) {
         advanceIndentedMaskState(ctx.scratchpadMaskState, maskedPrefix)
       }
+      // The opener's container markers are outside the literal fence span.
+      // Commit their ownership even while the fence body remains held, so a
+      // quote opening before a stale list cannot lend that list to later code.
+      const heldPrefix = maskedAdvance.text.slice(maskedHoldFrom, fenceStart)
+      if (heldPrefix.includes('>')) {
+        advanceIndentedMaskState(ctx.scratchpadMaskState, heldPrefix + lastFenceToken + '\n')
+      }
       ctx.scratchpadMaskStateUnstepped = maskAdvanceInput.slice(holdFrom)
       ctx.scratchpadMaskUnsteppedEolFree = false
       if (maskedAdvance.fences.length === 1) {
@@ -1815,15 +1822,14 @@ export class ClaudeCodeStreamAdapter {
     state.segments.push(text)
     // A sealed top-level backtick opener is immutable literal context. Hand
     // its body to the existing incremental fence path only when the raw and
-    // committed prefix are identical and finish on an LF boundary. A suffix
-    // after a checkpoint has insufficient ownership context for this handoff.
-    // CRLF stays on its existing path; never hand off in a partial line.
+    // committed prefix agree. A pending partial tag inside that confirmed
+    // fence is literal too: transfer its uncommitted raw suffix exactly once.
+    // A checkpoint suffix has insufficient ownership context for this handoff.
+    // CRLF stays on its existing path.
     const sealedOpener = /^ {0,3}`{3,}[^`\r\n]*(?:\r\n|\n)/.exec(state.visible)
     if (
       !state.legacy &&
-      !state.pending &&
       ctx.accumulatedText.length - ctx.textBlockContextStart === state.visible.length &&
-      state.visible.endsWith('\n') &&
       sealedOpener &&
       !state.visible.includes('\r') &&
       ctx.scratchpadMaskState.listColumnStack.length === 0
@@ -1831,13 +1837,16 @@ export class ClaudeCodeStreamAdapter {
       const previous = state.segments.slice(0, -1).join('')
       const fence = confirmedOpenFenceStreamPrefix(previous)
       if (
-        previous === state.visible &&
-        ctx.accumulatedText.slice(ctx.textBlockContextStart) === previous &&
+        previous.startsWith(state.visible) &&
+        ctx.accumulatedText.slice(ctx.textBlockContextStart) === state.visible &&
         fence?.openerLine === sealedOpener[0]
       ) {
         ctx.scratchpadStreamFenceCarry = sealedOpener[0]
+        text = previous.slice(state.visible.length) + text
         state.legacy = true
         state.tickSeen = false
+        state.pending = false
+        state.probe = ''
         state.segments = [text]
       }
     }

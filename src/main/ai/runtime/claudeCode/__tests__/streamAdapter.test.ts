@@ -6346,6 +6346,38 @@ describe('cherry-pr-review round-11', () => {
       .join('')
   }
 
+  it('preserves literal code after an empty list ends before a quoted fence', () => {
+    const answer = '1. \n> ~~~\n    <analysis>LITERAL</analysis>\n'
+    expect(runWithSnapshot(Array.from(answer), answer)).toBe(answer)
+    for (let cut = 0; cut <= answer.length; cut++)
+      expect(runWithSnapshot([answer.slice(0, cut), answer.slice(cut)], answer), `split ${cut}`).toBe(answer)
+  })
+
+  it.each([1000, 2000, 4000])('bounds ordinary fenced XML streaming scan work at %s lines', (count) => {
+    const { adapter, parts } = createAdapter()
+    const answer = '```xml\n' + '<node/>\n'.repeat(count) + '```\n'
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (let i = 0; i < answer.length; i += 20)
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: answer.slice(i, i + 20) }
+        })
+      )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    const actual = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    const scanned = (adapter as any).scratchpadScanInputChars
+    console.log({ fencedXMLCharacters: answer.length, scanned })
+    expect(actual).toBe(answer)
+    expect(scanned).toBeLessThan(answer.length * 30)
+  })
+
   it('returns the real text-element opener when inline code shifts masked offsets (masked-html-carry)', () => {
     const answer = 'Before `literal`\n\n<textarea>\n<thinking>literal</thinking>\n</textarea>'
     const fragmented = runWithSnapshot(

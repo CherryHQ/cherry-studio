@@ -305,3 +305,14 @@ describe('thematic reference parity', () => {
     }
   })
 })
+
+it('preserves five-space list padding literal code through compact-summary formatting', () => {
+  const input = '-     x\n     ~~~xml\n  <thinking>LITERAL</thinking>\n     ~~~\n'
+  expect(ContextPrompts.formatCompactSummary(input)).toContain('LITERAL')
+})
+it.each([
+  '- x\n  > ~~~xml\n    <analysis>SECRET</analysis>\n  > ~~~\n',
+  '- x\n  10. ~~~xml\n      <analysis>SECRET</analysis>\n  10. ~~~\n'
+])('strips private analysis after invalid fence ownership: %s', (input) => {
+  expect(ContextPrompts.formatCompactSummary(input)).not.toContain('SECRET')
+})
