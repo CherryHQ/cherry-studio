@@ -125,17 +125,19 @@ function statusKey(status: StatusState): string {
   if (status.status === 'installing') return 'settings.voice.status.installing'
   if (
     status.reason &&
-    [
-      'asset_required',
-      'download_failed',
-      'model_load_failed',
-      'model_required',
-      'voice_unavailable',
-      'worker_crashed'
-    ].includes(status.reason)
+    ['asset_required', 'download_failed', 'model_load_failed', 'voice_unavailable', 'worker_crashed'].includes(
+      status.reason
+    )
   )
     return `settings.voice.status.${status.reason}`
   return `settings.voice.status.${status.status}`
+}
+
+function recognitionStatusKey(status: StatusState): string {
+  if (status.status !== 'loading' && status.status !== 'installing' && status.reason === 'model_required') {
+    return 'settings.voice.status.model_required'
+  }
+  return statusKey(status)
 }
 
 function errorKey(error: boolean | string): string {
@@ -905,6 +907,11 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6 flex-wrap gap-3">
           <div>
             <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
+            <div id="setting-voice-recognition-status" className="mt-2 text-sm">
+              <span role="status" className="text-muted-foreground">
+                {t(installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus))}
+              </span>
+            </div>
           </div>
           <Select
             value={recognitionModel || EMPTY_VALUE}
@@ -1041,14 +1048,6 @@ function VoiceSettings() {
         </SettingRow>
         <SettingDivider />
         <DictationShortcutSettings />
-        <SettingDivider />
-        <div
-          id="setting-voice-recognition-status"
-          className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <span role="status" className="text-muted-foreground">
-            {t(installingLocale ? 'settings.voice.status.installing' : statusKey(recognitionStatus))}
-          </span>
-        </div>
         {canOpenMicrophoneSettings ? (
           <>
             <SettingDivider />
