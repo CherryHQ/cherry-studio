@@ -2529,7 +2529,7 @@ describe('BinaryManager', () => {
           active: selection === version
         }))
         if (selection && !installed.has(selection)) {
-          entries.push({ version: selection, requested_version: selection, installed: false, active: false } as any)
+          entries.push({ version: selection, requested_version: selection, installed: false, active: false })
         }
         return JSON.stringify({ fd: entries })
       }
