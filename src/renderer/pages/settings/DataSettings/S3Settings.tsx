@@ -22,6 +22,8 @@ import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 
+import BackupScheduleSettings, { isBackupScheduleActive } from './BackupScheduleSettings'
+
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const S3Settings: FC = () => {
@@ -34,6 +36,7 @@ const S3Settings: FC = () => {
   const [s3Root, setS3Root] = usePreference('data.backup.s3.root')
   const [s3SkipBackupFile, setS3SkipBackupFile] = usePreference('data.backup.s3.skip_backup_file')
   const [s3SyncInterval, setS3SyncInterval] = usePreference('data.backup.s3.sync_interval')
+  const [backupSchedule] = usePreference('data.backup.s3.schedule')
   const [s3MaxBackups, setS3MaxBackups] = usePreference('data.backup.s3.max_backups')
 
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
@@ -204,27 +207,32 @@ const S3Settings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow id="setting-data-s3-auto-sync" className="scroll-mt-6">
-        <SettingRowTitle>{t('settings.data.s3.autoSync.label')}</SettingRowTitle>
-        <Selector
-          size={14}
-          value={s3SyncInterval}
-          onChange={onSyncIntervalChange}
-          disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
-          options={[
-            { label: t('settings.data.s3.autoSync.off'), value: 0 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 1 }), value: 1 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 5 }), value: 5 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 15 }), value: 15 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 30 }), value: 30 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 1 }), value: 60 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 2 }), value: 120 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 6 }), value: 360 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 12 }), value: 720 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 24 }), value: 1440 }
-          ]}
-        />
-      </SettingRow>
+      <BackupScheduleSettings
+        scheduleKey="data.backup.s3.schedule"
+        disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
+        anchorId="setting-data-s3-auto-sync">
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.autoSync.label')}</SettingRowTitle>
+          <Selector
+            size={14}
+            value={s3SyncInterval}
+            onChange={onSyncIntervalChange}
+            disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
+            options={[
+              { label: t('settings.data.s3.autoSync.off'), value: 0 },
+              { label: t('settings.data.s3.autoSync.minute', { count: 1 }), value: 1 },
+              { label: t('settings.data.s3.autoSync.minute', { count: 5 }), value: 5 },
+              { label: t('settings.data.s3.autoSync.minute', { count: 15 }), value: 15 },
+              { label: t('settings.data.s3.autoSync.minute', { count: 30 }), value: 30 },
+              { label: t('settings.data.s3.autoSync.hour', { count: 1 }), value: 60 },
+              { label: t('settings.data.s3.autoSync.hour', { count: 2 }), value: 120 },
+              { label: t('settings.data.s3.autoSync.hour', { count: 6 }), value: 360 },
+              { label: t('settings.data.s3.autoSync.hour', { count: 12 }), value: 720 },
+              { label: t('settings.data.s3.autoSync.hour', { count: 24 }), value: 1440 }
+            ]}
+          />
+        </SettingRow>
+      </BackupScheduleSettings>
       <SettingDivider />
       <SettingRow id="setting-data-s3-max-backups" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.maxBackups.label')}</SettingRowTitle>
@@ -252,7 +260,7 @@ const S3Settings: FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
       </SettingRow>
-      {s3SyncInterval > 0 && (
+      {isBackupScheduleActive(backupSchedule, s3SyncInterval > 0) && (
         <>
           <SettingDivider />
           <SettingRow>

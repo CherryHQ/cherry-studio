@@ -6,7 +6,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { WindowType } from '@main/core/window/types'
 import { isSameOrInside } from '@main/utils/file'
 import { hasWritePermission, untildify } from '@main/utils/legacyFile'
-import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import type { BackupSchedule, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
   BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE,
@@ -17,6 +17,7 @@ import {
   type S3Config,
   type WebDavConfig
 } from '@shared/types/backup'
+import { getNextScheduledTime, hasMissedScheduledTime } from '@shared/utils/backupSchedule'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
@@ -32,11 +33,38 @@ const STARTUP_GRACE_PERIOD_MS = 60_000
 const ACTIVE_WRITERS_POLL_MS = 30_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
-  webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
-  s3: ['data.backup.s3.auto_sync', 'data.backup.s3.endpoint', 'data.backup.s3.sync_interval'],
-  local: ['data.backup.local.auto_sync', 'data.backup.local.dir', 'data.backup.local.sync_interval'],
-  nutstore: ['data.backup.nutstore.auto_sync', 'data.backup.nutstore.token', 'data.backup.nutstore.sync_interval']
+  webdav: [
+    'data.backup.webdav.auto_sync',
+    'data.backup.webdav.host',
+    'data.backup.webdav.sync_interval',
+    'data.backup.webdav.schedule'
+  ],
+  s3: [
+    'data.backup.s3.auto_sync',
+    'data.backup.s3.endpoint',
+    'data.backup.s3.sync_interval',
+    'data.backup.s3.schedule'
+  ],
+  local: [
+    'data.backup.local.auto_sync',
+    'data.backup.local.dir',
+    'data.backup.local.sync_interval',
+    'data.backup.local.schedule'
+  ],
+  nutstore: [
+    'data.backup.nutstore.auto_sync',
+    'data.backup.nutstore.token',
+    'data.backup.nutstore.sync_interval',
+    'data.backup.nutstore.schedule'
+  ]
 }
+
+const DESTINATION_PREFERENCES = {
+  webdav: 'data.backup.webdav.host',
+  s3: 'data.backup.s3.endpoint',
+  local: 'data.backup.local.dir',
+  nutstore: 'data.backup.nutstore.token'
+} as const satisfies Record<AutoBackupType, UnifiedPreferenceKeyType>
 
 type ScheduleMode = 'immediate' | 'startup' | 'fromLastSyncTime' | 'fromNow'
 
@@ -49,8 +77,11 @@ interface ScheduleState {
 
 interface ScheduleSettings {
   enabled: boolean
+  schedule: BackupSchedule
   intervalMs: number
 }
+
+const DEFAULT_SCHEDULE: BackupSchedule = { mode: 'interval', entries: [] }
 
 const createScheduleState = (): ScheduleState => ({
   generation: 0,
@@ -172,13 +203,23 @@ export class AutoBackupService extends BaseService {
 
     this.unregisterSchedule(type)
     const settings = this.getScheduleSettings(type)
-    if (!settings.enabled || settings.intervalMs <= 0) {
+    if (!settings.enabled) {
       logger.debug('Automatic backup is disabled or incomplete', { type })
       return
     }
 
     let delay = delayOverride ?? INITIAL_DELAY_MS
-    if (delayOverride === undefined && mode === 'fromNow') {
+    if (delayOverride === undefined && settings.schedule.mode === 'daily') {
+      const now = Date.now()
+      const lastSyncTime = this.schedules[type].lastSyncTime
+      if (mode === 'startup' && hasMissedScheduledTime(settings.schedule.entries, lastSyncTime, now)) {
+        delay = STARTUP_GRACE_PERIOD_MS
+      } else if (mode !== 'immediate') {
+        const next = getNextScheduledTime(settings.schedule.entries, now)
+        if (next === null) return
+        delay = next - now
+      }
+    } else if (delayOverride === undefined && mode === 'fromNow') {
       delay = settings.intervalMs
     } else if (delayOverride === undefined && (mode === 'startup' || mode === 'fromLastSyncTime')) {
       const lastSyncTime = this.schedules[type].lastSyncTime
@@ -381,41 +422,21 @@ export class AutoBackupService extends BaseService {
 
   private getScheduleSettings(type: AutoBackupType): ScheduleSettings {
     const preferenceService = application.get('PreferenceService')
-    if (type === 'webdav') {
-      return {
-        enabled:
-          preferenceService.get('data.backup.webdav.auto_sync') &&
-          Boolean(preferenceService.get('data.backup.webdav.host')),
-        intervalMs: preferenceService.get('data.backup.webdav.sync_interval') * 60_000
-      }
+    const prefix = `data.backup.${type}` as const
+    const schedule: BackupSchedule = preferenceService.get(`${prefix}.schedule`) ?? DEFAULT_SCHEDULE
+    const intervalMs = preferenceService.get(`${prefix}.sync_interval`) * 60_000
+    const hasDestination = Boolean(preferenceService.get(DESTINATION_PREFERENCES[type]))
+
+    let enabled = false
+    if (hasDestination) {
+      if (schedule.mode === 'daily') enabled = schedule.entries.length > 0
+      else if (schedule.mode === 'interval') enabled = preferenceService.get(`${prefix}.auto_sync`) && intervalMs > 0
     }
-    if (type === 's3') {
-      return {
-        enabled:
-          preferenceService.get('data.backup.s3.auto_sync') &&
-          Boolean(preferenceService.get('data.backup.s3.endpoint')),
-        intervalMs: preferenceService.get('data.backup.s3.sync_interval') * 60_000
-      }
-    }
-    if (type === 'local') {
-      return {
-        enabled:
-          preferenceService.get('data.backup.local.auto_sync') &&
-          Boolean(preferenceService.get('data.backup.local.dir')),
-        intervalMs: preferenceService.get('data.backup.local.sync_interval') * 60_000
-      }
-    }
-    return {
-      enabled:
-        preferenceService.get('data.backup.nutstore.auto_sync') &&
-        Boolean(preferenceService.get('data.backup.nutstore.token')),
-      intervalMs: preferenceService.get('data.backup.nutstore.sync_interval') * 60_000
-    }
+    return { enabled, schedule, intervalMs }
   }
 
   private isEnabled(type: AutoBackupType, generation: number): boolean {
-    const settings = this.getScheduleSettings(type)
-    return this.isCurrent(type, generation) && settings.enabled && settings.intervalMs > 0
+    return this.isCurrent(type, generation) && this.getScheduleSettings(type).enabled
   }
 
   private isCurrent(type: AutoBackupType, generation: number): boolean {

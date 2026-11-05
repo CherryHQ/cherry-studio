@@ -293,6 +293,46 @@
       "description": "Web search max results (from complex migration)"
     },
     {
+      "targetKey": "data.backup.local.schedule",
+      "type": "PreferenceTypes.BackupSchedule",
+      "defaultValue": {
+        "mode": "interval",
+        "entries": []
+      },
+      "status": "classified",
+      "description": "Automatic local backup schedule mode and daily clock times (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.nutstore.schedule",
+      "type": "PreferenceTypes.BackupSchedule",
+      "defaultValue": {
+        "mode": "interval",
+        "entries": []
+      },
+      "status": "classified",
+      "description": "Automatic nutstore backup schedule mode and daily clock times (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.s3.schedule",
+      "type": "PreferenceTypes.BackupSchedule",
+      "defaultValue": {
+        "mode": "interval",
+        "entries": []
+      },
+      "status": "classified",
+      "description": "Automatic s3 backup schedule mode and daily clock times (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.webdav.schedule",
+      "type": "PreferenceTypes.BackupSchedule",
+      "defaultValue": {
+        "mode": "interval",
+        "entries": []
+      },
+      "status": "classified",
+      "description": "Automatic webdav backup schedule mode and daily clock times (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.provider_overrides",
       "type": "PreferenceTypes.WebSearchProviderOverrides",
       "defaultValue": {},

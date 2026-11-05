@@ -521,4 +521,95 @@ describe('AutoBackupService', () => {
       .find((callConfig) => callConfig.webdavHost === 'https://example.com/dav')
     expect(config?.allowSelfSignedTls).toBe(false)
   })
+
+  describe('daily schedule mode', () => {
+    const weekdays = [1, 2, 3, 4, 5]
+    // 2026-11-03 is a Tuesday (local time)
+    const tuesday = (hh: number, mm = 0) => new Date(2026, 10, 3, hh, mm).getTime()
+
+    beforeEach(() => {
+      mocks.backupToWebdav.mockReset().mockResolvedValue({ result: true, cleanupError: null })
+    })
+
+    const onlyWebdavDaily = (entries: { time: string; days: number[] }[]) => {
+      for (const type of ['s3', 'local', 'nutstore']) setPreference(`data.backup.${type}.auto_sync`, false)
+      setPreference('data.backup.webdav.schedule', { mode: 'daily', entries })
+    }
+
+    it('runs at each configured time and then waits for the next slot', async () => {
+      vi.setSystemTime(tuesday(17))
+      onlyWebdavDaily([{ time: '17:30', days: weekdays }])
+
+      await vi.advanceTimersByTimeAsync(29 * 60_000)
+      expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+
+      await vi.advanceTimersByTimeAsync(23 * 3_600_000)
+      expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(60 * 60_000)
+      expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(2)
+    })
+
+    it('skips days outside the weekday filter', async () => {
+      vi.setSystemTime(new Date(2026, 10, 1, 8).getTime()) // Sunday
+      onlyWebdavDaily([
+        { time: '08:30', days: weekdays },
+        { time: '22:00', days: [] }
+      ])
+
+      await vi.advanceTimersByTimeAsync(60 * 60_000)
+      expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(13.5 * 3_600_000)
+      expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+    })
+
+    it('runs no backups in off mode', async () => {
+      setPreference('data.backup.nutstore.auto_sync', false)
+      setPreference('data.backup.webdav.schedule', { mode: 'off', entries: [] })
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
+    })
+
+    it('runs a single catch-up after startup when a slot was missed', async () => {
+      vi.setSystemTime(tuesday(9))
+      for (const type of ['s3', 'local', 'nutstore']) setPreference(`data.backup.${type}.auto_sync`, false)
+      setPreference('data.backup.webdav.schedule', {
+        mode: 'daily',
+        entries: [
+          { time: '08:30', days: weekdays },
+          { time: '07:00', days: weekdays }
+        ]
+      })
+      MockMainCacheServiceExport.cacheService.setPersist('backup.auto_sync.last_attempt_times', {
+        webdav: tuesday(7) - 3_600_000,
+        s3: null,
+        local: null,
+        nutstore: null
+      })
+      await recreateService()
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(60 * 60_000)
+      expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+    })
+
+    it('does not catch up when the last backup is newer than the missed slot', async () => {
+      vi.setSystemTime(tuesday(9))
+      for (const type of ['s3', 'local', 'nutstore']) setPreference(`data.backup.${type}.auto_sync`, false)
+      setPreference('data.backup.webdav.schedule', { mode: 'daily', entries: [{ time: '08:30', days: weekdays }] })
+      MockMainCacheServiceExport.cacheService.setPersist('backup.auto_sync.last_attempt_times', {
+        webdav: tuesday(8, 45),
+        s3: null,
+        local: null,
+        nutstore: null
+      })
+      await recreateService()
+
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
+    })
+  })
 })
