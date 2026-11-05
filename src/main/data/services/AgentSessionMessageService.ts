@@ -1137,6 +1137,11 @@ export class AgentSessionMessageService {
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
+      // Main-owned stale-reset boundary: `publicMessageData` strips it from
+      // caller input, so re-apply the stored marker. Otherwise a valid parts
+      // PATCH would drop the boundary and re-expose ancestor fallback
+      // (#23519 review). Never accept caller-authored markers.
+      if (existing.data.staleResumeReset) mergedData.staleResumeReset = existing.data.staleResumeReset
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)

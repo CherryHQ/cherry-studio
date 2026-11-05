@@ -3062,5 +3062,41 @@ describe('AgentSessionMessageService', () => {
         'native-healthy-parent'
       )
     })
+
+    it('preserves the stale-reset boundary across message PATCH without accepting caller markers', () => {
+      const PARENT_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d080'
+      const STALE_CHILD_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d081'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'healthy-parent',
+        message: { id: PARENT_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: PARENT_ID,
+        runtimeResumeToken: 'stale-id',
+        message: { id: STALE_CHILD_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.clearRuntimeResumeTokens(SESSION_ID, 'stale-id')
+      agentSessionMessageService.markStaleResumeResetBoundary(SESSION_ID, STALE_CHILD_ID)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, STALE_CHILD_ID)).toBeNull()
+
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, STALE_CHILD_ID, {
+        data: { parts: [{ type: 'text', text: 'edited' }] }
+      })
+
+      // PATCH must not drop the Main-owned boundary and re-expose ancestor fallback (#23519 review).
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, STALE_CHILD_ID)).toBeNull()
+      expect(agentSessionMessageService.getNativeSessionId(SESSION_ID, STALE_CHILD_ID)).toBeUndefined()
+
+      // Caller-authored markers are stripped and never create a boundary.
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, PARENT_ID, {
+        data: {
+          parts: [{ type: 'text', text: 'edited parent' }],
+          staleResumeReset: true
+        } as unknown as { parts: [{ type: 'text'; text: string }] }
+      })
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID, PARENT_ID)).toBe('healthy-parent')
+    })
   })
 })
