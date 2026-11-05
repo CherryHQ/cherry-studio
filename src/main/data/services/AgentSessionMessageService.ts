@@ -628,6 +628,17 @@ export class AgentSessionMessageService {
     )
   }
 
+  /**
+   * Native-only read for stale scoping: returns the persisted
+   * `data.nativeSessionId` on the selected branch without falling back to
+   * `runtimeResumeToken`. Using {@link getNativeSessionId} here would conflate
+   * a resume token into the native-id list (#23519 follow-up).
+   */
+  getPersistedNativeSessionId(sessionId: string, messageId?: string): string | undefined {
+    const rows = this.nativePath(sessionId, messageId).toReversed()
+    return rows.find((row) => row.nativeSessionId)?.nativeSessionId ?? undefined
+  }
+
   /** Main-only native fork read. API callers must never receive these raw rows. */
   readForkPrefixTx(
     tx: DbOrTx,
@@ -1220,30 +1231,67 @@ export class AgentSessionMessageService {
   }
 
   /**
-   * Drop persisted resume tokens for a session whose CLI-side conversation is
-   * gone (`No conversation found with session ID`, #23421). The next turn
-   * connects fresh instead of failing identically on the stale token.
+   * Drop persisted resume tokens for the failed CLI-side conversation only
+   * (`No conversation found with session ID`, #23421). Scoped to the stale
+   * token value so healthy sibling branches keep their resume identities
+   * (#23519 review).
+   *
+   * The token list is required: passing an empty list is a silent no-op
+   * (never "clear all for session") so a future caller cannot accidentally
+   * wipe healthy siblings. Pass the failed conversation id — see
+   * `extractStaleConversationId` + `entry.lastResumeToken`.
    */
-  clearRuntimeResumeTokens(sessionId: string): void {
+  clearRuntimeResumeTokens(sessionId: string, staleToken: string | readonly string[]): void {
+    const tokens = [
+      ...new Set((Array.isArray(staleToken) ? staleToken : staleToken ? [staleToken] : []).filter(Boolean))
+    ]
+    if (tokens.length === 0) {
+      logger.warn('clearRuntimeResumeTokens called with no ids — no-op', { sessionId })
+      return
+    }
     application.get('DbService').withWriteTx((tx) => {
       tx.update(sessionMessagesTable)
         .set({ runtimeResumeToken: null })
-        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            tokens.length === 1
+              ? eq(sessionMessagesTable.runtimeResumeToken, tokens[0])
+              : inArray(sessionMessagesTable.runtimeResumeToken, tokens)
+          )
+        )
         .run()
     })
   }
 
   /**
-   * Drop persisted native session bindings for a session whose CLI-side
-   * conversation is gone. `ClaudeCodeRuntimeDriver.start()` falls back to
+   * Drop persisted native session bindings for the failed CLI-side
+   * conversation only. `ClaudeCodeRuntimeDriver.start()` falls back to
    * `nativeSessionId` when no resume token exists, so leaving it would fail
-   * the next turn identically after a stale reset (#23421).
+   * the next turn identically after a stale reset (#23421). Scoped to the
+   * stale native id so healthy siblings keep theirs (#23519 review).
+   *
+   * The id list is required: passing an empty list is a silent no-op (never
+   * "clear all for session"). Pass the native-only id — see `getPersistedNativeSessionId`.
    */
-  clearNativeSessionIds(sessionId: string): void {
+  clearNativeSessionIds(sessionId: string, staleNativeId: string | readonly string[]): void {
+    const ids = [
+      ...new Set((Array.isArray(staleNativeId) ? staleNativeId : staleNativeId ? [staleNativeId] : []).filter(Boolean))
+    ]
+    if (ids.length === 0) {
+      logger.warn('clearNativeSessionIds called with no ids — no-op', { sessionId })
+      return
+    }
+    const nativeExpr = sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
     application.get('DbService').withWriteTx((tx) => {
       tx.update(sessionMessagesTable)
         .set({ data: sql`json_remove(json(${sessionMessagesTable.data}), '$.nativeSessionId')` })
-        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            ids.length === 1 ? eq(nativeExpr, ids[0]) : inArray(nativeExpr, ids)
+          )
+        )
         .run()
     })
   }

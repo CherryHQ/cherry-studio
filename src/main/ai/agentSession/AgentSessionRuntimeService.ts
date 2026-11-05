@@ -16,7 +16,7 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
-import { isStaleResumeError } from '@main/ai/runtime/staleResume'
+import { extractStaleConversationId, isStaleResumeError } from '@main/ai/runtime/staleResume'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -2849,24 +2849,117 @@ export class AgentSessionRuntimeService extends BaseService {
       // `data-conversation-reset` marker for this turn's UI. Also drop
       // `nativeSessionId` bindings: the driver falls back to them when no
       // resume token exists, and they point at the same dead conversation.
-      entry.lastResumeToken = undefined
-      // A racing closeSession barrier would otherwise resurrect the stale
-      // token via `closing.resumeToken` in ensureConnection — clear it too,
-      // plus any failed-closure tokens kept for archive retry.
-      const closing = this.closingSessions.get(entry.sessionId)
-      if (closing) closing.resumeToken = undefined
-      const failed = this.failedClosures.get(entry.sessionId)
-      if (failed) {
-        for (const connection of failed) this.failedClosureResumeTokens.delete(connection)
-        this.failedClosures.delete(entry.sessionId)
+      // Scoped to the failed conversation only so healthy sibling branches
+      // keep their resume identities (#23519 review).
+      const failedBranchHead = entry.branchHead
+      const staleToken = entry.lastResumeToken
+      const staleErrorId = extractStaleConversationId(error)
+      let stalePersistedToken: string | null | undefined
+      let staleNativeId: string | undefined
+      try {
+        stalePersistedToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId, failedBranchHead)
+      } catch (persistError) {
+        logger.warn('Stale scope persisted token read failed — treating as unknown', {
+          sessionId: entry.sessionId,
+          branchHead: failedBranchHead,
+          error: persistError
+        })
+        stalePersistedToken = undefined
       }
       try {
-        agentSessionMessageService.clearRuntimeResumeTokens(entry.sessionId)
-        agentSessionMessageService.clearNativeSessionIds(entry.sessionId)
-      } catch (clearError) {
-        logger.warn('Failed to clear stale resume tokens', { sessionId: entry.sessionId, error: clearError })
+        staleNativeId = agentSessionMessageService.getPersistedNativeSessionId(entry.sessionId, failedBranchHead)
+      } catch (persistError) {
+        logger.warn('Stale scope native id read failed — treating as unknown', {
+          sessionId: entry.sessionId,
+          branchHead: failedBranchHead,
+          error: persistError
+        })
+        staleNativeId = undefined
       }
-      logger.warn('Cleared stale resume token after native session not found', { sessionId: entry.sessionId })
+      // The error id is added to both lists: the driver resumes via
+      // `resumeToken` on one path and `nativeSessionId` on another, so the
+      // dead CLI id could live in either column.
+      const staleTokens = [...new Set([staleToken, stalePersistedToken, staleErrorId].filter((v): v is string => !!v))]
+      const staleNativeIds = [...new Set([staleNativeId, staleErrorId].filter((v): v is string => !!v))]
+      // In-memory barriers can hold either a resume token or a native-side
+      // value (`getLastRuntimeResumeToken` may return a `nativeThreadId`), so
+      // match against the union — consistent with the "either column" model.
+      const staleAll = new Set([...staleTokens, ...staleNativeIds])
+      // `runConnectionLoop` only calls us when this entry still owns the
+      // failed connection, so a branch switch reusing the same connection is
+      // unlikely — but guard anyway: only drop the in-memory token when it
+      // matches the dead conversation, otherwise a late error could wipe a
+      // healthy branch's freshly-hydrated token.
+      const entryMatches =
+        !staleToken ||
+        !staleErrorId ||
+        staleToken === staleErrorId ||
+        staleToken === stalePersistedToken ||
+        staleToken === staleNativeId
+      if (entryMatches) {
+        entry.lastResumeToken = undefined
+      } else {
+        logger.warn('Preserved in-memory resume token after branch switch — stale id did not match entry', {
+          sessionId: entry.sessionId,
+          branchHead: failedBranchHead
+        })
+      }
+      const closing = this.closingSessions.get(entry.sessionId)
+      const failed = this.failedClosures.get(entry.sessionId)
+      if (staleTokens.length === 0 && staleNativeIds.length === 0) {
+        // Could not scope (no in-memory, persisted, or parseable id). Clear
+        // in-memory resurrection paths so the next turn still goes fresh;
+        // DB has nothing scoped to wipe on this branch, so siblings are
+        // untouched. This preserves the old recovery guarantee without a
+        // session-wide DB wipe. Context-table bindings (`nativeThreadId`) are
+        // never cleared here, so the orphan sweep keep-set still sees healthy
+        // siblings; only per-connection failed-close claims are dropped.
+        if (closing?.resumeToken) closing.resumeToken = undefined
+        if (failed) {
+          for (const connection of failed) this.failedClosureResumeTokens.delete(connection)
+        }
+        logger.warn('Cleared stale resume state with unknown id — cleared closing barrier, kept DB', {
+          sessionId: entry.sessionId,
+          branchHead: failedBranchHead,
+          hadEntryToken: !!staleToken,
+          hadErrorId: !!staleErrorId
+        })
+      } else {
+        // A racing closeSession barrier would otherwise resurrect the stale
+        // token via `closing.resumeToken` in ensureConnection — clear it only
+        // when it matches the failed conversation, preserving healthy branches.
+        if (closing?.resumeToken && staleAll.has(closing.resumeToken)) closing.resumeToken = undefined
+        // Preserve failed-close ownership: the older connection still owns its
+        // teardown and must keep blocking history edits / archive retry
+        // (`failedClosures.has` gates `assertSessionEditable`, not normal
+        // sends, so next turns still recover). Drop only the stale token
+        // mapping so a later close cannot resurrect the dead conversation;
+        // the set entry stays until teardown completes and cleans up via the
+        // `failed.size === 0` path. Unblock path: `closeSessionForArchive`
+        // retries each failed connection with `strict=true`, and
+        // `closeRuntimeConnection` success deletes the connection and the map
+        // entry when empty.
+        if (failed) {
+          for (const connection of failed) {
+            const token = this.failedClosureResumeTokens.get(connection)
+            if (token && staleAll.has(token)) this.failedClosureResumeTokens.delete(connection)
+          }
+        }
+        try {
+          if (staleTokens.length > 0) agentSessionMessageService.clearRuntimeResumeTokens(entry.sessionId, staleTokens)
+          if (staleNativeIds.length > 0)
+            agentSessionMessageService.clearNativeSessionIds(entry.sessionId, staleNativeIds)
+        } catch (clearError) {
+          logger.warn('Failed to clear stale resume tokens', { sessionId: entry.sessionId, error: clearError })
+        }
+        logger.warn('Cleared stale resume token after native session not found', {
+          sessionId: entry.sessionId,
+          branchHead: failedBranchHead,
+          entryPreserved: !entryMatches,
+          staleTokens,
+          staleNativeIds
+        })
+      }
     }
     const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
     if (

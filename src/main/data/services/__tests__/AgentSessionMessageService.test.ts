@@ -2859,4 +2859,124 @@ describe('AgentSessionMessageService', () => {
       expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
     })
   })
+
+  describe('stale scoped invalidation (#23519)', () => {
+    it('clears only the failed runtime token, preserving healthy sibling rows', () => {
+      const STALE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d040'
+      const HEALTHY_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d041'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'stale-id',
+        message: { id: STALE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'healthy-id',
+        message: { id: HEALTHY_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      agentSessionMessageService.clearRuntimeResumeTokens(SESSION_ID, 'stale-id')
+
+      const rows = dbh.db
+        .select({ id: agentSessionMessageTable.id, token: agentSessionMessageTable.runtimeResumeToken })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+        .all()
+      expect(rows.find((row) => row.id === STALE_ID)?.token).toBeNull()
+      expect(rows.find((row) => row.id === HEALTHY_ID)?.token).toBe('healthy-id')
+    })
+
+    it('clears only the failed native id, preserving healthy sibling bindings', () => {
+      const STALE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d042'
+      const HEALTHY_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d043'
+      // `saveMessage` strips `data.nativeSessionId` via `publicMessageData`,
+      // so bind native ids the same way edits do.
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: STALE_ID, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: HEALTHY_ID, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      application.get('DbService').withWriteTx((tx) => {
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, STALE_ID, 'native-stale')
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, HEALTHY_ID, 'native-healthy')
+      })
+
+      agentSessionMessageService.clearNativeSessionIds(SESSION_ID, 'native-stale')
+
+      const rows = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+        .all()
+      expect(rows.find((row) => row.id === STALE_ID)?.data.nativeSessionId).toBeUndefined()
+      expect(rows.find((row) => row.id === HEALTHY_ID)?.data.nativeSessionId).toBe('native-healthy')
+    })
+
+    it('clears multiple stale values in one call (inArray path)', () => {
+      const STALE_A = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d044'
+      const STALE_B = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d045'
+      const HEALTHY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d046'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'stale-a',
+        message: { id: STALE_A, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'stale-b',
+        message: { id: STALE_B, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'healthy-id',
+        message: { id: HEALTHY, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      agentSessionMessageService.clearRuntimeResumeTokens(SESSION_ID, ['stale-a', 'stale-b'])
+
+      const tokenRows = dbh.db
+        .select({ id: agentSessionMessageTable.id, token: agentSessionMessageTable.runtimeResumeToken })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+        .all()
+      expect(tokenRows.find((row) => row.id === STALE_A)?.token).toBeNull()
+      expect(tokenRows.find((row) => row.id === STALE_B)?.token).toBeNull()
+      expect(tokenRows.find((row) => row.id === HEALTHY)?.token).toBe('healthy-id')
+
+      const NATIVE_A = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d047'
+      const NATIVE_B = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d048'
+      const NATIVE_OK = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d049'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: NATIVE_A, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: NATIVE_B, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: NATIVE_OK, role: 'user', status: 'success', data: { parts: [] } }
+      })
+      application.get('DbService').withWriteTx((tx) => {
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, NATIVE_A, 'native-a')
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, NATIVE_B, 'native-b')
+        agentSessionMessageService.setEditRuntimeTx(tx, SESSION_ID, NATIVE_OK, 'native-ok')
+      })
+
+      agentSessionMessageService.clearNativeSessionIds(SESSION_ID, ['native-a', 'native-b'])
+
+      const nativeRows = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+        .all()
+      expect(nativeRows.find((row) => row.id === NATIVE_A)?.data.nativeSessionId).toBeUndefined()
+      expect(nativeRows.find((row) => row.id === NATIVE_B)?.data.nativeSessionId).toBeUndefined()
+      expect(nativeRows.find((row) => row.id === NATIVE_OK)?.data.nativeSessionId).toBe('native-ok')
+    })
+  })
 })

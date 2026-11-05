@@ -11,6 +11,23 @@ export function isStaleResumeError(error: unknown): boolean {
   return extractErrorText(error).includes('No conversation found with session ID')
 }
 
+/**
+ * Best-effort extraction of the dead CLI-side conversation id from a stale
+ * resume error (`No conversation found with session ID: <id>`). Used to scope
+ * invalidation to the failed conversation so healthy sibling branches keep
+ * their resume identities (#23519 review).
+ *
+ * The capture excludes trailing delimiters (`)]}>` + backtick/quote) and a
+ * leading `<`/`{` so wrapped messages like `... ID: abc)` or `... ID: <abc>`
+ * still match the stored `abc`.
+ */
+export function extractStaleConversationId(error: unknown): string | undefined {
+  const text = extractErrorText(error)
+  const match = text.match(/No conversation found with session ID:\s*["'`[{([]?([^\s'"`()\]{}>]+)/)
+  const id = match?.[1]?.trim().replace(/^[<{]+|[.,;:)\]}>`]+$/g, '')
+  return id ? id : undefined
+}
+
 function extractErrorText(error: unknown, depth = 0): string {
   if (error == null) return ''
   if (typeof error === 'string') return error
