@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 
-const { appGetMock, screenshotSessionRequestedByMock } = vi.hoisted(() => ({
+const { appGetMock, screenshotSessionRequestedByMock, nativeCursor } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  screenshotSessionRequestedByMock: vi.fn()
+  screenshotSessionRequestedByMock: vi.fn(),
+  nativeCursor: { enabled: false }
 }))
 
 const platform = vi.hoisted(() => ({ isLinux: false, isMac: false, isWin: true }))
@@ -27,6 +28,14 @@ vi.mock('@application', () => ({
   application: { get: appGetMock }
 }))
 
+vi.mock('../selection/selectionNativePanel', () => ({
+  getSelectionNativePanel: () => ({
+    enableDragCursor: (_handle: Buffer, enabled = true) => {
+      nativeCursor.enabled = enabled
+    }
+  })
+}))
+
 import { QuickAssistantService } from '../QuickAssistantService'
 
 type WindowListener = () => void
@@ -36,6 +45,7 @@ const createWindow = () => {
   return {
     listeners,
     window: {
+      getNativeWindowHandle: () => Buffer.alloc(8),
       isDestroyed: vi.fn(() => false),
       on: vi.fn((event: string, listener: WindowListener) => listeners.set(event, listener)),
       removeListener: vi.fn(),
@@ -83,6 +93,7 @@ describe('QuickAssistantService', () => {
     platform.isLinux = false
     platform.isMac = false
     platform.isWin = true
+    nativeCursor.enabled = false
     appGetMock.mockImplementation((name: string) => {
       if (name === 'ScreenshotOverlayService') return { isSessionRequestedBy: screenshotSessionRequestedByMock }
       throw new Error(`Unexpected application.get(${name})`)
@@ -175,6 +186,7 @@ describe('QuickAssistantService', () => {
     Object.assign(screen, { getDisplayMatching: vi.fn(() => ({ workArea: area })) })
     let bounds = { x: 210, y: 180, width: 780, height: 650 }
     const window = {
+      getNativeWindowHandle: () => Buffer.alloc(8),
       getBounds: () => bounds,
       setBounds: (next: typeof bounds) => {
         bounds = next
@@ -239,6 +251,7 @@ describe('QuickAssistantService', () => {
       }))
     })
     const window = {
+      getNativeWindowHandle: () => Buffer.alloc(8),
       isDestroyed: vi.fn(() => false),
       getBounds: vi.fn(() => ({ x: 480, y: 354, width: 680, height: 580 })),
       setBounds: vi.fn(),
@@ -286,6 +299,43 @@ describe('QuickAssistantService', () => {
       }
     }
   }
+
+  it('limits the Windows hand cursor to bar views even when native bounds stay unchanged', () => {
+    Object.assign(screen, {
+      getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } })
+    })
+    const { window } = createResizableWindow(560)
+    const bounds = { ...window.getBounds() }
+    const service = new QuickAssistantService()
+    setupQuickAssistant(service, window)
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant-window'
+    expect(nativeCursor.enabled).toBe(true)
+
+    for (const [view, enabled] of [
+      ['panel', false],
+      ['quick-panel', true],
+      ['panel', false],
+      ['bar', true]
+    ] as const) {
+      service.setView({ view, contentHeight: 560, animate: false })
+      expect(nativeCursor.enabled).toBe(enabled)
+      expect(window.getBounds()).toEqual(bounds)
+    }
+  })
+
+  it('preserves the macOS creation opt-in when the view changes', () => {
+    platform.isMac = true
+    platform.isWin = false
+    Object.assign(screen, {
+      getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } })
+    })
+    const { window } = createResizableWindow(560)
+    const service = new QuickAssistantService()
+    setupQuickAssistant(service, window)
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant-window'
+    service.setView({ view: 'panel', contentHeight: 560, animate: false })
+    expect(nativeCursor.enabled).toBe(true)
+  })
 
   it('preserves a user-resized bar across view updates and temporary menus', () => {
     platform.isLinux = true

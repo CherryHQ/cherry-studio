@@ -40,6 +40,13 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it.each(['darwin', 'win32'] as const)('loads the %s panel addon from its platform directory', (platform) => {
+    vi.stubGlobal('process', Object.defineProperty(Object.create(process), 'platform', { value: platform }))
+    expect(buildPathRegistry()['feature.selection.native_panel_file']).toBe(
+      path.normalize(`/mock/app/resources/binaries/${platform}-${process.arch}/selection-panel.node`)
+    )
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)(
     'locates the %s addon in target-specific unpackable resources',
     (platform) => {

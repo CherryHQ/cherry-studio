@@ -297,6 +297,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
           'flex h-full w-full flex-col overflow-hidden',
           view === 'bar' && 'justify-end',
           view === 'panel' ? 'rounded-[20px] bg-card text-card-foreground' : 'bg-transparent',
+          isWin && view === 'panel' && 'border border-border',
           draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
         )}>
         {view === 'panel' && (

@@ -6,8 +6,9 @@
 
 ## Selection Assistant native panel
 
-`selection-panel/selectionPanel.mm` is a macOS Node-API addon for the action result window and
+`selection-panel/darwin/selectionPanel.mm` is a macOS Node-API addon for the action result window and
 the selection agent window. It also supplies the Quick Assistant drag cursor.
+`selection-panel/win32/selectionPanel.cpp` supplies the Windows Quick Assistant drag cursor.
 Other panels keep Electron's default behavior. `SelectionService` and `SelectionAgentWindowService` configure each of
 their windows through `onWindowCreatedByType`, including pool warmup, and move it
 to the invoking Space **before** showing it on every reuse. The registry disables
@@ -65,14 +66,44 @@ Revalidate this Chromium hit-test contract on Electron upgrades. Verify the actu
 AppKit cursor, not just computed CSS, over toolbar gaps, text, buttons, window
 edges, and after hiding/reopening the panel.
 
+On Windows, `enableDragCursor(handle, enabled)` subclasses only the opted-in
+window and its same-thread child HWNDs. Chromium's root `WM_NCHITTEST` result of
+`HTCAPTION` selects the open hand; client controls and resize edges keep Electron's
+handling. Quick Assistant's existing view state enables the hand only in bar and
+quick-panel views; conversation panels retain the default cursor, including their
+titlebar. Disabling clears any hand cursor and drag timer immediately. macOS keeps
+its existing one-argument creation opt-in. The child subclasses apply hover feedback after Chromium processes a
+mouse move. Native caption dragging remains with Windows, with a timer maintaining
+the closed hand during its modal move loop. Release, cancellation, hiding,
+minimizing, mouse passthrough and destruction clear the dragging state. Subclasses
+are removed on HWND destruction or Node environment cleanup.
+
+The Windows addon embeds Chromium's [grab/grabbing cursor resources](selection-panel/win32/cursors/README.md)
+with their license. Check the actual `GetCursorInfo` image through hover, press,
+native movement and release over the input bar, verify the conversation titlebar
+keeps the default arrow, and check no-drag inputs, buttons and resize edges.
+
 ### Build and validation
 
-Electron Vite builds the host addon automatically on macOS; `scripts/packaging/before-pack.js`
-rebuilds for the packaging target (`arm64` or `x64`). Xcode Command Line Tools
-are required. Windows and Linux skip the addon. Headers come from the pinned
-`node-api-headers` development dependency, without downloading Electron headers.
+Windows fractional-DPI window geometry is a known upstream limitation: a renderer
+child can exceed its HWND client area and clip a normal border, and bounds get/set
+round trips can grow the window. Standalone Electron 45.2.2 reproduces this at 175%
+DPI without the addon. Cursor handling does not alter the existing sizing logic
+or compensate for this with an inset border or negative offset.
 
-Output: `resources/binaries/darwin-<arch>/selection-panel.node`. The existing
+`selection-panel/build.js` and `binding.gyp` stay at the module root. Platform
+implementations live under `darwin/` and `win32/`; Windows cursor resources and
+their license stay under `win32/cursors/`. Build watch inputs include only the
+host platform sources, so Windows resource changes do not invalidate macOS builds.
+
+Electron Vite builds the host addon automatically on macOS and Windows; `scripts/packaging/before-pack.js`
+rebuilds for the packaging target (`arm64` or `x64`). Xcode Command Line Tools
+are required on macOS. Windows requires MSVC and the Windows SDK, including ARM64
+tools for an ARM64 target; node-gyp uses the pinned Electron headers and delay-load
+hook. Linux skips the addon. macOS headers come from the pinned `node-api-headers`
+development dependency, without downloading Electron headers.
+
+Output: `resources/binaries/<platform>-<arch>/selection-panel.node`. The existing
 resource unpacking and per-target binary filters include only the target addon.
 
 ```sh

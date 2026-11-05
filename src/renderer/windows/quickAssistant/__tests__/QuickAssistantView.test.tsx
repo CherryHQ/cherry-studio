@@ -509,14 +509,16 @@ describe('QuickAssistantView', () => {
     const root = container.querySelector('[data-ui="quick-assistant.view"]')
     expect(root).toHaveClass('bg-transparent')
     expect(root).not.toHaveClass('bg-popover')
+    expect(root).not.toHaveClass('border')
 
     runtime.quickPanelVisible = true
     rerender(<QuickAssistantView draggable={false} />)
     expect(root).toHaveClass('bg-transparent')
     expect(root).not.toHaveClass('bg-popover')
+    expect(root).not.toHaveClass('border')
   })
 
-  it('keeps the Windows conversation panel opaque after sending', async () => {
+  it('gives the Windows conversation panel an opaque surface and visible outline after sending', async () => {
     platform.isMac = false
     platform.isWin = true
     quickConversation.send.mockReturnValue(true)
@@ -526,7 +528,7 @@ describe('QuickAssistantView', () => {
 
     await waitFor(() => expect(screen.getByTestId('quick-messages')).toBeInTheDocument())
     const root = container.querySelector('[data-ui="quick-assistant.view"]')
-    expect(root).toHaveClass('bg-card', 'text-card-foreground')
+    expect(root).toHaveClass('bg-card', 'text-card-foreground', 'border', 'border-border')
     expect(root).not.toHaveClass('bg-popover')
   })
 

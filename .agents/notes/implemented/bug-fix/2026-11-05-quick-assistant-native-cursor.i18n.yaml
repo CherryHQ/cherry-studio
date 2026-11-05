@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-05-quick-assistant-native-cursor.md
-2026-11-05-quick-assistant-native-cursor.md: e04dc351f87a2247bac16c23e4f11d24ea53aacc
-2026-11-05-quick-assistant-native-cursor.zh.md: 83a42f03c63cb393b3cec96c414f8b42ef01eb39
+2026-11-05-quick-assistant-native-cursor.md: 7e3421b6bf66e45a24364eb6b8f5e91ad74a5748
+2026-11-05-quick-assistant-native-cursor.zh.md: 5efabbcc528388094eaf2922678e21cd02c765c4

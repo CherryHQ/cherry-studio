@@ -2,9 +2,10 @@ import type { Rectangle } from 'electron'
 
 import { application } from '@application'
 
-/** [macOS] The selection panel addon built from `native/selection-panel/selectionPanel.mm`; see `native/README.md`. */
+/** Native panel addon; Windows exports only enableDragCursor. See `native/README.md`. */
 export interface SelectionNativePanel {
-  enableDragCursor(handle: Buffer): void
+  /** Windows accepts an enabled flag; macOS keeps its window-creation opt-in. */
+  enableDragCursor(handle: Buffer, enabled?: boolean): void
   configurePanel(handle: Buffer): void
   moveToActiveSpace(handle: Buffer): void
   /** Receives the native handle of a marked panel whose yellow light or Cmd+M was used. */

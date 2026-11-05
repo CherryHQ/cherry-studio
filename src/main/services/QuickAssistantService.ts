@@ -348,6 +348,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   private setupQuickAssistant(windowId: WindowId, window: BrowserWindow) {
     this.setupQuickAssistantWebContents(window)
     if (isMac) getSelectionNativePanel().enableDragCursor(window.getNativeWindowHandle())
+    if (isWin) getSelectionNativePanel().enableDragCursor(window.getNativeWindowHandle(), this.view !== 'panel')
 
     // Declarative window infra (initial alwaysOnTop level, cross-workspace visibility,
     // macOS level reapply across show cycles) is owned by WindowManager via the
@@ -428,6 +429,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     const window = this.getQuickAssistant()
     if (!window) return
+
+    if (isWin) getSelectionNativePanel().enableDragCursor(window.getNativeWindowHandle(), view !== 'panel')
 
     // Only the panel fills its window. The bar and the quick-panel expansion are rounded
     // cards inside a transparent frame, where an OS shadow traces the frame's rectangle
