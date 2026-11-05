@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -218,6 +219,51 @@ describe('ActionTranslate', () => {
     )
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.japanese))
+  })
+
+  it('starts the first request with the saved languages when they load after the language list', async () => {
+    let resolveSaved: (codes: Record<string, unknown>) => void = () => {}
+    mockPreferenceService.getMultiple.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, unknown>>((resolve) => {
+          resolveSaved = resolve
+        })
+    )
+    let resolveDetect: (langCode: TranslateLangCode) => void = () => {}
+    state.detectLanguage.mockReturnValue(
+      new Promise<TranslateLangCode>((resolve) => {
+        resolveDetect = resolve
+      })
+    )
+
+    render(
+      <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
+    )
+    expect(state.detectLanguage).not.toHaveBeenCalled()
+
+    await act(async () => resolveSaved({ preferred: 'en-us', alter: 'zh-cn' }))
+    // The dropdown must show the saved target while detection is still running.
+    expect(screen.getByRole('combobox')).toHaveDisplayValue(/English/)
+
+    await act(async () => resolveDetect('ja-jp'))
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.english))
+    expect(state.translate).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the session language pair when another window saves a different target', async () => {
+    state.detectLanguage.mockResolvedValue('ja-jp')
+    const action = createAction()
+
+    const { rerender } = render(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
+    )
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.action.preferred_lang', 'en-us')
+    rerender(<ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />)
+    await act(async () => {})
+
+    expect(state.translate).toHaveBeenCalledTimes(1)
   })
 
   it('continues translating to the target language when source detection throws', async () => {

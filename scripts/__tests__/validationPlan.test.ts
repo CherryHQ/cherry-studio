@@ -14,9 +14,13 @@ afterEach(() => {
 
 describe('validation selection', () => {
   it.each([
-    'docs/contrib/development.md',
+    'docs/dev/contrib/development.md',
     'src/main/core/README.md',
     'packages/ui/README.md',
+    'docs/website/content/pre-basic/settings/README.md',
+    'docs/website/content/assets/screenshot.webp',
+    'docs/website/locales.json',
+    '.github/website-docs-sync-plan.json',
     '.agents/notes/proposed/process/plan.zh.md'
   ])('keeps ordinary documentation out of code tests: %s', (file) => {
     const plan = createPlan([file])
@@ -27,16 +31,36 @@ describe('validation selection', () => {
     const runtime = createPlan(['resources/skills/tool/SKILL.md'])
     expect(runtime.projects).toContain('scripts')
     expect(runtime.projects).toContain('main')
-    const mixed = createPlan(['docs/README.md', 'src/renderer/components/Thing.tsx'])
+    const mixed = createPlan(['docs/dev/README.md', 'src/renderer/components/Thing.tsx'])
     expect(mixed.projects).toContain('renderer')
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
   })
+  it('keeps a complete translation pair out of code tests', () => {
+    const plan = createPlan(['CONTRIBUTING.md', 'CONTRIBUTING.zh.md', 'CONTRIBUTING.i18n.yaml'])
+    expect(plan.tasks).toEqual(['format', 'docs'])
+    expect(plan.projects).toEqual([])
+  })
   it.each([
+    [
+      'packages/agent-runtime/src/contracts.ts',
+      [
+        'agent-runtime',
+        'agent-behavior',
+        'agent-runtime-pi',
+        'agent-runtime-pi-durable',
+        'agent-runtime-claude-code',
+        'main'
+      ]
+    ],
+    ['packages/agent-behavior/src/index.ts', ['agent-behavior', 'agent-runtime-pi', 'main']],
+    ['packages/agent-runtime-pi/src/runtime.ts', ['agent-runtime-pi', 'main']],
+    ['packages/agent-runtime-pi-durable/src/runtime.ts', ['agent-runtime-pi-durable']],
+    ['packages/agent-runtime-claude-code/src/runtime.ts', ['agent-runtime-claude-code']],
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
-    ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
+    ['native/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
     ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
@@ -46,13 +70,20 @@ describe('validation selection', () => {
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
   })
+  // Catches an agent-behavior change that skips its own typecheck or the coding-agent adapter, whose contract test
+  // runs against the package (agent-runtime-pi depends on it, and main bundles agent-runtime-pi).
+  it('checks agent-behavior with its coding-agent adapter', () => {
+    const plan = createPlan(['packages/agent-behavior/src/core/facts.ts'])
+    expect(plan.projects).toEqual(expect.arrayContaining(['main', 'agent-behavior', 'agent-runtime-pi']))
+    expect(plan.tasks).toEqual(expect.arrayContaining(['types-agent-behavior', 'types-agent-runtime-pi']))
+  })
   it('selects the portable web search typecheck alongside its Desktop consumers', () => {
     const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
     expect(plan.tasks).toEqual(expect.arrayContaining(['types-web-search', 'types-node', 'types-web']))
     expect(selectedGroups(plan).packages).toBe(true)
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
-    const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])
+    const plan = createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts'])
     expect(plan.tasks).toContain('types-system-speech')
     expect(plan.tasks).toContain('types-node')
     expect(plan.projects).not.toContain('renderer')
@@ -73,6 +104,7 @@ describe('validation selection', () => {
   it.each([
     'pnpm-lock.yaml',
     '.node-version',
+    '.github/workflows/release.i18n.yaml',
     'tests/new.setup.ts',
     'packages/new-package/src/index.ts',
     'scripts/validation/plan.mjs'
@@ -220,7 +252,7 @@ describe('validation execution', () => {
           ...process.env,
           npm_execpath: pnpm,
           COMMAND_LOG: log,
-          VALIDATION_PLAN: JSON.stringify(createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts']))
+          VALIDATION_PLAN: JSON.stringify(createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts']))
         },
         encoding: 'utf8'
       })
@@ -235,8 +267,7 @@ describe('validation execution', () => {
       } else {
         const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
         expect(test).toContain('system-speech')
-        if (group === 'platform')
-          expect(test).toContain('packages/system-speech/tests/SystemSpeechNativeClient.test.ts')
+        if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
       }
     }
   )
@@ -254,7 +285,7 @@ describe('validation execution', () => {
       ...process.env,
       npm_execpath: pnpm,
       COMMAND_LOG: log,
-      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/contrib/development.md']))
+      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/dev/contrib/development.md']))
     }
     const invoke = (...args: string[]) =>
       spawnSync(process.execPath, ['scripts/validation/run.mjs', ...args], { env, encoding: 'utf8' })

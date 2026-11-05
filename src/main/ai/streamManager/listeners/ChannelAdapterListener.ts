@@ -1,7 +1,12 @@
 import type { UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
-import { type ChannelAdapter, sanitizeChannelOutput, type SendMessageOptions } from '@main/ai/channels'
+import {
+  type ChannelAdapter,
+  sanitizeChannelOutput,
+  sanitizeChannelOutputSilently,
+  type SendMessageOptions
+} from '@main/ai/channels'
 import { t } from '@main/i18n'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -9,11 +14,15 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
+// Sanitizing re-scans the whole reply, so coalesce deltas instead of paying that per chunk.
+const LIVE_UPDATE_INTERVAL_MS = 250
 
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
+  private lastLiveText = ''
+  private liveUpdateTimer: ReturnType<typeof setTimeout> | undefined
   private settled = false
 
   constructor(
@@ -37,10 +46,6 @@ export class ChannelAdapterListener implements StreamListener {
     return this.adapter.sendMessage(this.platformChatId, text, this.responseOptions)
   }
 
-  private updateStream(text: string): Promise<void> {
-    return this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
-  }
-
   private completeStream(text: string, status: 'success' | 'paused'): Promise<boolean> {
     return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
   }
@@ -50,13 +55,31 @@ export class ChannelAdapterListener implements StreamListener {
     if (this.settled) return
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
-      // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
-      // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
-      // be redacted before they leave.
-      const { text } = sanitizeChannelOutput(this.accumulatedText)
-      const update = this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
-      void update.catch(() => {})
+      if (this.adapter.onTextUpdate && !this.liveUpdateTimer) {
+        this.liveUpdateTimer = setTimeout(() => this.pushLiveUpdate(), LIVE_UPDATE_INTERVAL_MS)
+      }
     }
+  }
+
+  private pushLiveUpdate(): void {
+    this.liveUpdateTimer = undefined
+    // The stream manager prunes a retired adapter without a terminal callback, so this timer can outlive it.
+    if (!this.isAlive()) return
+    // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
+    // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
+    // be redacted before they leave.
+    const text = sanitizeChannelOutputSilently(this.accumulatedText).text.replace(
+      INCOMPLETE_CITATION_MARKER_PATTERN,
+      ''
+    )
+    if (text === this.lastLiveText) return
+    this.lastLiveText = text
+    void this.adapter.onTextUpdate?.(this.platformChatId, text, this.responseOptions)?.catch(() => {})
+  }
+
+  private settle(): void {
+    this.settled = true
+    clearTimeout(this.liveUpdateTimer)
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
@@ -70,7 +93,7 @@ export class ChannelAdapterListener implements StreamListener {
 
   private async finish(status: 'success' | 'paused'): Promise<void> {
     if (this.settled) return
-    this.settled = true
+    this.settle()
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
 
     try {
@@ -89,7 +112,7 @@ export class ChannelAdapterListener implements StreamListener {
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (this.settled) return
-    this.settled = true
+    this.settle()
     try {
       const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
       const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {

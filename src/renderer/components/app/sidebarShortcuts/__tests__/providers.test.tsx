@@ -66,15 +66,28 @@ describe('core sidebar shortcut providers', () => {
 
   it.each([
     ['core.assistant', '/topics/latest', 'topic', 'assistant', '/app/chat?topicId=conversation-1'],
-    ['core.agent', '/agent-sessions/latest', 'session', 'agent', '/app/agents?agentId=owner-1']
+    ['core.agent', '/agent-sessions/latest', 'session', 'agent', '/app/agents?sessionId=conversation-1']
   ])(
     'resolves %s to a stable conversation before opening',
     async (providerId, endpoint, field, conversationType, url) => {
-      mocks.dataGet.mockResolvedValue({ [field]: { id: 'conversation-1' } })
+      mocks.dataGet.mockImplementation(async (path, options) => {
+        const owner = options?.query as Record<string, string> | undefined
+        return {
+          [field]: {
+            id:
+              path === endpoint && owner?.[`${conversationType}Id`] === 'owner-1'
+                ? 'conversation-1'
+                : 'other-owner-conversation'
+          }
+        } as never
+      })
       await provider(providerId).activate(createSidebarShortcutTarget(providerId, 'owner-1'), gateway)
-      expect(mocks.dataGet).toHaveBeenCalledWith(endpoint, { query: { [`${conversationType}Id`]: 'owner-1' } })
       expect(openWorkspace).toHaveBeenCalledWith(
-        expect.objectContaining({ url, conversation: { conversationType, conversationId: 'conversation-1' } })
+        expect.objectContaining({
+          url,
+          conversation: { conversationType, conversationId: 'conversation-1' },
+          ...(providerId === 'core.agent' ? { metadata: { agentPinPending: true } } : {})
+        })
       )
     }
   )

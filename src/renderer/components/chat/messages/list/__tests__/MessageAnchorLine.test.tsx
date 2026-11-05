@@ -71,20 +71,22 @@ const RAIL_HEIGHT_PX = 400
 const RAIL_VIEWPORT_PX = 352
 
 interface StripMetrics {
+  wrapperHeight?: number
   scrollHeight: number
   clientHeight: number
 }
 
-/** JSDOM reports zero for every layout metric, so the component's geometry
- * paths never run by default. Give the rail real dimensions: wrapper height
- * via getBoundingClientRect (plus a ResizeObserver stub so the measure effect
- * runs at all) and strip scrollHeight/clientHeight via prototype getters. */
-function installRailGeometry(metrics: StripMetrics): () => void {
+/** JSDOM has no layout; supply mutable dimensions and explicit resize delivery
+ * so tests can exercise the rail's height gate and strip geometry. */
+function installRailGeometry(metrics: StripMetrics) {
   const originalResizeObserver = globalThis.ResizeObserver
+  const observers = new Map<ResizeObserverMock, ResizeObserverCallback>()
 
   class ResizeObserverMock {
-    disconnect = vi.fn()
-    observe = vi.fn()
+    constructor(private readonly callback: ResizeObserverCallback) {}
+
+    disconnect = vi.fn(() => observers.delete(this))
+    observe = vi.fn(() => observers.set(this, this.callback))
     unobserve = vi.fn()
   }
 
@@ -98,9 +100,9 @@ function installRailGeometry(metrics: StripMetrics): () => void {
       top: 0,
       left: 0,
       right: 32,
-      bottom: RAIL_HEIGHT_PX,
+      bottom: metrics.wrapperHeight ?? RAIL_HEIGHT_PX,
       width: 32,
-      height: RAIL_HEIGHT_PX,
+      height: metrics.wrapperHeight ?? RAIL_HEIGHT_PX,
       toJSON: () => ({})
     }
   }
@@ -117,13 +119,16 @@ function installRailGeometry(metrics: StripMetrics): () => void {
     }
   })
 
-  return () => {
-    globalThis.ResizeObserver = originalResizeObserver
-    // The overrides shadow Element.prototype's originals — deleting restores them.
-    // (Reflect.deleteProperty: `delete` on the readonly-typed properties is a TS2704.)
-    Reflect.deleteProperty(HTMLElement.prototype, 'getBoundingClientRect')
-    Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
-    Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight')
+  return {
+    restore: () => {
+      globalThis.ResizeObserver = originalResizeObserver
+      // The overrides shadow Element.prototype's originals — deleting restores them.
+      // (Reflect.deleteProperty: `delete` on the readonly-typed properties is a TS2704.)
+      Reflect.deleteProperty(HTMLElement.prototype, 'getBoundingClientRect')
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
+      Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight')
+    },
+    notifyResize: () => observers.forEach((callback, observer) => callback([], observer))
   }
 }
 
@@ -204,8 +209,14 @@ describe('MessageAnchorLine', () => {
     expect(container.querySelectorAll('[data-message-anchor-tick]')).toHaveLength(5)
   })
 
-  it('renders nothing with fewer than five turns — no anchoring needed', () => {
-    const { container } = renderRail({ messages: messages.slice(0, 5) })
+  it('shows an anchor from the first conversation turn', () => {
+    const { getAllByRole } = renderRail({ messages: messages.slice(0, 2) })
+
+    expect(getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('renders nothing without conversation turns', () => {
+    const { container } = renderRail({ messages: [] })
 
     expect(container.firstElementChild).toBeNull()
   })
@@ -275,22 +286,25 @@ describe('MessageAnchorLine', () => {
   })
 
   describe('interactivity gating', () => {
-    it('stays clickable mid-fade with a hit strip confined to the yielded gutter', () => {
+    it('keeps resting ticks visible with a hit strip confined to the yielded gutter', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
+      const animationFrame = installDeferredAnimationFrame()
       const { container } = renderRail({ messages, railOpacity: 0.5 })
 
-      const rail = container.firstElementChild as HTMLElement
-      // Visible means clickable — the strip is never a dead layer…
-      expect(rail).not.toHaveClass('pointer-events-none')
-      expect(rail).not.toHaveAttribute('inert')
-      // …because its width only spans space the content has yielded
-      // (8px inset margin + railOpacity × 24 gutter), so message text left of
-      // it keeps its clicks and selection.
-      expect(rail.style.width).toBe('20px')
-      // The visual fade lives on the tick strip (railOpacity × the resting 70%
-      // dim) so the hover preview card itself stays fully opaque.
-      const strip = rail.querySelector<HTMLElement>('.overflow-y-auto')
-      expect(strip?.style.opacity).toBe('0.35')
-      expect(rail.style.opacity).toBe('')
+      const wrapper = container.firstElementChild as HTMLElement
+      const strip = wrapper.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(wrapper).not.toHaveAttribute('inert')
+      expect(wrapper).not.toHaveClass('pointer-events-none')
+      expect(wrapper.style.width).toBe('20px')
+      expect(strip.style.opacity).toBe('0.7')
+      expect(wrapper.style.opacity).toBe('')
+
+      fireEvent.mouseMove(wrapper, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
+      expect(strip.style.opacity).toBe('1')
+
+      fireEvent.mouseLeave(wrapper)
+      expect(strip.style.opacity).toBe('0.7')
     })
 
     it('spans the full 32px strip once the gutter has fully yielded', () => {
@@ -301,33 +315,96 @@ describe('MessageAnchorLine', () => {
       expect(strip.style.width).toBe('32px')
     })
 
-    it('goes fully inert once the rail fades out', () => {
-      const { container } = renderRail({ messages, railOpacity: 0.01 })
+    it.each([0.01, 0])('stays visible and navigable at zero gutter (railOpacity: %s)', (railOpacity) => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
+      const scrollToMessageId = vi.fn()
+      const { container, getByRole } = renderRail({ messages, railOpacity, scrollToMessageId })
 
-      const strip = container.firstElementChild as HTMLElement
-      expect(strip).toHaveClass('pointer-events-none')
-      expect(strip).toHaveAttribute('inert')
-      expect(strip.querySelector<HTMLElement>('.overflow-y-auto')?.style.opacity).toBe('0')
+      const wrapper = container.firstElementChild as HTMLElement
+      const strip = wrapper.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(wrapper).not.toHaveAttribute('inert')
+      expect(wrapper).not.toHaveClass('pointer-events-none')
+      expect(wrapper.style.width).toBe('8px')
+      expect(strip.style.opacity).toBe('0.7')
+
+      fireEvent.click(getByRole('button', { name: 'chat.navigation.anchor.jump_to_turn 2' }))
+      expect(scrollToMessageId).toHaveBeenCalledWith('user-2')
     })
 
-    it('clears the hover preview when the rail fades out mid-hover', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+    it('hides a short rail and restores it at the minimum height', () => {
+      const metrics: StripMetrics = { wrapperHeight: 219, scrollHeight: 171, clientHeight: 171 }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
+      const { container } = renderRail({ messages })
+
+      const wrapper = container.firstElementChild as HTMLElement
+      const strip = wrapper.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(wrapper).toBeInTheDocument()
+      expect(wrapper).toHaveAttribute('inert')
+      expect(wrapper).toHaveClass('pointer-events-none')
+      expect(strip.style.opacity).toBe('0')
+
+      act(() => {
+        metrics.wrapperHeight = 220
+        metrics.scrollHeight = 172
+        metrics.clientHeight = 172
+        notifyResize()
+      })
+      expect(wrapper).not.toHaveAttribute('inert')
+      expect(wrapper).not.toHaveClass('pointer-events-none')
+      expect(strip.style.opacity).toBe('0.7')
+    })
+
+    it('preserves the hover preview at zero gutter and clears it when the rail becomes too short', () => {
+      const metrics: StripMetrics = {
+        wrapperHeight: RAIL_HEIGHT_PX,
+        scrollHeight: RAIL_VIEWPORT_PX,
+        clientHeight: RAIL_VIEWPORT_PX
+      }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
       const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
       const { container, rerender, queryByText } = renderRail({ messages, railOpacity: 1 })
+      const wrapper = container.firstElementChild as HTMLElement
+      const strip = wrapper.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
 
-      fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      fireEvent.mouseMove(wrapper, { clientY: tickCenterOf5(1) })
       animationFrame.flushNext()
       expect(queryByText('Question two')).toBeInTheDocument()
 
-      rerender(rail({ messages, railOpacity: 0.01 }))
+      rerender(rail({ messages, railOpacity: 0 }))
+      expect(queryByText('Question two')).toBeInTheDocument()
+      expect(wrapper).not.toHaveAttribute('inert')
+      expect(strip.style.opacity).toBe('1')
+
+      act(() => {
+        metrics.wrapperHeight = 219
+        metrics.scrollHeight = 171
+        metrics.clientHeight = 171
+        notifyResize()
+      })
       expect(queryByText('Question two')).not.toBeInTheDocument()
+      expect(wrapper).toHaveAttribute('inert')
+      expect(wrapper).toHaveClass('pointer-events-none')
+      expect(strip.style.opacity).toBe('0')
+
+      act(() => {
+        metrics.wrapperHeight = 220
+        metrics.scrollHeight = 172
+        metrics.clientHeight = 172
+        notifyResize()
+      })
+      expect(queryByText('Question two')).not.toBeInTheDocument()
+      expect(wrapper).not.toHaveAttribute('inert')
+      expect(wrapper).not.toHaveClass('pointer-events-none')
+      expect(strip.style.opacity).toBe('0.7')
     })
   })
 
   describe('update isolation', () => {
     it('coalesces pointer updates and focuses the tick nearest the latest position', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const animationFrame = installDeferredAnimationFrame()
       partsMap['user-1'] = [textPart('Question one')]
       partsMap['user-2'] = [textPart('Question two')]
@@ -346,7 +423,7 @@ describe('MessageAnchorLine', () => {
     })
 
     it('updates a live preview without reading sealed history again', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const animationFrame = installDeferredAnimationFrame()
       let historySealed = false
       const historyParts = [
@@ -378,7 +455,7 @@ describe('MessageAnchorLine', () => {
     })
 
     it('stops extracting a historical preview at the visible character limit', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const animationFrame = installDeferredAnimationFrame()
       const preview = 'x'.repeat(240)
       const historyPartsByMessageId = {
@@ -403,7 +480,7 @@ describe('MessageAnchorLine', () => {
 
   describe('hover preview branch selection', () => {
     it('previews the active-branch assistant rather than an off-path sibling', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
       partsMap['assistant-2'] = [textPart('Off-path sibling reply')]
@@ -425,7 +502,7 @@ describe('MessageAnchorLine', () => {
     })
 
     it('falls back to the first assistant when no member carries the branch flag', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const animationFrame = installDeferredAnimationFrame()
       partsMap['assistant-2'] = [textPart('First reply')]
       partsMap['assistant-2b'] = [textPart('Second reply')]
@@ -438,7 +515,7 @@ describe('MessageAnchorLine', () => {
     })
 
     it('styles the preview card with the semantic popover surface only', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
       partsMap['assistant-2'] = [textPart('Answer two')]
@@ -489,7 +566,7 @@ describe('MessageAnchorLine', () => {
   describe('strip geometry', () => {
     it('anchors the strip to the bottom on first entry so the newest turns are visible', () => {
       // 40 turns × 10px = 400px of ticks inside a 352px viewport.
-      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }).restore
       const { container } = renderRail({ messages: makeTurnMessages(40), hasOlder: true })
 
       const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
@@ -498,7 +575,7 @@ describe('MessageAnchorLine', () => {
 
     it('compensates the scroll when older turns prepend so visible ticks stay put', () => {
       const metrics = { scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
-      restoreGeometry = installRailGeometry(metrics)
+      restoreGeometry = installRailGeometry(metrics).restore
       const initial = makeTurnMessages(40, 100)
       const { container, rerender } = renderRail({ messages: initial, hasOlder: true })
 
@@ -515,7 +592,7 @@ describe('MessageAnchorLine', () => {
 
     it('keeps the bottom alignment when the last page loads (hasOlder true → false)', () => {
       // 5 turns × 10px fit the 352px viewport with 302px of free space.
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const { container, rerender } = renderRail({ messages, hasOlder: true })
 
       const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
@@ -530,7 +607,7 @@ describe('MessageAnchorLine', () => {
     })
 
     it('centres the cluster when mounted fully loaded', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const { container } = renderRail({ messages, hasOlder: false })
 
       const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
@@ -538,7 +615,7 @@ describe('MessageAnchorLine', () => {
     })
 
     it('fades both ends while the strip is scrolled into the middle', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
+      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }).restore
       const { container } = renderRail({ messages: makeTurnMessages(40) })
 
       const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement

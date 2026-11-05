@@ -9,7 +9,7 @@ const phase = process.env.CHERRY_TEST_PHASE ?? 'all'
 
 export default defineConfig({
   testDir: './tests/e2e/regression',
-  testMatch: '**/*.test.ts',
+  testMatch: 'phases/*.test.ts',
   timeout: 10 * 60 * 1000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
@@ -18,6 +18,7 @@ export default defineConfig({
   retries: 0,
   projects: [{ name: process.platform === 'win32' ? 'Windows' : 'macOS' }],
   reporter: [
+    ['./scripts/e2e/regression/RedactionReporter.ts'],
     ['./scripts/e2e/regression/RegressionReporter.ts'],
     ['list'],
     ['html', { open: 'never', outputFolder: join(runDirectory, 'report', `playwright-${phase}`) }],

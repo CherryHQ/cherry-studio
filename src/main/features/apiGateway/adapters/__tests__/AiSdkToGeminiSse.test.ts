@@ -47,6 +47,31 @@ describe('AiSdkToGeminiSse (streaming)', () => {
     })
   })
 
+  it.each([
+    { type: 'text-delta', thought: false, late: false },
+    { type: 'reasoning-delta', thought: true, late: false },
+    { type: 'text-delta', thought: false, late: true },
+    { type: 'reasoning-delta', thought: true, late: true }
+  ] as const)('retains the $type signature in both responses (metadata-only: $late)', ({ type, thought, late }) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+    const providerMetadata = { google: { thoughtSignature: 'native-signature' } }
+    const chunks: UIMessageChunk[] = [
+      { type, id: 'part', delta: 'first', ...(!late && { providerMetadata }) },
+      { type, id: 'part', delta: ' second' },
+      ...(late ? [{ type, id: 'part', delta: '', providerMetadata }] : [])
+    ]
+    const frames = chunks.flatMap((chunk) => adapter.transformChunk(chunk))
+    frames.push(...adapter.finalizeEvents())
+    expect(frames.flatMap((frame) => frame.candidates[0].content.parts)).toContainEqual({
+      text: late ? '' : 'first',
+      ...(thought && { thought: true }),
+      thoughtSignature: 'native-signature'
+    })
+    expect(adapter.buildNonStreamingResponse().candidates[0].content.parts).toEqual([
+      { text: 'first second', ...(thought && { thought: true }), thoughtSignature: 'native-signature' }
+    ])
+  })
+
   it('emits a functionCall part for a tool call', () => {
     const [frame] = run([toolCall('get_weather', { city: 'SF' })])
     expect(frame.candidates[0].content.parts).toEqual([{ functionCall: { name: 'get_weather', args: { city: 'SF' } } }])
@@ -185,3 +210,19 @@ describe('GeminiSseFormatter', () => {
     expect(formatter.formatDone()).toBe('')
   })
 })
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)

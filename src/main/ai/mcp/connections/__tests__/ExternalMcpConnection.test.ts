@@ -134,8 +134,9 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
     }
   })
 
-  it('preserves the original probe error for an HTML server failure', async () => {
+  it('connects as legacy when server/discover returns an HTML 5xx body', async () => {
     const handler = createLegacyHandler()
+    const log = createLog()
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
@@ -144,18 +145,56 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
       return fetchMcpHandler(handler, input, init)
     })
     try {
-      const error = await createExternalMcpConnection({
+      const connection = await createExternalMcpConnection({
         server,
         appVersion: '0.0.0-test',
         events,
-        log: createLog(),
+        log,
         connectTimeoutMs: 5_000
-      }).then(
-        () => null,
-        (rejection: unknown) => rejection
-      )
-      expect(SdkHttpError.isInstance(error)).toBe(true)
-      expect(error).toMatchObject({ code: SdkErrorCode.EraNegotiationFailed, status: 500 })
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('legacy'), expect.anything())
+      } finally {
+        await connection.close()
+      }
+    } finally {
+      await handler.close()
+    }
+  })
+
+  it('connects as legacy when server/discover returns a bare empty 5xx body', async () => {
+    const handler = createLegacyHandler()
+    const log = createLog()
+    let rejectedProbes = 0
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+        rejectedProbes++
+        return new Response(null, {
+          status: 500,
+          headers: { 'content-type': 'application/json;charset=utf-8' }
+        })
+      }
+      return fetchMcpHandler(handler, input, init)
+    })
+    try {
+      const connection = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log,
+        connectTimeoutMs: 5_000
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        expect(rejectedProbes).toBeGreaterThan(0)
+        expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('legacy'), expect.anything())
+      } finally {
+        await connection.close()
+      }
     } finally {
       await handler.close()
     }
@@ -273,6 +312,16 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
     ['invalid JSON', SdkErrorCode.EraNegotiationFailed, 500, 'not JSON'],
     ['non-integer error code', SdkErrorCode.EraNegotiationFailed, 500, '{"error":{"code":-32603.5,"message":"bad"}}'],
     ['missing error message', SdkErrorCode.EraNegotiationFailed, 500, '{"error":{"code":-32603}}'],
+    ['undefined text', SdkErrorCode.EraNegotiationFailed, 500, undefined]
+  ])('recognizes a bare probe 5xx for %s', (_name, code, status, text) => {
+    expect(
+      externalMcpConnectionInternals.isLegacyProbeRejection(
+        new SdkHttpError(code, 'Probe failed', { status, statusText: '', text })
+      )
+    ).toBe(true)
+  })
+
+  it.each([
     ['HTTP 404', SdkErrorCode.EraNegotiationFailed, 404, probeRejectionBody],
     ['HTTP 401', SdkErrorCode.ClientHttpAuthentication, 401, probeRejectionBody],
     ['HTTP 403', SdkErrorCode.ClientHttpForbidden, 403, probeRejectionBody],

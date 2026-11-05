@@ -143,3 +143,16 @@ describe('TopicMessageFlowNode status label', () => {
     expect(screen.getByText(label, { selector: 'span.truncate' })).toBeInTheDocument()
   })
 })
+
+describe('TopicMessageFlowNode role label', () => {
+  it('shows the translated system label in the node header', () => {
+    const errorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+
+    renderNode({ role: 'system' })
+
+    expect(screen.getByText('系统')).toBeInTheDocument()
+    expect(
+      errorSpy.mock.calls.filter(([message]) => typeof message === 'string' && message.startsWith('Missing key:'))
+    ).toEqual([])
+  })
+})

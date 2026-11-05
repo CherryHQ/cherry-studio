@@ -16,7 +16,9 @@ on:
       - "packages/remote-transport/**"
   workflow_dispatch:
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -32,6 +34,8 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v7
         with:
+          # Changesets action resets its version branch to the triggering event SHA.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -78,8 +82,21 @@ jobs:
           pnpm --filter '@cherrystudio/remote-*' typecheck
           pnpm --filter '@cherrystudio/remote-*' test
 
+      - name: Check release commit is still current
+        id: release-head
+        shell: bash
+        run: |
+          release_head=$(git ls-remote --exit-code origin refs/heads/main)
+          if [[ "${release_head%%[[:space:]]*}" == "$(git rev-parse HEAD)" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping obsolete release commit; run Release Packages on main to process the latest changes."
+          fi
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
+        if: steps.release-head.outputs.current == 'true'
         uses: changesets/action@v2
         with:
           create-github-releases: false

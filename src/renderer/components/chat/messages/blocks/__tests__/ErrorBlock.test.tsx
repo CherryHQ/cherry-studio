@@ -37,14 +37,33 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (providerId: string) => providerId
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>
-}))
-
 vi.mock('react-i18next', () => ({
-  Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
+  Trans: ({
+    i18nKey,
+    values,
+    components
+  }: {
+    i18nKey: string
+    values?: Record<string, string>
+    components?: Record<string, React.ReactElement>
+  }) => (
+    <>
+      {i18nKey}
+      {components?.provider &&
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Trans tag interpolation
+        React.cloneElement(components.provider, undefined, values?.provider)}
+    </>
+  ),
   useTranslation: () => ({
-    t: (key: string) => mocks.translations.get(key) ?? key,
+    t: (key: string, options?: Record<string, string>) => {
+      let translation = mocks.translations.get(key) ?? key
+      if (options) {
+        for (const [k, v] of Object.entries(options)) {
+          translation = translation.replace(new RegExp(`{{${k}}}`, 'g'), v)
+        }
+      }
+      return translation
+    },
     i18n: {
       language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
@@ -82,6 +101,60 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('renders Groq entitlement copy and opens its provider settings', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateErrorTarget, openErrorDetail }
+    mocks.translations = new Map(Object.entries(enUS))
+    const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: groqBody, statusCode: 400, stack: null }}
+        message={{ ...message, model: { ...message.model!, provider: 'groq' } }}
+      />
+    )
+    expect(screen.getByText(enUS['error.diagnosis.permission'], { exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.quota'], { exact: true })).not.toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/recharge/i)
+    expect(container).not.toHaveTextContent(/quota exhausted/i)
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=groq')
+    await user.click(screen.getByText(enUS['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: groqBody }) })
+    )
+  })
+
+  // Main-side copy and mapping are asserted in src/main/features/apiGateway/__tests__/bindError.test.ts.
+  // This only guards that providerErrorText keeps the serialized message visible.
+  it.each([
+    {
+      message:
+        '操作系统拒绝内部 API 网关在 ::1，请求的 TCP 端口 49152 上监听（EACCES）。请重试请求。如果仍然失败，请联系系统管理员检查对回环监听的限制。',
+      diagnosis: '操作系统拒绝内部 API 网关',
+      recovery: '请重试请求'
+    },
+    {
+      message:
+        '操作系统拒绝 API 网关在 ::1，TCP 端口 49152 上监听（EACCES）。请在“设置 → API 网关”中选择其他“端口”，离开输入框以保存，然后点击“启动”。请将客户端的连接地址更新为新地址。',
+      diagnosis: '操作系统拒绝 API 网关',
+      recovery: '离开输入框以保存，然后点击“启动”'
+    }
+  ])('keeps serialized Chinese IPv6 bind recovery visible through providerErrorText: $diagnosis', (copy) => {
+    const error = { name: 'Error', message: copy.message, stack: null, cause: null }
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    const diagnostic = screen.getByText(copy.message)
+    expect(diagnostic).toHaveTextContent(copy.diagnosis)
+    expect(diagnostic).toHaveTextContent('::1')
+    expect(diagnostic).toHaveTextContent('49152')
+    expect(diagnostic).toHaveTextContent('EACCES')
+    expect(diagnostic).toHaveTextContent(copy.recovery)
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
@@ -112,6 +185,40 @@ describe('ErrorBlock', () => {
 
     expect(screen.queryByLabelText('close')).toBeNull()
     expect(screen.queryByText('common.detail')).toBeNull()
+  })
+
+  it('opens provider settings from the provider name without opening the error detail', () => {
+    const navigateToRoute = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateToRoute, openErrorDetail }
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'openai' }))
+    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/settings/provider', query: { id: 'openai' } })
+    expect(openErrorDetail).not.toHaveBeenCalled()
+  })
+
+  it('shows the provider name as plain text when the host cannot navigate', () => {
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
@@ -439,5 +546,61 @@ describe('ErrorBlock', () => {
     expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
     await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
+  })
+
+  // #22571: the stale assistant-bound model is gone from the install, so the headline must name
+  // that layer instead of the generic "no permission" text, and detail must not fall back to a
+  // guessed provider/model.
+  it('names the model that is missing from the app and keeps provider settings recovery', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set(
+      'error.diagnosis.model_unavailable',
+      'Model {{model}} no longer exists in this app — pick a replacement'
+    )
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Model with id 'openai/gpt-test' not found",
+          stack: null
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText('Model openai/gpt-test no longer exists in this app — pick a replacement')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('shows configuration guidance without inventing a model for %s', (errorMessage) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('code.select_provider_model', enUS['code.select_provider_model'])
+    mocks.translations.set('error.diagnosis.model_unavailable', enUS['error.diagnosis.model_unavailable'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: errorMessage, stack: null }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['code.select_provider_model'])).toBeInTheDocument()
+    expect(screen.queryByText(/Model not no longer/)).toBeNull()
+    expect(screen.queryByText(errorMessage)).toBeNull()
+    expect(screen.queryByText('error.diagnosis.bad_request')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 })

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { type ModelSelectorFilter, useIsModelSelectable } from '@renderer/components/ModelSelector'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -44,12 +44,13 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
 }
 
 function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
+  const agentType = kind === 'agent' ? 'pi' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
     description: '',
-    agentType: 'claude-code',
-    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
+    agentType,
+    permissionMode: AGENT_RUNTIME_CAPABILITIES[agentType].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -349,7 +350,7 @@ export function ResourceCreateWizard({
               </ol>
 
               {/* Active step */}
-              <Scrollbar className="min-w-0 flex-1 px-6 py-5">
+              <ScrollArea viewportProps={{ className: 'px-6 py-5' }} className="min-w-0 flex-1">
                 {currentStep.id === 'basic' ? (
                   <BasicInfoStep
                     form={form}
@@ -369,7 +370,7 @@ export function ResourceCreateWizard({
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
-              </Scrollbar>
+              </ScrollArea>
             </div>
 
             <WizardFooter

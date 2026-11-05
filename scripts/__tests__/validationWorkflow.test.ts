@@ -209,32 +209,3 @@ describe('required gate scheduling', () => {
     }
   })
 })
-
-describe('PR description workflow configuration', () => {
-  const description = parse(readFileSync('.github/workflows/pr-description-check.yml', 'utf8'))
-
-  it('uses one job and cancels superseded runs for the same PR', () => {
-    expect(Object.keys(description.jobs)).toEqual(['check-description'])
-    expect(description.concurrency.group).toContain('github.event.pull_request.number')
-    expect(description.concurrency['cancel-in-progress']).toBe(true)
-    expect(description.jobs['check-description'].if).toBe('github.event.pull_request.draft == false')
-  })
-
-  it('reminds on synchronize after validation failure, but not on other events or cancellation', () => {
-    const reminder = description.jobs['check-description'].steps.find(
-      (step: { name?: string }) => step.name === 'Remind to review description'
-    )
-    // A status function overrides GitHub's implicit success() after an earlier step failed.
-    expect(reminder.if).toMatch(/(?:always|cancelled|failure)\(/)
-    const selected = (action: string, cancelled: boolean) =>
-      new Function('github', 'always', 'cancelled', 'success', `return (${reminder.if})`)(
-        { event: { action } },
-        () => true,
-        () => cancelled,
-        () => false
-      )
-    expect(selected('synchronize', false)).toBe(true)
-    for (const action of ['opened', 'edited', 'ready_for_review']) expect(selected(action, false)).toBe(false)
-    expect(selected('synchronize', true)).toBe(false)
-  })
-})

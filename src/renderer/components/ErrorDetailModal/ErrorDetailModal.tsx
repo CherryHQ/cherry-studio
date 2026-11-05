@@ -2,6 +2,7 @@ import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
 import React, { memo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -43,7 +44,6 @@ import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
-import Scrollbar from '../Scrollbar'
 import {
   buildDiagnosticReportDescription,
   type DiagnosticReportConfig,
@@ -51,6 +51,7 @@ import {
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -97,8 +98,12 @@ const truncateLargeData = (
   }
 }
 
-const ErrorDetailContainer = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
-  <Scrollbar className={cn('max-h-[60vh] pr-[5px]', className)} {...props} />
+const ErrorDetailContainer = ({ className, viewportProps, ...props }: React.ComponentProps<typeof ScrollArea>) => (
+  <ScrollArea
+    className={cn('max-h-[60vh]', className)}
+    viewportProps={{ ...viewportProps, className: cn('pr-[5px]', viewportProps?.className) }}
+    {...props}
+  />
 )
 
 const ErrorDetailList = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -531,6 +536,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     )
   }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
 
+  const showDiagnosticReportAction =
+    Boolean(diagnosticReport && onOpenDiagnosticReport) && isDiagnosticReportEligible(error)
+
   const showDetails = () => {
     setDetailsOpen(true)
   }
@@ -582,9 +590,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      {subject || (diagnosticReport && onOpenDiagnosticReport) ? (
+      {subject || showDiagnosticReportAction ? (
         <div className="flex justify-end gap-2">
-          {diagnosticReport && onOpenDiagnosticReport ? (
+          {showDiagnosticReportAction ? (
             <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
               <FileUp size={14} />
               {t('error.diagnostic_report.action')}

@@ -2,6 +2,7 @@ import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-l
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUi from '@cherrystudio/ui'
 import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -11,6 +12,17 @@ import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
 import type * as ScrollOwnershipContextModule from '../list/ScrollOwnershipContext'
 import type { MessageGroupRuntime, MessageListItem } from '../types'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUi>()
+  return {
+    ...actual,
+    PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  }
+})
+vi.mock('@renderer/components/SelectionContextMenu', () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
@@ -737,10 +749,8 @@ describe('MessageGroup', () => {
     expect(bubble?.contains(attachment)).toBe(false)
   })
 
-  it('does not hoist a second file card when the list can preview the file in the right pane', () => {
+  it('keeps the file card outside the bubble when right-pane preview is available', () => {
     mocks.messageListActions.mockReturnValue({
-      previewFile: vi.fn(),
-      openFile: vi.fn(),
       previewInputFile: vi.fn()
     })
     mocks.settings.mockReturnValue({
@@ -791,7 +801,11 @@ describe('MessageGroup', () => {
       />
     )
 
-    expect(screen.queryByTestId('hoisted-attachment')).toBeNull()
+    const attachment = screen.getByTestId('hoisted-attachment')
+    expect(attachment).toHaveTextContent('report.pdf')
+    const bubble = document.querySelector('[data-ui~="part:message-content"]')
+    expect(bubble).not.toBeNull()
+    expect(bubble?.contains(attachment)).toBe(false)
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {
@@ -864,12 +878,14 @@ describe('MessageGroup', () => {
     expect(outerWrapper).not.toBeNull()
     expect(getComputedStyle(outerWrapper!).overflowY).toBe('visible')
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    )
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
     expect(contentContainer).toHaveAttribute('tabindex', '0')
 
-    const horizontalGroup = outerWrapper!.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper!.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')
     expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
   })
@@ -885,8 +901,8 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    const contentContainers = container.querySelectorAll('.message-content-container')
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+    const contentContainers = container.querySelectorAll('.message-content-container [data-slot=scroll-area-viewport]')
 
     expect(horizontalGroup).not.toBeNull()
     expect(contentContainers).toHaveLength(2)
@@ -917,7 +933,7 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 0,
@@ -945,7 +961,9 @@ describe('MessageGroup', () => {
       </div>
     )
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -967,8 +985,10 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 0,
@@ -999,7 +1019,9 @@ describe('MessageGroup', () => {
       </div>
     )
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -1019,7 +1041,9 @@ describe('MessageGroup', () => {
 
     const { container } = render(<MessageGroup messages={messages} />)
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -1043,7 +1067,7 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     expect(horizontalGroup).not.toBeNull()
 
     setElementSize(horizontalGroup, {
@@ -1069,7 +1093,7 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 500,

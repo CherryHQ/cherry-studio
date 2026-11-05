@@ -1,6 +1,6 @@
 ---
 name: code-mate-kimi-code
-description: Runs Kimi Code in non-interactive prompt mode and parses its event stream. Use when the user asks to delegate a bounded repository task to Kimi Code.
+description: Run Kimi Code non-interactively for coding tasks. Use when the user asks to delegate work to Kimi Code.
 ---
 
 # Kimi Code

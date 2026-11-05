@@ -59,6 +59,7 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
       credentials?: WebSearchCredentials
       engines?: readonly string[]
       timeoutMs?: number
+      useDefaultResultCount?: boolean
     } = {}
   ): Promise<WebSearchResponse> {
     if (capability === 'fetchUrls') input = input.trim()
@@ -80,8 +81,13 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
               config: {
                 apiHost,
                 maxResults: config.maxResults,
+                ...(overrides.useDefaultResultCount === undefined
+                  ? {}
+                  : { useDefaultResultCount: overrides.useDefaultResultCount }),
                 ...(this.provider.id === 'searxng' ? { engines: overrides.engines ?? this.provider.engines } : {}),
-                ...(['bocha', 'querit'].includes(this.provider.id) ? { excludeDomains: config.excludeDomains } : {})
+                ...(['bocha', 'querit', 'yuanbao'].includes(this.provider.id)
+                  ? { excludeDomains: config.excludeDomains }
+                  : {})
               }
             }
           : { ...common, capability, config: { apiHost } }

@@ -43,7 +43,8 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
-  FUNASR_BUNDLE_ID,
+  QWEN3_ASR_MODEL_ID,
+  DOWNLOADABLE_TRANSCRIPTION_BUNDLES,
   QWEN3_TTS_MODEL_ID,
   KOKORO_TTS_MODEL_ID,
   DOWNLOADABLE_SPEECH_BUNDLES,
@@ -61,6 +62,8 @@ import {
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import { defaultLanguage as fallbackSampleCatalog } from '@shared/utils/languages'
+
+import { DictationShortcutSettings } from './DictationShortcutSettings'
 
 type ModelStatus = 'unsupported' | 'not_installed' | 'installing' | 'ready' | 'failed' | 'loading'
 
@@ -110,6 +113,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [QWEN3_TTS_MODEL_ID]: 'settings.voice.model.qwen3_tts',
   [KOKORO_TTS_MODEL_ID]: 'settings.voice.model.kokoro_tts',
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
+  [QWEN3_ASR_MODEL_ID]: 'settings.voice.model.qwen3_asr',
   [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
 }
@@ -119,17 +123,19 @@ function statusKey(status: StatusState): string {
   if (status.status === 'installing') return 'settings.voice.status.installing'
   if (
     status.reason &&
-    [
-      'asset_required',
-      'download_failed',
-      'model_load_failed',
-      'model_required',
-      'voice_unavailable',
-      'worker_crashed'
-    ].includes(status.reason)
+    ['asset_required', 'download_failed', 'model_load_failed', 'voice_unavailable', 'worker_crashed'].includes(
+      status.reason
+    )
   )
     return `settings.voice.status.${status.reason}`
   return `settings.voice.status.${status.status}`
+}
+
+function recognitionStatusKey(status: StatusState): string {
+  if (status.status !== 'loading' && status.status !== 'installing' && status.reason === 'model_required') {
+    return 'settings.voice.status.model_required'
+  }
+  return statusKey(status)
 }
 
 function errorKey(error: boolean | string): string {
@@ -220,9 +226,10 @@ function VoiceSettings() {
     speechPlaybackService.getSnapshot
   )
   const [models, setModels] = useState<readonly LocalVoiceModelDescriptor[]>([])
-  const asrInstallationStatus = useSharedCacheSelector(
-    [LOCAL_MODEL_STATUS_CACHE_KEY],
-    ([snapshots]) => snapshots?.[FUNASR_BUNDLE_ID]?.status
+  const asrInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
+    Object.values(DOWNLOADABLE_TRANSCRIPTION_BUNDLES)
+      .map((id) => snapshots?.[id]?.status)
+      .join(',')
   )
   const ttsInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
     Object.values(DOWNLOADABLE_SPEECH_BUNDLES)
@@ -873,7 +880,7 @@ function VoiceSettings() {
         </SettingRow>
         {testingMicrophone || microphoneError || microphonesFailed ? (
           <div className="space-y-3 pt-3">
-            <div role="status" className="text-sm text-muted-foreground">
+            <div role="status" className="text-muted-foreground text-sm">
               {testingMicrophone
                 ? t(microphoneReady ? 'settings.voice.microphone.listening' : 'settings.voice.dictation.phase.starting')
                 : null}
@@ -898,15 +905,24 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6 flex-wrap gap-3">
           <div>
             <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
+            <div id="setting-voice-recognition-status" className="mt-2 text-sm">
+              <span role="status" className="text-muted-foreground">
+                {t(installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus))}
+              </span>
+            </div>
           </div>
           <Select
             value={recognitionModel || EMPTY_VALUE}
             disabled={installingLocale}
             onValueChange={(value) => {
               if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
-                void navigate({ to: '/settings/local-models', hash: 'voice-resources' }).catch(() =>
-                  setActionFailed(true)
-                )
+                const selected = value.slice(DOWNLOAD_MODEL_PREFIX.length)
+                const bundleId = Object.entries(DOWNLOADABLE_TRANSCRIPTION_BUNDLES).find(([id]) => id === selected)?.[1]
+                if (bundleId)
+                  void navigate({
+                    to: '/settings/local-models',
+                    hash: bundleId === 'funasr-nano-int8' ? 'voice-resources' : bundleId
+                  }).catch(() => setActionFailed(true))
                 return
               }
               savePreference(async () => {
@@ -949,7 +965,7 @@ function VoiceSettings() {
                     className="group/model cursor-pointer hover:bg-accent data-[highlighted]:bg-accent [&>span:last-child]:flex-1">
                     <span>{t(MODEL_LABEL_KEYS[model.id])}</span>
                     {downloadable && status?.status !== 'ready' ? (
-                      <span className="ml-auto inline-flex items-center gap-1 text-link group-hover/model:underline group-data-[highlighted]/model:underline">
+                      <span className="text-link ml-auto inline-flex items-center gap-1 group-hover/model:underline group-data-[highlighted]/model:underline">
                         <Download className="size-3" aria-hidden="true" />
                         {t(
                           !status
@@ -1008,7 +1024,7 @@ function VoiceSettings() {
                     disabled={option.disabled}>
                     <span>{option.label}</span>
                     {needsLocaleInstallation(option.value) ? (
-                      <span className="inline-flex items-center gap-1 text-link group-hover/locale:underline group-data-[highlighted]/locale:underline">
+                      <span className="text-link inline-flex items-center gap-1 group-hover/locale:underline group-data-[highlighted]/locale:underline">
                         <Download className="size-3" aria-hidden="true" />
                         {t('settings.dependencies.localModels.download')}
                       </span>
@@ -1029,13 +1045,7 @@ function VoiceSettings() {
           </Select>
         </SettingRow>
         <SettingDivider />
-        <div
-          id="setting-voice-recognition-status"
-          className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <span role="status" className="text-muted-foreground">
-            {t(installingLocale ? 'settings.voice.status.installing' : statusKey(recognitionStatus))}
-          </span>
-        </div>
+        <DictationShortcutSettings />
         {canOpenMicrophoneSettings ? (
           <>
             <SettingDivider />
@@ -1208,12 +1218,12 @@ function VoiceSettings() {
               {speechBusy ? <Square className="size-4" /> : <Play className="size-4" />}
               {t(speechBusy ? 'common.stop' : 'settings.voice.action.play_preview')}
             </Button>
-            <span role="status" data-testid="speech-status" className="text-sm text-muted-foreground">
+            <span role="status" data-testid="speech-status" className="text-muted-foreground text-sm">
               {t(statusKey(speechStatus))}
             </span>
           </div>
           {speechError ? (
-            <p id="voice-speech-error" role="alert" className="text-sm text-error">
+            <p id="voice-speech-error" role="alert" className="text-error text-sm">
               {t(errorKey(speechError))}
             </p>
           ) : null}
@@ -1234,7 +1244,7 @@ function VoiceSettings() {
       </SettingGroup>
 
       {actionFailed ? (
-        <p role="alert" className="mt-4 text-destructive text-sm">
+        <p role="alert" className="mt-4 text-sm text-destructive">
           {t(errorKey(actionFailed))}
         </p>
       ) : null}

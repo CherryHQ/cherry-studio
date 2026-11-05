@@ -243,9 +243,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     (entry) => entry.serverName === 'cherry-tools'
   )
   const autoApprovedRuntimeNames = cherryPolicies.filter((entry) => entry.approval === 'auto').map(toMcpRuntimeName)
-  const approvalRequiredRuntimeNames = cherryPolicies
-    .filter((entry) => entry.approval === 'required')
-    .map(toMcpRuntimeName)
+  const approvalRequiredRuntimeNames = cherryPolicies.filter((entry) => entry.approval !== 'auto').map(toMcpRuntimeName)
   const productionOptions = {
     autoAllowRuntimeNames: autoApprovedRuntimeNames,
     autoAllowRuntimeNamePrefixes: [],
@@ -262,8 +260,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(
       findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_CREATE_TOOL_NAME), CHERRY_ONLY_SERVERS)
     ).toMatchObject({
-      approval: 'required',
-      bypassApproval: 'enforce'
+      approval: 'delegation'
     })
     for (const name of [CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME]) {
       expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(name), CHERRY_ONLY_SERVERS)?.approval).toBe('auto')
