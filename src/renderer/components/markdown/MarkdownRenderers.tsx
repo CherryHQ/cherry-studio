@@ -34,8 +34,53 @@ const PRE_STYLE: CSSProperties = { overflow: 'visible' }
 
 const IMAGE_URL_PATTERN = /^https?:\/\/[^\s?#]+\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]\S*)?$/i
 
+const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
+
+/**
+ * The pipeline rewrites a link's href but not its label: remark-rehype percent-encodes
+ * non-ASCII characters and rehypeNormalizeLinkScheme lowercases the scheme. Compare
+ * equivalent spellings of the same URL so those bare image links still match.
+ */
+function normalizeUrlSpelling(value: string): string {
+  let decoded = value
+  try {
+    decoded = decodeURI(value)
+  } catch {
+    // Malformed percent-encoding: compare the raw spelling.
+  }
+  return decoded.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
+}
+
+/**
+ * Reads the text of a bare-URL link label. During animated streaming Streamdown splits the
+ * label into `data-sd-animate` spans, so plain `typeof children === 'string'` misses them.
+ * Any other element keeps the labelled-link boundary by returning null.
+ */
+function extractBareUrlText(node: ReactNode): string | null {
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (Array.isArray(node)) {
+    let text = ''
+    for (const child of node) {
+      const part = extractBareUrlText(child)
+      if (part === null) return null
+      text += part
+    }
+    return text
+  }
+  if (isValidElement(node)) {
+    const props = node.props as { children?: ReactNode; 'data-sd-animate'?: unknown }
+    if (node.type === 'span' && props['data-sd-animate'] !== undefined) {
+      return extractBareUrlText(props.children)
+    }
+  }
+  return null
+}
+
 function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
-  return Boolean(href && IMAGE_URL_PATTERN.test(href) && typeof children === 'string' && children === href)
+  if (!href || !IMAGE_URL_PATTERN.test(href)) return false
+  const text = extractBareUrlText(children)
+  return text !== null && text !== '' && normalizeUrlSpelling(text) === normalizeUrlSpelling(href)
 }
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {

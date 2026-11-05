@@ -267,6 +267,44 @@ describe('bare image URLs', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
+  it('renders a percent-encoded non-ASCII bare image URL as an image', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/%E5%9B%BE%E7%89%87.png">https://example.com/图片.png</A>)
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('matches the label against a scheme-normalized href', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/pic.png">HTTPS://example.com/pic.png</A>)
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/pic.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('renders a bare image URL split into streaming animation spans as an image', () => {
+    const A = MarkdownLinkRenderer
+    render(
+      <A href="https://example.com/%E5%9B%BE%E7%89%87.png">
+        <span data-sd-animate>https://example.com/</span>
+        <span data-sd-animate>图片</span>
+        <span data-sd-animate>.png</span>
+      </A>
+    )
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps labels wrapped in non-animation elements as links', () => {
+    const A = MarkdownLinkRenderer
+    render(
+      <A href="https://example.com/pic.png">
+        <span>https://example.com/pic.png</span>
+      </A>
+    )
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
   it('keeps labelled links and non-image URLs as links', () => {
     const A = MarkdownLinkRenderer
     render(
