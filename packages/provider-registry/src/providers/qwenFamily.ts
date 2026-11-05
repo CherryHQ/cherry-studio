@@ -62,6 +62,36 @@ const qwenChatWire128k: ReasoningWireProfile = {
   }
 }
 
+/**
+ * Qwen3.7 plus/max/flash SKUs declare a 262144 thinking limit (docs + descriptor;
+ * #23688 review). The verified 81920 backstop below is scoped to qwen3.5-era
+ * SKUs only — applying it to 3.7 collapses high selections (209715 at base vs
+ * 81920 at head). Dated snapshots ride the same wire via the suffix-closed
+ * closer, mirroring the 128K rule.
+ */
+const QWEN_262K_CHAT_MODEL_PATTERN = /^qwen3[.-]7-(?:plus|max|flash)(?:-|$)/
+function isQwen262kChatModel(apiModelId: string): boolean {
+  return QWEN_262K_CHAT_MODEL_PATTERN.test(apiModelId)
+}
+
+const qwenChatWire262k: ReasoningWireProfile = {
+  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  auto: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { max: 262144, missing: { type: 'omit-value' } }
+  },
+  effort: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { max: 262144, missing: { type: 'omit-value' } }
+  }
+}
+
 const qwen38Support: ReasoningSupport = {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
   defaultEffort: 'xhigh',
@@ -112,11 +142,13 @@ export {
   effortChatWire,
   highMaxSupport,
   isQwen128kChatModel,
+  isQwen262kChatModel,
   kimiK3Support,
   qwen38ChatWire,
   qwen38PreviewChatWire,
   qwen38PreviewSupport,
   qwen38Support,
   qwenChatWire,
-  qwenChatWire128k
+  qwenChatWire128k,
+  qwenChatWire262k
 }

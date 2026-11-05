@@ -28,7 +28,11 @@ const fakeModel = {
   doStream: vi.fn()
 } as unknown as LanguageModelV3
 
-function errorContext(error: unknown, providerOptions: unknown): RetryContext<LanguageModel> {
+function errorContext(
+  error: unknown,
+  providerOptions: unknown,
+  attempts: RetryContext<LanguageModel>['attempts'] = []
+): RetryContext<LanguageModel> {
   return {
     current: {
       type: 'error',
@@ -36,8 +40,17 @@ function errorContext(error: unknown, providerOptions: unknown): RetryContext<La
       model: fakeModel as never,
       options: { prompt: [], providerOptions: providerOptions as never }
     },
-    attempts: []
+    attempts
   } as unknown as RetryContext<LanguageModel>
+}
+
+function priorErrorAttempt(): RetryContext<LanguageModel>['attempts'][number] {
+  return {
+    type: 'error',
+    error: apiError(BAILIAN_81920),
+    model: fakeModel as never,
+    options: { prompt: [], providerOptions: {} as never }
+  } as unknown as RetryContext<LanguageModel>['attempts'][number]
 }
 
 describe('thinkingBudgetDegradeRetryable', () => {
@@ -48,7 +61,23 @@ describe('thinkingBudgetDegradeRetryable', () => {
     )
 
     expect(result).toMatchObject({
-      options: { providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } } }
+      options: { providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } } },
+      maxAttempts: 1
+    })
+  })
+
+  it('allows the corrected call after earlier same-model attempts', async () => {
+    const retryable = thinkingBudgetDegradeRetryable()
+    const result = await retryable(
+      errorContext(apiError(BAILIAN_81920), { dashscope: { enable_thinking: true, thinking_budget: 100_000 } }, [
+        priorErrorAttempt(),
+        priorErrorAttempt()
+      ])
+    )
+
+    expect(result).toMatchObject({
+      options: { providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } } },
+      maxAttempts: 3
     })
   })
 
@@ -59,7 +88,8 @@ describe('thinkingBudgetDegradeRetryable', () => {
     )
 
     expect(result).toMatchObject({
-      options: { providerOptions: { dashscope: { enable_thinking: true } } }
+      options: { providerOptions: { dashscope: { enable_thinking: true } } },
+      maxAttempts: 1
     })
     const degraded = result as unknown as { options: { providerOptions: Record<string, Record<string, unknown>> } }
     expect(degraded.options.providerOptions.dashscope).not.toHaveProperty('thinking_budget')

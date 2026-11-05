@@ -45,12 +45,28 @@ export function thinkingBudgetDegradeRetryable(): Retryable<LanguageModel> {
     const { error, model, options } = context.current
     if (!isThinkingBudgetRejection(error)) return undefined
 
+    // ai-retry counts the failed original call against `maxAttempts` (default
+    // 1), so a bare `{ model, options }` return never sends the corrected
+    // request. Allow exactly one additional same-model attempt beyond what has
+    // already run for this model, including failures after earlier attempts.
+    // Single-shot still holds: the retry no longer matches the trigger
+    // (budget within ceiling, or no budget leaf), so a repeated failure falls
+    // through.
+    const sameModelAttempts = context.attempts.filter(
+      (attempt) => attempt.model.provider === model.provider && attempt.model.modelId === model.modelId
+    ).length
+    const maxAttempts = sameModelAttempts + 1
+
     const ceiling = parseThinkingBudgetCeiling(error)
     if (ceiling !== undefined && ceiling > 0) {
       const clamped = clampThinkingBudget(options.providerOptions, ceiling)
       if (!clamped.changed) return undefined
       logger.info('retrying with thinking_budget clamped to the provider ceiling', { ceiling })
-      return { model, options: { providerOptions: clamped.providerOptions as SharedV3ProviderOptions } }
+      return {
+        model,
+        options: { providerOptions: clamped.providerOptions as SharedV3ProviderOptions },
+        maxAttempts
+      }
     }
 
     // Only a reported ceiling of 0 means "this SKU takes no budget": omit it
@@ -60,6 +76,10 @@ export function thinkingBudgetDegradeRetryable(): Retryable<LanguageModel> {
     const stripped = stripThinkingBudget(options.providerOptions)
     if (!stripped.changed) return undefined
     logger.info('retrying without thinking_budget after provider rejection', { ceiling })
-    return { model, options: { providerOptions: stripped.providerOptions as SharedV3ProviderOptions } }
+    return {
+      model,
+      options: { providerOptions: stripped.providerOptions as SharedV3ProviderOptions },
+      maxAttempts
+    }
   }
 }

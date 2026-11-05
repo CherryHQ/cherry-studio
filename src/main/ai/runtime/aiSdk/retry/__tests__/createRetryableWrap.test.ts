@@ -386,6 +386,34 @@ describe('createRetryableWrap', () => {
     }
   })
 
+  it('retries a thinking_budget rejection in place with the clamped budget', async () => {
+    const bailianMessage =
+      'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920'
+    const thinkingBudgetError = new APICallError({
+      message: bailianMessage,
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const primaryGenerate = vi.fn().mockRejectedValueOnce(thinkingBudgetError).mockResolvedValueOnce(okResult)
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })
+    const wrapped = wrap!(makeFakeLanguageModel('qwen3.5-plus', primaryGenerate))
+
+    const result = await wrapped.doGenerate({
+      prompt: [],
+      providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 100_000 } }
+    })
+
+    expect(primaryGenerate).toHaveBeenCalledTimes(2)
+    expect(primaryGenerate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } }
+      })
+    )
+    expect(result.content).toEqual(okResult.content)
+  })
+
   it('does not retry a doStream error after content has already been emitted', async () => {
     const streamError = makeApiError(429)
     const doStream = vi.fn().mockResolvedValue(
