@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { ThreadContextUsage, ContextCategoryKey } from '@cherrystudio/agent-runtime'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
@@ -185,11 +185,10 @@ export function AgentContextUsageSummary({
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pt-0 pb-2 text-xs">
-                  <Scrollbar
-                    className="max-h-60 overflow-x-hidden pl-5"
-                    role="list"
-                    aria-label={label(group.id)}
-                    tabIndex={0}>
+                  <ScrollArea
+                    className="max-h-60"
+                    viewportProps={{ className: 'overflow-x-hidden pl-5', tabIndex: 0 }}
+                    contentProps={{ role: 'list', 'aria-label': label(group.id) }}>
                     {group.rows?.map((row) => (
                       <div
                         key={row.id}
@@ -211,7 +210,7 @@ export function AgentContextUsageSummary({
                         </span>
                       </div>
                     ))}
-                  </Scrollbar>
+                  </ScrollArea>
                 </AccordionContent>
               </AccordionItem>
             ))}
