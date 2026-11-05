@@ -762,8 +762,6 @@ const ChatComposerInner = ({
 
   const selectedModelForMissingAssistantDefault =
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
-  const selectedModelForUnlinkedHome =
-    !assistant && !assistantId && useMentionedModelSelector ? mentionedModelSelectorValue[0] : undefined
   const lockedMentionedModels =
     editingMessageForCurrentTopic?.lockedMentionedModels &&
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
@@ -892,22 +890,18 @@ const ChatComposerInner = ({
     if (!onConversationControlsChange) return
     return () => onConversationControlsChange(null)
   }, [onConversationControlsChange])
+  const hasEffectiveSubmittedModels = effectiveSubmittedModels.length > 0
   const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
   const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined
   const missingModelMessage =
-    assistant && isModelMissing && !selectedModelForMissingAssistantDefault && !isMentionedModelSelectorLocked
+    assistant && isModelMissing && !hasEffectiveSubmittedModels && !isMentionedModelSelectorLocked
       ? t('code.model_required')
       : undefined
   const missingSelectedModelMessage =
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
-  const isModelUnavailable =
-    !missingAssistantMessage &&
-    !runtimeModelPending &&
-    !runtimeModel &&
-    !selectedModelForMissingAssistantDefault &&
-    !selectedModelForUnlinkedHome
+  const isModelUnavailable = !missingAssistantMessage && !runtimeModelPending && !hasEffectiveSubmittedModels
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -1666,7 +1660,7 @@ const ChatComposerInner = ({
         return
       }
 
-      if (!runtimeModel && !selectedModelForMissingAssistantDefault && !selectedModelForUnlinkedHome) {
+      if (!hasEffectiveSubmittedModels) {
         toast.error(t('code.model_required'))
         return
       }
@@ -1717,10 +1711,9 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
-      runtimeModel,
+      hasEffectiveSubmittedModels,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
-      selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,

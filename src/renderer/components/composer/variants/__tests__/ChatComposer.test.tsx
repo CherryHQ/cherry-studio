@@ -3877,6 +3877,36 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith('saved', expect.objectContaining({ mentionedModels: [modelB.id] }))
   })
 
+  it('sends with the restored history model when the retained assistant model is unavailable', async () => {
+    mocks.model = undefined
+    mocks.modelMissing = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(<ChatHomeComposer topic={topic} onSend={onSend} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    act(() => mocks.surfaceProps?.onTextChange('restored model message'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+    await mocks.surfaceProps?.onSendDraft({ text: 'restored model message', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith(
+      'restored model message',
+      expect.objectContaining({ mentionedModels: [modelB.id] })
+    )
+    expect(mocks.setModel).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('keeps sending blocked when neither the assistant nor history resolves a model', async () => {
+    mocks.model = undefined
+    mocks.modelMissing = true
+    const onSend = vi.fn()
+    render(<ChatHomeComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('no model message'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    await mocks.surfaceProps?.onSendDraft({ text: 'no model message', tokens: [] })
+    expect(onSend).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code.model_required')
+  })
+
   it('restores an explicitly empty multi-select draft without history seeding', async () => {
     vi.mocked(cacheService.get).mockImplementation((key: string) =>
       key === 'chat.composer_draft.topic-1'
