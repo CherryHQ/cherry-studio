@@ -150,7 +150,8 @@ const MessageErrorInfo: React.FC<{
     () =>
       cherryCloudQuotaRejection && error
         ? stripClaudeCodeRejectionPrefix(
-            providerErrorText(error) || getSafeProviderErrorMessage({ responseBody: error.message })
+            providerErrorText(error) ||
+              getSafeProviderErrorMessage({ responseBody: error.message?.replace(/^\s*\d{3}:\s*/, '') })
           )
         : '',
     [cherryCloudQuotaRejection, error]

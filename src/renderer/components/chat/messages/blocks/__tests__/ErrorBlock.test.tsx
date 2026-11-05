@@ -225,7 +225,8 @@ required service tier.`
   it.each([
     ['its JSON body', JSON.stringify({ message: planText, type: 'rate_limit_error', code: 'rate_limit_exceeded' })],
     ['the agent runtime status prefix', `API Error: Request rejected (429) · ${planText}`],
-    ['the last attempt of a retried request', 'Failed after 3 attempts. Last error: Too Many Requests']
+    ['the last attempt of a retried request', 'Failed after 3 attempts. Last error: Too Many Requests'],
+    ['the Pi agent status prefix', `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`]
   ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, body) => {
     const navigateErrorTarget = vi.fn()
     mocks.actions = { navigateErrorTarget }
