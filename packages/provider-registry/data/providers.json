@@ -1136,6 +1136,12 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
+        "openai-image-edit": {
+          "adapterFamily": "openai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://api.openai.com",
@@ -2963,5 +2969,5 @@
       "name": "HopBase"
     }
   ],
-  "version": "9301e8d0a33fb535"
+  "version": "7114cadaf29387b9"
 }
