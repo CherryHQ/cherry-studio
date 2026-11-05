@@ -784,9 +784,9 @@ function inheritedFencePrefixLookup(
   // Marker-shaped paragraph text is not a new empty item. Use raw ownership
   // events for that distinction, including the paragraph carried from a prior delta.
   const rawContainers = initialContainers ? cloneContainerState(initialContainers) : initialContainerState()
+  let rawScanStart = 0
   for (let start = 0; start < text.length; start = lineEndAfter(text, start)) {
     const line = expandFencePrefixTabs(text.slice(start, lineContentEnd(text, start)))
-    const rawVerdict = containerLine(rawContainers, line)
     // A blank line closes an empty item, but not an item that already owns
     // content. Match the raw container consumer before inheriting a fence.
     if (line.trim() === '') {
@@ -815,6 +815,16 @@ function inheritedFencePrefixLookup(
     if (leading - parentCol > 3) continue
     const marker = /^([-*+]|\d{1,9}[.)])( +|$)/.exec(line.slice(leading))
     if (!marker) continue
+    // Ownership is only queried for marker candidates. Advance all intervening
+    // raw lines now, so ordinary growing fence bodies do not repeat this scan.
+    let rawVerdict: ReturnType<typeof containerLine>
+    do {
+      rawVerdict = containerLine(
+        rawContainers,
+        expandFencePrefixTabs(text.slice(rawScanStart, lineContentEnd(text, rawScanStart)))
+      )
+      rawScanStart = lineEndAfter(text, rawScanStart)
+    } while (rawScanStart <= start)
     const padding =
       (line.slice(leading + marker[0].length).trim() === '' &&
         rawVerdict.events.some(
