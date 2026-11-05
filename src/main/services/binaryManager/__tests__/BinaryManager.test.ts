@@ -2474,6 +2474,47 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('keeps a previously working install when a latest update fails', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'use') throw new Error('registry unreachable')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'fd', targetVersion: 'latest' })).rejects.toThrow(
+        'registry unreachable'
+      )
+
+      expect(miseArgs().some((args: string[]) => args[0] === 'uninstall')).toBe(false)
+    })
+
+    it('discards only the version a failed install left behind', async () => {
+      const service = makeService()
+      let used = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          const versions = used
+            ? [{ version: '10.0.0', active: true }, { version: '11.0.0' }]
+            : [{ version: '10.0.0', active: true }]
+          return { stdout: JSON.stringify({ fd: versions }), stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'use') {
+          used = true
+          throw new Error('timed out')
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'fd', targetVersion: '11.0.0' })).rejects.toThrow('timed out')
+
+      expect(miseArgs()).toContainEqual(['uninstall', 'fd@11.0.0'])
+      expect(miseArgs()).not.toContainEqual(['uninstall', 'fd@10.0.0'])
+    })
+
     it('skips the managed install when an absent fixed tool is already on the system PATH', async () => {
       const service = makeService()
       vi.mocked(findCommandInShellEnv).mockResolvedValueOnce('/usr/local/bin/fd')
@@ -3624,6 +3665,7 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
 
       mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '{}', stderr: '' }) // ls before install
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: JSON.stringify({ fd: [{ version: '1.2.3', active: true }] }), stderr: '' })
@@ -3642,6 +3684,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
       mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '{}', stderr: '' })
         .mockResolvedValueOnce({ stdout: '', stderr: '' })
         .mockResolvedValueOnce({ stdout: '', stderr: '' })
         .mockResolvedValueOnce({ stdout: 'not json', stderr: '' })

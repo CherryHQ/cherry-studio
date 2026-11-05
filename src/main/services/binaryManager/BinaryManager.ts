@@ -1598,6 +1598,7 @@ export class BinaryManager extends BaseService {
         await this.enforcePipDependencies(definition, definition.pipDependencies)
       }
     } else {
+      const versionsBefore = await this.listInstalledVersions(definition.tool)
       try {
         await this.runMise(useArgs, {
           timeoutMs: shellOutNpm ? MISE_NPM_SHELL_OUT_INSTALL_TIMEOUT_MS : MISE_INSTALL_TIMEOUT_MS,
@@ -1606,7 +1607,7 @@ export class BinaryManager extends BaseService {
           prependPath: runtimeBin
         })
       } catch (error) {
-        await this.discardPartialInstall(definition.tool, requested)
+        await this.discardPartialInstall(definition.tool, versionsBefore)
         throw error
       }
     }
@@ -1614,11 +1615,28 @@ export class BinaryManager extends BaseService {
     return this.getInstalledVersion(definition.tool, requested)
   }
 
-  // A killed install leaves a registered version and bin that the readiness
-  // check would later report as applied, so drop it best-effort.
-  private async discardPartialInstall(tool: string, requested: string): Promise<void> {
+  private async listInstalledVersions(tool: string): Promise<Set<string> | undefined> {
     try {
-      await this.runMise(['uninstall', `${tool}@${requested}`])
+      const { stdout } = await this.runMise(['ls', '--json', tool])
+      const entries = Object.values(JSON.parse(stdout) as Record<string, Array<{ version?: string }>>).flat()
+      return new Set(entries.flatMap((entry) => (entry.version ? [entry.version] : [])))
+    } catch {
+      return undefined
+    }
+  }
+
+  // A killed install leaves a registered version and bin that the readiness
+  // check would later report as applied, so drop it best-effort. Only versions
+  // absent before the attempt are removed: `requested` may be `latest`, which
+  // `mise uninstall` resolves against installed versions and would hit the
+  // previously working one. Without a pre-install snapshot, remove nothing.
+  private async discardPartialInstall(tool: string, versionsBefore: Set<string> | undefined): Promise<void> {
+    if (!versionsBefore) return
+    try {
+      const versionsAfter = await this.listInstalledVersions(tool)
+      for (const version of versionsAfter ?? []) {
+        if (!versionsBefore.has(version)) await this.runMise(['uninstall', `${tool}@${version}`])
+      }
       await this.runMise(['reshim'])
     } catch (error) {
       logger.warn('Failed to discard partial install', { tool, error: this.errorMessage(error) })
