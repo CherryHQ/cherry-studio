@@ -135,9 +135,9 @@ export class ConversationImportService extends BaseService {
         const file = reference.path
         const base: ImportPreviewItem = {
           ref: selection.ref,
-          title: path.basename(file, '.jsonl'),
+          title: reference.title || path.basename(file, '.jsonl'),
           sourcePath: file,
-          originalSessionId: '',
+          originalSessionId: reference.originalSessionId ?? '',
           branches: [],
           messageCount: 0,
           models: [],
@@ -151,7 +151,7 @@ export class ConversationImportService extends BaseService {
           inputBytes += session.inputBytes
           normalizedBytes += Buffer.byteLength(JSON.stringify(session))
           if (inputBytes > IMPORT_LIMITS.batch || normalizedBytes > IMPORT_LIMITS.batch) throw new Error('batch_limit')
-          const times = session.messages.map((message) => message.timestamp)
+          const range = timeRange(session)
           const item: ImportPreviewItem = {
             ...base,
             filteredReason: session.filteredReason,
@@ -164,8 +164,8 @@ export class ConversationImportService extends BaseService {
             models: [
               ...new Set(session.messages.flatMap((m) => (m.messageSnapshot ? [m.messageSnapshot.model.name] : [])))
             ],
-            startedAt: session.messages[0] ? new Date(Math.min(...times)).toISOString() : undefined,
-            endedAt: session.messages.at(-1) ? new Date(Math.max(...times)).toISOString() : undefined,
+            startedAt: session.messages[0] ? new Date(range.start).toISOString() : undefined,
+            endedAt: session.messages.at(-1) ? new Date(range.end).toISOString() : undefined,
             diagnostics: [...session.diagnostics],
             skippedRecords: session.skippedRecords,
             downgradedParts: session.downgradedParts
@@ -266,8 +266,8 @@ export class ConversationImportService extends BaseService {
           }
           if (item.directory && (await this.validateDirectory(item.directory)) !== item.directory)
             throw new Error('directory_required')
-          const times = session.messages.map((message) => message.timestamp)
-          const end = Math.max(...times)
+          const range = timeRange(session)
+          const end = range.end
           if (end > Date.now()) throw new Error('clock_skew')
           if (end === Date.now()) await delay(1, undefined, { signal: scan.abort.signal })
           scan.abort.signal.throwIfAborted()
@@ -300,7 +300,7 @@ export class ConversationImportService extends BaseService {
                 workspace
               },
               'conversation',
-              Math.min(...times)
+              range.start
             )
             agentSessionService.setImportMetadataTx(
               tx,
@@ -386,4 +386,14 @@ function within(root: string, file: string): boolean {
 }
 function code(error: unknown): string {
   return error instanceof Error && /^[a-z_]+$/.test(error.message) ? error.message : 'read_failed'
+}
+
+function timeRange(session: NormalizedSession) {
+  return session.messages.reduce(
+    (range, message) => ({
+      start: Math.min(range.start, message.timestamp),
+      end: Math.max(range.end, message.timestamp)
+    }),
+    { start: Infinity, end: -Infinity }
+  )
 }
