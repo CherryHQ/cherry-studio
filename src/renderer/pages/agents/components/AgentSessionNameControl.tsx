@@ -15,6 +15,12 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
   const { updateSession } = useUpdateSession()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(sessionName)
+  const [draftSessionId, setDraftSessionId] = useState(sessionId)
+  if (draftSessionId !== sessionId) {
+    setDraftSessionId(sessionId)
+    setDraft(sessionName)
+    setOpen(false)
+  }
 
   const submit = async () => {
     const name = draft.trim()
