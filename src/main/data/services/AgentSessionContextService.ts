@@ -102,7 +102,6 @@ class AgentSessionContextService {
   ): AgentSessionContextRow {
     this.backendTx(tx, binding.backendId)
     if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
-    readAgentSessionAncestry(tx, binding.sessionId, binding.anchorMessageId)
     const nativeId = binding.nativeThreadId
     const existing = nativeId
       ? tx
