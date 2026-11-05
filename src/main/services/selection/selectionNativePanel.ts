@@ -4,6 +4,7 @@ import { application } from '@application'
 
 /** [macOS] The selection panel addon built from `native/darwin/selectionPanel.mm`; see `native/README.md`. */
 export interface SelectionNativePanel {
+  enableDragCursor(handle: Buffer): void
   configurePanel(handle: Buffer): void
   moveToActiveSpace(handle: Buffer): void
   /** Receives the native handle of a marked panel whose yellow light or Cmd+M was used. */

@@ -18,7 +18,7 @@ export const quickAssistantRequestSchemas = {
    * Resize the window to the height its content needs. The renderer owns measurement
    * (the composer grows with the draft) and the reduced-motion decision; main owns
    * work-area clamping and the tween. `view` tells main which height to restore when
-   * the user drags the window (only the conversation panel height is remembered).
+   * the user drags the window (temporary menu expansion is not remembered).
    * `quick-panel` is the transient space a tool menu or popover needs above the bar.
    */
   'quick_assistant.set_view': defineRoute({

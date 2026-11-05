@@ -10,7 +10,7 @@ import { app, BrowserWindow, type Rectangle, screen } from 'electron'
  *
  *   - feature flag gate (`feature.quick_assistant.enabled`)
  *   - pin / blur auto-hide
- *   - cursor-aware repositioning across displays
+ *   - initial cursor-aware positioning and restoration of user geometry
  *   - platform-specific hide branch (Windows minimize+opacity, macOS app.hide)
  *   - mainWindow lifecycle coupling (auto-hide when main window appears)
  *   - strict navigation safety (block navigation outside the renderer origin)
@@ -35,6 +35,7 @@ import { clampInto } from '@main/core/window/windowBoundsTracker'
 import type { WindowId } from '@shared/ipc/types'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
+import { getSelectionNativePanel } from './selection/selectionNativePanel'
 
 /**
  * On macOS 26+ (Tahoe / future), hiding a panel-style window keeps the previous
@@ -136,12 +137,11 @@ export class QuickAssistantService extends BaseService implements Activatable {
   private mainWindowRef: BrowserWindow | null = null
   // ─── Bar ⇄ panel view state ───
   private view: 'bar' | 'quick-panel' | 'panel' = 'bar'
-  /** Last height the renderer reported for the collapsed bar; the window is put back
-   *  to it before teardown so `rememberBounds` never persists a panel-sized window. */
+  /** Default bar height used to discard transient menu space before bounds are persisted. */
   private barHeight: number | null = null
-  /** Set when the user drags the window taller/shorter while expanded, and preferred
-   *  over the renderer's default from then on. In-memory only — a relaunch forgets it. */
-  private lastPanelHeight: number | null = null
+  /** Restored from window bounds; explicit user resizes take precedence over view defaults. */
+  private preferredHeight: number | null = null
+  private hasPosition = false
   /** Height our last setView asked for, so a resize we caused is not taken for the user's. */
   private requestedHeight: number | null = null
   private viewTweenTimer: ReturnType<typeof setInterval> | null = null
@@ -224,8 +224,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   private releaseActivationResources(): void {
     this.stopViewTween()
-    // WindowManager snapshots bounds on 'close', so a window torn down while expanded
-    // would reopen panel-sized. Put the bar height back first.
+    // Persist user geometry rather than temporary menu expansion.
     this.collapseToBarHeight()
     if (this.windowId) {
       // QuickAssistant is a singleton — wm.close() falls through to destroyWindow()
@@ -334,6 +333,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
     if (this.windowId) return
 
     const wm = application.get('WindowManager')
+    const savedBounds = wm.peekWindowBounds(WindowType.QuickAssistant)
+    this.preferredHeight = savedBounds?.height ?? null
+    this.hasPosition = Boolean(savedBounds)
     this.windowId = wm.open(WindowType.QuickAssistant)
   }
 
@@ -345,6 +347,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
    */
   private setupQuickAssistant(windowId: WindowId, window: BrowserWindow) {
     this.setupQuickAssistantWebContents(window)
+    if (isMac) getSelectionNativePanel().enableDragCursor(window.getNativeWindowHandle())
 
     // Declarative window infra (initial alwaysOnTop level, cross-workspace visibility,
     // macOS level reapply across show cycles) is owned by WindowManager via the
@@ -380,9 +383,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
     }
     // Linux has no `resized`, and its `resize` also reports our own setBounds.
     const onResized = () => {
-      if (this.viewTweenTimer || this.view !== 'panel' || window.isDestroyed()) return
+      if (this.viewTweenTimer || this.view === 'quick-panel' || window.isDestroyed()) return
       const { height } = window.getBounds()
-      if (height !== this.requestedHeight) this.lastPanelHeight = height
+      if (height !== this.requestedHeight) this.preferredHeight = height
     }
 
     window.on('blur', onBlur)
@@ -408,7 +411,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * the bottom-of-screen summon position.
    *
    * `contentHeight` is the renderer's measurement for the bar and its default for an
-   * expanded surface; a height the user dragged the conversation panel to wins there.
+   * expanded surface; the saved or user-resized height takes precedence.
    * The transient quick-panel surface must not replace the remembered bar height.
    */
   public setView({
@@ -431,7 +434,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // instead of the card — those get their edge from the composer surface's own shadow.
     window.setHasShadow(view === 'panel')
 
-    const requested = view === 'panel' ? (this.lastPanelHeight ?? contentHeight) : contentHeight
+    const requested =
+      view === 'quick-panel'
+        ? Math.max(contentHeight, this.preferredHeight ?? 0)
+        : (this.preferredHeight ?? contentHeight)
     const from = window.getBounds()
     const to = this.resolveBoundsForHeight(window, requested)
     this.requestedHeight = to.height
@@ -493,10 +499,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
   /** Snap back to the collapsed bar without motion. */
   private collapseToBarHeight(): void {
     this.view = 'bar'
-    this.lastPanelHeight = null
     const window = this.getQuickAssistant()
     if (!window || this.barHeight === null) return
-    window.setBounds(this.resolveBoundsForHeight(window, this.barHeight))
+    window.setBounds(this.resolveBoundsForHeight(window, this.preferredHeight ?? this.barHeight))
   }
 
   /** Returns the live quick window or null if not created / already destroyed. */
@@ -535,7 +540,16 @@ export class QuickAssistantService extends BaseService implements Activatable {
       window.show()
     }
 
-    this.positionAtCursorDisplayBottom(window)
+    if (this.hasPosition) {
+      this.stopViewTween()
+      const bounds = window.getBounds()
+      const target = clampInto(bounds, screen.getDisplayMatching(bounds).workArea)
+      window.setPosition(target.x, target.y, false)
+      window.setBounds(target)
+    } else {
+      this.positionAtCursorDisplayBottom(window)
+      this.hasPosition = true
+    }
 
     window.setOpacity(1)
     window.show()
@@ -548,8 +562,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   /**
    * Place the quick window at the bottom center of the display under the cursor on
-   * every summon. setPosition + setBounds works around an Electron scale-factor bug
-   * between displays.
+   * the first summon without saved bounds. setPosition + setBounds avoids the
+   * Electron scale-factor bug between displays.
    */
   private positionAtCursorDisplayBottom(window: BrowserWindow) {
     // Summoning re-anchors the window; an in-flight tween would overwrite that with

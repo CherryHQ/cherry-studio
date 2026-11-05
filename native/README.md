@@ -5,8 +5,8 @@
 ## Selection Assistant native panel
 
 `darwin/selectionPanel.mm` is a macOS Node-API addon for the action result window and
-the selection agent window. The toolbar and other panels keep Electron's default
-behavior. `SelectionService` and `SelectionAgentWindowService` configure each of
+the selection agent window. It also supplies the Quick Assistant drag cursor.
+Other panels keep Electron's default behavior. `SelectionService` and `SelectionAgentWindowService` configure each of
 their windows through `onWindowCreatedByType`, including pool warmup, and move it
 to the invoking Space **before** showing it on every reuse. The registry disables
 native fullscreen for both window types.
@@ -40,6 +40,28 @@ Two more calls serve the capsule's restore:
 
 This relies on Electron's internal panel class. Revalidate on Electron upgrades;
 Node-API ABI stability does not guarantee AppKit/Electron behavior compatibility.
+
+### Quick Assistant drag cursor
+
+`enableDragCursor(handle)` opts in only the Quick Assistant panel. The addon
+sets the closed-hand cursor on a plain left press in a drag region and otherwise
+forwards `sendEvent:` to Electron first, then sets the AppKit open-hand cursor for
+mouse-move/cursor-update events where Chromium's content-view hit test returns
+`nil` inside the view (its native draggable-background result). Input fields,
+buttons, and other `no-drag` regions retain Chromium's cursor handling. Hidden
+or mouse-passthrough windows do not claim the cursor. Window movement remains
+entirely native; there is no renderer region mirror or per-move IPC.
+
+A common-run-loop timer exists only during a drag to maintain the closed hand and
+detect release even when the window server consumes mouse-up. Mouse-up also
+restores hover feedback after Electron processes it. Releasing, hiding, closing,
+or enabling mouse passthrough stops the timer; its window reference is weak.
+
+The hook is scoped to marked panels and restored during Node environment cleanup;
+per-window state uses associated objects rather than retained window pointers.
+Revalidate this Chromium hit-test contract on Electron upgrades. Verify the actual
+AppKit cursor, not just computed CSS, over toolbar gaps, text, buttons, window
+edges, and after hiding/reopening the panel.
 
 ### Build and validation
 

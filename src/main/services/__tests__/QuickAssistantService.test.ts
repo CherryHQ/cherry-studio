@@ -170,6 +170,46 @@ describe('QuickAssistantService', () => {
     expect(window.setBounds).toHaveBeenCalledWith({ x: 480, y: 870, width: 680, height: 64 })
   })
 
+  it('restores saved geometry and preserves it on subsequent summons', () => {
+    const area = { x: 0, y: 0, width: 1920, height: 1080 }
+    Object.assign(screen, { getDisplayMatching: vi.fn(() => ({ workArea: area })) })
+    let bounds = { x: 210, y: 180, width: 780, height: 650 }
+    const window = {
+      getBounds: () => bounds,
+      setBounds: (next: typeof bounds) => {
+        bounds = next
+      },
+      setPosition: vi.fn(),
+      isDestroyed: () => false,
+      isMinimized: () => false,
+      setOpacity: vi.fn(),
+      show: vi.fn(),
+      setHasShadow: vi.fn()
+    }
+    appGetMock.mockImplementation((name: string) => {
+      if (name === 'WindowManager')
+        return {
+          peekWindowBounds: () => bounds,
+          open: () => 'quick-window',
+          getWindow: () => window
+        }
+      if (name === 'IpcApiService') return { broadcastToType: vi.fn() }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const service = new QuickAssistantService()
+    const lifecycle = service as unknown as { createQuickAssistant: () => void; proceedShow: () => void }
+    lifecycle.createQuickAssistant()
+    service.setView({ view: 'bar', contentHeight: 560, animate: false })
+    lifecycle.proceedShow()
+    expect(bounds).toEqual({ x: 210, y: 180, width: 780, height: 650 })
+    bounds = { x: 330, y: 240, width: 780, height: 650 }
+    lifecycle.proceedShow()
+    expect(bounds).toEqual({ x: 330, y: 240, width: 780, height: 650 })
+    bounds = { x: 1800, y: 1000, width: 780, height: 650 }
+    lifecycle.proceedShow()
+    expect(bounds).toEqual({ x: 1140, y: 430, width: 780, height: 650 })
+  })
+
   it('keeps the bottom edge fixed while the composer grows', () => {
     Object.assign(screen, {
       getDisplayMatching: vi.fn(() => ({
@@ -246,6 +286,27 @@ describe('QuickAssistantService', () => {
       }
     }
   }
+
+  it('preserves a user-resized bar across view updates and temporary menus', () => {
+    platform.isLinux = true
+    Object.assign(screen, {
+      getDisplayMatching: vi.fn(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
+    })
+    const { window, userResize } = createResizableWindow(560)
+    const service = new QuickAssistantService()
+    setupQuickAssistant(service, window)
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant-window'
+    try {
+      service.setView({ view: 'bar', contentHeight: 560, animate: false })
+      userResize(650)
+      service.setView({ view: 'quick-panel', contentHeight: 720, animate: false })
+      expect(window.getBounds().height).toBe(720)
+      service.setView({ view: 'bar', contentHeight: 560, animate: false })
+      expect(window.getBounds().height).toBe(650)
+    } finally {
+      platform.isLinux = false
+    }
+  })
 
   it('keeps native bounds unchanged when menus use the existing transparent headroom', () => {
     Object.assign(screen, {
@@ -347,7 +408,7 @@ describe('QuickAssistantService', () => {
 
     service.setView({ view: 'bar', contentHeight: 135, animate: false })
     expect(window.getBounds().height).toBe(135)
-    // Only the panel height is remembered across a drag; quick-panel leaves no trace.
-    expect((service as unknown as { lastPanelHeight: number | null }).lastPanelHeight).toBeNull()
+    // Temporary menu space does not establish a user-preferred height.
+    expect((service as unknown as { preferredHeight: number | null }).preferredHeight).toBeNull()
   })
 })
