@@ -27,6 +27,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
+import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -274,7 +275,11 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       currentSettings: currentAssistant.settings,
       remembered: modelSettingsRef.current?.[next.id],
       extraSettings,
-      clientSearchAvailable: clientSearchAvailableRef.current
+      clientSearchAvailable: clientSearchAvailableRef.current,
+      // MCP mode stands in for the request's eventual function tools (the same
+      // stand-in WebSearchButton uses), so a restored search flag is
+      // reconciled against the Gemini native/function-tool conflict too.
+      hasFunctionToolSignals: getEffectiveMcpMode(currentAssistant) !== 'disabled'
     })
     return patchAssistantRef.current(
       currentId,

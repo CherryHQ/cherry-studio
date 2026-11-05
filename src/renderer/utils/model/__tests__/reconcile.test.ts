@@ -285,11 +285,12 @@ describe('resolveModelSwitchSettings (#23582)', () => {
     expect(patch?.reasoning_effort).toBe('minimal')
   })
 
-  it('reconciles the search pair against the extraSettings effort that wins the final spread', () => {
+  it('ignores a bridged pending effort on a model switch — the restored effort wins', () => {
     // The composer bridges a pending effort mutation (set on the previous
-    // model, not yet settled) through extraSettings; it overrides the restored
-    // remembered effort in the final spread. The pair must be reconciled
-    // against that winning effort, not the remembered one.
+    // model, not yet settled) through extraSettings. That edit belongs to the
+    // previous model — the composer's own mutation already persists it there —
+    // so the switch restores the target model's remembered effort instead of
+    // replacing it, and the pair is reconciled against that restored effort.
     const patch = resolveModelSwitchSettings({
       next: gpt5(),
       nextProvider: openAiProvider,
@@ -299,11 +300,23 @@ describe('resolveModelSwitchSettings (#23582)', () => {
       extraSettings: { reasoning_effort: 'minimal' }
     })
 
-    expect(patch?.reasoning_effort).toBe('minimal')
-    expect(patch?.enableWebSearch).toBe(false)
+    expect(patch?.reasoning_effort).toBe('low')
+    expect(patch?.enableWebSearch).toBe(true)
   })
 
-  it('keeps restored search when extraSettings wins with a compatible effort', () => {
+  it('lets a bridged pending effort win without a model switch', () => {
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-5',
+      currentSettings: { enableWebSearch: true, reasoning_effort: 'low' },
+      extraSettings: { reasoning_effort: 'high' }
+    })
+
+    expect(patch?.reasoning_effort).toBe('high')
+  })
+
+  it('reconciles the restored pair against the restored effort, not the bridged pending one', () => {
     const patch = resolveModelSwitchSettings({
       next: gpt5(),
       nextProvider: openAiProvider,
@@ -313,8 +326,66 @@ describe('resolveModelSwitchSettings (#23582)', () => {
       extraSettings: { reasoning_effort: 'low' }
     })
 
-    expect(patch?.reasoning_effort).toBe('low')
-    expect(patch?.enableWebSearch).toBe(true)
+    expect(patch?.reasoning_effort).toBe('minimal')
+    expect(patch?.enableWebSearch).toBe(false)
+  })
+
+  describe('Gemini function-tool conflict (#23582)', () => {
+    const gemini25 = (): Model => ({
+      ...createModel([MODEL_CAPABILITY.FUNCTION_CALL]),
+      id: 'gemini::gemini-2.5-pro',
+      providerId: 'gemini',
+      apiModelId: 'gemini-2.5-pro'
+    })
+    // A Gemini host whose declarations inject Google's native web tools — the
+    // thing pre-3 Gemini refuses to mix with function tools.
+    const geminiProvider = {
+      id: 'gemini',
+      serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }]
+    } as unknown as Provider
+
+    it('drops a restored search flag that would stay active without a route', () => {
+      // Saved search ON for Gemini 2.5 in an assistant without MCP tools,
+      // then switched to in one with function tools expected: the builtin
+      // route is withdrawn, so the flag must not restore while no client
+      // route is configured.
+      const patch = resolveModelSwitchSettings({
+        next: gemini25(),
+        nextProvider: geminiProvider,
+        currentModelId: 'openai::gpt-4o',
+        currentSettings: { enableWebSearch: false },
+        remembered: { enableWebSearch: true },
+        hasFunctionToolSignals: true
+      })
+
+      expect(patch?.enableWebSearch).toBe(false)
+    })
+
+    it('restores the same flag when no function tools are expected', () => {
+      const patch = resolveModelSwitchSettings({
+        next: gemini25(),
+        nextProvider: geminiProvider,
+        currentModelId: 'openai::gpt-4o',
+        currentSettings: { enableWebSearch: false },
+        remembered: { enableWebSearch: true }
+      })
+
+      expect(patch?.enableWebSearch).toBe(true)
+    })
+
+    it('keeps the restored flag under the conflict when a client route serves it', () => {
+      const patch = resolveModelSwitchSettings({
+        next: gemini25(),
+        nextProvider: geminiProvider,
+        currentModelId: 'openai::gpt-4o',
+        currentSettings: { enableWebSearch: false },
+        remembered: { enableWebSearch: true },
+        hasFunctionToolSignals: true,
+        clientSearchAvailable: true
+      })
+
+      expect(patch?.enableWebSearch).toBe(true)
+    })
   })
 
   it('returns undefined for the same model with nothing to restore or reconcile', () => {

@@ -40,6 +40,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
@@ -345,7 +346,8 @@ function AssistantEditDialogContent({
         currentModelId: resource.modelId,
         currentSettings: { ...resource.settings, ...pending.payload.settings },
         remembered: chatModelSettings?.[pending.payload.modelId],
-        clientSearchAvailable
+        clientSearchAvailable,
+        hasFunctionToolSignals: getEffectiveMcpMode(resource) !== 'disabled'
       })
       if (switched) {
         pending.payload.settings = {

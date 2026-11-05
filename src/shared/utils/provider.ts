@@ -364,6 +364,28 @@ export function isBuiltinWebSearchEffortUnsupported(
 }
 
 /**
+ * True when an expected function-tool request for this model+provider loses
+ * the builtin (server) web-search route to pre-3 Gemini's native/function
+ * tool mixing restriction — the router's 'gemini-function-tool-conflict'.
+ * Shared by the request-time router and renderer-side reconciliation so both
+ * agree on whether the pair is usable.
+ */
+export function isBuiltinWebSearchFunctionToolConflicted(
+  model: Model,
+  provider: Provider | undefined,
+  hasFunctionToolSignals: boolean
+): boolean {
+  return (
+    hasFunctionToolSignals &&
+    isFunctionCallingModel(model) &&
+    provider !== undefined &&
+    servesGeminiNativeWebTools(provider) &&
+    isGeminiModel(model) &&
+    !supportsServerToolFunctionMixing(getRawModelId(model))
+  )
+}
+
+/**
  * Route search and fetch independently through their preferred side and then
  * the available fallback. Pre-3 Gemini is the exception: when that would mix
  * Google-native and function tools, the side covering more capabilities wins.
@@ -392,13 +414,12 @@ export function resolveWebToolRoutes(
   const serverFetchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider, options.endpointType) : false
 
-  const googleFunctionToolMixingUnsupported =
-    supportsClientTools &&
-    provider !== undefined &&
-    servesGeminiNativeWebTools(provider) &&
-    isGeminiModel(model) &&
-    !supportsServerToolFunctionMixing(getRawModelId(model))
-  const googleToolConflict = options.hasFunctionToolSignals === true && googleFunctionToolMixingUnsupported
+  const googleFunctionToolMixingUnsupported = isBuiltinWebSearchFunctionToolConflicted(model, provider, true)
+  const googleToolConflict = isBuiltinWebSearchFunctionToolConflicted(
+    model,
+    provider,
+    options.hasFunctionToolSignals === true
+  )
   const openaiMinimalConflict = isBuiltinWebSearchEffortUnsupported(model, provider, options.reasoningEffort)
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
