@@ -97,7 +97,7 @@ export async function evaluateUserDataSqliteGuard(
     return classification === 'safe' ? undefined : deny()
   }
 
-  const shellTokens = parseShellTokens(rawValue)
+  const shellTokens = parseShellTokens(rawValue, input.toolName === 'powershell' ? 'powershell' : 'bash')
   const interpreterSegments = new Set(
     shellTokens
       .filter(({ commandStart, value }) => commandStart && isBundledInterpreter(value))
@@ -297,11 +297,11 @@ interface ShellToken {
   segment: number
 }
 
-export function tokenizeShellCommand(command: string): string[] {
-  return parseShellTokens(command).map(({ value }) => value)
+export function tokenizeShellCommand(command: string, shell: 'bash' | 'powershell' = 'bash'): string[] {
+  return parseShellTokens(command, shell).map(({ value }) => value)
 }
 
-function parseShellTokens(command: string): ShellToken[] {
+function parseShellTokens(command: string, shell: 'bash' | 'powershell' = 'bash'): ShellToken[] {
   const tokens: ShellToken[] = []
   let current = ''
   let quote: '"' | "'" | undefined
@@ -329,7 +329,10 @@ function parseShellTokens(command: string): ShellToken[] {
         current += character
       }
     } else if (quote) {
-      if (character === quote) quote = undefined
+      if (shell === 'powershell' && quote === "'" && character === "'" && command[index + 1] === "'") {
+        current += "'"
+        index++
+      } else if (character === quote) quote = undefined
       else current += character
     } else if (character === '"' || character === "'") {
       quote = character

@@ -95,6 +95,8 @@ describe('PowerShell shared installers', () => {
 it.each([
   '& uv.exe tool install ruff',
   '& pip.exe install --user x',
+  String.raw`& 'C:\Program Files\Python313\Scripts\pip.exe' install --user ruff`,
+  String.raw`& "C:\Program Files\Python313\Scripts\pip.exe" install --user ruff`,
   'winget.exe install x',
   'choco.exe install x',
   'scoop.exe install x',

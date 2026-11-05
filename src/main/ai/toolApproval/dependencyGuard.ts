@@ -87,7 +87,14 @@ export function detectGlobalInstall(command: string, shell: 'bash' | 'powershell
   // mis-attributed to a manager keyword in another (`ls && npm i -g x`).
   const segments = splitShellSegments(command, /^(?:&&|\|\||[&;\n|])/, shell)
   for (const raw of segments) {
-    const seg = shell === 'powershell' ? raw.trim().replace(/^(\S+)\.exe(?=\s|$)/i, '$1') : raw.trim()
+    const seg =
+      shell === 'powershell'
+        ? raw
+            .trim()
+            .replace(/^(?:'([^']+)'|"([^"]+)"|(\S+))(?=\s|$)/, (_match, single, double, bare) =>
+              (single ?? double ?? bare).replace(/\.exe$/i, '')
+            )
+        : raw.trim()
     if (!seg) continue
     if (
       shell === 'powershell' &&

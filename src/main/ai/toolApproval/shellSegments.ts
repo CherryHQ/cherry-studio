@@ -2,6 +2,7 @@ export function splitShellSegments(command: string, separator: RegExp, shell: 'b
   const segments: string[] = []
   let start = 0
   let quote: "'" | '"' | undefined
+  const quotes: Array<typeof quote> = []
   for (let index = 0; index < command.length; index++) {
     const char = command[index]
     if (shell === 'bash' && char === '\\' && quote !== "'") {
@@ -10,10 +11,19 @@ export function splitShellSegments(command: string, separator: RegExp, shell: 'b
       index++
     } else if (shell === 'powershell' && quote === "'" && char === "'" && command[index + 1] === "'") {
       index++
+    } else if (quote !== "'" && char === '$' && command[index + 1] === '(') {
+      quotes.push(quote)
+      quote = undefined
+      index++
     } else if (quote) {
       if (char === quote) quote = undefined
     } else if (char === "'" || char === '"') {
       quote = char
+    } else if (char === '(') {
+      quotes.push(quote)
+      quote = undefined
+    } else if (char === ')' && quotes.length) {
+      quote = quotes.pop()
     } else if (char === '#' && (index === 0 || /[\s;&|()]/.test(command[index - 1]))) {
       while (index + 1 < command.length && command[index + 1] !== '\n') index++
     } else {

@@ -222,6 +222,24 @@ describe('evaluateUserDataSqliteGuard', () => {
       ).resolves.toBeUndefined()
     })
 
+    it('protects PowerShell SQLite paths containing doubled apostrophes', async () => {
+      const apostropheUserData = path.join(root, "O'Brien", 'AppData', 'Roaming', 'CherryStudio')
+      const apostropheDatabase = path.join(apostropheUserData, 'cherrystudio.sqlite')
+      await mkdir(apostropheUserData, { recursive: true })
+      await writeFile(apostropheDatabase, '')
+      vi.mocked(application.getPath).mockImplementation((key) =>
+        key === 'app.userdata' ? apostropheUserData : key === 'app.database.file' ? apostropheDatabase : homePath
+      )
+
+      await expect(
+        evaluate({
+          runtime: 'pi',
+          toolName: 'powershell',
+          args: { command: `sqlite3 '${apostropheDatabase.replaceAll("'", "''")}'` }
+        })
+      ).resolves.toEqual(DENIAL)
+    })
+
     it('recognizes quoted paths, separators, initial-cwd relative paths, and sidecars', async () => {
       const relativeDatabase = path.relative(workspacePath, databaseFile)
       for (const command of [
@@ -304,6 +322,15 @@ describe('evaluateUserDataSqliteGuard', () => {
       expect(tokenizeShellCommand(String.raw`sqlite3 --database="\\SERVER\Share\data.sqlite"`)).toContain(
         String.raw`--database=\\SERVER\Share\data.sqlite`
       )
+    })
+
+    it('unescapes doubled apostrophes only for PowerShell', () => {
+      const command = String.raw`sqlite3 'C:\Users\O''Brien\AppData\Roaming\CherryStudio\cherrystudio.sqlite'`
+      const powershellPath = String.raw`C:\Users\O'Brien\AppData\Roaming\CherryStudio\cherrystudio.sqlite`
+      const bashPath = String.raw`C:\Users\OBrien\AppData\Roaming\CherryStudio\cherrystudio.sqlite`
+      expect(tokenizeShellCommand(command, 'powershell')).toEqual(['sqlite3', powershellPath])
+      expect(tokenizeShellCommand(command, 'bash')).toEqual(['sqlite3', bashPath])
+      expect(tokenizeShellCommand(command)).toEqual(['sqlite3', bashPath])
     })
 
     it('does not strip query or fragment characters from ordinary paths', async () => {

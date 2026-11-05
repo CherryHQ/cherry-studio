@@ -169,6 +169,28 @@ it('detects a command after bash command substitution', () => {
   expect(detectDestructiveCommand('echo `pwd`; rm -rf dist', 'bash')).not.toBeNull()
 })
 
+it.each(['echo "$(printf "don\'t")"; rm -rf dist', 'echo "$(printf x)"; rm -rf dist'])(
+  'detects a destructive command after nested bash substitution: %s',
+  (command) => {
+    expect(detectDestructiveCommand(command, 'bash')).toBe('file deletion (rm)')
+  }
+)
+
+it('detects a destructive command after a nested PowerShell subexpression', () => {
+  expect(detectDestructiveCommand('echo "$(Write-Output "don\'t")"; Remove-Item dist', 'powershell')).toBe(
+    'PowerShell file deletion'
+  )
+})
+
+it.each(['bash', 'powershell'] as const)('restores quote context through nested parentheses in %s', (shell) => {
+  expect(detectDestructiveCommand('echo "$( (echo "don\'t") )"; rm -rf dist', shell)).not.toBeNull()
+})
+
+it.each(['bash', 'powershell'] as const)('tolerates unbalanced parentheses in %s', (shell) => {
+  expect(detectDestructiveCommand('echo )', shell)).toBeNull()
+  expect(detectDestructiveCommand('echo $(foo', shell)).toBeNull()
+})
+
 it('detects a destructive git command across a bash line continuation', () => {
   expect(detectDestructiveCommand('git \\\n  reset --hard HEAD', 'bash')).toBe('destructive git operation')
 })
