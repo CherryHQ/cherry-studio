@@ -7,10 +7,17 @@ import {
   type MessageVirtualListHandle,
   useChatVirtualizerRuntime
 } from '@renderer/components/chat/messages/list/chatVirtualizerRuntime'
+import { MessageListProvider, useMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 
+import AgentSessionMessages from '../../components/AgentSessionMessages'
 import { useAgentMessageListProviderValue } from '../agentMessageListAdapter'
+
+vi.mock('@renderer/components/chat/messages/MessageList', () => ({
+  default: () => <ViewportProbe name="main" />
+}))
 
 // Export, menu and file capabilities are unrelated to the viewport ownership contract.
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities', () => ({
@@ -37,93 +44,116 @@ const messages: [] = []
 const partsByMessageId = {}
 const items = ['assistant-message']
 const getItemKey = (item: string) => item
+const viewports = new Map<
+  string,
+  {
+    runtime: ChatVirtualizerRuntime<string>
+    handleRef: { current: MessageVirtualListHandle | null }
+    unbind?: () => void
+  }
+>()
+let scrollHeight: number
+
+function ViewportProbe({ name }: { name: string }) {
+  const handleRef = useRef<MessageVirtualListHandle>(null)
+  const { bindRuntime } = useMessageListActions()
+  const runtime = useChatVirtualizerRuntime({
+    items,
+    getItemKey,
+    renderItem: (item) => item,
+    hasMoreTop: false,
+    topReachOverscanItems: 4,
+    bottomPadding: 0,
+    handleRef
+  })
+  useEffect(() => {
+    const unbind = bindRuntime?.({
+      scrollToBottom: runtime.scrollToBottom,
+      locateMessage: () => {},
+      copyTopicImage: async () => {},
+      exportTopicImage: async () => {}
+    })
+    viewports.set(name, { runtime, handleRef, unbind: unbind ?? undefined })
+    return unbind
+  }, [bindRuntime, name, runtime])
+
+  return (
+    <div
+      role="region"
+      aria-label={`${name} messages`}
+      ref={(element) => {
+        runtime.scrollerRef.current = element
+        if (!element) return
+        Object.defineProperty(element, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+        Object.defineProperty(element, 'clientHeight', { configurable: true, value: 400 })
+      }}>
+      <div ref={runtime.contentRef}>Earlier conversation</div>
+      <div ref={runtime.freezeSpacerRef} />
+    </div>
+  )
+}
+
+function AuxiliaryConversation({ capture = false }: { capture?: boolean }) {
+  const provider = useAgentMessageListProviderValue({
+    topic,
+    messages,
+    partsByMessageId,
+    isLoading: false,
+    messageNavigation: 'anchor',
+    imageActionConsumer: capture ? 'capture' : undefined,
+    ...(capture && { scrollToBottomOnSend: true })
+  })
+  return (
+    <MessageListProvider value={provider}>
+      <ViewportProbe name={capture ? 'capture' : 'tool-flow'} />
+    </MessageListProvider>
+  )
+}
+
+const primaryConversation = (
+  <AgentSessionMessages
+    agentId="agent-1"
+    sessionId="session-a"
+    messages={messages}
+    partsByMessageId={partsByMessageId}
+    isLoading={false}
+  />
+)
 
 describe('Agent accepted-send viewport handoff', () => {
   const resizeCallbacks = new Set<ResizeObserverCallback>()
-  let handleRef: { current: MessageVirtualListHandle | null }
-  let runtime: ChatVirtualizerRuntime<string>
-  let unbind: (() => void) | undefined
-  let scrollHeight: number
-
-  function Conversation({ capture = false }: { capture?: boolean }) {
-    const viewportHandleRef = useRef<MessageVirtualListHandle>(null)
-    handleRef = viewportHandleRef
-    const provider = useAgentMessageListProviderValue({
-      topic,
-      messages,
-      partsByMessageId,
-      isLoading: false,
-      messageNavigation: 'anchor',
-      imageActionConsumer: capture ? 'capture' : undefined
-    })
-    const viewport = useChatVirtualizerRuntime({
-      items,
-      getItemKey,
-      renderItem: (item) => item,
-      hasMoreTop: false,
-      topReachOverscanItems: 4,
-      bottomPadding: 0,
-      handleRef: viewportHandleRef
-    })
-    runtime = viewport
-    const bindRuntime = provider.actions.bindRuntime
-    useEffect(() => {
-      const dispose = bindRuntime?.({
-        scrollToBottom: viewport.scrollToBottom,
-        locateMessage: () => {},
-        copyTopicImage: async () => {},
-        exportTopicImage: async () => {}
-      })
-      unbind = dispose ?? undefined
-      return dispose
-    }, [bindRuntime, viewport.scrollToBottom])
-
-    return (
-      <div
-        role="region"
-        aria-label="Conversation messages"
-        ref={(element) => {
-          viewport.scrollerRef.current = element
-          if (!element) return
-          Object.defineProperty(element, 'scrollHeight', { configurable: true, get: () => scrollHeight })
-          Object.defineProperty(element, 'clientHeight', { configurable: true, value: 400 })
-        }}>
-        <div ref={viewport.contentRef}>Earlier conversation</div>
-        <div ref={viewport.freezeSpacerRef} />
-      </div>
-    )
-  }
+  const originalResizeObserver = globalThis.ResizeObserver
 
   beforeEach(() => {
     scrollHeight = 1200
-    unbind = undefined
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(private callback: ResizeObserverCallback) {
-          resizeCallbacks.add(callback)
-        }
-        observe() {}
-        unobserve() {}
-        disconnect() {
-          resizeCallbacks.delete(this.callback)
-        }
+    vi.spyOn(ipcApi, 'request').mockResolvedValue(undefined)
+    globalThis.ResizeObserver = class {
+      constructor(private callback: ResizeObserverCallback) {
+        resizeCallbacks.add(callback)
       }
-    )
+      observe() {}
+      unobserve() {}
+      disconnect() {
+        resizeCallbacks.delete(this.callback)
+      }
+    }
   })
 
   afterEach(() => {
     cleanup()
+    viewports.clear()
     resizeCallbacks.clear()
-    vi.unstubAllGlobals()
+    globalThis.ResizeObserver = originalResizeObserver
+    vi.restoreAllMocks()
   })
 
-  function startReading() {
+  function startReading(name = 'main') {
+    const { runtime, handleRef } = viewports.get(name)!
     const scroller = runtime.scrollerRef.current!
     scroller.scrollTop = 500
     act(() => runtime.takeUserControl('user-scrolled-up'))
     expect(handleRef.current?.isFollowing()).toBe(false)
-    return scroller
+    return { scroller, handleRef }
   }
 
   function growReply() {
@@ -131,9 +161,15 @@ describe('Agent accepted-send viewport handoff', () => {
     act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)))
   }
 
-  it('returns the matching conversation to the live bottom and follows the streamed reply', async () => {
-    render(<Conversation />)
-    const scroller = startReading()
+  it('follows an accepted send in the main conversation while a same-topic tool flow keeps its reading position', async () => {
+    render(
+      <>
+        {primaryConversation}
+        <AuxiliaryConversation />
+      </>
+    )
+    const { scroller, handleRef } = startReading()
+    const auxiliary = startReading('tool-flow')
 
     await act(() => EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: 'agent-session:session-b' }))
     expect(scroller.scrollTop).toBe(500)
@@ -142,15 +178,19 @@ describe('Agent accepted-send viewport handoff', () => {
     await act(() => EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id }))
     expect(scroller.scrollTop).toBe(800)
     expect(handleRef.current?.isFollowing()).toBe(true)
+    expect(auxiliary.scroller.scrollTop).toBe(500)
+    expect(auxiliary.handleRef.current?.isFollowing()).toBe(false)
 
     growReply()
     expect(scroller.scrollTop).toBe(1200)
+    expect(auxiliary.scroller.scrollTop).toBe(500)
+    expect(auxiliary.handleRef.current?.isFollowing()).toBe(false)
   })
 
   it('preserves the reading position after the visible runtime is unbound', async () => {
-    render(<Conversation />)
-    const scroller = startReading()
-    unbind?.()
+    render(primaryConversation)
+    const { scroller, handleRef } = startReading()
+    viewports.get('main')?.unbind?.()
 
     await act(() => EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id }))
     growReply()
@@ -160,8 +200,8 @@ describe('Agent accepted-send viewport handoff', () => {
   })
 
   it('does not hand an offscreen image-capture runtime control of the conversation', async () => {
-    render(<Conversation capture />)
-    const scroller = startReading()
+    render(<AuxiliaryConversation capture />)
+    const { scroller, handleRef } = startReading('capture')
 
     await act(() => EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id }))
     growReply()
