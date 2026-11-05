@@ -2016,6 +2016,47 @@ describe('CherryCloudService', () => {
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ category: 'usage', title }))
   })
 
+  it('tells the user when the sign-in expires while the app is running', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
+      const service = await createSignedInService()
+      const publish = vi.mocked(application.get('NotificationService').publish)
+      publish.mockClear()
+
+      await vi.advanceTimersByTimeAsync(31 * 24 * 60 * 60 * 1000)
+
+      expect((await service.getStatus()).phase).toBe('signed-out')
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'notification.cherry_cloud.session_expired_title' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('tells the user at startup when the sign-in expired while the app was closed', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
+      const service = await createSignedInService()
+      await service._doStop()
+      const publish = vi.mocked(application.get('NotificationService').publish)
+      publish.mockClear()
+      vi.setSystemTime(new Date('2030-02-02T00:00:00Z'))
+
+      CherryCloudService.resetInstances()
+      const restarted = await createService()
+
+      expect((await restarted.getStatus()).phase).toBe('signed-out')
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'notification.cherry_cloud.session_expired_title' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not tell the user about a sign-out they asked for', async () => {
     const service = await createSignedInService()
     const publish = vi.mocked(application.get('NotificationService').publish)

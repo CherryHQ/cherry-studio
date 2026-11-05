@@ -815,19 +815,24 @@ export class CherryCloudService extends BaseService {
     }
     const [title, message] = notices[reason]
     const now = Date.now()
-    void application
-      .get('NotificationService')
-      .publish({
-        eventKey: `cherry-cloud:sign-out:${reason}:${now}`,
-        // Usage notices pop up in the app and as system notifications; system ones only fill the list.
-        category: 'usage',
-        createdAt: now,
-        kind: 'cherry-cloud-account',
-        title,
-        message,
-        target: { kind: 'settings', tab: 'profile' }
-      })
-      .catch((error) => logger.warn('Failed to report a Cherry Cloud sign-out', error as Error))
+    try {
+      void application
+        .get('NotificationService')
+        .publish({
+          eventKey: `cherry-cloud:sign-out:${reason}:${now}`,
+          // Usage notices pop up in the app and as system notifications; system ones only fill the list.
+          category: 'usage',
+          createdAt: now,
+          kind: 'cherry-cloud-account',
+          title,
+          message,
+          target: { kind: 'settings', tab: 'profile' }
+        })
+        .catch((error) => logger.warn('Failed to report a Cherry Cloud sign-out', error as Error))
+    } catch (error) {
+      // A sign-out found while restoring at startup can run before the notification service is up.
+      logger.warn('Failed to report a Cherry Cloud sign-out', error as Error)
+    }
   }
 
   private reconcileEntitledModels(
