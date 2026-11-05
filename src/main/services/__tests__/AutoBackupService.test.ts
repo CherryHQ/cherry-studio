@@ -596,11 +596,37 @@ describe('AutoBackupService', () => {
       expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
     })
 
+    it('retries an overdue daily slot after exhausted failures and a restart', async () => {
+      vi.setSystemTime(tuesday(9))
+      onlyWebdavDaily([{ time: '08:30', days: weekdays }])
+      mocks.backupToWebdav.mockRejectedValue(new Error('offline'))
+      await recreateService()
+      await vi.advanceTimersByTimeAsync(130_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
+      mocks.backupToWebdav.mockResolvedValue({ result: true, cleanupError: null })
+      vi.setSystemTime(tuesday(9, 5))
+      await recreateService()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(5)
+    })
+
+    it('keeps a local destination change within the configured daily slots', async () => {
+      vi.setSystemTime(tuesday(9))
+      for (const type of ['webdav', 's3', 'nutstore']) setPreference(`data.backup.${type}.auto_sync`, false)
+      setPreference('data.backup.local.sync_interval', 0)
+      setPreference('data.backup.local.schedule', { mode: 'daily', entries: [{ time: '17:30', days: weekdays }] })
+      setPreference('data.backup.local.dir', tmpdir() + '/changed')
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(mocks.backupToLocalDir).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(8.5 * 3_600_000 - 1_000)
+      expect(mocks.backupToLocalDir).toHaveBeenCalledOnce()
+    })
+
     it('does not catch up when the last backup is newer than the missed slot', async () => {
       vi.setSystemTime(tuesday(9))
       for (const type of ['s3', 'local', 'nutstore']) setPreference(`data.backup.${type}.auto_sync`, false)
       setPreference('data.backup.webdav.schedule', { mode: 'daily', entries: [{ time: '08:30', days: weekdays }] })
-      MockMainCacheServiceExport.cacheService.setPersist('backup.auto_sync.last_attempt_times', {
+      MockMainCacheServiceExport.cacheService.setPersist('backup.auto_sync.last_success_times', {
         webdav: tuesday(8, 45),
         s3: null,
         local: null,

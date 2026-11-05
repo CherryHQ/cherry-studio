@@ -27,6 +27,7 @@ const logger = loggerService.withContext('AutoBackupService')
 
 const SCHEDULE_ID_PREFIX = 'auto-backup:'
 const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
+const LAST_SUCCESS_TIMES_KEY = 'backup.auto_sync.last_success_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
@@ -66,11 +67,12 @@ const DESTINATION_PREFERENCES = {
   nutstore: 'data.backup.nutstore.token'
 } as const satisfies Record<AutoBackupType, UnifiedPreferenceKeyType>
 
-type ScheduleMode = 'immediate' | 'startup' | 'fromLastSyncTime' | 'fromNow'
+type ScheduleMode = 'immediate' | 'startup' | 'fromLastSyncTime' | 'fromNow' | 'destinationChanged'
 
 interface ScheduleState {
   generation: number
   lastSyncTime: number | null
+  lastSuccessTime: number | null
   retryCount: number
   running: boolean
 }
@@ -86,6 +88,7 @@ const DEFAULT_SCHEDULE: BackupSchedule = { mode: 'interval', entries: [] }
 const createScheduleState = (): ScheduleState => ({
   generation: 0,
   lastSyncTime: null,
+  lastSuccessTime: null,
   retryCount: 0,
   running: false
 })
@@ -117,8 +120,10 @@ export class AutoBackupService extends BaseService {
 
   protected override onInit(): void {
     const lastAttemptTimes = application.get('CacheService').getPersist(LAST_ATTEMPT_TIMES_KEY)
+    const lastSuccessTimes = application.get('CacheService').getPersist(LAST_SUCCESS_TIMES_KEY)
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].lastSyncTime = lastAttemptTimes[type]
+      this.schedules[type].lastSuccessTime = lastSuccessTimes[type]
     }
 
     const preferenceService = application.get('PreferenceService')
@@ -126,7 +131,7 @@ export class AutoBackupService extends BaseService {
       preferenceService.subscribeMultipleChanges(Object.values(WATCHED_PREFERENCES).flat(), (key) => {
         const type = AUTO_BACKUP_TYPES.find((candidate) => WATCHED_PREFERENCES[candidate].includes(key))
         if (type) {
-          this.restartSchedule(type, key === 'data.backup.local.dir' ? 'immediate' : 'fromLastSyncTime')
+          this.restartSchedule(type, key === 'data.backup.local.dir' ? 'destinationChanged' : 'fromLastSyncTime')
         }
       })
     )
@@ -166,8 +171,18 @@ export class AutoBackupService extends BaseService {
   }
 
   recordManualBackupCompletion(type: AutoBackupType): void {
-    this.recordLastAttemptTime(type, Date.now())
+    this.recordSuccessfulBackup(type, Date.now())
     if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
+  }
+
+  private recordSuccessfulBackup(type: AutoBackupType, timestamp: number): void {
+    this.recordLastAttemptTime(type, timestamp)
+    this.schedules[type].lastSuccessTime = timestamp
+    const cacheService = application.get('CacheService')
+    cacheService.setPersist(LAST_SUCCESS_TIMES_KEY, {
+      ...cacheService.getPersist(LAST_SUCCESS_TIMES_KEY),
+      [type]: timestamp
+    })
   }
 
   private recordLastAttemptTime(type: AutoBackupType, timestamp: number): void {
@@ -211,8 +226,8 @@ export class AutoBackupService extends BaseService {
     let delay = delayOverride ?? INITIAL_DELAY_MS
     if (delayOverride === undefined && settings.schedule.mode === 'daily') {
       const now = Date.now()
-      const lastSyncTime = this.schedules[type].lastSyncTime
-      if (mode === 'startup' && hasMissedScheduledTime(settings.schedule.entries, lastSyncTime, now)) {
+      const lastSuccessTime = this.schedules[type].lastSuccessTime
+      if (mode === 'startup' && hasMissedScheduledTime(settings.schedule.entries, lastSuccessTime, now)) {
         delay = STARTUP_GRACE_PERIOD_MS
       } else if (mode !== 'immediate') {
         const next = getNextScheduledTime(settings.schedule.entries, now)
@@ -282,7 +297,7 @@ export class AutoBackupService extends BaseService {
       }
 
       const timestamp = Date.now()
-      this.recordLastAttemptTime(type, timestamp)
+      this.recordSuccessfulBackup(type, timestamp)
       state.retryCount = 0
       state.running = false
       if (cleanupError) {
