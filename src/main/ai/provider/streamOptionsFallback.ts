@@ -138,6 +138,18 @@ export function withStreamOptionsFallback(inner: FetchFunction): FetchFunction {
     const bodyText = await readErrorPrefix(response)
     if (bodyText === undefined || !isStreamOptionsRejection(response.status, bodyText)) return response
 
+    // The SDK only receives the retry response, so release the discarded 400.
+    // A matching error larger than the inspected prefix may still be open;
+    // without this its connection stays retained after a successful retry.
+    // Fire-and-forget: awaiting cancel can hang on undici for tee'd streams.
+    if (response.body) {
+      try {
+        void response.body.cancel().catch(() => {})
+      } catch {
+        // ignore synchronous cancel errors; the retry still proceeds
+      }
+    }
+
     return inner(input, { ...init, body: stripped })
   }
 }

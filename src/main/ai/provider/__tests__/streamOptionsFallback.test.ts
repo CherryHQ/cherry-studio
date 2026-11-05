@@ -138,6 +138,39 @@ describe('withStreamOptionsFallback', () => {
     expect(await response.text()).toContain('stream_options')
   })
 
+  it('cancels the discarded original 400 before retrying a large open match', async () => {
+    // A matching 400 larger than the inspected prefix may still be open. The
+    // SDK only sees the retry response, so the wrapper must cancel the
+    // discarded original or its connection stays retained.
+    const prefix = "Unknown parameter: 'stream_options.include_usage'."
+    let cancelled = false
+    const openBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(prefix + 'x'.repeat(STREAM_OPTIONS_ERROR_PREFIX_LIMIT)))
+        // Intentionally never close: reproduces the retained-connection trigger.
+      },
+      cancel() {
+        cancelled = true
+      }
+    })
+    const first = new Response(openBody, { status: 400 })
+    const inner = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string)
+      if ('stream_options' in body) return first
+      return jsonResponse(200, { ok: true })
+    })
+    const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'm', stream_options: { include_usage: true } })
+    })
+    expect(response.status).toBe(200)
+    expect(inner).toHaveBeenCalledTimes(2)
+    // The discard cancel is fire-and-forget (awaiting can hang on undici),
+    // so allow a macrotask for the underlying source cancel to run.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(cancelled).toBe(true)
+  })
+
   it('leaves the original 400 body readable when no retry happens', async () => {
     const inner = vi.fn<typeof fetch>(async () => jsonResponse(400, { error: { message: 'boom' } }))
     const response = await withStreamOptionsFallback(inner)('https://example.invalid/v1/chat/completions', {
