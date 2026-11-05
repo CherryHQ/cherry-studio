@@ -26,7 +26,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
-import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
+import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
@@ -254,21 +254,17 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
-    // reconcile* are v2-native; next.id is the UniqueModelId.
-    // Restore the target model's remembered choices; fall back to web search off and the model default effort.
-    const saved = modelSettingsRef.current?.[next.id]
-    const restored: Partial<AssistantSettings> =
-      next.id === currentAssistant.modelId
-        ? {}
-        : { enableWebSearch: saved?.enableWebSearch ?? false, reasoning_effort: saved?.reasoning_effort }
-    const baseSettings = { ...currentAssistant.settings, ...restored }
-    const reasoning = reconcileReasoningEffortForModel(next, baseSettings.reasoning_effort)
-    const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
-    const webSearch = reconcileWebSearchForModel(next, baseSettings, nextProvider)
-    const settingsPatch =
-      extraSettings || reasoning || webSearch || next.id !== currentAssistant.modelId
-        ? { ...baseSettings, ...reasoning, ...webSearch, ...extraSettings }
-        : undefined
+    // Shared model-switch operation (also used by the assistant edit dialog):
+    // restores the target model's remembered choices and reconciles the pair
+    // against the target model; next.id is the UniqueModelId.
+    const settingsPatch = resolveModelSwitchSettings({
+      next,
+      nextProvider: providersRef.current.find((provider) => provider.id === next.providerId),
+      currentModelId: currentAssistant.modelId,
+      currentSettings: currentAssistant.settings,
+      remembered: modelSettingsRef.current?.[next.id],
+      extraSettings
+    })
     return patchAssistantRef.current(
       currentId,
       settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }

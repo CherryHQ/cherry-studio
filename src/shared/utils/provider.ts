@@ -345,6 +345,25 @@ export interface WebToolRoutes {
 }
 
 /**
+ * True when the provider's builtin web search rejects this reasoning effort
+ * for the model — the router's 'openai-minimal-reasoning' conflict. Shared by
+ * the request-time router and renderer-side reconciliation so both agree on
+ * whether the pair is usable.
+ */
+export function isBuiltinWebSearchEffortUnsupported(
+  model: Model,
+  provider: Provider | undefined,
+  effort: string | undefined
+): boolean {
+  return (
+    effort !== undefined &&
+    provider !== undefined &&
+    (isOpenAIProvider(provider) || isOpenAIChatProvider(provider) || isAzureOpenAIProvider(provider)) &&
+    isWebSearchEffortUnsupported(getRawModelId(model), effort)
+  )
+}
+
+/**
  * Route search and fetch independently through their preferred side and then
  * the available fallback. Pre-3 Gemini is the exception: when that would mix
  * Google-native and function tools, the side covering more capabilities wins.
@@ -380,11 +399,7 @@ export function resolveWebToolRoutes(
     isGeminiModel(model) &&
     !supportsServerToolFunctionMixing(getRawModelId(model))
   const googleToolConflict = options.hasFunctionToolSignals === true && googleFunctionToolMixingUnsupported
-  const openaiMinimalConflict =
-    options.reasoningEffort !== undefined &&
-    provider !== undefined &&
-    (isOpenAIProvider(provider) || isOpenAIChatProvider(provider) || isAzureOpenAIProvider(provider)) &&
-    isWebSearchEffortUnsupported(getRawModelId(model), options.reasoningEffort)
+  const openaiMinimalConflict = isBuiltinWebSearchEffortUnsupported(model, provider, options.reasoningEffort)
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
   const serverFetchAvailable = serverFetchEligible && !googleToolConflict

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { type Model, MODEL_CAPABILITY, type ModelCapability, type RuntimeReasoning } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  type Model,
+  MODEL_CAPABILITY,
+  type ModelCapability,
+  type RuntimeReasoning
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import {
@@ -8,6 +14,7 @@ import {
   hasModelBuiltinWebSearch,
   reconcileReasoningEffortForModel,
   reconcileWebSearchForModel,
+  resolveModelSwitchSettings,
   resolveReasoningEffortForModel
 } from '../reconcile'
 
@@ -125,5 +132,130 @@ describe('reconcile reasoning effort (descriptor-driven, #16598)', () => {
 
   it('exposes the pure resolved selection for composer-local model switching', () => {
     expect(resolveReasoningEffortForModel(reasoningModel(TOGGLE_ONLY), 'high')).toBe('auto')
+  })
+})
+
+describe('reconcile web search + reasoning effort pair (#23582)', () => {
+  /** GPT-5-style effort vocabulary including the search-incompatible 'minimal'. */
+  const GPT5_REASONING: RuntimeReasoning = {
+    controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }],
+    selectableEfforts: ['minimal', 'low', 'medium', 'high']
+  }
+
+  const gpt5 = (): Model => ({
+    ...createModel([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]),
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    apiModelId: 'gpt-5',
+    reasoning: GPT5_REASONING
+  })
+
+  const openAiProvider = { id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES } as Provider
+
+  it('drops enabled web search when the effort has no builtin search route', () => {
+    expect(
+      reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: 'minimal' }, openAiProvider)
+    ).toEqual({ enableWebSearch: false })
+  })
+
+  it('keeps enabled web search for a compatible effort', () => {
+    expect(
+      reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: 'low' }, openAiProvider)
+    ).toBeNull()
+  })
+
+  it('keeps enabled web search with minimal effort on a non-OpenAI-family provider', () => {
+    expect(
+      reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: 'minimal' }, providerWith([]))
+    ).toBeNull()
+  })
+
+  it('never conflicts on an undefined effort', () => {
+    expect(
+      reconcileWebSearchForModel(gpt5(), { enableWebSearch: true, reasoning_effort: undefined }, openAiProvider)
+    ).toBeNull()
+  })
+})
+
+describe('resolveModelSwitchSettings (#23582)', () => {
+  const GPT5_REASONING: RuntimeReasoning = {
+    controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }],
+    selectableEfforts: ['minimal', 'low', 'medium', 'high']
+  }
+
+  const gpt5 = (): Model => ({
+    ...createModel([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]),
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    apiModelId: 'gpt-5',
+    reasoning: GPT5_REASONING
+  })
+
+  const openAiProvider = { id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES } as Provider
+
+  it('reconciles a restored incompatible pair without overwriting it (search off, effort kept)', () => {
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: false },
+      remembered: { enableWebSearch: true, reasoning_effort: 'minimal' }
+    })
+
+    expect(patch?.enableWebSearch).toBe(false)
+    expect(patch?.reasoning_effort).toBe('minimal')
+  })
+
+  it('restores a compatible remembered pair as saved', () => {
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: false, reasoning_effort: 'default' },
+      remembered: { enableWebSearch: true, reasoning_effort: 'low' }
+    })
+
+    expect(patch?.enableWebSearch).toBe(true)
+    expect(patch?.reasoning_effort).toBe('low')
+  })
+
+  it('falls back to search off and the model default effort with no memory', () => {
+    const patch = resolveModelSwitchSettings({
+      next: gpt5(),
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: true, reasoning_effort: 'minimal' },
+      remembered: undefined
+    })
+
+    expect(patch?.enableWebSearch).toBe(false)
+    expect(patch?.reasoning_effort).toBe('default')
+  })
+
+  it('evaluates the pair against the reconciled effort, not the stale restored one', () => {
+    // 'minimal' is outside the next model's vocabulary, so reconciliation maps
+    // it to a supported tier first; the search flag then survives.
+    const patch = resolveModelSwitchSettings({
+      next: { ...gpt5(), reasoning: EFFORT_MAX },
+      nextProvider: openAiProvider,
+      currentModelId: 'openai::gpt-4o',
+      currentSettings: { enableWebSearch: false },
+      remembered: { enableWebSearch: true, reasoning_effort: 'minimal' }
+    })
+
+    expect(patch?.reasoning_effort).not.toBe('minimal')
+    expect(patch?.enableWebSearch).toBe(true)
+  })
+
+  it('returns undefined for the same model with nothing to restore or reconcile', () => {
+    expect(
+      resolveModelSwitchSettings({
+        next: gpt5(),
+        nextProvider: openAiProvider,
+        currentModelId: 'openai::gpt-5',
+        currentSettings: { enableWebSearch: true, reasoning_effort: 'low' },
+        remembered: { enableWebSearch: false, reasoning_effort: 'minimal' }
+      })
+    ).toBeUndefined()
   })
 })

@@ -15,10 +15,11 @@
  */
 import type { AssistantSettings } from '@renderer/types/assistant'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
+import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
+import { isBuiltinWebSearchAvailable, isBuiltinWebSearchEffortUnsupported } from '@shared/utils/provider'
 
 import { isFunctionCallingModel } from './tooluse'
 
@@ -47,10 +48,62 @@ export function reconcileReasoningEffortForModel(
 
 export function reconcileWebSearchForModel(
   nextModel: Model,
-  current: Pick<AssistantSettings, 'enableWebSearch'>,
+  current: Pick<AssistantSettings, 'enableWebSearch' | 'reasoning_effort'>,
   provider: Provider | undefined
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
-  if (canModelUseAssistantWebSearch(nextModel, provider)) return null
-  return { enableWebSearch: false }
+  if (!canModelUseAssistantWebSearch(nextModel, provider)) return { enableWebSearch: false }
+  // `resolveWebToolRoutes` withdraws the builtin search route for efforts the
+  // provider's search rejects (reason 'openai-minimal-reasoning'), and the
+  // composer refuses to create that pair in either direction. Reconciliation
+  // must not restore it either: keep the effort, drop the search flag so the
+  // control never stays active without a route.
+  if (isBuiltinWebSearchEffortUnsupported(nextModel, provider, current.reasoning_effort)) {
+    return { enableWebSearch: false }
+  }
+  return null
+}
+
+/**
+ * The single model-switch settings operation shared by every model-change
+ * entry point (composer `useAssistant.setModel`, assistant edit dialog).
+ *
+ * Restores the target model's remembered web search / reasoning effort,
+ * reconciles the restored pair against the target model, and returns the
+ * settings patch to merge into ONE atomic write that also carries the new
+ * `modelId`. Returns `undefined` when nothing needs writing (same model and
+ * nothing restored or reconciled).
+ *
+ * Remembered choices are only read here, never overwritten: when the
+ * restored pair is incompatible (e.g. builtin search + 'minimal' on OpenAI
+ * GPT-5), the applied patch drops the search flag while the saved per-model
+ * preferences stay untouched.
+ */
+export function resolveModelSwitchSettings(args: {
+  next: Model
+  nextProvider: Provider | undefined
+  currentModelId: string | null | undefined
+  currentSettings: Partial<AssistantSettings> | undefined
+  remembered: ChatModelSetting | undefined
+  extraSettings?: Partial<AssistantSettings>
+}): Partial<AssistantSettings> | undefined {
+  const { next, nextProvider, currentModelId, currentSettings, remembered, extraSettings } = args
+  // Restore the target model's remembered choices; fall back to web search
+  // off and the model default effort.
+  const restored: Partial<AssistantSettings> =
+    next.id === currentModelId
+      ? {}
+      : { enableWebSearch: remembered?.enableWebSearch ?? false, reasoning_effort: remembered?.reasoning_effort }
+  const baseSettings = { ...currentSettings, ...restored }
+  const reasoning = reconcileReasoningEffortForModel(next, baseSettings.reasoning_effort)
+  // Evaluate the search pair against the effort that will actually apply.
+  const effectiveEffort = reasoning ? reasoning.reasoning_effort : baseSettings.reasoning_effort
+  const webSearch = reconcileWebSearchForModel(
+    next,
+    { enableWebSearch: baseSettings.enableWebSearch, reasoning_effort: effectiveEffort },
+    nextProvider
+  )
+  return extraSettings || reasoning || webSearch || next.id !== currentModelId
+    ? { ...baseSettings, ...reasoning, ...webSearch, ...extraSettings }
+    : undefined
 }
