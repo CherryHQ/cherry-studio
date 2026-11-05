@@ -8,14 +8,13 @@ import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
+import { cherryCloudQuotaRejectionText, formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
-import { getSafeProviderErrorMessage, stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -147,13 +146,7 @@ const MessageErrorInfo: React.FC<{
     providerId === CHERRY_CLOUD_PROVIDER_ID &&
     (classification.category === 'rate_limit' || classification.category === 'quota')
   const cherryCloudQuotaText = useMemo(
-    () =>
-      cherryCloudQuotaRejection && error
-        ? stripClaudeCodeRejectionPrefix(
-            providerErrorText(error) ||
-              getSafeProviderErrorMessage({ responseBody: error.message?.replace(/^\s*\d{3}:\s*/, '') })
-          )
-        : '',
+    () => (cherryCloudQuotaRejection && error ? cherryCloudQuotaRejectionText(error) : ''),
     [cherryCloudQuotaRejection, error]
   )
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
