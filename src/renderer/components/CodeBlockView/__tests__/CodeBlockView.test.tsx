@@ -138,6 +138,30 @@ describe('CodeBlockView', () => {
     expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
   })
 
+  it('resolves source mode when a streamed language label becomes Mermaid', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', false)
+    const { rerender } = render(
+      <CodeBlockView language="mer" isStreaming>
+        {'graph TD; A-->B'}
+      </CodeBlockView>
+    )
+    rerender(
+      <CodeBlockView language="mermaid" isStreaming>
+        {'graph TD; A-->B'}
+      </CodeBlockView>
+    )
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('graph TD; A-->B')
+  })
+
+  it('preserves a manual edit choice when the streamed language changes', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', false)
+    const { rerender } = render(<CodeBlockView language="mer">{'graph TD; A-->B'}</CodeBlockView>)
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    rerender(<CodeBlockView language="mermaid">{'graph TD; A-->B'}</CodeBlockView>)
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+  })
+
   it('renders display-only code without a toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
