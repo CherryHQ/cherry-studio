@@ -151,6 +151,7 @@ export class ConversationImportService extends BaseService {
           inputBytes += session.inputBytes
           normalizedBytes += Buffer.byteLength(JSON.stringify(session))
           if (inputBytes > IMPORT_LIMITS.batch || normalizedBytes > IMPORT_LIMITS.batch) throw new Error('batch_limit')
+          const times = session.messages.map((message) => message.timestamp)
           const item: ImportPreviewItem = {
             ...base,
             filteredReason: session.filteredReason,
@@ -163,8 +164,8 @@ export class ConversationImportService extends BaseService {
             models: [
               ...new Set(session.messages.flatMap((m) => (m.messageSnapshot ? [m.messageSnapshot.model.name] : [])))
             ],
-            startedAt: session.messages[0] ? new Date(session.messages[0].timestamp).toISOString() : undefined,
-            endedAt: session.messages.at(-1) ? new Date(session.messages.at(-1)!.timestamp).toISOString() : undefined,
+            startedAt: session.messages[0] ? new Date(Math.min(...times)).toISOString() : undefined,
+            endedAt: session.messages.at(-1) ? new Date(Math.max(...times)).toISOString() : undefined,
             diagnostics: [...session.diagnostics],
             skippedRecords: session.skippedRecords,
             downgradedParts: session.downgradedParts
@@ -265,7 +266,8 @@ export class ConversationImportService extends BaseService {
           }
           if (item.directory && (await this.validateDirectory(item.directory)) !== item.directory)
             throw new Error('directory_required')
-          const end = session.messages.at(-1)!.timestamp
+          const times = session.messages.map((message) => message.timestamp)
+          const end = Math.max(...times)
           if (end > Date.now()) throw new Error('clock_skew')
           if (end === Date.now()) await delay(1, undefined, { signal: scan.abort.signal })
           scan.abort.signal.throwIfAborted()
@@ -298,7 +300,7 @@ export class ConversationImportService extends BaseService {
                 workspace
               },
               'conversation',
-              session.messages[0].timestamp
+              Math.min(...times)
             )
             agentSessionService.setImportMetadataTx(
               tx,

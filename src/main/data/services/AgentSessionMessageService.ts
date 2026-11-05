@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { isToolUIPart } from 'ai'
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -65,6 +65,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
+import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
@@ -359,7 +360,7 @@ export class AgentSessionMessageService {
       .select()
       .from(sessionMessagesTable)
       .where(eq(sessionMessagesTable.sessionId, sessionId))
-      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .orderBy(...sessionMessageOrdering(tx, sessionId).orderBy)
       .all()
     const index = rows.findIndex((row) => row.id === messageId)
     const user = rows[index]
@@ -437,7 +438,7 @@ export class AgentSessionMessageService {
           sql`json_type(${sessionMessagesTable.data}, '$.nativeSessionId') = 'text'`
         )
       )
-      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .orderBy(...sessionMessageOrdering(application.get('DbService').getDb(), sessionId, 'desc').orderBy)
       .limit(1)
       .get()?.data.nativeSessionId
   }
@@ -453,7 +454,7 @@ export class AgentSessionMessageService {
       .select()
       .from(sessionMessagesTable)
       .where(eq(sessionMessagesTable.sessionId, sessionId))
-      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .orderBy(...sessionMessageOrdering(tx, sessionId).orderBy)
       .all()
     const end = rows.findIndex((row) => row.id === messageId)
     if (end < 0) return undefined
@@ -474,6 +475,7 @@ export class AgentSessionMessageService {
           modelId: row.modelId,
           messageSnapshot: row.messageSnapshot,
           runtimeResumeToken: row.runtimeResumeToken,
+          provenance: row.provenance,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt
         })
@@ -493,11 +495,7 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
-          // Match readForkPrefixTx's inclusive (createdAt, id) boundary.
-          or(
-            gt(sessionMessagesTable.createdAt, row.createdAt),
-            and(eq(sessionMessagesTable.createdAt, row.createdAt), gte(sessionMessagesTable.id, row.id))
-          ),
+          sessionMessageOrdering(tx, sessionId).whereRow(row, true),
           sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
         )
       )
@@ -743,8 +741,7 @@ export class AgentSessionMessageService {
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
-   * Cursor wire format: `<createdAtMs>:<id>` — composite (createdAt, id) so
-   * the secondary key tiebreaks ties from the ms-precision timestamp.
+   * WorkBuddy cursors preserve the imported prefix independently of timestamps.
    */
   listSessionMessages(
     sessionId: string,
@@ -755,15 +752,16 @@ export class AgentSessionMessageService {
     this.assertActiveSession(database, sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
-    const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
-      major: 'desc',
-      tie: 'desc'
-    })
-    const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
+    const ordering = sessionMessageOrdering(database, sessionId, 'desc')
+    const cursor = ordering.fromCursor(options.cursor)
     const [anchor] =
       !options.cursor && options.messageId
         ? database
-            .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+            .select({
+              id: sessionMessagesTable.id,
+              createdAt: sessionMessagesTable.createdAt,
+              provenance: sessionMessagesTable.provenance
+            })
             .from(sessionMessagesTable)
             .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
             .limit(1)
@@ -778,15 +776,9 @@ export class AgentSessionMessageService {
 
     const filters = [eq(sessionMessagesTable.sessionId, sessionId)]
     if (cursor) {
-      filters.push(ordering.where(cursor))
+      filters.push(cursor)
     } else if (anchor) {
-      // Anchor the first page so previews include the matched message and older context.
-      filters.push(
-        or(
-          lt(sessionMessagesTable.createdAt, anchor.createdAt),
-          and(eq(sessionMessagesTable.createdAt, anchor.createdAt), lte(sessionMessagesTable.id, anchor.id))
-        )!
-      )
+      filters.push(ordering.whereRow(anchor, true))
     }
 
     const rows = database
@@ -801,7 +793,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    const nextCursor = hasNext && tail ? ordering.encode(tail) : undefined
 
     return { items, nextCursor }
   }
@@ -821,7 +813,7 @@ export class AgentSessionMessageService {
       )`
         )
       )
-      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .orderBy(...sessionMessageOrdering(application.get('DbService').getDb(), sessionId, 'desc').orderBy)
       .all()
       .map((row) => this.rowToEntity(row))
   }
@@ -1019,7 +1011,7 @@ export class AgentSessionMessageService {
         .select({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
         .from(sessionMessagesTable)
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.runtimeResumeToken)))
-        .orderBy(desc(sessionMessagesTable.createdAt))
+        .orderBy(...sessionMessageOrdering(database, sessionId, 'desc').orderBy)
         .limit(1)
         .all()
 
