@@ -72,6 +72,7 @@ import {
   agentSessionPathIds,
   ensureAgentSessionRootTx,
   getAgentSessionHead,
+  orderAgentSessionPath,
   readAgentSessionAncestry,
   readAgentSessionPath,
   validateAgentSessionParent
@@ -605,18 +606,17 @@ export class AgentSessionMessageService {
     const db = application.get('DbService').getDb()
     const head = messageId ?? getAgentSessionHead(db, sessionId)
     if (!head) return []
-    const ids = readAgentSessionAncestry(db, sessionId, head)
     const rows = db
       .select({
         id: sessionMessagesTable.id,
+        parentId: sessionMessagesTable.parentId,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken,
         nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
       })
       .from(sessionMessagesTable)
       .where(inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)))
       .all()
-    const byId = new Map(rows.map((row) => [row.id, row]))
-    return ids.map((row) => byId.get(row.id)!)
+    return orderAgentSessionPath(rows, head)
   }
 
   getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
