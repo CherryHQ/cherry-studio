@@ -67,13 +67,13 @@ describe('executeCommand', () => {
     await vi.waitFor(() => expect(fs.existsSync(pidFile)).toBe(true))
     await vi.waitFor(() => expect(fs.readFileSync(pidFile, 'utf8')).not.toBe(''))
     const grandchildPid = Number(fs.readFileSync(pidFile, 'utf8'))
-    expect(() => process.kill(grandchildPid, 0)).not.toThrow()
+    expect(isRunning(grandchildPid)).toBe(true)
 
     controller.abort(new Error('cancelled'))
     await rejection
 
     // Rejection means the tree is gone: the grandchild must already be dead, not merely signalled.
-    expect(() => process.kill(grandchildPid, 0)).toThrow()
+    expect(isRunning(grandchildPid)).toBe(false)
     fs.rmSync(pidFile, { force: true })
   })
 
