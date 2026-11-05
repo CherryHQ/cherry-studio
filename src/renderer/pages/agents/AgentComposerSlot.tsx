@@ -42,6 +42,7 @@ interface AgentComposerSlotProps {
   editBusy?: boolean
   cancelEditing: () => void
   resendEditedMessage: AgentChatRuntimeState['sendMessage']
+  steerWhileBusy?: boolean
 }
 
 function AgentComposerSlot({
@@ -64,7 +65,8 @@ function AgentComposerSlot({
   editing,
   editBusy,
   cancelEditing,
-  resendEditedMessage
+  resendEditedMessage,
+  steerWhileBusy
 }: AgentComposerSlotProps) {
   const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
   useEffect(() => {
@@ -113,6 +115,7 @@ function AgentComposerSlot({
           rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
         }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
+        steerWhileBusy={steerWhileBusy}
       />
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />

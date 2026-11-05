@@ -1,7 +1,7 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -26,7 +26,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       <span>{description}</span>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   SegmentedControl: ({
     disabled,
     onValueChange,
@@ -171,10 +171,8 @@ describe('MarkdownFilePreview', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     finish('# Updated content')
     await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Updated content'))
-    expect(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    // Still in source mode: the toggle now offers the way back to the preview.
+    expect(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' })).toBeInTheDocument()
   })
 
   beforeEach(() => {

@@ -8,7 +8,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  ScrollArea
 } from '@cherrystudio/ui'
 
 export interface AssistantPresetPreviewDialogPreset {
@@ -79,7 +80,7 @@ export function AssistantPresetPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
+        <ScrollArea type="auto" className="min-h-0 flex-1" contentProps={{ className: 'space-y-5 px-5 py-4' }}>
           {description && (
             <section>
               <div className="mb-2 text-sm text-muted-foreground">
@@ -97,7 +98,7 @@ export function AssistantPresetPreviewDialog({
               </p>
             </section>
           )}
-        </div>
+        </ScrollArea>
 
         <DialogFooter className="shrink-0 border-t border-border-subtle px-5 py-4">
           <Button variant="outline" disabled={adding} onClick={() => onOpenChange(false)}>

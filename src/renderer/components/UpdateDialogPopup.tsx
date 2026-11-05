@@ -1,4 +1,4 @@
-import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
+import type { UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   Divider,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
@@ -18,7 +18,7 @@ import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 
-import { ReleaseNotes } from './ReleaseNotes'
+import { UpgradeReleaseNotes } from './UpgradeReleaseNotes'
 
 const logger = loggerService.withContext('UpdateDialog')
 
@@ -68,20 +68,9 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
     }
   }
 
-  const releaseNotes = releaseInfo?.releaseNotes
-  const releaseNotesText =
-    typeof releaseNotes === 'string'
-      ? releaseNotes
-      : Array.isArray(releaseNotes)
-        ? releaseNotes
-            .map((note: ReleaseNoteInfo) => note.note)
-            .filter(Boolean)
-            .join('\n\n')
-        : t('update.noReleaseNotes')
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[720px]">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] sm:max-w-[720px]">
         <DialogHeader className="pr-8">
           <DialogTitle>{t('update.title')}</DialogTitle>
           <p className="text-sm text-muted-foreground">
@@ -89,9 +78,9 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
           </p>
         </DialogHeader>
         <Divider className="my-0" />
-        <Scrollbar className="max-h-96 overflow-x-hidden pr-2">
-          <ReleaseNotes content={releaseNotesText} />
-        </Scrollbar>
+        <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-2' }} className="min-h-0 max-h-96">
+          {releaseInfo ? <UpgradeReleaseNotes releaseInfo={releaseInfo} /> : t('update.noReleaseNotes')}
+        </ScrollArea>
         <Divider className="my-0" />
         <DialogFooter>
           <Button variant="outline" onClick={onIgnore} disabled={isInstalling}>
