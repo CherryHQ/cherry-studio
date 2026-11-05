@@ -22,12 +22,15 @@ describe('normalized observation delivery', () => {
   it('closes an unrecoverable control backlog without delivering a fabricated completion', async () => {
     const failures: unknown[] = []
     const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
-    const gate = Promise.withResolvers<void>()
+    let gateResolve!: () => void
+    const gate = new Promise<void>((resolve) => {
+      gateResolve = resolve
+    })
     const events: ObservationPayload[] = []
-    const observation = feed.observeCaptured(
+    const observation = feed.observeCaptured<ObservationPayload>(
       async (event) => {
         events.push(event)
-        if (events.length === 1) await gate.promise
+        if (events.length === 1) await gate
       },
       (event) => ({ value: event, retain: event.type === 'input.changed' })
     )
@@ -38,7 +41,7 @@ describe('normalized observation delivery', () => {
         input: { inputId: runtimeId(String(index)), facts: ['accepted'], outcome: 'completed' }
       })
     expect(events).toHaveLength(1)
-    gate.resolve()
+    gateResolve()
     await observation.drain()
     expect(events.slice(1)).toEqual([
       { type: 'gap', reason: 'overflow' },
@@ -52,14 +55,17 @@ describe('normalized observation delivery', () => {
   it('captures metadata at publication and retains ordered terminal frames through repeated overflow', async () => {
     const failures: unknown[] = []
     const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
-    const blocked = Promise.withResolvers<void>()
+    let blockedResolve!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      blockedResolve = resolve
+    })
     let revision = 0
     let terminal = false
     const received: { event: ObservationPayload; revision: number; terminal: boolean }[] = []
-    const observed = feed.observeCaptured(
+    const observed = feed.observeCaptured<(typeof received)[number]>(
       async (batch) => {
         received.push(batch)
-        if (received.length === 1) await blocked.promise
+        if (received.length === 1) await blocked
       },
       (event, delivery) => ({
         value: { event, revision, terminal: delivery !== 'baseline' && terminal },
@@ -79,7 +85,7 @@ describe('normalized observation delivery', () => {
     for (let index = 0; index < 120; index++)
       feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
     revision = 999
-    blocked.resolve()
+    blockedResolve()
     await observed.drain()
     const endings = received.filter((batch) => batch.terminal)
     expect(endings.map((batch) => batch.revision)).toEqual([120, 240])
