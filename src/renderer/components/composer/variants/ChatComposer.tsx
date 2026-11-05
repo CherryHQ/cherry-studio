@@ -679,7 +679,7 @@ const ChatComposerInner = ({
     })
     if (initialDraft.mentionedModelIds.length > 0 && restoredModels.length === 0) {
       restoreMentionedModelSelector()
-    } else if (initialDraft.mentionedModelIds.length > 0) {
+    } else if (initialDraft.mentionedModelIds.length > 0 || initialDraft.modelMultiSelectMode) {
       restoreMentionedModelDraft(restoredModels, initialDraft.modelMultiSelectMode)
     }
     setIsMentionedModelDraftHydrated(true)
@@ -1815,7 +1815,11 @@ const ChatComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+      <ComposerToolRuntimeHost
+        scope={scope}
+        assistant={displayAssistant}
+        model={effectiveSubmittedModel ?? runtimeModel}
+      />
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface

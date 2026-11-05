@@ -65,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
+  toolRuntimeModel: undefined as Model | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
@@ -281,7 +282,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     mocks.derivedToolState = { couldAddImageFile, extensions }
     return <>{children}</>
   },
-  ComposerToolRuntimeHost: () => null,
+  ComposerToolRuntimeHost: ({ model }: { model?: Model }) => {
+    mocks.toolRuntimeModel = model
+    return null
+  },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
   ComposerToolFooterActionsSync: () => null,
@@ -3871,6 +3875,49 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
     await mocks.surfaceProps?.onSendDraft({ text: 'saved', tokens: [] })
     expect(onSend).toHaveBeenCalledWith('saved', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
+  it('restores an explicitly empty multi-select draft without history seeding', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'saved',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [],
+            modelMultiSelectMode: true
+          }
+        : undefined
+    )
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+  })
+
+  it('passes the restored effective submitted model to the tool runtime', async () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    expect(mocks.toolRuntimeModel?.id).toBe(modelB.id)
+  })
+
+  it('keeps an ordinary empty draft available for history seeding', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'saved',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [],
+            modelMultiSelectMode: false
+          }
+        : undefined
+    )
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'false')
   })
 
   it('keeps the selected model in the next send after the assistant model refresh completes', async () => {
