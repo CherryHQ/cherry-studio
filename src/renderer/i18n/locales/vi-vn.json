@@ -1553,6 +1553,8 @@
   "error.originalError": "Lỗi Gốc",
   "error.originalMessage": "Tin nhắn gốc",
   "error.parameter": "Tham số",
+  "error.pi_shell_configuration_invalid": "Cấu hình shell của Pi không hợp lệ",
+  "error.pi_shell_configuration_invalid_detail": "shellPath \"{{shellPath}}\" được cấu hình trong \"{{settingsPath}}\" không khả dụng hoặc không phải là bash.exe. Chỉ chấp nhận bash.exe của Git Bash. Hãy sửa shellPath để trỏ đến bash.exe hiện có của Git Bash hoặc xóa trường shellPath để sử dụng tính năng tự động tìm kiếm, rồi thử lại. Nếu chưa cài đặt Git Bash, hãy cài đặt Git for Windows trước.",
   "error.prompt": "Lời nhắc",
   "error.provider": "Nhà cung cấp",
   "error.providerId": "ID nhà cung cấp",

@@ -140,13 +140,10 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
-  // An app-owned i18nKey is the throwing code's own display text — prefer it over a
-  // pattern-matched category heading, which can name the wrong subsystem entirely (an
-  // OCR-fallback failure must not present as a chat-provider auth error). Keys that
-  // interpolate <provider> still go through the classification branch: plain `t()`
-  // would render the raw tags, and the provider branch needs the <Trans> link form.
+  // Prefer app-owned text unless the error itself names a provider and needs the <Trans> branch.
+  // A producing model's provider does not make an app-owned failure a provider failure.
   const localizedErrorMessage = useMemo(() => {
-    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (hasAppOwnedI18nKey && !errorProviderId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
       if (!modelId) return t('code.select_provider_model')
@@ -155,7 +152,7 @@ const MessageErrorInfo: React.FC<{
       })
     }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
-  }, [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, localModelFailure, providerId, t])
+  }, [hasAppOwnedI18nKey, appOwnedErrorKey, errorProviderId, classification.i18nKey, localModelFailure, providerId, t])
 
   useEffect(() => {
     if (

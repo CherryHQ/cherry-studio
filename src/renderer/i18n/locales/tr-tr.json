@@ -1553,6 +1553,8 @@
   "error.originalError": "Özgün Hata",
   "error.originalMessage": "Özgün Mesaj",
   "error.parameter": "Parametre",
+  "error.pi_shell_configuration_invalid": "Pi kabuk yapılandırması geçersiz",
+  "error.pi_shell_configuration_invalid_detail": "\"{{settingsPath}}\" dosyasında yapılandırılan shellPath \"{{shellPath}}\" kullanılamıyor veya bash.exe değil. Yalnızca Git Bash uygulamasının bash.exe dosyası kabul edilir. shellPath değerini mevcut bir Git Bash bash.exe dosyasını gösterecek şekilde düzenleyin veya otomatik keşfi kullanmak için shellPath alanını kaldırın, ardından yeniden deneyin. Git Bash yüklü değilse önce Git for Windows uygulamasını yükleyin.",
   "error.prompt": "İstem",
   "error.provider": "Sağlayıcı",
   "error.providerId": "Sağlayıcı Kimliği",

@@ -1553,6 +1553,8 @@
   "error.originalError": "元のエラー",
   "error.originalMessage": "元のメッセージ",
   "error.parameter": "パラメータ",
+  "error.pi_shell_configuration_invalid": "Pi のシェル設定が無効です",
+  "error.pi_shell_configuration_invalid_detail": "\"{{settingsPath}}\" に設定されている shellPath \"{{shellPath}}\" は利用できないか、bash.exe ではありません。Git Bash の bash.exe のみ使用できます。shellPath を既存の Git Bash の bash.exe を指すように変更するか、shellPath フィールドを削除して自動検出を使用し、再試行してください。Git Bash がインストールされていない場合は、先に Git for Windows をインストールしてください。",
   "error.prompt": "プロンプトを表示する",
   "error.provider": "プロバイダー",
   "error.providerId": "プロバイダーID",

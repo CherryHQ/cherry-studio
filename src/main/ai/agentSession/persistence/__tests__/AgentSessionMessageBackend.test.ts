@@ -1,9 +1,16 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { resolvePiShellPath } from '@main/ai/runtime/pi/piShell'
+import { serializeError } from '@main/ai/utils/serializeError'
 
 import { PersistenceListener, TerminalPersistenceError } from '../../../streamManager/listeners/PersistenceListener'
 import { AgentSessionMessageBackend } from '../AgentSessionMessageBackend'
@@ -29,6 +36,51 @@ describe('AgentSessionMessageBackend', () => {
     })
   })
   afterEach(() => vi.restoreAllMocks())
+
+  it('persists the real Pi shell rejection with its localized recovery fields', async () => {
+    const fixtureDir = mkdtempSync(path.join(tmpdir(), 'pi-shell-persistence-'))
+    const settingsPath = path.join(fixtureDir, 'settings.json')
+    const shellPath = path.join(fixtureDir, 'missing', 'bash.exe')
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    try {
+      writeFileSync(settingsPath, JSON.stringify({ shellPath }))
+      vi.spyOn(application, 'getPath').mockReturnValue(settingsPath)
+      let error: unknown
+      Object.defineProperty(process, 'platform', { ...descriptor, value: 'win32' })
+      try {
+        resolvePiShellPath()
+      } catch (caught) {
+        error = caught
+      } finally {
+        Object.defineProperty(process, 'platform', descriptor)
+      }
+      expect(error).toBeInstanceOf(Error)
+      const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+      const listener = new PersistenceListener({
+        topicId: 'agent-session:session-1',
+        backend,
+        onPersistFailed: vi.fn()
+      })
+      await listener.onError({ status: 'error', anchorMessageId: assistantMessageId, error: serializeError(error) })
+
+      const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+      expect(saved.status).toBe('error')
+      expect(saved.data.parts).toEqual([
+        expect.objectContaining({
+          type: 'data-error',
+          data: expect.objectContaining({
+            name: 'Error',
+            message: `Configured Pi shellPath is unavailable or is not bash.exe: ${shellPath}`,
+            i18nKey: 'pi_shell_configuration_invalid',
+            detailI18nKey: 'pi_shell_configuration_invalid_detail',
+            detailI18nValues: { shellPath, settingsPath }
+          })
+        })
+      ])
+    } finally {
+      rmSync(fixtureDir, { recursive: true, force: true })
+    }
+  })
 
   it('terminalizes its placeholder when the persistence listener catches a write failure', async () => {
     vi.spyOn(agentSessionMessageService, 'saveMessage').mockImplementationOnce(() => {

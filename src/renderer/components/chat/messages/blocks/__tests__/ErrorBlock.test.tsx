@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -11,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
   language: 'en',
-  translations: new Map<string, string>()
+  translations: new Map<string, string>(),
+  translate: undefined as ((key: string, options?: Record<string, string>) => string) | undefined
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
@@ -56,6 +59,7 @@ vi.mock('react-i18next', () => ({
   ),
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
+      if (mocks.translate) return mocks.translate(key, options)
       let translation = mocks.translations.get(key) ?? key
       if (options) {
         for (const [k, v] of Object.entries(options)) {
@@ -96,6 +100,7 @@ describe('ErrorBlock', () => {
     mocks.i18nKeys.clear()
     mocks.language = 'en'
     mocks.translations.clear()
+    mocks.translate = undefined
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
@@ -174,9 +179,65 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(screen.getByText(`error.${i18nKey}`, { selector: '.font-medium' })).toBeInTheDocument()
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
+
+  // The card has no semantic heading; scope the query to its title so description text cannot mask a broken headline.
+  it.each([
+    { language: 'en-US', catalog: enUS, hasProvider: true },
+    { language: 'en-US', catalog: enUS, hasProvider: false },
+    { language: 'zh-CN', catalog: zhCN, hasProvider: true },
+    { language: 'zh-CN', catalog: zhCN, hasProvider: false }
+  ])(
+    'shows Pi recovery in $language with producing provider present=$hasProvider',
+    async ({ language, catalog, hasProvider }) => {
+      const i18n = createInstance()
+      await i18n.init({
+        lng: language,
+        resources: { [language]: { translation: catalog } },
+        keySeparator: false,
+        interpolation: { escapeValue: false }
+      })
+      mocks.translate = (key, options) => i18n.t(key, options)
+      mocks.i18nKeys = new Set(Object.keys(catalog))
+      mocks.language = language
+      const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+      const openErrorDetail = vi.fn()
+      mocks.actions = { diagnoseMessageError, openErrorDetail }
+      const shellPath = 'C:\\Users\\测试 用户\\<tools>& Git\\powershell.exe'
+      const settingsPath = 'C:\\Users\\测试 用户\\.pi\\agent\\settings.json'
+      const error = {
+        name: 'Error',
+        message: `Configured Pi shellPath is unavailable or is not bash.exe: ${shellPath}`,
+        stack: null,
+        i18nKey: 'pi_shell_configuration_invalid',
+        detailI18nKey: 'pi_shell_configuration_invalid_detail',
+        detailI18nValues: { shellPath, settingsPath }
+      }
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={error}
+          message={hasProvider ? message : { ...message, model: undefined }}
+        />
+      )
+
+      const headline = catalog['error.pi_shell_configuration_invalid']
+      const header = screen.getByText(headline, { selector: '.font-medium', exact: true })
+      expect(header).toBeInTheDocument()
+      const detail = screen.getByText((text) => text.includes(shellPath) && text.includes(settingsPath))
+      expect(detail).toHaveTextContent(
+        `${headline} ${i18n.t('error.pi_shell_configuration_invalid_detail', { shellPath, settingsPath })}`
+      )
+      expect(detail.textContent).not.toMatch(/{{shellPath}}|{{settingsPath}}|&lt;|&gt;|&amp;/)
+      expect(screen.queryByText(catalog['error.diagnosis.unknown'])).not.toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.unknown')).not.toBeInTheDocument()
+      expect(diagnoseMessageError).not.toHaveBeenCalled()
+      await userEvent.setup().click(header)
+      expect(openErrorDetail).toHaveBeenCalledWith(expect.objectContaining({ error, localizedErrorMessage: headline }))
+    }
+  )
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
     render(
@@ -186,6 +247,39 @@ required service tier.`
     expect(screen.queryByLabelText('close')).toBeNull()
     expect(screen.queryByText('common.detail')).toBeNull()
   })
+
+  it.each(['ocr_detail_empty', 'ocr_detail_failed'])(
+    'keeps app-owned OCR guidance for %s on a model-bearing message',
+    (detailI18nKey) => {
+      mocks.translations = new Map(Object.entries(enUS))
+      mocks.i18nKeys = new Set(Object.keys(enUS))
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'NonVisionImageOcrError',
+            message: 'Unauthorized',
+            stack: null,
+            i18nKey: 'image_unreadable_for_non_vision_model',
+            detailI18nKey,
+            detailI18nValues: { reason: 'Unauthorized' },
+            providerErrorCategory: 'ocr'
+          }}
+          message={message}
+        />
+      )
+      expect(
+        screen.getByText(enUS['error.image_unreadable_for_non_vision_model'], { selector: '.font-medium' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/Check or switch the OCR processor|OCR ran but found no readable text/)
+      ).toBeInTheDocument()
+      if (detailI18nKey === 'ocr_detail_failed') {
+        expect(screen.getByText(/The configured OCR processor failed: Unauthorized/)).toBeInTheDocument()
+      }
+      expect(screen.queryByText(enUS['error.diagnosis.auth'])).not.toBeInTheDocument()
+    }
+  )
 
   it('opens provider settings from the provider name without opening the error detail', () => {
     const navigateToRoute = vi.fn()

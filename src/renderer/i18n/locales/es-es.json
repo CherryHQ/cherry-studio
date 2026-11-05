@@ -1553,6 +1553,8 @@
   "error.originalError": "Error original",
   "error.originalMessage": "mensaje original",
   "error.parameter": "parámetro",
+  "error.pi_shell_configuration_invalid": "La configuración del shell de Pi no es válida",
+  "error.pi_shell_configuration_invalid_detail": "El shellPath \"{{shellPath}}\" configurado en \"{{settingsPath}}\" no está disponible o no es bash.exe. Solo se acepta un bash.exe de Git Bash. Modifique shellPath para que apunte a un bash.exe de Git Bash existente, o elimine el campo shellPath para usar la detección automática y vuelva a intentarlo. Si Git Bash no está instalado, instale primero Git for Windows.",
   "error.prompt": "prompt",
   "error.provider": "proveedor",
   "error.providerId": "ID del proveedor",
