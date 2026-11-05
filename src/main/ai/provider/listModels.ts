@@ -290,14 +290,21 @@ function readOllamaReasoning(thinking: z.infer<typeof OllamaShowResponseSchema>[
       thinking.values.flatMap((value) => {
         if (value === false) return [REASONING_EFFORT.NONE]
         if (value === true) return [REASONING_EFFORT.AUTO]
-        return efforts.filter((effort) => effort === value && effort !== REASONING_EFFORT.NONE && effort !== REASONING_EFFORT.AUTO)
+        return efforts.filter(
+          (effort) => effort === value && effort !== REASONING_EFFORT.NONE && effort !== REASONING_EFFORT.AUTO
+        )
       })
     )
   )
   if (!thinking.values.some((value) => value !== false)) {
     return { controls: [], selectableEfforts: [] }
   }
-  const nativeDefault = thinking.default === false ? REASONING_EFFORT.NONE : thinking.default === true ? REASONING_EFFORT.AUTO : thinking.default
+  const nativeDefault =
+    thinking.default === false
+      ? REASONING_EFFORT.NONE
+      : thinking.default === true
+        ? REASONING_EFFORT.AUTO
+        : thinking.default
   const defaultEffort = selectableEfforts.find((effort) => effort === nativeDefault)
   return {
     controls: selectableEfforts.length ? [{ kind: 'effort', values: selectableEfforts }] : [],

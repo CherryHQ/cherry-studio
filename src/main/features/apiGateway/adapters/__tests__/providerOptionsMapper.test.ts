@@ -512,9 +512,11 @@ describe('ollama think guard (#18695)', () => {
     expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, undefined, 'high')).toEqual({
       ollama: { think: true }
     })
-    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, { type: 'disabled' })).toEqual({
-      ollama: { think: false }
-    })
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, { type: 'disabled' })).toEqual(
+      {
+        ollama: { think: false }
+      }
+    )
     expect(
       mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeBooleanModel, {
         type: 'enabled',

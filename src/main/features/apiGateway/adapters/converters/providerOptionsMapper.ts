@@ -118,10 +118,8 @@ function buildOllamaThinkingOptions(
     if (allowsBoolean) return buildProviderOptions(context, 'auto', maxTokens)
     // Levels-only model: `think: true` may not be accepted, so fall back to the reported default
     // level; without one, omit `think` and let Ollama apply its default.
-    const defaultTier = reasoning?.defaultEffort
-    return allowsLevels && defaultTier && tiers.includes(defaultTier)
-      ? buildProviderOptions(context, defaultTier, maxTokens)
-      : undefined
+    const advertisedDefault = tiers.find((tier) => tier === reasoning?.defaultEffort)
+    return allowsLevels && advertisedDefault ? buildProviderOptions(context, advertisedDefault, maxTokens) : undefined
   }
   // A requested named level is clamped onto the advertised tiers by the reasoning serializer.
   if (allowsLevels) return buildProviderOptions(context, effort, maxTokens)

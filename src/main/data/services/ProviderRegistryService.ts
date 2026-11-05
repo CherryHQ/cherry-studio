@@ -1140,7 +1140,13 @@ class ProviderRegistryService {
     return {
       presetModel,
       registryOverride,
-      reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId, endpointType),
+      reasoningProfile: this.resolveProfileForModelData(
+        providerContext,
+        presetModel,
+        registryOverride,
+        modelId,
+        endpointType
+      ),
       serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride, endpointType)
     }
   }

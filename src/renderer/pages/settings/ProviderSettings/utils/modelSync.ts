@@ -187,10 +187,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(
-  providerId: string
-): Promise<
-  ListedModels<Model> & { discoveredReasoning?: Array<{ id: string; reasoning: ReasoningConfig; capabilities: string[] }> }
+export async function fetchResolvedProviderModels(providerId: string): Promise<
+  ListedModels<Model> & {
+    discoveredReasoning?: Array<{ id: string; reasoning: ReasoningConfig; capabilities: string[] }>
+  }
 > {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
