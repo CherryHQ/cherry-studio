@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto'
+import fs from 'node:fs'
 
+import { application } from '@application'
 import {
   connectionMethods,
   pairingMethods,
   remoteAuthorizationSchema,
   remoteLimits,
   uploadTransferLimits,
+  type DesktopProfile,
   type UploadChunk,
   type DirectEndpoint,
   type RemoteAuthorization,
@@ -17,6 +20,7 @@ import { RemoteRpcError, RemoteRpcServer, type SecureChannel } from '@cherrystud
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { loggerService } from '@logger'
 import { getProviderExportPayload } from '@main/features/apiGateway/providerExport'
+import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'
 
 import { registerAgentMethods } from './agentHandlers'
 import type { RemoteAgentHub } from './agentJournal'
@@ -27,6 +31,36 @@ import { type RemoteTokens, sameAuthorization } from './RemoteTokens'
 const logger = loggerService.withContext('RemoteConnection')
 const connectionSchemas = connectionMethods(remoteAuthorizationSchema)
 const pairingSchemas = pairingMethods(remoteAuthorizationSchema)
+
+// Resolve local desktop user profile from PreferenceService within 64 KiB wire budget.
+function resolveDesktopProfile(): DesktopProfile | undefined {
+  try {
+    const preferences = application.get('PreferenceService')
+    const rawName = preferences.get('app.user.name')
+    const rawAvatar = preferences.get('app.user.avatar')
+
+    const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim().slice(0, 256) : undefined
+    let avatar: string | undefined
+    if (typeof rawAvatar === 'string' && rawAvatar.length > 0) {
+      if (rawAvatar.startsWith(STORED_FILE_REF_PREFIX)) {
+        const fileId = rawAvatar.slice(STORED_FILE_REF_PREFIX.length)
+        const physicalPath = application.get('FileManager').getPhysicalPath(fileId)
+        if (physicalPath && fs.existsSync(physicalPath)) {
+          const buffer = fs.readFileSync(physicalPath)
+          if (buffer.length <= 48_000) {
+            avatar = `data:image/webp;base64,${buffer.toString('base64')}`
+          }
+        }
+      } else if (rawAvatar.length <= 65_536) {
+        avatar = rawAvatar
+      }
+    }
+    if (!name && !avatar) return undefined
+    return { ...(name ? { name } : {}), ...(avatar ? { avatar } : {}) }
+  } catch {
+    return undefined
+  }
+}
 
 export class RemoteConnection {
   readonly rpc = new RemoteRpcServer<void>(() => logger.warn('Remote RPC handler failed'))
@@ -71,6 +105,10 @@ export class RemoteConnection {
         agentUploadChecksum: 'sha256' as const,
         agentAttachmentSelections: true,
         connectionEndpointsVersion: 1,
+        agentSessionRenameVersion: 1,
+        agentModelSelectionVersion: 1,
+        desktopProfileVersion: 1,
+        agentFilesVersion: 1,
         limits: {
           ...remoteLimits,
           agentUploadFileBytes: agentUploadLimits.fileBytes,
@@ -89,7 +127,8 @@ export class RemoteConnection {
       if (accessToken) tokens.validate(accessToken, deviceId, channel.remoteIdentity, authorization)
       const result = tokens.issue(deviceId, channel.remoteIdentity, authorization)
       this.authentication = { deviceId, authorization, expiresAt: Date.parse(result.expiresAt) }
-      return { ...result, deviceId }
+      const desktopProfile = resolveDesktopProfile()
+      return { ...result, deviceId, ...(desktopProfile ? { desktopProfile } : {}) }
     }
     this.rpc.addMethod(
       'connection.authenticate',

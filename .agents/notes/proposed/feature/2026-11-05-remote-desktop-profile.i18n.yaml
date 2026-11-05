@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-05-remote-desktop-profile.md
+2026-11-05-remote-desktop-profile.md: deb5a463ca05b1955569d425d1a97ba8971f2e96
+2026-11-05-remote-desktop-profile.zh.md: 0bd9c5bd5f23dd86113119e759c55a64c4b4e554

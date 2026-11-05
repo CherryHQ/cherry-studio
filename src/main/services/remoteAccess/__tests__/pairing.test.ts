@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { describe, expect, it } from 'vitest'
 
 import { type SecureChannel } from '@cherrystudio/remote-transport'
@@ -173,5 +174,89 @@ describe('pairing-time capability authorization', () => {
     pairing.create()
     expect(pairing.get(claim.claimId, 'phone')).toEqual({ status: 'expired' })
     expect(apiGatewayPairedDeviceService.list()).toEqual([])
+  })
+
+  it('publishes desktopProfileVersion and agentFilesVersion in hello, and populates desktopProfile on auth and approved pairing', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Desktop User')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.avatar', '🦊')
+
+    const pairing = new RemotePairing()
+    const invitation = pairing.create()
+    const tokens = new RemoteTokens()
+    const connection = new RemoteConnection(
+      channel('phone'),
+      pairing,
+      tokens,
+      () => {},
+      new RemoteAgentHub(),
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+    )
+
+    // 1. Hello advertises desktopProfileVersion: 1 and agentFilesVersion: 1
+    const hello = await request(connection, 'connection.hello', { protocolVersions: [1] })
+    expect(hello).toMatchObject({
+      result: {
+        desktopProfileVersion: 1,
+        agentFilesVersion: 1
+      }
+    })
+
+    // 2. Claim and approve pairing -> pairing.get returns desktopProfile
+    await request(connection, 'pairing.claim', {
+      invitationId: invitation.invitationId,
+      invitationSecret: invitation.invitationSecret,
+      deviceName: 'Phone',
+      platform: 'ios',
+      capabilities: ['agent']
+    })
+    const pending = pairing.pending()[0]
+    pairing.decide(pending.claimId, ['agent'])
+
+    const approved = await request(connection, 'pairing.get', { claimId: pending.claimId })
+    expect(approved).toMatchObject({
+      result: {
+        status: 'approved',
+        desktopProfile: {
+          name: 'Desktop User',
+          avatar: '🦊'
+        }
+      }
+    })
+
+    // 3. New connection authenticating directly returns desktopProfile
+    const directConn = new RemoteConnection(
+      channel('phone'),
+      new RemotePairing(),
+      tokens,
+      () => {},
+      new RemoteAgentHub(),
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+    )
+    await request(directConn, 'connection.hello', { protocolVersions: [1] })
+    const deviceId = (approved as { result: { deviceId: string } }).result.deviceId
+    const authResult = await request(directConn, 'connection.authenticate', { deviceId })
+    expect(authResult).toMatchObject({
+      result: {
+        deviceId,
+        desktopProfile: {
+          name: 'Desktop User',
+          avatar: '🦊'
+        }
+      }
+    })
+
+    // 4. connection.refresh returns desktopProfile
+    const refreshResult = await request(directConn, 'connection.refresh', {})
+    expect(refreshResult).toMatchObject({
+      result: {
+        desktopProfile: {
+          name: 'Desktop User',
+          avatar: '🦊'
+        }
+      }
+    })
+
+    directConn.dispose()
+    connection.dispose()
   })
 })
