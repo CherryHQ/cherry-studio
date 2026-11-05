@@ -1,5 +1,5 @@
 import type { ProviderModelOverride } from '../schemas/provider-models'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 
 /**
  * AI Stupid Level Smart Router: OpenAI-compatible, with the user's own provider keys. Model ids are
@@ -41,8 +41,8 @@ const ROUTING_MODES: Array<[id: string, name: string]> = [
   ['auto', 'Auto (account strategy)']
 ]
 
-// apiModelId is always the exact router id: the catalog normalizes `auto-reasoning` to `auto` and
-// `auto-value-reasoning` to `auto-value`, and an exact API id is what lookups match first.
+// Routing modes spell out their catalog key: derived from the router id, `auto-reasoning` would collapse
+// into `auto` and `auto-value-reasoning` into `auto-value`.
 const routingModeOverrides = ROUTING_MODES.map(([modelId, name]) => ({
   modelId,
   apiModelId: modelId,
@@ -54,43 +54,42 @@ const routingModeOverrides = ROUTING_MODES.map(([modelId, name]) => ({
   // The smallest context and output limit among the models the router can choose.
   limits: { contextWindow: 262_144, maxOutputTokens: 64_000 },
   reason: 'Routing mode owned by AI Stupid Level; routes only among tool-calling models'
-})) satisfies Array<Partial<ProviderModelOverride>>
+})) satisfies ProviderModelOffer[]
 
-/** Models the router can pin (GET /v1/models, 2026-10-19), as [catalog id, router id]. */
-const PINNABLE_MODELS: Array<[modelId: string, apiModelId: string]> = [
-  ['claude-opus-5-5', 'claude-opus-5-5'],
-  ['claude-sonnet-5-5', 'claude-sonnet-5-5'],
-  ['claude-fable-5-1', 'claude-fable-5-1'],
-  ['claude-opus-5', 'claude-opus-5'],
-  ['claude-sonnet-5', 'claude-sonnet-5'],
-  ['claude-opus-4-8', 'claude-opus-4-8'],
-  ['claude-opus-4-7', 'claude-opus-4-7'],
-  ['claude-opus-4-6', 'claude-opus-4-6'],
-  ['claude-sonnet-4-6', 'claude-sonnet-4-6'],
-  ['gpt-6-1-sol', 'gpt-6.1-sol'],
-  ['gpt-6-sol', 'gpt-6-sol'],
-  ['gpt-6-astra', 'gpt-6-astra'],
-  ['gpt-6-luna', 'gpt-6-luna'],
-  ['gpt-5-6-sol', 'gpt-5.6-sol'],
-  ['gpt-5-6-terra', 'gpt-5.6-terra'],
-  ['gpt-5-6-luna', 'gpt-5.6-luna'],
-  ['gpt-5-5', 'gpt-5.5'],
-  ['gemini-3-8-flash', 'gemini-3.8-flash'],
-  ['gemini-3-5-flash-lite', 'gemini-3.5-flash-lite'],
-  ['deepseek-v4-pro', 'deepseek-v4-pro'],
-  ['deepseek-v4-flash', 'deepseek-v4-flash'],
-  ['kimi-k3', 'kimi-k3'],
-  ['kimi-k2-7-code', 'kimi-k2.7-code'],
-  ['glm-5-3', 'glm-5.3']
+/** Models the router can pin (GET /v1/models, 2026-10-19), by router id; the catalog key derives from it. */
+const PINNABLE_MODELS = [
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-fable-5-1',
+  'claude-opus-5',
+  'claude-sonnet-5',
+  'claude-opus-4-8',
+  'claude-opus-4-7',
+  'claude-opus-4-6',
+  'claude-sonnet-4-6',
+  'gpt-6.1-sol',
+  'gpt-6-sol',
+  'gpt-6-astra',
+  'gpt-6-luna',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+  'gpt-5.5',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'kimi-k3',
+  'kimi-k2.7-code',
+  'glm-5.3'
 ]
 
-const pinnedModelOverrides = PINNABLE_MODELS.map(([modelId, apiModelId]) => ({
-  modelId,
-  ...(apiModelId !== modelId ? { apiModelId } : {}),
+const pinnedModelOverrides = PINNABLE_MODELS.map((apiModelId) => ({
+  apiModelId,
   capabilities: { remove: NON_TEXT_CAPABILITIES },
   inputModalities: ['text'],
   reason: TEXT_ONLY_REASON
-})) satisfies Array<Partial<ProviderModelOverride>>
+})) satisfies ProviderModelOffer[]
 
 export default defineProvider({
   id: 'aistupidlevel',
