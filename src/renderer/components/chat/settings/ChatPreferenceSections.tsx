@@ -417,9 +417,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingDivider />
           <SettingRow id="setting-appearance-message-navigation" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
-            <Select
-              value={messageNavigation === 'buttons' ? 'none' : messageNavigation}
-              onValueChange={setMessageNavigation}>
+            <Select value={messageNavigation} onValueChange={setMessageNavigation}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
