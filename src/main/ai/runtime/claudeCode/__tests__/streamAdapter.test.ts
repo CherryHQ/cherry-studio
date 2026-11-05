@@ -398,6 +398,44 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    it('preserves system-reminder tags in literal feedback through emission, accumulation and persistence', async () => {
+      const { adapter, parts } = createAdapter()
+      const banner =
+        'UserPromptSubmit operation blocked by hook:\n<system-reminder>Policy denied: secret detected</system-reminder>\n\nOriginal prompt: hello there'
+      adapter.handleMessage({ ...informational, content: banner } as any)
+
+      const finalMessage = await accumulateMessage(parts)
+      const persisted: CherryUIMessage[] = []
+      const listener = new PersistenceListener({
+        topicId: 'agent-session:session-1',
+        backend: {
+          kind: 'test',
+          persistAssistant: async ({ finalMessage }) => {
+            if (finalMessage) persisted.push(finalMessage)
+          }
+        },
+        onPersistFailed: vi.fn()
+      })
+      await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(banner)
+      expect(parts[0]).toEqual({
+        type: 'text-start',
+        id: expect.any(String),
+        providerMetadata: { cherry: { plainText: true } }
+      })
+      expect(finalMessage.parts).toEqual([
+        { type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
+      expect(persisted.map((message) => message.parts)).toEqual([
+        [{ type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }]
+      ])
+    })
+
     it('keeps the next ordinary streamed answer unchanged after a blocked turn', async () => {
       const { adapter, parts } = createAdapter()
       adapter.handleMessage(informational as any)

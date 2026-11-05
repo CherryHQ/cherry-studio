@@ -559,20 +559,33 @@ export class ClaudeCodeStreamAdapter {
   ): StreamContext['sink'] {
     let destination = sink
     const textFilters = new Map<string, SystemReminderTextFilter>()
+    const plainTextPartIds = new Set<string>()
     return {
       redirect: (nextSink) => {
         destination = nextSink
       },
       enqueue: (chunk) => {
         if (chunk.type === 'text-start') {
-          textFilters.set(chunk.id, new SystemReminderTextFilter(reminderBodies))
+          if (chunk.providerMetadata?.cherry?.plainText === true) {
+            plainTextPartIds.add(chunk.id)
+          } else {
+            textFilters.set(chunk.id, new SystemReminderTextFilter(reminderBodies))
+          }
         } else if (chunk.type === 'text-delta') {
+          if (plainTextPartIds.has(chunk.id)) {
+            destination.enqueue(chunk)
+            return
+          }
           const filter = textFilters.get(chunk.id) ?? new SystemReminderTextFilter(reminderBodies)
           textFilters.set(chunk.id, filter)
           const delta = filter.write(chunk.delta)
           if (delta) destination.enqueue({ ...chunk, delta })
           return
         } else if (chunk.type === 'text-end') {
+          if (plainTextPartIds.delete(chunk.id)) {
+            destination.enqueue(chunk)
+            return
+          }
           const filter = textFilters.get(chunk.id)
           if (filter) {
             const delta = filter.flush()
