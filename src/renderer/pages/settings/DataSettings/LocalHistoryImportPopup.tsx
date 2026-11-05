@@ -97,6 +97,9 @@ function blockingProblemCodes(item: ImportPreviewItem) {
 }
 
 function problem(code: string) {
+  if (code === 'unsupported_cloud_history' || code === 'unsupported_missing_history')
+    return 'history_import.problems.local_history'
+  if (code === 'unsupported_readonly_wal') return 'history_import.problems.close_source'
   if (code.includes('limit')) return 'history_import.problems.limit'
   if (code.includes('time') || code === 'clock_skew' || code === 'inferred_time') return 'history_import.problems.time'
   if (code.includes('directory')) return 'history_import.problems.directory'
