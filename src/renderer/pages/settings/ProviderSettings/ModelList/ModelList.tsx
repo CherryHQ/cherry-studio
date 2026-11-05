@@ -1,8 +1,10 @@
 import React, { memo } from 'react'
 
 import { ButtonGroup } from '@cherrystudio/ui'
+import { useProviderById } from '@renderer/hooks/useProvider'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { canRunApiModelCheck } from '../utils/healthCheck'
 import { useModelListHealthRun } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
 import ProviderModelCheck from './ProviderModelCheck'
@@ -29,6 +31,8 @@ function ModelListContent({
   onContinueApiSetup?: () => void
 }) {
   const { isModelChecking, canSelectApiKey } = useModelListHealthRun()
+  const { provider } = useProviderById(providerId)
+  const showToolbarModelCheck = !canSelectApiKey && canRunApiModelCheck(provider)
   const disabled = isModelChecking
 
   return (
@@ -40,7 +44,7 @@ function ModelListContent({
         onContinueApiSetup={onContinueApiSetup}
         actions={({ disabled: toolbarDisabled }) => (
           <>
-            {!canSelectApiKey ? <ProviderModelCheck /> : null}
+            {showToolbarModelCheck ? <ProviderModelCheck /> : null}
             <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
               <ProviderModelPullReconcile
                 providerId={providerId}
