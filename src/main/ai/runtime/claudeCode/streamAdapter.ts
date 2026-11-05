@@ -139,6 +139,10 @@ type StreamContext = {
   textBlocksByIndex: Map<number, string>
   reasoningBlocksByIndex: Map<number, string>
   currentReasoningPartId: string | undefined
+  /** Thinking text accumulated for the block currently streaming via partial events. */
+  currentBlockThinkingText: string | undefined
+  /** Text of the most recently stream-completed thinking block, awaiting its complete-frame echo. */
+  lastStreamedThinkingText: string | undefined
   textPartId: string | undefined
   accumulatedText: string
   streamedTextLength: number
@@ -542,6 +546,8 @@ export class ClaudeCodeStreamAdapter {
       textBlocksByIndex: new Map(),
       reasoningBlocksByIndex: new Map(),
       currentReasoningPartId: undefined,
+      currentBlockThinkingText: undefined,
+      lastStreamedThinkingText: undefined,
       textPartId: undefined,
       accumulatedText: '',
       streamedTextLength: 0,
@@ -904,6 +910,7 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = generateId()
     ctx.reasoningBlocksByIndex.set(event.index, reasoningPartId)
     ctx.currentReasoningPartId = reasoningPartId
+    ctx.currentBlockThinkingText = ''
     ctx.sink.enqueue({
       type: 'reasoning-start',
       id: reasoningPartId,
@@ -975,6 +982,7 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = ctx.reasoningBlocksByIndex.get(blockIndex) ?? ctx.currentReasoningPartId
     if (reasoningPartId) {
       ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: thinking })
+      ctx.currentBlockThinkingText = (ctx.currentBlockThinkingText ?? '') + thinking
     }
   }
 
@@ -1001,6 +1009,10 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
       ctx.reasoningBlocksByIndex.delete(blockIndex)
       if (ctx.currentReasoningPartId === reasoningPartId) ctx.currentReasoningPartId = undefined
+      // The block's complete assistant frame follows; remember what was already streamed so the
+      // echo can be deduplicated instead of emitted twice.
+      ctx.lastStreamedThinkingText = ctx.currentBlockThinkingText
+      ctx.currentBlockThinkingText = undefined
     }
   }
 
@@ -1054,11 +1066,39 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
+    // Partial events carry thinking as deltas; with them disabled the complete blocks in the
+    // assistant message are the only place reasoning reaches the host.
+    for (const block of content) {
+      if (block.type === 'thinking') this.handleAssistantThinking(block.thinking, sdkParentToolUseId, ctx)
+    }
+
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
     if (text) {
       this.handleAssistantText(text, sdkParentToolUseId, ctx)
     }
+  }
+
+  private handleAssistantThinking(thinking: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+    if (!thinking) return
+
+    // The complete frame echoes a block that already streamed through partial events: consume the
+    // recorded echo once instead of emitting the reasoning twice. A mismatch falls through and the
+    // block is emitted whole — preserving unstreamed reasoning beats deduplicating on suspicion.
+    if (ctx.lastStreamedThinkingText !== undefined && ctx.lastStreamedThinkingText === thinking) {
+      ctx.lastStreamedThinkingText = undefined
+      return
+    }
+
+    this.closeActiveTextPart(ctx)
+    const reasoningPartId = generateId()
+    ctx.sink.enqueue({
+      type: 'reasoning-start',
+      id: reasoningPartId,
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+    })
+    ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: thinking })
+    ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
   }
 
   private handleAssistantToolUse(

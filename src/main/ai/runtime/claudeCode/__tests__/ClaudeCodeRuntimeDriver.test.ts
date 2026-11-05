@@ -398,6 +398,14 @@ vi.mock('../streamAdapter', async (importActual) => {
           this.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
           return { type: 'continue' }
         }
+        if (message.type === 'assistant') {
+          // Mirrors the real adapter's non-stream path: complete assistant text lands as chunks.
+          const text = (message.message?.content ?? [])
+            .map((block: any) => (block?.type === 'text' ? block.text : ''))
+            .join('')
+          if (text) this.enqueue({ type: 'text-delta', id: 'text-1', delta: text })
+          return { type: 'continue' }
+        }
         if (message.type === 'result') {
           this.options.onSessionId(message.session_id)
           const resultError = createResultError(message)
@@ -2133,6 +2141,126 @@ describe('ClaudeCodeRuntimeDriver', () => {
             cacheReadTokens: 0,
             cacheWriteTokens: 0
           }
+        }
+      }
+    ])
+    void connection.close()
+  })
+
+  it('commits invocation usage from stop_reason-null assistant frames when partial events are off', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // With partial events disabled there are no message_start/message_delta frames: the SDK's
+    // per-block assistant frames (stop_reason: null, non-final usage) are the only per-invocation
+    // usage source. The later snapshot for the same request id has the higher output count.
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-sonnet',
+        model: 'sonnet-sdk',
+        stop_reason: null,
+        content: [{ type: 'text', text: 'part' }],
+        usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 2, cache_creation_input_tokens: 3 }
+      },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1'
+    })
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-sonnet',
+        model: 'sonnet-sdk',
+        stop_reason: null,
+        content: [{ type: 'text', text: 'part two' }],
+        usage: { input_tokens: 8, output_tokens: 7, cache_read_input_tokens: 4, cache_creation_input_tokens: 1 }
+      },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1'
+    })
+    // A synthetic API-error frame must not overwrite the real snapshot with zeroes.
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-err',
+        model: 'sonnet-sdk',
+        stop_reason: null,
+        content: [],
+        usage: { input_tokens: 0, output_tokens: 0 }
+      },
+      error: 'rate_limit',
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1'
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: { input_tokens: 18, output_tokens: 12, cache_creation_input_tokens: 4, cache_read_input_tokens: 6 }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'claude-agent:request-sonnet',
+          model: 'sonnet-sdk',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 13,
+            outputTokens: 7,
+            totalTokens: 20,
+            noCacheTokens: 8,
+            cacheReadTokens: 4,
+            cacheWriteTokens: 1
+          }
+        }
+      },
+      // The error frame still records its (usage-less) invocation — unchanged pre-existing shape.
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'claude-agent:request-err',
+          model: 'sonnet-sdk',
+          messageAssociation: 'current-turn'
         }
       }
     ])
@@ -3934,6 +4062,76 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({ type: 'stream_event', event: { type: 'message_start' }, parent_tool_use_id: null })
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'steer-boundary', inputs: [steer] } })
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'text-delta' } } })
+
+    void connection.close()
+  })
+
+  it('emits a steer-boundary at the first complete top-level assistant message when partial events are off', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const steerHolder = { pending: [] as unknown[], onInjected: undefined as any, dispose: vi.fn() }
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    const steer = { message: userMessage() }
+    steerHolder.onInjected([steer])
+
+    const assistantFrame = (text: string, parentToolUseId: string | null) => ({
+      type: 'assistant',
+      message: {
+        id: 'req-post-steer',
+        model: 'sonnet-sdk',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text }],
+        usage: { input_tokens: 3, output_tokens: 2 }
+      },
+      parent_tool_use_id: parentToolUseId,
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1'
+    })
+
+    // A nested (subagent) assistant frame must NOT roll the boundary.
+    queryQueue.push(assistantFrame('nested', 'tool-x'))
+    // The first TOP-LEVEL assistant message after the injection is the post-steer response start.
+    queryQueue.push(assistantFrame('post-steer', null))
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-result', usage: {} })
+
+    const seen: any[] = []
+    for (;;) {
+      const { value, done } = await events.next()
+      if (done) break
+      seen.push(value)
+      if (value?.type === 'turn-complete') break
+    }
+
+    const boundaries = seen.filter((event) => event?.type === 'steer-boundary')
+    expect(boundaries).toHaveLength(1)
+    expect(boundaries[0].inputs).toEqual([steer])
+    // The boundary lands ahead of the continuation's own content chunks.
+    const boundaryIndex = seen.indexOf(boundaries[0])
+    const postSteerTextIndex = seen.findIndex(
+      (event) => event?.type === 'chunk' && event.chunk?.type === 'text-delta' && event.chunk?.delta === 'post-steer'
+    )
+    expect(postSteerTextIndex).toBeGreaterThan(-1)
+    expect(boundaryIndex).toBeLessThan(postSteerTextIndex)
+    // The nested frame never opened a boundary first.
+    const nestedTextIndex = seen.findIndex(
+      (event) => event?.type === 'chunk' && event.chunk?.type === 'text-delta' && event.chunk?.delta === 'nested'
+    )
+    if (nestedTextIndex !== -1) expect(boundaryIndex).toBeGreaterThan(nestedTextIndex)
 
     void connection.close()
   })

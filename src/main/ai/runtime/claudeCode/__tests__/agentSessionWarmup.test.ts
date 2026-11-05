@@ -1531,6 +1531,41 @@ describe('deriveConnectionConfig', () => {
     expect(second.rebuildFactFingerprints).toEqual(first.rebuildFactFingerprints)
   })
 
+  it('rebuilds the connection when only the stream output toggle changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const implicitOn = await deriveSignature()
+
+    // `includePartialMessages` is baked into the spawn-time SDK query options, so the toggle is a
+    // rebuild fact: absent and explicit-true share one signature, false flips it.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { stream_output: true }
+    })
+    const explicitOn = await deriveSignature()
+    expect(explicitOn.rebuildFactFingerprints.streamOutput).toBe(implicitOn.rebuildFactFingerprints.streamOutput)
+    expect(explicitOn.rebuildSignature).toBe(implicitOn.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { stream_output: false }
+    })
+    const off = await deriveSignature()
+    expect(off.rebuildFactFingerprints.streamOutput).not.toBe(implicitOn.rebuildFactFingerprints.streamOutput)
+    expect(off.rebuildSignature).not.toBe(implicitOn.rebuildSignature)
+  })
+
   it('does not rebuild when only the usage pricing capture time changes', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,

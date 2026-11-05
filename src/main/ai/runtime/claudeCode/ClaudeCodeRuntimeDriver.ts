@@ -202,7 +202,14 @@ function pendingInvocationFromAssistant(
   fallbackModel: string
 ): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
-  const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
+  // Capture usage from every well-formed assistant frame, not only stop_reason-carrying ones: SDK
+  // per-block frames (stop_reason: null) carry a non-final usage snapshot, and with partial events
+  // disabled those snapshots are the ONLY per-invocation usage source before the result commits —
+  // dropping them persists an invocation with missing counts. Repeated frames for one request id
+  // merge through selectAssistantUsage (the higher output count wins), so the final snapshot — or
+  // the complete frame, when the CLI emits one — stands.
+  const usageEligible = message.aborted !== true && message.error === undefined
+  const assistantUsage = usageEligible ? invocationUsageBuckets(message.message.usage) : undefined
   return {
     requestId: message.message.id,
     model: resolveSdkInvocationModel(message.message.model, fallbackModel),
@@ -644,6 +651,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.event.type === 'message_start' &&
           message.parent_tool_use_id == null
         ) {
+          this.commitPendingInvocations()
+          this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
+          this.steerBoundaryPending = undefined
+        }
+
+        // Partial events disabled (`includePartialMessages: false`): no message_start ever arrives,
+        // so the first complete TOP-LEVEL assistant message after the injection is the post-steer
+        // response start. Emitted BEFORE the adapter handles the message so the boundary lands
+        // ahead of the continuation's content chunks. With partials on this never fires — the
+        // message_start above clears the arm first.
+        if (this.steerBoundaryPending && message.type === 'assistant' && message.parent_tool_use_id == null) {
           this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined

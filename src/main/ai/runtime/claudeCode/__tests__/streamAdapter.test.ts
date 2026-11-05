@@ -594,6 +594,74 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
   })
 
+  it('emits a complete thinking block that never streamed through partial events', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      message: { id: 'm-1', content: [{ type: 'thinking', thinking: 'plan', signature: 'sig' }] },
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID()
+    } as any)
+
+    expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
+    expect(parts[1]).toMatchObject({ type: 'reasoning-delta', id: (parts[0] as any).id, delta: 'plan' })
+    expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
+  })
+
+  it('deduplicates a complete thinking block already emitted through partial events', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'plan' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      message: { id: 'm-1', content: [{ type: 'thinking', thinking: 'plan', signature: 'sig' }] },
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID()
+    } as any)
+
+    // Exactly one reasoning part: the complete-frame echo of the streamed block is consumed.
+    expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
+  })
+
+  it('emits a complete thinking block whose streamed counterpart carried different text', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'plan' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      type: 'assistant',
+      message: { id: 'm-1', content: [{ type: 'thinking', thinking: 'revised plan', signature: 'sig' }] },
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID()
+    } as any)
+
+    // The mismatch is not an echo: the unstreamed reasoning is preserved as its own part.
+    expect(parts.map((part) => part.type)).toEqual([
+      'reasoning-start',
+      'reasoning-delta',
+      'reasoning-end',
+      'reasoning-start',
+      'reasoning-delta',
+      'reasoning-end'
+    ])
+    expect(parts[4]).toMatchObject({ type: 'reasoning-delta', delta: 'revised plan' })
+  })
+
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
     const { adapter, parts } = createAdapter()
 
