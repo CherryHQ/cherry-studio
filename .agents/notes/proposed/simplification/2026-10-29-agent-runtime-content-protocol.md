@@ -12,6 +12,8 @@ The resulting defects have different causes. Repeated assistant headers come fro
 
 This proposal partially supersedes the content representation and reader placement in the [runtime contract](../architecture/2026-10-17-agent-runtime-contract.md), the AI SDK exclusion in the [harness boundaries](../architecture/2026-10-17-agent-harness-boundaries.md), and the content conversion in the [Claude migration](../architecture/2026-10-27-agent-runtime-claude-code.md). Their execution, admission, native storage, child ownership, and product delivery contracts remain active. The approved migration is implemented across the owning stack layers; this note remains proposed until the remaining acceptance evidence is complete.
 
+The proposed [runtime boundary ownership follow-up](2026-11-05-agent-runtime-boundary-ownership.md) complements this content contract by completing input, child-access and native-control facts and consolidating their desktop resource owners. This note remains the owner of SDK content representation, source-to-product composition, persistence and its recorded evidence; the follow-up does not mark outstanding acceptance complete.
+
 ## Proposal
 
 ### 1. Reuse the SDK model and retain the observation contract

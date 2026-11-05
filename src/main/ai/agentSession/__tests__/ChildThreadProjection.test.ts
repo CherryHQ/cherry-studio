@@ -4,7 +4,13 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId, type RuntimeMessage, type ObservationSink, type ThreadHandle } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  ThreadFeed,
+  type RuntimeMessage,
+  type ObservationSink,
+  type ThreadHandle
+} from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -47,7 +53,7 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
         inputs: [],
         activity: { scope: 'foreground', state: 'active' }
       })
-      return { status: 'confirmed', value: { stop: async () => {} } }
+      return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
     },
     release: async () => {
       throw new Error('Projection cannot release native access')
@@ -88,6 +94,55 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
     }
   }
 }
+
+// Catches closing or backing up before an entered observation applies the final native tail.
+it.each(['stop', 'drain'] as const)('joins blocked observation delivery before %s flushes', async (action) => {
+  const f = fixture()
+  const entered = Promise.withResolvers<void>()
+  const held = Promise.withResolvers<void>()
+  const feed = new ThreadFeed(
+    {
+      type: 'snapshot',
+      coverage: 'current-view',
+      messages: [],
+      inputs: [],
+      activity: { scope: 'foreground', state: 'idle' }
+    },
+    (error) => {
+      throw error
+    }
+  )
+  f.handle.observe = async (sink) => ({
+    status: 'confirmed',
+    value: feed.observe(async (event) => {
+      if (event.type === 'message.upsert') {
+        entered.resolve()
+        await held.promise
+      }
+      await sink(event)
+    })
+  })
+  await f.projection.attach()
+  feed.publish({ type: 'message.upsert', message: f.item('last', 'final tail') })
+  await entered.promise
+  if (action === 'stop') feed.close('shutdown')
+  let finished = false
+  const flushing = f.projection[action]().then(() => {
+    finished = true
+  })
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(finished).toBe(false)
+    expect(savedChildView(f.context).messages).toEqual([])
+  } finally {
+    held.resolve()
+  }
+  await flushing
+  expect(savedChildView(f.context).messages).toMatchObject([{ parts: [{ type: 'text', text: 'final tail' }] }])
+  const saved = savedChildView(f.context)
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  expect(savedChildView(f.context)).toEqual(saved)
+})
 
 // Settled archive precedence must not suppress an explicit update to product display metadata.
 it('refreshes committed child display metadata and persists it without new native content', async () => {

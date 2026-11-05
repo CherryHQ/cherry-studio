@@ -12,6 +12,8 @@ The [runtime contract](2026-10-17-agent-runtime-contract.md) already separates a
 
 The [SDK content protocol](../simplification/2026-10-29-agent-runtime-content-protocol.md) owns the removal of Claude's `ContentItem` conversion and the associated desktop content reconstruction. Its SDK message contract supersedes the older content paths below; native controls, input correlation, gateway routing, and billing evidence remain requirements.
 
+The proposed [runtime boundary ownership follow-up](../simplification/2026-11-05-agent-runtime-boundary-ownership.md) would further move native control, child origin/readiness, archive semantics and SDK invocation aggregation into the existing adapter. Main retains product context, projection, interaction policy and accounting. This is a partial follow-up to the ownership target, not evidence that its remaining acceptance work has passed.
+
 ## Proposal
 
 ### Target SDK and native evidence

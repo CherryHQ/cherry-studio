@@ -19,6 +19,81 @@ const snapshot = (): ThreadSnapshot => ({
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 describe('normalized observation delivery', () => {
+  it('closes an unrecoverable control backlog without delivering a fabricated completion', async () => {
+    const failures: unknown[] = []
+    const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
+    const gate = Promise.withResolvers<void>()
+    const events: ObservationPayload[] = []
+    const observation = feed.observeCaptured(
+      async (event) => {
+        events.push(event)
+        if (events.length === 1) await gate.promise
+      },
+      (event) => ({ value: event, retain: event.type === 'input.changed' })
+    )
+    await tick()
+    for (let index = 0; index < 1001; index++)
+      feed.publish({
+        type: 'input.changed',
+        input: { inputId: runtimeId(String(index)), facts: ['accepted'], outcome: 'completed' }
+      })
+    expect(events).toHaveLength(1)
+    gate.resolve()
+    await observation.drain()
+    expect(events.slice(1)).toEqual([
+      { type: 'gap', reason: 'overflow' },
+      { type: 'closed', reason: 'source-lost' }
+    ])
+    expect(failures).toEqual([
+      expect.objectContaining({ message: 'Observation exceeded recoverable delivery backlog' })
+    ])
+  })
+
+  it('captures metadata at publication and retains ordered terminal frames through repeated overflow', async () => {
+    const failures: unknown[] = []
+    const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
+    const blocked = Promise.withResolvers<void>()
+    let revision = 0
+    let terminal = false
+    const received: { event: ObservationPayload; revision: number; terminal: boolean }[] = []
+    const observed = feed.observeCaptured(
+      async (batch) => {
+        received.push(batch)
+        if (received.length === 1) await blocked.promise
+      },
+      (event, delivery) => ({
+        value: { event, revision, terminal: delivery !== 'baseline' && terminal },
+        retain: terminal
+      })
+    )
+    await tick()
+    for (let turn = 1; turn <= 2; turn++) {
+      for (let index = 0; index < 120; index++) {
+        revision++
+        feed.publish({ type: 'message.upsert', message: item(`turn-${turn}`, `body-${revision}`) })
+      }
+      terminal = true
+      feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+      terminal = false
+    }
+    for (let index = 0; index < 120; index++)
+      feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+    revision = 999
+    blocked.resolve()
+    await observed.drain()
+    const endings = received.filter((batch) => batch.terminal)
+    expect(endings.map((batch) => batch.revision)).toEqual([120, 240])
+    expect(endings[0].event).toMatchObject({
+      type: 'snapshot',
+      messages: [{ id: 'turn-1', parts: [{ text: 'body-120' }] }]
+    })
+    expect(endings[1].event).toMatchObject({
+      type: 'snapshot',
+      messages: [{ id: 'turn-1' }, { id: 'turn-2', parts: [{ text: 'body-240' }] }]
+    })
+    expect(failures).toEqual([])
+  })
+
   it('delivers final content before closure, including recovery for a stalled observer', async () => {
     const feed = new ThreadFeed(snapshot(), () => {})
     let release!: () => void
@@ -26,7 +101,7 @@ describe('normalized observation delivery', () => {
       release = resolve
     })
     const events: ObservationPayload[] = []
-    feed.observe(async (event) => {
+    const observation = feed.observe(async (event) => {
       events.push(event)
       if (events.length === 1) await held
     })
@@ -34,9 +109,15 @@ describe('normalized observation delivery', () => {
     for (let index = 0; index < 110; index++)
       feed.publish({ type: 'message.upsert', message: item('final', String(index)) })
     feed.close('shutdown')
+    let drained = false
+    const barrier = observation.drain().then(() => {
+      drained = true
+    })
     expect(events).toHaveLength(1)
-    release()
     await tick()
+    expect(drained).toBe(false)
+    release()
+    await barrier
     expect(events.at(-1)).toEqual({ type: 'closed', reason: 'shutdown' })
     expect(events.at(-2)).toMatchObject({ type: 'message.upsert', message: { parts: [{ text: '109' }] } })
     expect(events.some((event) => event.type === 'gap')).toBe(true)
@@ -105,7 +186,9 @@ describe('normalized observation delivery', () => {
     })
     await tick()
     feed.publish({ type: 'message.upsert', message: item('queued') })
+    const discarded = expect(subscription.drain()).rejects.toThrow('stopped before delivery drained')
     await subscription.stop()
+    await discarded
     unblock()
     await tick()
     expect(count).toBe(1)

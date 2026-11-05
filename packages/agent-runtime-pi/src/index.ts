@@ -73,3 +73,5 @@ export {
   type PiSessionOptions,
   type PiThreadHandle
 } from './runtime'
+
+export type { PiObservation } from './runtimeProjection'

@@ -59,14 +59,14 @@ it('retains SDK signatures, citations and files while applying Cherry reminder f
   expect(source.parts[3]).toMatchObject({ text: 'Visible<system-reminder>Hidden instructions</system-reminder>' })
 })
 
-it('refreshes a denied tool and a late reminder without another native content update', async () => {
+it('refreshes a late reminder without another native content update', async () => {
   const metadata = new ClaudeMessageMetadata()
   const projection = new ThreadMessageProjection(
     { backendId: runtimeId('claude'), id: runtimeId('root') },
     metadata.decorate
   )
   onTestFinished(() => projection.close())
-  const accept = (batch: ClaudeObservation) => projection.accept(batch.events, metadata.accept(batch))
+  const accept = (batch: ClaudeObservation) => projection.accept(batch.events, metadata.accept(batch) ? true : [])
   await accept({
     events: [
       {
@@ -98,18 +98,6 @@ it('refreshes a denied tool and a late reminder without another native content u
       {
         source: 'live',
         message: {
-          type: 'system',
-          subtype: 'permission_denied',
-          tool_use_id: 'call',
-          tool_name: 'Bash',
-          message: 'Permission denied',
-          uuid: randomUUID(),
-          session_id: 'session'
-        }
-      },
-      {
-        source: 'live',
-        message: {
           type: 'user',
           uuid: randomUUID(),
           session_id: 'session',
@@ -123,7 +111,7 @@ it('refreshes a denied tool and a late reminder without another native content u
   expect(changes).toHaveLength(1)
   expect(changes[0].parts).toMatchObject([
     { type: 'text', text: 'Visible ' },
-    { type: 'dynamic-tool', toolCallId: 'call', state: 'output-denied', approval: { approved: false } }
+    { type: 'dynamic-tool', toolCallId: 'call', state: 'input-available' }
   ])
 })
 
@@ -178,9 +166,9 @@ it('refreshes a replaced MCP catalog and preserves completed reasoning timing', 
     ],
     retracted: []
   }
-  await projection.accept(partial.events, metadata.accept(partial))
+  await projection.accept(partial.events, metadata.accept(partial) ? true : [])
   const batch: ClaudeObservation = { events: [{ type: 'message.upsert', message: source }], native: [], retracted: [] }
-  await projection.accept(batch.events, metadata.accept(batch))
+  await projection.accept(batch.events, metadata.accept(batch) ? true : [])
   const reasoning = projection.snapshot().messages[0].parts[0]
   expect(reasoning).toMatchObject({
     type: 'reasoning',
@@ -189,10 +177,10 @@ it('refreshes a replaced MCP catalog and preserves completed reasoning timing', 
   expect(projection.snapshot().messages[0].parts[1]).toMatchObject({ title: 'Before: read' })
   catalog.mcp__server__read.serverName = 'After'
   const update: ClaudeObservation = { events: [], native: [], retracted: [] }
-  const changed = await projection.accept(update.events, metadata.accept(update))
+  const changed = await projection.accept(update.events, metadata.accept(update) ? true : [])
   expect(changed[0].parts[1]).toMatchObject({ title: 'After: read', state: 'output-available' })
   expect(changed[0].parts[0]).toEqual(reasoning)
-  expect(await projection.accept(update.events, metadata.accept(update))).toEqual([])
+  expect(await projection.accept(update.events, metadata.accept(update) ? true : [])).toEqual([])
 })
 
 it('decorates native tool identity and output without moving surrounding content', async () => {

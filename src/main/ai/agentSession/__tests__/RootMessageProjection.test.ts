@@ -145,36 +145,56 @@ it('keeps root history when incremental thread reconciliation drops compacted so
     f.projection.accept(update, id)
   })
   try {
-    await view.accept({ type: 'message.upsert', message: { ...text('old', 'Retained'), metadata: undefined } })
     await view.accept({
-      type: 'snapshot',
-      coverage: 'current-view',
-      messages: [],
-      inputs: [],
-      activity: { scope: 'foreground', state: 'idle' }
+      events: [{ type: 'message.upsert', message: { ...text('old', 'Retained'), metadata: undefined } }],
+      live: ['old'],
+      aliases: {}
+    })
+    await view.accept({
+      events: [
+        {
+          type: 'snapshot',
+          coverage: 'current-view',
+          messages: [],
+          inputs: [],
+          activity: { scope: 'foreground', state: 'idle' }
+        }
+      ],
+      live: [],
+      aliases: {}
     })
     expect(f.projection.parts(id)).toEqual(text('', 'Retained').parts)
     expect(updates.at(-1)?.removed).toEqual([])
-    await view.accept({ type: 'message.upsert', message: { ...text('new', 'Live'), metadata: undefined } })
+    await view.accept({
+      events: [{ type: 'message.upsert', message: { ...text('new', 'Live'), metadata: undefined } }],
+      live: ['new'],
+      aliases: {}
+    })
     expect(updates.at(-1)?.messages.map((message) => message.id)).toEqual(['new'])
     expect(f.projection.parts(id)).toEqual([...text('', 'Retained').parts, ...text('', 'Live').parts])
-    await view.accept(
-      {
-        type: 'snapshot',
-        coverage: 'current-view',
-        messages: [
-          { ...text('new', 'Live'), metadata: undefined },
-          { ...text('canonical', 'Committed'), metadata: undefined }
-        ],
-        inputs: [],
-        activity: { scope: 'foreground', state: 'idle' }
-      },
-      true,
-      { canonical: 'old' }
-    )
+    await view.accept({
+      events: [
+        {
+          type: 'snapshot',
+          coverage: 'current-view',
+          messages: [
+            { ...text('new', 'Live'), metadata: undefined },
+            { ...text('canonical', 'Committed'), metadata: undefined }
+          ],
+          inputs: [],
+          activity: { scope: 'foreground', state: 'idle' }
+        }
+      ],
+      live: ['new', 'canonical'],
+      aliases: { canonical: 'old' }
+    })
     expect(updates.at(-1)?.messages.map((message) => message.id)).toEqual(['canonical'])
     expect(f.projection.parts(id)).toEqual([...text('', 'Committed').parts, ...text('', 'Live').parts])
-    await view.accept({ type: 'message.remove', ref: { session: thread, id: runtimeId('canonical') } })
+    await view.accept({
+      events: [{ type: 'message.remove', ref: { session: thread, id: runtimeId('canonical') } }],
+      live: [],
+      aliases: {}
+    })
     expect(f.projection.parts(id)).toEqual(text('', 'Live').parts)
   } finally {
     await view.close()

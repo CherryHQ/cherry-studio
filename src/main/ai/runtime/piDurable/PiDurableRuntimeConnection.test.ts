@@ -7,8 +7,8 @@ import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId, type InputState, type ObservationPayload } from '@cherrystudio/agent-runtime'
-import type { PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
+import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
+import type { DurableObservation, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -16,7 +16,9 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { ModelSchema } from '@shared/data/types/model'
@@ -529,6 +531,64 @@ describe('desktop Pi Durable connection', () => {
     }
   )
 
+  // Catches backup passing native completion while its final child callback still owns unwritten output.
+  it('drains native background work and blocked child observation before final persistence', async () => {
+    const answering = gate()
+    const observing = gate()
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return answering.wait(assistantReply('Final child output'))
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'drain', prompt: 'work', background: true })],
+          'toolUse'
+        )
+      return assistantReply('Parent finished')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await answering.reached
+    await done(events)
+    const view = (await connection.childProjection('spawn'))!
+    const accept = ThreadMessageProjection.prototype.accept
+    let blocked = false
+    const observer = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
+      this: ThreadMessageProjection,
+      ...args
+    ) {
+      if (!blocked && JSON.stringify(args).includes('Final child output')) {
+        blocked = true
+        await observing.wait(undefined)
+      }
+      return accept.apply(this, args)
+    })
+    try {
+      let drained = false
+      const draining = connection.drainChildWrites().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      answering.open()
+      await observing.reached
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      observing.open()
+      await draining
+      expect(JSON.stringify(savedChildView(contexts.context(view.snapshot().contextId)).messages)).toContain(
+        'Final child output'
+      )
+      const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
+      await new Promise((resolve) => setTimeout(resolve, 160))
+      expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
+    } finally {
+      answering.open()
+      observing.open()
+      observer.mockRestore()
+    }
+  })
+
   it('streams child text and tool progress after the parent finishes', async () => {
     let root = ''
     const releaseTool = join(directory, 'release-tool')
@@ -693,13 +753,38 @@ describe('desktop Pi Durable connection', () => {
     }
     const queued: InputState = { nativeInput, facts: ['accepted', 'queued'] }
     vi.spyOn(handle, 'lookupInput').mockResolvedValue({ status: 'confirmed', value: { found: true, input: queued } })
-    const observer = connection as unknown as { onObservation(event: ObservationPayload): Promise<void> }
+    const observer = connection as unknown as {
+      onObservation(batch: DurableObservation): Promise<void>
+    }
     const snapshot = { type: 'snapshot' as const, coverage: 'retained-view' as const, messages: [], inputs: [queued] }
-    await observer.onObservation({ ...snapshot, activity: { scope: 'foreground', state: 'active' } })
-    await observer.onObservation({ ...snapshot, activity: { scope: 'foreground', state: 'idle' } })
+    await observer.onObservation({
+      events: [{ ...snapshot, activity: { scope: 'foreground', state: 'active' } }],
+      delivery: 'update',
+      revision: 1,
+      aliases: {},
+      live: [],
+      pending: true
+    })
+    await observer.onObservation({
+      events: [{ ...snapshot, activity: { scope: 'foreground', state: 'idle' } }],
+      delivery: 'update',
+      revision: 2,
+      aliases: {},
+      live: [],
+      pending: true
+    })
     expect(events.some((event) => event.type === 'autonomous-turn-state' && event.state === 'started')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
-    await observer.onObservation({ type: 'input.changed', input: { ...queued, outcome: 'completed' } })
+    const completed = { ...queued, outcome: 'completed' as const }
+    await observer.onObservation({
+      events: [{ ...snapshot, inputs: [completed], activity: { scope: 'foreground', state: 'idle' } }],
+      delivery: 'update',
+      revision: 3,
+      aliases: {},
+      live: [],
+      pending: false,
+      completion: { revision: 3, inputs: [completed] }
+    })
     await done(events)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
     expect(events.filter((event) => event.type === 'error')).toEqual([])

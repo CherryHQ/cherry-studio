@@ -8,7 +8,6 @@ import type {
   BetaMCPToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
-import type { RuntimeMessage } from '@cherrystudio/agent-runtime'
 import type { ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
 import type { MessageDecorator } from '@main/ai/agentSession/ThreadMessageProjection'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
@@ -32,32 +31,17 @@ type ToolMetadata = {
 
 /** Cherry display policy applied after the adapter has materialized native content. */
 export class ClaudeMessageMetadata {
-  readonly messages = new Map<string, RuntimeMessage>()
-  legacy: ClaudeObservation['legacy'] = {}
-  readonly removed = new Set<string>()
   private readonly reminders = new Set<string>()
-  private readonly denied = new Set<string>()
   private readonly thinking = new Map<string, { startedAt: number; elapsedFrom: number; thinkingMs?: number }>()
   private catalog: Record<string, McpToolDisplayMetadata> = {}
 
   constructor(private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata> = {}) {}
 
-  accept(batch: ClaudeObservation): string[] {
+  accept(batch: ClaudeObservation): boolean {
     let refreshAll = !isDeepStrictEqual(this.catalog, this.mcpToolMetadata)
     if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
-    const denied = new Set<string>()
-    if (batch.legacy) this.legacy = batch.legacy
     for (const native of batch.native) {
       const message = native.message
-      if (
-        native.source === 'live' &&
-        message.type === 'system' &&
-        'subtype' in message &&
-        message.subtype === 'permission_denied'
-      ) {
-        if (!this.denied.has(message.tool_use_id)) denied.add(message.tool_use_id)
-        this.denied.add(message.tool_use_id)
-      }
       if (message.type === 'user' && 'isSynthetic' in message && message.isSynthetic) {
         const body = message.message as { content?: string | BetaContentBlockParam[] }
         const content =
@@ -71,10 +55,7 @@ export class ClaudeMessageMetadata {
       }
     }
     for (const event of batch.events) {
-      if (event.type === 'snapshot') {
-        this.messages.clear()
-        for (const message of event.messages) this.messages.set(message.id, message)
-      } else if (event.type === 'message.upsert') {
+      if (event.type === 'message.upsert') {
         const id = event.message.id
         for (const ref of event.replaces ?? []) {
           const timing = this.thinking.get(ref.id)
@@ -82,7 +63,6 @@ export class ClaudeMessageMetadata {
             this.thinking.set(id, timing)
             this.thinking.delete(ref.id)
           }
-          this.messages.delete(ref.id)
         }
         if (event.message.parts.some((part) => part.type === 'reasoning')) {
           if (
@@ -95,21 +75,9 @@ export class ClaudeMessageMetadata {
           if (timing && event.message.metadata?.completeness === 'complete')
             timing.thinkingMs ??= Math.round(performance.now() - timing.elapsedFrom)
         }
-        this.messages.set(id, event.message)
-      } else if (event.type === 'message.remove') {
-        this.messages.delete(event.ref.id)
-        this.removed.add(event.ref.id)
       }
     }
-    for (const id of batch.retracted) this.removed.add(id)
-    if (refreshAll) return [...this.messages.keys()]
-    return denied.size
-      ? [...this.messages.values()]
-          .filter((message) =>
-            message.parts.some((part) => part.type === 'dynamic-tool' && denied.has(part.toolCallId))
-          )
-          .map((message) => message.id)
-      : []
+    return refreshAll
   }
 
   readonly decorate: MessageDecorator = (message) => ({
@@ -133,16 +101,6 @@ export class ClaudeMessageMetadata {
           title: this.getToolTitle(state),
           callProviderMetadata: { ...part.callProviderMetadata, ...metadata }
         }
-        if (this.denied.has(part.toolCallId))
-          return {
-            type: 'dynamic-tool',
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            input: part.input,
-            ...decoration,
-            state: 'output-denied',
-            approval: { id: part.toolCallId, approved: false }
-          }
         if (part.state === 'output-available')
           return {
             ...part,
@@ -173,15 +131,6 @@ export class ClaudeMessageMetadata {
     })
   })
 
-  archive() {
-    const messages = [...this.messages.values()].filter((message) => !message.id.startsWith('live:'))
-    return {
-      messages,
-      legacy: this.legacy,
-      aliases: Object.fromEntries(messages.map((message) => [message.id, message.id])),
-      removed: [...this.removed]
-    }
-  }
   private getToolUseMetadata(
     tool: Pick<ClaudeToolUseBlock, 'name' | 'type'> & { server_name?: string }
   ): Pick<ToolMetadata, 'sdkBlockType' | 'serverName' | 'serverId' | 'toolType'> {

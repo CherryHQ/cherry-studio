@@ -3,6 +3,9 @@
 `createPiRuntime` adapts native Pi sessions to the common runtime contract.
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
+`pi.observe` delivers content, input outcomes, aliases, live provenance, child task facts and settle evidence
+in one captured batch. Its first baseline is historical; overflow recovery retains unseen terminal facts
+after their body. Hosts do not parse child tool receipts or read mutable aliases at delivery time.
 
 Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
 `steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
@@ -52,7 +55,9 @@ as required by the behavior adapter's request accounting.
 `pi.settled()` waits for admitted native work; behavior-backed handles include the shared root,
 children and reporting jobs. It does not interrupt or close the owner, seal new admission, or flush
 host archives. A host using it for a write barrier must first block new input and join its admitted
-submissions, then drain its own archive writers after native work settles.
+submissions, then await observation delivery/callbacks and drain archive writers after native work settles.
+Shutdown must close native production before joining observation delivery; waiting for a running Pi turn
+to settle before requesting its shutdown can deadlock.
 
 This is an opt-in migration path: omitting `behavior` retains the existing native extension path.
 Combining it with legacy `subagents`, `offload` or a direct compaction summarizer is rejected.
@@ -346,7 +351,11 @@ the compacting session's id, so a host can tell a subagent's compaction from its
 
 The common runtime exposes `Subagent` relationships in `snapshot.subagents` and
 `subagent.upsert`. The relationship ID uses the native child session ID within its parent,
-so child continuation updates the same relationship. It carries no assignment completion status.
+so child continuation updates the same relationship. Its `origin` retains the evidenced creation call,
+including on cold history recovery. It carries no assignment completion status. `pi.openChild(toolCallId, signal?)`
+waits for a known creation before configuration completes and returns the relation and child access.
+Unknown or ambiguous calls fail explicitly; concurrent opens receive independent leases. The operation
+never launches work, and access release does not cancel the child.
 Retained child handles observe the replacement live session after continuation. Releasing a
 parent access does not close its child; runtime shutdown joins pending child admissions before
 disposing the parent owner and its children.

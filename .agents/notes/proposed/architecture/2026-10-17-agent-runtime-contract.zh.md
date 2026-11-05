@@ -12,6 +12,8 @@ Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次�
 
 [SDK 内容协议](../simplification/2026-10-29-agent-runtime-content-protocol.md)维护已实现的 `ContentItem` 替换，以及共享观察来源中的 SDK 内容累积。其 `RuntimeMessage` 契约取代下文的 item 事件和 Main reader 描述。访问、输入接纳、生命周期、原生恢复和产品所有权继续由本文维护。
 
+proposed [运行时边界所有权后续方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)拟部分替代桌面输入往返、子线程访问衔接及原生控制解释的职责安排。它复用本文的访问／生命周期契约，不向 package 增加产品依赖；该后续方案获批并实现前，现有要求继续有效。
+
 ## Proposal
 
 ### 保持公共入口精简

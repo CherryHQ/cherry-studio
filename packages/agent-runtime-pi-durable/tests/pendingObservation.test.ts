@@ -48,7 +48,7 @@ it.each([false, true])('discovers persisted pending inputs on reopen (concurrent
       else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
     })
   faux.setResponses([hold])
-  await conversation.submit({ type: 'input', content: 'Start', whenBusy: 'reject' }, context)
+  const active = await conversation.submit({ type: 'input', content: 'Start', whenBusy: 'reject' }, context)
   await reached
   const first = await conversation.submit({ type: 'input', content: 'First queued', whenBusy: 'followUp' }, context)
   const second = await conversation.submit({ type: 'input', content: 'Second queued', whenBusy: 'followUp' }, context)
@@ -88,12 +88,13 @@ it.each([false, true])('discovers persisted pending inputs on reopen (concurrent
   const snapshot = events[0]
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   if (!resume) {
-    expect(snapshot.inputs).toEqual(
-      [first, second].map((submission) => ({
+    expect(snapshot.inputs).toEqual([
+      { nativeInput: { session: thread, id: String(active.id) }, facts: ['accepted', 'placed'] },
+      ...[first, second].map((submission) => ({
         nativeInput: { session: thread, id: String(submission.id) },
         facts: ['accepted', 'queued']
       }))
-    )
+    ])
     await new Promise((resolve) => setTimeout(resolve, 40))
     expect(faux.state.callCount).toBe(before)
     confirmed(await runtime.resume())

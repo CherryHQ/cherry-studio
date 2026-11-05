@@ -12,6 +12,8 @@ Status: proposed
 
 [SDK 内容协议](../simplification/2026-10-29-agent-runtime-content-protocol.md)维护 Claude `ContentItem` 转换及桌面内容重建的删除。其 SDK 消息契约取代下文的旧内容路径；原生控制、输入关联、网关路由和计费证据仍是必须保留的要求。
 
+proposed [运行时边界所有权后续方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)拟进一步把原生控制、子线程来源／就绪、归档语义和 SDK 调用聚合归入现有 adapter。Main 保留产品上下文、投影、交互策略和计费。这是对所有权目标的部分后续调整，不代表剩余验收已经通过。
+
 ## 方案
 
 ### 目标 SDK 与原生证据

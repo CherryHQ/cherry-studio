@@ -232,19 +232,25 @@ it('keeps nested relationships on the immediate parent across archive reopen', a
     rootReply.reply.finish()
     await view.event((event) => event.type === 'result')
     expect(view.snapshot.subagents).toHaveLength(1)
+    expect(view.snapshot.subagents![0].origin?.toolCallId).toBe('toolu_child')
     const childThread = view.snapshot.subagents![0].child!
-    const child = confirmed(await runtime.open(childThread))
+    const child = confirmed(await root.claude.openChild('toolu_child')).handle
+    expect(child.thread).toEqual(childThread)
     const childView = await observe(child)
     await expect.poll(() => childView.snapshot.subagents?.length).toBe(1)
     const grandchildThread = childView.snapshot.subagents![0].child!
     expect(childView.snapshot.subagents![0].parent).toEqual(childThread)
-    const grandchildView = await observe(confirmed(await runtime.open(grandchildThread)))
+    expect(childView.snapshot.subagents![0].origin?.toolCallId).toBe('toolu_grandchild')
+    const grandchildView = await observe(confirmed(await child.claude.openChild('toolu_grandchild')).handle)
     await expect.poll(() => textOf(grandchildView.snapshot)).toContain('Grandchild answer')
     expect(textOf(grandchildView.snapshot)).not.toContain('Root answer')
     confirmed(await runtime.shutdown())
     const reopened = test.runtime()
-    const restored = await observe(confirmed(await reopened.open(childThread)))
+    const reopenedChild = confirmed(await reopened.open(childThread))
+    const restored = await observe(reopenedChild)
     await expect.poll(() => restored.snapshot.subagents?.[0]?.child).toEqual(grandchildThread)
+    expect(restored.snapshot.subagents![0].origin?.toolCallId).toBe('toolu_grandchild')
+    expect(confirmed(await reopenedChild.claude.openChild('toolu_grandchild')).handle.thread).toEqual(grandchildThread)
   } finally {
     await test.close()
   }

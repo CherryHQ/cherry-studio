@@ -1,6 +1,7 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
+import type { InputLookup, InputState, OperationResult, SubmitResult } from '@cherrystudio/agent-runtime'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
@@ -83,7 +84,9 @@ export interface AgentRuntimeConnectInput {
    * before the SDK can issue its next provider request to reserve the continuation correlation;
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
-  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onSteerInjected?: (inputIds: readonly string[]) => void
+  /** Pins a pending product input before native admission can run synchronously. */
+  onInputPrepared?: (inputId: string, contextId: string) => void
 }
 
 export interface AgentRuntimeUserInput {
@@ -91,11 +94,12 @@ export interface AgentRuntimeUserInput {
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
-  /** Host-owned message attributes that must survive the driver round-trip (`redirect` →
-   *  `steer-boundary`/`steer-undelivered`). Opaque to drivers. */
+  /** Product attributes retained by the session owner until ownership transfers. */
   headless?: boolean
   messageSnapshot?: MessageSnapshot
 }
+
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'>
 
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
@@ -159,12 +163,14 @@ export type AgentRuntimeEvent =
   | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
-  | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
+  | { type: 'steer-undelivered'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
-  | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
+  | { type: 'steer-boundary'; inputIds: readonly string[] }
+  | { type: 'input-submission'; contextId: string; result: SubmitResult }
+  | { type: 'input-state'; contextId: string; input: InputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string; aborted?: boolean }
@@ -215,7 +221,9 @@ export interface AgentRuntimeConnection {
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
-  send(input: AgentRuntimeUserInput): void | Promise<void>
+  send(input: AgentRuntimeCommand): void | Promise<void>
+  /** Reconcile the captured context without submitting or resuming native execution. */
+  lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
@@ -224,7 +232,7 @@ export interface AgentRuntimeConnection {
    * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
    * host always queues.
    */
-  redirect?(input: AgentRuntimeUserInput): boolean
+  redirect?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for

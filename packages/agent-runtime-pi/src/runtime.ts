@@ -31,12 +31,13 @@ import {
   type ThreadInput,
   type Thread,
   type ShutdownReceipt,
+  type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
-import { PiProjection } from './runtimeProjection'
+import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
 import type { SubagentSessionOptions } from './subagent'
 
@@ -64,6 +65,17 @@ export type PiSessionOptions = AgentRuntimeSessionOptions & {
 export interface PiThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
   readonly pi: {
+    observe(sink: (batch: PiObservation) => void | Promise<void>): Promise<OperationResult<Observation>>
+    relation(): Subagent | undefined
+    openChild(
+      toolCallId: string,
+      signal?: AbortSignal
+    ): Promise<
+      OperationResult<{
+        readonly relation: Subagent & { readonly child: Thread }
+        readonly handle: PiThreadHandle
+      }>
+    >
     contextUsage(): ContextUsage | undefined
     history(): readonly SessionEntry[]
     /** Read committed entries through owner shutdown, until this access is released. */
@@ -104,6 +116,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   const entries = new Map<string, Promise<OperationResult<Entry>>>()
   const live = new Set<Entry>()
   let closing = false
+  const closingAccess = new AbortController()
   let shutdown: Promise<OperationResult<ShutdownReceipt>> | undefined
   const report = (cause: unknown) => {
     try {
@@ -139,15 +152,16 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     try {
       if (config.behavior) return await buildBehavior(config, config.behavior)
       const subagents = config.subagents
-      const childRelations: Entry[] = []
+      const childRelations: { entry: Entry; origin: Subagent['origin'] }[] = []
       let parent: Entry | undefined = undefined
-      const publishChild = (child: Entry) =>
+      const publishChild = (child: Entry, origin: Subagent['origin']) =>
         parent?.projection.feed.publish({
           type: 'subagent.upsert',
           subagent: {
             id: runtimeId(child.ref.id),
             parent: parent.ref,
-            child: child.ref
+            child: child.ref,
+            origin
           }
         })
       const owner = await createAgentRuntimeSession(
@@ -165,8 +179,9 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
                   const entry = attach(session)
                   entry.parentSession = parent?.owner
                   entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
-                  if (!parent) childRelations.push(entry)
-                  publishChild(entry)
+                  const origin = { toolCallId: child.parentToolCallId, description: child.description }
+                  if (!parent) childRelations.push({ entry, origin })
+                  publishChild(entry, origin)
                 }
               }
             }
@@ -186,8 +201,8 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       parent = entry!
       parent.owner = owner
       for (const child of childRelations) {
-        child.parentSession = owner
-        publishChild(child)
+        child.entry.parentSession = owner
+        publishChild(child.entry, child.origin)
       }
       return { status: 'confirmed', value: parent }
     } catch (cause) {
@@ -266,18 +281,33 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           const parent = owned.find((candidate) => candidate.ref.id === child.parent)!
           parent.projection.feed.publish({
             type: 'subagent.upsert',
-            subagent: { id: runtimeId(entry.ref.id), parent: parent.ref, child: entry.ref }
+            subagent: {
+              id: runtimeId(entry.ref.id),
+              parent: parent.ref,
+              child: entry.ref,
+              origin: { toolCallId: nativeCallId!, description: child.origin.description }
+            }
           })
         } else {
-          const children = new Set(
-            historyOf(sessionManager.getBranch(), entry.ref.id).flatMap((item) =>
-              item.kind === 'record' && item.record.type === 'subagent-run' ? [item.record.value.sessionId] : []
-            )
-          )
-          for (const childId of children)
+          const history = historyOf(sessionManager.getBranch(), entry.ref.id)
+          const children = new Map<string, Subagent>()
+          const calls = history.flatMap((item) => (item.kind === 'assistant' ? item.toolCalls : []))
+          for (const item of history) {
+            if (item.kind !== 'record' || item.record.type !== 'subagent-run') continue
+            const record = item.record.value
+            if (children.has(record.sessionId)) continue
+            const call = calls.find((call) => call.callKey === record.parentToolCallId)
+            children.set(record.sessionId, {
+              id: runtimeId(record.sessionId),
+              parent: entry.ref,
+              child: refFor(record.sessionId),
+              ...(call && { origin: { toolCallId: call.callId, description: record.description } })
+            })
+          }
+          for (const subagent of children.values())
             entry.projection.feed.publish({
               type: 'subagent.upsert',
-              subagent: { id: runtimeId(childId), parent: entry.ref, child: refFor(childId) }
+              subagent
             })
         }
         return native
@@ -301,9 +331,68 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
+    const observeCaptured = async (subscribe: () => Observation): Promise<OperationResult<Observation>> => {
+      if (unavailable()) return rejected('observe', 'closed')
+      const observed = subscribe()
+      const observation: Observation = {
+        drain: () => observed.drain(),
+        stop: async () => {
+          observations.delete(observation)
+          await observed.stop()
+        }
+      }
+      observations.add(observation)
+      return { status: 'confirmed', value: observation }
+    }
     return {
       thread: entry.ref,
       pi: {
+        observe: (sink) => observeCaptured(() => entry.projection.observe(sink)),
+        relation: () =>
+          [...live]
+            .flatMap((parent) => parent.projection.feed.snapshot.subagents ?? [])
+            .find((relation) => relation.child?.id === entry.ref.id),
+        async openChild(toolCallId, signal) {
+          if (unavailable() || signal?.aborted) return rejected('open-child', 'closed')
+          const found = await new Promise<OperationResult<Subagent & { child: Thread }>>((resolve) => {
+            const finish = (result: OperationResult<Subagent & { child: Thread }>) => {
+              observations.delete(waiting)
+              closingAccess.signal.removeEventListener('abort', close)
+              signal?.removeEventListener('abort', close)
+              void observed.stop()
+              resolve(result)
+            }
+            const close = () => finish(rejected('open-child', 'closed'))
+            const waiting: Observation = { drain: () => observed.drain(), stop: async () => close() }
+            const observed = entry.projection.feed.observe((event) => {
+              if (unavailable() || event.type === 'closed') return close()
+              const matches =
+                entry.projection.feed.snapshot.subagents?.filter((child) => child.origin?.toolCallId === toolCallId) ??
+                []
+              if (matches.length > 1) return finish(rejected('open-child', 'ambiguous-origin'))
+              const relation = matches[0]
+              if (relation?.child) return finish({ status: 'confirmed', value: { ...relation, child: relation.child } })
+              const history = historyOf(entry.session.sessionManager.getBranch(), entry.ref.id)
+              const call = history
+                .flatMap((item) => (item.kind === 'assistant' ? item.toolCalls : []))
+                .find((call) => call.callId === toolCallId && call.name === 'subagent')
+              if (!call) return finish(rejected('open-child', 'unknown-call'))
+              if (history.some((item) => item.kind === 'tool-result' && item.callId === toolCallId))
+                finish(rejected('open-child', 'child-unavailable'))
+            })
+            observations.add(waiting)
+            closingAccess.signal.addEventListener('abort', close, { once: true })
+            signal?.addEventListener('abort', close, { once: true })
+          })
+          if (found.status !== 'confirmed') return found
+          const opened = await runtime.open(found.value.child)
+          if (opened.status !== 'confirmed') return opened
+          if (unavailable() || signal?.aborted) {
+            await opened.value.release()
+            return rejected('open-child', 'closed')
+          }
+          return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
+        },
         contextUsage: () => (unavailable() ? undefined : entry.session.getContextUsage()),
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
         archive: () => {
@@ -516,18 +605,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           return result
         }
       },
-      async observe(sink) {
-        if (unavailable()) return rejected('observe', 'closed')
-        const observed = entry.projection.feed.observe(sink)
-        const observation = {
-          stop: async () => {
-            observations.delete(observation)
-            await observed.stop()
-          }
-        }
-        observations.add(observation)
-        return { status: 'confirmed', value: observation }
-      },
+      observe: (sink) => observeCaptured(() => entry.projection.feed.observe(sink)),
       async interrupt(): Promise<OperationResult<InterruptReceipt>> {
         if (unavailable()) return rejected('interrupt', 'closed')
         try {
@@ -603,6 +681,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     },
     shutdown() {
       closing = true
+      closingAccess.abort()
       shutdown ??= (async () => {
         try {
           await Promise.all(entries.values())

@@ -208,7 +208,7 @@ it.each(corpus)(
     let target: string | undefined
     const observation = confirmed(
       await test.root.claude.observe(async (batch) => {
-        await projection.accept(batch.events, metadata.accept(batch))
+        await projection.accept(batch.events, metadata.accept(batch) ? true : [])
         if (batch.native.some((native) => native.message.uuid === target)) accepted?.()
       })
     )
@@ -239,7 +239,7 @@ it.each(corpus)(
       })
       const replayObservation = confirmed(
         await test.root.claude.observe(async (batch) => {
-          await replay!.accept(batch.events, replayMetadata.accept(batch))
+          await replay!.accept(batch.events, replayMetadata.accept(batch) ? true : [])
           ready()
         })
       )

@@ -103,13 +103,19 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
      spawn-frozen differences, freeze permission-mode changes during an active turn,
      and return `failed` when a live tightening cannot be applied so the host fails closed.
-   - `close()` — release the owner and join its writers. Durable runtimes may preserve unfinished work.
+   - `close()` — seal admission, stop native production, await observation delivery and callbacks,
+     flush committed archives, then detach and release. A failed final flush retains a retryable writer.
+     Durable runtimes may preserve unfinished work.
    - Optional, with host fallbacks when omitted:
      - `interrupt()` — cancel foreground work for user Stop before the host closes the
        connection. Keep this separate from durable shutdown and recovery.
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
+       `steer-boundary` with input IDs when native placement is evidenced. Keep original product
+       snapshots/headless policy on the existing session entry, including unknown admission across
+       replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
+       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
+       synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
        Claude uses native next-priority admission across the turn boundary and never
@@ -124,7 +130,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        through that owner. These optional desktop facets do not add native history
        methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
        A connection with independent child writes also provides `drainChildWrites()`:
-       after input admission drains, wait for native work and archive writes before returning.
+       after input admission drains, wait for native work, queued observation delivery and in-flight
+       callbacks before the final archive flush. Keep the write boundary sealed until resume.
        Reject on a failed flush so backup cannot accept an unconfirmed boundary.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.

@@ -46,8 +46,11 @@ text even when shared behavior wraps its native input.
 Input placement reserves attribution before a model call. Each native answer is
 associated with its product input once; later snapshots and autonomous child-result
 turns do not repeat a prior input's response association.
-Stop reconciles input outcomes through the retained native submission identity, which
-does not depend on optional request deduplication keys or observation delivery timing.
+The adapter delivers content, input outcomes and foreground settlement from one native revision.
+The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
+Product snapshots and headless policy stay on the Main session entry under the input ID, including
+unknown admission across connection replacement. The successor reconciles the original binding
+without resending, while generation checks reject stale callbacks.
 
 Manual compaction remains an active desktop submission until native work settles.
 Its completion card requires a committed summary; an idle snapshot or a declined
@@ -59,7 +62,10 @@ cancellation and ownership semantics.
 - User Stop calls `interrupt()` before closing, records the shared stop policy and
   cancels the native foreground scope. Unconsumed input is withdrawn.
 - Owner shutdown closes and joins the native scheduler without marking ordinary
-  unfinished root work cancelled. Child committed archives flush before access release.
+  unfinished root work cancelled. It awaits observation queues and in-flight callbacks before
+  flushing child archives; observation detach and access release happen last. Backup uses the
+  same write barrier and holds new input until resume. Each child has one connection-owned
+  access/projection record; failed attachment can retry, and failed final flush retains its writer.
 - Reopening restores the same backend and conversation, rebinds child models, applies
   shared `onOpen`, then resumes the scheduler. Shared policy disarms goals and stops
   interrupted background children; shutdown is not a promise to resume every child.

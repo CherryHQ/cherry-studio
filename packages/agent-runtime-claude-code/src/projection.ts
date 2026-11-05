@@ -27,6 +27,8 @@ import {
   type ProjectedBlock,
   type ToolResult
 } from './content'
+import { ClaudeControlState, type ClaudeControl } from './control'
+import { ClaudeInvocations } from './invocations'
 import { ClaudeFeed } from './observation'
 import type { ClaudeArchive, ClaudeNativeMessage, ClaudeSource } from './types'
 
@@ -34,6 +36,9 @@ type Part = RuntimeMessage['parts'][number]
 type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
 export class ClaudeProjection {
   readonly feed: ClaudeFeed
+  private readonly invocations = new ClaudeInvocations()
+  private readonly pendingControls: ClaudeControl[] = []
+  readonly control = new ClaudeControlState((event) => this.pendingControls.push(event))
   readonly retracted = new Set<string>()
   private readonly sources = new Map<string, ClaudeSource[]>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
@@ -41,6 +46,7 @@ export class ClaudeProjection {
   private readonly calls = new Map<string, { id: string; part: ToolPart }>()
   private readonly results = new Map<string, Set<string>>()
   private readonly aborted = new Set<string>()
+  private readonly denied = new Set<string>()
   private stream?: {
     apiId: string
     id: string
@@ -71,9 +77,46 @@ export class ClaudeProjection {
   }
 
   private upsert(message: RuntimeMessage, replaces?: readonly ItemRef[]): ObservationPayload {
+    message = {
+      ...message,
+      parts: message.parts.map((part) =>
+        part.type === 'dynamic-tool' && this.denied.has(part.toolCallId)
+          ? {
+              type: 'dynamic-tool',
+              toolName: part.toolName,
+              toolCallId: part.toolCallId,
+              input: part.input,
+              callProviderMetadata: part.callProviderMetadata,
+              state: 'output-denied',
+              approval: { id: part.toolCallId, approved: false }
+            }
+          : part
+      )
+    }
     for (const ref of replaces ?? []) this.messages.delete(ref.id)
     this.messages.set(message.id, message)
     return { type: 'message.upsert', message, replaces }
+  }
+
+  deny(toolCallId: string): ObservationPayload[] {
+    this.denied.add(toolCallId)
+    return [...this.messages.values()]
+      .filter((message) => message.parts.some((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId))
+      .map((message) => this.upsert(message))
+  }
+
+  committed(archive: ClaudeArchive): ClaudeArchive {
+    const content = this.feed.snapshot.messages.filter(
+      (message) => this.sources.has(message.id) && !this.retracted.has(message.id)
+    )
+    return {
+      ...archive,
+      coverage: 'retained-view',
+      content,
+      legacy: { ...this.legacy },
+      sources: content.flatMap((message) => this.sources.get(message.id) ?? []),
+      retracted: [...this.retracted]
+    }
   }
 
   remove(uuids: readonly string[]): ObservationPayload[] {
@@ -446,9 +489,27 @@ export class ClaudeProjection {
 
   async close(): Promise<void> {
     await this.stream?.reader.close()
+    this.feed.publish([], [], this.legacy, this.invocations.close())
   }
 
-  publish(events: readonly ObservationPayload[], message?: ClaudeNativeMessage): void {
-    this.feed.publish(events, message ? [message] : [], this.legacy)
+  publish(
+    events: readonly ObservationPayload[],
+    message?: ClaudeNativeMessage,
+    controls: readonly ClaudeControl[] = []
+  ): void {
+    const invocations =
+      message?.source === 'live' && message.message.type !== 'command_lifecycle'
+        ? this.invocations.accept(message.message)
+        : []
+    if (controls.some((control) => control.type === 'input-boundary')) this.control.beginTurn()
+    if (message?.source === 'live' && message.message.type !== 'command_lifecycle') this.control.accept(message.message)
+    this.feed.publish(
+      events,
+      message ? [message] : [],
+      this.legacy,
+      invocations,
+      [...controls, ...this.pendingControls.splice(0)],
+      this.control.snapshot
+    )
   }
 }

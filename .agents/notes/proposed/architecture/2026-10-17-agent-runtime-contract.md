@@ -12,6 +12,8 @@ This note replaces the stack's runtime ownership and behavior design. It records
 
 The [SDK content protocol](../simplification/2026-10-29-agent-runtime-content-protocol.md) owns the implemented replacement of `ContentItem` and SDK content accumulation at the shared observation source. Its `RuntimeMessage` contract supersedes the item events and Main readers described below. Access, input admission, lifecycle, native recovery, and product ownership remain governed here.
 
+The proposed [runtime boundary ownership follow-up](../simplification/2026-11-05-agent-runtime-boundary-ownership.md) would partially supersede the desktop input round-trip, child-access plumbing and placement of native control interpretation. It reuses this access/lifecycle contract and adds no product dependencies to the packages; the existing requirements remain in force until that follow-up is approved and implemented.
+
 ## Proposal
 
 ### Keep the common entry small

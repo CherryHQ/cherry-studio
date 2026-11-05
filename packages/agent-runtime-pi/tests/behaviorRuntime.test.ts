@@ -257,6 +257,7 @@ it('continues the discovered child in place, streams to shared handles and deliv
   await expect.poll(() => inputs(rootEvents, 'delegate').at(-1)?.outcome).toBe('completed')
   const relation = rootEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child was published')
+  expect(relation.subagent.origin).toEqual({ toolCallId: 'spawn', description: 'scan' })
   const child = confirmed(await runtime.open(relation.subagent.child))
   const second = confirmed(await runtime.open(child.thread))
   const childEvents = await observe(child)
@@ -289,9 +290,81 @@ it('continues the discovered child in place, streams to shared handles and deliv
     )
     .toBe(1)
   expect(rootEvents.filter((event) => event.type === 'subagent.upsert')).toHaveLength(1)
+  expect(relation.subagent.origin?.toolCallId).toBe('spawn')
   expect(child.thread).toEqual(second.thread)
   expect(inputs(rootEvents, 'parent waits').at(-1)?.outcome).toBe('aborted')
   expect(errors).toEqual([])
+})
+
+// Catches stopping only the child of a foreground tool and leaving its parent running, or cancelling a later turn.
+it.each([false, true])('opens an admitted child after configuration settles (failed=%s)', async (failed) => {
+  const configuring = gate()
+  onTestFinished(() => configuring.open())
+  let rootId = ''
+  const provider = respondingModel((call) =>
+    call.sessionId === rootId && JSON.stringify(call.messages.at(-1)).includes('delegate')
+      ? assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'task' })], 'toolUse')
+      : assistantReply('answer')
+  )
+  const { runtime, config, host } = await setup(provider.model)
+  config.behavior = {
+    host,
+    configureChild: async () => {
+      await configuring.wait(undefined)
+      if (failed) throw new Error('child configuration failed')
+      return {}
+    }
+  }
+  const root = confirmed(await runtime.create(config))
+  rootId = root.thread.id
+  expect(await root.pi.openChild('unknown')).toMatchObject({ status: 'rejected', error: { code: 'unknown-call' } })
+  await root.input.submit(draft('delegate'))
+  await configuring.reached
+  const pending = root.pi.openChild('spawn')
+  const concurrent = root.pi.openChild('spawn')
+  const temporary = confirmed(await runtime.open(root.thread))
+  const cancelled = temporary.pi.openChild('spawn')
+  await temporary.release()
+  expect(await cancelled).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+  configuring.open()
+  if (failed) {
+    for (const result of await Promise.all([pending, concurrent]))
+      expect(result).toMatchObject({ status: 'rejected', error: { code: 'child-unavailable' } })
+  } else {
+    const first = confirmed(await pending)
+    const second = confirmed(await concurrent)
+    expect(first.relation).toEqual(second.relation)
+    expect(first.relation.origin).toEqual({ toolCallId: 'spawn', description: 'scan' })
+    expect(first.handle).not.toBe(second.handle)
+    await first.handle.release()
+    await root.pi.settled()
+    expect(
+      second.handle.pi
+        .archive()
+        .messages.some((message) => message.parts.some((part) => part.type === 'text' && part.text === 'answer'))
+    ).toBe(true)
+    expect(provider.calls.filter((call) => call.sessionId !== rootId)).toHaveLength(1)
+  }
+})
+
+// Catches configuration waits keeping an access alive after its owner has begun shutdown.
+it('settles child access waits before shutdown joins blocked configuration', async () => {
+  const configuring = gate()
+  onTestFinished(() => configuring.open())
+  const provider = respondingModel(() =>
+    assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'task' })], 'toolUse')
+  )
+  const { runtime, config, host } = await setup(provider.model)
+  config.behavior = { host, configureChild: () => configuring.wait({}) }
+  const root = confirmed(await runtime.create(config))
+  await root.input.submit(draft('delegate'))
+  await configuring.reached
+  const pending = root.pi.openChild('spawn')
+  const closed = runtime.shutdown()
+  expect(await pending).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+  configuring.open()
+  confirmed(await closed)
+  expect(provider.calls).toHaveLength(1)
 })
 
 // Catches stopping only the child of a foreground tool and leaving its parent running, or cancelling a later turn.

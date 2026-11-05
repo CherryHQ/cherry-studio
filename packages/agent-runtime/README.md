@@ -9,10 +9,13 @@ with observation and release operations. Its optional `input` groups `submit` wi
 busy `policies`; observation-only access omits it. Releasing an access does not delete the thread
 or abort its work. The host stores product-session relationships separately from native context storage.
 
-`Subagent { id, parent, child? }` describes an observed relationship. Its ID is scoped to the
+`Subagent { id, parent, child?, origin? }` describes an observed relationship. Its ID is scoped to the
 parent and survives child continuation; it is not an assignment ID or completion status. A child
 without an accessible context omits `child`. Snapshots expose `subagents`, and `subagent.upsert`
-updates one relationship. Open an available child separately to observe its output or use its input.
+updates one relationship. Evidenced `origin` carries the parent-scoped creation `toolCallId` and optional
+description; continuation does not replace that origin. Concrete facets provide `openChild(toolCallId, signal?)`
+to await an admitted creation and return its relationship and access together, without starting execution.
+Open an available child separately to observe its output or use its input.
 
 `InputState.response` links a logical input to its evidenced terminal response. Several inputs
 may share that message; a response may be failed, aborted or truncated, so its presence alone is not
@@ -30,7 +33,12 @@ The reader is not seeded from a partial snapshot: SDK parser state must come fro
 
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
-queue or execution lifecycle. Adapters maintain source identity before publishing events.
+queue or execution lifecycle. Adapters maintain source identity before publishing events. `observeCaptured`
+captures concrete metadata with each native revision and retains critical frames through overflow recovery.
+An unrecoverable control backlog closes the observation with a gap instead of inventing completion.
+`Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
+Seal native production before the final drain and archive flush. `stop()` discards queued delivery; it is not
+a write barrier. Detach and release only after the final flush, and keep backup pauses write-free until resume.
 
 Pi-specific APIs previously in this package live in `@cherrystudio/agent-runtime-pi`. Pi Durable
 has a separate adapter in `@cherrystudio/agent-runtime-pi-durable`; both are wired into the desktop.

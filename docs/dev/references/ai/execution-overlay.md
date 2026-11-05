@@ -31,6 +31,12 @@ Child native observer → ChildThreadProjection ─┤
 
 A root baseline covers the current live overlay, not the topic's saved history. It includes execution, attempt and message-anchor identities, so parallel models and a retry using the same model/anchor stay distinct. The child baseline covers its own archive and current content; it excludes parent and sibling content. `toolCallId` resolves a child through its owner and is not the child's durable identity.
 
+Concrete runtime observations capture body, aliases, retractions and live/history provenance
+together. Main consumes that complete value instead of reconstructing delivery history or reading
+mutable adapter metadata later. Each child has one connection-owned resource record for its
+relationship, access and projection. Closing joins native production and observation callbacks
+before the final archive flush, then detaches and releases; backup holds that boundary until resume.
+
 Native queues, child lifetime and persistence destinations remain owner-specific. Observing or detaching a view does not submit input, stop a task, or transfer native ownership. Parent completion does not finish a background child's projection. Native owner closure makes the child unavailable while retaining its readable archive.
 
 Archive reconciliation can await a native read. It preserves submitted product user text

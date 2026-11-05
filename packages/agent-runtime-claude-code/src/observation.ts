@@ -1,6 +1,7 @@
 import { ThreadFeed, type Observation, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
-import type { ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
+import type { ClaudeControl } from './control'
+import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
 
 /** Keeps typed native payloads and normalized changes in the same bounded delivery queue. */
 export class ClaudeFeed {
@@ -14,6 +15,7 @@ export class ClaudeFeed {
   private readonly observers = new Set<(batch: ClaudeObservation) => void>()
   private ended = false
   private legacy: NonNullable<ClaudeObservation['legacy']> = {}
+  private controlState: ClaudeObservation['state'] = { active: false, aborted: false }
 
   constructor(private readonly report: (error: unknown) => void) {
     this.state = new ThreadFeed(
@@ -36,6 +38,14 @@ export class ClaudeFeed {
   private baseline(): ClaudeObservation {
     return {
       events: [this.snapshot],
+      delivery: 'baseline',
+      state: this.controlState,
+      controls: this.controlState?.backgroundTasks
+        ? [
+            { type: 'background-tasks', tasks: this.controlState.backgroundTasks },
+            { type: 'background-work-state', active: this.controlState.backgroundWorkActive === true }
+          ]
+        : [],
       live: [...this.live],
       replaces: Object.fromEntries(this.replaces),
       legacy: structuredClone(this.legacy),
@@ -47,9 +57,13 @@ export class ClaudeFeed {
   publish(
     events: readonly ObservationPayload[],
     native: readonly ClaudeNativeMessage[] = [],
-    legacy?: ClaudeObservation['legacy']
+    legacy?: ClaudeObservation['legacy'],
+    invocations: readonly ClaudeInvocation[] = [],
+    controls: readonly ClaudeControl[] = [],
+    state?: ClaudeObservation['state']
   ): void {
     if (this.ended) return
+    if (state) this.controlState = state
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
     native = native.filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
@@ -88,8 +102,12 @@ export class ClaudeFeed {
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
         this.native.set(key, structuredClone(value))
     }
-    const batch = {
+    const batch: ClaudeObservation = {
       events,
+      controls,
+      state: this.controlState,
+      delivery: 'update',
+      invocations,
       native,
       live: events.flatMap((event) =>
         event.type === 'message.upsert' && this.live.has(event.message.id) ? [event.message.id] : []
@@ -111,13 +129,32 @@ export class ClaudeFeed {
   observe(sink: ClaudeObservationSink): Observation {
     if (this.ended) throw new Error('Observation source is closed')
     let stopped = false
+    let lost = false
     let draining = false
     let started = false
-    let pending = [this.baseline()]
+    let sent = 1
+    let delivered = 0
+    const historical = new Set(this.snapshot.messages.map((message) => message.id))
+    const capture = (batch: ClaudeObservation): ClaudeObservation => ({
+      ...structuredClone(batch),
+      live: batch.delivery === 'baseline' ? [] : batch.live?.filter((id) => !historical.has(id))
+    })
+    type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }
+    let pending: Delivery[] = [{ batch: capture(this.baseline()), through: sent }]
+    const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
+    const settle = () => {
+      for (const barrier of barriers) {
+        if (delivered < barrier.through && !stopped) continue
+        barriers.delete(barrier)
+        if (delivered >= barrier.through) barrier.resolve()
+        else barrier.reject(new Error('Observation stopped before delivery drained'))
+      }
+    }
     const stop = () => {
       stopped = true
       pending = []
       this.observers.delete(send)
+      settle()
     }
     const drain = () => {
       if (draining || stopped) return
@@ -126,8 +163,10 @@ export class ClaudeFeed {
         try {
           while (!stopped && pending.length) {
             started = true
-            const batch = pending.shift()!
+            const { batch, through } = pending.shift()!
             await sink(batch)
+            delivered = Math.max(delivered, through)
+            settle()
             if (batch.events.some((event) => event.type === 'closed')) stop()
           }
         } catch (error) {
@@ -139,22 +178,57 @@ export class ClaudeFeed {
       })
     }
     const send = (batch: ClaudeObservation) => {
-      if (stopped) return
-      pending.push(structuredClone(batch))
+      if (stopped || lost) return
+      for (const [previous, replacement] of Object.entries(batch.replaces ?? {}))
+        if (historical.has(previous)) historical.add(replacement)
+      const recover = () =>
+        capture({ ...this.baseline(), delivery: 'recovery', controls: batch.controls, invocations: batch.invocations })
+      const critical = Boolean(batch.controls?.length || batch.invocations?.length)
+      pending.push({ batch: capture(batch), through: ++sent, ...(critical && { recovery: recover() }) })
       if (pending.length > 100) {
         const closed = batch.events.filter((event) => event.type === 'closed')
+        const retained = pending.filter((item) => item.recovery).map((item) => ({ ...item, batch: item.recovery! }))
+        if (retained.length > 1000) {
+          lost = true
+          pending = [
+            {
+              batch: {
+                events: [
+                  { type: 'gap', reason: 'overflow' },
+                  { type: 'closed', reason: 'source-lost' }
+                ],
+                native: [],
+                retracted: []
+              },
+              through: sent
+            }
+          ]
+          this.report(new Error('Claude observer exceeded recoverable control backlog'))
+          drain()
+          return
+        }
         pending = [
           ...(started ? [] : [pending[0]]),
-          { events: [{ type: 'gap', reason: 'overflow' }], native: [], retracted: [] },
-          this.baseline(),
-          ...(closed.length ? [{ events: closed, native: [], retracted: [] }] : [])
+          { batch: { events: [{ type: 'gap', reason: 'overflow' }], native: [], retracted: [] }, through: delivered },
+          ...retained,
+          ...(retained.at(-1)?.through === sent
+            ? []
+            : [{ batch: recover(), through: closed.length ? sent - 1 : sent }]),
+          ...(closed.length ? [{ batch: { events: closed, native: [], retracted: [] }, through: sent }] : [])
         ]
       }
       drain()
     }
     this.observers.add(send)
     drain()
-    return { stop: async () => stop() }
+    return {
+      drain: () =>
+        new Promise<void>((resolve, reject) => {
+          barriers.add({ through: sent, resolve, reject })
+          settle()
+        }),
+      stop: async () => stop()
+    }
   }
 
   close(reason: 'shutdown' | 'source-lost'): void {

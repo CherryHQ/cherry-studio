@@ -3,6 +3,7 @@ import { isToolUIPart, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { InputState } from '@cherrystudio/agent-runtime'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
@@ -289,6 +290,16 @@ type AgentSessionRuntimeEntry = {
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
+  connectionGeneration?: string
+  /** Pending product handoffs outlive the connection that attempted native admission. */
+  pendingInputs?: Map<
+    string,
+    {
+      input: AgentRuntimeUserInput
+      generation?: string
+      contextId?: string
+    }
+  >
   lastResumeToken?: string
   branchHead?: string
   usageAttribution?: AgentSessionUsageAttribution
@@ -696,7 +707,8 @@ export class AgentSessionRuntimeService extends BaseService {
       agentType: input.agentType,
       modelId: input.modelId,
       messageSnapshot,
-      runtimeState: createAgentSessionRuntimeState(turn)
+      runtimeState: createAgentSessionRuntimeState(turn),
+      pendingInputs: existing?.pendingInputs
     }
     this.entries.set(input.sessionId, entry)
     this.syncRuntimeActivity()
@@ -1041,11 +1053,10 @@ export class AgentSessionRuntimeService extends BaseService {
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
+    if (!entry || entry.pendingInputs?.has(message.id)) return
 
     this.clearIdleTimer(entry)
-    // Message attributes ride the payloads themselves: a redirect carries them through the driver
-    // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
+    // Capture before redirect: the native placement hook can run synchronously.
     const headless = opts.headless === true
     const trustedNotifyChannels = opts.trustedNotifyChannels
     const messageSnapshot = opts.messageSnapshot ? structuredClone(opts.messageSnapshot) : undefined
@@ -1078,15 +1089,19 @@ export class AgentSessionRuntimeService extends BaseService {
       this.isTurnLive(entry, turn) &&
       turn.headless !== true &&
       !headless &&
-      canRedirectOnCurrentConfig &&
-      this.currentConnection(entry)?.redirect?.({
-        message,
-        systemReminder: true,
-        ...(headless ? { headless } : {}),
-        ...(messageSnapshot ? { messageSnapshot } : {})
-      })
+      canRedirectOnCurrentConfig
     ) {
-      return
+      const input: AgentRuntimeUserInput = {
+        message: structuredClone(message),
+        systemReminder: true,
+        headless,
+        ...(messageSnapshot ? { messageSnapshot } : {})
+      }
+      const pending = (entry.pendingInputs ??= new Map())
+      if (pending.has(message.id)) return
+      pending.set(message.id, { input, generation: entry.connectionGeneration })
+      if (this.currentConnection(entry)?.redirect?.({ message: input.message, systemReminder: true })) return
+      pending.delete(message.id)
     }
 
     // No redirect-eligible open normal turn (or backend can't steer) → queue as the next turn,
@@ -1183,7 +1198,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.lastResumeToken,
       entry.branchHead
     )
-    if (this.entries.get(sessionId) === entry) {
+    if (this.entries.get(sessionId) === entry && !entry.pendingInputs?.size) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
@@ -1973,6 +1988,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
 
       const attemptId = crypto.randomUUID()
+      entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
       const connecting = this.connect(entry, target, attemptId).finally(() => {
         if (this.connectionAttempts.get(entry.sessionId)?.id === attemptId) {
@@ -2017,7 +2033,15 @@ export class AgentSessionRuntimeService extends BaseService {
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
       branchHead: entry.branchHead,
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      onSteerInjected: (inputIds) => {
+        if (this.isCurrentGeneration(entry, attemptId))
+          this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
+      },
+      onInputPrepared: (inputId, contextId) => {
+        if (!this.isCurrentGeneration(entry, attemptId)) return
+        const pending = entry.pendingInputs?.get(inputId)
+        if (pending?.generation === attemptId) pending.contextId = contextId
+      }
     })
     const attempt = this.connectionAttempts.get(entry.sessionId)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
@@ -2043,6 +2067,7 @@ export class AgentSessionRuntimeService extends BaseService {
         void this.closeRuntimeConnection(connection, entry.sessionId)
         this.resetConnectionRuntimeState(entry, connection)
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+        entry.connectionGeneration = undefined
         if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
           this.requestRuntimeLaunch(entry, 'queued-turn')
         }
@@ -2050,7 +2075,71 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
     })
     entry.connectionLoop = connectionLoop
-    return true
+    await this.reconcilePendingInputs(entry, connection, attemptId)
+    return this.isCurrentGeneration(entry, attemptId) && this.currentConnection(entry) === connection
+  }
+
+  private isCurrentGeneration(entry: AgentSessionRuntimeEntry, generation: string): boolean {
+    return this.isCurrentEntry(entry) && entry.connectionGeneration === generation
+  }
+
+  private pendingInputValues(
+    entry: AgentSessionRuntimeEntry,
+    ids: readonly string[],
+    take = false
+  ): AgentRuntimeUserInput[] {
+    const inputs: AgentRuntimeUserInput[] = []
+    for (const id of ids) {
+      const pending = entry.pendingInputs?.get(id)
+      if (!pending || pending.generation !== entry.connectionGeneration) continue
+      inputs.push(pending.input)
+      if (take) entry.pendingInputs!.delete(id)
+    }
+    return inputs
+  }
+
+  private resolvePendingInput(entry: AgentSessionRuntimeEntry, contextId: string, input: InputState): void {
+    const inputId =
+      input.inputId ??
+      (input.nativeInput && agentSessionMessageService.inputMessageId(entry.sessionId, contextId, input.nativeInput.id))
+    const pending = inputId && entry.pendingInputs?.get(inputId)
+    if (!pending || pending.contextId !== contextId) return
+    if (pending.generation === entry.connectionGeneration && input.facts.includes('placed')) return
+    if (input.outcome || input.facts.includes('locally-handled')) {
+      entry.pendingInputs!.delete(inputId)
+      logger.info('Pending native input resolved', {
+        sessionId: entry.sessionId,
+        inputId,
+        outcome: input.outcome ?? 'locally-handled'
+      })
+    }
+  }
+
+  private async reconcilePendingInputs(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    generation: string
+  ): Promise<void> {
+    if (!connection.lookupInput) return
+    for (const [inputId, pending] of entry.pendingInputs ?? []) {
+      if (pending.generation === generation || !pending.contextId) continue
+      let result: Awaited<ReturnType<NonNullable<AgentRuntimeConnection['lookupInput']>>>
+      try {
+        result = await connection.lookupInput(pending.contextId, inputId)
+      } catch (error) {
+        logger.warn('Pending native input lookup failed', { sessionId: entry.sessionId, inputId, error })
+        continue
+      }
+      if (!this.isCurrentGeneration(entry, generation) || this.currentConnection(entry) !== connection) return
+      if (result.status === 'confirmed' && result.value.found)
+        this.resolvePendingInput(entry, pending.contextId, result.value.input)
+      else
+        logger.warn('Pending native input remains unresolved', {
+          sessionId: entry.sessionId,
+          inputId,
+          contextId: pending.contextId
+        })
+    }
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
@@ -2147,23 +2236,39 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'usage':
         this.recordRuntimeUsage(entry, event.invocation)
         break
-      case 'steer-boundary':
-        this.reserveSteerContinuation(entry, event.inputs)
+      case 'input-submission': {
+        const pending = entry.pendingInputs?.get(event.result.inputId)
+        if (!pending || pending.generation !== entry.connectionGeneration || pending.contextId !== event.contextId)
+          break
+        if (event.result.status === 'rejected' || event.result.status === 'unsupported')
+          this.handleRuntimeEvent(entry, { type: 'steer-undelivered', inputIds: [event.result.inputId] }, connection)
+        else if (event.result.status === 'acknowledged' && event.result.facts.includes('locally-handled'))
+          entry.pendingInputs?.delete(event.result.inputId)
+        break
+      }
+      case 'input-state':
+        this.resolvePendingInput(entry, event.contextId, event.input)
+        break
+      case 'steer-boundary': {
+        const inputs = this.pendingInputValues(entry, event.inputIds, true)
+        if (!inputs.length) break
+        this.reserveSteerContinuation(entry, inputs)
         // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
         // A1a, then buffer the continuation until `startContinuationTurn` opens A2. The reducer keeps
         // A1a awaiting persistence and does not schedule A2 until the stream terminal listener fires.
         // A responder exists if the pre-steer turn was interactive or any injected steer came from one.
         this.applyRuntimeStateEvent(entry, {
           type: 'steer-boundary',
-          inputs: event.inputs,
-          headless: this.currentTurn(entry)?.headless === true && event.inputs.every((input) => input.headless === true)
+          inputs,
+          headless: this.currentTurn(entry)?.headless === true && inputs.every((input) => input.headless === true)
         })
         break
+      }
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
         // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
         // drains the state-machine queue through the queued-turn launch.
-        for (const input of event.inputs) {
+        for (const input of this.pendingInputValues(entry, event.inputIds, true)) {
           this.applyRuntimeStateEvent(entry, {
             type: 'queue-turn',
             turn: {
@@ -3554,6 +3659,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
     entry.connectionLoop = undefined
+    entry.connectionGeneration = undefined
     return connection
   }
 

@@ -6,9 +6,12 @@ export type {
   ClaudeCodeRuntime,
   ClaudeThreadHandle,
   ClaudeObservation,
+  ClaudeInvocation,
   ClaudeObservationSink,
   ClaudeNativeMessage,
   ClaudeCommandLifecycle,
   ClaudeArchive,
   ClaudeSource
 } from './types'
+
+export type { ClaudeControl, ClaudeResultFailure, ClaudeTaskFact } from './control'

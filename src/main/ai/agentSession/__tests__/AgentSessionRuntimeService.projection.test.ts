@@ -88,6 +88,7 @@ async function fixture() {
           }
         },
         send: async () => {},
+        redirect: () => true,
         close: async () => {
           activeQueue.close()
           closed.resolve()
@@ -170,7 +171,8 @@ it('retains a reserved steer reply until its stream takes ownership', async () =
     parentId: f.reply.id,
     message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Revised requirement' }] } }
   })
-  await f.emit({ type: 'steer-boundary', inputs: [{ message: followup }] })
+  f.service.enqueueUserMessage('root', followup)
+  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
   const first = await f.done
   await f.project([text('second', 'Continuation before handoff')])
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }

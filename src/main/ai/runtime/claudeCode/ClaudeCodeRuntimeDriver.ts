@@ -1,39 +1,34 @@
 import { fileURLToPath } from 'node:url'
 
-import type {
-  Options,
-  SDKMessage,
-  SDKAssistantMessage,
-  SDKPartialAssistantMessage,
-  SDKResultMessage,
-  SDKUserMessage
-} from '@anthropic-ai/claude-agent-sdk'
+import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
-import {
-  prepareNativeSubmission,
-  applyNativeSubmissionResult,
-  bindNativeInput
-} from '@main/ai/agentSession/nativeSubmission'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
-
-import { canSalvageClaudeOutput } from './processExitDiagnostics'
-
-type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { runtimeId, type Observation, type Subagent, type Thread } from '@cherrystudio/agent-runtime'
-import type { ClaudeCodeRuntime, ClaudeObservation, ClaudeThreadHandle } from '@cherrystudio/agent-runtime-claude-code'
+import type {
+  ClaudeCodeRuntime,
+  ClaudeControl,
+  ClaudeObservation,
+  ClaudeThreadHandle
+} from '@cherrystudio/agent-runtime-claude-code'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
+import {
+  prepareNativeSubmission,
+  lookupNativeInput,
+  applyNativeSubmissionResult,
+  bindNativeInput
+} from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -63,7 +58,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
+  AgentRuntimeCommand,
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../types'
@@ -77,9 +72,10 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import type { ConsumedWarmQuery } from './ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
-import { ClaudeRuntimeState } from './ClaudeRuntimeState'
+import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { canSalvageClaudeOutput } from './processExitDiagnostics'
 import {
   createClaudeCodeProcessExitError,
   isClaudeCodeProcessFailure,
@@ -93,7 +89,6 @@ import {
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
-import { convertClaudeCodeUsage, v3UsageToStats } from './usage'
 import { claudeWorkspaceRelocation } from './workspaceRelocation'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -103,7 +98,7 @@ function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
 }
 
-function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
+function isFastSlashCommand(input: AgentRuntimeCommand): boolean {
   const text = (input.message.data.parts ?? [])
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
@@ -124,169 +119,10 @@ function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionCon
   return changedFacts.length > 0 ? changedFacts : ['unknown']
 }
 
-type InvocationUsageBuckets = {
-  outputTokens?: number
-  noCacheTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-}
-
-type InvocationMetricSnapshot = {
-  timeFirstTokenMs?: number
-  timeCompletionMs?: number
-  timeThinkingMs?: number
-}
-
-type InvocationTiming = {
-  streamStartedAt: number
-  ttftMs?: number
-  thinkingStartedAt?: number
-  thinkingDurationMs?: number
-}
-
-type PendingInvocationUsage = {
-  requestId: string
-  model: string
-  messageAssociation: 'current-turn' | 'stateless'
-  startUsage?: InvocationUsageBuckets
-  assistantUsage?: InvocationUsageBuckets
-  terminalUsage?: InvocationUsageBuckets
-  timing?: InvocationTiming
-  metrics?: InvocationMetricSnapshot
-  completionObserved: boolean
-  isStreamStopped: boolean
-}
-
-type InvocationUsageInput = {
-  input_tokens?: number | null
-  output_tokens?: number | null
-  cache_read_input_tokens?: number | null
-  cache_creation_input_tokens?: number | null
-}
-
-function invocationUsageBuckets(usage: InvocationUsageInput): InvocationUsageBuckets | undefined {
-  const reportedValues = [
-    usage.input_tokens,
-    usage.output_tokens,
-    usage.cache_read_input_tokens,
-    usage.cache_creation_input_tokens
-  ].filter((value): value is number => value != null)
-  if (reportedValues.length === 0 || reportedValues.some((value) => !Number.isFinite(value) || value < 0))
-    return undefined
-
-  return {
-    ...(usage.input_tokens != null ? { noCacheTokens: usage.input_tokens } : {}),
-    ...(usage.output_tokens != null ? { outputTokens: usage.output_tokens } : {}),
-    ...(usage.cache_read_input_tokens != null ? { cacheReadTokens: usage.cache_read_input_tokens } : {}),
-    ...(usage.cache_creation_input_tokens != null ? { cacheWriteTokens: usage.cache_creation_input_tokens } : {})
-  }
-}
-
-function mergeInvocationUsageBuckets(
-  current: InvocationUsageBuckets | undefined,
-  next: InvocationUsageBuckets | undefined
-): InvocationUsageBuckets | undefined {
-  if (!current) return next
-  if (!next) return current
-  return {
-    outputTokens: next.outputTokens ?? current.outputTokens,
-    noCacheTokens: next.noCacheTokens ?? current.noCacheTokens,
-    cacheReadTokens: next.cacheReadTokens ?? current.cacheReadTokens,
-    cacheWriteTokens: next.cacheWriteTokens ?? current.cacheWriteTokens
-  }
-}
-
-function materializeInvocationUsage(buckets: InvocationUsageBuckets | undefined) {
-  if (!buckets) return undefined
-  const noCacheTokens = buckets.noCacheTokens ?? 0
-  const cacheReadTokens = buckets.cacheReadTokens ?? 0
-  const cacheWriteTokens = buckets.cacheWriteTokens ?? 0
-  const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
-  const outputTokens = buckets.outputTokens ?? 0
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    noCacheTokens,
-    cacheReadTokens,
-    cacheWriteTokens
-  }
-}
-
-function pendingInvocationFromAssistant(
-  message: SDKAssistantMessage,
-  messageAssociation: PendingInvocationUsage['messageAssociation'],
-  fallbackModel: string
-): PendingInvocationUsage {
-  const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
-  const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
-  return {
-    requestId: message.message.id,
-    model: resolveSdkInvocationModel(message.message.model, fallbackModel),
-    messageAssociation,
-    ...(assistantUsage ? { assistantUsage } : {}),
-    completionObserved: isComplete,
-    isStreamStopped: false
-  }
-}
-
-function resolveSdkInvocationModel(model: unknown, fallbackModel: string): string {
-  return typeof model === 'string' && model.trim() ? model : fallbackModel
-}
-
-function selectAssistantUsage(
-  current: InvocationUsageBuckets | undefined,
-  next: InvocationUsageBuckets | undefined
-): InvocationUsageBuckets | undefined {
-  if (!next) return current
-  if (!current || (next.outputTokens ?? 0) >= (current.outputTokens ?? 0)) return next
-  return current
-}
-
-function finiteNonnegativeDuration(value: number | undefined): number | undefined {
-  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined
-}
-
-function startsThinking(event: SDKPartialAssistantMessage['event']): boolean {
-  return (
-    (event.type === 'content_block_start' && event.content_block.type === 'thinking') ||
-    (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta')
-  )
-}
-
-function hasNonReasoningOutput(event: SDKPartialAssistantMessage['event']): boolean {
-  if (event.type === 'content_block_delta') {
-    return (
-      (event.delta.type === 'text_delta' && event.delta.text.length > 0) ||
-      (event.delta.type === 'input_json_delta' && event.delta.partial_json.length > 0)
-    )
-  }
-  if (event.type !== 'content_block_start') return false
-  return (
-    event.content_block.type === 'tool_use' ||
-    event.content_block.type === 'server_tool_use' ||
-    event.content_block.type === 'mcp_tool_use'
-  )
-}
-
-function mergePendingInvocation(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
-  const startUsage = mergeInvocationUsageBuckets(current.startUsage, next.startUsage)
-  const assistantUsage = selectAssistantUsage(current.assistantUsage, next.assistantUsage)
-  const terminalUsage = mergeInvocationUsageBuckets(current.terminalUsage, next.terminalUsage)
-  const timing = next.timing ?? current.timing
-  const metrics = next.metrics ?? current.metrics
-  return {
-    requestId: current.requestId,
-    model: next.model || current.model,
-    messageAssociation: current.messageAssociation,
-    ...(startUsage ? { startUsage } : {}),
-    ...(assistantUsage ? { assistantUsage } : {}),
-    ...(terminalUsage ? { terminalUsage } : {}),
-    ...(timing ? { timing } : {}),
-    ...(metrics ? { metrics } : {}),
-    completionObserved: current.completionObserved || next.completionObserved,
-    isStreamStopped: current.isStreamStopped || next.isStreamStopped
-  }
+type ClaudeChildResource = {
+  relation?: Subagent
+  handle: ClaudeThreadHandle
+  projection: ChildThreadProjection
 }
 
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
@@ -302,23 +138,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly rootProjections: ThreadMessageProjection[] = []
   private readonly rootContexts = new Map<string, ReturnType<typeof contexts.context>>()
   private context?: ReturnType<typeof prepareClaudeBranch>
-  private readonly pendingSteers = new Map<string, AgentRuntimeUserInput>()
-  private readonly startedSteers = new Set<string>()
-  private readonly childRelations = new Map<string, Subagent>()
-  private readonly childOrigins = new Map<string, { toolCallId: string; name: string }>()
-  private readonly childHandles = new Map<string, Promise<ClaudeThreadHandle | undefined>>()
-  private readonly childProjections = new Map<string, ChildThreadProjection>()
+  private readonly children = new Map<
+    string,
+    | { state: 'opening'; pending: Promise<ClaudeChildResource | undefined> }
+    | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
+  >()
   private closing = false
+  private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
-  private nativeState?: ClaudeRuntimeState
   private sdkModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
-  private lastMainAssistantUuid?: string
   private readonly currentSources = new Set<string>()
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private assistantFileToolsEnabled = false
@@ -326,9 +160,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
   private _usageCapture?: AgentSessionUsageCapture
-  private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
-  private readonly streamInvocationIdsByLane = new Map<string, string>()
-  private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
 
@@ -427,7 +258,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
     // before any turn opens — is dispatched independently of message projection.
-    this.nativeState = this.createNativeState()
     this.approvalEmitter = request.settings.approvalEmitter
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
@@ -463,14 +293,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
-    this.lastMainAssistantUuid = undefined
+  async send(input: AgentRuntimeCommand): Promise<void> {
     this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
-
-    this.nativeState?.beginTurn()
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
@@ -481,19 +308,24 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
+    this.input.onInputPrepared?.(input.message.id, contextId)
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
+    this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  lookupInput(contextId: string, inputId: string) {
+    return lookupNativeInput(this.runtime!, this.input.sessionId, contextId, inputId)
+  }
+
+  redirect(input: AgentRuntimeCommand): boolean {
     if (this.closing || !this.handle) return false
-    this.pendingSteers.set(input.message.id, input)
     void this.submitSteer(input).catch((error) => this.eventQueue.push({ type: 'error', error }))
     return true
   }
 
-  private async submitSteer(input: AgentRuntimeUserInput): Promise<void> {
+  private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
@@ -503,7 +335,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
+    this.input.onInputPrepared?.(input.message.id, contextId)
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'steer')
+    this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
@@ -549,7 +383,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // Claude's set_permission_mode control request can terminate work already in flight. Keep the
     // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
     // reconcile again before admitting the next turn, when the SDK update is safe to apply.
-    const deferPermissionMode = permissionModeChanged && this.nativeState?.isTurnActive === true
+    const deferPermissionMode = permissionModeChanged && this.handle?.claude.state().active === true
     const applicableToolPolicy = deferPermissionMode
       ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
       : fresh.live.toolPolicy
@@ -621,7 +455,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * request the CLI just sent carries exactly the tokens now occupying the window. `categories` stays
    * empty (only the CLI's probe produces the breakdown); the host's post-turn pull remains authoritative.
    */
-  private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
+  private emitLiveContextUsage(usage: Extract<ClaudeControl, { type: 'context-usage' }>['usage']): void {
     const totalTokens =
       (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0)
     if (totalTokens <= 0) return
@@ -663,9 +497,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async drainChildWrites(): Promise<void> {
+    await this.runtime?.settled()
+    await Promise.all(this.observations.map((observation) => observation.drain()))
+    if (this.closing) {
+      await this.closePromise
+      return
+    }
+    for (const child of await this.childResources()) await child.projection.drain()
+  }
+
   close(): Promise<void> {
-    this.closePromise ??= this.closeQuery()
-    return this.closePromise
+    return (this.closePromise ??= this.closeQuery().catch((error) => {
+      this.closePromise = undefined
+      throw error
+    }))
   }
 
   async closeForEdit(): Promise<void> {
@@ -674,6 +520,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async closeQuery(): Promise<void> {
     this.closing = true
+    this.closingAccess.abort()
     if (this.parkedQuery) {
       await this.parkedQuery.warmQuery[Symbol.asyncDispose]()
       await this.parkedQuery.processDiagnostics.exited
@@ -684,12 +531,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.closePromise = undefined
       throw new Error(closed.error.message)
     }
-    await Promise.all(this.childHandles.values())
+    await this.childResources()
     await Promise.all(this.observationEnds)
-    await Promise.all([...this.childProjections.values()].map((projection) => projection.stop()))
+    await Promise.all(this.observations.map((observation) => observation.drain()))
+    for (const [key, child] of this.children) {
+      const resource = child.state === 'opening' ? await child.pending : child.resource
+      if (!resource) continue
+      this.children.set(key, { state: 'closing', resource })
+      await resource.projection.stop()
+      await resource.handle.release()
+      this.children.delete(key)
+    }
     await Promise.all(this.observations.map((observation) => observation.stop()))
     await Promise.all(this.rootProjections.map((projection) => projection.close()))
-    this.settlePendingInvocations()
     this.teardownSession()
     this.eventQueue.close()
   }
@@ -706,34 +560,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         end = resolve
       })
     )
-    let initial = true
-    const historical = new Set<string>()
-    const seenNative = new Set<string>()
     const observation = await handle.claude.observe(async (batch) => {
+      this.publishInvocations(batch, 'current-turn')
       let publish = () => {}
       try {
-        const refresh = metadata.accept(batch)
+        const refresh = metadata.accept(batch) ? projection.snapshot().messages.map((message) => message.id) : []
         const changed = await projection.accept(batch.events, refresh)
         for (const event of batch.events) {
           const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
           for (const input of inputs) bindNativeInput(this.input.sessionId, contextId, input)
         }
         const snapshot = batch.events.some((event) => event.type === 'snapshot')
-        const native = batch.native.filter((entry) => {
-          if (entry.source !== 'live') return false
-          if (entry.message.type === 'stream_event') return !initial
-          const id = entry.message.uuid
-          const seen = id && seenNative.has(id)
-          if (id) seenNative.add(id)
-          return !initial && !seen
-        })
-        const liveSources = new Set(
-          batch.live ?? (!snapshot && native.length ? changed.map((message) => message.id) : [])
-        )
-        for (const message of changed) if (initial || !liveSources.has(message.id)) historical.add(message.id)
-        const live = changed
-          .filter((message) => liveSources.has(message.id) && !historical.has(message.id))
-          .map((message) => message.id)
+        const live = changed.filter((message) => batch.live?.includes(message.id)).map((message) => message.id)
         const replaces = {
           ...batch.replaces,
           ...Object.fromEntries(
@@ -751,12 +589,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             type: 'message-projection',
             projection: {
               contextId,
-              legacy: metadata.legacy,
+              legacy: batch.legacy,
               messages,
               live: owned,
               refresh: [...new Set([...refresh, ...changed.map((message) => message.id)])],
               replaces,
-              removed: [...metadata.removed]
+              removed: [
+                ...batch.retracted,
+                ...batch.events.flatMap((event) => (event.type === 'message.remove' ? [event.ref.id] : []))
+              ]
             }
           })
         }
@@ -764,35 +605,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           emit(snapshot ? projection.snapshot().messages : changed, live)
           publish = () => {}
         }
-        if (snapshot && !initial) {
-          const delivered = new Set<string>()
-          for (const entry of native) {
-            const terminal = await this.acceptRoot({ ...batch, events: [], native: [entry] }, projection)
-            const id = entry.message.uuid
-            const message = changed.find((message) => message.id === id && live.includes(message.id))
-            if (message) {
-              emit([message], [message.id])
-              delivered.add(message.id)
-            }
-            for (const event of terminal) this.eventQueue.push(event)
-          }
-          emit(
-            projection.snapshot().messages,
-            this.nativeState?.isTurnActive ? live.filter((id) => !delivered.has(id)) : []
-          )
-          publish = () => {}
-          for (const event of await this.acceptRoot({ ...batch, native: [] }, projection)) this.eventQueue.push(event)
-        } else {
-          const terminal = await this.acceptRoot({ ...batch, native }, projection)
-          publish()
-          for (const event of terminal) this.eventQueue.push(event)
-        }
-        initial = false
-        if (
-          batch.events.some((event) => event.type === 'gap') &&
-          !batch.native.some((native) => native.message.type === 'conversation_reset')
-        )
-          await handle.claude.archive()
+        const terminal = await this.acceptRoot(batch, projection, contextId)
+        publish()
+        for (const event of terminal) this.eventQueue.push(event)
         if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
           this.eventQueue.close()
       } catch (error) {
@@ -812,23 +627,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async acceptRoot(
     batch: ClaudeObservation,
-    projection: ThreadMessageProjection
+    projection: ThreadMessageProjection,
+    contextId: string
   ): Promise<AgentRuntimeEvent[]> {
     const terminal: AgentRuntimeEvent[] = []
     for (const event of batch.events) {
+      if (event.type === 'input.changed') this.eventQueue.push({ type: 'input-state', contextId, input: event.input })
       if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
       if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
-      if (
-        event.type === 'input.changed' &&
-        event.input.inputId &&
-        event.input.outcome &&
-        event.input.outcome !== 'completed'
-      ) {
-        this.pendingSteers.delete(event.input.inputId)
-        this.startedSteers.delete(event.input.inputId)
-      }
       if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing) {
-        this.settlePendingInvocations()
         const error = this.nativeError ?? new Error(`Claude observation ended: ${event.reason}`)
         const surfaced =
           isClaudeCodeProcessFailure(error, this.processDiagnostics) && this.processDiagnostics
@@ -840,173 +647,162 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           .flatMap((message) => message.parts)
           .reduce((length, part) => length + (part.type === 'text' ? part.text.length : 0), 0)
         terminal.push(
-          canSalvageClaudeOutput(surfaced, bufferedChars, this.nativeState?.sawAbortedMessage === true)
+          canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
             ? { type: 'turn-complete' }
             : { type: 'error', error: surfaced }
         )
       }
     }
-    for (const native of batch.native) {
-      if (native.source !== 'live') continue
-      if (native.message.type === 'command_lifecycle') {
-        if (native.message.state === 'started' && this.pendingSteers.has(native.message.command_uuid))
-          this.startedSteers.add(native.message.command_uuid)
-      } else {
-        const result = await this.handleNativeMessage(native.message)
-        if (result) terminal.push(result)
-      }
+    for (const control of batch.controls ?? []) {
+      for (const event of claudeControlEvents(control))
+        this.eventQueue.push(
+          event.type === 'supported-commands'
+            ? { ...event, commands: event.commands.filter((command) => !isHostManagedSlashCommand(command)) }
+            : event
+        )
+      const result = await this.handleControl(control)
+      if (result) terminal.push(result)
     }
     return terminal
   }
 
-  private async handleNativeMessage(message: SDKMessage): Promise<AgentRuntimeEvent | undefined> {
-    if (
-      !this.nativeState?.isTurnActive &&
-      (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'user')
-    )
+  private async handleControl(control: ClaudeControl): Promise<AgentRuntimeEvent | undefined> {
+    if (control.type === 'input-boundary') {
+      this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
       this.currentSources.clear()
-    if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result') {
-      const ids = [
-        ...new Set([
-          ...this.startedSteers,
-          ...(message.user_message_uuids ?? (message.user_message_uuid ? [message.user_message_uuid] : []))
-        ])
-      ]
-      const steers = ids.flatMap((id) => (this.pendingSteers.has(id) ? [this.pendingSteers.get(id)!] : []))
-      if (steers.length) {
-        this.commitPendingInvocations()
-        for (const input of steers) {
-          this.pendingSteers.delete(input.message.id)
-          this.startedSteers.delete(input.message.id)
-        }
-        this.eventQueue.push({ type: 'steer-boundary', inputs: steers })
-        this.currentSources.clear()
-        this.nativeState?.beginTurn()
-      }
-      const responseId =
-        message.type === 'assistant'
-          ? message.message.id
-          : message.type === 'stream_event' && message.event.type === 'message_start'
-            ? message.event.message.id
-            : undefined
-      if (responseId) this.eventQueue.push({ type: 'response-start', responseId })
-    }
-    if (
-      message.type === 'system' &&
-      message.subtype === 'task_started' &&
-      message.task_type === 'local_agent' &&
-      message.tool_use_id
-    ) {
-      if (!this.childOrigins.has(message.task_id))
-        this.childOrigins.set(message.task_id, { toolCallId: message.tool_use_id, name: message.description })
-      this.observeChild(message.task_id)
-    }
-    if (message.type === 'conversation_reset') return
-    if ((message.type === 'system' && message.subtype === 'init') || message.type === 'result') {
-      if (message.session_id !== this.handle!.claude.sessionId) {
+    } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
+      this.currentSources.clear()
+    } else if (control.type === 'session') {
+      if (control.sessionId !== this.handle!.claude.sessionId) {
         const opened = await this.runtime!.open({
           backendId: this.handle!.thread.backendId,
-          id: runtimeId(message.session_id)
+          id: runtimeId(control.sessionId)
         })
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         this.handle = opened.value
         this.context = prepareClaudeBranch(
           this.input.sessionId,
           resolveClaudeConfigDirectory(this.spawnOptions?.env),
-          message.session_id,
-          messages.captureHead(this.input.sessionId)
+          control.sessionId,
+          this.input.branchHead
         )
         await this.observeRoot(this.handle)
       }
-      this.context = contexts.bindContext(this.context!.id, message.session_id)
+      this.context = contexts.bindContext(this.context!.id, control.sessionId)
+      this.updateResumeToken(control.sessionId)
+    } else if (control.type === 'archive-changed') {
+      await this.handle!.claude.archive()
+    } else if (control.type === 'context-usage') {
+      this.emitLiveContextUsage(control.usage)
+    } else if (control.type === 'diagnostic') {
+      logger.warn(control.message, { detail: control.detail })
+    } else if (control.type === 'result') {
+      if (control.failure) return { type: 'error', error: new ClaudeCodeResultError(control.failure) }
+      if (!control.terminal) return
+      this.updateResumeToken(control.sessionId)
+      const checkpoint = ClaudeForkCheckpointSchema.safeParse({
+        runtime: 'claude-code',
+        runtimeSessionId: control.sessionId,
+        messageUuid: control.messageUuid,
+        configDir: resolveClaudeConfigDirectory(this.spawnOptions?.env)
+      })
+      return { type: 'turn-complete', forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined }
     }
-    if (message.type === 'stream_event') {
-      if (message.event.type === 'message_start') this.emitLiveContextUsage(message.event.message.usage)
-      if (message.event.type === 'message_delta' && message.event.usage?.input_tokens != null)
-        this.emitLiveContextUsage(message.event.usage)
-      this.captureStreamInvocation(message, 'current-turn')
-    }
-    if (message.type === 'assistant') {
-      this.captureAssistantInvocation(message, 'current-turn')
-      this.lastMainAssistantUuid = message.uuid
-    }
-    const result = this.nativeState!.accept(message)
-    if (!result) return
-    this.commitPendingInvocations()
-    this.updateResumeToken(result.session_id)
-    this.emitUsageMetadata(result.usage)
-    const checkpoint = ClaudeForkCheckpointSchema.safeParse({
-      runtime: 'claude-code',
-      runtimeSessionId: result.session_id,
-      messageUuid: this.lastMainAssistantUuid,
-      configDir: resolveClaudeConfigDirectory(this.spawnOptions?.env)
-    })
-    this.lastMainAssistantUuid = undefined
-    return {
-      type: 'turn-complete',
-      forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
-    }
+    return undefined
   }
 
   private discoverChild(relation: Subagent): void {
-    this.childRelations.set(relation.id, relation)
-    this.observeChild(relation.id)
+    if (relation.child) void this.observeChild(relation.child)
   }
 
   private restoreChildren(parent: ReturnType<typeof contexts.context>): void {
     for (const context of contexts.children(parent.id)) {
       if (context.bindingState !== 'bound' || !context.nativeThreadId || !context.spawnToolCallId) continue
-      this.attachChild(
-        parent,
+      void this.observeChild(
         { backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) },
-        { toolCallId: context.spawnToolCallId, name: 'Agent' }
+        undefined,
+        context
       )
     }
   }
 
-  private observeChild(id: string): void {
-    const relation = this.childRelations.get(id)
-    if (this.closing || !relation?.child) return
-    const parent =
-      this.rootContexts.get(relation.parent.id) ??
-      [...this.childProjections.values()].find((projection) => projection.thread.id === relation.parent.id)?.context
-    if (!parent) return
-    const saved = contexts.children(parent.id).find((child) => child.nativeThreadId === relation.child!.id)
-    const origin = saved?.spawnToolCallId
-      ? { toolCallId: saved.spawnToolCallId, name: 'Agent' }
-      : this.childOrigins.get(id)
-    if (origin) this.attachChild(parent, relation.child, origin)
+  private async childResources(): Promise<ClaudeChildResource[]> {
+    const resources: ClaudeChildResource[] = []
+    for (const child of this.children.values()) {
+      const resource = child.state === 'opening' ? await child.pending : child.resource
+      if (resource) resources.push(resource)
+    }
+    return resources
   }
 
-  private attachChild(
-    parent: ReturnType<typeof contexts.context>,
+  private async observeChild(
     thread: Thread,
-    origin: { toolCallId: string; name: string }
-  ): void {
-    if (this.closing || this.childHandles.has(origin.toolCallId)) return
-    this.childHandles.set(
-      origin.toolCallId,
-      (async () => {
-        const opened = await this.runtime!.open(thread)
-        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-        const handle = opened.value
-        const context = contexts.child(parent.id, handle.thread.id, origin.toolCallId, origin.name)
+    granted?: ClaudeThreadHandle,
+    saved?: ReturnType<typeof contexts.context>
+  ): Promise<ClaudeChildResource | undefined> {
+    const key = JSON.stringify([thread.backendId, thread.id])
+    const existing = this.children.get(key)
+    if (existing) {
+      await granted?.release()
+      if (existing.state === 'closing') {
+        await existing.resource.projection.stop()
+        await existing.resource.handle.release()
+        this.children.delete(key)
+        return this.observeChild(thread, undefined, saved)
+      }
+      return existing.state === 'opening' ? existing.pending : existing.resource
+    }
+    if (this.closing) {
+      await granted?.release()
+      return undefined
+    }
+    let handle: ClaudeThreadHandle | undefined
+    let resource: ClaudeChildResource | undefined
+    let end = () => {}
+    const pending = Promise.resolve()
+      .then(async () => {
+        if (granted) handle = granted
+        else {
+          const opened = await this.runtime!.open(thread)
+          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+          handle = opened.value
+        }
+        const relation = handle.claude.relation()
+        let context = saved
+        if (!context) {
+          if (!relation) throw new Error('Native child parent is unavailable')
+          const parent =
+            this.rootContexts.get(relation.parent.id) ?? (await this.observeChild(relation.parent))?.projection.context
+          if (!parent) throw new Error('Native child owner context is unavailable')
+          context = contexts.children(parent.id).find((child) => child.nativeThreadId === thread.id)
+          if (!context) {
+            if (!relation.origin) throw new Error('Native child creation origin is unavailable')
+            context = contexts.child(
+              parent.id,
+              thread.id,
+              relation.origin.toolCallId,
+              relation.origin.description ?? thread.id
+            )
+          }
+        }
+        const childContext = context
+        const access = handle
         // The SDK stores the child prompt without forwarding it in the live conversation feed.
-        await handle.claude.archive()
+        await access.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
         const responseOwners = new Set<string>()
-        let end!: () => void
         this.observationEnds.push(
           new Promise<void>((resolve) => {
             end = resolve
           })
         )
         const projection = new ChildThreadProjection(
-          context,
+          childContext,
           {
-            ...handle,
+            ...access,
             observe: async (sink) => {
-              const result = await handle.claude.observe(async (batch) => {
+              const result = await access.claude.observe(async (batch) => {
+                this.publishInvocations(batch, 'stateless')
                 try {
                   const refresh = metadata.accept(batch)
                   for (const event of batch.events) {
@@ -1014,22 +810,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                     if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
                     if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
                   }
-                  if (refresh.length) await projection.refreshDecoration(refresh)
-                  for (const native of batch.native) {
-                    if (native.source !== 'live' || native.message.type !== 'assistant') continue
+                  if (refresh) await projection.refreshDecoration()
+                  for (const control of batch.controls ?? []) {
+                    if (control.type !== 'response-start' || !control.messageUuid) continue
                     await projection.flush()
-                    const productId = contexts.context(context.id).checkpointMapping?.child?.sources
-                    const ownerId = productId?.[native.message.uuid]
-                    if (ownerId && !responseOwners.has(native.message.message.id)) {
-                      responseOwners.add(native.message.message.id)
+                    const productId = contexts.context(childContext.id).checkpointMapping?.child?.sources
+                    const ownerId = productId?.[control.messageUuid]
+                    if (ownerId && !responseOwners.has(control.responseId)) {
+                      responseOwners.add(control.responseId)
                       this.eventQueue.push({
                         type: 'response-start',
-                        responseId: native.message.message.id,
+                        responseId: control.responseId,
                         messageId: ownerId,
-                        sessionId: context.sessionId
+                        sessionId: childContext.sessionId
                       })
                     }
-                    this.captureAssistantInvocation(native.message, 'stateless')
                   }
                 } catch (error) {
                   end()
@@ -1042,36 +837,72 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
               return result
             }
           },
-          () => metadata.archive(),
+          async () => {
+            const archive = await access.claude.archive({ refresh: false })
+            if (archive.status !== 'confirmed') throw new Error(archive.error.message)
+            return {
+              messages: archive.value.content,
+              legacy: archive.value.legacy,
+              removed: archive.value.retracted,
+              aliases: Object.fromEntries(archive.value.content.map((message) => [message.id, message.id]))
+            }
+          },
           metadata.decorate
         )
-        this.childProjections.set(origin.toolCallId, projection)
+        resource = { relation, handle: access, projection }
         await projection.attach()
-        this.restoreChildren(context)
-        for (const child of this.childRelations.keys()) this.observeChild(child)
-        return handle
-      })().catch((error) => {
+        this.children.set(key, { state: 'attached', resource })
+        this.restoreChildren(childContext)
+        return resource
+      })
+      .catch(async (error) => {
+        end()
         logger.error('Claude child observation failed', { thread, error })
+        if (resource) {
+          try {
+            await resource.projection.stop()
+          } catch (flushError) {
+            this.children.set(key, { state: 'closing', resource })
+            logger.error('Failed to flush Claude child attachment', { thread, error: flushError })
+            return undefined
+          }
+        }
+        await handle?.release()
+        this.children.delete(key)
         return undefined
       })
-    )
+    this.children.set(key, { state: 'opening', pending })
+    return pending
   }
 
   async childProjection(toolCallId: string) {
-    await this.childHandles.get(toolCallId)
-    const projection = this.childProjections.get(toolCallId)
-    return projection && { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
-  }
-
-  private createNativeState(): ClaudeRuntimeState {
-    return new ClaudeRuntimeState((event) => {
-      if (event.type === 'supported-commands') {
-        this.eventQueue.push({
-          ...event,
-          commands: event.commands.filter((command) => !isHostManagedSlashCommand(command))
-        })
-      } else this.eventQueue.push(event)
-    })
+    if (this.closing) return undefined
+    const known = (await this.childResources()).filter(
+      (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
+    )
+    if (known.length > 1) return undefined
+    if (known[0]) {
+      const projection = known[0].projection
+      await projection.attach()
+      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
+    }
+    if (this.closing || !this.handle) return undefined
+    const saved = contexts.findChild(this.input.sessionId, toolCallId)
+    let child: ClaudeChildResource | undefined
+    if (saved?.bindingState === 'bound' && saved.nativeThreadId && saved.backendId === this.context?.backendId) {
+      child = await this.observeChild(
+        { backendId: runtimeId(saved.backendId), id: runtimeId(saved.nativeThreadId) },
+        undefined,
+        saved
+      )
+    } else {
+      const opened = await this.handle.claude.openChild(toolCallId, this.closingAccess.signal)
+      if (opened.status !== 'confirmed') return undefined
+      child = await this.observeChild(opened.value.relation.child, opened.value.handle)
+    }
+    if (!child) return undefined
+    await child.projection.attach()
+    return { snapshot: () => child.projection.snapshot(), subscribe: child.projection.subscribe.bind(child.projection) }
   }
 
   private bindApprovalEmitter(): void {
@@ -1113,222 +944,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'resume-token', token: resumeToken })
   }
 
-  private emitUsageMetadata(usage: BetaUsage | undefined): void {
-    if (!usage) return
-    this.eventQueue.push({
-      type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
-      }
-    })
-  }
-
-  private captureAssistantInvocation(
-    message: SDKAssistantMessage,
-    messageAssociation: PendingInvocationUsage['messageAssociation']
-  ): void {
-    const capture = this._usageCapture
-    if (capture?.owner !== 'agent-sdk') return
-
-    if (this.committedInvocationIds.has(message.message.id)) return
-
-    const next = pendingInvocationFromAssistant(message, messageAssociation, this.sdkModelId ?? this.input.modelId)
-    this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
-    if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
-      this.commitInvocationUsage(next.requestId)
-    }
-  }
-
-  private captureStreamInvocation(
-    message: SDKPartialAssistantMessage,
-    messageAssociation: PendingInvocationUsage['messageAssociation']
-  ): void {
+  private publishInvocations(batch: ClaudeObservation, messageAssociation: 'current-turn' | 'stateless'): void {
     if (this._usageCapture?.owner !== 'agent-sdk') return
-
-    const lane = this.invocationLane(message.parent_tool_use_id)
-    if (message.event.type === 'message_start') {
-      const sdkMessage = message.event.message
-      const startUsage = invocationUsageBuckets(sdkMessage.usage)
-      const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
-      this.captureInvocationForLane(lane, {
-        requestId: sdkMessage.id,
-        model: resolveSdkInvocationModel(sdkMessage.model, this.sdkModelId ?? this.input.modelId),
-        messageAssociation,
-        ...(startUsage ? { startUsage } : {}),
-        timing: {
-          streamStartedAt: performance.now(),
-          ...(ttftMs !== undefined ? { ttftMs } : {})
-        },
-        completionObserved: false,
-        isStreamStopped: false
+    for (const invocation of batch.invocations ?? [])
+      this.eventQueue.push({
+        type: 'usage',
+        invocation: {
+          ...invocation,
+          requestId: `claude-agent:${invocation.responseId}`,
+          model: invocation.model ?? this.sdkModelId ?? this.input.modelId,
+          messageAssociation
+        }
       })
-      return
-    }
-
-    const requestId = this.streamInvocationIdsByLane.get(lane)
-    if (!requestId) return
-
-    if (message.event.type === 'content_block_start' || message.event.type === 'content_block_delta') {
-      const current = this.pendingInvocations.get(requestId)
-      if (!current) return
-      this.pendingInvocations.set(requestId, this.observeInvocationOutput(current, message))
-      return
-    }
-
-    if (message.event.type === 'message_delta') {
-      const current = this.pendingInvocations.get(requestId)
-      if (!current) return
-      const terminalUsage = invocationUsageBuckets(message.event.usage)
-      const isStreamStopped = message.event.delta.stop_reason !== null
-      const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
-      this.pendingInvocations.set(requestId, {
-        ...finalized,
-        ...(terminalUsage ? { terminalUsage } : {}),
-        completionObserved: finalized.completionObserved || isStreamStopped,
-        isStreamStopped: finalized.isStreamStopped || isStreamStopped
-      })
-      if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
-      return
-    }
-
-    if (message.event.type === 'message_stop') {
-      const current = this.pendingInvocations.get(requestId)
-      if (!current) return
-      this.pendingInvocations.set(requestId, {
-        ...this.finalizeInvocationTiming(current),
-        completionObserved: true,
-        isStreamStopped: true
-      })
-      if (current.terminalUsage || current.assistantUsage) this.commitInvocationUsage(requestId)
-    }
-  }
-
-  private observeInvocationOutput(
-    pending: PendingInvocationUsage,
-    message: SDKPartialAssistantMessage
-  ): PendingInvocationUsage {
-    const timing = pending.timing
-    if (!timing) return pending
-
-    let thinkingStartedAt = timing.thinkingStartedAt
-    let thinkingDurationMs = timing.thinkingDurationMs
-    if (startsThinking(message.event) && thinkingStartedAt === undefined) {
-      thinkingStartedAt = performance.now()
-    }
-    if (thinkingStartedAt !== undefined && thinkingDurationMs === undefined && hasNonReasoningOutput(message.event)) {
-      thinkingDurationMs = Math.max(0, Math.round(performance.now() - thinkingStartedAt))
-    }
-
-    return {
-      ...pending,
-      timing: {
-        ...timing,
-        ...(thinkingStartedAt !== undefined ? { thinkingStartedAt } : {}),
-        ...(thinkingDurationMs !== undefined ? { thinkingDurationMs } : {})
-      }
-    }
-  }
-
-  private finalizeInvocationTiming(pending: PendingInvocationUsage): PendingInvocationUsage {
-    const timing = pending.timing
-    if (!timing) return pending
-
-    const completedAt = performance.now()
-    const timeFirstTokenMs = timing.ttftMs
-    const timeCompletionMs =
-      timeFirstTokenMs !== undefined
-        ? Math.max(timeFirstTokenMs, Math.round(timeFirstTokenMs + completedAt - timing.streamStartedAt))
-        : undefined
-    const timeThinkingMs =
-      timing.thinkingDurationMs ??
-      (timing.thinkingStartedAt !== undefined
-        ? Math.max(0, Math.round(completedAt - timing.thinkingStartedAt))
-        : undefined)
-    const metrics = {
-      ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
-      ...(timeCompletionMs !== undefined ? { timeCompletionMs } : {}),
-      ...(timeThinkingMs !== undefined ? { timeThinkingMs } : {})
-    }
-
-    return {
-      ...pending,
-      ...(Object.keys(metrics).length > 0 ? { metrics } : {})
-    }
-  }
-
-  private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
-    if (this.committedInvocationIds.has(next.requestId)) {
-      logger.warn('Claude SDK emitted an invocation after it was already committed', {
-        sessionId: this.input.sessionId,
-        requestId: next.requestId,
-        model: next.model
-      })
-      return
-    }
-
-    const previousRequestId = this.streamInvocationIdsByLane.get(lane)
-    if (previousRequestId && previousRequestId !== next.requestId) {
-      this.commitInvocationUsage(previousRequestId)
-    }
-    this.streamInvocationIdsByLane.set(lane, next.requestId)
-
-    const current = this.pendingInvocations.get(next.requestId)
-    this.pendingInvocations.set(next.requestId, current ? mergePendingInvocation(current, next) : next)
-  }
-
-  private commitPendingInvocations(): void {
-    for (const requestId of [...this.pendingInvocations.keys()]) {
-      this.commitInvocationUsage(requestId)
-    }
-  }
-
-  private settlePendingInvocations(): void {
-    for (const [requestId, pending] of [...this.pendingInvocations.entries()]) {
-      if (pending.completionObserved) {
-        this.commitInvocationUsage(requestId)
-      } else {
-        this.discardInvocationUsage(requestId)
-      }
-    }
-  }
-
-  private discardInvocationUsage(requestId: string): void {
-    if (!this.pendingInvocations.delete(requestId)) return
-    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
-      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
-    }
-  }
-
-  private commitInvocationUsage(requestId: string): void {
-    const pending = this.pendingInvocations.get(requestId)
-    if (!pending) return
-    this.pendingInvocations.delete(requestId)
-    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
-      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
-    }
-    this.committedInvocationIds.add(pending.requestId)
-    const usage = materializeInvocationUsage(
-      mergeInvocationUsageBuckets(
-        mergeInvocationUsageBuckets(pending.startUsage, pending.assistantUsage),
-        pending.terminalUsage
-      )
-    )
-    this.eventQueue.push({
-      type: 'usage',
-      invocation: {
-        requestId: `claude-agent:${pending.requestId}`,
-        responseId: pending.requestId,
-        model: pending.model,
-        messageAssociation: pending.messageAssociation,
-        ...(usage ? { usage } : {}),
-        ...(pending.metrics ? { metrics: pending.metrics } : {})
-      }
-    })
-  }
-
-  private invocationLane(parentToolUseId: string | null | undefined): string {
-    return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
   }
 }
 

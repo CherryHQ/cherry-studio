@@ -15,11 +15,23 @@ import {
   type InputId,
   type InputState,
   type ItemRef,
+  type Observation,
+  type ObservationPayload,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
 type PiMessage = AgentSession['messages'][number]
 type PiContext = { message: PiMessage; id: string }[]
+
+export interface PiObservation {
+  readonly events: readonly ObservationPayload[]
+  readonly delivery: 'baseline' | 'update' | 'recovery'
+  readonly aliases: Readonly<Record<string, string>>
+  readonly live: readonly string[]
+  readonly settled: boolean
+  readonly outcomes: readonly InputState[]
+  readonly children: readonly { thread: Thread; outcome: string }[]
+}
 
 export class PiProjection {
   readonly feed: ThreadFeed
@@ -38,6 +50,7 @@ export class PiProjection {
     }
   >()
   private pending = Promise.resolve()
+  private settled = false
   private generation = 0
   private unsubscribe: () => void = () => {}
 
@@ -60,6 +73,67 @@ export class PiProjection {
     )
     this.bind(session)
     for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
+  }
+
+  observe(sink: (batch: PiObservation) => void | Promise<void>): Observation {
+    const historical = new Set(this.feed.snapshot.messages.map((message) => message.id))
+    let children: { thread: Thread; outcome: string }[] = []
+    let outcomes: readonly InputState[] = []
+    const completedCalls = new Set<string>()
+    return this.feed.observeCaptured(sink, (event, delivery) => {
+      for (const [committed, preview] of Object.entries(this.aliases))
+        if (historical.has(preview)) historical.add(committed)
+      const messages =
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      if (delivery !== 'recovery') {
+        children = []
+        outcomes = event.type === 'input.changed' && event.input.outcome ? [event.input] : []
+      }
+      for (const message of delivery === 'update' && event.type === 'message.upsert' ? messages : [])
+        for (const part of message.parts) {
+          if (part.type !== 'dynamic-tool' || part.toolName !== 'subagent' || completedCalls.has(part.toolCallId))
+            continue
+          const output =
+            part.state === 'output-error'
+              ? part.resultProviderMetadata?.pi?.result
+              : part.state === 'output-available' && !part.preliminary
+                ? part.output
+                : undefined
+          if (!output || typeof output !== 'object' || Array.isArray(output) || !('details' in output)) continue
+          const details = output.details
+          if (!details || typeof details !== 'object' || Array.isArray(details)) continue
+          if (
+            'background' in details &&
+            details.background === false &&
+            'sessionId' in details &&
+            typeof details.sessionId === 'string' &&
+            'outcome' in details &&
+            typeof details.outcome === 'string'
+          ) {
+            children.push({
+              thread: { backendId: this.ref.backendId, id: runtimeId(details.sessionId) },
+              outcome: details.outcome
+            })
+            completedCalls.add(part.toolCallId)
+          }
+        }
+      const settled = delivery !== 'baseline' && this.settled
+      return {
+        value: structuredClone({
+          events: [event],
+          delivery,
+          aliases: this.aliases,
+          live:
+            delivery === 'baseline'
+              ? []
+              : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
+          settled,
+          children,
+          outcomes
+        }),
+        retain: settled || children.length > 0 || outcomes.length > 0
+      }
+    })
   }
 
   rebind(session: AgentSession): void {
@@ -462,10 +536,12 @@ export class PiProjection {
     }
     if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
     if (event.type === 'agent_start' || event.type === 'agent_settled') {
+      this.settled = event.type === 'agent_settled'
       this.feed.publish({
         type: 'activity.changed',
         activity: { scope: 'foreground', state: event.type === 'agent_start' ? 'active' : 'idle' }
       })
+      this.settled = false
     }
   }
 }

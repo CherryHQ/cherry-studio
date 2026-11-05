@@ -228,7 +228,14 @@ owns the Agent-specific participants, using two stages:
 2. `drainIngress()` waits for already accepted Channel admissions and lifecycle work.
 3. BackupManager pauses global AiStreamManager and JobManager; `pauseExecution()`
    holds Delivery and Runtime autonomous launches and rejects new child-panel input.
-4. All writers drain before snapshotting. A timeout aborts the backup attempt.
+4. All writers drain before snapshotting. Runtime owners first join native production, then
+   await observation queues and in-flight callbacks, and finally flush committed archives.
+   No projection writes may follow that flush while the pause is held. Stopping an observation
+   alone is not this barrier. A timeout or failed final flush aborts the backup attempt.
+
+The repository's Claude SDK 0.3.311 patch forwards the existing native idle event after background
+work. The adapter waits for this authority before releasing background occupancy; an empty visible
+task list alone cannot permit backup.
 
 Pausing execution before Channel admission drains could discard an already
 acknowledged incoming message. Keep that ordering explicit.

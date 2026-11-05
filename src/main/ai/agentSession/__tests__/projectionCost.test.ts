@@ -89,11 +89,17 @@ it.each([
             message.id
           )
         await view.accept({
-          type: 'snapshot',
-          coverage: 'current-view',
-          messages: history,
-          inputs: [],
-          activity: { scope: 'foreground', state: 'active' }
+          events: [
+            {
+              type: 'snapshot',
+              coverage: 'current-view',
+              messages: history,
+              inputs: [],
+              activity: { scope: 'foreground', state: 'active' }
+            }
+          ],
+          live: [],
+          aliases: {}
         })
       }
       decorated = 0
@@ -105,13 +111,19 @@ it.each([
         for (const { view } of projections) {
           const before = performance.now()
           await view.accept({
-            type: 'message.upsert',
-            message: {
-              id: 'live',
-              role: 'assistant',
-              metadata: { completeness: 'partial' },
-              parts: [{ type: 'text', text: 'delta '.repeat(step), state: 'streaming' }]
-            }
+            events: [
+              {
+                type: 'message.upsert',
+                message: {
+                  id: 'live',
+                  role: 'assistant',
+                  metadata: { completeness: 'partial' },
+                  parts: [{ type: 'text', text: 'delta '.repeat(step), state: 'streaming' }]
+                }
+              }
+            ],
+            live: ['live'],
+            aliases: {}
           })
           timings.push(performance.now() - before)
         }

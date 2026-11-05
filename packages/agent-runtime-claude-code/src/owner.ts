@@ -17,8 +17,10 @@ import {
   type InputState,
   type ItemRef,
   type ObservationPayload,
+  type Observation,
   type OperationResult,
   type ShutdownReceipt,
+  type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
@@ -39,9 +41,12 @@ interface Task {
   parentId?: string | null
   runId?: string
   terminal?: boolean
+  origin?: Subagent['origin']
 }
 interface Input {
   uuid: string
+  steer: boolean
+  boundary?: boolean
   projection: ClaudeProjection
   state: InputState & { inputId: InputId }
   message: SDKUserMessage
@@ -209,6 +214,7 @@ export class ClaudeOwner {
         this.drained = true
         if (!this.closing) {
           for (const projection of this.projections.values()) {
+            await projection.close()
             projection.publish([
               { type: 'gap', reason: 'disconnected' },
               { type: 'activity.changed', activity: { scope: 'foreground', state: 'unknown' } }
@@ -244,6 +250,7 @@ export class ClaudeOwner {
     return new Promise<SubmitResult>((resolve) => {
       const input: Input = {
         uuid,
+        steer: policy === 'steer',
         projection,
         resolve,
         state: { inputId, nativeInput: { session: projection.thread, id: runtimeId<'native-input'>(uuid) }, facts: [] },
@@ -256,6 +263,7 @@ export class ClaudeOwner {
           session_id: this.activeSession
         }
       }
+      if (policy !== 'steer') projection.control.beginTurn()
       this.inputs.set(uuid, input)
       this.queue.push(input)
       projection.publish([{ type: 'input.changed', input: input.state }])
@@ -295,7 +303,12 @@ export class ClaudeOwner {
     parent.publish([
       {
         type: 'subagent.upsert',
-        subagent: { id: runtimeId<'subagent'>(id), parent: parent.thread, child: child.thread }
+        subagent: {
+          id: runtimeId<'subagent'>(id),
+          parent: parent.thread,
+          child: child.thread,
+          ...(task.origin && { origin: task.origin })
+        }
       }
     ])
   }
@@ -326,6 +339,11 @@ export class ClaudeOwner {
       const callAgent = callOwner?.thread.id.split('/')[1]
       task ??= { sessionId: this.activeSession, agent: message.task_type === 'local_agent' }
       task.agent ||= message.task_type === 'local_agent'
+      const call = callOwner?.feed.snapshot.messages
+        .flatMap((item) => item.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === message.tool_use_id)
+      if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName))
+        task.origin ??= { toolCallId: call.toolCallId, description: message.description }
       if (task.parentId === undefined)
         task.parentId =
           message.parent_task_id ??
@@ -447,6 +465,9 @@ export class ClaudeOwner {
         case 'compact_boundary':
           events.push({ type: 'gap', reason: 'mapping-reset' })
           break
+        case 'permission_denied':
+          events.push(...projection.deny(message.tool_use_id))
+          break
         // Native metadata is paired below; task and reset ownership was handled above.
         case 'init':
         case 'task_started':
@@ -457,7 +478,6 @@ export class ClaudeOwner {
         case 'status':
         case 'api_retry':
         case 'thinking_tokens':
-        case 'permission_denied':
         case 'session_state_changed':
         case 'commands_changed':
         case 'control_request_progress':
@@ -502,11 +522,15 @@ export class ClaudeOwner {
         }
       }
     }
-    if (message.type !== 'result') projection.publish(events, { source: 'live', message })
+    const steers: string[] = []
     if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result') {
       for (const uuid of message.user_message_uuids ?? (message.user_message_uuid ? [message.user_message_uuid] : [])) {
         const input = this.inputs.get(uuid)
         if (!input) continue
+        if (input.steer && !input.boundary) {
+          input.boundary = true
+          steers.push(input.state.inputId)
+        }
         if (message.type !== 'result') this.inputFacts(input, ['placed'])
         else {
           const local = 'local_command' in message && !!message.local_command
@@ -525,11 +549,13 @@ export class ClaudeOwner {
           })
         }
       }
-      if (message.type === 'result') {
-        projection.publish(events, { source: 'live', message })
-        this.response = undefined
-      }
+      if (message.type === 'result') this.response = undefined
     }
+    projection.publish(
+      events,
+      { source: 'live', message },
+      steers.length ? [{ type: 'input-boundary', inputIds: steers }] : []
+    )
   }
 
   async interrupt(projection: ClaudeProjection) {
@@ -580,6 +606,9 @@ export class ClaudeOwner {
         const child = this.projection(sessionId, native.agentId)
         const entries = entriesFor(native.agentId)
         this.archives.set(child.thread.id, child.restore(native.messages, entries))
+      }
+      for (const native of archive.children) {
+        const entries = entriesFor(native.agentId)
         const parent = native.messages.find((message) => message.parent_agent_id)?.parent_agent_id
         const metadata = entries.find((entry) => Object.hasOwn(entry, 'parentAgentId'))
         const parentId =
@@ -589,7 +618,18 @@ export class ClaudeOwner {
             : typeof metadata?.parentAgentId === 'string'
               ? metadata.parentAgentId
               : undefined)
-        const task = this.tasks.get(native.agentId) ?? { sessionId, agent: true, parentId }
+        const task: Task = this.tasks.get(native.agentId) ?? { sessionId, agent: true, parentId }
+        const toolCallId = native.messages.find((message) => message.parent_tool_use_id)?.parent_tool_use_id
+        if (!task.origin && toolCallId) {
+          const parentView = this.projection(sessionId, parentId ?? undefined)
+          const call = parentView.feed.snapshot.messages
+            .flatMap((item) => item.parts)
+            .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
+          if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName)) {
+            const description = (call.input as { description?: unknown })?.description
+            task.origin = { toolCallId, ...(typeof description === 'string' && { description }) }
+          }
+        }
         this.tasks.set(native.agentId, task)
         this.relation(native.agentId, task)
       }
@@ -604,16 +644,42 @@ export class ClaudeOwner {
     }
   }
 
-  async archive(projection: ClaudeProjection): Promise<OperationResult<ClaudeArchive>> {
+  async archive(projection: ClaudeProjection, refresh = true): Promise<OperationResult<ClaudeArchive>> {
     try {
-      await this.refresh(projection.thread.id.split('/')[0])
+      if (refresh || !this.archives.has(projection.thread.id)) await this.refresh(projection.thread.id.split('/')[0])
       const archive = this.archives.get(projection.thread.id)
       return archive
-        ? { status: 'confirmed', value: structuredClone(archive) }
+        ? { status: 'confirmed', value: structuredClone(refresh ? archive : projection.committed(archive)) }
         : rejected('archive', 'native-storage-missing')
     } catch (error) {
       this.report(error)
       return rejected('archive', 'native-storage-missing')
+    }
+  }
+
+  async settled(): Promise<void> {
+    let observation: Observation | undefined
+    try {
+      await new Promise<void>((resolve, reject) => {
+        observation = this.projection(this.activeSession).feed.observe((batch) => {
+          const closed = batch.events.find((event) => event.type === 'closed')
+          if (closed) {
+            if (closed.reason === 'shutdown') resolve()
+            else reject(new Error('Claude native source closed before quiescence'))
+            return
+          }
+          const state = this.projection(this.activeSession).control.snapshot
+          if (
+            !state.active &&
+            !state.backgroundWorkActive &&
+            !this.queue.length &&
+            [...this.inputs.values()].every((input) => input.state.outcome)
+          )
+            resolve()
+        })
+      })
+    } finally {
+      await observation?.stop()
     }
   }
 

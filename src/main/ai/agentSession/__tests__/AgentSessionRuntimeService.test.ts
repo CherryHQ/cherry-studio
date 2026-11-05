@@ -1193,7 +1193,10 @@ describe('AgentSessionRuntimeService', () => {
         signal: new AbortController().signal
       })
       const entry = getEntry(service)
-      ;(service as any).handleRuntimeEvent(entry, { type: 'steer-boundary', inputs: [] })
+      entry.pendingInputs = new Map([
+        ['user-2', { input: { message: userMessage('user-2') }, generation: entry.connectionGeneration }]
+      ])
+      ;(service as any).handleRuntimeEvent(entry, { type: 'steer-boundary', inputIds: ['user-2'] })
       service.markTurnTerminal('session-1', 'success')
       expect(service.getInteractionState('session-1').userResponse).toBe('stream')
       expect(entry.idleTimer).toBeUndefined()
@@ -1306,17 +1309,15 @@ describe('AgentSessionRuntimeService', () => {
       // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
       // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
       service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      service.enqueueUserMessage('session-1', userMessage('user-3'), { messageSnapshot: followUpSnapshot })
       expect(connection.redirect).toHaveBeenCalled()
       expect(entry.pendingTurns).toEqual([])
 
       const sourceTurnId = entry.currentTurn.turnId
-      // The driver echoes the redirected input verbatim, so its attributes ride the round-trip.
+      // Only the identity crosses back; the original attributes stay in the session.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-boundary',
-        inputs: [
-          { message: userMessage('user-2'), systemReminder: true, messageSnapshot: followUpSnapshot },
-          { message: userMessage('user-3'), systemReminder: true, messageSnapshot: followUpSnapshot }
-        ]
+        inputIds: ['user-2', 'user-3']
       })
       service.markTurnTerminal('session-1', 'success', sourceTurnId)
       await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
@@ -1342,11 +1343,12 @@ describe('AgentSessionRuntimeService', () => {
       }
 
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      entry.pendingInputs = new Map([['user-2', { input: { message: userMessage('user-2'), systemReminder: true } }]])
       const sourceTurnId = entry.currentTurn.turnId
       mocks.startRuntimeTurn.mockClear()
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-boundary',
-        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+        inputIds: ['user-2']
       })
       service.markTurnTerminal('session-1', 'success', sourceTurnId)
       await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
@@ -1391,11 +1393,11 @@ describe('AgentSessionRuntimeService', () => {
       service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
       expect(connection.redirect).toHaveBeenCalled()
 
-      // Turn ended before the steer landed → requeued; the driver echoes the redirected input
-      // (including its attributes), and the requeued turn must still freeze the follow-up snapshot.
+      // Requeue transfers the captured input even if the caller mutates its snapshot later.
+
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-undelivered',
-        inputs: [{ message: userMessage('user-2'), messageSnapshot: followUpSnapshot }]
+        inputIds: ['user-2']
       })
       service.markTurnTerminal('session-1', 'success')
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1433,10 +1435,13 @@ describe('AgentSessionRuntimeService', () => {
       const entry = getEntry(service)
 
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      entry.pendingInputs = new Map([
+        ['user-2', { input: { message: userMessage('user-2'), headless: steerHeadless } }]
+      ])
       const sourceTurnId = entry.currentTurn.turnId
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-boundary',
-        inputs: [{ message: userMessage('user-2'), systemReminder: true, ...(steerHeadless ? { headless: true } : {}) }]
+        inputIds: ['user-2']
       })
       service.markTurnTerminal('session-1', 'success', sourceTurnId)
       await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
@@ -1505,10 +1510,13 @@ describe('AgentSessionRuntimeService', () => {
       const entry = getEntry(service)
 
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      entry.pendingInputs = new Map([
+        ['user-2', { input: { message: userMessage('user-2', ['kb-2']), systemReminder: true } }]
+      ])
       const sourceTurnId = entry.currentTurn.turnId
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-boundary',
-        inputs: [{ message: userMessage('user-2', ['kb-2']), systemReminder: true }]
+        inputIds: ['user-2']
       })
       service.markTurnTerminal('session-1', 'success', sourceTurnId)
       await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
@@ -5006,6 +5014,7 @@ describe('AgentSessionRuntimeService', () => {
         nativeSessionId: undefined,
         branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
+        onInputPrepared: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -5118,6 +5127,7 @@ describe('AgentSessionRuntimeService', () => {
         nativeSessionId: undefined,
         branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
+        onInputPrepared: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -5752,7 +5762,7 @@ describe('AgentSessionRuntimeService', () => {
 
       events.push({
         type: 'steer-undelivered',
-        inputs: [{ message: userMessage('user-2', ['kb-1']), systemReminder: true }]
+        inputIds: ['user-2']
       })
       await vi.waitFor(() => expect(getEntry(service).pendingTurns).toHaveLength(1))
       // The undelivered steer is flagged so its next turn wraps it in a system-reminder.
@@ -5762,6 +5772,106 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingTurns[0].knowledgeBaseIds).toEqual(['kb-1'])
 
       void service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('retains unknown input context across reconnect, resolves once, and fences retired callbacks', async () => {
+      const oldEvents = createAsyncQueue<any>()
+      const newEvents = createAsyncQueue<any>()
+      const lookup = createDeferred<any>()
+      const commands: string[] = []
+      const original = {
+        events: oldEvents.iterable,
+        send: (input: any) => {
+          commands.push(input.message.id)
+        },
+        redirect: (input: any) => {
+          commands.push(input.message.id)
+          return true
+        },
+        close: () => oldEvents.end()
+      }
+      let queried: { contextId: string; inputId: string } | undefined
+      const successor = {
+        events: newEvents.iterable,
+        send: (input: any) => {
+          commands.push(input.message.id)
+        },
+        lookupInput: (contextId: string, inputId: string) => {
+          queried = { contextId, inputId }
+          return lookup.promise
+        },
+        close: () => newEvents.end()
+      }
+      const connect = vi.fn().mockResolvedValueOnce(original).mockResolvedValueOnce(successor)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: async () => []
+      })
+      const service = new AgentSessionRuntimeService()
+      const turn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      }).getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(commands).toEqual(['user-1']))
+      const snapshot = {
+        id: 'agent-1',
+        name: 'Captured author',
+        model: { id: 'claude-sonnet-4-5', name: 'Model', provider: 'claude-code' }
+      }
+      service.enqueueUserMessage('session-1', userMessage('unknown-input'), {
+        messageSnapshot: snapshot,
+        headless: false
+      })
+      const callbacks = connect.mock.calls[0][0]
+      callbacks.onInputPrepared('unknown-input', 'original-context')
+      oldEvents.push({
+        type: 'input-submission',
+        contextId: 'original-context',
+        result: {
+          status: 'unknown',
+          inputId: 'unknown-input',
+          error: { operation: 'submit', code: 'lost-receipt', message: 'Lost receipt' }
+        }
+      })
+      const entry = getEntry(service)
+      snapshot.name = 'Changed after admission'
+      await service.closeSession('session-1')
+      expect(getEntry(service)).toBe(entry)
+      const reconnect = (service as any).ensureConnection(entry)
+      await vi.waitFor(() => expect(queried).toEqual({ contextId: 'original-context', inputId: 'unknown-input' }))
+      expect(entry.pendingInputs.get('unknown-input').input).toMatchObject({
+        headless: false,
+        messageSnapshot: { name: 'Captured author' }
+      })
+      callbacks.onInputPrepared('unknown-input', 'wrong-context')
+      callbacks.onSteerInjected(['unknown-input'])
+      expect(entry.pendingInputs.get('unknown-input').contextId).toBe('original-context')
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+      lookup.resolve({
+        status: 'confirmed',
+        value: {
+          found: true,
+          input: {
+            inputId: 'unknown-input',
+            facts: ['accepted', 'placed'],
+            outcome: 'completed'
+          }
+        }
+      })
+      await reconnect
+      expect(entry.pendingInputs.size).toBe(0)
+      expect(entry.pendingTurns).toEqual([])
+      expect(commands).toEqual(['user-1', 'unknown-input'])
+      callbacks.onSteerInjected(['unknown-input'])
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+      await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -5814,11 +5924,7 @@ describe('AgentSessionRuntimeService', () => {
       service.enqueueUserMessage('session-1', secondSteerMessage, { messageSnapshot: continuationSnapshot })
       expect(service.getActiveUsageContext('session-1')?.assistantMessageId).toBe('assistant-1')
 
-      // The driver echoes the redirected inputs verbatim, so their attributes ride the round-trip.
-      const injected = [
-        { message: steerMessage, systemReminder: true, messageSnapshot: continuationSnapshot },
-        { message: secondSteerMessage, systemReminder: true, messageSnapshot: continuationSnapshot }
-      ]
+      const injected = [steerMessage.id, secondSteerMessage.id]
       const onSteerInjected = connect.mock.calls[0]?.[0].onSteerInjected
       expect(onSteerInjected).toEqual(expect.any(Function))
       onSteerInjected(injected)
@@ -5832,7 +5938,7 @@ describe('AgentSessionRuntimeService', () => {
 
       // The provider request enters the gateway with the reservation above. Only its later
       // message_start emits this boundary and opens the visible A2 row with the exact same id.
-      events.push({ type: 'steer-boundary', inputs: injected })
+      events.push({ type: 'steer-boundary', inputIds: injected })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       const onTurnTerminal = vi.fn()
@@ -5903,7 +6009,7 @@ describe('AgentSessionRuntimeService', () => {
 
       const steerMessage = userMessage('user-2')
       service.enqueueUserMessage('session-1', steerMessage)
-      connect.mock.calls[0]?.[0].onSteerInjected([{ message: steerMessage, systemReminder: true }])
+      connect.mock.calls[0]?.[0].onSteerInjected([steerMessage.id])
       expect(getEntry(service).runtimeState.execution).toMatchObject({
         kind: 'turn',
         reservation: expect.anything()
@@ -5985,8 +6091,9 @@ describe('AgentSessionRuntimeService', () => {
         )
       )
 
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
       // The driver signals the post-steer assistant message → roll: A1a closes, the topic stays busy.
-      events.push({ type: 'steer-boundary', inputs: [{ message: userMessage('user-2'), systemReminder: true }] })
+      events.push({ type: 'steer-boundary', inputIds: ['user-2'] })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       expect(getEntry(service).runtimeState.execution).toMatchObject({

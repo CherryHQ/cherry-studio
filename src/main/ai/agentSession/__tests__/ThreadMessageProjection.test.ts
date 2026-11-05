@@ -253,7 +253,7 @@ describe('ThreadMessageProjection', () => {
       async observe(sink) {
         retired = sink
         await sink(snapshot([message(root, answer)]))
-        return { status: 'confirmed', value: { stop: async () => {} } }
+        return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
       }
     })
     await value.attach(handle('first'))
@@ -321,6 +321,7 @@ describe('ThreadMessageProjection', () => {
         return {
           status: 'confirmed',
           value: {
+            drain: async () => {},
             stop: async () => {
               observing = false
             }

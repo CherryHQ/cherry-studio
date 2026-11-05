@@ -2,7 +2,7 @@
 
 `createPiDurableRuntime` adapts Pi Durable 1.4.0 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
-its storage, conversation watches, and the task graph watch. It does not implement
+its storage, committed conversation views, and the task graph watch. It does not implement
 another scheduler, submission queue, or agent loop. The
 [desktop driver](../../src/main/ai/runtime/piDurable/README.md) supplies Cherry's
 storage bindings, gateway models and host services.
@@ -55,6 +55,17 @@ map to `aborted`, known model/task failures to `failed`, and other unanswered re
 `unanswered`. A late status read cannot downgrade a known terminal state. These reads do not
 enable the scheduler.
 
+`durable.observe` captures content, inputs, aliases, live provenance and foreground completion from
+one committed `ConversationView` revision. The existing Pi Durable 1.4.0 dependency patch exports
+`conversationViews` and `ViewObserver` without upgrading the SDK. The public coalesced watch cannot establish that atomic contract. Reopen reads all submission
+facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
+foreground work or compaction, and carries the revision and terminal inputs after their content.
+A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
+Initial observation never replays earlier completion. Slow observers retain terminal batches through
+recovery; final persistence must await `Observation.drain()` after native production stops.
+`runtime.settled()` joins admitted submissions and all native tasks, including background work,
+without closing storage. The desktop backup barrier joins this before observation and archive writes.
+
 Observations normalize committed `ConversationView` snapshots, live assistant
 partials, tool calls/results, and retained live tool output. Coverage is
 `current-view`, not a history archive. Persistent entries use native entry IDs;
@@ -78,9 +89,11 @@ with no preview aliases. The host owns persistent product-message associations.
 Native ownership records and live task graph edges expose `Subagent` relationships
 through `snapshot.subagents` and `subagent.upsert`. Their IDs use the native child
 conversation ID within the parent, so subsequent inputs retain the same relationship.
-They carry no assignment completion status. Open and observe a child separately;
-parent output does not recursively contain it. On restart discovery covers the
-current native task graph, not every historical child.
+They carry evidenced creation `origin` and no assignment completion status. Behavior lineage preserves
+the original creation call across continuation; cold recovery also reads stored child relationships.
+`durable.openChild(toolCallId, signal?)` waits for a known creation and returns its relationship and
+access together. Unknown or ambiguous evidence returns an explicit error. Open and observe a child
+separately; parent output does not recursively contain it.
 
 Without shared behavior, child access can submit further input after the parent access is released. Direct
 conversation input does not create a reporter task or another parent result. The
@@ -90,8 +103,9 @@ raw adapter never delivers child results to the parent; native tasks own that be
 Its receipt distinguishes a committed summary from a no-op (including a declined
 summary); a failed or unplaced summary is never reported as committed.
 
-Input observations publish changed evidence only. Polling an unchanged pending
-receipt does not emit another `input.changed` or wake an observer's reconciliation loop.
+Input deltas publish changed evidence only. Status lookup is read-only and does not emit another
+`input.changed` or wake a reconciliation loop. Main consumes the captured completion batch instead
+of polling retained inputs or deriving completion from idle activity.
 
 ## Shared behavior
 

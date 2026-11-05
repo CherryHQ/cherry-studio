@@ -18,22 +18,25 @@ export class ThreadProjection {
     this.view = new ThreadMessageProjection(thread, decorate)
   }
 
-  async accept(
-    event: ObservationPayload,
-    liveSnapshot = false,
-    aliases: Readonly<Record<string, string>> = {}
-  ): Promise<void> {
-    const changed = await this.view.accept(event)
+  async accept(batch: {
+    readonly events: readonly ObservationPayload[]
+    readonly live: readonly string[]
+    readonly aliases: Readonly<Record<string, string>>
+  }): Promise<void> {
+    const changed = await this.view.accept(batch.events)
     this.emit({
       contextId: this.contextId,
-      messages: event.type === 'snapshot' && !liveSnapshot ? this.view.snapshot().messages : changed,
-      live: event.type !== 'snapshot' || liveSnapshot ? changed.map((message) => message.id) : [],
+      messages: changed,
+      live: changed.filter((message) => batch.live.includes(message.id)).map((message) => message.id),
       replaces: {
-        ...Object.fromEntries(Object.entries(aliases).map(([committed, live]) => [live, committed])),
-        ...(event.type === 'message.upsert' &&
-          Object.fromEntries((event.replaces ?? []).map((ref) => [ref.id, event.message.id])))
+        ...Object.fromEntries(Object.entries(batch.aliases).map(([committed, live]) => [live, committed])),
+        ...Object.fromEntries(
+          batch.events.flatMap((event) =>
+            event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
+          )
+        )
       },
-      removed: event.type === 'message.remove' ? [event.ref.id] : []
+      removed: batch.events.flatMap((event) => (event.type === 'message.remove' ? [event.ref.id] : []))
     })
   }
 

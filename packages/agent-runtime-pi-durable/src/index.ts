@@ -11,3 +11,5 @@ export type {
 
 export { createPiDurableBehavior } from './behavior/harness'
 export type { PiDurableBehavior, PiDurableBehaviorOptions } from './behavior/harness'
+
+export type { DurableObservation } from './projection'

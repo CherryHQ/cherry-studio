@@ -23,7 +23,12 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
-import { createPiDurableRuntime, type PiDurableRuntimeOptions, type PiDurableThreadHandle } from '../src'
+import {
+  createPiDurableRuntime,
+  type DurableObservation,
+  type PiDurableRuntimeOptions,
+  type PiDurableThreadHandle
+} from '../src'
 
 function gate() {
   let resolve!: () => void
@@ -93,6 +98,65 @@ function current(events: ObservationPayload[]) {
 }
 
 describe('Pi Durable runtime contract', () => {
+  it('pairs final content, input failure and foreground completion at one native revision for a delayed observer', async () => {
+    const { runtime, faux } = await setup()
+    const provider = gate()
+    const consumer = gate()
+    onTestFinished(() => {
+      provider.resolve()
+      consumer.resolve()
+    })
+    faux.setResponses([
+      async () => {
+        await provider.promise
+        return fauxAssistantMessage('truncated body', { stopReason: 'length' })
+      }
+    ])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const fast: DurableObservation[] = []
+    const slow: DurableObservation[] = []
+    confirmed(
+      await handle.durable.observe((batch) => {
+        fast.push(batch)
+      })
+    )
+    const observation = confirmed(
+      await handle.durable.observe(async (batch) => {
+        slow.push(batch)
+        if (slow.length === 1) await consumer.promise
+      })
+    )
+    await handle.input.submit(draft('atomic'))
+    await expect.poll(() => fast.some((batch) => batch.pending)).toBe(true)
+    expect(fast.some((batch) => batch.completion)).toBe(false)
+    provider.resolve()
+    await expect.poll(() => fast.some((batch) => batch.completion)).toBe(true)
+    expect(slow).toHaveLength(1)
+    const final = fast.find((batch) => batch.completion)!
+    expect(final.completion).toMatchObject({
+      revision: final.revision,
+      inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
+    })
+    expect(final.events).toMatchObject([
+      { type: 'snapshot', inputs: expect.arrayContaining([{ ...final.completion!.inputs[0] }]) }
+    ])
+    const body = final.events.flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+    expect(body.flatMap((message) => message.parts)).toContainEqual(
+      expect.objectContaining({ type: 'text', text: 'truncated body' })
+    )
+    consumer.resolve()
+    await observation.drain()
+    expect(slow.filter((batch) => batch.completion)).toEqual([final])
+    const late: DurableObservation[] = []
+    const attached = confirmed(
+      await handle.durable.observe((batch) => {
+        late.push(batch)
+      })
+    )
+    await attached.drain()
+    expect(late[0]).toMatchObject({ delivery: 'baseline', live: [], completion: undefined })
+  })
+
   it('streams a current view shared by accesses, isolates release, and reports durable input completion', async () => {
     const { runtime, faux } = await setup()
     faux.setResponses([fauxAssistantMessage('a sufficiently long streaming answer')])
@@ -450,7 +514,10 @@ describe('Pi Durable runtime contract', () => {
     await expect.poll(() => parentEvents.some((event) => event.type === 'subagent.upsert')).toBe(true)
     const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
     if (relationship?.type !== 'subagent.upsert') throw new Error('No child reference')
-    const child = confirmed(await runtime.open(relationship.subagent.child!))
+    expect(relationship.subagent.origin).toEqual({ toolCallId: 'delegation-call' })
+    const access = confirmed(await parent.durable.openChild('delegation-call'))
+    expect(access.relation).toEqual(relationship.subagent)
+    const child = access.handle
     const events = await observe(child)
     await expect
       .poll(

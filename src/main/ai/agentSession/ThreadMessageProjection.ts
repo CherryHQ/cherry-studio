@@ -114,12 +114,12 @@ export class ThreadMessageProjection {
 
   accept(
     event: ObservationPayload | readonly ObservationPayload[],
-    refresh: readonly string[] = []
+    refresh: readonly string[] | true = []
   ): Promise<readonly CherryUIMessage[]> {
     if (this.disposed) return Promise.reject(new Error('Thread projection is closed'))
     const accepted = this.pending.then(() => {
       const changed = new Map<string, CherryUIMessage>()
-      const invalidated = new Set(refresh)
+      const invalidated = new Set(refresh === true ? this.sources.keys() : refresh)
       try {
         for (const item of 'type' in event ? [event] : event) {
           for (const message of this.reduce(item)) changed.set(message.id, message)

@@ -12,6 +12,8 @@ Status: proposed
 
 本方案部分取代[公共 Runtime 契约](../architecture/2026-10-17-agent-runtime-contract.md)中的内容表达和 reader 位置、[harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)中排除 AI SDK 的约束，以及 [Claude 迁移](../architecture/2026-10-27-agent-runtime-claude-code.md)中的内容转换。原有执行、输入接纳、原生存储、子任务所有权和产品交付契约继续有效。已批准的迁移已分布在对应栈层实现；剩余验收证据完成之前，本文继续保留 proposed 状态。
 
+proposed [运行时边界所有权后续方案](2026-11-05-agent-runtime-boundary-ownership.md)通过补齐输入、子线程访问和原生控制事实，并收敛其桌面资源所有者，补充本文的内容契约。SDK 内容表示、来源到产品消息的组合、持久化及已记录证据仍归本文；后续方案不把未完成验收标记为完成。
+
 ## 方案
 
 ### 1. 复用 SDK 模型，保留观察契约

@@ -17,7 +17,7 @@ import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schem
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 
@@ -161,7 +161,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
   response.reply.block({ type: 'text', text: 'Revised root answer' })
   response.reply.finish()
   const boundary = await test.wait('steer-boundary')
-  expect(boundary.inputs.map((input) => input.message.id)).toEqual([second.message.id])
+  expect(boundary.inputIds).toEqual([second.message.id])
   await test.wait('turn-complete')
   const replies = [
     ...new Map(test.nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
@@ -205,50 +205,101 @@ it('accepts steer across native completion and closes the actual subprocess', as
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
 }, 30000)
 
-// Background output must remain observable after the root result and survive closing/reopening its owner.
-it('persists background child output independently and reopens the same child messages', async () => {
-  const test = await desktop()
-  const input = test.input('Start background work')
-  const connection = await test.connect()
-  await connection.send(input)
-  const request = await test.request()
-  request.reply.block(spawnChild('toolu_background_desktop', true))
-  request.reply.finish('tool_use')
-  const requests = [await test.request(), await test.request()]
-  const parent = requests.find((value) => JSON.stringify(value.body.messages).includes('tool_result'))!
-  const child = requests.find((value) => value !== parent)!
-  parent.reply.block({ type: 'text', text: 'Parent done' })
-  parent.reply.finish()
-  await test.wait('turn-complete')
-  child.reply.block({ type: 'text', text: 'Late child block one' })
-  child.reply.block({ type: 'text', text: 'Late child block two' })
-  child.reply.finish()
-  const context = contexts.findChild(test.sessionId, 'toolu_background_desktop')!
-  await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Late child block two')
-  const childResponses = test.events
-    .filter((event) => event.type === 'response-start')
-    .filter((event) => event.messageId)
-  expect(new Set(childResponses.map((event) => event.responseId)).size).toBe(1)
-  expect(new Set(childResponses.map((event) => event.messageId)).size).toBe(1)
-  expect(
-    test.events.every(
-      (event) => event.type !== 'background-work-state' || !event.active || event.awaitingReply === false
-    )
-  ).toBe(true)
-  await connection.close()
-  const saved = savedChildView(contexts.context(context.id)).messages
-  const replies = saved.filter((message) => message.role === 'assistant')
-  expect(replies).toHaveLength(1)
-  expect(replies[0].parts.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
-    'Late child block one',
-    'Late child block two'
-  ])
-  const reopened = await test.connect()
-  await expect.poll(async () => Boolean(await reopened.childProjection!('toolu_background_desktop'))).toBe(true)
-  const projection = await reopened.childProjection!('toolu_background_desktop')
-  expect(projection!.snapshot().canSubmit).toBe(false)
-  expect(projection!.snapshot().messages).toEqual(saved)
-}, 30000)
+// Backup and close must join blocked child observation before final persistence and retain saved history.
+it.each(['backup', 'close'] as const)(
+  'drains blocked background child output for %s and reopens history',
+  async (mode) => {
+    const test = await desktop()
+    const input = test.input('Start background work')
+    const connection = await test.connect()
+    await connection.send(input)
+    const request = await test.request()
+    request.reply.block(spawnChild('toolu_background_desktop', true))
+    request.reply.finish('tool_use')
+    const requests = [await test.request(), await test.request()]
+    const parent = requests.find((value) => JSON.stringify(value.body.messages).includes('tool_result'))!
+    const child = requests.find((value) => value !== parent)!
+    parent.reply.block({ type: 'text', text: 'Parent done' })
+    parent.reply.finish()
+    await test.wait('turn-complete')
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let entered = false
+    const accept = ThreadMessageProjection.prototype.accept
+    const observer = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
+      this: ThreadMessageProjection,
+      ...args
+    ) {
+      if (!entered && JSON.stringify(args).includes('Late child block two')) {
+        entered = true
+        await blocked
+      }
+      return accept.apply(this, args)
+    })
+    let drained = false
+    const draining = connection.drainChildWrites!().then(() => {
+      drained = true
+    })
+    let closed = false
+    let closing: Promise<void> | undefined
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      child.reply.block({ type: 'text', text: 'Late child block one' })
+      child.reply.block({ type: 'text', text: 'Late child block two' })
+      child.reply.finish()
+      const notification = await test.request()
+      notification.reply.block({ type: 'text', text: 'Child completion received' })
+      notification.reply.finish()
+      await expect.poll(() => entered).toBe(true)
+      if (mode === 'close') {
+        closing = Promise.resolve(connection.close()).then(() => {
+          closed = true
+        })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      expect(closed).toBe(false)
+    } finally {
+      release()
+      observer.mockRestore()
+    }
+    await Promise.all([closing, draining])
+    if (mode === 'backup')
+      expect(test.children.some((child) => child.exitCode === null && child.signalCode === null)).toBe(true)
+    const context = contexts.findChild(test.sessionId, 'toolu_background_desktop')!
+    await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Late child block two')
+    const childResponses = test.events
+      .filter((event) => event.type === 'response-start')
+      .filter((event) => event.messageId)
+    expect(new Set(childResponses.map((event) => event.responseId)).size).toBe(1)
+    expect(new Set(childResponses.map((event) => event.messageId)).size).toBe(1)
+    expect(
+      test.events.every(
+        (event) => event.type !== 'background-work-state' || !event.active || event.awaitingReply === false
+      )
+    ).toBe(true)
+    const saved = savedChildView(contexts.context(context.id)).messages
+    const replies = saved.filter((message) => message.role === 'assistant')
+    expect(replies).toHaveLength(1)
+    expect(replies[0].parts.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
+      'Late child block one',
+      'Late child block two'
+    ])
+    const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
+    await new Promise((resolve) => setTimeout(resolve, 160))
+    expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
+    await connection.close()
+    const reopened = await test.connect()
+    await expect.poll(async () => Boolean(await reopened.childProjection!('toolu_background_desktop'))).toBe(true)
+    const projection = await reopened.childProjection!('toolu_background_desktop')
+    expect(projection!.snapshot().canSubmit).toBe(false)
+    expect(projection!.snapshot().messages).toEqual(saved)
+  },
+  30000
+)
 
 // A warm subprocess must keep its actual serving credential and sole Query ownership after handoff.
 it('adopts a real warm process with its captured credential receipt', async () => {
@@ -262,6 +313,7 @@ it('adopts a real warm process with its captured credential receipt', async () =
       env: { ...test.options.env, CLAUDE_CONFIG_DIR: test.configDir }
     }
   })
+
   const child = test.children[0]
   const receipt = { attribution: 'explicit', id: 'serving-key', masked: 'test-***' }
   ports.consume.mockResolvedValue({
@@ -290,8 +342,8 @@ it('adopts a real warm process with its captured credential receipt', async () =
   expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
 }, 30000)
 
-// Nested output belongs to its immediate parent context, including after native archive recovery.
-it('persists and restores nested children under their immediate parent', async () => {
+// A failed cold attach must retry the saved child binding even when the root has no direct creation evidence.
+it('restores nested children under their immediate parent after an attachment failure', async () => {
   const test = await desktop({
     agents: {
       probe: { description: 'Nested child', prompt: 'Run the requested child', tools: ['Agent'], model: 'inherit' }
@@ -324,9 +376,30 @@ it('persists and restores nested children under their immediate parent', async (
   ).not.toContainEqual(expect.objectContaining({ text: 'Grandchild answer' }))
   await connection.close()
   const saved = savedChildView(inner).messages
-  const reopened = await test.connect()
-  await expect.poll(async () => Boolean(await reopened.childProjection!('toolu_inner'))).toBe(true)
-  expect((await reopened.childProjection!('toolu_inner'))!.snapshot().messages).toEqual(saved)
+  let failed = false
+  const originalAttach = ChildThreadProjection.prototype.attach
+  const attach = vi
+    .spyOn(ChildThreadProjection.prototype, 'attach')
+    .mockImplementation(function (this: ChildThreadProjection) {
+      if (!failed && this.context.id === inner.id) {
+        failed = true
+        return Promise.reject(new Error('Child attachment temporarily unavailable'))
+      }
+      return originalAttach.call(this)
+    })
+  try {
+    const reopened = await test.connect()
+    await expect.poll(() => failed).toBe(true)
+    expect(savedChildView(contexts.context(inner.id)).messages).toEqual(saved)
+    const projections = await Promise.all([
+      reopened.childProjection!('toolu_inner'),
+      reopened.childProjection!('toolu_inner')
+    ])
+    for (const projection of projections) expect(projection?.snapshot().messages).toEqual(saved)
+    expect(contexts.children(outer.id).filter((context) => context.spawnToolCallId === 'toolu_inner')).toHaveLength(1)
+  } finally {
+    attach.mockRestore()
+  }
 }, 30000)
 
 // Stopping one native task must not close the Query owner or interrupt a sibling's projection.
@@ -573,12 +646,15 @@ it('recovers current content and one terminal result after observer overflow, th
   const connection = await test.connect()
   const observed: { feed?: ClaudeFeed } = {}
   const publish = ClaudeFeed.prototype.publish
-  const feedSpy = vi
-    .spyOn(ClaudeFeed.prototype, 'publish')
-    .mockImplementation(function (this: ClaudeFeed, events, native, legacy) {
-      if (native?.some((entry) => entry.source === 'live' && entry.message.type === 'assistant')) observed.feed = this
-      return publish.call(this, events, native, legacy)
-    })
+  const feedSpy = vi.spyOn(ClaudeFeed.prototype, 'publish').mockImplementation(function (
+    this: ClaudeFeed,
+    events,
+    native,
+    ...rest
+  ) {
+    if (native?.some((entry) => entry.source === 'live' && entry.message.type === 'assistant')) observed.feed = this
+    return publish.call(this, events, native, ...rest)
+  })
   const original = ThreadMessageProjection.prototype.accept
   const paused = Promise.withResolvers<void>()
   const resume = Promise.withResolvers<void>()
@@ -745,3 +821,52 @@ it.each(['current-answer', 'history-only', 'user-only'])(
   },
   30000
 )
+
+it('publishes the native resume identity before a failed first result', async () => {
+  const wire = wireProcess()
+  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+  const connection = await test.connect()
+  const context = contexts.forSession(test.sessionId).find((context) => context.nativeThreadId)!
+  await connection.send(test.input('First input fails'))
+  await expect.poll(() => wire.inputs.length).toBe(1)
+  wire.send({
+    type: 'result',
+    subtype: 'error_during_execution',
+    uuid: randomUUID(),
+    session_id: context.nativeThreadId!,
+    user_message_uuid: wire.inputs[0].uuid,
+    duration_ms: 1,
+    duration_api_ms: 1,
+    is_error: true,
+    num_turns: 1,
+    stop_reason: null,
+    total_cost_usd: 0,
+    errors: ['Native failure'],
+    modelUsage: {},
+    permission_denials: [],
+    usage: {
+      input_tokens: 1,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+      iterations: [],
+      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+      service_tier: 'standard',
+      inference_geo: 'us',
+      speed: 'standard'
+    }
+  })
+  await expect
+    .poll(() => test.events.find((event) => event.type === 'error'))
+    .toMatchObject({
+      error: { message: 'Native failure' }
+    })
+  const resume = test.events.findIndex(
+    (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
+  )
+  expect(resume).toBeGreaterThanOrEqual(0)
+  expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
+  expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
+  wire.exit()
+})

@@ -163,7 +163,14 @@ export class ChildThreadProjection {
     await this.flush()
   }
 
-  async refreshDecoration(ids: readonly string[]): Promise<void> {
+  async drain(): Promise<void> {
+    await this.attaching
+    await this.observation?.drain()
+    this.needsHistory = true
+    await this.flush()
+  }
+
+  async refreshDecoration(ids: readonly string[] | true = true): Promise<void> {
     if (this.stopped) return
     await this.projection.accept([], ids)
     this.needsHistory = true
@@ -417,10 +424,11 @@ export class ChildThreadProjection {
   }
 
   async stop(): Promise<void> {
+    await this.attaching
+    await this.observation?.drain()
     this.stopped = true
     this.source = undefined
     this.needsHistory = true
-    await this.attaching
     await this.observation?.stop()
     await this.flush()
     await this.projection.close()

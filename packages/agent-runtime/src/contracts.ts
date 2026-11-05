@@ -89,6 +89,8 @@ export interface Subagent {
   readonly id: SubagentId
   readonly parent: Thread
   readonly child?: Thread
+  /** Evidenced creation call, scoped to parent; continuation does not replace it. */
+  readonly origin?: { readonly toolCallId: string; readonly description?: string }
 }
 export interface Activity {
   readonly scope: 'foreground'
@@ -114,6 +116,8 @@ export type ObservationPayload =
   | { readonly type: 'closed'; readonly reason: 'stopped' | 'released' | 'shutdown' | 'source-lost' | 'consumer-error' }
 export type ObservationSink = (event: ObservationPayload) => void | Promise<void>
 export interface Observation {
+  /** Join callbacks through facts published before this call; rejects if delivery was discarded. */
+  drain(): Promise<void>
   stop(): Promise<void>
 }
 export interface ThreadInput {
