@@ -78,7 +78,9 @@ describe('OAuth login with a real callback server and token store', () => {
     const repeated = service.signIn('window-a', 'cherryin', 'repeated')
     const observer = service.joinActiveSignIn('window-b', 'cherryin', 'observer')
     void observer.catch(() => {})
-    await expect(service.signIn('window-b', 'cherryin', 'other')).rejects.toThrow(/another window/)
+    await expect(service.signIn('window-b', 'cherryin', 'other')).rejects.toMatchObject({
+      failure: { reason: 'already_in_progress' }
+    })
 
     await authorize()
 
@@ -98,7 +100,7 @@ describe('OAuth login with a real callback server and token store', () => {
 
     await expect(
       service.signIn('window-a', 'cherryin', 'other', { apiHost: 'https://open.cherryin.dev' })
-    ).rejects.toThrow(/another server/)
+    ).rejects.toMatchObject({ failure: { reason: 'already_in_progress' } })
 
     await authorize()
     await expect(login).resolves.toEqual({ accountId: null, apiKeys: 'private-key' })
@@ -144,7 +146,9 @@ describe('OAuth login with a real callback server and token store', () => {
     vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(staleTimeout.signal)
     const browserError = new Error('Browser launch failed')
     vi.mocked(shell.openExternal).mockRejectedValueOnce(browserError)
-    await expect(service.signIn('window-a', 'cherryin', 'failed')).rejects.toHaveProperty('cause', browserError)
+    await expect(service.signIn('window-a', 'cherryin', 'failed')).rejects.toMatchObject({
+      failure: { reason: 'browser_open_failed', phase: 'callback' }
+    })
 
     const retry = service.signIn('window-a', 'cherryin', 'retry')
     void retry.catch(() => {})
