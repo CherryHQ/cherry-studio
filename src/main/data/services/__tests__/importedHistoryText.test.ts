@@ -8,6 +8,18 @@ import {
 } from '../importedHistoryText'
 
 describe('Claude imported history presentation', () => {
+  it('preserves interrupted WorkBuddy tool state without creating an executable action', () => {
+    const data = { parts: [{ type: 'text' as const, text: '[Historical tool result: read]\nInterrupted' }] }
+    const presented = presentImportedTools('workbuddy', 'message', 'system', data, 'paused')
+    expect(presented.role).toBe('assistant')
+    expect(presented.data.parts?.[0]).toMatchObject({
+      type: 'dynamic-tool',
+      state: 'output-error',
+      errorText: 'Interrupted'
+    })
+    expect(presented.data.parts?.[0]).not.toHaveProperty('approval')
+    expect(data.parts[0].text).toBe('[Historical tool result: read]\nInterrupted')
+  })
   it('projects historical tools as completed read-only assistant items without changing their persisted text', () => {
     const data = { parts: [{ type: 'text' as const, text: '[Historical tool result: Read]\n\nfile content' }] }
     const result = presentImportedTools('claude-code', 'message', 'system', data)
