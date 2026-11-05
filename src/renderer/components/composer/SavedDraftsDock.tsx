@@ -46,7 +46,7 @@ export function SavedDraftsDock({ items, onEdit, onRemove }: SavedDraftsDockProp
                   <span className="min-w-0 flex-1 line-clamp-2 text-muted-foreground text-sm">
                     {previewText || t('chat.input.saved_drafts.attachments_only')}
                   </span>
-                  <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                     <Tooltip placement="top" content={t('chat.input.saved_drafts.edit')}>
                       <Button
                         type="button"
