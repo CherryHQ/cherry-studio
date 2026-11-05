@@ -281,6 +281,26 @@ function getGithubTransportUrl(repoUrl: string): string {
   return `${mirror.toString().replace(/\/+$/, '')}/${repoUrl}`
 }
 
+/**
+ * Iterate a `net.fetch` response body. Electron rejects the fetch promise with the signal's reason
+ * only until the response headers arrive; an abort during body streaming errors the body stream
+ * with a native `AbortError` instead (`ClientRequest.abort` destroys the response stream without
+ * the reason). When the signal aborted, rethrow its reason so cancelling mid-body reaches the same
+ * cancelled outcome as cancelling before the response; every other failure passes through.
+ */
+async function* readNetResponseBody(response: Response, signal?: AbortSignal): AsyncGenerator<Uint8Array> {
+  try {
+    for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+      yield chunk
+    }
+  } catch (error) {
+    if (signal?.aborted && error instanceof Error && error.name === 'AbortError') {
+      signal.throwIfAborted()
+    }
+    throw error
+  }
+}
+
 async function fetchFromClawhub(
   identifier: string,
   openTempDir: () => Promise<string>,
@@ -305,7 +325,7 @@ async function fetchFromClawhub(
 
   const detailChunks: Uint8Array[] = []
   let detailBytes = 0
-  for await (const chunk of detailResp.body as unknown as AsyncIterable<Uint8Array>) {
+  for await (const chunk of readNetResponseBody(detailResp, signal)) {
     detailBytes += chunk.byteLength
     if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
       throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
@@ -349,7 +369,7 @@ async function fetchFromClawhub(
   const handle = await fs.promises.open(zipPath, 'w')
   try {
     let received = 0
-    for await (const chunk of downloadResp.body as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of readNetResponseBody(downloadResp, signal)) {
       received += chunk.byteLength
       if (received > MAX_SKILL_SIZE) {
         throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
