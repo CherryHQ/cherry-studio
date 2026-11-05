@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} jours",
   "settings.data.log_retention.help": "Les fichiers journaux plus anciens sont supprimés automatiquement, au démarrage et toutes les 12 heures.",
   "settings.data.log_retention.label": "Conserver les journaux pendant",
-  "settings.data.markdown_export.exclude_citations.help": "Lorsque cette option est activée, le contenu des citations sera exclu lors de l'exportation en Markdown.",
+  "settings.data.markdown_export.exclude_citations.help": "Lorsque cette option est activée, les marqueurs de citation de recherche web (p. ex. [1]) et la liste des références seront exclus lors de l'exportation en Markdown ou Word, en ne conservant que le contenu principal.",
   "settings.data.markdown_export.exclude_citations.title": "Exclure le contenu des citations",
   "settings.data.markdown_export.force_dollar_math.help": "Lorsque cette option est activée, l'exportation en Markdown utilisera $$ pour marquer les formules LaTeX. Note : Cette option affecte également toutes les méthodes d'exportation en Markdown, comme Notion, YuQue, etc.",
   "settings.data.markdown_export.force_dollar_math.title": "Forcer l'utilisation de $$ pour marquer les formules LaTeX",

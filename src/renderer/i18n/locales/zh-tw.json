@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} 天",
   "settings.data.log_retention.help": "超過該期限的日誌檔案會自動刪除：啟動時執行一次，之後每 12 小時執行一次。",
   "settings.data.log_retention.label": "日誌保留期",
-  "settings.data.markdown_export.exclude_citations.help": "匯出 Markdown 時排除引用和參考文獻，僅保留主要內容",
+  "settings.data.markdown_export.exclude_citations.help": "匯出 Markdown 或 Word 時排除網頁搜尋引用標記（如 [1]）和參考文獻列表，僅保留主要內容",
   "settings.data.markdown_export.exclude_citations.title": "不匯出引用內容",
   "settings.data.markdown_export.force_dollar_math.help": "開啟後，匯出 Markdown 時會強制使用 $$ 來標記 LaTeX 公式。注意：該項也會影響所有透過 Markdown 匯出的方式，如 Notion、語雀等",
   "settings.data.markdown_export.force_dollar_math.title": "LaTeX 公式強制使用 $$",

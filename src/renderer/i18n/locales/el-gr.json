@@ -4066,7 +4066,7 @@
   "settings.data.log_retention.days": "{{days}} ημέρες",
   "settings.data.log_retention.help": "Τα παλαιότερα αρχεία καταγραφής διαγράφονται αυτόματα, κατά την εκκίνηση και κάθε 12 ώρες.",
   "settings.data.log_retention.label": "Διατήρηση αρχείων καταγραφής για",
-  "settings.data.markdown_export.exclude_citations.help": "Όταν ενεργοποιηθεί, θα εξαιρούνται οι αναφορές κατά την εξαγωγή σε Markdown.",
+  "settings.data.markdown_export.exclude_citations.help": "Όταν ενεργοποιηθεί, θα εξαιρούνται οι σημάνσεις παραπομπών αναζήτησης ιστού (π.χ. [1]) και η λίστα αναφορών κατά την εξαγωγή σε Markdown ή Word, διατηρώντας μόνο το κύριο περιεχόμενο.",
   "settings.data.markdown_export.exclude_citations.title": "Εξαγωγή αναφορών",
   "settings.data.markdown_export.force_dollar_math.help": "Κάνοντας το ενεργό, κατά την εξαγωγή Markdown, θα χρησιμοποιείται αναγκαστικά το $$ για να σημειώσετε την εξίσωση LaTeX. Νομίζετε: Αυτή η επιλογή θα επηρεάσει και όλες τις μεθόδους εξαγωγής μέσω Markdown, όπως το Notion, Yuyu κλπ.",
   "settings.data.markdown_export.force_dollar_math.title": "Ανάγκη χρήσης $$ για να σημειώσετε την εξίσωση LaTeX",
