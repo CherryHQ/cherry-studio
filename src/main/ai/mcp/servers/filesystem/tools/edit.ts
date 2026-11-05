@@ -22,8 +22,8 @@ export const editToolDefinition = {
 }
 
 // Handler implementation
-export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
+export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll = false } = args
 
   return runFileMutation(filePath, baseDir, async (validPath) => {
     // Check if file exists
