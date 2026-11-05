@@ -114,7 +114,7 @@ interface NormalizedSession {
 | Claude Code | 读取 `CLAUDE_CONFIG_DIR` 或 `~/.claude/projects/` 下的会话 JSONL，解析已验证的正文、UUID、父链、时间和 cwd | 先评估现有 SDK 会话读取能力；缺少时间或行诊断时，使用带版本识别的原始读取器 |
 | Codex | 从 `session_index.jsonl` 获取标题，在 `CODEX_HOME` 或 `~/.codex` 的 `sessions`、`archived_sessions` 中发现支持的历史 | 索引不是完整清单；区分消息和事件，只支持已验证的历史布局 |
 | OpenCode | 只读打开选定的 `opencode.db`，在一致读事务中读取会话、消息、内容块和 directory | 探测结构与版本，包含 WAL 中已提交数据；禁止迁移、checkpoint、修改 journal 模式或创建来源侧文件 |
-| WorkBuddy | 根据受支持版本的脱敏样本确定桌面存储、会话字段和工作目录字段 | CodeBuddy CLI 文档不能证明 WorkBuddy 桌面端兼容性 |
+| WorkBuddy | 将桌面端 `workbuddy.db` 会话索引与 `projects/<project-key>/<session-id>.jsonl` 关联；读取记录中的 cwd | 初步证据来自 Windows 桌面端 5.9.3 及观察到的 2.165.0 运行时；只有云端索引不能导入；顺序问题仍需先解决 |
 
 Claude Code 提供[会话存储说明](https://code.claude.com/docs/en/agent-sdk/sessions)和 [SDK 会话读取接口](https://code.claude.com/docs/en/agent-sdk/typescript#getsessionmessages)。每条原始记录都归类为消息、元数据、已知非消息事件，或有明确诊断的不支持与损坏记录。
 
@@ -124,9 +124,96 @@ Codex 的[名称索引](https://github.com/openai/codex/blob/main/codex-rs/rollo
 
 OpenCode [存储说明](https://dev.opencode.ai/docs/troubleshooting/#storage)允许自定义数据库位置。其[开发版结构](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/sql.ts)包含 `session_v2`、`session_message`、`session_part`，消息使用 `seq`，内容块使用 `ordinal`。不能认为这些表名覆盖所有发布版本。拒绝未知结构。若无法无副作用读取，要求关闭来源应用或使用一致的离线副本；只复制正在使用的数据库文件并不够。
 
-腾讯的[目录文档](https://cloud.tencent.cn/document/product/1831/137016)描述的是 CodeBuddy Code。WorkBuddy 需单独验证会话发现、消息、时间、目录、外部工具输出和子代理。确认格式后才能启用来源入口。
+腾讯的[目录文档](https://cloud.tencent.cn/document/product/1831/137016)描述的是 CodeBuddy Code，不是 WorkBuddy 桌面格式。下文调查更新了此前缺少桌面样本的判断。这不代表已经具备实现条件，也不代表兼容全部版本。
 
 所有适配器支持自动发现默认存储目录，也允许手动选择。在[路径注册表](../../../../src/main/core/paths/pathRegistry.ts)的 `external.*` 下注册默认位置，保持不自动建目录的行为。不扫描整个用户目录，不读取账号密钥。存储路径和工作目录是不同输入。
+
+### WorkBuddy 桌面调查与读取方案
+
+#### 证据与支持范围
+
+2026-11-05 只读检查了 Windows 桌面端 5.9.3、安装包内的读取逻辑和一份本地聊天记录。对应的运行时心跳记录显示版本为 2.165.0。桌面版本和运行时版本是两项证据；聊天记录并非每条都带版本字段。官方[桌面更新日志](https://www.codebuddy.cn/docs/workbuddy/Changelog)列出了 5.9.3，但它不是存储格式规范。
+
+| 证据 | 观察结果 | 限制 |
+|---|---|---|
+| 桌面安装包 | `@genie/workbuddy-desktop` 5.9.3；`main/database-factory.js`、`main/conversations.js`、`main/server.js` 定义索引和历史处理 | 这是安装代码的只读证据，不是 Cherry 导入测试 |
+| SQLite 索引 | `sessions` 有三行：一条本地会话、两条云端会话；`PRAGMA user_version` 为 0 | 需检查必要列和记录结构；该 pragma 不能识别兼容版本 |
+| 本地聊天记录 | 共 261 条：8 条用户消息、43 条助手消息、49 条思考、70 条调用、70 条结果、21 条元数据或快照 | 只有一条完整父链；没有附件、分支或子代理覆盖 |
+| 时间顺序 | 工具记录出现五次 8–191 ms 的倒退；对应 `parentId` 仍指向前一条记录 | 现有共用时间规则会拒绝这份真实样本 |
+| 云端索引 | `transport=cloud`，检查的项目存储中没有对应本地聊天文件 | 不能据此宣称支持云端导入或完整云缓存恢复 |
+
+仓库夹具只保存结构观察和合成示例。不要把真实提问、回答、账号 ID、工作路径、凭据或工具输出复制到文档和测试中。Windows 检查不能证明 macOS/Linux 实机兼容。
+
+#### 发现、身份与工作目录
+
+通过拟新增的 `external.workbuddy.home` 路径项解析 `WORKBUDDY_CONFIG_DIR` 或 `~/.workbuddy`。允许手动选择该根目录。不使用 Electron 的 `app` 目录，也不从 `CODEBUDDY_CONFIG_DIR` 推断 WorkBuddy 根目录。来源目录不存在时不创建。
+
+在 SQLite 只读事务中，仅查询必要的 `sessions` 列和结构元数据。必要字段包括 `id`、`cwd`、`title`、`custom_title`、`transport`、`deleted_at` 和来源时间。索引 ID 用作 `originalSessionId`。文件名和各记录的 `sessionId` 必须与之匹配。限制扫描范围，将索引与项目目录直属的聊天文件关联。目录缩写只用于查找，不能反解为工作目录。副本冲突、路径越界或身份不明确时拒绝。
+
+标题依次取 `custom_title`、`title`、首条真实用户正文、来源与日期。`session-meta` 和 `ai-title` 是元数据，不是消息。`codebuddy.ai/sessionTitle` 的值可能是标题记录数组，不能当字符串读取。首版不从孤立聊天文件重建索引。缺少索引行或必要结构时，明确报告不支持或存储不完整。
+
+已观察的本地布局用 `deleted_at IS NULL` 表示未删除。云端记录使用另一种约定：桌面代码将 `deleted_at=-1` 映射为未删除。不能共用一个删除判断。只有云端索引的条目属于不支持的本地历史候选，不是空会话，也不是已删除会话。沿用现有错误流程说明缺少本地历史；不使用用户登录态下载。已确认删除的本地条目不进入正常发现列表。
+
+工作目录取 `sessions.cwd`，并与聊天记录中非空的 `cwd` 核对。冲突需在导入前解决。安装代码中的 `is_playground=1` 表示自动生成的本地工作目录，不表示测试或非对话会话。有效的原目录应保留。空 cwd 使用“不使用工作目录”；记录了失效路径时仍需映射。不能通过检查空字符串是否为现有目录来判断目录缺失。
+
+不将 Claude 纯设置规则或 Codex Guardian 规则套到 WorkBuddy。不能按 `source_mode`、`is_playground` 或工具占比排除真实任务。后台自动化、子代理和云缓存布局需要单独证据。不支持时保留诊断，不能静默压平或当作普通主会话。此次检查的 `sessions/*.json` 是运行时心跳，不是聊天正文。忽略账号配置、令牌、安全存储和无关数据库。
+
+#### 记录转换与显示
+
+WorkBuddy 将 `type`、`role`、`content`、`id`、`parentId`、`sessionId` 和整数毫秒 `timestamp` 放在记录顶层。它不同于 Claude 的嵌套 `message.content` 布局。新增独立的 `workbuddy.ts` 读取器，复用共用消息转换和存储契约。
+
+| 已观察记录 | 拟定转换 |
+|---|---|
+| 用户 `message` 中的 `input_text` | 保留用户正文；显示和标题提取只拆除已验证的外层 `user_query` 包装 |
+| 用户消息中的生成上下文 | 将已识别的项目和环境上下文与可见用户正文分开；保留历史含义，不将来源指令安装为当前智能体规则 |
+| 助手 `message` 中的 `output_text` | 保留正文、模型信息和完成或中断状态；不能仅因 `providerData.skipRun` 存在就丢弃助手记录 |
+| `reasoning` | 按安装包读取逻辑读取 `rawContent[].reasoning_text`；`content` 通常为空，不能用它代表完整思考记录 |
+| `function_call` | 将工具名、`callId` 和解析后的参数保存为不执行的历史工具文本 |
+| `function_call_result` | 保留对象或数组形式的输出，按 `callId` 关联；保留错误和中断状态；未保留的结构化产物计为降级 |
+| `session-meta`、`ai-title`、`file-history-snapshot` | 归为已知元数据或快照；不生成聊天气泡，不恢复文件 |
+
+识别包装时需校验完整的已知结构。`message_quote` 和 `original_text` 引用应保持可读。用户正文中的字面标签或未知包装不能触发全局 XML 清理。只有附件的用户轮次不能丢失。附件结构尚未验证，因此应报告不支持的内容，不能宣称附件兼容。
+
+优先使用调用和结果的正文载荷，避免重复导入 `providerData` 中的展示副本。请求模型 ID 和名称作为来源信息保留，不修改目标智能体。不导入遥测字段、远端凭据、待审批动作、可执行的 widget HTML 或来源工具权限。工具复用现有静态历史和“已处理”投影。中断动作仍显示为中断或失败，不能变成等待执行的动作。来源文件引用只作为引用，不打开或复制工具文本提到的任意文件。
+
+转换前校验 ID、父链、调用与结果关系和来源顺序。此次父链没有分支。缺少祖先、未知分支或压缩语义、子历史未解决、ID 副本冲突导致无法还原时，应拒绝。不能直接拼接所有文件，也不能按时间排序。`.file-rollback.ndjson` 附属文件不是聊天正文，也不能证明对话发生了回滚。不能仅因它存在就拒绝正常聊天；无法识别的消息链变更仍阻止导入。
+
+#### 一致快照与现有流程接入
+
+SQLite 与 JSONL 不共享原子快照。先读选中索引行和结构，再按限制读取聊天文件，最后复查相关行、文件身份、大小和内容指纹。组合快照只保存在主进程内存。提交前重新读取同一组逻辑数据并比较。标题、目录、传输类型、删除状态或聊天文件变化时重新预览。无关会话的数据库更新不应使当前选择失效。
+
+通过无副作用的数据库读取包含 WAL 中已提交内容。不迁移、不 checkpoint、不调用 WorkBuddy 修复功能、不只复制正在使用的数据库，也不执行安装包读取器。环境无法安全读取时，要求关闭 WorkBuddy 或提供一致离线副本。复用现有单行、单会话、单批限制和取消机制。未来支持新布局时，新增来源依赖也需计入指纹。
+
+第四实现层增加来源注册、路径项、来源解析和 WorkBuddy 设置入口及翻译。复用目标选择、预览归属、目录映射、活动会话去重、原子写入、Pi 初始化和错误弹窗。不新增 WorkBuddy 专用表、导入台账、登录客户端或另一套导入界面。共用改动回到既有下层所有者，再向上重基。
+
+#### Windows、macOS 与 Linux 交付要求
+
+WorkBuddy 导入需同时支持 Windows、macOS 和 Linux。逐项记录已测系统或发行版、CPU 架构、WorkBuddy 桌面与运行时版本、来源结构。只有 Windows 结果不能视为该来源完成。Linux 需列出已测发行版，不能承诺所有发行版或架构。官方 [UOS](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Installation-UOS-Guide) 和[银河麒麟](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Installation-Kylin-Guide)安装指南只能证明应用可用，不能证明存储兼容。
+
+共用一套不依赖平台的记录解析器。默认位置走路径注册表，并保留手动选目录。macOS/Linux 的用户主目录规则仍是候选默认值，需由实机样本确认。不依赖 Windows 盘符、注册表查询、PowerShell 或已安装的 WorkBuddy 可执行文件。复用 Cherry 打包的 SQLite 驱动，在声明的各架构上验证原生模块加载。
+
+| 边界 | 必须验证的内容 |
+|---|---|
+| 路径与工作目录映射 | 非 ASCII 名称、空格、Windows 盘符和 UNC、POSIX 路径、大小写行为、失效及跨平台目录；先按来源路径语法解析，再映射到当前系统 |
+| 文件系统与数据库访问 | 来源缺失或不可读、只读存储、符号链接和路径边界、活动 WAL、文件锁、取消，以及来源文件未被修改 |
+| 原生应用 | 三平台自动或手动发现、导入所选智能体、标题正文与顺序、分页和重开、去重、错误恢复、首次 Pi 续聊 |
+| 打包与证据 | 已声明平台组合的真实来源样本和打包 Electron/SQLite 运行时；区分合成解析测试和实机运行 |
+
+按各平台已验证结构生成合成夹具，不复制私有内容。先跑跨平台路径测试和共用夹具，再做实机检查；前者不能代替后者。声明的三平台组合通过来源与共用流程检查前，WorkBuddy 保持禁用。缺少任一平台实机证据，该来源仍未完成，不能仅凭 Windows 结果宣称同时支持。
+
+#### 顺序前置条件：尚待决定
+
+真实聊天有 240 条正文或过程记录。工具时间倒退五次，但父链连续。用户和助手正文时间没有倒退。Cherry 当前按 `createdAt, id` 存储和分页，Pi 历史加载也使用同一顺序。维持现有拒绝规则会拒绝此样本。按时间重排会改变调用与结果顺序；静默抬高时间又会违反当前 Spec。
+
+| 选项 | 收益 | 代价或限制 |
+|---|---|---|
+| 保留时间倒退拒绝规则 | 不改变共用行为 | 可作临时保护，但不能交付这份真实会话的导入 |
+| 将持久消息顺序与来源时间分开 | 保留原时间和因果顺序；语义上优先推荐 | 需单独设计共用层，覆盖分页、游标、搜索定位、分支、续聊、迁移和备份 |
+| 归一化内部排序时间，原时间完整保留在 provenance | 有机会复用现有字段和游标 | 改变时间契约；显示、导出、搜索、活动时间和续聊需明确各自使用的时间 |
+
+本节记录待选方案，不授权其中任何一种实现。时间和顺序契约明确、AC9 更新前，保留现有拒绝行为。如果必须保持精确来源时间，优先采用独立顺序。不能只在 WorkBuddy 渲染层排序，不能加入没有依据的毫秒容差，也不能通过合并记录丢弃来源身份。启用 WorkBuddy 前必须解决这份真实样本的问题，不能只验证时间单调的合成数据。
+
+按观察到的数据库结构和受支持记录类型建立合成夹具。覆盖缺少正文、只有云索引、索引与正文变化、重复 ID、仿冒包装、工具错误、中断历史、自动工作目录和五处时间倒退。附件、分支和子历史的未支持范围单独声明。实现后再验证现有 Pi 续聊和渲染路径；本轮研究没有执行这些产品检查。
 
 ### 过滤非对话会话
 
@@ -247,7 +334,7 @@ main
 | 1 | Claude Code | 共用界面与契约、目标智能体选择、目录规则、迁移、原子写入、受支持目标运行时的历史初始化和 Claude 读取器 | 完整导入与续聊，确认前零写入，无重复 |
 | 2 | Codex | 索引与历史版本、事件去重、线程身份和 cwd | Codex 及受影响的 Claude 行为 |
 | 3 | OpenCode | 结构探测、一致只读数据库读取、顺序和 directory | OpenCode 及受影响的前序来源 |
-| 4 | WorkBuddy | 已验证的桌面格式、消息和目录映射 | WorkBuddy 与完整四来源契约 |
+| 4 | WorkBuddy | 已验证的桌面索引与正文关联、记录和目录映射，并先解决顺序问题 | WorkBuddy 与完整四来源契约 |
 
 通用基础随第一层交付，不另加第五个实现层。开始某个来源代码前创建对应分支，验证并提交后再增加下一层。WorkBuddy 调查可以提前，代码实现仍在最后。若方案先合并，第一实现层改为基于 main。
 
@@ -266,6 +353,8 @@ main
 | 各来源分别实现预览和写入 | 重复身份、时间和事务逻辑 |
 | 所有读取器放在一个实现 PR | 无法逐来源顺序实施和审查 |
 | 重导入时自动追加或覆盖 | 需要协调来源分支与 Cherry 后续消息，增量同步后续设计 |
+| 将 WorkBuddy 当成 Claude Code，或只读 SQLite 索引 | 顶层记录格式不同，索引也不包含聊天正文 |
+| 自动下载 WorkBuddy 云端历史 | 需要账号、网络授权和已验证云端格式，超出本地文件导入范围 |
 
 ## 验收标准
 
@@ -283,18 +372,22 @@ main
 - AC12 — 来源或目录变化、目标更换或被删除、运行时变为不兼容、预览过期时，重新选择或预览；拒绝其他窗口的令牌和替换的目标 ID。（验证：unit and renderer boundary checks）
 - AC13 — Codex 索引和事件不产生重复正文，共享根会话 ID 不会合并不同线程。（验证：unit missing-index and fork fixtures）
 - AC14 — OpenCode 正确读取支持结构及 WAL 已提交数据，并明确拒绝未知结构。（验证：unit real SQLite fixtures）
-- AC15 — WorkBuddy 仅支持已声明版本样本验证过的桌面格式和目录字段。（验证：unit versioned adapter fixtures）
+- AC15 — WorkBuddy 仅支持已声明的桌面结构和记录样本，初步证据为 Windows 5.9.3 与运行时 2.165.0。未支持版本和未验证内容有明确诊断；仅有安装版本号不能证明兼容。（验证：unit versioned adapter fixtures）
 - AC16 — 历史工具调用和结果作为已完成工具项折叠到“已处理”，旧导入记录也适用。连续、已完成且只有过程内容的记录合为一组；用户消息、回答正文和未完成记录会断开分组。分页、多选和截图保留原消息身份。打开、导入或展开历史不会执行工具、发起审批或自动生成。（验证：unit runtime boundaries, renderer grouping/paging/selection/capture and Electron）
 - AC17 — 首次续聊使用目标智能体配置，模型输入中导入历史位于新用户消息之前，包含已接受的时钟偏差场景；导入前说明不支持的目标运行时，初始化失败可重试且不重复历史。（验证：unit captured model input with controlled time, target-runtime compatibility, and recovery faults）
 - AC18 — 导入会话可搜索、复制、回收和恢复。重新导入保留归档副本，之后恢复旧副本时两份历史均保留。副本不继承唯一导入身份。（验证：unit existing data-service integration）
 - AC19 — 向前迁移和现有完整及精简备份往返保留来源、归属与工作目录；缺少原生历史时可靠重建或明确阻止续聊。不新增备份合并。（验证：unit populated-database migration and restore fixtures）
-- AC20 — Windows、macOS 和 Linux 满足目录映射与只读来源访问要求，区分模拟和实机证据。（验证：unit platform cases and platform-native Electron）
+- AC20 — 所有已启用来源均满足 Windows、macOS 和 Linux 的路径映射和只读访问要求，区分模拟与实机证据。WorkBuddy 按声明的系统或发行版、架构和来源版本组合，同时交付三平台支持。各平台验证来源发现、SQLite/WAL 只读访问、打包原生模块加载、导入和重开、Pi 续聊。合成测试不能替代实机证据；任一平台未验证时，该来源仍未完成。（验证：unit platform cases, real source-layout checks, and platform-native packaged Electron）
 - AC21 — 方案之后按 Claude Code、Codex、OpenCode、WorkBuddy 顺序形成四个 gh-stack 实现层，各层差异范围明确。（验证：docs gate and gh stack topology/diff inspection）
 - AC22 — 导入的助手消息显示当前目标智能体的名称和头像，旧导入记录和智能体改名后也适用，同时保留来源模型。不把来源会话标题当作作者；Cherry 普通消息的作者快照不变。（验证：renderer author/provenance/capture cases and Electron）
 - AC23 — 加载到真正的历史开头并找到首条真实用户消息后，仅隐藏此前导入的准备记录。部分页面、后续记录、存储历史和续聊上下文保持完整。图片导出使用相同规则。（验证：renderer paging/projection/capture cases and Electron）
 - AC24 — 带有已验证 Guardian 来源标识的 Codex 会话在候选显示前被排除，旧选择也不能绕过过滤。改名不改变分类；只有标题匹配的对话、普通子代理和存在冲突的副本不被静默排除。（验证：versioned adapter fixtures and coordinator revalidation）
 - AC25 — 只有完整、已识别的 Claude 历史能证明所有可还原分支均无真实用户任务时，才排除纯设置会话。真实提问、纯附件、设置与任务混合历史、任务命令均保留；不确定记录和未确定分支仍可见并接受校验。（验证：versioned adapter content/branch fixtures）
 - AC26 — 发现接口单独报告排除数量，不混入导入结果、选择上限或错误。过滤和复查不创建会话或工作目录，保留来源文件和已有导入，也不阻止同批有效会话。全部排除时有明确空状态，不提供无效重试或修正选择。（验证：coordinator state/source checks, renderer counts/empty-state/mixed-batch cases and Electron）
+- AC27 — WorkBuddy 按已验证的会话身份关联桌面索引和正文，保留标题优先级、原 cwd 和真实的自动工作目录任务。只有云索引、缺少历史、已删除本地条目和心跳文件不能被当成完整本地聊天。（验证：versioned adapter discovery/identity/workspace fixtures）
+- AC28 — WorkBuddy 保留用户与助手正文、可读引用、来源思考、静态工具调用与结果顺序，以及中断和错误状态。字面标签、重复展示副本、元数据和快照不能删掉用户正文、生成重复消息或触发可执行动作。（验证：adapter normalization, renderer projection, and Pi captured-input fixtures）
+- AC29 — 选中的 WorkBuddy 索引行和聊天文件共同参与预览指纹。相关变化使预览失效，无关行变化不影响。来源不被修改，已提交 WAL 数据可读，取消和超限不产生半个导入会话。（验证：read-only SQLite/file fixtures and coordinator state checks）
+- AC30 — 顺序方案记录并通过真实倒退间隔验证前，WorkBuddy 保持禁用。现有契约下，倒退应产生明确阻塞原因且不写库。最终接受的样本在分页、导出和首次续聊中保持因果顺序，并能取得原时间。（验证：shared ordering contract review, regression fixtures, renderer, and Electron）
 
 数据库用例使用 `setupTestDatabase()`，每层按明确路径运行受影响测试。平台模拟不能替代实机验证。这些标准是未来产品验收要求，不是本文档 PR 已完成的验证证据。
 
@@ -306,10 +399,13 @@ main
 | 时间回拨或来源时钟超前 | 预览和提交前拒绝冲突输入；保留时间并验证续聊衔接 |
 | 目录缺失 | 写消息前解决，因为现有带消息会话不能更换工作目录 |
 | 原生文件与数据库一致性 | 使用持久初始化标记、稳定原生身份、验证后的输出和重试恢复 |
-| WorkBuddy 与上游变化 | 获取桌面样本并固定支持版本，开发版结构不代表所有发布版本 |
+| WorkBuddy 与上游变化 | 已有初步 Windows 桌面证据；启用前补齐合成边界夹具和平台证据 |
+| WorkBuddy 工具时间倒退 | 明确解决共用顺序问题；当前拒绝规则无法导入已检查的真实样本 |
+| WorkBuddy 索引与正文不同步 | 同时复查两个依赖；不能把云索引、心跳或残缺文件当完整本地历史 |
+| 缺少 macOS/Linux 证据或原生包有差异 | 声明的平台组合通过前，三平台交付仍未完成；目前的 Windows 格式调查不是导入实机验证 |
 | 工具与附件保真 | 评审首版文本和引用降级范围，明确列出未迁移产物 |
 | 大输入 | 开放导入前通过夹具确定单行、会话和批次上限 |
 | 备份恢复 | 现有完整及精简备份保留来源身份；不新增合并能力 |
 | 与 #19002 的交集 | 在合适位置复用预览和目录映射能力，保持四来源实现顺序 |
 
-首版固定为 Pi 目标、拒绝时间冲突、工具历史文本、附件引用和现有备份恢复。重导入跳过未归档匹配项；归档副本保持原样，并允许导入新会话。增量同步另行设计。各来源启用前补齐声明版本清单和边界夹具。WorkBuddy 桌面样本是第四层前置条件。缺少样本时前序层可独立交付，但 WorkBuddy 不启用，#22728 保持未完成。
+首版固定为 Pi 目标、拒绝时间冲突、工具历史文本、附件引用和现有备份恢复。重导入跳过未归档匹配项；归档副本保持原样，并允许导入新会话。增量同步另行设计。各来源启用前补齐声明版本清单和边界夹具。WorkBuddy 已有初步桌面样本，但顺序问题、未支持格式边界和实现验证仍是第四层前置条件。前序层可独立交付；WorkBuddy 保持禁用，#22728 保持未完成。本次更新只包含研究和拟定文档。

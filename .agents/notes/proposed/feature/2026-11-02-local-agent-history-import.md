@@ -114,7 +114,7 @@ Return per-session outcomes: imported, already present, failed, or not processed
 | Claude Code | Read session JSONL under `CLAUDE_CONFIG_DIR` or `~/.claude/projects/`; read validated message content, UUIDs, parents, timestamps, and cwd | Evaluate the existing SDK's session readers first; retain a versioned raw reader if timestamps or line diagnostics are unavailable |
 | Codex | Resolve titles from `session_index.jsonl`; discover supported histories under `sessions` and `archived_sessions` within `CODEX_HOME` or `~/.codex` | The index is not a complete inventory; distinguish message payloads from events and support only verified history layouts |
 | OpenCode | Open the selected `opencode.db` read-only; read sessions, messages, parts, and directory in a consistent read transaction | Detect schema/version; include committed WAL data; never migrate, checkpoint, change journal mode, or create source-side files |
-| WorkBuddy | Determine the desktop store, session fields, and working-directory field from sanitized samples of supported versions | CodeBuddy CLI documentation does not establish WorkBuddy desktop compatibility |
+| WorkBuddy | Join the desktop `workbuddy.db` session index with `projects/<project-key>/<session-id>.jsonl`; read the recorded cwd | Windows desktop 5.9.3 and its observed 2.165.0 runtime supply initial evidence; cloud indexes alone are insufficient; ordering remains a prerequisite |
 
 Claude Code documents [session storage](https://code.claude.com/docs/en/agent-sdk/sessions) and [SDK session readers](https://code.claude.com/docs/en/agent-sdk/typescript#getsessionmessages). Classify every raw record as a message, metadata, a known non-message event, or a diagnosed unsupported/broken record.
 
@@ -124,9 +124,96 @@ Use the thread `id` from the index/session metadata, not the root `session_id` t
 
 OpenCode's [storage guide](https://dev.opencode.ai/docs/troubleshooting/#storage) allows custom database locations. Its [development schema](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/sql.ts) includes `session_v2`, `session_message`, and `session_part`, with message `seq` and part `ordinal`. Do not assume these names cover every release. Reject unknown schemas. If side-effect-free reading is unavailable, require the source application to close or a consistent offline copy; copying only a live database file is insufficient.
 
-Tencent's [directory documentation](https://cloud.tencent.cn/document/product/1831/137016) describes CodeBuddy Code. WorkBuddy requires separate validation of session discovery, messages, times, directory, external tool output, and subagents. Investigate its format before enabling its source entry.
+Tencent's [directory documentation](https://cloud.tencent.cn/document/product/1831/137016) describes CodeBuddy Code, not the WorkBuddy desktop format. The desktop investigation below replaces the earlier missing-sample assumption. It does not establish implementation readiness or compatibility with every release.
 
 All adapters support automatic default-store discovery and explicit store selection. Register default store paths under `external.*` in [the path registry](../../../../src/main/core/paths/pathRegistry.ts), preserving no-auto-create behavior. Do not scan the entire user home or read account secrets. Store paths and working directories are different inputs.
+
+### WorkBuddy desktop investigation and proposed reader
+
+#### Evidence and supported scope
+
+Read-only inspection on 2026-11-05 covered an installed Windows desktop 5.9.3, its packaged readers, and one local transcript. The matching runtime heartbeat reports 2.165.0. These are separate desktop/runtime versions, not a version field present on every transcript. The official [desktop changelog](https://www.codebuddy.cn/docs/workbuddy/Changelog) lists 5.9.3; it is not a storage specification.
+
+| Evidence | Observation | Limit |
+|---|---|---|
+| Desktop package | `@genie/workbuddy-desktop` 5.9.3; `main/database-factory.js`, `main/conversations.js`, and `main/server.js` define index and history handling | Read-only installed-code evidence, not a Cherry import test |
+| SQLite index | Three `sessions` rows: one local and two cloud rows; `PRAGMA user_version` is 0 | Detect required columns and record shapes; the pragma cannot identify compatibility |
+| Local transcript | 261 records: 8 user messages, 43 assistant messages, 49 reasoning records, 70 calls, 70 results, and 21 metadata/snapshot records | One complete parent chain; no attachment, branch, or child-agent coverage |
+| Time order | Five decreases of 8–191 ms in tool events; the affected `parentId` links still point to the preceding record | The current shared timestamp rule rejects this real sample |
+| Cloud index rows | `transport=cloud`, no corresponding local transcript in the inspected project store | No evidence for cloud import or complete cloud-cache reconstruction |
+
+Keep only structural observations and synthetic examples in repository fixtures. Do not copy private prompts, answers, account IDs, working paths, credentials, or tool output into documentation or tests. Windows inspection does not establish macOS/Linux native compatibility.
+
+#### Discovery, identity, and workspace
+
+Resolve `WORKBUDDY_CONFIG_DIR` or `~/.workbuddy` through a proposed `external.workbuddy.home` path entry. Permit manual selection of that root. Do not use the Electron `app` directory or infer a WorkBuddy root from `CODEBUDDY_CONFIG_DIR`. Do not create a missing source directory.
+
+Read only the necessary `sessions` columns and schema metadata in a read-only SQLite transaction. Required fields include `id`, `cwd`, `title`, `custom_title`, `transport`, `deleted_at`, and source timestamps. Use the index ID as `originalSessionId`; verify the filename and each record's `sessionId` against it. Bounded discovery joins this index to top-level transcripts under project directories. A directory slug is a lookup hint, never a decoded workspace path. Reject conflicting copies, path escapes, and ambiguous identity.
+
+Use `custom_title`, then `title`, then the first real user body, then a source/date label. `session-meta` and `ai-title` are metadata, not messages. A `codebuddy.ai/sessionTitle` value can be an array of title records; do not treat it as a string. The first reader does not reconstruct an index from orphan transcripts. Missing index rows or required schema produce a specific unsupported/incomplete-store diagnostic.
+
+For the observed local layout, `deleted_at IS NULL` means undeleted. Cloud rows use a different sentinel: the desktop maps `deleted_at=-1` to undeleted. Do not use one generic deletion predicate for both. A cloud-only row is an unsupported local-history candidate, not an empty chat or a deleted chat. Explain the missing local history through the existing error flow; do not fetch it using the user's login. A verified deleted local row is omitted from normal discovery.
+
+Use `sessions.cwd` and compare it with nonempty transcript `cwd` values. Conflicts require resolution before import. `is_playground=1` identifies an automatically generated local workspace in the inspected desktop code; it does not mean a test or non-conversation session. Preserve its valid recorded directory. Empty cwd uses No work directory; a broken recorded path still requires mapping. Do not infer absence using a filesystem check on an empty string.
+
+Do not apply Claude setup-only rules or Codex Guardian rules to WorkBuddy. Do not exclude a real task by `source_mode`, `is_playground`, or tool density. Background automation, subagents, and cloud-cache layouts need their own evidence; unsupported cases remain diagnosed rather than silently flattened or classified as ordinary root chats. The `sessions/*.json` files inspected here are runtime heartbeat records, not message history. Ignore account configuration, tokens, security stores, and unrelated databases.
+
+#### Record mapping and display
+
+WorkBuddy uses top-level `type`, `role`, `content`, `id`, `parentId`, `sessionId`, and integer millisecond `timestamp` fields. It is not the Claude nested `message.content` layout. Add a separate `workbuddy.ts` reader; reuse the shared normalized message and persistence contracts.
+
+| Observed record | Proposed conversion |
+|---|---|
+| `message` with user `input_text` | Preserve user-authored content; unwrap only the verified outer `user_query` envelope for display and title selection |
+| Generated user-message envelope | Keep recognized project/environment context separate from the visible user body; retain its historical meaning without installing source instructions as current Agent rules |
+| `message` with assistant `output_text` | Preserve text, model metadata, and completed/incomplete state; do not remove an assistant record solely because `providerData.skipRun` is set |
+| `reasoning` | Read `rawContent[].reasoning_text`, as the installed reader does; `content` is usually empty and is not a complete reasoning source |
+| `function_call` | Preserve tool name, `callId`, and parsed arguments as inert historical tool text |
+| `function_call_result` | Preserve object or array output, match `callId`, and retain errors/incomplete state; count omitted structured artifacts as degradation |
+| `session-meta`, `ai-title`, `file-history-snapshot` | Classify as known metadata/snapshots; do not create chat bubbles or restore files |
+
+Envelope recognition must validate the complete known wrapper. Keep quotes such as `message_quote`/`original_text` readable. A literal tag in user text or an unknown wrapper must not trigger broad XML stripping. Do not lose an attachment-only user turn. Attachment shapes remain unverified, so report unsupported content instead of declaring attachment compatibility.
+
+Prefer the canonical call/result payload over duplicated `providerData` projections. Retain the request-model identifier/name as source metadata without changing the target Agent. Do not import telemetry fields, remote credentials, pending approvals, widgets as executable HTML, or source tool permissions. Tools use the existing inert history and Processed projection. Incomplete historical actions remain visibly interrupted/failed and never become live pending actions. Source file references remain references; do not open or copy arbitrary tool-mentioned files.
+
+Validate IDs, parent links, call/result links, and source order before conversion. The inspected chain has no forks. Reject missing ancestry, unknown branch/compaction semantics, unresolved child history, and conflicting duplicate IDs when they prevent reconstruction. Do not silently join every file or sort records by timestamp. A `.file-rollback.ndjson` sidecar is not a chat transcript or proof of a conversation rollback. Its presence alone must not reject an otherwise valid chat; unsupported changes to the message chain still block import.
+
+#### Consistent snapshot and existing integration
+
+SQLite and JSONL do not share an atomic snapshot. Read the selected index row and schema, read the bounded transcript, then recheck the relevant row, file identity, size, and content fingerprint. Keep the combined immutable snapshot in Main memory. Before commit, rebuild and compare that same logical snapshot. A changed title, directory, transport, deletion state, or transcript requires a new preview. An unrelated session's database update should not invalidate the selected row.
+
+Include committed WAL data through a side-effect-free database read. Do not migrate, checkpoint, invoke WorkBuddy repair, copy only a live database, or run its packaged reader. If the environment cannot read safely, require WorkBuddy to close or a consistent offline copy. Reuse existing line/session/batch limits and cancellation. Fingerprint any extra source dependency introduced by a later supported layout.
+
+The fourth implementation layer adds source registration, the path entry, source-specific parsing, and the WorkBuddy settings entry/locales. It reuses target selection, preview ownership, directory mapping, active-import deduplication, atomic writes, Pi initialization, and error dialogs. No WorkBuddy-specific table, import ledger, login client, or parallel import UI is proposed. Shared changes belong in their existing lower-layer owner before rebasing upstack.
+
+#### Windows, macOS, and Linux delivery requirement
+
+Deliver WorkBuddy import for Windows, macOS, and Linux together. Record the tested OS/distribution, CPU architecture, WorkBuddy desktop/runtime versions, and source schema for each supported combination. A Windows-only result does not complete this source. Linux coverage names the tested distributions; it is not a promise for every distribution or architecture. Official [UOS](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Installation-UOS-Guide) and [Kylin](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Installation-Kylin-Guide) installation guides establish availability, not storage compatibility.
+
+Keep one platform-independent record parser. Resolve default locations through the path registry and retain manual root selection. The home-directory rule is a proposed macOS/Linux default until native samples confirm it. Do not depend on Windows drive letters, registry lookup, PowerShell, or the installed WorkBuddy executable. Reuse Cherry's packaged SQLite driver and verify its native loading on each declared architecture.
+
+| Boundary | Required verification |
+|---|---|
+| Paths and workspace mapping | Non-ASCII names, spaces, Windows drive/UNC paths, POSIX paths, case behavior, and invalid/foreign-platform directories; parse source paths by their syntax before mapping them to the current OS |
+| Filesystem and database access | Missing/unreadable roots, read-only stores, symlink/path containment, active WAL, locking, cancellation, and unchanged source files |
+| Native application | Automatic/manual discovery, selected-Agent import, title/content/order, pagination/reopen, deduplication, error recovery, and first Pi continuation on Windows, macOS, and Linux |
+| Packaging and evidence | Real source samples plus the packaged Electron/SQLite runtime for the declared platform matrix; distinguish synthetic parser tests from native runs |
+
+Use synthetic fixtures derived from each verified platform layout without copying private content. Cross-platform path tests and shared fixtures run before native checks, but do not replace them. Keep WorkBuddy disabled until the declared three-platform matrix passes the source and shared-flow checks. Missing native evidence leaves the WorkBuddy slice incomplete; do not report simultaneous support based on a Windows run alone.
+
+#### Ordering prerequisite: decision still open
+
+The real transcript has 240 content/process records. Five tool timestamps decrease while the parent chain remains continuous. User and assistant text timestamps do not decrease. Cherry currently persists and pages messages by `createdAt, id`; its Pi history loader uses the same order. Keeping the current rejection rule would reject this sample. Sorting by time would reorder calls/results, and silently clamping time would violate the current Spec.
+
+| Option | Benefit | Cost or constraint |
+|---|---|---|
+| Retain timestamp rejection | No shared behavior change | Useful as an interim guard; does not deliver import for the inspected real conversation |
+| Separate persistent sequence from source time | Preserves source times and causal order; preferred semantic model | Requires a separate shared-layer design covering pagination, cursors, search anchors, forks, continuation, migration, and backups |
+| Normalize internal ordering time; preserve every original time in provenance | May reuse the existing schema and cursor mechanism | Changes the time contract; display, export, search, activity, and continuation must agree on which time they use |
+
+This document records the choice without authorizing either implementation. Keep the current rejection behavior until the time/order contract is explicitly decided and AC9 is updated. Prefer independent ordering when exact source timestamps remain mandatory. Do not add a WorkBuddy-only renderer sort, an unexplained millisecond tolerance, or record merging that discards source identities. Enabling WorkBuddy requires an agreed solution for the inspected sample, not only monotonic synthetic fixtures.
+
+Create synthetic fixtures for the observed schema and each supported record shape. Cover missing/cloud-only history, changed index/transcript pairs, duplicate IDs, envelope lookalikes, tool errors, interrupted history, playground workspaces, and the five backward intervals. Declare unsupported attachments, branches, and child histories separately. Verify through the existing Pi continuation and renderer paths after implementation; none of those product checks was run during this research.
 
 ### Filtering non-conversation sessions
 
@@ -247,7 +334,7 @@ main
 | 1 | Claude Code | Shared UI/contracts, target Agent selection, directory rules, migrations, atomic writer, supported target-runtime history initialization, and Claude reader | Complete import and continuation; no pre-confirmation writes; no duplicates |
 | 2 | Codex | Index and history versions, event deduplication, thread identity, and cwd | Codex plus affected Claude behavior |
 | 3 | OpenCode | Schema detection, consistent read-only database reader, ordering, and directory | OpenCode plus affected earlier sources |
-| 4 | WorkBuddy | Verified desktop format, message and directory mapping | WorkBuddy and the complete four-source contract |
+| 4 | WorkBuddy | Verified desktop index/transcript join, record and directory mapping, with the ordering prerequisite resolved | WorkBuddy and the complete four-source contract |
 
 Common foundations ship with layer 1, not a fifth implementation layer. Create each branch before writing its source-specific code; validate and commit it before adding the next. WorkBuddy research may happen earlier, but its implementation remains last. If the Spec merges first, rebase the first implementation onto main.
 
@@ -266,6 +353,8 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 | Implement each source's preview and writer independently | Duplicates identity, timestamp, and transaction semantics |
 | Deliver all readers in one implementation PR | Prevents the required sequential, source-specific review |
 | Automatically append or overwrite on reimport | Requires reconciliation with source branches and subsequent Cherry messages; defer incremental sync |
+| Treat WorkBuddy as Claude Code or use only its SQLite index | Its top-level record layout differs, and its index contains no message bodies |
+| Automatically download WorkBuddy cloud history | Requires account/network scope and a verified cloud format outside local-file import |
 
 ## Acceptance criteria
 
@@ -283,18 +372,22 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC12 — Changed sources/directories, a changed or deleted target, incompatible runtime changes, or expired previews require renewed selection/preview; foreign-window tokens and substituted target IDs are rejected. (verification: unit and renderer boundary checks)
 - AC13 — Codex indexes/events do not duplicate content, and shared root-session IDs do not merge distinct threads. (verification: unit missing-index and fork fixtures)
 - AC14 — OpenCode reads supported schemas including committed WAL data and clearly rejects unknown schemas. (verification: unit real SQLite fixtures)
-- AC15 — WorkBuddy support is limited to desktop formats and directory fields verified by declared versioned samples. (verification: unit versioned adapter fixtures)
+- AC15 — WorkBuddy support is limited to declared desktop schema/record samples, starting with the inspected Windows 5.9.3 and runtime 2.165.0 combination. Unsupported releases and unverified content are diagnosed; installed version strings alone do not prove compatibility. (verification: unit versioned adapter fixtures)
 - AC16 — Historical tool calls/results display as completed tool items under Processed, including old imports. Adjacent completed process-only records share one group; user messages, answer text and unfinished records separate groups. Paging, selection and capture preserve original message identities. Opening/importing or expanding them never executes tools, requests approvals, or starts generation. (verification: unit runtime boundaries, renderer grouping/paging/selection/capture and Electron)
 - AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
 - AC18 — Imported sessions support search, duplication, trash, and restore; reimport preserves archived copies, and restoring one after reimport keeps both histories; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
 - AC19 — Forward migration and existing full/slim backup round trips retain provenance, ownership, and workspaces; missing native history is reliably rebuilt or continuation explicitly blocked. No backup merging is added. (verification: unit populated-database migration and restore fixtures)
-- AC20 — Windows, macOS, and Linux satisfy path mapping and read-only source access, with simulations and native evidence distinguished. (verification: unit platform cases and platform-native Electron)
+- AC20 — All enabled sources satisfy path mapping and read-only access on Windows, macOS, and Linux, with simulated and native evidence distinguished. WorkBuddy delivers all three together for a declared OS/distribution, architecture, and source-version matrix. Each platform verifies discovery, read-only SQLite/WAL access, packaged native loading, import/reopen, and Pi continuation. Synthetic tests do not replace native evidence; an unverified platform keeps the WorkBuddy slice incomplete. (verification: unit platform cases, real source-layout checks, and platform-native packaged Electron)
 - AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
 - AC22 — Imported assistant headers use the current destination Agent's name/avatar, including old imports and Agent renames, while retaining the source model. Source conversation titles do not appear as authors; ordinary Cherry author snapshots remain unchanged. (verification: renderer author/provenance/capture cases and Electron)
 - AC23 — After loading the actual beginning and finding the first real user message, hide only earlier imported setup records. Partial pages, later records, stored history and continuation context remain intact. Image export applies the same preamble rule. (verification: renderer paging/projection/capture cases and Electron)
 - AC24 — Codex sessions with a verified Guardian source marker are excluded before candidate display and cannot bypass filtering through an old selection. Renaming them does not change classification; title-only matches, ordinary subagents and conflicting copies are not silently excluded. (verification: versioned adapter fixtures and coordinator revalidation)
 - AC25 — Claude setup-only sessions are excluded only after a complete recognized history proves there is no real user task on any recoverable branch. Real questions, attachment-only input, mixed setting/task histories and user-task commands remain eligible; uncertain records and unresolved branches remain visible for validation. (verification: versioned adapter content/branch fixtures)
 - AC26 — Discovery reports exclusion counts separately from import outcomes, selection limits and errors. Filtering and revalidation create no sessions/workspaces, preserve source files and existing imports, and do not block valid sessions in the same batch. All-excluded results have an explanatory empty state without ineffective retry/repair choices. (verification: coordinator state/source checks, renderer counts/empty-state/mixed-batch cases and Electron)
+- AC27 — WorkBuddy joins the desktop index and transcript by verified session identity, preserves title precedence and recorded cwd, and retains real playground tasks. Cloud-only rows, missing history, deleted local rows, and heartbeat files are not mistaken for ordinary complete local chats. (verification: versioned adapter discovery/identity/workspace fixtures)
+- AC28 — WorkBuddy preserves user/assistant content, readable quotes, source reasoning, inert tool call/result order, and interrupted/error state. Literal tags, duplicated projections, metadata, and snapshots neither erase user text nor create duplicate messages or executable actions. (verification: adapter normalization, renderer projection, and Pi captured-input fixtures)
+- AC29 — A selected WorkBuddy index row and transcript form one fingerprinted preview dependency set. Changes invalidate that preview; unrelated row changes do not. Source stores remain unchanged, WAL commits are included, and cancellation/limits create no partial imported session. (verification: read-only SQLite/file fixtures and coordinator state checks)
+- AC30 — WorkBuddy remains disabled until the ordering decision is recorded and verified against the observed backward intervals. Under the current contract they produce a specific blocking diagnostic with no writes. The eventual accepted sample preserves causal order and accessible original times through pagination, export, and first continuation. (verification: shared ordering contract review, regression fixtures, renderer, and Electron)
 
 Use `setupTestDatabase()` for database cases and explicit affected-test paths per layer. Native platform checks are not replaced by platform simulations. These criteria are future product verification, not evidence supplied by this documentation PR.
 
@@ -306,10 +399,13 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Timestamp rollback or source clock ahead | Reject conflicting input in preview and before commit; preserve timestamps and test the continuation boundary |
 | Missing directories | Resolve before inserting messages because existing sessions with messages cannot change workspace |
 | Native-file/database consistency | Use persistent initialization markers, stable native identity, validated output, and retry recovery |
-| WorkBuddy and upstream drift | Obtain desktop samples and pin supported versions; development schemas are not release-wide promises |
+| WorkBuddy and upstream drift | Initial Windows desktop evidence exists; add synthetic boundary fixtures and platform evidence before enabling support |
+| WorkBuddy tool timestamps decrease | Resolve the shared ordering prerequisite explicitly; the inspected real sample fails the current rejection rule |
+| WorkBuddy index and transcript diverge | Revalidate both dependencies; do not equate cloud indexes, heartbeat records, or partial files with complete local history |
+| Missing macOS/Linux evidence or native package differences | Keep the three-platform delivery gate open until the declared platform matrix passes; current Windows format inspection is not native import verification |
 | Tool and attachment fidelity | Review the first-version text/reference degradation; disclose every omitted artifact |
 | Large inputs | Establish line, session, and batch limits from fixtures before exposing import |
 | Backup restoration | Preserve identity through existing full/slim backups; no new merge capability |
 | Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the four-source implementation sequence |
 
-The first version fixes Pi targets, timestamp-conflict rejection, historical tool text, attachment references, and existing backup restoration. Reimports skip active matches; archived copies remain intact and allow a new import. Incremental sync is separate work. Complete declared source-version matrices and boundary fixtures before enabling each source. WorkBuddy desktop samples are a prerequisite for layer four. Earlier layers can ship independently without samples, but WorkBuddy stays disabled and #22728 remains incomplete.
+The first version fixes Pi targets, timestamp-conflict rejection, historical tool text, attachment references, and existing backup restoration. Reimports skip active matches; archived copies remain intact and allow a new import. Incremental sync is separate work. Complete declared source-version matrices and boundary fixtures before enabling each source. WorkBuddy now has initial desktop samples, but ordering, unsupported-format boundaries, and implementation verification remain prerequisites for layer four. Earlier layers may ship independently; WorkBuddy stays disabled and #22728 remains incomplete. This update is research and proposed documentation only.
