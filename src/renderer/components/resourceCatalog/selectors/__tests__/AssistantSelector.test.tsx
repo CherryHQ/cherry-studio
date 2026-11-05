@@ -294,6 +294,11 @@ beforeEach(() => {
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
     const enabled = path !== '/assistants' || options?.enabled !== false
     if (path === '/assistants' && enabled) assistantReadMock()
+    // The edit dialog resolves switch targets from the model/provider catalogs,
+    // which return plain arrays rather than the assistants page envelope.
+    if (path === '/models' || path === '/providers') {
+      return { data: [], isLoading: false, isRefreshing: false, error: undefined, refetch: vi.fn(), mutate: vi.fn() }
+    }
     const data = enabled ? (path === '/assistants/:id' ? ASSISTANTS_RESPONSE.items[0] : ASSISTANTS_RESPONSE) : undefined
     return {
       data,
