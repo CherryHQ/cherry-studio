@@ -10,11 +10,16 @@ export {
   messageListItemSchema,
   messageUsageSchema,
   modelSummarySchema,
+  reasoningEffortSchema,
+  agentModelOptionSchema,
+  modelOverrideSchema,
   partSchema,
   executionSchema,
   interactionSchema,
   contentRefSchema,
-  commandReceiptSchema
+  commandReceiptSchema,
+  workspaceFileMetadataSchema,
+  workspaceFileChunkSchema
 } from './agent/resources'
 export type {
   AgentWorkspaceSelection,
@@ -30,9 +35,14 @@ export type {
   AgentExecution,
   AgentInteraction,
   ContentRef,
-  CommandReceipt
+  CommandReceipt,
+  ReasoningEffort,
+  AgentModelOption,
+  ModelOverride,
+  WorkspaceFileMetadata,
+  WorkspaceFileChunk
 } from './agent/resources'
-export { agentMethods } from './agent/methods'
+export { agentMethods, agentSessionUpdateParamsSchema } from './agent/methods'
 export type { AgentMethod, AgentMutation, AgentParams, AgentResult } from './agent/methods'
 export { agentEventSchema, agentEventBatchSchema, agentNotificationSchema, agentProjectionSchema } from './agent/events'
 export type { AgentEvent, AgentEventBatch, AgentProjection } from './agent/events'

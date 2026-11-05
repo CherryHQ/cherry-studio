@@ -85,6 +85,31 @@ export const modelSummarySchema = z.looseObject({
   name: unicodeText.min(1).max(2048)
 })
 
+export const reasoningEffortSchema = z.enum([
+  'default',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'ultra',
+  'auto'
+])
+
+export const agentModelOptionSchema = z.looseObject({
+  modelId: unicodeText.min(1).max(2048),
+  providerId: opaqueId,
+  name: unicodeText.min(1).max(2048),
+  reasoningEfforts: z.array(reasoningEffortSchema).optional()
+})
+
+export const modelOverrideSchema = z.strictObject({
+  modelId: unicodeText.min(1).max(2048),
+  providerId: opaqueId
+})
+
 const messageMetadataSchema = z
   .looseObject({
     messageId: opaqueId,
@@ -207,3 +232,28 @@ export type AgentExecution = z.infer<typeof executionSchema>
 export type AgentInteraction = z.infer<typeof interactionSchema>
 export type ContentRef = z.infer<typeof contentRefSchema>
 export type CommandReceipt = z.infer<typeof commandReceiptSchema>
+export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>
+export type AgentModelOption = z.infer<typeof agentModelOptionSchema>
+export type ModelOverride = z.infer<typeof modelOverrideSchema>
+
+export const workspaceFileMetadataSchema = z.looseObject({
+  path: unicodeText.min(1).max(4096),
+  name: unicodeText.min(1).max(255),
+  revision: unicodeText.min(1).max(256),
+  byteLength: z.number().int().nonnegative(),
+  sha256: digest,
+  updatedAt: timestamp,
+  mediaType: z.string().min(1).max(128).optional()
+})
+
+export const workspaceFileChunkSchema = z.looseObject({
+  revision: unicodeText.min(1).max(256),
+  offset: z.number().int().nonnegative(),
+  totalBytes: z.number().int().nonnegative(),
+  eof: z.boolean(),
+  encoding: z.enum(['utf8', 'base64']),
+  data: z.string()
+})
+
+export type WorkspaceFileMetadata = z.infer<typeof workspaceFileMetadataSchema>
+export type WorkspaceFileChunk = z.infer<typeof workspaceFileChunkSchema>

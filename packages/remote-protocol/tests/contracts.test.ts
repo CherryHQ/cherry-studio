@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
-import { agentAuthorizationSchema, agentMethods, encodeAgentCommand, messageSchema } from '../src/agent'
+import {
+  agentAuthorizationSchema,
+  agentMethods,
+  agentModelOptionSchema,
+  agentSessionUpdateParamsSchema,
+  encodeAgentCommand,
+  messageSchema,
+  modelOverrideSchema,
+  reasoningEffortSchema,
+  workspaceFileChunkSchema,
+  workspaceFileMetadataSchema
+} from '../src/agent'
 import { checkpointItemSchema } from '../src/agent/checkpoints'
-import { connectionMethods, jsonRpcNotificationSchema, jsonRpcRequestSchema, negotiateProtocol } from '../src/index'
+import {
+  connectionMethods,
+  desktopProfileSchema,
+  jsonRpcNotificationSchema,
+  jsonRpcRequestSchema,
+  negotiateProtocol,
+  pairingMethods
+} from '../src/index'
 
 describe('remote contracts', () => {
   it('accepts explicit paged message summaries without admitting partial messages into recovery', () => {
@@ -164,5 +182,205 @@ describe('question and workspace command contracts', () => {
     expect(
       agentMethods['agent.workspaces.list'].result.parse({ items: [], nextCursor: null }).systemWorkspace
     ).toBeUndefined()
+  })
+
+  it('validates agent.sessions.update params schema with trimming and bounds', () => {
+    const valid = { commandId: 'c1', sessionId: 's1', title: 'Renamed Session' }
+    expect(agentSessionUpdateParamsSchema.parse(valid)).toEqual(valid)
+    expect(agentMethods['agent.sessions.update'].params.parse(valid)).toEqual(valid)
+
+    // Trimming
+    expect(
+      agentSessionUpdateParamsSchema.parse({ commandId: 'c1', sessionId: 's1', title: '  Padded Title  ' }).title
+    ).toBe('Padded Title')
+
+    // Empty or whitespace only rejected
+    expect(agentSessionUpdateParamsSchema.safeParse({ commandId: 'c1', sessionId: 's1', title: '' }).success).toBe(
+      false
+    )
+    expect(agentSessionUpdateParamsSchema.safeParse({ commandId: 'c1', sessionId: 's1', title: '   ' }).success).toBe(
+      false
+    )
+
+    // Exceeding 4096 chars rejected
+    expect(
+      agentSessionUpdateParamsSchema.safeParse({ commandId: 'c1', sessionId: 's1', title: 'x'.repeat(4097) }).success
+    ).toBe(false)
+
+    // Canonicalization of command
+    const encoded = encodeAgentCommand('agent.sessions.update', valid)
+    expect(new TextDecoder().decode(encoded)).toBe(
+      '{"method":"agent.sessions.update","params":{"sessionId":"s1","title":"Renamed Session"}}'
+    )
+  })
+
+  it('validates model option, override, and reasoning effort schemas across agent methods', () => {
+    // reasoningEffortSchema
+    expect(reasoningEffortSchema.parse('default')).toBe('default')
+    expect(reasoningEffortSchema.parse('high')).toBe('high')
+    expect(reasoningEffortSchema.safeParse('invalid-effort').success).toBe(false)
+
+    // agentModelOptionSchema
+    const modelOption = {
+      modelId: 'gpt-4o',
+      providerId: 'openai',
+      name: 'GPT-4o',
+      reasoningEfforts: ['default', 'low', 'high'] as const
+    }
+    expect(agentModelOptionSchema.parse(modelOption)).toEqual(modelOption)
+
+    // modelOverrideSchema
+    const override = { modelId: 'claude-3-5-sonnet-20241022', providerId: 'anthropic' }
+    expect(modelOverrideSchema.parse(override)).toEqual(override)
+    expect(modelOverrideSchema.safeParse({ modelId: 'only-model' }).success).toBe(false)
+
+    // connection.hello advertises versions
+    const hello = connectionMethods(agentAuthorizationSchema)['connection.hello'].result
+    const helloParsed = hello.parse({
+      protocolVersion: 1,
+      limits: {},
+      heartbeatMs: 20000,
+      agentSessionRenameVersion: 1,
+      agentModelSelectionVersion: 1
+    })
+    expect(helloParsed.agentSessionRenameVersion).toBe(1)
+    expect(helloParsed.agentModelSelectionVersion).toBe(1)
+
+    // agent.agents.list result schema accepts reasoningEffort and availableModels
+    const agentListResult = agentMethods['agent.agents.list'].result.parse({
+      items: [
+        {
+          agentId: 'a1',
+          name: 'Test Agent',
+          reasoningEffort: 'medium',
+          availableModels: [modelOption]
+        }
+      ],
+      nextCursor: null
+    })
+    expect(agentListResult.items[0].reasoningEffort).toBe('medium')
+    expect(agentListResult.items[0].availableModels).toEqual([modelOption])
+
+    // agent.sessions.create params accepts model and reasoningEffort
+    const createParams = {
+      commandId: 'c1',
+      agentId: 'a1',
+      workspaceId: 'w1',
+      model: override,
+      reasoningEffort: 'high' as const
+    }
+    expect(agentMethods['agent.sessions.create'].params.parse(createParams)).toEqual(createParams)
+
+    // agent.messages.send params accepts model and reasoningEffort
+    const sendParams = {
+      commandId: 'c1',
+      sessionId: 's1',
+      text: 'hello',
+      expectedIdleRevision: '1',
+      model: override,
+      reasoningEffort: 'low' as const
+    }
+    expect(agentMethods['agent.messages.send'].params.parse(sendParams)).toEqual(sendParams)
+  })
+
+  it('validates desktopProfileSchema, versions in hello, and desktopProfile in auth and pairing', () => {
+    // desktopProfileSchema validation
+    const profile = { name: 'Alice', avatar: '🦊' }
+    expect(desktopProfileSchema.parse(profile)).toEqual(profile)
+    expect(desktopProfileSchema.parse({ name: '  Bob  ' })).toEqual({ name: 'Bob' })
+    expect(desktopProfileSchema.safeParse({ name: '' }).success).toBe(false)
+    expect(desktopProfileSchema.safeParse({ name: 'a'.repeat(257) }).success).toBe(false)
+    expect(desktopProfileSchema.safeParse({ avatar: 'x'.repeat(65_537) }).success).toBe(false)
+
+    // connection.hello advertises desktopProfileVersion and agentFilesVersion
+    const hello = connectionMethods(agentAuthorizationSchema)['connection.hello'].result
+    const helloParsed = hello.parse({
+      protocolVersion: 1,
+      limits: {},
+      heartbeatMs: 20000,
+      desktopProfileVersion: 1,
+      agentFilesVersion: 1
+    })
+    expect(helloParsed.desktopProfileVersion).toBe(1)
+    expect(helloParsed.agentFilesVersion).toBe(1)
+
+    // connection.authenticate result accepts desktopProfile
+    const conn = connectionMethods(agentAuthorizationSchema)
+    const authResult = conn['connection.authenticate'].result.parse({
+      deviceId: 'd1',
+      accessToken: 'token1',
+      expiresAt: '2026-11-05T00:00:00.000Z',
+      authorization: { domain: 'agent', grantId: 'g1' },
+      desktopProfile: profile
+    })
+    expect(authResult.desktopProfile).toEqual(profile)
+
+    // connection.refresh result accepts desktopProfile
+    const refreshResult = conn['connection.refresh'].result.parse({
+      accessToken: 'token2',
+      expiresAt: '2026-11-05T00:00:00.000Z',
+      authorization: { domain: 'agent', grantId: 'g1' },
+      desktopProfile: profile
+    })
+    expect(refreshResult.desktopProfile).toEqual(profile)
+
+    // pairing.get approved result accepts desktopProfile
+    const pairing = pairingMethods(agentAuthorizationSchema)
+    const pairingResult = pairing['pairing.get'].result.parse({
+      status: 'approved',
+      deviceId: 'd1',
+      accessToken: 'token3',
+      expiresAt: '2026-11-05T00:00:00.000Z',
+      authorization: { domain: 'agent', grantId: 'g1' },
+      desktopProfile: profile
+    })
+    expect(pairingResult.status === 'approved' && pairingResult.desktopProfile).toEqual(profile)
+  })
+
+  it('validates agent.files.get and agent.files.read schemas', () => {
+    // agent.files.get params and result
+    const getParams = { sessionId: 's1', path: 'src/main.ts' }
+    expect(agentMethods['agent.files.get'].params.parse(getParams)).toEqual(getParams)
+
+    const meta = {
+      path: 'src/main.ts',
+      name: 'main.ts',
+      revision: '1730000000000',
+      byteLength: 1024,
+      sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      updatedAt: '2026-11-05T00:00:00.000Z',
+      mediaType: 'text/typescript'
+    }
+    expect(agentMethods['agent.files.get'].result.parse(meta)).toEqual(meta)
+    expect(workspaceFileMetadataSchema.parse(meta)).toEqual(meta)
+
+    // agent.files.read params and result
+    const readParams = {
+      sessionId: 's1',
+      path: 'src/main.ts',
+      expectedRevision: '1730000000000',
+      offset: 0,
+      length: 1024
+    }
+    expect(agentMethods['agent.files.read'].params.parse(readParams)).toEqual(readParams)
+
+    // read params length bounded to 24_576
+    expect(
+      agentMethods['agent.files.read'].params.safeParse({
+        ...readParams,
+        length: 24_577
+      }).success
+    ).toBe(false)
+
+    const chunk = {
+      revision: '1730000000000',
+      offset: 0,
+      totalBytes: 1024,
+      eof: true,
+      encoding: 'base64' as const,
+      data: 'SGVsbG8gV29ybGQ='
+    }
+    expect(agentMethods['agent.files.read'].result.parse(chunk)).toEqual(chunk)
+    expect(workspaceFileChunkSchema.parse(chunk)).toEqual(chunk)
   })
 })

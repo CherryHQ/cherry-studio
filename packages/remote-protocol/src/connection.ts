@@ -29,6 +29,12 @@ export const remoteLimits = Object.freeze({
 })
 
 const empty = z.strictObject({})
+export const desktopProfileSchema = z.looseObject({
+  name: unicodeText.trim().min(1).max(256).optional(),
+  avatar: unicodeText.max(65_536).optional()
+})
+export type DesktopProfile = z.infer<typeof desktopProfileSchema>
+
 export const remoteEndpointSnapshotSchema = z.looseObject({
   desktopIdentity: opaqueId,
   endpoints: z.array(directEndpointSchema).max(32)
@@ -40,7 +46,12 @@ const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) 
 })
 
 export function connectionMethods<A extends z.ZodType>(authorization: A) {
-  const token = z.looseObject({ authorization, accessToken: opaqueId, expiresAt: timestamp })
+  const token = z.looseObject({
+    authorization,
+    accessToken: opaqueId,
+    expiresAt: timestamp,
+    desktopProfile: desktopProfileSchema.optional()
+  })
   return {
     'connection.hello': method(
       protocolSupportSchema,
@@ -52,6 +63,10 @@ export function connectionMethods<A extends z.ZodType>(authorization: A) {
         agentFailureVersion: z.number().int().positive().optional(),
         agentMessageSummariesVersion: z.number().int().positive().optional(),
         connectionEndpointsVersion: z.number().int().positive().optional(),
+        agentSessionRenameVersion: z.number().int().positive().optional(),
+        agentModelSelectionVersion: z.number().int().positive().optional(),
+        desktopProfileVersion: z.number().int().positive().optional(),
+        agentFilesVersion: z.number().int().positive().optional(),
         limits: z.record(z.string(), z.number().int().positive()),
         heartbeatMs: z.number().int().positive()
       })
@@ -90,7 +105,8 @@ export function pairingMethods<A extends z.ZodType>(authorization: A) {
           deviceId: opaqueId,
           authorization,
           accessToken: opaqueId,
-          expiresAt: timestamp
+          expiresAt: timestamp,
+          desktopProfile: desktopProfileSchema.optional()
         })
       ])
     )

@@ -3,8 +3,10 @@ export {
   pairingMethods,
   connectionNotificationSchema,
   remoteEndpointSnapshotSchema,
-  remoteLimits
+  remoteLimits,
+  desktopProfileSchema
 } from './connection'
+export type { DesktopProfile } from './connection'
 export { jsonRpcRequestSchema, jsonRpcResponseSchema, jsonRpcNotificationSchema, jsonRpcErrorSchema } from './jsonRpc'
 export type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification, JsonRpcError } from './jsonRpc'
 export { remoteFailureSchema } from './errors'
