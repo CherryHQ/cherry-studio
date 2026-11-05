@@ -61,6 +61,7 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
+import { childTaskStatus } from './childTaskStatus'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
@@ -896,12 +897,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.endToolSpans('Pi owner closed')
     this.eventQueue.close()
   }
-}
-
-function childTaskStatus(outcome: string | undefined): AgentTaskEventPartData['status'] {
-  if (outcome === 'completed') return 'completed'
-  if (outcome === 'aborted' || outcome === 'stopped' || outcome === 'interrupted') return 'stopped'
-  return 'error'
 }
 
 function normalizeDisabledTools(
