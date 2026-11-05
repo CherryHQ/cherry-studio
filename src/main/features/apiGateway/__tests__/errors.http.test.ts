@@ -20,6 +20,7 @@ import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from '../adapters'
 import { buildStreamErrorFrame, gatewayErrorHandler } from '../errors'
+import { CountTokensBodySchema, MessagesBodySchema } from '../routes/schemas'
 
 const timeoutMessage = 'Upstream request timed out'
 const abortMessage = 'Upstream stream aborted'
@@ -436,6 +437,8 @@ beforeAll(async () => {
   for (const status of [401, 429, 500, 503]) realInputs.set(`provider-${status}`, await providerFailure(status))
   expect(serializeError(Object.assign(new Error('ordinary failure'), { code: 'ABORT_ERR' }))).not.toHaveProperty('code')
   const app = new Elysia({ adapter: node() }).error({ DATA_API: DataApiError }).onError(gatewayErrorHandler)
+  app.post('/v1/messages', () => ({ ok: true }), { body: MessagesBodySchema })
+  app.post('/v1/messages/count_tokens', () => ({ input_tokens: 42 }), { body: CountTokensBodySchema })
   for (const path of [...dialects.map((d) => d.path), '/v1/models', '/v1/mcps/test/mcp']) {
     app.get(path, async (ctx) => {
       const { test, format, mode } = active
@@ -494,6 +497,31 @@ afterAll(async () => {
     }
   }
 })
+
+it.each(['/v1/messages', '/v1/messages/count_tokens'])(
+  '%s validation exposes only the indexed issue over HTTP',
+  async (path) => {
+    const sentinel = 'PRIVATE_NEIGHBOURING_MESSAGE_CONTENT'
+    const messages = [...Array.from({ length: 178 }, () => ({ role: 'user', content: sentinel })), { role: 'user' }]
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'anthropic:claude', messages, stream: true }),
+      signal: AbortSignal.timeout(5000)
+    })
+    expect(response.status).toBe(400)
+    expect(response.headers.get('content-type')).toContain('application/json')
+    const body = await response.json()
+    expect(body).toEqual({
+      type: 'error',
+      error: {
+        type: 'invalid_request_error',
+        message: 'messages.178.content: content is required and must be a string or an array of content blocks'
+      }
+    })
+    expect(body.error.message).not.toContain(sentinel)
+  }
+)
 
 describe('gateway generation errors over real Elysia/node sockets', () => {
   for (const dialect of dialects) {
