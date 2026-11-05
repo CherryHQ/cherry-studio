@@ -310,6 +310,43 @@ describe('useMessageSelectionController', () => {
       expect(deleteMessage.mock.calls.map(([id]) => id)).toEqual(['u1', 'u2'])
     })
 
+    it('deletes only the loaded snapshot and does not fetch older history', async () => {
+      const deleteMessage = vi.fn()
+      const start = vi.fn()
+      const { result } = renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('loaded-older'), message('target')],
+          partsByMessageId: {},
+          deleteMessage,
+          selectAllPagination: { hasOlder: true, isLoading: false, start, stop: vi.fn() }
+        })
+      )
+      popupConfirm.mockResolvedValueOnce(true)
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('target')
+      })
+      expect(deleteMessage.mock.calls.map(([id]) => id)).toEqual(['loaded-older'])
+      expect(start).not.toHaveBeenCalled()
+    })
+
+    it('deletes nothing when the loaded-above confirmation is cancelled', async () => {
+      const deleteMessage = vi.fn()
+      const { result } = renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('older'), message('target')],
+          partsByMessageId: {},
+          deleteMessage
+        })
+      )
+      popupConfirm.mockResolvedValueOnce(false)
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('target')
+      })
+      expect(deleteMessage).not.toHaveBeenCalled()
+    })
+
     it('warns and deletes nothing when no message precedes the target', async () => {
       const deleteMessage = vi.fn()
       const { result } = renderHook(() =>

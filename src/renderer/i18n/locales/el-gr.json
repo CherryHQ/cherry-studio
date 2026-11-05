@@ -919,7 +919,7 @@
   "chat.message.token_details.waiting_first_token": "Αναμονή",
   "chat.message.useful.label": "Ορισμός ως πλαίσιο αναφοράς",
   "chat.message.useful.tip": "Σε αυτή την ομάδα μηνυμάτων, αυτό το μήνυμα θα επιλεγεί για να συμπεριληφθεί στο πλαίσιο",
-  "chat.multiple.select.delete_above": "Διαγραφή όλων των παραπάνω",
+  "chat.multiple.select.delete_above": "Διαγραφή φορτωμένων μηνυμάτων παραπάνω",
   "chat.multiple.select.empty": "Δεν έχει επιλεγεί κανένα μήνυμα",
   "chat.multiple.select.label": "Πολλαπλή επιλογή",
   "chat.navigation.anchor.jump_to_turn": "Μετάβαση στη στροφή {{number}}",

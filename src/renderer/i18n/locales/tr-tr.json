@@ -919,7 +919,7 @@
   "chat.message.token_details.waiting_first_token": "Bekleme",
   "chat.message.useful.label": "Bağlam olarak ayarla",
   "chat.message.useful.tip": "Bu mesaj grubunda, bağlama katılması için bu mesaj seçilecek",
-  "chat.multiple.select.delete_above": "Yukarıdakilerin Tümünü Sil",
+  "chat.multiple.select.delete_above": "Yukarıdaki yüklenmiş mesajları sil",
   "chat.multiple.select.empty": "Mesaj Seçilmedi",
   "chat.multiple.select.label": "Çoklu Seçim",
   "chat.navigation.anchor.jump_to_turn": "{{number}}. tura atla",

@@ -919,7 +919,7 @@
   "chat.message.token_details.waiting_first_token": "等待",
   "chat.message.useful.label": "设置为上下文",
   "chat.message.useful.tip": "在这组消息中，该消息将被选择加入上下文",
-  "chat.multiple.select.delete_above": "删除以上所有消息",
+  "chat.multiple.select.delete_above": "删除上方已加载的消息",
   "chat.multiple.select.empty": "未选中任何消息",
   "chat.multiple.select.label": "多选",
   "chat.navigation.anchor.jump_to_turn": "跳转到第 {{number}} 轮对话",

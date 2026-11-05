@@ -919,7 +919,7 @@
   "chat.message.token_details.waiting_first_token": "Așteptare",
   "chat.message.useful.label": "Setează ca context",
   "chat.message.useful.tip": "În acest grup de mesaje, acest mesaj va fi selectat pentru a se alătura contextului",
-  "chat.multiple.select.delete_above": "Șterge tot ce este deasupra",
+  "chat.multiple.select.delete_above": "Șterge mesajele încărcate de mai sus",
   "chat.multiple.select.empty": "Niciun mesaj selectat",
   "chat.multiple.select.label": "Selecție multiplă",
   "chat.navigation.anchor.jump_to_turn": "Salt la tura {{number}}",

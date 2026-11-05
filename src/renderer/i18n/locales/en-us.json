@@ -919,7 +919,7 @@
   "chat.message.token_details.waiting_first_token": "Waiting",
   "chat.message.useful.label": "Set as context",
   "chat.message.useful.tip": "In this group of messages, this message will be selected to join the context",
-  "chat.multiple.select.delete_above": "Delete All Above",
+  "chat.multiple.select.delete_above": "Delete loaded messages above",
   "chat.multiple.select.empty": "No Messages Selected",
   "chat.multiple.select.label": "Multiple Select",
   "chat.navigation.anchor.jump_to_turn": "Jump to turn {{number}}",
