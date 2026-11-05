@@ -10,9 +10,8 @@ Long agent sessions (Claude Code runtime) froze when the replay ring overflowed:
 
 ## Decision
 
-- Replay repair synthesizes a missing `tool-input-start` for orphan `tool-input-delta` / `tool-input-available` / `tool-output-*` / `tool-approval-request`, scoped per execution. When the surviving `tool-input-available` carries the real name, the placeholder is patched so static parts keep their `tool-<name>` identity instead of sticking at `unknown-tool`.
-- Live repair in `TopicStreamSubscription` mirrors the synthesis for deltas arriving during a replay window; a start that must precede live deltas is synthesized immediately as `unknown-tool` (documented degraded view — reload heals via the replay patch).
-- The overlay throttles `readUIMessageStream error` warnings and marks degraded turns without failing them; Main's tee-accumulated persistence stays authoritative.
+- Attach replay repair lives in Main's `AiStreamManager.attach` via `buildCompactReplay`, scoped per execution. It synthesizes a missing `tool-input-start` for orphan `tool-input-delta` / `tool-input-available` / `tool-output-*` / `tool-approval-request`, preserving surviving `toolName` / `dynamic` / metadata so static parts keep their `tool-<name>` identity instead of sticking at `unknown-tool`, with patch-once repair when `tool-input-available` lands later. This keeps raw `ai.stream.attach` replay parseable by the real `readUIMessageStream`; desktop views run no renderer-side repair.
+- Renderer desktop views consume Main-owned message projections (`ai.projection.attach` → `MessageProjectionService` → `ExecutionStreamOverlayService` → `useExecutionOverlay`), rendering `CherryUIMessage` snapshots produced by Main's `pipeStreamLoop` accumulator. The overlay performs no chunk parsing and tracks no degraded turns; Main's tee-accumulated persistence stays authoritative.
 - Shutdown bounds `closeAll` at 4s (both `onStop` and `onDestroy`), skips poisoning `failedClosures` on shutdown-budget timeouts, and bounds in-flight connects at 1.5s instead of dropping them.
 - Stale resume clears the in-memory token, persisted `runtimeResumeToken` / `nativeSessionId` bindings scoped to the failed conversation, the matching in-flight `closingSessions.resumeToken`, and stale-token mappings in `failedClosureResumeTokens` while retaining `failedClosures` ownership for edit gating and archive retry. A branch-specific reset boundary on the failed branch head blocks ancestor fallback so that branch reconnects fresh while healthy siblings keep their identities. Matching lives in shared `staleResume.ts` and the driver projects `data-conversation-reset` before surfacing the error.
 - Rapid steers accumulate (`[...prev, ...inputs]`) instead of overwriting the armed boundary.
@@ -25,7 +24,7 @@ Long agent sessions (Claude Code runtime) froze when the replay ring overflowed:
 
 ## Consequences
 
-Replay of evicted prefixes now parses through the real `readUIMessageStream`; static tool parts keep their names when `tool-input-available` survives. Shutdown settles within the Lifecycle budget. A stale CLI-side conversation recovers on the next turn instead of failing forever. Live views during a gap may briefly show `unknown-tool` until reload.
+Raw replay of evicted prefixes now parses through the real `readUIMessageStream`; static tool parts keep their names when `tool-input-available` survives, and raw consumers only see a transient `unknown-tool` placeholder until the surviving name/dynamic patch lands. Desktop projection views render Main snapshots directly and need no reload to heal. Shutdown settles within the Lifecycle budget. A stale CLI-side conversation recovers on the next turn instead of failing forever.
 
 ## Verification
 
