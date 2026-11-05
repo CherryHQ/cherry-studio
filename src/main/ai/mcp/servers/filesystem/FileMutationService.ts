@@ -20,11 +20,7 @@ class FileMutationService {
    * section covers the whole read-modify-write cycle; serializing only the final
    * write (or verifying with a post-write read) cannot stop a stale overwrite.
    */
-  async run<T>(
-    requestedPath: string,
-    baseDir: string | undefined,
-    fn: (validPath: string) => Promise<T>
-  ): Promise<T> {
+  async run<T>(requestedPath: string, baseDir: string | undefined, fn: (validPath: string) => Promise<T>): Promise<T> {
     // Validate once to derive the queue key: canonicalizing here maps different
     // spellings of the same target onto one queue. This comparison never leaves
     // the filesystem MCP server and does not alter shared workspace
