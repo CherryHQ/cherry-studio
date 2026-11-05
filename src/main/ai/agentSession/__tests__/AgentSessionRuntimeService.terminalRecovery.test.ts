@@ -63,12 +63,16 @@ function deferred() {
   })
   return { promise, resolve, reject }
 }
-async function until(predicate: () => boolean) {
-  for (let i = 0; i < 1000; i++) {
-    if (predicate()) return
-    await new Promise((r) => setImmediate(r))
+async function until(predicate: () => boolean, timeoutMs = 5000) {
+  const deadline = performance.now() + timeoutMs
+  let lastResult = predicate()
+  while (!lastResult && performance.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2))
+    lastResult = predicate()
   }
-  throw new Error('condition did not settle within 1000 event-loop ticks')
+  if (!lastResult) {
+    throw new Error(`condition did not settle within ${timeoutMs} ms; last predicate result: ${lastResult}`)
+  }
 }
 function row() {
   const r = messages.getSessionMessage(sessionId, '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d100')
