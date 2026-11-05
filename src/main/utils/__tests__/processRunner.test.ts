@@ -8,6 +8,20 @@ vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: vi.fn() }))
 
 import { executeCommand } from '../processRunner'
 
+/** Alive and not a zombie: an orphan reparented to a non-reaping init stays signalable after it died. */
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+  } catch {
+    return false
+  }
+  try {
+    return !/^\d+ \(.*\) Z/.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8'))
+  } catch {
+    return true
+  }
+}
+
 const printStdout = ['-e', "process.stdout.write('command output')"]
 
 describe('executeCommand', () => {
