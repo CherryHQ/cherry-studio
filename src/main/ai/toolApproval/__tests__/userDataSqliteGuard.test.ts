@@ -204,11 +204,22 @@ describe('evaluateUserDataSqliteGuard', () => {
   describe('literal shell scanning', () => {
     it.each([
       ['claude-code', 'Bash'],
-      ['pi', 'bash']
+      ['pi', 'bash'],
+      ['pi', 'powershell']
     ] as const)('protects %s %s commands', async (runtime, toolName) => {
       await expect(evaluate({ runtime, toolName, args: { command: `sqlite3 "${databaseFile}"` } })).resolves.toEqual(
         DENIAL
       )
+    })
+
+    it('allows an unrelated Windows path in PowerShell', async () => {
+      await expect(
+        evaluate({
+          runtime: 'pi',
+          toolName: 'powershell',
+          args: { command: String.raw`sqlite3 C:\work\project.sqlite` }
+        })
+      ).resolves.toBeUndefined()
     })
 
     it('recognizes quoted paths, separators, initial-cwd relative paths, and sidecars', async () => {
@@ -241,6 +252,30 @@ describe('evaluateUserDataSqliteGuard', () => {
         `python -c "import sqlite3; sqlite3.connect('${localDatabase}')"`
       ]) {
         await expect(evaluate({ toolName: 'Bash', args: { command } })).resolves.toBeUndefined()
+      }
+    })
+
+    it.each(['$HOME', '$home'])('checks PowerShell home reference %s', async (home) => {
+      const protectedPath = path.relative(homePath, databaseFile)
+      const allowedPath = path.relative(homePath, path.join(workspacePath, 'allowed.sqlite'))
+      await expect(
+        evaluate({ runtime: 'pi', toolName: 'powershell', args: { command: `sqlite3 "${home}/${protectedPath}"` } })
+      ).resolves.toEqual(DENIAL)
+      await expect(
+        evaluate({ runtime: 'pi', toolName: 'powershell', args: { command: `sqlite3 "${home}/${allowedPath}"` } })
+      ).resolves.toBeUndefined()
+    })
+
+    it.each(['bash', 'powershell'] as const)('checks home references in file URIs for %s', async (toolName) => {
+      for (const home of ['$home', '$HOME', '${home}']) {
+        const protectedPath = path.relative(homePath, databaseFile)
+        const allowedPath = path.relative(homePath, path.join(workspacePath, 'allowed.sqlite'))
+        await expect(
+          evaluate({ runtime: 'pi', toolName, args: { command: `sqlite3 "file:${home}/${protectedPath}?mode=rw"` } })
+        ).resolves.toEqual(DENIAL)
+        await expect(
+          evaluate({ runtime: 'pi', toolName, args: { command: `sqlite3 "file:${home}/${allowedPath}?mode=rw"` } })
+        ).resolves.toBeUndefined()
       }
     })
 

@@ -43,7 +43,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { isPiShellToolDisabled, normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -73,7 +73,12 @@ import {
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { loadPiSdk } from './piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
+import {
+  buildPiShellRuntime,
+  buildPiLoginPathPrefix,
+  mergePiShellExecutionEnv,
+  resolvePiShellSelection
+} from './piShell'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { resolvePiThinkingLevel } from './piThinkingLevel'
 
@@ -186,7 +191,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const { createPiRuntime } = await import('@cherrystudio/agent-runtime-pi')
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
-    const shellPath = resolvePiShellPath()
+    const shellSelection = resolvePiShellSelection()
     const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
     const additionalSkillPaths = [...initialSnapshot.additionalSkillPaths]
     const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
@@ -301,11 +306,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         if (sessionId === nativeId) this.recordUsage(usage)
       }
     )
-    const managedBashTool = pi.createBashToolDefinition(workspacePath, {
-      commandPrefix: loginPathPrefix,
-      shellPath,
-      spawnHook: (context) => ({ ...context, env: mergePiBashExecutionEnv(context.env) })
-    }) as ToolDefinition
+    const shellRuntime = buildPiShellRuntime(shellSelection, loginPathPrefix)
+    const managedShellTool =
+      shellRuntime.mountManagedBash && shellSelection.shell === 'bash'
+        ? (pi.createBashToolDefinition(workspacePath, {
+            commandPrefix: loginPathPrefix,
+            shellPath: shellSelection.shellPath,
+            spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+          }) as ToolDefinition)
+        : (pi.createPowerShellToolDefinition(workspacePath, {
+            spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+          }) as ToolDefinition)
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
@@ -337,8 +348,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       appendSystemPrompt: prompt.append ? [prompt.append] : [],
       contextFiles: true,
       skillPaths: additionalSkillPaths,
-      builtinTools: ['read', 'bash', 'edit', 'write'],
-      tools: [managedBashTool],
+      builtinTools: shellRuntime.builtinTools,
+      tools: [managedShellTool],
       excludeTools: [...this.disabledTools],
       behavior: {
         ...behavior,
@@ -352,10 +363,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           return configured
         }
       },
-      settings: {
-        ...(shellPath ? { shellPath } : {}),
-        ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
-      },
+      settings: shellRuntime.settings,
       extensionFactories: [
         createPiIdentityExtension(agentDataPath),
         pi.createCodemodeExtension({ models: false }),
@@ -909,6 +917,10 @@ function normalizeDisabledTools(
   snapshot: PiConnectionSnapshot
 ): Set<string> {
   const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
+  if (isPiShellToolDisabled(disabled, 'bash')) {
+    disabled.add('bash')
+    disabled.add('powershell')
+  }
   const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
   const legacyTools: Array<{ ids: string[]; nameAlias?: string; piName: string }> = listBuiltinToolPolicies({
     mountedServers: new Set(Object.values(CHERRY_MCP_SERVER))

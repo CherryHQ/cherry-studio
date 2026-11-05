@@ -82,6 +82,8 @@ describe('approval decisions (D34)', () => {
   it('asks in auto mode only for destructive shell commands', () => {
     expect(decide('bash', { destructive: true }, 'auto')).toBe('ask')
     expect(decide('bash', {}, 'auto')).toBe('allow')
+    expect(decide('powershell', { destructive: true }, 'auto')).toBe('ask')
+    expect(decide('powershell', {}, 'auto')).toBe('allow')
   })
 
   // Catches an unattended run waiting forever for a person, and the host rewrite getting lost on an allowed call.

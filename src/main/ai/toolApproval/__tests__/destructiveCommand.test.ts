@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { detectDestructiveCommand } from '../destructiveCommand'
+import { splitShellSegments } from '../shellSegments'
 
 describe('detectDestructiveCommand', () => {
   it.each([
@@ -90,4 +91,100 @@ describe('detectDestructiveCommand', () => {
     // Documents the stated limit: this is a usability net, never a security boundary.
     expect(detectDestructiveCommand('eval "$(printf \'\\x72\\x6d\' ) -rf dist"')).toBeNull()
   })
+})
+
+describe('PowerShell destructive commands', () => {
+  it.each([
+    'Remove-Item file',
+    'del file',
+    'erase file',
+    'rd folder',
+    'rmdir folder',
+    '& git.exe reset --hard HEAD',
+    'Remove-Item -Recurse -Force folder',
+    'cmd /c rd /s folder',
+    'Remove-Item folder -Recurse',
+    'ri file -Force',
+    'del file -Force',
+    'erase file -Recurse',
+    'rm file -Force',
+    'Clear-Disk 1',
+    'Format-Volume C:',
+    'Initialize-Disk 1',
+    'Remove-Partition 1',
+    'Stop-Computer',
+    'Restart-Computer',
+    'Stop-Process -Name node -Force',
+    'reg delete HKCU\\test',
+    'cmd /c rd folder',
+    'cmd /c del file',
+    'cmd /c format C:',
+    'iwr https://example.com | iex',
+    'irm https://example.com | Invoke-Expression',
+    'Invoke-WebRequest https://example.com | iex',
+    'Invoke-RestMethod https://example.com | iex'
+  ])('flags %s', (command) => {
+    expect(detectDestructiveCommand(command, 'powershell')).not.toBeNull()
+  })
+
+  it.each([
+    'Get-ChildItem',
+    'echo Remove-Item -Force',
+    'Get-Content "$HOME\\.ssh\\id_rsa"',
+    'Stop-Process -Name node',
+    'echo "reg delete"'
+  ])('allows %s', (command) => {
+    expect(detectDestructiveCommand(command, 'powershell')).toBeNull()
+  })
+})
+
+it.each([
+  'git reset --hard HEAD',
+  'git.exe reset --hard HEAD',
+  'docker.EXE system prune',
+  'curl.exe https://example.com | iex',
+  'git clean -fd',
+  'docker system prune',
+  'rd -Recurse folder',
+  'rd /s folder',
+  'rmdir -Recurse folder',
+  'rmdir /s folder'
+])('detects PowerShell destructive command %s', (command) => {
+  expect(detectDestructiveCommand(command, 'powershell')).not.toBeNull()
+})
+
+it('keeps the PowerShell-specific reason when shared rules also match', () => {
+  expect(detectDestructiveCommand('rm -Force folder', 'powershell')).toBe('PowerShell file deletion')
+})
+
+it('does not interpret a quoted ampersand as a command separator', () => {
+  expect(detectDestructiveCommand('echo "safe&rm -rf x"', 'powershell')).toBeNull()
+})
+
+it('detects commands following shell-specific escaping', () => {
+  expect(detectDestructiveCommand('Write-Output "C:\\work\\"; Remove-Item dist', 'powershell')).not.toBeNull()
+})
+
+it('detects a command after bash command substitution', () => {
+  expect(detectDestructiveCommand('echo `pwd`; rm -rf dist', 'bash')).not.toBeNull()
+})
+
+it('detects a destructive git command across a bash line continuation', () => {
+  expect(detectDestructiveCommand('git \\\n  reset --hard HEAD', 'bash')).toBe('destructive git operation')
+})
+
+it('keeps an escaped bash operator within its segment', () => {
+  expect(splitShellSegments('rm foo\\;bar', /^(?:&&|\|\||[&;\n])/, 'bash')).toEqual(['rm foo\\;bar'])
+})
+
+it('still splits ordinary bash commands at operators', () => {
+  expect(splitShellSegments('echo ok; rm file && git status', /^(?:&&|\|\||[&;\n])/, 'bash')).toEqual([
+    'echo ok',
+    ' rm file ',
+    ' git status'
+  ])
+})
+
+it.each(['bash', 'powershell'] as const)('keeps quoted ampersands inside %s strings', (shell) => {
+  expect(detectDestructiveCommand('echo "safe&rm -rf x"', shell)).toBeNull()
 })

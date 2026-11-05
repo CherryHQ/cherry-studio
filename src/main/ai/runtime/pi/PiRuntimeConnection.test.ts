@@ -42,6 +42,7 @@ import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { buildPiLoginPathPrefix } from './piShell'
+import * as piShell from './piShell'
 
 const modelId = 'test::test-model'
 
@@ -1024,6 +1025,21 @@ describe('desktop Pi root connection', () => {
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
     expect(saved).not.toHaveProperty('nativeInputId')
+  })
+
+  it.each([
+    ['powershell', 'bash'],
+    ['bash', 'powershell']
+  ] as const)('omits selected %s when %s is disabled', async (shell, disabled) => {
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue({ shell })
+    snapshot.agent.disabledTools = [disabled]
+    setScript([assistantReply([{ type: 'text', text: 'ready' }])])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('hello') })
+    await done(events)
+    const names = script.calls[0].tools?.map((tool) => tool.name) ?? []
+    expect(names).not.toContain(shell)
+    expect(names).toEqual(expect.arrayContaining(['read', 'edit', 'write']))
   })
 
   it('blocks disabled native tools before they can modify the workspace', async () => {

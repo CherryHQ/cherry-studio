@@ -20,6 +20,7 @@ export const PI_TOOL_RECALL_TOOL_NAME = 'vcc_recall'
 export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
   { name: 'bash', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'powershell', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
   { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
   { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
@@ -43,3 +44,7 @@ export const PI_BUILTIN_TOOL_CATEGORIES = [
   'shell',
   'search'
 ] as const satisfies readonly PiBuiltinToolCategory[]
+
+export function isPiShellToolDisabled(disabled: ReadonlySet<string>, name: string): boolean {
+  return (name === 'bash' || name === 'powershell') && (disabled.has('bash') || disabled.has('powershell'))
+}

@@ -272,7 +272,7 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    */
   validateSession(session: AgentSessionEntity): void | Promise<void>
   /** Enumerate the tools this driver exposes for the given MCP server set. */
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]>
+  listAvailableTools(mcpIds: string[], disabledTools?: readonly string[]): Promise<Tool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>
   /**
    * Notified when a session goes idle and its runtime is torn down. Lets a

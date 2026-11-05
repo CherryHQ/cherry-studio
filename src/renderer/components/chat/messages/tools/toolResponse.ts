@@ -29,6 +29,7 @@ const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
   ['bash', AgentToolsType.Bash],
   ['pwsh', AgentToolsType.Bash],
+  ['powershell', AgentToolsType.Bash],
   ['edit', AgentToolsType.Edit],
   ['exit_plan_mode', AgentToolsType.ExitPlanMode],
   ['read', AgentToolsType.Read],

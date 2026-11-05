@@ -2127,7 +2127,20 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Run shell commands' }))
 
     await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ disabledTools: ['bash', 'powershell'] })
+      })
+    )
+  })
+
+  it.each(['bash', 'powershell'])('treats a saved %s restriction as one shell switch', async (disabled) => {
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: [disabled] }} onOpenChange={vi.fn()} />)
+    selectTab('Built-in tools')
+    const shell = screen.getByRole('switch', { name: 'Run shell commands' })
+    expect(shell).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(shell)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: [] }) })
     )
   })
 

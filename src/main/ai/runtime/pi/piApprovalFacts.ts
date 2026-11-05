@@ -64,9 +64,12 @@ export async function readPiApprovalFacts(
         cwd: ctx.workspacePath,
         workspacePath: ctx.workspacePath
       })
-  const command = name === 'bash' && typeof input.command === 'string' ? input.command : ''
-  const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
-  const rewritten = !disabled && !sqlite && !globalInstall && command ? await rtkRewrite(command) : undefined
+  const command = (name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : ''
+  const globalInstall = command
+    ? (detectGlobalInstall(command, name === 'powershell' ? 'powershell' : 'bash') ?? undefined)
+    : undefined
+  const rewritten =
+    name === 'bash' && !disabled && !sqlite && !globalInstall && command ? await rtkRewrite(command) : undefined
   return {
     category,
     disabled,
@@ -84,7 +87,7 @@ export async function readPiApprovalFacts(
       )),
     sqliteGuard: sqlite?.reason,
     globalInstall,
-    destructive: Boolean(command && detectDestructiveCommand(command)),
+    destructive: Boolean(command && detectDestructiveCommand(command, name === 'powershell' ? 'powershell' : 'bash')),
     ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
     ...(ctx.delegationTools.has(name)
       ? {

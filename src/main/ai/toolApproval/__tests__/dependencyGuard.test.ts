@@ -72,3 +72,38 @@ describe('detectGlobalInstall — segment isolation', () => {
     expect(detectGlobalInstall('uv tool install ruff')).toMatch(/uv tool install/)
   })
 })
+
+describe('PowerShell shared installers', () => {
+  it.each([
+    'Install-Module Pester',
+    'Install-Script foo',
+    'winget install foo',
+    'choco install foo',
+    'scoop install foo'
+  ])('flags %s', (command) => {
+    expect(detectGlobalInstall(command, 'powershell')).not.toBeNull()
+  })
+
+  it.each(['echo Install-Module Pester', 'echo "Install-Module x"', 'winget list', 'echo "scoop install foo"'])(
+    'allows %s',
+    (command) => {
+      expect(detectGlobalInstall(command, 'powershell')).toBeNull()
+    }
+  )
+})
+
+it.each([
+  '& uv.exe tool install ruff',
+  '& pip.exe install --user x',
+  'winget.exe install x',
+  'choco.exe install x',
+  'scoop.exe install x',
+  'uv.exe tool install foo',
+  'pip.exe install --user foo'
+])('blocks executable shared install %s', (command) => {
+  expect(detectGlobalInstall(command, 'powershell')).not.toBeNull()
+})
+
+it('keeps quoted ampersands within a PowerShell install argument', () => {
+  expect(detectGlobalInstall('& pip.exe install "C:\\work\\pkg&tools" --user', 'powershell')).not.toBeNull()
+})

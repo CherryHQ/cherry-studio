@@ -18,7 +18,7 @@ interface ToolBinding {
 
 const PI_TOOL_BINDING = {
   pathFields: { write: 'path', edit: 'path' },
-  shellFields: { bash: 'command' },
+  shellFields: { bash: 'command', powershell: 'command' },
   normalizeStructuredPath: normalizePiNativePathInput
 } satisfies ToolBinding
 
@@ -186,6 +186,7 @@ function resolveLiteralPath(rawPath: string, cwd: string): string | undefined {
     }
   }
 
+  value = value.replace(/^\$(?:home|\{home\})(?=$|[/\\])/i, (match) => match.toUpperCase())
   const homePath = application.getPath('sys.home')
   if (value === '~') value = homePath
   else if (value.startsWith('~/') || value.startsWith('~\\'))

@@ -1,3 +1,5 @@
+import { splitShellSegments } from './shellSegments'
+
 /**
  * Detects shell commands whose damage is not undoable, so the `auto` permission mode can hand the
  * decision back to the user instead of running them unattended.
@@ -110,7 +112,7 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
 ]
 
 /** Resolve one pipeline stage's command word, looking through `VAR=x`, `sudo`, and wrappers. */
-function parseStage(text: string): Stage {
+function parseStage(text: string, shell: 'bash' | 'powershell'): Stage {
   const tokens = text.trim().split(/\s+/).filter(Boolean)
   let elevated = false
   let index = 0
@@ -120,7 +122,8 @@ function parseStage(text: string): Stage {
       index++
       continue
     }
-    const name = token.replace(/^.*\//, '').toLowerCase()
+    const word = token.replace(shell === 'powershell' ? /^.*[\\/]/ : /^.*\//, '').toLowerCase()
+    const name = shell === 'powershell' ? word.replace(/\.exe$/i, '') : word
     if (name === 'sudo' || name === 'doas') {
       elevated = true
       index++
@@ -140,10 +143,40 @@ function parseStage(text: string): Stage {
  * Each `&&`/`||`/`;`/newline segment is parsed on its own so a flag in one command is never
  * attributed to a keyword in another.
  */
-export function detectDestructiveCommand(command: string): string | null {
-  for (const segment of command.split(/&&|\|\||[;\n]/)) {
+export function detectDestructiveCommand(command: string, shell: 'bash' | 'powershell' = 'bash'): string | null {
+  if (shell === 'powershell') {
+    for (const segment of splitShellSegments(command, /^(?:&&|\|\||[&;\n])/, shell)) {
+      const stages = splitShellSegments(segment, /^\|/, shell).map((stage) => parseStage(stage, shell))
+      if (
+        stages.some((s) =>
+          ['iwr', 'irm', 'invoke-webrequest', 'invoke-restmethod', 'curl', 'wget'].includes(s.command)
+        ) &&
+        stages.some((s) => ['iex', 'invoke-expression'].includes(s.command))
+      )
+        return 'remote script piped into PowerShell'
+      for (const s of stages) {
+        if (['remove-item', 'ri', 'del', 'erase', 'rm', 'rd', 'rmdir'].includes(s.command))
+          return 'PowerShell file deletion'
+        if (
+          [
+            'clear-disk',
+            'format-volume',
+            'initialize-disk',
+            'remove-partition',
+            'stop-computer',
+            'restart-computer'
+          ].includes(s.command)
+        )
+          return 'PowerShell system operation'
+        if (s.command === 'stop-process' && /(?:^|\s)-force\b/i.test(s.text)) return 'forced process termination'
+        if (s.command === 'reg' && /\s+delete\b/i.test(s.text)) return 'registry deletion'
+        if (s.command === 'cmd' && /\s+\/c\s+(?:rd|del|format)\b/i.test(s.text)) return 'destructive cmd operation'
+      }
+    }
+  }
+  for (const segment of splitShellSegments(command, /^(?:&&|\|\||[&;\n])/, shell)) {
     if (!segment.trim()) continue
-    const stages = segment.split('|').map(parseStage)
+    const stages = splitShellSegments(segment, /^\|/, shell).map((stage) => parseStage(stage, shell))
 
     // Piping a download into an interpreter is arbitrary remote code execution.
     const fetches = stages.some((stage) => stage.command === 'curl' || stage.command === 'wget')

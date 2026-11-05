@@ -332,6 +332,7 @@ describe('toolResponse adapter', () => {
 
   it.each([
     ['pi-agent', 'bash', 'Bash'],
+    ['pi-agent', 'powershell', 'Bash'],
     ['dsh-agent', 'bash', 'Bash'],
     ['dsh-agent', 'pwsh', 'Bash'],
     ['dsh-agent', 'read', 'Read'],
@@ -358,10 +359,10 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe(expectedName)
   })
 
-  it('does not reinterpret an untagged lowercase dynamic tool as an agent builtin', () => {
+  it.each(['read', 'powershell'])('does not reinterpret untagged %s as an agent builtin', (toolName) => {
     const part = {
       type: 'dynamic-tool',
-      toolName: 'read',
+      toolName,
       toolCallId: 'external-read',
       state: 'output-available',
       input: {},
@@ -370,7 +371,7 @@ describe('toolResponse adapter', () => {
 
     const response = buildToolResponseFromPart(part)
     expect(response?.tool.type).toBe('mcp')
-    expect(response?.tool.name).toBe('read')
+    expect(response?.tool.name).toBe(toolName)
   })
 
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {

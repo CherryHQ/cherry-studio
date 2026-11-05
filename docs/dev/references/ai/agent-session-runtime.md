@@ -752,10 +752,15 @@ Allowed in v1:
 - On Windows, the top-level `shellPath` from the user's global pi
   `settings.json` — read as a single field, validated to name an available
   `bash.exe`, and passed to the in-memory settings manager and the managed Bash
-  tool. Without it pi resolves `bash` from PATH and silently lands in the WSL
+  tool. Previously, without it pi resolved `bash` from PATH and could silently land in the WSL
   shim. An invalid configured path fails startup rather than switching
   execution environments behind the user's back; an absent one falls back to
-  Cherry's own Git Bash discovery.
+  Cherry's own Git Bash discovery. If discovery finds no Git Bash, the session
+  exposes pi's native `powershell` tool and drops `bash`. Pi uses `pwsh.exe`
+  when available, otherwise `powershell.exe`, with `-NoProfile -NonInteractive
+  -ExecutionPolicy Bypass -Command`. Cherry passes neither `shellPath` nor
+  `shellCommandPrefix` in this case. Discovered Git Bash retains the existing
+  Bash behavior.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { AgentChange } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
@@ -13,7 +15,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { isPiShellToolDisabled, normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '../agentMcpServers'
@@ -23,7 +25,7 @@ import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from '../pi/piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellSelection } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
@@ -111,6 +113,7 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
       const tool = mcp.metadata.get(name)
       return (
         disabled.has(name) ||
+        isPiShellToolDisabled(disabled, name) ||
         Boolean(
           tool &&
           (disabled.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
@@ -126,16 +129,53 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     })
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
-    const bash = tools.createBashTool({
-      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
-      prepare(execution) {
-        execution.env = mergePiBashExecutionEnv(execution.env)
-      }
-    })
+    const selection = resolvePiShellSelection()
+    const callerMise = Object.fromEntries(
+      Object.entries(process.env).filter(([key, value]) => key.toUpperCase().startsWith('MISE_') && value !== undefined)
+    )
+    const callerOwnsMise = Object.keys(callerMise).length > 0
+    const mergeShellEnv = (shellEnv: NodeJS.ProcessEnv) =>
+      mergePiShellExecutionEnv(
+        callerOwnsMise
+          ? {
+              ...Object.fromEntries(Object.entries(shellEnv).filter(([key]) => !key.toUpperCase().startsWith('MISE_'))),
+              ...callerMise
+            }
+          : shellEnv,
+        { callerOwnsMise }
+      )
+    const shellTool =
+      selection.shell === 'bash'
+        ? tools.createBashTool({
+            commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
+            prepare(execution) {
+              execution.env = mergeShellEnv({ ...env, ...execution.env })
+            }
+          })
+        : tools.createPowerShellTool({
+            programs: [
+              'pwsh',
+              ...(process.env.ProgramFiles
+                ? [path.win32.join(process.env.ProgramFiles, 'PowerShell', '7', 'pwsh.exe')]
+                : []),
+              ...(process.env.SystemRoot
+                ? [path.win32.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')]
+                : []),
+              'powershell'
+            ],
+            prepare(execution) {
+              execution.env = mergeShellEnv({ ...env, ...execution.env })
+            }
+          })
     registry.install(
       native.defineExtension({
         ...coding,
-        tools: [...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'), bash]
+        tools: [
+          ...(coding.tools ?? []).filter(
+            (tool) => tool.name !== 'bash' && (selection.shell !== 'powershell' || tool.name !== 'powershell')
+          ),
+          shellTool
+        ]
       })
     )
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
@@ -153,8 +193,8 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     )
     const environment = new NodeExecutionEnv({
       cwd,
-      shellPath: resolvePiShellPath(),
-      shellEnv: mergePiBashExecutionEnv(env)
+      ...(selection.shell === 'bash' ? { shellPath: selection.shellPath } : {}),
+      shellEnv: mergeShellEnv(env)
     })
     const agentConfig: AgentChange = {
       tools: {

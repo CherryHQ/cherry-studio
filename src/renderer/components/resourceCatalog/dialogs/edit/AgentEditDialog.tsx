@@ -1166,14 +1166,28 @@ function AgentToolsFields({
         }))
     })).filter((section) => section.items.length > 0)
   }, [caps, t, hasKnowledgeScope])
+  const isPi = agent.type === 'pi' || agent.type === 'pi-durable'
   const enabledToolIds = useMemo<ReadonlySet<string>>(
-    () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
-    [builtinSections, disabledSet]
+    () =>
+      new Set(
+        builtinSections
+          .flatMap((s) => s.items.map((i) => i.id))
+          .filter((id) => !disabledSet.has(id) && !(isPi && id === 'bash' && disabledSet.has('powershell')))
+      ),
+    [builtinSections, disabledSet, isPi]
   )
-  const setToolEnabled = (name: string, enabled: boolean) =>
-    form.setValue('disabledTools', enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name], {
-      shouldDirty: true
-    })
+  const setToolEnabled = (name: string, enabled: boolean) => {
+    const names = isPi && name === 'bash' ? ['bash', 'powershell'] : [name]
+    form.setValue(
+      'disabledTools',
+      enabled
+        ? disabledTools.filter((n) => !names.includes(n))
+        : [...disabledTools.filter((n) => !names.includes(n)), ...names],
+      {
+        shouldDirty: true
+      }
+    )
+  }
 
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })

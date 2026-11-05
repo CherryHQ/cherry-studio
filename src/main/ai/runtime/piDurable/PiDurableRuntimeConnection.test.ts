@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 
 import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -32,8 +32,10 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
+import * as piShell from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { prepareDurableBranch } from './durableContext'
+import { prepareDurableDesktop } from './durableDesktop'
 import { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 
 const modelId = 'test::test-model'
@@ -43,7 +45,9 @@ const mocks = vi.hoisted(() => ({
   binding: vi.fn(),
   prompt: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
-  delegated: vi.fn()
+  delegated: vi.fn(),
+  loginPath: vi.fn<() => string | undefined>(),
+  shellEnv: vi.fn<() => NodeJS.ProcessEnv>()
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -68,7 +72,10 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: () => ({})
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: async () => mocks.shellEnv(),
+  getPathFromEnvironment: mocks.loginPath
+}))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi Durable connection', () => {
@@ -82,6 +89,8 @@ describe('desktop Pi Durable connection', () => {
   beforeEach(() => {
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
+    mocks.loginPath.mockReset()
+    mocks.shellEnv.mockReturnValue({ ...process.env })
     directory = tempDir('desktop-pi')
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
@@ -204,6 +213,161 @@ describe('desktop Pi Durable connection', () => {
     events
       .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
       .join('')
+  it.each([
+    { shell: 'powershell' as const, shellPath: undefined },
+    { shell: 'bash' as const, shellPath: '/bin/bash' }
+  ])('installs the selected $shell tool and shell environment', async (selection) => {
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue(selection)
+    mocks.loginPath.mockReturnValue('/login/bin')
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const installed = desktop.registry
+        .snapshot()
+        .installed()
+        .flatMap((extension) => extension.tools ?? [])
+      expect(
+        installed.filter((tool) => tool.name === 'bash' || tool.name === 'powershell').map((tool) => tool.name)
+      ).toEqual([selection.shell])
+      expect((desktop.environment as unknown as { shellPath?: string }).shellPath).toBe(selection.shellPath)
+      {
+        const shell = installed.find((tool) => tool.name === selection.shell)!
+        const exec = vi.fn().mockResolvedValue({ ok: true, value: { exitCode: 0 } })
+        const api = {
+          env: { cwd: directory, exec },
+          retainedOutput: () => ({ text: '', truncated: false })
+        }
+        await shell.execute({ command: 'echo ready' }, api as never, {} as never)
+        const command = exec.mock.calls[0][0]
+        if (selection.shell === 'powershell') {
+          expect(command.at(-1)).toContain('echo ready')
+          expect(command.at(-1)).not.toContain('export PATH=')
+        } else if (process.platform !== 'win32') {
+          expect(command).toBe(`export PATH="$PATH":'/login/bin'\necho ready`)
+        }
+      }
+    } finally {
+      await desktop.close()
+    }
+  })
+
+  it.each([
+    ['bash', false],
+    ['bash', true],
+    ['powershell', false],
+    ['powershell', true]
+  ] as const)(
+    'preserves the effective child environment for %s (caller mise: %s)',
+    async (selected, callerOwnsMise) => {
+      const callerBin = join(directory, 'caller-bin')
+      mkdirSync(callerBin)
+      const userBin = join(directory, 'other-bin')
+      const gitBin = join(directory, 'MinGit', 'cmd')
+      vi.stubEnv('PATH', [callerBin, userBin].join(delimiter))
+      vi.stubEnv('MISE_DATA_DIR', callerOwnsMise ? join(directory, 'caller-mise') : undefined)
+      mocks.shellEnv.mockReturnValue({
+        ...process.env,
+        PATH: [callerBin, userBin, gitBin].join(delimiter),
+        CALL_OVERRIDE: 'base',
+        MISE_DATA_DIR: join(directory, 'cherry-mise'),
+        MISE_CONFIG_DIR: join(directory, 'cherry-config')
+      })
+      vi.stubEnv('PATH', '/stale-path')
+      vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue({ shell: selected })
+      const desktop = await prepareDurableDesktop(input, () => {})
+      try {
+        const shell = desktop.registry
+          .snapshot()
+          .installed()
+          .flatMap((extension) => extension.tools ?? [])
+          .find((tool) => tool.name === selected)!
+        const outputFile = join(directory, 'child-env.json')
+        const exec = vi.fn(async (_command, options, context) =>
+          desktop.environment.exec(
+            [
+              process.execPath,
+              '-e',
+              `require('fs').writeFileSync(${JSON.stringify(outputFile)}, JSON.stringify(process.env))`
+            ],
+            { ...options, env: { ...options.env, CALL_OVERRIDE: 'per-call' } },
+            context
+          )
+        )
+        await shell.execute(
+          { command: 'echo ready' },
+          { env: { cwd: directory, exec }, retainedOutput: () => ({ text: '', truncated: false }) } as never,
+          {} as never
+        )
+        const childEnv: NodeJS.ProcessEnv = JSON.parse(readFileSync(outputFile, 'utf8'))
+        const childPath = Object.entries(childEnv).find(([key]) => key.toLowerCase() === 'path')?.[1]
+        const shims = join(application.getPath('feature.binary.data'), 'shims')
+        if (callerOwnsMise) {
+          expect(childPath?.split(delimiter)).not.toContain(shims)
+          expect(childEnv.MISE_DATA_DIR).toBe(join(directory, 'caller-mise'))
+          expect(Object.keys(childEnv).filter((key) => key.startsWith('MISE_'))).toEqual(['MISE_DATA_DIR'])
+        } else {
+          expect(childPath?.split(delimiter)).toContain(shims)
+          expect(childEnv.MISE_DATA_DIR).toBe(application.getPath('feature.binary.data'))
+        }
+        expect(childEnv.CALL_OVERRIDE).toBe('per-call')
+      } finally {
+        await desktop.close()
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
+  it('falls back to SystemRoot PowerShell and prepares its environment', async () => {
+    vi.stubEnv('ProgramFiles', 'D:\\Program Files')
+    vi.stubEnv('SystemRoot', 'D:\\Windows')
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue({ shell: 'powershell' })
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const shell = desktop.registry
+        .snapshot()
+        .installed()
+        .flatMap((extension) => extension.tools ?? [])
+        .find((tool) => tool.name === 'powershell')!
+      const exec = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, error: { code: 'spawn_error' } })
+        .mockResolvedValueOnce({ ok: false, error: { code: 'spawn_error' } })
+        .mockResolvedValueOnce({ ok: true, value: { exitCode: 0 } })
+      await shell.execute(
+        { command: 'echo ready' },
+        {
+          env: { cwd: directory, exec },
+          retainedOutput: () => ({ text: '', truncated: false })
+        } as never,
+        {} as never
+      )
+      expect(exec.mock.calls[0][0][0]).toBe('pwsh')
+      expect(exec.mock.calls[1][0][0]).toBe('D:\\Program Files\\PowerShell\\7\\pwsh.exe')
+      expect(exec.mock.calls[2][0][0]).toBe('D:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+    } finally {
+      await desktop.close()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it.each([
+    ['powershell', 'Bash'],
+    ['bash', 'PowerShell']
+  ] as const)('removes selected %s when %s is disabled', async (shell, disabled) => {
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue({ shell })
+    snapshot.agent.disabledTools = [disabled]
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const configuredTools = desktop.agentConfig.tools
+      expect(
+        configuredTools && 'remove' in configuredTools && configuredTools.remove.map((tool) => tool.name)
+      ).toContain(shell)
+      expect(
+        configuredTools && 'remove' in configuredTools && configuredTools.remove.map((tool) => tool.name)
+      ).not.toContain('read')
+    } finally {
+      await desktop.close()
+    }
+  })
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
     'keeps manual compaction owned through %s',

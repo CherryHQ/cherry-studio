@@ -17,8 +17,8 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     await prepareAgentSessionWorkspaceDirectory(session)
   }
 
-  async listAvailableTools(mcpIds: string[]) {
-    return (await listPiAvailableTools(mcpIds)).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
+  async listAvailableTools(mcpIds: string[], disabledTools: readonly string[] = []) {
+    return (await listPiAvailableTools(mcpIds, disabledTools)).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 
   connect(input: AgentRuntimeConnectInput) {
