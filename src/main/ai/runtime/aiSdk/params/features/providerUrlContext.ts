@@ -1,4 +1,5 @@
 import { providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { usesBasicAnthropicWebTools } from '@cherrystudio/provider-registry'
 
 import type { RequestFeature } from '../feature'
 
@@ -6,5 +7,13 @@ import type { RequestFeature } from '../feature'
 export const providerUrlContextFeature: RequestFeature = {
   name: 'provider-url-context',
   applies: (scope) => scope.webToolRoutes?.webFetch === 'server',
-  contributeModelAdapters: () => [providerToolPlugin('urlContext')]
+  contributeModelAdapters: (scope) => [
+    providerToolPlugin(
+      'urlContext',
+      {},
+      {
+        anthropicWebToolSchema: usesBasicAnthropicWebTools(scope.model?.id ?? '') ? 'basic' : 'dynamic'
+      }
+    )
+  ]
 }

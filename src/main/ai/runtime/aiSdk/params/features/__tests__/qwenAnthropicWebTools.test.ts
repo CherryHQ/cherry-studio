@@ -17,11 +17,13 @@ describe('Qwen Anthropic web tools', () => {
     { urls: ['https://example.com/', 'https://example.org/'], goal: 'Read both pages' }
   ])('consumes provider-executed fetch input %j without a repair request', async (input) => {
     let requests = 0
+    let body: any
     const result = await aiCoreGenerateText(
       'anthropic',
       {
         apiKey: 'test',
-        fetch: async () => {
+        fetch: async (_input, init) => {
+          body = JSON.parse(init!.body as string)
           requests++
           return Response.json({
             id: 'msg_fetch',
@@ -65,6 +67,7 @@ describe('Qwen Anthropic web tools', () => {
         ...qwenAnthropicWebToolsFeature.contributeModelAdapters!({} as RequestScope)
       ]
     )
+    expect(body.tools.find((tool: { name: string }) => tool.name === 'web_fetch').type).toBe('web_fetch_20260209')
     expect(requests).toBe(1)
     expect(result.toolCalls[0]).toMatchObject({ toolName: 'urlContext', providerExecuted: true, input })
     expect(result.toolCalls[0]).not.toHaveProperty('invalid', true)

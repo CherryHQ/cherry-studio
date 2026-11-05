@@ -40,6 +40,8 @@ export interface Creator {
    * Compiled into `server-tool-constraints.gen.ts`.
    */
   serverToolFunctionMixing?: string[]
+  /** Exact model ids that only accept the basic Anthropic web tool schemas. */
+  anthropicBasicWebToolModelIds?: string[]
   /**
    * Reasoning efforts the provider-native web-search tool rejects, declared as
    * id patterns over THIS creator's models (generation-only regex, expanded to

@@ -14,6 +14,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { generateText } from '../../../index'
+import { providerToolPlugin } from '../../plugins/built-in/providerToolPlugin'
 import { ExtensionRegistry } from '../core/ExtensionRegistry'
 
 const { coreExtensions } = await import('../core/initialization')
@@ -58,3 +60,36 @@ describe('azure extension — webSearch capability', () => {
     expect(tool.id).toBe('openai.web_search_preview')
   })
 })
+
+it.each(['claude-opus-4-5', 'claude-opus-4-6', 'deployment-alias'])(
+  'azure-anthropic sends basic tools for %s',
+  async (model) => {
+    let body: any
+    await generateText(
+      'azure-anthropic',
+      {
+        apiKey: 'test',
+        baseURL: 'https://example.openai.azure.com',
+        fetch: async (_input, init) => {
+          body = JSON.parse(init!.body as string)
+          return Response.json({
+            id: 'msg',
+            type: 'message',
+            role: 'assistant',
+            model,
+            content: [{ type: 'text', text: 'ok' }],
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 }
+          })
+        }
+      },
+      { model, prompt: 'hello' },
+      [
+        providerToolPlugin('webSearch', {}, { anthropicWebToolSchema: 'dynamic' }),
+        providerToolPlugin('urlContext', {}, { anthropicWebToolSchema: 'dynamic' })
+      ]
+    )
+    expect(body.tools.map((tool: { type: string }) => tool.type)).toEqual(['web_search_20250305', 'web_fetch_20250910'])
+  }
+)
