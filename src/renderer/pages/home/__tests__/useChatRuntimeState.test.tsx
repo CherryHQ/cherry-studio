@@ -272,7 +272,9 @@ describe('useChatRuntimeState', () => {
   })
 
   it('pins a topic when a turn continues an existing conversation', async () => {
-    render(<RuntimeHost topicId="topic-1" messages={[{ id: 'm1', role: 'user', parts: [] } as unknown as CherryUIMessage]} />)
+    render(
+      <RuntimeHost topicId="topic-1" messages={[{ id: 'm1', role: 'user', parts: [] } as unknown as CherryUIMessage]} />
+    )
 
     await act(async () => {
       await latestRuntime?.sendMessage('continue')
