@@ -79,10 +79,6 @@ vi.mock('@data/PreferenceService', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
 
@@ -227,6 +223,42 @@ describe('ShortcutSettings shortcut recorder', () => {
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
         binding: ['CommandOrControl', 'Shift', 'K'],
+        enabled: true
+      })
+    })
+  })
+
+  it('records the produced character when the layout changes its physical key', async () => {
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { key: 'c', code: 'KeyI', ctrlKey: true, bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
+        binding: ['CommandOrControl', 'C'],
+        enabled: true
+      })
+    })
+  })
+
+  it.each([
+    [{ key: 'Enter', code: 'NumpadEnter' }, ['CommandOrControl', 'Shift', 'numenter']],
+    [{ key: '-', code: 'NumpadSubtract' }, ['CommandOrControl', 'Shift', 'numsub']],
+    [{ key: '+', code: 'NumpadAdd' }, ['CommandOrControl', 'Shift', 'numadd']]
+  ])('preserves keypad identity when recording %j', async (event, binding) => {
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { ...event, ctrlKey: true, shiftKey: true, bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
+        binding,
         enabled: true
       })
     })

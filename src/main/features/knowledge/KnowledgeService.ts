@@ -36,8 +36,6 @@ import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
 import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
 
-const FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS = 5_000
-
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
  * recovery, and delegates every public operation to the module that owns it —
@@ -82,7 +80,9 @@ export class KnowledgeService extends BaseService {
       'knowledge.reindex-subtree',
       createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService, this.fileProcessingWaits)
     )
-    this.registerInterval(() => this.fileProcessingWaits.mirrorProgress(), FILE_PROCESSING_PROGRESS_MIRROR_INTERVAL_MS)
+    this.registerDisposable(
+      application.get('FileProcessingService').onDidChangeTask((task) => this.fileProcessingWaits.mirrorProgress(task))
+    )
   }
 
   protected async onAllReady(): Promise<void> {

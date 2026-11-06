@@ -7,7 +7,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 import type { AddNewTopicPayload } from '../types'
-import { Topics } from './components/Topics'
+import { Topics } from './components/topics'
 
 interface Props {
   activeTopic?: Topic

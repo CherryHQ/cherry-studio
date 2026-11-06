@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -16,6 +16,7 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
 
@@ -32,6 +33,7 @@ describe('Agent fork publication', () => {
   let publishedFile: string
   let beforeForkResult: (input: RuntimeForkInput) => Promise<void>
   let invalidCheckpoint: boolean
+  let artifactSourceFor: (artifactDirectory: string) => string
   let previous: ReturnType<typeof runtimeDriverRegistry.getAgentSessionDriver>
 
   beforeEach(async () => {
@@ -40,6 +42,7 @@ describe('Agent fork publication', () => {
     publishedFile = path.join(directory, 'native', 'child.jsonl')
     beforeForkResult = async () => {}
     invalidCheckpoint = false
+    artifactSourceFor = (artifactDirectory) => path.join(artifactDirectory, 'native.jsonl')
     vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
       filename ? path.join(forkRoot, filename) : forkRoot
     )
@@ -59,6 +62,7 @@ describe('Agent fork publication', () => {
     agentSessionMessageService.saveMessage({
       sessionId,
       runtimeResumeToken: 'native-parent',
+      nativeContextId: preparePiBranch(sessionId, undefined, 'native-parent').id,
       runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: 'leaf' } },
       message: {
         id: messageId,
@@ -79,7 +83,8 @@ describe('Agent fork publication', () => {
         throw new Error('Fork must not start a conversation')
       },
       async fork(input): Promise<RuntimeForkResult> {
-        const source = path.join(input.artifactDirectory, 'native.jsonl')
+        const source = artifactSourceFor(input.artifactDirectory)
+        await mkdir(path.dirname(source), { recursive: true })
         await writeFile(source, 'native child history')
         await beforeForkResult(input)
         return {
@@ -193,6 +198,7 @@ describe('Agent fork publication', () => {
             sessionId,
             messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
           })
+          reservePiBranchTx(tx, sessionId, saved[0].id, nativeSessionId)
           agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
           if (outcome === 'write failed') throw new Error('write failed')
           return saved[0].id
@@ -203,7 +209,8 @@ describe('Agent fork publication', () => {
         const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
         expect(rows.map((row) => row.id)).toEqual(outcome === 'commit' ? [messageId, newId] : [newId])
         expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
-        expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+        if (outcome === 'commit') expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
+        else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
         expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
           outcome === 'commit' ? 'native-child' : null
@@ -224,6 +231,19 @@ describe('Agent fork publication', () => {
             () => {}
           )
         ).rejects.toMatchObject({ reason: 'invalid_target' })
+        agentSessionMessageService.selectBranch(sessionId, tail[0].id)
+        expect(
+          agentSessionMessageService
+            .listSessionMessages(sessionId)
+            .items.toReversed()
+            .map((row) => row.id)
+        ).toEqual(outcome === 'commit' ? [messageId, ...tail.map((row) => row.id)] : tail.map((row) => row.id))
+        if (outcome === 'commit')
+          expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
+        agentSessionMessageService.selectBranch(sessionId, newId)
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
+          outcome === 'commit' ? 'native-child' : null
+        )
       } else {
         await expect(operation).rejects.toThrow()
         expect(
@@ -317,9 +337,13 @@ describe('Agent fork publication', () => {
       vi.spyOn(agentSessionService, 'notifyReadModelChange').mockImplementation((ids) => notifications.push(...ids))
       await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow()
       expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
-      expect(dbh.db.select({ id: agentSessionMessageTable.id }).from(agentSessionMessageTable).all()).toEqual([
-        { id: messageId }
-      ])
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(ne(agentSessionMessageTable.role, 'root'))
+          .all()
+      ).toEqual([{ id: messageId }])
       expect(notifications).toEqual([])
       expect(await readForkResources()).toEqual([])
       expect(await readdir(forkRoot)).toEqual([])
@@ -363,6 +387,15 @@ describe('Agent fork publication', () => {
     }
     const childId = await pending
     expect(agentSessionMessageService.getLastRuntimeResumeToken(childId)).toBe('native-child')
+  })
+
+  it('refuses to publish a runtime artifact from outside the fork artifact directory', async () => {
+    artifactSourceFor = (artifactDirectory) => path.join(`${artifactDirectory}-sibling`, 'native.jsonl')
+    await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow(
+      'Unowned SDK fork artifact'
+    )
+    expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rolls back published files if persisting their ownership fails, then allows retry', async () => {

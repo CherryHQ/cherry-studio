@@ -46,7 +46,7 @@ import {
   PaginationNext,
   PaginationPrevious,
   RowFlex,
-  Scrollbar,
+  ScrollArea,
   SearchInput,
   Select,
   SelectContent,
@@ -602,7 +602,7 @@ const TasksSettings: FC = () => {
 
   const createTaskWithAgent = useCallback(async () => {
     try {
-      const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create')
+      const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create', {})
       openRoute('/app/agents', { intent: 'task', sessionId })
     } catch (error) {
       logger.error('Failed to create scheduled task chat session', error as Error)
@@ -848,7 +848,7 @@ const TasksSettings: FC = () => {
         </div>
       </div>
 
-      <Scrollbar className="min-h-0 flex-1 px-6 pt-4 pb-3">
+      <ScrollArea viewportProps={{ className: 'px-6 pt-4 pb-3' }} className="min-h-0 flex-1">
         <div className="mx-auto w-full max-w-3xl">
           {tasks.length === 0 ? (
             <EmptyState
@@ -953,7 +953,7 @@ const TasksSettings: FC = () => {
             </>
           )}
         </div>
-      </Scrollbar>
+      </ScrollArea>
 
       <TaskFormDialog
         open={createOpen}

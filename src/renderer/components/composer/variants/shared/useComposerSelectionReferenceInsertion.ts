@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { SelectionReference } from '@renderer/types/selectionReference'
+import type { ComposerFileReference } from '@renderer/types/selectionReference'
 
 import { useComposerLayerActive } from '../../ComposerContext'
 import type { ComposerDraftToken } from '../../tokens'
@@ -26,7 +26,7 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
   const { t } = useTranslation()
   const layerActive = useComposerLayerActive()
 
-  const insertReference = useEffectEvent((reference: SelectionReference) => {
+  const insertReference = useEffectEvent((reference: ComposerFileReference) => {
     const token = createSelectionReferenceToken(reference, t)
     actionsRef.current.insertToken(token)
   })
@@ -34,7 +34,7 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
   useEffect(() => {
     if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, (payload) => {
-      const request = payload as { topicId?: string; reference?: SelectionReference } | undefined
+      const request = payload as { topicId?: string; reference?: ComposerFileReference } | undefined
       if (!request?.reference || request.topicId !== topicId) return
       insertReference(request.reference)
     })

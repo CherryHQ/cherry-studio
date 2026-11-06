@@ -1,17 +1,37 @@
-import { copyFileSync, mkdirSync } from 'node:fs'
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 
 import type { Browser, Page } from '@playwright/test'
 import { chromium } from '@playwright/test'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/regression/config'
-import { prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
-import { ensureProfile, readAppRecord, restartApp, type AppRecord } from '../../../scripts/e2e/regression/lifecycle'
+import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
+import {
+  adoptRelaunchedApp,
+  assertNoLaunchFailure,
+  ensureProfile,
+  readAppRecord,
+  readOwnedRecord,
+  restartApp,
+  type AppRecord
+} from '../../../scripts/e2e/regression/lifecycle'
 import { getRunPaths, type RunPaths } from '../../../scripts/e2e/regression/paths'
+import { cancelNativeFileDialogs } from '../../../scripts/e2e/regression/systemAutomation'
 import type { TestProfile } from '../../../scripts/e2e/regression/types'
-import { dismissTransientDialogs } from './navigation'
+import { dismissTransientDialogs } from './helpers/navigation'
 
 const MAIN_WINDOW_PATH = '/windows/main/index.html'
+
+const rootVisible = (page: Page, timeout: number) =>
+  page
+    .locator('#root')
+    .waitFor({ state: 'visible', timeout })
+    .then(
+      () => true,
+      () => false
+    )
 
 export class RegressionApp {
   readonly paths: RunPaths
@@ -31,6 +51,10 @@ export class RegressionApp {
     return basename(this.paths.workspace)
   }
 
+  fixturesPath(...segments: string[]): string {
+    return join(this.paths.fixtures, ...segments)
+  }
+
   resourceName(name: string): string {
     return `${name} ${this.caseId}`
   }
@@ -48,9 +72,44 @@ export class RegressionApp {
     this.browser = undefined
   }
 
+  private recoveredOwnership = false
+
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
-    const record = this.record
+    assertNoLaunchFailure(this.paths)
+    let record = this.record
+    try {
+      await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
+    } catch (error) {
+      // The recorded instance crashed or lost its inspector; one stale record would fail every
+      // later case. Relaunch once — the re-check below still gates the replacement process.
+      if (this.recoveredOwnership) throw error
+      this.recoveredOwnership = true
+      try {
+        await this.disconnect()
+        try {
+          record = await restartApp(this.paths)
+        } catch (launchError) {
+          const reason = launchError instanceof Error ? launchError.message : String(launchError)
+          let runnerPid = record.runnerPid
+          try {
+            runnerPid = readOwnedRecord(this.paths).runnerPid
+          } catch {
+            // The previous record still identifies the failed recovery attempt.
+          }
+          mkdirSync(join(this.paths.root, 'state'), { recursive: true })
+          writeFileSync(
+            this.paths.appLaunchFailure,
+            JSON.stringify({ reason, recordedAt: new Date().toISOString(), runnerPid })
+          )
+          throw launchError
+        }
+        await assertOwnedAppIsolation(record, join(this.paths.profiles, record.profile, 'home'))
+      } catch (recoveryError) {
+        if (error instanceof Error) error.cause = recoveryError
+        throw error
+      }
+    }
     const { cdpPort } = record
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,
@@ -60,7 +119,34 @@ export class RegressionApp {
     return this.browser
   }
 
+  /** Set by cases that deliberately leave the window hidden (tray-only startup or close-to-tray). */
+  windowHiddenExpected = false
+  private recoveringWindow = false
+
   async mainWindow(): Promise<Page> {
+    const page = await this.findMainWindow()
+    if (this.windowHiddenExpected) return page
+    if (await rootVisible(page, 5_000)) return page
+    // The guard stays set until the recovery wait finishes, so a renderer that is still
+    // slow after the restart gets one bounded wait instead of another restart.
+    if (this.recoveringWindow) {
+      await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
+      return page
+    }
+    // A case that hides the window leaves the renderer mounted but unrendered, so every
+    // later case would spend its timeout on a hidden #root. Reveal the window instead.
+    this.recoveringWindow = true
+    try {
+      if ((await this.revealWindow()) && (await rootVisible(page, 20_000))) return page
+      await this.disconnect()
+      await prepareWindowsCdpConnection(await restartApp(this.paths))
+      return await this.mainWindow()
+    } finally {
+      this.recoveringWindow = false
+    }
+  }
+
+  private async findMainWindow(): Promise<Page> {
     const deadline = Date.now() + 60_000
     do {
       const browser = await this.connect()
@@ -74,31 +160,48 @@ export class RegressionApp {
             return false
           }
         })
-      if (page) {
-        await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
-
-        return page
-      }
+      if (page) return page
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
     } while (Date.now() < deadline)
     throw new Error('Cherry Studio main window was not ready within 60 seconds')
   }
 
-  async window(pathFragment: string): Promise<Page> {
+  private async revealWindow(): Promise<boolean> {
+    if (this.record.platform !== 'macos') return false
+    const { inspectStartup } = await import('./helpers/startupInspection')
+    return inspectStartup(this, 'show').then(
+      () => true,
+      () => false
+    )
+  }
+
+  async window(pathFragment: string, tabId?: string): Promise<Page> {
     const browser = await this.connect()
     const deadline = Date.now() + 30_000
     do {
-      const page = browser
+      const pages = browser
         .contexts()
         .flatMap((context) => context.pages())
-        .find((candidate) => candidate.url().toLowerCase().includes(pathFragment.toLowerCase()))
-      if (page) return page
+        .filter((candidate) => candidate.url().toLowerCase().includes(pathFragment.toLowerCase()))
+      for (const page of pages) {
+        if (!tabId) return page
+        const data = await page
+          .evaluate(async () => {
+            const result = (await window.api.ipcApi.request('window.get_init_data')) as IpcResult<{
+              tabId?: string
+            } | null>
+            return result.ok ? result.data : null
+          })
+          .catch(() => null)
+        if (data?.tabId === tabId) return page
+      }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
     } while (Date.now() < deadline)
-    throw new Error(`Window not found: ${pathFragment}`)
+    throw new Error(`Window not found: ${pathFragment}${tabId ? ` (tab ${tabId})` : ''}`)
   }
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {
+    await cancelNativeFileDialogs(this.record.platform, this.paths)
     await dismissTransientDialogs(mainWindow)
     const browser = await this.connect()
     const transientPages = browser
@@ -111,6 +214,13 @@ export class RegressionApp {
   async restart(profile?: TestProfile): Promise<Page> {
     await this.disconnect()
     const record = await restartApp(this.paths, profile)
+    await prepareWindowsCdpConnection(record)
+    return this.mainWindow()
+  }
+
+  async adoptRelaunch(): Promise<Page> {
+    await this.disconnect()
+    const record = await adoptRelaunchedApp(this.paths)
     await prepareWindowsCdpConnection(record)
     return this.mainWindow()
   }

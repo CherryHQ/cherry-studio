@@ -13,6 +13,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -277,6 +278,12 @@ function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
     foreignKey: () =>
       DataApiErrorFactory.invalidOperation(`delete model ${identifier}`, 'model is in use by a knowledge base')
   } satisfies SqliteErrorHandlers
+}
+
+/** Deleted models also drop out of agents through FK `ON DELETE SET NULL`, which no agent write announces. */
+function notifyModelsDeleted(): void {
+  pinService.notifyPurged()
+  notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
 }
 
 /**
@@ -1194,7 +1201,7 @@ class ModelService {
       createModelsSqliteHandlers(values)
     )
 
-    if (deletedIds.length > 0) pinService.notifyPurged()
+    if (deletedIds.length > 0) notifyModelsDeleted()
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1225,7 +1232,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
-    pinService.notifyPurged()
+    notifyModelsDeleted()
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1292,7 +1299,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
-    pinService.notifyPurged()
+    notifyModelsDeleted()
 
     logger.info('Bulk deleted models', {
       count: ids.length,
