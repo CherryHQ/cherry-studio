@@ -345,6 +345,9 @@ test('normal Chat pads a thin image before provider dispatch', async ({ electron
       await page.getByRole('button', { name: /^Upload attachment\b/ }).click()
     }
     await expect(composer.getByText('thin.png', { exact: true })).toBeVisible()
+    await page.bringToFront()
+    await page.waitForTimeout(250)
+    await testInfo.attach('composer-with-thin-image', { body: await page.screenshot(), contentType: 'image/png' })
     await page.getByRole('button', { name: 'Send', exact: true }).click()
     let matched: MockChatRequest | undefined
     const deadline = Date.now() + 30_000
@@ -380,6 +383,9 @@ test('normal Chat pads a thin image before provider dispatch', async ({ electron
     matched!.complete(marker)
     await expect(uiLocator(page, 'chat.message').filter({ hasText: marker })).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
+    await page.bringToFront()
+    await page.waitForTimeout(250)
+    await testInfo.attach('thin-image-turn-completed', { body: await page.screenshot(), contentType: 'image/png' })
     expect(await readFile(fixturePath)).toEqual(original)
     const messageId = await uiLocator(page, 'chat.message').filter({ hasText: prompt }).getAttribute('data-message-id')
     expect(messageId).toBeTruthy()
