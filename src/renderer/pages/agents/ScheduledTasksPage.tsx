@@ -11,7 +11,7 @@ import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/Sch
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTaskConversation } from '@renderer/hooks/agent/useTaskConversation'
-import { useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
+import { TASKS_PAGE_LIMIT, useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
@@ -29,14 +29,25 @@ const routeApi = getRouteApi('/app/scheduled-tasks')
 
 export default function ScheduledTasksPage() {
   const { t } = useTranslation()
-  const { taskId, runId } = routeApi.useSearch<AppRouter>()
+  const { taskId, runId, notificationId } = routeApi.useSearch<AppRouter>()
   const navigate = useNavigate()
   const active = useAllTasks('active')
   const paused = useAllTasks('paused')
-  const completed = useAllTasks('completed')
-  const missed = useAllTasks('missed')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
+  const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
+    params: { id: notificationId ?? '' },
+    enabled: !!notificationId,
+    swrOptions: { shouldRetryOnError: false }
+  })
+  const resultError =
+    notificationId &&
+    notification?.id === notificationId &&
+    !notificationError &&
+    notification.target?.kind === 'scheduled-task' &&
+    notification.target.taskId === selectedTask?.id
+      ? notification.target.result?.errorSummary
+      : undefined
   const conversation = useTaskConversation(selectedTask, runId)
   const bootstrap = useAgentConversationBootstrap({
     session: conversation.session,
@@ -57,13 +68,10 @@ export default function ScheduledTasksPage() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
   const ids = useMemo(
-    () =>
-      [
-        ...new Set([...active.tasks, ...paused.tasks, ...completed.tasks, ...missed.tasks].map((item) => item.agentId))
-      ].sort(),
-    [active.tasks, paused.tasks, completed.tasks, missed.tasks]
+    () => [...new Set([...active.tasks, ...paused.tasks].map((item) => item.agentId))].sort(),
+    [active.tasks, paused.tasks]
   )
-  const { data: owners } = useQuery('/agents', { query: { ids, limit: 200 }, enabled: ids.length > 0 })
+  const { data: owners } = useQuery('/agents', { query: { ids, limit: 2 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
   const {
     data: availableAgents,
@@ -101,9 +109,7 @@ export default function ScheduledTasksPage() {
         {(
           [
             ['active', active],
-            ['paused', paused],
-            ['completed', completed],
-            ['missed', missed]
+            ['paused', paused]
           ] as const
         ).map(([status, source]) => (
           <ScheduledTaskGroup
@@ -212,6 +218,11 @@ export default function ScheduledTasksPage() {
         conversationToolbar={toolbar}
         centerSurface={!conversation.session ? { content: empty } : null}
       />
+      {resultError && (
+        <div role="alert" className="px-3 py-2 text-sm text-destructive">
+          {resultError}
+        </div>
+      )}
       {conversation.session && !!error && (
         <div role="alert" className="flex items-center gap-2 px-3 py-1 text-sm">
           {t('agent.tasks.logs.loadError')}
