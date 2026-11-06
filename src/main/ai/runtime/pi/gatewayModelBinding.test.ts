@@ -95,7 +95,9 @@ it('preserves each model route and usage owner when a child shares the native ga
     capabilities: [],
     isEnabled: true,
     isHidden: false,
-    supportsStreaming: true
+    supportsStreaming: true,
+    contextWindow: 49_152,
+    maxOutputTokens: 8_192
   })
   const usages: Array<{ sessionId: string | undefined; responseId: string | undefined; tokens: number }> = []
   const binding = await createPiGatewayModelBinding(
@@ -107,12 +109,14 @@ it('preserves each model route and usage owner when a child shares the native ga
   const child = await createPiGatewayModelBinding(
     { sessionId: 'session-1', reasoningEffort: 'low' },
     provider,
-    ModelSchema.parse({ ...model, id: 'local::child', apiModelId: 'child-wire' }),
+    ModelSchema.parse({ ...model, id: 'local::child', apiModelId: 'child-wire', contextWindow: 200_000 }),
     undefined,
     binding.modelRuntime
   )
   expect(binding.modelRuntime.getModel(binding.model.provider, binding.model.id)).toBeDefined()
   expect(binding.modelRuntime.getModel(child.model.provider, child.model.id)).toBeDefined()
+  expect(binding.compaction).toEqual({ enabled: true, reserveTokens: 24_576, keepRecentTokens: 8_192 })
+  expect(child.compaction).toEqual({ enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 })
   const answer = await binding.modelRuntime
     .streamSimple(binding.model, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
       sessionId: 'native-child'

@@ -36,9 +36,15 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import type { AgentRuntimeCompaction } from './compaction'
 import { PiProjection } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
 import type { SubagentSessionOptions } from './subagent'
+
+type PiBehaviorChildOptions = SubagentSessionOptions & {
+  /** Override token budgets for this child's model; the behavior adapter still owns summarization. */
+  compaction?: Omit<AgentRuntimeCompaction, 'summarize'>
+}
 
 export interface PiRuntimeBehavior {
   readonly host: HostPorts
@@ -48,7 +54,7 @@ export interface PiRuntimeBehavior {
     readonly parent: Thread
     readonly origin: SubagentOrigin
     readonly toolCallId: string
-  }): SubagentSessionOptions | Promise<SubagentSessionOptions>
+  }): PiBehaviorChildOptions | Promise<PiBehaviorChildOptions>
 }
 
 export interface PiRuntimeOptions {
@@ -242,7 +248,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           model,
           sessionManager,
           settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-          compaction: { ...settings, ...config.compaction, summarize },
+          compaction: { ...settings, ...config.compaction, ...configured?.compaction, summarize },
           extensionFactories: [...(configured?.extensionFactories ?? config.extensionFactories ?? []), extension],
           onEvent: (event) => {
             try {

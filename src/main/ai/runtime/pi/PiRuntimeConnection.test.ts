@@ -1,8 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { contentText, createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1001,7 +1002,46 @@ describe('desktop Pi root connection', () => {
     expect(script.calls.at(-1)!.tools).toEqual([])
   })
 
+  it.each([true, false])(
+    'makes one metered summary request and only checkpoints success (succeeds=%s)',
+    async (succeeds) => {
+      let summaries = 0
+      script = respondingModel((call) => {
+        if (call.systemPrompt.includes('Summarize the conversation')) {
+          summaries++
+          return succeeds
+            ? assistantReply('Bounded summary')
+            : { ...assistantReply('', 'error'), errorMessage: 'maximum context length exceeded' }
+        }
+        return assistantReply('ordinary reply')
+      })
+      mocks.binding.mockImplementation(async () => ({
+        ...(await createTestBinding({ model: { ...MODEL, contextWindow: 49_152 }, stream: script.model })),
+        compaction: { enabled: false, reserveTokens: 24_576, keepRecentTokens: 1 }
+      }))
+      const { connection, events } = await connect()
+      await connection.send({ message: message('EARLY_TASK ' + '多语言 history '.repeat(4_000) + ' LATEST_WORK') })
+      await done(events)
+      events.length = 0
+      await connection.send({ message: message('later turn') })
+      await done(events)
+      events.length = 0
+      await connection.send({ message: message('/compact keep exact paths') })
+      await done(events)
+      expect(summaries).toBe(1)
+      const handle = (connection as unknown as { handle: PiThreadHandle }).handle
+      const checkpoints = handle.pi.history().filter((entry) => entry.type === 'compaction')
+      expect(checkpoints).toHaveLength(succeeds ? 1 : 0)
+      if (succeeds) expect(checkpoints[0]).toMatchObject({ summary: 'Bounded summary' })
+      expect(events.some((event) => event.type === 'compaction-complete')).toBe(succeeds)
+      const requests = script.calls.filter((call) => call.systemPrompt.includes('Summarize the conversation'))
+      for (const call of requests) expect(JSON.stringify(call.messages)).toContain('keep exact paths')
+      expect(JSON.stringify(requests[0].messages).length).toBeLessThan(25_000)
+    }
+  )
+
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
+    const attachmentPath = join(directory, 'note.txt')
     const user = messages.saveMessage({
       sessionId: input.sessionId,
       message: {
@@ -1010,7 +1050,7 @@ describe('desktop Pi root connection', () => {
         data: {
           parts: [
             { type: 'text', text: 'read the attachment' },
-            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: 'file:///tmp/note.txt' }
+            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: pathToFileURL(attachmentPath).href }
           ]
         }
       }
@@ -1019,7 +1059,9 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: user })
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
+    expect(contentText(script.calls[0].messages.find((item) => item.role === 'user')!.content)).toContain(
+      attachmentPath
+    )
     expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
