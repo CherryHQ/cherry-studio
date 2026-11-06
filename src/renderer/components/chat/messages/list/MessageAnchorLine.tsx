@@ -99,8 +99,12 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
-  /** Tick holding keyboard focus; shows the same preview card as hover. */
-  const [keyboardIndex, setKeyboardIndex] = useState<number | null>(null)
+  /** Anchor id of the tick holding keyboard focus; shows the same preview card
+   * as hover. Stored by identity, not array position: a prepended history page
+   * shifts every index while React keeps the focused button by key, so an
+   * index would silently point at the wrong turn (and blur would fail to
+   * clear the preview, comparing the stale index against the shifted one). */
+  const [keyboardAnchorId, setKeyboardAnchorId] = useState<string | null>(null)
   /** Hide the rail only when its measured wrapper height is too short to be usable. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
   const visible = !tooShort
@@ -142,6 +146,15 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     }
     return result
   }, [messages])
+
+  // The focused tick's current position, re-derived on every prepend/append so
+  // the preview and blur cleanup follow the turn, not a stale slot. A focused
+  // anchor that left the list (branch switch) yields no keyboard focus.
+  const keyboardIndex = useMemo(() => {
+    if (keyboardAnchorId === null) return null
+    const index = turns.findIndex((turn) => turn.anchorId === keyboardAnchorId)
+    return index >= 0 ? index : null
+  }, [keyboardAnchorId, turns])
 
   const turnIndexByMessageId = useMemo(() => {
     const map = new Map<string, number>()
@@ -189,8 +202,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
   }, [mouseY, turns.length, railHeight, geometry])
-  const focusedIndex =
-    pointerFocusedIndex ?? (keyboardIndex !== null && keyboardIndex < turns.length ? keyboardIndex : null)
+  const focusedIndex = pointerFocusedIndex ?? keyboardIndex
 
   const flushMouseMove = useCallback(() => {
     animationFrameRef.current = null
@@ -397,8 +409,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
                 // the layout classes alone keep the visuals unchanged.
                 className="flex w-full shrink-0 cursor-pointer items-center justify-end rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ height: RAIL_TICK_PITCH_PX }}
-                onFocus={() => setKeyboardIndex(index)}
-                onBlur={() => setKeyboardIndex((current) => (current === index ? null : current))}
+                onFocus={() => setKeyboardAnchorId(turn.anchorId)}
+                onBlur={() => setKeyboardAnchorId((current) => (current === turn.anchorId ? null : current))}
                 onClick={() => scrollToMessageId?.(turn.anchorId)}>
                 <div
                   className={classNames(
