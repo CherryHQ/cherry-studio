@@ -69,6 +69,13 @@ async function main() {
       'pseudo content',
       'pseudo background',
       'quoted paren url',
+      'style @import',
+      'style font-face used',
+      'img srcset remote',
+      'picture source srcset',
+      'srcset data comma',
+      'nested data svg',
+      'video poster remote',
       'safe content'
     ]
     for (const name of cases)
@@ -96,6 +103,13 @@ async function main() {
               'pseudo content': `<style>div::before{content:url('${remote}')}</style><div>hello</div>`,
               'pseudo background': `<style>div::after{content:'';background-image:url('${remote}');display:block;width:20px;height:20px}</style><div>hello</div>`,
               'quoted paren url': `<style>div{background-image:url('${remote})b.png');width:20px;height:20px}</style><div>hello</div>`,
+              'style @import': `<style>@import url('${remote}');</style><div>hello</div>`,
+              'style font-face used': `<style>@font-face{font-family:BypassProbe;src:url('${remote}')}</style><div style="font-family:BypassProbe">hello</div>`,
+              'img srcset remote': `<img src="data:," srcset="${remote} 1x">`,
+              'picture source srcset': `<picture><source srcset="${remote} 1x"><img src="data:,"></picture>`,
+              'srcset data comma': `<img srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw== 1x, ${remote} 2x">`,
+              'nested data svg': `<img src="data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><image href='${remote}'/></svg>`)}">`,
+              'video poster remote': `<video poster="${remote}"></video>`,
               'safe content': `<main style="background:#fff;color:#000">Safe text<img src="${placeholder}"></main>`
             }
             document.querySelector('iframe').srcdoc =
@@ -129,7 +143,19 @@ async function main() {
         )
         assert.equal(before, 0, `${name}: preview made a request`)
         assert.deepEqual(requests, [], `${name}: export made a request`)
-        const safe = ['svg', 'xlink', 'quoted paren url', 'safe content'].includes(name)
+        const safe = [
+          'svg',
+          'xlink',
+          'quoted paren url',
+          'style @import',
+          'style font-face used',
+          'img srcset remote',
+          'picture source srcset',
+          'srcset data comma',
+          'nested data svg',
+          'video poster remote',
+          'safe content'
+        ].includes(name)
         assert.equal(result.ok, safe, `${name}: ${result.error}`)
         if (safe) {
           assert.equal(await page.locator('iframe').evaluate((el) => el.style.display), '')
