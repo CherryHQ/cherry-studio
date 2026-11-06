@@ -580,6 +580,12 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
     }
   },
   command: ({ editor, range, props }) => {
+    // A suggestion popup can outlive the editor losing editability (e.g. a notes
+    // migration lock): never mutate a read-only editor from a stale popup.
+    if (!editor.isEditable) {
+      return
+    }
+
     editor.chain().focus().deleteRange(range).run()
 
     // Find the original command by id
