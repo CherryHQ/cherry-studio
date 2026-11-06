@@ -77,6 +77,7 @@ import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import { createPiBehaviorHost } from './piBehaviorHost'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -334,6 +335,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       excludeTools: [...this.disabledTools],
       behavior,
       settings: {
+        compaction: resolvePiCompactionSettings(initialSnapshot.model),
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
