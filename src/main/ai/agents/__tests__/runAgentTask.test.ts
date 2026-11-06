@@ -77,6 +77,9 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { create: vi.fn(), getByTaskScheduleId: vi.fn() }
 }))
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: { hasAssistantMessageWithTextInWindow: vi.fn() }
+}))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
@@ -96,6 +99,7 @@ vi.mock('@main/ai/agents/agentDataDirectory', async (importOriginal) => ({
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -239,6 +243,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(agentSessionService.create).mockReset()
     vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()
+    vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReset()
     vi.mocked(jobScheduleService.getByIdTx).mockReset()
     mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
     mockIsSessionBusy.mockReset().mockReturnValue(false)
@@ -474,6 +479,54 @@ describe('runAgentTask', () => {
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
       captured.listeners[0].onDone()
       await expect(promise).resolves.toBeDefined()
+    })
+
+    it('runs when a legacy exact-marker reply is backed by session transcript evidence', async () => {
+      const finishedMs = Date.now()
+      const startedMs = finishedMs - 30_000
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          startedAt: new Date(startedMs).toISOString(),
+          finishedAt: new Date(finishedMs).toISOString(),
+          metadata: { sessionId: 'dep-session' },
+          output: { result: 'Skipped (session busy)' }
+        }
+      ] as never)
+      vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(true)
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone()
+      await expect(promise).resolves.toBeDefined()
+      expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).toHaveBeenCalledWith(
+        'dep-session',
+        'Skipped (session busy)',
+        startedMs,
+        finishedMs
+      )
+    })
+
+    it('blocks when a legacy exact-marker row has no transcript evidence', async () => {
+      const finishedMs = Date.now()
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          startedAt: new Date(finishedMs - 30_000).toISOString(),
+          finishedAt: new Date(finishedMs).toISOString(),
+          metadata: { sessionId: 'dep-session' },
+          output: { result: 'Skipped (session busy)' }
+        }
+      ] as never)
+      vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(false)
+      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks on a legacy exact-marker row without consulting the transcript when no session link exists', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session busy)'))
+      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).not.toHaveBeenCalled()
+      expect(mockStartRun).not.toHaveBeenCalled()
     })
   })
 
