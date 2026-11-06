@@ -1382,7 +1382,7 @@ export class MessageService {
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
-      if (updates.data !== undefined) {
+      if (updates.data !== undefined && dto.data?.parts !== undefined) {
         replaceChatMessageFileRefsTx(tx, id, updates.data)
       }
       if (activityTransitionAt !== null) {
@@ -1429,7 +1429,11 @@ export class MessageService {
         : null
       tx.update(messageTable)
         .set({
-          data: { ...input.data, modelSelection: row.data?.modelSelection },
+          data: {
+            ...input.data,
+            modelSelection: row.data?.modelSelection,
+            anthropicThinkingRecovery: row.data?.anthropicThinkingRecovery ?? input.data.anthropicThinkingRecovery
+          },
           status: input.status,
           stats: stats ?? null
         })
@@ -1479,7 +1483,10 @@ export class MessageService {
       const data: MessageData = {
         parts: [],
         ...(row.data?.modelSelection ? { modelSelection: row.data.modelSelection } : {}),
-        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
+        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {}),
+        ...(row.data?.anthropicThinkingRecovery
+          ? { anthropicThinkingRecovery: row.data.anthropicThinkingRecovery }
+          : {})
       }
       const descendantIds = this.getDescendantIdsTx(tx, id)
       this.clearContextAnchorsTx(tx, descendantIds)

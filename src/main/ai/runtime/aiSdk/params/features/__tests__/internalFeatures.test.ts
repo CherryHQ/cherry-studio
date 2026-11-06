@@ -86,7 +86,8 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
       'gateway-usage-normalize',
       'context-build',
-      'tool-schema-compatibility'
+      'tool-schema-compatibility',
+      'anthropic-thinking-recovery'
     ])
   })
 
