@@ -33,6 +33,7 @@ import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import { NON_VISION_IMAGE_GUIDANCE } from '@shared/ai/nonVisionImageGuidance'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
@@ -44,9 +45,6 @@ import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composer
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
-
-const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
-  "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
 
 /**
  * Why the OCR fallback did not produce text — surfaced through the localized
@@ -75,7 +73,7 @@ class NonVisionImageOcrError extends Error {
   readonly detailI18nValues?: Record<string, string>
 
   constructor(detail?: NonVisionImageOcrDetail) {
-    super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
+    super(NON_VISION_IMAGE_GUIDANCE)
     this.name = 'NonVisionImageOcrError'
     if (detail) {
       this.detailI18nKey = NON_VISION_IMAGE_OCR_DETAIL_KEYS[detail.kind]

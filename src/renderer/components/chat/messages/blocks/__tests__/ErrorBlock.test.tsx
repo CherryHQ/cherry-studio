@@ -4,6 +4,8 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { NON_VISION_IMAGE_GUIDANCE } from '@shared/ai/nonVisionImageGuidance'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -101,6 +103,122 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it.each([
+    ['legacy persisted', {}],
+    ['structured model-bound', { providerErrorCategory: 'ocr', i18nKey: 'image_unreadable_for_non_vision_model' }]
+  ])('shows Chinese attachment guidance for a %s image failure and opens localized detail', async (_shape, fields) => {
+    const user = userEvent.setup()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { openErrorDetail }
+    mocks.language = 'zh-CN'
+    mocks.translations = new Map(Object.entries(zhCN))
+    mocks.i18nKeys = new Set(Object.keys(zhCN))
+    const error = {
+      name: 'NonVisionImageOcrError',
+      message: NON_VISION_IMAGE_GUIDANCE,
+      stack: null,
+      ...fields
+    }
+    const modelMessage = {
+      ...message,
+      model: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'deepseek' }
+    }
+
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={modelMessage} />)
+
+    const guidance = zhCN['error.image_unreadable_for_non_vision_model']
+    const guidanceElements = screen.getAllByText(guidance, { exact: true })
+    expect(guidanceElements).toHaveLength(1)
+    expect(guidanceElements[0]).toBeVisible()
+    expect(screen.queryByText(zhCN['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText(zhCN['error.diagnosis.ocr'], { exact: true })).not.toBeInTheDocument()
+    await user.click(screen.getByText(zhCN['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error, message: modelMessage, localizedErrorMessage: guidance })
+    )
+  })
+
+  it.each([
+    ['legacy', {}],
+    ['model-less structured', { i18nKey: 'image_unreadable_for_non_vision_model', providerErrorCategory: 'ocr' }]
+  ])('shows English guidance once for a %s attachment failure', (_shape, fields) => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys = new Set(Object.keys(enUS))
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'NonVisionImageOcrError', message: NON_VISION_IMAGE_GUIDANCE, stack: null, ...fields }}
+        message={{ ...message, model: undefined }}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.image_unreadable_for_non_vision_model'], { exact: true })).toBeVisible()
+    expect(container.textContent?.split(enUS['error.image_unreadable_for_non_vision_model'])).toHaveLength(2)
+  })
+
+  describe.each([
+    ['English', enUS],
+    ['Chinese', zhCN]
+  ] as const)('%s OCR details', (_language, catalog) => {
+    it.each(['ocr_detail_empty', 'ocr_detail_failed'] as const)(
+      'preserves %s without repeating guidance or offering auth recovery',
+      (detailI18nKey) => {
+        mocks.translations = new Map(Object.entries(catalog))
+        mocks.i18nKeys = new Set(Object.keys(catalog))
+        mocks.actions = { navigateErrorTarget: vi.fn() }
+        const { container } = render(
+          <ErrorBlock
+            partId="message-1-part-0"
+            error={{
+              name: 'NonVisionImageOcrError',
+              message: NON_VISION_IMAGE_GUIDANCE,
+              stack: null,
+              providerErrorCategory: 'ocr',
+              i18nKey: 'image_unreadable_for_non_vision_model',
+              detailI18nKey,
+              detailI18nValues: { reason: 'Unauthorized' }
+            }}
+            message={message}
+          />
+        )
+
+        const detail = catalog[`error.${detailI18nKey}`].replace('{{reason}}', 'Unauthorized')
+        expect(screen.getByText(detail, { exact: true })).toBeVisible()
+        expect(container.textContent?.split(catalog['error.image_unreadable_for_non_vision_model'])).toHaveLength(2)
+        expect(screen.queryByText(catalog['error.diagnosis.auth'], { exact: true })).not.toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: catalog['error.diagnosis.go_to_settings'] })
+        ).not.toBeInTheDocument()
+      }
+    )
+  })
+
+  it.each([undefined, 'missing_ocr_detail'])(
+    'keeps a differing raw diagnostic without valid localized detail (%s)',
+    (detailI18nKey) => {
+      mocks.translations = new Map(Object.entries(enUS))
+      mocks.i18nKeys = new Set(Object.keys(enUS))
+      const { container } = render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'NonVisionImageOcrError',
+            message: 'OCR processor returned no usable output',
+            stack: null,
+            providerErrorCategory: 'ocr',
+            i18nKey: 'image_unreadable_for_non_vision_model',
+            ...(detailI18nKey ? { detailI18nKey } : {})
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(enUS['error.image_unreadable_for_non_vision_model'], { exact: true })).toBeVisible()
+      expect(screen.getByText('OCR processor returned no usable output', { exact: true })).toBeVisible()
+      expect(container.textContent?.split(enUS['error.image_unreadable_for_non_vision_model'])).toHaveLength(2)
+    }
+  )
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
@@ -174,8 +292,36 @@ required service tier.`
       />
     )
 
+    expect(screen.getByText('error.diagnosis.unknown', { exact: true })).toBeInTheDocument()
     expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
     expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('keeps a differing app-owned body and its localized detail under a category headline', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys = new Set(Object.keys(enUS))
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ToolLoopTerminalError',
+          message: 'fallback message',
+          stack: null,
+          i18nKey: 'tool_call_limit_reached',
+          detailI18nKey: 'ocr_detail_failed',
+          detailI18nValues: { reason: 'processor stopped' }
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.unknown'], { exact: true })).toBeVisible()
+    expect(
+      screen.getByText(
+        `${enUS['error.tool_call_limit_reached']} ${enUS['error.ocr_detail_failed'].replace('{{reason}}', 'processor stopped')}`,
+        { exact: true }
+      )
+    ).toBeVisible()
   })
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {

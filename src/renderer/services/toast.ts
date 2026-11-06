@@ -61,12 +61,14 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   }
   const actionKind = presentation.action
   const diagnosisKey = `error.diagnosis.${category}`
+  const titleKey =
+    category === classification.category && i18n.exists(classification.i18nKey) ? classification.i18nKey : diagnosisKey
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: category === 'unknown' ? details || i18n.t('error.unknown') : i18n.t(diagnosisKey),
+    title: category === 'unknown' ? details || i18n.t('error.unknown') : i18n.t(titleKey),
     description:
       [
         context.mcpServer?.name ?? provider?.name,

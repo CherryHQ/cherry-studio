@@ -35,7 +35,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
-const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
+const ErrorMessage: React.FC<{ error: Props['error']; headline: string }> = ({ error, headline }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
@@ -81,6 +81,8 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         />
       )
     }
+    const guidance = t(i18nKey)
+    const duplicatesHeadline = guidance === headline
     // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
     // its values may embed a verbatim provider diagnostic.
     const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
@@ -90,14 +92,17 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
           | Record<string, string>
           | undefined
+        if (duplicatesHeadline) return t(detailFullKey, detailValues)
         return (
           <span>
-            {t(i18nKey)} {t(detailFullKey, detailValues)}
+            {guidance} {t(detailFullKey, detailValues)}
           </span>
         )
       }
     }
-    return t(i18nKey)
+    if (!duplicatesHeadline) return guidance
+    const rawText = providerErrorText(error)
+    return rawText && rawText !== headline ? rawText : null
   }
 
   if (i18n.exists(errorKey)) {
@@ -116,7 +121,8 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     )
   }
 
-  return providerErrorText(error)
+  const rawText = providerErrorText(error)
+  return rawText && rawText !== headline ? rawText : null
 }
 
 const MessageErrorInfo: React.FC<{
@@ -266,7 +272,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        <ErrorMessage error={error} />
+        <ErrorMessage error={error} headline={aiSummary || localizedErrorMessage} />
       </div>
 
       {/* Footer */}

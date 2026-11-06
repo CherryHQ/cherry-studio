@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
+import { NON_VISION_IMAGE_GUIDANCE } from '@shared/ai/nonVisionImageGuidance'
 
 import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
@@ -429,21 +430,55 @@ required service tier.`
     expect(result.category).toBe('permission')
   })
 
-  // An OCR-fallback failure must not be re-owned by the chat provider: even when the
-  // failing OCR processor's diagnostic carries auth-flavored tokens, the error text is
-  // the generic non-vision headline, so recovery never points at provider settings (#20343).
+  // OCR diagnostics must retain attachment guidance even when the processor reports an auth failure.
   it('keeps an app-owned non-vision OCR error out of the provider auth routing', () => {
     const result = classifyError(
       makeError({
         name: 'NonVisionImageOcrError',
+        providerErrorCategory: 'ocr',
         i18nKey: 'image_unreadable_for_non_vision_model',
-        message:
-          "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+        message: NON_VISION_IMAGE_GUIDANCE,
+        detailI18nValues: { reason: 'Unauthorized' }
       }),
       'anthropic'
     )
     expect(result.category).not.toBe('auth')
+    expect(result.category).toBe('ocr')
+    expect(result.i18nKey).toBe('error.image_unreadable_for_non_vision_model')
     expect(result.navTarget).toBeNull()
+  })
+
+  it('recognizes legacy non-vision image guidance without structured fields', () => {
+    expect(
+      classifyError(makeError({ name: 'NonVisionImageOcrError', message: NON_VISION_IMAGE_GUIDANCE }), 'deepseek')
+    ).toEqual({
+      category: 'ocr',
+      i18nKey: 'error.image_unreadable_for_non_vision_model',
+      navTarget: null
+    })
+  })
+
+  it('preserves attachment guidance recovered from a nested OCR failure', () => {
+    expect(
+      classifyError(
+        makeRetryError({
+          lastError: makeError({ providerErrorCategory: 'ocr', message: NON_VISION_IMAGE_GUIDANCE }),
+          errors: []
+        })
+      )
+    ).toEqual({
+      category: 'ocr',
+      i18nKey: 'error.image_unreadable_for_non_vision_model',
+      navTarget: null
+    })
+  })
+
+  it('keeps generic OCR failures on the generic OCR headline', () => {
+    expect(classifyError(makeError({ message: 'OCR engine not initialized' }))).toEqual({
+      category: 'ocr',
+      i18nKey: 'error.diagnosis.ocr',
+      navTarget: null
+    })
   })
 
   // Model
