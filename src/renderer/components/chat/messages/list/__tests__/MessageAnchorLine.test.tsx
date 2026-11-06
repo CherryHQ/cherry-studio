@@ -340,6 +340,33 @@ describe('MessageAnchorLine', () => {
       expect(scrollToMessageId).toHaveBeenCalledWith('user-2')
     })
 
+    it('hides the rail when the composer inset collapses it to zero height and restores it on collapse', () => {
+      // A composer taller than the message area zeroes the wrapper; the rail
+      // must not stay interactive with invisible, tabbable ticks.
+      const metrics: StripMetrics = { wrapperHeight: 0, scrollHeight: 0, clientHeight: 0 }
+      const { restore, notifyResize } = installRailGeometry(metrics)
+      restoreGeometry = restore
+      const { container } = renderRail({ messages, bottomInset: 1200 })
+
+      const wrapper = container.firstElementChild as HTMLElement
+      const strip = wrapper.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(wrapper).toBeInTheDocument()
+      expect(wrapper).toHaveAttribute('inert')
+      expect(wrapper).toHaveClass('pointer-events-none')
+      expect(strip.style.opacity).toBe('0')
+
+      // Collapsing the composer restores the rail and its keyboard navigation.
+      act(() => {
+        metrics.wrapperHeight = RAIL_HEIGHT_PX
+        metrics.scrollHeight = RAIL_VIEWPORT_PX
+        metrics.clientHeight = RAIL_VIEWPORT_PX
+        notifyResize()
+      })
+      expect(wrapper).not.toHaveAttribute('inert')
+      expect(wrapper).not.toHaveClass('pointer-events-none')
+      expect(strip.style.opacity).toBe('0.7')
+    })
+
     it('hides a short rail and restores it at the minimum height', () => {
       const metrics: StripMetrics = { wrapperHeight: 219, scrollHeight: 171, clientHeight: 171 }
       const { restore, notifyResize } = installRailGeometry(metrics)

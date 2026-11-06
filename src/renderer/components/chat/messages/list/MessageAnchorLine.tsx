@@ -104,15 +104,20 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const latestClientYRef = useRef<number | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
-  /** Rail height in px; drives every tick position so they never depend on DOM reads. */
-  const [railHeight, setRailHeight] = useState(0)
+  /** Rail height in px; drives every tick position so they never depend on DOM
+   * reads. Null until the first layout measurement, so a rail genuinely
+   * collapsed to zero height (a composer inset taller than the message area) is
+   * told apart from an unmeasured one — only the measured kind may hide it. */
+  const [railHeight, setRailHeight] = useState<number | null>(null)
   /** The rail's own scroll offset (only moves when the user wheels the rail itself). */
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
-  /** Hide the rail only when its measured wrapper height is too short to be usable. */
-  const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
+  /** Hide the rail once its measured wrapper height is too short to be usable —
+   * zero included: an inset-collapsed rail must not keep focusable ticks. */
+  const tooShort = railHeight !== null && railHeight < RAIL_MIN_HEIGHT_PX
   const visible = !tooShort
+  const railHeightPx = railHeight ?? 0
   // The 8px base fits the existing right padding; extra width tracks the gutter
   // so the hit strip stays outside the message content even in narrow columns.
   const hitStripWidth = 8 + Math.round(railOpacity * 24)
@@ -175,7 +180,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const geometry = useMemo(() => {
     const count = turns.length
-    const viewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
+    const viewport = Math.max(0, railHeightPx - RAIL_MIN_EDGE_MARGIN_PX * 2)
     const content = count * RAIL_TICK_PITCH_PX
     const free = Math.max(0, viewport - content)
     // Conversations that mounted fully loaded centre the cluster. Ones that
@@ -193,7 +198,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   // Nearest tick to the cursor, only when the cursor is genuinely near one.
   const focusedIndex = useMemo(() => {
-    if (mouseY === null || turns.length === 0 || railHeight === 0) return null
+    if (mouseY === null || turns.length === 0 || railHeightPx === 0) return null
     const raw = Math.round((mouseY - geometry.centerOf(0)) / RAIL_TICK_PITCH_PX)
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
@@ -319,7 +324,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     focusedIndex !== null
       ? Math.min(
           Math.max(geometry.centerOf(focusedIndex), PREVIEW_EDGE_INSET),
-          Math.max(railHeight - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
+          Math.max(railHeightPx - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
         )
       : 0
 
@@ -331,7 +336,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   // Fade whichever end still has ticks scrolled past it, signalling "there's
   // more" like Codex. Derived from the model — no DOM reads.
-  const railViewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
+  const railViewport = Math.max(0, railHeightPx - RAIL_MIN_EDGE_MARGIN_PX * 2)
   const maxScroll = Math.max(0, turns.length * RAIL_TICK_PITCH_PX - railViewport)
   // hasOlder keeps the top fade on as a "more above" hint even at rest.
   const fadeTop = scrollTop > 1 || hasOlder
