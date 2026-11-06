@@ -417,7 +417,11 @@ describe('Pi Durable runtime contract', () => {
   })
 
   it('discovers native forks and archives only child-owned output independently of the parent', async () => {
-    const { runtime, faux, registry } = await setup()
+    const directory = await mkdtemp(join(tmpdir(), 'durable-child-'))
+    onTestFinished(() => rm(directory, { recursive: true, force: true }))
+    const { runtime, faux, registry, options } = await setup(() =>
+      openNodeSqliteStorage(join(directory, 'session.sqlite'))
+    )
     registry.install(
       defineExtension({
         name: 'delegate',
@@ -538,6 +542,26 @@ describe('Pi Durable runtime contract', () => {
     await expect.poll(() => current(restored)).toMatchObject({ subagents: [relationship.subagent] })
     expect(current(restored)!.subagents).toHaveLength(1)
     expect(current(restored)!.messages).toEqual(parentItems)
+    await runtime.settled()
+    confirmed(await runtime.shutdown())
+    const recovered = confirmed(await createPiDurableRuntime(options))
+    onTestFinished(async () => {
+      await recovered.shutdown()
+    })
+    const calls = faux.state.callCount
+    const directChild = confirmed(await recovered.open(child.thread))
+    expect(await directChild.durable.relation()).toEqual(relationship.subagent)
+    const coldParent = confirmed(await recovered.open(parent.thread))
+    const coldEvents = await observe(coldParent)
+    await expect.poll(() => current(coldEvents)?.subagents).toEqual([relationship.subagent])
+    const coldChild = confirmed(await coldParent.durable.openChild('delegation-call'))
+    expect(coldChild.handle.thread).toEqual(child.thread)
+    expect(confirmed(await coldChild.handle.archive())).toMatchObject({
+      messages: expect.arrayContaining([
+        expect.objectContaining({ parts: [expect.objectContaining({ type: 'text', text: 'continued child output' })] })
+      ])
+    })
+    expect(faux.state.callCount).toBe(calls)
   })
 
   it('closes without cancelling durable work, reopens for observation only, then resumes explicitly', async () => {
