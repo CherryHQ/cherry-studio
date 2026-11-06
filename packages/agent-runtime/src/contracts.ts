@@ -109,8 +109,6 @@ export interface ThreadContextUsage {
   readonly model: string
   readonly revision: string
   readonly contextWindow: number
-  readonly inputLimit?: number
-  readonly compactionThreshold?: number
   readonly used?: ContextTokenCount
   readonly basis: 'current-context' | 'last-request'
   readonly reserved?: ContextTokenCount

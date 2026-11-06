@@ -10,7 +10,7 @@ access omits it. Concrete adapters validate `whenBusy` before dispatch. Releasin
 or abort its work. The host stores product-session relationships separately from native context storage.
 
 Every handle exposes passive `contextUsage()`. Confirmed readings distinguish full context
-window, known input/compaction limits, estimated or reported occupancy, and optional reserve/free
+window, estimated or reported occupancy, and optional reserve/free
 counts. Partial category breakdowns need not sum to the total; deferred resources do not occupy
 current context. Reads never submit input or resume work. `context.changed` and snapshots carry
 the same result, including unknown or unsupported capability. Revisions belong to their native

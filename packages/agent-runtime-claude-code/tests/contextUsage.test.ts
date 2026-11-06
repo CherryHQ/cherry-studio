@@ -27,7 +27,6 @@ it('keeps the full gateway window separate from the native compaction threshold 
   const usage = normalizeContextUsage(native, 1000000)
   expect(usage).toMatchObject({
     contextWindow: 1000000,
-    compactionThreshold: 821560,
     used: { tokens: 34087, precision: 'estimated' },
     reserved: { tokens: 33000 }
   })
@@ -79,6 +78,5 @@ it('falls back from unknown category IDs and versions allocation changes', () =>
   )
   expect(usage.breakdown?.categories[0].key).toBe('messages')
   const disabled = normalizeContextUsage({ ...native, isAutoCompactEnabled: false }, 1000000)
-  expect(disabled.compactionThreshold).toBeUndefined()
   expect(disabled.revision).not.toBe(normalizeContextUsage(native, 1000000).revision)
 })

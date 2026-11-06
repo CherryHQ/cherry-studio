@@ -97,8 +97,6 @@ export function normalizeContextUsage(
       )
       .digest('hex'),
     contextWindow,
-    ...(native.isAutoCompactEnabled &&
-      native.autoCompactThreshold !== undefined && { compactionThreshold: native.autoCompactThreshold }),
     used: estimated(native.totalTokens),
     basis: 'current-context',
     ...(reserved && { reserved }),

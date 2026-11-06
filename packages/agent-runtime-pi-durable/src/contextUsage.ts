@@ -69,7 +69,6 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
       model: usage.model.modelId,
       revision: createHash('sha256').update(usage.revision).digest('hex'),
       contextWindow: usage.contextWindow,
-      ...(usage.compactionThreshold !== undefined && { compactionThreshold: usage.compactionThreshold }),
       used: { tokens: usage.tokens, precision: 'estimated' },
       basis: 'current-context',
       breakdown: { coverage: 'partial', categories },
