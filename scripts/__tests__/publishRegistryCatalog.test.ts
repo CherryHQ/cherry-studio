@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -56,14 +57,21 @@ const publishOptions = {
 }
 
 describe('publishRegistryCatalog', () => {
-  it('keeps v2 catalog updates available when Sonnet 5.5 moves to a new schema stream', async () => {
+  it('keeps existing catalog streams available when the current schema advances', async () => {
     const { destinationDirectory } = makeDirectories()
     const sourceDirectory = path.resolve(COMPAT_DIRECTORY, '../data')
-    fs.mkdirSync(path.join(destinationDirectory, 'v2'))
-    fs.writeFileSync(
-      path.join(destinationDirectory, 'v2/manifest.json'),
-      JSON.stringify({ minAppVersion: '2.0.13', sourceAppVersion: '2.1.3', revision: 35, schemaVersion: 2, files: {} })
-    )
+    // Both lanes already exist in production; their floors must survive a newer current stream.
+    for (const [schemaVersion, minAppVersion] of [
+      [2, '2.0.13'],
+      [3, '2.1.4']
+    ] as const) {
+      const directory = path.join(destinationDirectory, `v${schemaVersion}`)
+      fs.mkdirSync(directory)
+      fs.writeFileSync(
+        path.join(directory, 'manifest.json'),
+        JSON.stringify({ minAppVersion, sourceAppVersion: '2.1.4', revision: 35, schemaVersion, files: {} })
+      )
+    }
 
     const published = await publishRegistryCatalog({
       ...publishOptions,
@@ -71,7 +79,7 @@ describe('publishRegistryCatalog', () => {
       destinationDirectory,
       currentVersion: REGISTRY_SCHEMA_VERSION,
       minAppVersion: REGISTRY_MIN_APP_VERSION,
-      sourceAppVersion: '2.1.4'
+      sourceAppVersion: REGISTRY_MIN_APP_VERSION
     })
 
     expect(published).toEqual(expect.arrayContaining(['v2', 'v3']))
@@ -79,7 +87,7 @@ describe('publishRegistryCatalog', () => {
     const v2Manifest = JSON.parse(fs.readFileSync(path.join(v2Directory, 'manifest.json'), 'utf8'))
     expect(v2Manifest).toMatchObject({
       minAppVersion: '2.0.13',
-      sourceAppVersion: '2.1.4',
+      sourceAppVersion: REGISTRY_MIN_APP_VERSION,
       revision: 41,
       schemaVersion: 2
     })
@@ -91,7 +99,11 @@ describe('publishRegistryCatalog', () => {
     expect(v2Models.models).toContainEqual(
       sourceModels.models.find((model: { id: string }) => model.id === 'claude-opus-5-5')
     )
-    expect(v2Manifest.files['models.json']).toBe(sourceModels.version)
+    // A converted catalog has its own content identity, not necessarily the source version.
+    const { version: v2Version, ...v2Body } = v2Models
+    const contentHash = createHash('sha256').update(JSON.stringify(v2Body)).digest('hex').slice(0, 16)
+    expect(v2Version).toBe(contentHash)
+    expect(v2Manifest.files['models.json']).toBe(contentHash)
 
     const v3Directory = path.join(destinationDirectory, 'v3')
     const v3Manifest = JSON.parse(fs.readFileSync(path.join(v3Directory, 'manifest.json'), 'utf8'))
@@ -103,6 +115,10 @@ describe('publishRegistryCatalog', () => {
         reasoning: expect.objectContaining({ wireDialect: 'adaptive-between-tools' })
       })
     )
+    for (const file of ['models.json', 'providers.json', 'provider-models.json']) {
+      const publishedBytes = fs.readFileSync(path.join(destinationDirectory, `v${REGISTRY_SCHEMA_VERSION}`, file))
+      expect(publishedBytes.equals(fs.readFileSync(path.join(sourceDirectory, file)))).toBe(true)
+    }
   })
 
   it('keeps a model reaching an older schema by dropping only what it cannot represent', async () => {
