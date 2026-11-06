@@ -312,11 +312,22 @@ async function priceCallCapacity(
   call: LanguageModelV3CallOptions,
   provider: Provider,
   model: Model,
-  window: number | undefined
+  window: number | undefined,
+  conservativeText = false
 ): Promise<CallCapacity | null> {
   if (window == null) return null
   const dialect = resolveModelTokenDialect(provider, model)
-  const tokenizer = await getTextTokenizer(dialect)
+  const estimatedTokenizer = await getTextTokenizer(dialect)
+  // A heuristic can count an arbitrarily long digit run as one token. For a
+  // reduced Ollama window, reject uncertain fits rather than permit silent
+  // truncation. UTF-8 bytes bound byte-fallback text tokenization conservatively;
+  // this may reject text whose model-specific tokenizer would fit.
+  const tokenizer: TextTokenizer = conservativeText
+    ? {
+        id: 'conservative-utf8',
+        count: (text) => Math.max(estimatedTokenizer.count(text), Buffer.byteLength(text, 'utf8'))
+      }
+    : estimatedTokenizer
   // SDK v3 prompt content shares the footprint walker's text/media/tool-result
   // structure. Tools here are already JSON schemas, not the original ToolSet.
   const tokens =
@@ -382,9 +393,9 @@ export class OllamaPromptExceedsContextError extends Error {
     readonly trainedContextWindow: number
   ) {
     super(
-      `This request needs about ${estimatedInputTokens} input tokens, but Ollama's context window was limited to ` +
+      `This request's conservative input budget is ${estimatedInputTokens} tokens, but Ollama's context window was limited to ` +
         `${numCtx} tokens (the model supports ${trainedContextWindow}) to fit available memory, leaving room for ` +
-        `${usableInputTokens}. Ollama would silently drop the oldest part of the prompt. Shorten the message or ` +
+        `${usableInputTokens}. It may not fit without Ollama dropping prompt content. Shorten the message or ` +
         `attachments, start a new conversation, free up memory, or choose a model with a smaller footprint.`
     )
   }
@@ -398,7 +409,7 @@ export class OllamaPromptExceedsContextError extends Error {
  * requests that fit the uncapped window behave exactly as before. Unknown or
  * unpriceable calls pass, matching {@link isFallbackCallWithinWindow}. Throwing
  * here is an ordinary attempt error, so configured fallbacks still get their own
- * `canDispatch` capacity check.
+ * final transformed-prompt capacity check.
  */
 export async function assertPrimaryOllamaCallWithinWindow(input: {
   call: LanguageModelV3CallOptions
@@ -410,7 +421,7 @@ export async function assertPrimaryOllamaCallWithinWindow(input: {
   if (!model.contextWindow || ollamaNumCtx.numCtx >= model.contextWindow) return
   let capacity: CallCapacity | null
   try {
-    capacity = await priceCallCapacity(call, provider, model, ollamaNumCtx.numCtx)
+    capacity = await priceCallCapacity(call, provider, model, ollamaNumCtx.numCtx, true)
   } catch {
     loggerService.withContext('AttachmentBudget').warn('Primary call capacity could not be priced; allowing dispatch')
     return

@@ -13,7 +13,7 @@
  * them and ai-retry can't re-shape them mid-call); the capability gate ensures a
  * skipped fallback never receives a native request shape it can't handle.
  */
-import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
+import { type AiPlugin, definePlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isFallbackCallWithinWindow } from '@main/ai/messages/attachmentBudget'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
@@ -187,24 +187,42 @@ async function resolveFallback(
   const requestContext = options.context as RequestContext | undefined
   const usagePlugin = args.createUsagePlugin({ provider, model, sdkModelId: sdkConfig.modelId, credentialReceipt })
   repairUsagePlugins.current = [usagePlugin]
+  // Price only the final transformed prompt. The context middleware may trim a
+  // tool result that could not fit before its own rewrite. A post plugin keeps
+  // this check inside that rewrite without running middleware twice.
+  const capacityGuard = definePlugin({
+    name: 'fallback-capacity-guard',
+    enforce: 'post',
+    configureContext: (context) => {
+      context.middlewares = [
+        ...(context.middlewares ?? []),
+        {
+          specificationVersion: 'v3',
+          transformParams: async ({ params }) => {
+            const fits = await isFallbackCallWithinWindow({
+              call: params,
+              fallbackProvider: provider,
+              fallbackModel: model,
+              fallbackEndpointType: endpoint.endpointType,
+              fallbackRuntimeProviderId: sdkConfig.providerId,
+              fallbackOllamaNumCtx: requestContext?.ollamaNumCtx ?? null
+            })
+            if (!fits) throw new Error('Fallback prompt exceeds its effective context window after transformation')
+            return params
+          }
+        }
+      ]
+    }
+  })
   const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
     sdkConfig.providerId,
     sdkConfig.providerSettings,
     sdkConfig.modelId,
-    [...plugins, usagePlugin]
+    [...plugins, usagePlugin, capacityGuard]
   )
   const fallbackHooks = composeHooks(hookParts)
   return {
     model: resolved,
-    canDispatch: (call) =>
-      isFallbackCallWithinWindow({
-        call,
-        fallbackProvider: provider,
-        fallbackModel: model,
-        fallbackEndpointType: endpoint.endpointType,
-        fallbackRuntimeProviderId: sdkConfig.providerId,
-        fallbackOllamaNumCtx: requestContext?.ollamaNumCtx ?? null
-      }),
     options: pickFallbackCallOptions(options),
     repairToolCall: options.repairToolCall,
     streamErrorSerialization: requestContext?.ollamaNumCtx ? { ollamaNumCtx: requestContext.ollamaNumCtx } : null,

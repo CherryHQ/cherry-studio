@@ -17,7 +17,8 @@ vi.mock('@main/data/services/ModelService', () => ({
 
 const resolveLanguageModel = vi.fn()
 vi.mock('@cherrystudio/ai-core', () => ({
-  resolveLanguageModel: (...a: unknown[]) => resolveLanguageModel(...a)
+  resolveLanguageModel: (...a: unknown[]) => resolveLanguageModel(...a),
+  definePlugin: (plugin: unknown) => plugin
 }))
 
 const buildAgentParams = vi.fn()
@@ -128,7 +129,11 @@ describe('buildFallbackModels', () => {
       sdkModelId: 'claude-x',
       credentialReceipt
     })
-    expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [...plugins, usagePlugin])
+    expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [
+      ...plugins,
+      usagePlugin,
+      expect.objectContaining({ name: 'fallback-capacity-guard', enforce: 'post' })
+    ])
     const buildOptions = buildAgentParams.mock.calls[0][0]
     expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
@@ -336,11 +341,18 @@ describe('buildFallbackModels', () => {
       // the input-safety ratio) — the fallback can never take the replayed call.
       const fallback = await resolve()
       expect(fallback).not.toBeNull()
-      expect(
-        await fallback!.canDispatch!({
-          prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(40_000) }] }]
+      expect(fallback!.canDispatch).toBeUndefined()
+      const plugins = resolveLanguageModel.mock.calls.at(-1)![3]
+      const guard = plugins.find((plugin: { name: string }) => plugin.name === 'fallback-capacity-guard')
+      const context = { middlewares: [] as Array<{ transformParams: (input: unknown) => Promise<unknown> }> }
+      guard.configureContext(context)
+      await expect(
+        context.middlewares[0].transformParams({
+          params: {
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(40_000) }] }]
+          }
         })
-      ).toBe(false)
+      ).rejects.toThrow('Fallback prompt exceeds')
     })
 
     it('keeps a fallback whose effective window holds the retained prompt', async () => {
