@@ -22,8 +22,6 @@ import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { isLinux } from '@main/core/platform'
-import { t } from '@main/i18n'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -53,7 +51,6 @@ import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayR
 import type { AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
-import { buildEnvironment, hasSessionBusAddress } from './environment'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -522,14 +519,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
-  if (isLinux) {
-    const launchEnv = await buildEnvironment(provider, agent)
-    if (!hasSessionBusAddress(launchEnv)) {
-      throw Object.assign(new Error(t('agent.session.claude.linux_session_bus_unavailable')), {
-        name: 'ClaudeCodeLinuxSessionBusUnavailableError'
-      })
-    }
-  }
+  // No Linux session-bus preflight here: the managed native CLI launches and completes turns
+  // with DBUS_SESSION_BUS_ADDRESS absent or empty, so a blanket denial breaks working configs
+  // (cherry-pr-review inv_4deed46d90e3ec21). The bus fact is recorded at spawn instead and
+  // attached to the surfaced error only when the child actually fails.
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit

@@ -1,13 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { serializeError } from '../../../utils/serializeError'
-import {
+
+vi.mock('@main/i18n', () => ({
+  t: (key: string) =>
+    key === 'agent.session.claude.linux_session_bus_unavailable'
+      ? 'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is missing). Open Cherry Studio from your desktop session so the bus address is inherited, then try again.'
+      : key
+}))
+
+const {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
+  hasSessionBusAddress,
   isClaudeCodeProcessFailure,
   recordClaudeCodeProcessExit,
   resetClaudeCodeProcessDiagnostics
-} from '../processExitDiagnostics'
+} = await import('../processExitDiagnostics')
 
 describe('Claude Code process exit diagnostics', () => {
   it.each([
@@ -120,5 +129,48 @@ describe('Claude Code process exit diagnostics', () => {
     expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(
       false
     )
+  })
+
+  it('attaches the session-bus remediation when a bus-less child actually fails', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('bus-ref')
+    diagnostics.sessionBusUnavailable = true
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'zypak-helper failed to connect to the session bus')
+
+    const surfaced = createClaudeCodeProcessExitError(
+      new Error('TransportClosedError: JSON-RPC input closed'),
+      diagnostics
+    )
+
+    expect(surfaced.message).toContain('Claude Code process exited with code 1')
+    expect(surfaced.message).toContain('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('keeps the bare exit message when the launch env provided a session bus', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('bus-ok-ref')
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'segfault')
+
+    const surfaced = createClaudeCodeProcessExitError(
+      new Error('TransportClosedError: JSON-RPC input closed'),
+      diagnostics
+    )
+
+    expect(surfaced.message).toBe('Claude Code process exited with code 1')
+  })
+
+  it('clears the bus fact with the rest of the process result before a respawn', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('bus-retry-ref')
+    diagnostics.sessionBusUnavailable = true
+
+    resetClaudeCodeProcessDiagnostics(diagnostics)
+
+    expect(diagnostics).toEqual({ reference: 'bus-retry-ref' })
+  })
+
+  it('treats absent, empty and whitespace-only bus addresses as unavailable', () => {
+    expect(hasSessionBusAddress({})).toBe(false)
+    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: undefined })).toBe(false)
+    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: '' })).toBe(false)
+    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: ' ' })).toBe(false)
+    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' })).toBe(true)
   })
 })

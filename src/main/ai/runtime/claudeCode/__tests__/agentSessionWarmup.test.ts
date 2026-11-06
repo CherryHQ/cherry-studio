@@ -1,5 +1,5 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -31,9 +31,7 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn(),
-  buildEnvironment: vi.fn(),
-  platform: { isLinux: false }
+  getTurnTrustedNotifyChannels: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -101,11 +99,7 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@main/i18n', () => ({
-  getAppLanguage: mocks.getAppLanguage,
-  t: (key: string) =>
-    key === 'agent.session.claude.linux_session_bus_unavailable'
-      ? 'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is missing). Open Cherry Studio from your desktop session so the bus address is inherited, then try again.'
-      : key
+  getAppLanguage: mocks.getAppLanguage
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
@@ -122,20 +116,6 @@ vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
   buildSkillWhitelist: mocks.buildSkillWhitelist,
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
-}))
-
-vi.mock('../environment', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    buildEnvironment: mocks.buildEnvironment
-  }
-})
-
-vi.mock('@main/core/platform', () => ({
-  get isLinux() {
-    return mocks.platform.isLinux
-  }
 }))
 
 const {
@@ -2045,14 +2025,9 @@ describe('deriveConnectionConfig', () => {
   })
 })
 
-describe('Linux session-bus preflight', () => {
-  afterEach(() => {
-    mocks.platform.isLinux = false
-  })
-
+describe('Linux session-bus launches (cherry-pr-review inv_4deed46d90e3ec21)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.platform.isLinux = true
     mocks.resolveReasoningProfile.mockReturnValue({
       format: 'anthropic',
       wire: REASONING_FORMAT_PROFILES.anthropic.wire
@@ -2085,48 +2060,15 @@ describe('Linux session-bus preflight', () => {
     mocks.getTurnTrustedNotifyChannels.mockReturnValue([])
   })
 
-  it('fails fast with an actionable error when Linux has no session bus', async () => {
-    mocks.buildEnvironment.mockResolvedValue({ PATH: '/usr/bin' })
-
-    const error = await buildClaudeCodeQueryRequestForAgentSession('session-1').then(
-      () => null,
-      (failure: unknown) => failure
-    )
-
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).name).toBe('ClaudeCodeLinuxSessionBusUnavailableError')
-    expect((error as Error).message).toContain('DBUS_SESSION_BUS_ADDRESS')
-    expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
-  })
-
-  it('builds the request when Linux provides a session bus', async () => {
-    mocks.buildEnvironment.mockResolvedValue({
-      PATH: '/usr/bin',
-      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus'
-    })
-    mocks.buildSessionSettings.mockResolvedValue({
-      env: { PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' }
-    })
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(request?.settings.env).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' })
-  })
-
-  it('rejects a whitespace-only session bus on Linux', async () => {
-    mocks.buildEnvironment.mockResolvedValue({ PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: ' ' })
-
-    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toThrow('DBUS_SESSION_BUS_ADDRESS')
-    expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
-  })
-
-  it('ignores a missing session bus outside Linux', async () => {
-    mocks.platform.isLinux = false
+  it('builds the request without a session bus: a missing address never blocks a launch', async () => {
+    // The managed native CLI launches directly (no zypak) and completes turns with
+    // DBUS_SESSION_BUS_ADDRESS absent or empty, so no preflight may reject these launches.
+    // The bus fact is recorded at spawn and only annotates an actual child failure.
     mocks.buildSessionSettings.mockResolvedValue({ env: { PATH: '/usr/bin' } })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request).toBeDefined()
-    expect(mocks.buildEnvironment).not.toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({ PATH: '/usr/bin' })
   })
 })

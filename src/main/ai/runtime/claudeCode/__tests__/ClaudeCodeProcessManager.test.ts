@@ -21,6 +21,15 @@ import {
   type SpawnProcess
 } from '../ClaudeCodeProcessManager'
 
+const mocks = vi.hoisted(() => ({ isLinux: true }))
+
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  get isLinux() {
+    return mocks.isLinux
+  }
+}))
+
 /** The production class takes no constructor args (container contract); tests swap the seam here. */
 class TestProcessManager extends ClaudeCodeProcessManager {
   constructor(spawnProcess: SpawnProcess) {
@@ -112,6 +121,41 @@ describe('ClaudeCodeProcessManager', () => {
     ServiceContainer.reset()
     BaseService.resetInstances()
     mockMainLoggerService.warn.mockClear()
+    mocks.isLinux = true
+  })
+
+  it('records a missing Linux session bus at spawn without blocking the launch', () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(() => child.process)
+    const diagnostics = createClaudeCodeProcessDiagnostics('bus-spawn-ref')
+
+    // The launch proceeds either way (the native CLI runs bus-less); the flag only lets the
+    // failure path name the bus as the prime suspect if the child actually dies
+    // (cherry-pr-review inv_4deed46d90e3ec21).
+    manager.spawn({ ...spawnOptions, env: { PATH: '/usr/bin' } }, diagnostics)
+
+    expect(diagnostics.sessionBusUnavailable).toBe(true)
+  })
+
+  it('does not flag the spawn when the launch env carries a session bus', () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(() => child.process)
+    const diagnostics = createClaudeCodeProcessDiagnostics('bus-spawn-ok-ref')
+
+    manager.spawn({ ...spawnOptions, env: { DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' } }, diagnostics)
+
+    expect(diagnostics.sessionBusUnavailable).toBeUndefined()
+  })
+
+  it('does not flag the spawn outside Linux', () => {
+    mocks.isLinux = false
+    const child = createFakeChild()
+    const manager = new TestProcessManager(() => child.process)
+    const diagnostics = createClaudeCodeProcessDiagnostics('bus-spawn-mac-ref')
+
+    manager.spawn({ ...spawnOptions, env: { PATH: '/usr/bin' } }, diagnostics)
+
+    expect(diagnostics.sessionBusUnavailable).toBeUndefined()
   })
 
   it('sweeps only after every service that spawns through it has stopped', async () => {
