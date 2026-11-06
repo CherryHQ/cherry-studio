@@ -4,10 +4,13 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const keyStore = vi.hoisted(() => ({ available: true }))
+const keyStore = vi.hoisted(() => ({ available: true, blocked: false }))
 vi.mock('electron', () => ({
   safeStorage: {
-    isEncryptionAvailable: () => keyStore.available,
+    isEncryptionAvailable: () => {
+      if (keyStore.blocked) throw new Error('Key store requires interactive login')
+      return keyStore.available
+    },
     getSelectedStorageBackend: () => (keyStore.available ? 'gnome_libsecret' : 'basic_text'),
     encryptString: (value: string) => Buffer.from(`sealed:${value}`),
     decryptString: (value: Buffer) => {
@@ -33,6 +36,7 @@ beforeEach(async () => {
     path.join(dir, key === 'feature.remote_access.identity_file' ? 'remote-identity.enc' : 'remote-identity.key')
   )
   keyStore.available = true
+  keyStore.blocked = false
 })
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
@@ -65,10 +69,11 @@ describe('loadDesktopIdentity', () => {
     await expect(stat(path.join(dir, 'remote-identity.key'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('keeps using a plaintext identity after a key store appears', async () => {
+  it('reloads a plaintext identity without requiring an interactive key store', async () => {
     keyStore.available = false
     const created = deviceIdentityId(await loadDesktopIdentity())
     keyStore.available = true
+    keyStore.blocked = true
 
     expect(deviceIdentityId(await loadDesktopIdentity())).toBe(created)
   })
