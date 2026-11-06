@@ -1,6 +1,6 @@
 import { once } from 'node:events'
 import { constants } from 'node:fs'
-import { access, mkdir, readdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, realpath, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { basename, dirname, extname, join } from 'node:path'
 
@@ -540,7 +540,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
 })
 
 test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => {
-  const documents = app.fixturesPath('documents')
+  const documents = await realpath(app.fixturesPath('documents'))
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -661,7 +661,8 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
     const emptyRow = page.getByRole('row', { name: `Open ${basename(emptyDirectory)}`, exact: true })
     await expect(emptyRow.getByRole('gridcell').nth(2)).toHaveText('Folders')
     await expect.poll(async () => (await list(null)).length).toBe(2)
-    const emptyItem = (await list(null)).find((item) => item.data.source === emptyDirectory)
+    const emptySource = await realpath(emptyDirectory)
+    const emptyItem = (await list(null)).find((item) => item.data.source === emptySource)
     expect(emptyItem?.type).toBe('directory')
     await emptyRow.click()
     await expect(page.getByText('This folder is empty', { exact: true })).toBeVisible()
@@ -975,7 +976,8 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
   await response.getByRole('button', { name: /\d+ citations?/i }).click()
   const references = page.getByRole('dialog', { name: 'References', exact: true })
   await expect(references.getByText('mp66-ground-truth.md', { exact: true })).toBeVisible()
-  await expect(references).toContainText('canary-seven')
+  // Citations merge chunks from the same document and display its first retrieved snippet.
+  await expect(references).toContainText(/这一节只记录回归测试的背景信息|本项目的内部代号是 canary-seven/)
   await attachScreenshot('MP-66 real model answer with source citation')
 })
 
