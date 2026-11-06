@@ -130,6 +130,9 @@ beforeEach(() => {
     if (name === 'ClaudeCodeWarmQueryManager') {
       return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
     }
+    if (name === 'PreferenceService') {
+      return { get: (key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null) }
+    }
     throw new Error(`Unexpected application.get(${name})`)
   })
 })

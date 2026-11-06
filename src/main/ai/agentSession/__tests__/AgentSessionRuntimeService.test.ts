@@ -560,6 +560,9 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
+      if (name === 'PreferenceService') {
+        return { get: (key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null) }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
