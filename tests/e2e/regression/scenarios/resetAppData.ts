@@ -14,7 +14,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { AppExitedBeforeReadyError } from '../../../../scripts/e2e/regression/lifecycle'
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
-import { isAlive } from '../../../../scripts/e2e/regression/process'
+import { hasLiveMacProcessGroupMembers, isAlive } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { openSettingsSection } from '../helpers/settings'
@@ -128,6 +128,7 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
   }
 
   const oldPid = app.record.electronPid
+  const oldRunnerPid = app.record.runnerPid
   dialog = await openConfirmation()
   await Promise.all([
     dialog.getByRole('button', { name: 'Confirm', exact: true }).click(),
@@ -136,6 +137,9 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
   if (app.record.mode === 'branch')
     await dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
   await expect.poll(() => isAlive(oldPid), { timeout: 60_000 }).toBe(false)
+  if (app.record.platform === 'macos') {
+    await expect.poll(() => hasLiveMacProcessGroupMembers(oldRunnerPid), { timeout: 15_000 }).toBe(false)
+  }
   if (app.record.mode === 'branch') {
     // Preboot wipes the profile, then development mode exits for a second manual start.
     const preboot = await app.restart().then(

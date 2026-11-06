@@ -16,6 +16,39 @@ let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
 
+export function dragMacPointer(paths: RunPaths, from: { x: number; y: number }, to: { x: number; y: number }): void {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native pointer dragging requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  if (![from.x, from.y, to.x, to.y].every(Number.isFinite)) throw new Error('Pointer coordinates must be finite')
+  execFileSync(
+    'osascript',
+    [
+      '-l',
+      'JavaScript',
+      '-e',
+      `
+    ObjC.import('CoreGraphics')
+    ObjC.import('Foundation')
+    const from = ${JSON.stringify(from)}, to = ${JSON.stringify(to)}
+    const post = (type, point) => $.CGEventPost(0, $.CGEventCreateMouseEvent(null, type, point, 0))
+    post(5, from)
+    $.NSThread.sleepForTimeInterval(0.1)
+    post(1, from)
+    try {
+      for (let step = 1; step <= 15; step++) {
+        post(6, {x: from.x + (to.x - from.x) * step / 15, y: from.y + (to.y - from.y) * step / 15})
+        $.NSThread.sleepForTimeInterval(0.016)
+      }
+    } finally {
+      post(2, to)
+    }
+  `
+    ],
+    { timeout: 10_000, stdio: 'ignore' }
+  )
+}
+
 export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')

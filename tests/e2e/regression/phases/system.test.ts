@@ -22,6 +22,7 @@ import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
   saveNativeFile,
+  dragMacPointer,
   sendSystemHotkey,
   closeExternalText,
   openExternalText,
@@ -383,6 +384,15 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
   }
   let overlay: Page | undefined
   const drag = async (window: Page, x: number, y: number, width: number, height: number) => {
+    if (app.record.platform === 'macos') {
+      const origin = await window.evaluate(() => ({ x: screenX, y: screenY }))
+      dragMacPointer(
+        app.paths,
+        { x: origin.x + x, y: origin.y + y },
+        { x: origin.x + x + width, y: origin.y + y + height }
+      )
+      return
+    }
     await window.mouse.move(x, y)
     await window.mouse.down()
     await window.mouse.move(x + width, y + height, { steps: 15 })
@@ -472,6 +482,9 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
       'aria-pressed',
       'true'
     )
+    await expect
+      .poll(() => capturePage.locator('canvas').last().boundingBox())
+      .toMatchObject({ x, y, width: 560, height: 220 })
     await capturePage.getByRole('button', { name: 'Red', exact: true }).click()
     await expect(capturePage.getByRole('button', { name: 'Red', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await drag(capturePage, x + 20, y + 20, 400, 100)

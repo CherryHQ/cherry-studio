@@ -265,6 +265,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     const copyAndPaste = async (action: Locator, text: string) => {
       await action.click()
       await expect(page.getByText('Copied!', { exact: true }).last()).toBeVisible()
+      await page.keyboard.press('Escape')
       await editor.click()
       await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V')
       await expect(editor).toHaveText(text)

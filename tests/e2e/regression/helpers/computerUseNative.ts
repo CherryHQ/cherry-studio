@@ -18,9 +18,11 @@ export function readNativePermission(panel: 'Privacy_Accessibility' | 'Privacy_S
         set frontmost to true
         repeat 40 times
           if exists window 1 then
-            repeat with element in entire contents of window 1
+            set elementsSnapshot to entire contents of window 1
+            repeat with elementReference in elementsSnapshot
+              set element to contents of elementReference
               if role of element is "AXCheckBox" then
-                if (name of element as text) contains "Open Computer Use" then
+                if (name of element as text) contains "Cherry Computer Use" then
                   return value of element as text
                 end if
               end if
@@ -30,7 +32,7 @@ export function readNativePermission(panel: 'Privacy_Accessibility' | 'Privacy_S
         end repeat
       end tell
     end tell
-    error "UNCOVERED: Open Computer Use permission checkbox is not exposed by System Settings"
+    error "UNCOVERED: Cherry Computer Use permission checkbox is not exposed by System Settings"
   `)
 }
 

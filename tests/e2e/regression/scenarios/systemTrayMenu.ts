@@ -46,10 +46,13 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
           '-e',
           `
       ObjC.import('CoreGraphics')
+      ObjC.import('Foundation')
       const process = Application('System Events').processes.whose({unixId: ${record.electronPid}})[0]
       const item = process.menuBars[1].menuBarItems[0]
       const position = item.position(), size = item.size()
       const point = {x: position[0] + size[0] / 2, y: position[1] + size[1] / 2}
+      $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 5, point, 0))
+      $.NSThread.sleepForTimeInterval(0.1)
       $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 3, point, 1))
       $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 4, point, 1))
     `
