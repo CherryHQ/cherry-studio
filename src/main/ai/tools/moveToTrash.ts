@@ -8,6 +8,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
+import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { assertWorkspacePathUnchanged, isErrno, relativeWorkspacePath } from './assistantFileSafety'
@@ -38,6 +39,8 @@ interface TrashProtectionContext {
   downloadsDirectory?: string
   protectedDirectories?: readonly string[]
   environment?: Readonly<Record<string, string | undefined>>
+  applicationDataDirectory?: string
+  workspaceType?: AgentWorkspaceType
 }
 
 function normalizeComparable(filePath: string, platform: NodeJS.Platform): string {
@@ -55,6 +58,15 @@ function normalizeProtectedComparable(filePath: string, platform: NodeJS.Platfor
 // Only a whole `..` segment escapes; `..x` is an ordinary child name.
 function escapesRoot(relative: string, pathApi: path.PlatformPath): boolean {
   return relative === '..' || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative)
+}
+
+function isStrictWorkspaceChild(targetPath: string, workspacePath: string, platform: NodeJS.Platform): boolean {
+  const pathApi = platform === 'win32' ? path.win32 : path.posix
+  const relative = pathApi.relative(
+    normalizeComparable(workspacePath, platform),
+    normalizeComparable(targetPath, platform)
+  )
+  return relative !== '' && !escapesRoot(relative, pathApi)
 }
 
 function isSameOrWithin(targetPath: string, rootPath: string, platform: NodeJS.Platform): boolean {
@@ -105,21 +117,29 @@ export function getProtectedTrashTargetReason(
   }
 
   const sensitiveUserDirectories = home
-    ? [
-        '.ssh',
-        '.gnupg',
-        '.aws',
-        '.azure',
-        '.kube',
-        '.docker',
-        ...(platform === 'win32' ? ['AppData'] : ['.config', '.local/share']),
-        ...(platform === 'darwin' ? ['Library'] : [])
-      ].map((directory) => pathApi.join(home, directory))
+    ? ['.ssh', '.gnupg', '.aws', '.azure', '.kube', '.docker'].map((directory) => pathApi.join(home, directory))
     : []
   if (
     [...sensitiveUserDirectories, ...(context.protectedDirectories ?? [])].some((directory) =>
       isSameOrWithin(target, directory, platform)
     )
+  ) {
+    return 'a credential, configuration, or application-data directory'
+  }
+
+  const applicationDataDirectories = home
+    ? [
+        ...(platform === 'win32' ? ['AppData'] : ['.config', '.local/share']),
+        ...(platform === 'darwin' ? ['Library'] : [])
+      ].map((directory) => pathApi.join(home, directory))
+    : []
+  if (context.applicationDataDirectory) applicationDataDirectories.push(context.applicationDataDirectory)
+  // Session content is disposable even though its storage parent is application data.
+  const isManagedWorkspaceContent =
+    context.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && isStrictWorkspaceChild(targetPath, workspacePath, platform)
+  if (
+    !isManagedWorkspaceContent &&
+    applicationDataDirectories.some((directory) => isSameOrWithin(target, directory, platform))
   ) {
     return 'a credential, configuration, or application-data directory'
   }
@@ -195,7 +215,8 @@ function sameFileIdentity(left: BigIntStats, right: BigIntStats): boolean {
 export async function moveWorkspaceItemToTrash(
   workspacePath: string,
   input: MoveToTrashInput,
-  signal: AbortSignal
+  signal: AbortSignal,
+  workspaceType?: AgentWorkspaceType
 ): Promise<{ path: string; type: 'file' | 'directory'; destination: 'trash' }> {
   signal.throwIfAborted()
   const validatedInput = moveToTrashInputSchema.parse(input)
@@ -212,7 +233,9 @@ export async function moveWorkspaceItemToTrash(
   const protectionContext: TrashProtectionContext = {
     homeDirectory: application.getPath('sys.home'),
     downloadsDirectory: application.getPath('sys.downloads'),
-    protectedDirectories: [application.getPath('cherry.home'), application.getPath('app.userdata')]
+    protectedDirectories: [application.getPath('cherry.home')],
+    applicationDataDirectory: application.getPath('app.userdata'),
+    workspaceType
   }
   const protectedReason = getProtectedTrashTargetReason(resolvedTargetPath, resolvedWorkspacePath, protectionContext)
   if (protectedReason) {

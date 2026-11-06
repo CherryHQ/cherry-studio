@@ -669,6 +669,8 @@ const AgentChatSessionCenter = ({
       selectAllPagination={runtime.selectAllPagination}
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
+      getMessageSiblings={runtime.getMessageSiblings}
+      setActiveBranch={runtime.setActiveBranch}
       deleteMessage={runtime.deleteMessage}
       startEditing={runtime.startEditing}
       editBusy={runtime.editBusy}
@@ -742,6 +744,7 @@ function AgentChatLayout({
       traceId={sessionSnapshot?.traceId ?? undefined}
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
+      runtimeType={activeAgent?.type}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>

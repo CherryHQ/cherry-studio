@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -94,6 +93,9 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
   return runtime !== null
 }
 
+/** In-place navigation a routed host supplies; without it the fork-source link is hidden. */
+export type NavigateToForkSource = (input: { sourceSessionId: string; returnSessionId?: string }) => Promise<void>
+
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
@@ -117,11 +119,15 @@ interface AgentMessageListParams {
   previewInputFile?: MessageListActions['previewInputFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
+  navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
+  scrollToBottomOnSend?: boolean
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
@@ -183,10 +189,14 @@ export function useAgentMessageListProviderValue({
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval,
+  navigateToForkSource,
   imageActionConsumer,
+  scrollToBottomOnSend = false,
   messageNavigation,
   workspacePath,
   messageTail,
@@ -195,7 +205,6 @@ export function useAgentMessageListProviderValue({
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
-  const navigate = useNavigate()
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -340,14 +349,20 @@ export function useAgentMessageListProviderValue({
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+      const unsubscribeSend = scrollToBottomOnSend
+        ? EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
+            if (topicId === topic.id) runtime.scrollToBottom()
+          })
+        : undefined
 
       return () => {
+        unsubscribeSend?.()
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, scrollToBottomOnSend, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -393,17 +408,14 @@ export function useAgentMessageListProviderValue({
     async (sourceSessionId: string) => {
       try {
         await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
-        await navigate({
-          to: '/app/agents',
-          search: { sessionId: sourceSessionId, forkReturnSessionId: sessionId ?? undefined }
-        })
+        await navigateToForkSource?.({ sourceSessionId, returnSessionId: sessionId ?? undefined })
       } catch (error) {
         notifyError(
           isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
         )
       }
     },
-    [navigate, notifyError, sessionId, t]
+    [navigateToForkSource, notifyError, sessionId, t]
   )
   const forkSession = useCallback(
     async (messageId: string) => {
@@ -428,6 +440,7 @@ export function useAgentMessageListProviderValue({
   const state = useMemo<MessageListState>(
     () => ({
       topic,
+      getMessageSiblings,
       messages: messageItems,
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
@@ -449,6 +462,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       getMessageActivityState,
+      getMessageSiblings,
       hasOlder,
       isLoading,
       leafCapabilities,
@@ -472,6 +486,7 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
@@ -480,7 +495,7 @@ export function useAgentMessageListProviderValue({
             void startEditing(message.id)
           }
         : undefined,
-      openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
+      openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
@@ -518,8 +533,10 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      setActiveBranch,
       startEditing,
       editBusy,
+      navigateToForkSource,
       openForkSourceSession,
       t,
       abortTool,
